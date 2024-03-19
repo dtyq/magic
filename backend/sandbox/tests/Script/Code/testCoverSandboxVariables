@@ -1,0 +1,14 @@
+{
+    "namespace": [],
+    "aliases": {
+        "hyperftest\\script\\testclass": {
+            "original": "HyperfTest\\Script\\TestClass",
+            "alias": {
+                "nodeType": "Identifier",
+                "name": "TestClass",
+                "attributes": []
+            }
+        }
+    },
+    "code": "return $_sandbox_->options->getName();"
+}

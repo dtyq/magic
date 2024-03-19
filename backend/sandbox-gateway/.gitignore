@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# 单元测试 / 覆盖率报告
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# 日志
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# IDE 相关
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 项目特定
+*.db
+*.sqlite
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.agent
+.cursor/
+.output/
+config/config.yaml
+
+# 临时文件
+tmp/
+temp/
+output/
+data/
+cache/
+
+debug/
+qdrant-config.yaml

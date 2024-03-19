@@ -1,0 +1,66 @@
+{
+  "name": "dtyq/sandbox",
+  "description": "A PHP library that can be used to run PHP code in a sandboxed environment",
+  "keywords": [
+    "php",
+    "sandbox",
+    "parser",
+    "whitelist",
+    "blacklist"
+  ],
+  "type": "library",
+  "homepage": "https://phpsandbox.org/",
+  "license": "BSD-3-Clause",
+  "authors": [
+    {
+      "name": "Elijah Horton",
+      "email": "elijah@corveda.com"
+    },
+    {
+      "name": "Corveda, LLC."
+    }
+  ],
+  "require": {
+    "php": ">=8.0",
+    "ext-json": "*",
+    "nikic/php-parser": "^4.4",
+    "hyperf/di": "*",
+    "hyperf/framework": "*",
+    "psr/cache": "*"
+  },
+  "require-dev": {
+    "symfony/yaml": "~3.0|~4.0|~5.0",
+    "phpunit/phpunit": "^9.5",
+    "symfony/var-dumper": "^6.0",
+    "swoole/ide-helper": "^5.0",
+    "friendsofphp/php-cs-fixer": "3.*",
+    "phpstan/phpstan": "^0.12.18",
+    "hyperf/testing": "*"
+  },
+  "replace": {
+    "fieryprophet/php-sandbox": "*"
+  },
+  "autoload": {
+    "files": [
+      "src/functions.php"
+    ],
+    "psr-4": {
+      "PHPSandbox\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "HyperfTest\\": "./tests/"
+    }
+  },
+  "scripts": {
+    "test": "@php tests/phpunit-adaptor run",
+    "analyse": "phpstan analyse --memory-limit 2G -c phpstan.neon",
+    "cs-fix": "php-cs-fixer fix $1"
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-master": "0.1-dev"
+    }
+  }
+}

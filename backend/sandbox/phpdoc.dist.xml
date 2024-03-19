@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpdoc>
+    <title>PHPSandbox</title>
+    <parser>
+        <default-package-name>CorvPHPSandbox</default-package-name>
+        <target>docs/cache</target>
+        <markers>
+            <item>TODO</item>
+            <item>FIXME</item>
+        </markers>
+        <extensions>
+            <extension>php</extension>
+        </extensions>
+    </parser>
+    <files>
+        <directory>src</directory>
+        <ignore-hidden>true</ignore-hidden>
+        <ignore-symlinks>true</ignore-symlinks>
+    </files>
+    <transformer>
+        <target>docs</target>
+    </transformer>
+</phpdoc>

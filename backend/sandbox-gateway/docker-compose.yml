@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  sandbox-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${SANDBOX_GATEWAY_IMAGE}
+    container_name: ${SANDBOX_GATEWAY_CONTAINER_NAME:-sandbox-gateway}
+    ports:
+      - "${SANDBOX_GATEWAY_PORT}:${SANDBOX_GATEWAY_PORT}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .env.agent:/app/.env.agent
+    env_file:
+      - .env
+    environment:
+      - http_proxy=
+      - https_proxy=
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - no_proxy=
+      - NO_PROXY=
+    restart: unless-stopped
+    networks:
+      - magic-sandbox-network
+
+networks:
+  magic-sandbox-network:
+    external: true

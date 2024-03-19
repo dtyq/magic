@@ -1,0 +1,35 @@
+# Open Source License Agreement
+
+This repo is licensed under a modified version of the Apache License 2.0, supplemented by the following terms:
+
+## 1. Commercial Usage
+
+Magic may be used for commercial purposes, such as supporting backend services for other applications or serving as an enterprise application development framework.
+
+However, a commercial license must be obtained from the licensor if the following conditions are met:
+
+### a. Multi-Tenancy Restrictions
+
+- **Usage Limitations**: Operating a multi-tenant SaaS service using Magic's source code is prohibited without explicit written consent from Magic.
+- **Tenant Definition**: Under this agreement, a "tenant" refers to an independent organization on Magic.
+
+### b. Branding & Copyright Attribution
+
+- **Mandatory Attribution Requirements**: When using Magic's product and system, you may not remove or alter logos, trademarks, or copyright notices in the console or applications. 
+
+For licensing inquiries, contact **bd@dtyq.com**.
+
+## 2. Contributor Agreement
+
+As a contributor, you should agree that:
+
+- The producer can adjust the open-source agreement to be more strict or relaxed as deemed necessary.
+- Your contributed code may be used for commercial purposes, including but not limited to its cloud business operations.
+
+---
+
+Apart from the specific conditions mentioned above, all other rights and restrictions follow the Apache License 2.0.
+
+Detailed information about the Apache License 2.0 can be found at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
+© 2025 Lighthouse Engine, Inc.

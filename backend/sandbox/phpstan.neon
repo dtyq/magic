@@ -1,0 +1,30 @@
+# Magic behaviour with __get, __set, __call and __callStatic is not exactly static analyser-friendly :)
+# Fortunately, You can ingore it by the following config.
+#
+# vendor/bin/phpstan analyse app --memory-limit 200M -l 0
+#
+parametersSchema:
+	detectionFunction: structure([
+		nodes: schema(listOf(string()), nullable())
+	])
+
+parameters:
+    level: 5
+    bootstrapFiles:
+    paths:
+        - ./src
+    ignoreErrors:
+        - '#Method PHPSandbox\\Core\\SandboxWhitelistVisitor\:\:leaveNode\(\) should return array<PhpParser\\Node>\|int\|PhpParser\\Node\|null but return statement is missing.#'
+        - '#Property PhpParser\\Node\\Stmt\\StaticVar\:\:\$default \(PhpParser\\Node\\Expr\|null\) does not accept PhpParser\\Node\\Arg\|PhpParser\\Node\\VariadicPlaceholder.#'
+
+    detectionFunction:
+        nodes:
+            - dd
+            - dump
+            - exec
+            - phpinfo
+            - print_r
+            - proc_open
+            - shell_exec
+            - system
+            - var_dump
