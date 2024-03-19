@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         backupGlobals="false"
+         bootstrap="./test/bootstrap.php"
+         colors="true"
+         processIsolation="false"
+         stopOnFailure="false"
+         cacheDirectory=".phpunit.cache"
+         backupStaticProperties="false" 
+         failOnWarning="false">
+
+  <!-- 环境变量配置 -->
+  <php>
+    <env name="APP_ENV" value="testing"/>
+  </php>
+
+  <!-- 测试套件定义 -->
+  <testsuites>
+    <testsuite name="大模型网关测试">
+      <directory suffix="Test.php">test/Cases/Api/ModelGateway</directory>
+    </testsuite>
+    <testsuite name="登录测试">
+      <directory suffix="Test.php">test/Cases/Api/Login</directory>
+      <directory suffix="Test.php">test/Cases/Api/Contact</directory>
+    </testsuite>
+    <testsuite name="聊天用户API测试">
+      <directory suffix="Test.php">test/Cases/Api/Chat</directory>
+    </testsuite>
+    <testsuite name="组件测试">
+      <directory suffix="Test.php">test/Cases/Api/Kernel</directory>
+      <directory suffix="Test.php">test/Cases/Application/Kernel</directory>
+      <directory suffix="Test.php">test/Cases/Application/Bootstrap</directory>
+    </testsuite>
+    <testsuite name="权限测试">
+      <directory suffix="Test.php">test/Cases/Application/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Api/Permission</directory>
+    </testsuite>
+    <testsuite name="组织测试">
+      <directory suffix="Test.php">test/Cases/Domain/Organization</directory>
+    </testsuite>
+    <testsuite name="管理后台测试">
+      <directory suffix="Test.php">test/Cases/Api/Admin</directory>
+    </testsuite>
+  </testsuites>
+
+  <!-- 覆盖率统计的目录配置，不是执行单测的目录 -->
+  <source>
+    <include>
+      <directory suffix=".php">app</directory>
+    </include>
+  </source>
+
+  <!-- 覆盖率配置（PHPUnit 10.x 新结构）
+
+  <coverage enabled="false" includeUncoveredFiles="false"
+            pathCoverage="false"
+            ignoreDeprecatedCodeUnits="true"
+            disableCodeCoverageIgnore="true">
+    <report>
+      <text outputFile="coverage/text.txt" showUncoveredFiles="false"/>
+      <cobertura outputFile="coverage/cobertura.xml"/>
+      <clover outputFile="coverage/clover.xml"/>
+      <html outputDirectory="coverage/html" lowUpperBound="35" highLowerBound="70"/>
+    </report>
+  </coverage> -->
+
+  <!-- 日志配置 -->
+  <logging>
+    <junit outputFile="coverage/junit.xml"/>
+    <teamcity outputFile="coverage/teamcity.txt"/>
+    <testdoxHtml outputFile="coverage/testdox.html"/>
+    <testdoxText outputFile="coverage/testdox.txt"/>
+  </logging>
+
+  <!-- 扩展配置（需要兼容 PHPUnit 10） -->
+  <extensions>
+    <bootstrap class="HyperfTest\Extensions\Runners\SlowestTests\Extension">
+      <parameter name="maxTests" value="100"/>  <!-- 最大收集数量 -->
+      <parameter name="minDuration" value="1000"/> <!-- 最小耗时（毫秒） -->
+    </bootstrap>
+  </extensions>
+</phpunit>
