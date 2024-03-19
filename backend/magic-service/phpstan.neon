@@ -1,0 +1,36 @@
+# Magic behaviour with __get, __set, __call and __callStatic is not exactly static analyser-friendly :)
+# Fortunately, You can ingore it by the following config.
+#
+# vendor/bin/phpstan analyse app --memory-limit 200M -l 0
+# Magic behaviour with __get, __set, __call and __callStatic is not exactly static analyser-friendly :)
+# Fortunately, You can ingore it by the following config.
+#
+# vendor/bin/phpstan analyse app --memory-limit 200M -l 0
+#
+parameters:
+  tmpDir: '%currentWorkingDirectory%/.phpstan.cache'
+  level: 5
+  paths:
+    - app
+  excludePaths:
+  reportUnmatchedIgnoredErrors: false
+  # 信任PHPDoc中声明的类型，并根据类型做静态分析
+  treatPhpDocTypesAsCertain: false
+  ignoreErrors:
+    - '#Static call to instance method Hyperf\\HttpServer\\Router\\Router::[a-zA-Z0-9\\_]+\(\)#'
+    - '#Static call to instance method Hyperf\\DbConnection\\Db::[a-zA-Z0-9\\_]+\(\)#'
+    - message: '#Static call to instance method Dtyq\\ObjectGenerator\\ObjectGeneratorFactory::dto\(\)\.#'
+    - message: '#Static call to instance method Dtyq\\ObjectGenerator\\ObjectGeneratorFactory::object\(\)\.#'
+    - message: '#Constant BASE_PATH not found#'
+    - message: '#Constant LOCAL_HTTP_URL not found#'
+    - message: '#Call to an undefined static method .*::insert\(\)#'
+    - message: '#Call to an undefined static method .*::updateOrCreate\(\)#'
+    - message: '#Access to an undefined property .*Model.*#'
+    - message: '#Call to an undefined static method .*Model::.*#'
+    - message: '#Call to an undefined method Hyperf.*Builder::.*#'
+    - message: '#Call to an undefined method Hyperf\\SocketIOServer\\NamespaceInterface::to\(\).*#'
+    - message: '#Using nullsafe method call on non-nullable.#'
+    - message: '#Expression on left side of .* is not nullable.#'
+    - message: '#Offset .* always exists and is not nullable.#'
+    - message: '#Match arm is unreachable because previous comparison is always true.#'
+    - message: '#Match arm comparison .* is always true.#'
