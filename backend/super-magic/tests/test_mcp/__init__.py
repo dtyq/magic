@@ -1,0 +1,1 @@
+"""SuperMagic MCP 模块测试""" 
