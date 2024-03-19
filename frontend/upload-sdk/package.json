@@ -1,0 +1,116 @@
+{
+	"name": "@dtyq/upload-sdk",
+	"version": "0.0.6",
+	"description": "",
+	"keywords": [],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/dtyq/upload-sdk"
+	},
+	"license": "Apache License 2.0",
+	"type": "module",
+	"main": "dist/lib/index.js",
+	"module": "dist/es/index.js",
+	"typings": "dist/es/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/es/index.d.ts",
+				"default": "./dist/es/index.js"
+			},
+			"require": {
+				"types": "./dist/lib/index.d.ts",
+				"default": "./dist/lib/index.js"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"package.json"
+	],
+	"scripts": {
+		"prebuild": "rimraf dist",
+		"build": "npm run clean && tsup --config tsup.config.ts",
+		"clean": "rm -rf dist",
+		"lint": "eslint ./src --ext ts,tsx",
+		"lint:fix": "eslint ./src --ext ts,tsx --fix && prettier --write ./src/**/*.ts",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui"
+	},
+	"lint-staged": {
+		"./src/**/*.{ts,tsx}": [
+			"eslint --fix",
+			"prettier --write ./src/**/*.ts",
+			"git add"
+		]
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.911.0",
+		"@babel/runtime": "^7.22.10",
+		"buffer": "^6.0.3",
+		"crypto-js": "^3.1.1",
+		"esdk-obs-browserjs": "^3.23.5",
+		"lodash-es": "~4.17.21",
+		"mime": "^3.0.0",
+		"process": "^0.11.10"
+	},
+	"devDependencies": {
+		"@babel/eslint-parser": "^7.18.2",
+		"@dtyq/eslint-config": "~0.0.4",
+		"@semantic-release/changelog": "^6.0.1",
+		"@semantic-release/commit-analyzer": "^9.0.2",
+		"@semantic-release/git": "^10.0.1",
+		"@semantic-release/gitlab": "^9.4.1",
+		"@semantic-release/npm": "^9.0.1",
+		"@semantic-release/release-notes-generator": "^10.0.3",
+		"@types/crypto-js": "^4.1.1",
+		"@types/lodash-es": "~4.17.12",
+		"@types/mime": "^3.0.1",
+		"@types/node": "^20.17.9",
+		"@types/qs": "^6.9.7",
+		"@vitest/coverage-v8": "^3.2.4",
+		"@vitest/ui": "^3.2.4",
+		"babel": "^6.23.0",
+		"babel-eslint": "^10.1.0",
+		"babel-plugin-import": "^1.13.8",
+		"babel-plugin-transform-react-remove-prop-types": "^0.4.24",
+		"colors": "^1.3.2",
+		"commitizen": "^3.0.0",
+		"coveralls": "^3.0.2",
+		"cross-env": "^5.2.0",
+		"cz-conventional-changelog": "^2.1.0",
+		"esbuild-plugin-copy": "^2.1.1",
+		"eslint": "^8.57.1",
+		"jsdom": "^25.0.1",
+		"mock-xmlhttprequest": "^8.2.0",
+		"prettier": "^3.5.3",
+		"prompt": "^1.0.0",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
+		"replace-in-file": "^3.4.2",
+		"rimraf": "^6.0.1",
+		"semantic-release": "^19.0.3",
+		"shelljs": "^0.8.3",
+		"travis-deploy-once": "^5.0.9",
+		"ts-node": "^10.9.2",
+		"tslib": "^2.4.0",
+		"tsup": "~8.0.2",
+		"typedoc": "^0.27.5",
+		"typescript": "^5.7.2",
+		"url": "^0.11.0",
+		"vitest": "^3.2.4"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"browserslist": [
+		"defaults",
+		"not IE 11",
+		"maintained node versions"
+	],
+	"publishConfig": {
+		"access": "public"
+	}
+}
