@@ -1,0 +1,55 @@
+.toolbarWrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: white;
+
+    border: 2px solid #4d53e8;
+    border-radius: 4px;
+    box-shadow: 0 8px 12px 0 rgba(29, 28, 35, 0.1);
+    padding: 8px;
+    gap: 8px;
+
+    .deleteBtn {
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        color: #1c1d23 !important;
+        height: 24px;
+
+        &:hover,
+        &:active,
+        &:focus {
+
+            color: #1c1d23;
+        }
+
+    }
+
+    svg {
+        cursor: pointer;
+        background-color: #fff;
+        border-radius: 4px;
+        padding: 2px;
+
+        &:hover {
+            background-color: rgb(242, 243, 244);
+        }
+
+    }
+
+}
+
+.popconfirm {
+    :global {
+        .magic-popconfirm-message {
+            gap: 4px;
+        }
+        .magic-popconfirm-message-icon {
+            align-items: center;
+            display: flex;
+            height: 22px;
+        }
+
+    }
+}

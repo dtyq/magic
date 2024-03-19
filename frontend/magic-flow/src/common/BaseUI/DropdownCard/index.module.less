@@ -1,0 +1,52 @@
+.dropdownCard {
+
+    .outputDropdown {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #1C1D23;
+        margin-bottom: 6px;
+        border-radius: 4px;
+        // padding: 4px;
+        cursor: pointer;
+
+        // &:hover {
+        //     background-color: #2E2F380D;
+        // }
+        .left {
+            display: flex;
+            align-items: center;
+
+            .icon {
+                width: 20px;
+                height: 20px;
+                margin-top: 2px;
+
+
+                svg {
+                    width: 20px;
+                    height: 20px;
+                }
+            }
+
+            .text {
+                font-size: 14px;
+                line-height: 20px;
+                margin-left: 6px;
+                font-weight: 600;
+            }
+        }
+
+        .right {}
+
+    }
+
+
+    .form {
+        transition: height 0.2s ease-in-out;
+    }
+
+    .zeroHeight {
+        height: 0 !important;
+    }
+}

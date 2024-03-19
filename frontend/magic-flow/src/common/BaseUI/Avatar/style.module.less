@@ -1,0 +1,32 @@
+.wrap {
+	display: inline-block;
+	border-radius: 100%;
+	overflow: hidden;
+	user-select: none;
+
+	:global(&.avatar) {
+		display: inline-block;
+		border-radius: 100%;
+		overflow: hidden;
+		user-select: none;
+		margin-right: 0;
+	}
+
+	&>* {
+		width: 100%;
+		height: 100%;
+	}
+
+	&>img {
+		object-fit: cover;
+		vertical-align: baseline;
+	}
+
+	&>div {
+		border-radius: 50%;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		color: #fff;
+	}
+}

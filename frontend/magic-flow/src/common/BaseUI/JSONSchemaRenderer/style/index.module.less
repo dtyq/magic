@@ -1,0 +1,121 @@
+.jsonSchemaTree {
+	overflow: auto;
+	max-height: 200px;
+
+	&::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+		background-color: inherit;
+	}
+
+	&::-webkit-scrollbar-track {
+		width: 4px;
+		background-color: inherit;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background-color: #2E2F3817;
+		border-radius: 8px;
+		transition: all linear 0.1s;
+	}
+
+	.keyItem {
+		min-height: 32px;
+		position: relative;
+		list-style: none;
+		outline: 2px solid transparent;
+		border-radius: 8px;
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+
+		&:not(.hover-none) {
+			&:hover {
+				background-color: #2E2F380D;
+			}
+		}
+
+		svg {
+			margin-top: 2px;
+			height: 10px;
+			width: 10px;
+		}
+
+		.dropdown {
+			color: #1C1D2399;
+			margin-left: 6px;
+			padding-right: 0;
+			height: 16px;
+			width: 16px;
+		}
+
+		.title {
+			margin-left: 10px;
+			color: #1C1D23CC;
+			font-weight: 600;
+			line-height: 20px;
+		}
+
+		.key {
+			color: #1C1D2399;
+			font-size: 12px;
+			line-height: 16px;
+			margin-left: 6px;
+		}
+
+		.type {
+			background-color: #2E2F3817;
+			border-radius: 3px;
+			padding: 2px 8px;
+			color: #1C1D2399;
+			font-size: 12px;
+			line-height: 16px;
+			margin-left: 6px;
+		}
+
+		.desc {
+			margin-left: 6px;
+		}
+	}
+
+	.objectRow {
+
+		position: relative;
+		width: 100%;
+
+		&::before {
+			position: absolute;
+			top: 32px;
+			left: 32px;
+			display: block;
+			border-width: 0 0 0 1.3px;
+			border-color: #1C1D2399;
+			border-style: dashed;
+			height: calc(100% - 36px);
+			content: "";
+		}
+
+		// key文本
+		.rootKey,
+		.objectKeyItem {
+			.item {
+				margin-left: 8px;
+			}
+		}
+
+		.keyList {
+			list-style-type: none;
+			margin-bottom: 0;
+
+			.keyItem {
+				position: relative;
+				list-style: none;
+
+				&.hover-none {
+					outline: none;
+				}
+
+			}
+		}
+	}
+}

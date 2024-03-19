@@ -1,0 +1,84 @@
+.select-wrapper {
+	width: 100%;
+
+	:global {
+
+		.magic-select-selector {
+			position: relative;
+			padding-left: 11px;
+			height: auto !important;
+			min-height: 32px;
+		}
+
+		.magic-select-dropdown {
+			left: 0 !important;
+			top: 32px !important;
+		}
+
+		.magic-select-selection-placeholder {
+			margin-left: 11px;
+		}
+
+		::placeholder {
+			color: #1C1D2359 !important;
+		}
+
+		.magic-select-clear {
+			background-color: transparent;
+		}
+
+		.magic-select-clear {
+			width: 16px;
+			height: 16px;
+			margin-top: -8px;
+			right: 12px;
+		}
+
+		.magic-select-selection-overflow {
+			position: static;
+			padding: 4px;
+
+			& + .magic-select-selection-placeholder {
+				margin-left: 2px;
+			}
+
+			.magic-select-selection-overflow-item {
+				position: static;
+
+				.magic-select-selection-item {
+					margin: 0 4px 0 0;
+
+					.magic-select-selection-item-content {
+						margin-left: 8px;
+						font-size: 12px;
+						line-height: 16px;
+
+					}
+
+					.magic-select-selection-item-remove {
+						margin-right: 4px;
+					}
+				}
+
+				.magic-select-selection-search {
+					position: static;
+				}
+			}
+		}
+
+		.magic-select-item-option {
+			margin: 0 2px 2px 2px;
+			border-radius: 10px;
+
+			&:hover {
+				background-color: #2E2F380D !important;
+				color: #1C1D23CC !important;
+			}
+		}
+
+		.magic-select-item-option-selected {
+			background-color: #EEF3FD !important;
+			color: #1C1D23CC !important;
+		}
+	}
+}

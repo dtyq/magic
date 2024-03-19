@@ -1,0 +1,29 @@
+@main-font-color: #1c1f23;
+
+.titleEdit {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 24px;
+	color: @main-font-color;
+
+	.titleView {
+		display: flex;
+		align-items: center;
+	}
+
+	.title {
+		margin-right: 5px;
+		font-size: 14px;
+		vertical-align: middle;
+		max-width: 200px;
+		/* 设置容器宽度，可根据需要调整 */
+		overflow: hidden;
+		/* 隐藏超出容器的部分 */
+		text-overflow: ellipsis;
+		/* 显示省略号 */
+		white-space: nowrap;
+		/* 防止文本换行 */
+	}
+
+}

@@ -1,0 +1,580 @@
+.nodeTestResult {
+	margin-top: 12px;
+
+	.nodeTestingHeader {
+		height: 24px;
+		display: flex;
+		align-items: center;
+		padding: 8px 12px;
+		padding-bottom: 0;
+		justify-content: space-between;
+		border-radius: 8px 8px 0 0;
+
+		.left {
+			display: flex;
+			align-items: center;
+
+			.icon {
+				margin-right: 2px;
+				display: flex;
+				align-items: center;
+
+				svg {
+					width: 24px;
+					height: 24px;
+				}
+			}
+
+			.loadingIcon {
+				margin-right: 12px;
+			}
+
+			.label {
+				color: #1C1D23;
+				line-height: 20px;
+				margin-right: 8px;
+			}
+
+			.tags {
+				display: flex;
+
+				.tag {
+					border-radius: 3px;
+					padding: 2px 8px;
+					font-size: 12px;
+					line-height: 16px;
+				}
+			}
+		}
+
+		.right {
+			.open {
+				color: #315CEC;
+				line-height: 20px;
+				font-size: 14px;
+				cursor: pointer;
+				font-weight: 600;
+
+				&:hover {
+					color: #6888f4;
+				}
+			}
+		}
+	}
+
+	.nodeTestingContent {
+		position: absolute;
+		background: white;
+		z-index: 1;
+		top: 0;
+		left: calc(100% + 20px);
+		box-shadow: 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.1);
+		width: 577px;
+		border-radius: 8px;
+		border: 1px solid rgba(28, 31, 35, 0.08);
+		max-height: 800px;
+		overflow-y: auto;
+
+		.iconX {
+			float: right;
+			margin-right: 10px;
+			margin-top: 5px;
+			cursor: pointer;
+
+			&:hover {
+				opacity: 0.6;
+			}
+		}
+
+		.input {
+			border-bottom: 1px solid #1C1D2314;
+		}
+
+		.output {
+			.body {
+                user-select: text;
+            }
+		}
+
+		.input,
+		.output {
+			padding: 12px;
+
+			.header {
+				display: flex;
+				align-items: center;
+				margin-bottom: 12px;
+
+				.inputTitle {
+					color: #1C1D23;
+					font-weight: 600;
+					margin-right: 6px;
+				}
+
+				.copyContainer {
+					display: flex;
+					align-items: center;
+					gap: 10px;
+					
+					svg {
+						width: 20px;
+						height: 20px;
+						padding: 4px;
+						cursor: pointer;
+						border-radius: 4px;
+
+						&:hover {
+							background-color: #2E2F380D;
+						}
+					}
+					
+					.checkIcon {
+						animation: fadeIn 0.3s ease;
+					}
+				}
+			}
+
+			.body {
+				background-color: #2E2F380D;
+				border-radius: 8px;
+				padding: 12px;
+
+                .complexValue {
+                    white-space: pre-wrap;
+                    font-family: monospace;
+                    background-color: rgba(0, 0, 0, 0.03);
+                    padding: 8px;
+                    border-radius: 4px;
+                    max-height: 300px;
+                    overflow: auto;
+                }
+
+                .shortPreview {
+                    display: inline-block;
+                    max-width: 300px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                .viewDetailBtn {
+                    margin-left: 8px;
+                    color: #315CEC;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                }
+
+
+				.bodyItem {
+					.key {
+						color: #315CEC;
+					}
+
+					.splitor {
+						margin: 0 2px;
+					}
+
+					.value {
+						color: #1C1D23CC;
+						word-wrap: break-word;
+						white-space: pre-wrap;
+					}
+
+					.error {
+						color: #FF1809;
+					}
+				}
+			}
+		}
+	}
+}
+
+.headerLoading {
+	svg {
+		width: 17px !important;
+		height: 17px !important;
+		color: #5c86fa;
+	}
+}
+
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.modalBody {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+.modalBody pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.fullscreenButtonContainer {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.fullscreenButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #333;
+  font-size: 14px;
+  
+  &:hover {
+    background-color: #e8e8e8;
+  }
+  
+  svg {
+    color: #666;
+  }
+}
+
+.fullscreenModalPortal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1500;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fullscreenModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.fullscreenModalContent {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  height: 90%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreenModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #eee;
+  
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+  }
+  
+  button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    
+    &:hover {
+      color: #333;
+    }
+  }
+}
+
+.fullscreenModalBody {
+  padding: 24px;
+  overflow: auto;
+  flex: 1;
+}
+
+.fullscreenSection {
+  margin-bottom: 24px;
+  
+  h4 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #315CEC;
+    font-weight: 600;
+  }
+}
+
+.fullscreenSectionHeader {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 12px;
+  
+  h4 {
+    margin: 0;
+  }
+  
+  .copyContainer {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    
+    .fullscreenCopyIcon {
+      padding: 4px;
+      border-radius: 4px;
+      
+      &:hover {
+        background-color: #2E2F380D;
+      }
+    }
+    
+    .checkIcon {
+      animation: fadeIn 0.3s ease;
+    }
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fullscreenSectionContent {
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.fullscreenItem {
+  margin-bottom: 8px;
+}
+
+.fullscreenKey {
+  color: #315CEC;
+  font-weight: 500;
+}
+
+.fullscreenSplitor {
+  margin: 0 4px;
+}
+
+.value, .fullscreenValue {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    
+    &.complexValue, &.fullscreenComplex {
+        padding: 8px;
+        background-color: #F8F9FA;
+        border-radius: 4px;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+}
+
+.fullscreenError {
+  color: #FF1809;
+}
+
+.fullscreenComplex {
+  display: block;
+  white-space: pre-wrap;
+  font-family: monospace;
+  background-color: white;
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.fullscreenContentWrapper {
+  display: flex;
+  flex: 1;
+  position: relative;
+  height: calc(100% - 60px); /* 减去header的高度 */
+  overflow: hidden;
+}
+
+.fullscreenModalBody {
+  padding: 24px;
+  overflow: auto;
+  flex: 1;
+  height: 100%;
+}
+
+/* 小地图导航样式 */
+.miniMap {
+  position: absolute;
+  right: 12px;
+  top: 24px;
+  width: 80px; /* 增加基础宽度 */
+  height: calc(100% - 48px);
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.3s ease;
+  transform: translateX(70px); /* 默认隐藏部分，调整为适合新宽度 */
+  opacity: 0.6;
+  overflow: hidden;
+  
+  &:hover, &.miniMapHovered {
+    transform: translateX(0); /* 鼠标悬浮时完全显示 */
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    width: 160px; /* 悬浮时更宽，显示更多内容 */
+  }
+}
+
+.miniMapContent {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  pointer-events: none; /* 防止内容捕获鼠标事件 */
+  display: flex;
+  flex-direction: column;
+}
+
+.miniSection {
+  margin-bottom: 0; /* 减少section间距 */
+  border-radius: 3px;
+  overflow: hidden;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.miniSectionHeader {
+  font-size: 8px;
+  color: #666;
+  padding: 2px;
+  background-color: rgba(49, 92, 236, 0.1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.miniItems {
+  padding: 0; /* 减少内边距 */
+  position: relative;
+  flex-grow: 1;
+  min-height: 40px; /* 减小最小高度 */
+}
+
+.miniItem {
+  height: 16px; /* 增加高度 */
+  margin: 1px 0;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 1px;
+  position: absolute;
+  transition: all 0.2s ease;
+  overflow: hidden;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+    z-index: 6; /* 确保悬停项显示在指示器之上 */
+  }
+  
+  &.miniComplex {
+    background-color: rgba(49, 92, 236, 0.15);
+    border-left: 3px solid #315CEC;
+    z-index: 1;
+  }
+}
+
+.miniItemKey {
+  display: block;
+  font-size: 10px; /* 增加字体大小 */
+  padding: 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #666;
+  pointer-events: auto; /* 允许点击交互 */
+  cursor: pointer;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.miniItemKeyComplex {
+  color: #315CEC;
+  font-weight: 500;
+}
+
+.miniError {
+  background-color: rgba(255, 24, 9, 0.5);
+  
+  &.miniComplex {
+    background-color: rgba(255, 24, 9, 0.2);
+    border-left: 3px solid #FF1809;
+  }
+}
+
+.miniMapIndicator {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background-color: rgba(49, 92, 236, 0.2);
+  border-radius: 2px;
+  border-right: 2px solid #315CEC;
+  backdrop-filter: blur(1px);
+  transition: opacity 0.2s;
+  pointer-events: none; /* 指示器不捕获鼠标事件 */
+  z-index: 5; /* 确保指示器显示在内容之上 */
+  
+  &:hover {
+    opacity: 0.8 !important;
+  }
+}
