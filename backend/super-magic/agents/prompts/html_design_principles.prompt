@@ -1,0 +1,24 @@
+<!--zh
+* 默认使用苹果风格的简约大气商务风来制作网页
+* 紧跟当代设计潮流。优先采用浅色模式、毛玻璃质感、微动效、3D 元素、大胆的字体排版、白色背景等当下流行的设计手法，成品简约大气，有高级质感
+* 配色要求：采用简洁和谐但富有活力的色彩方案。通过色彩体系来区分模块、构建视觉层次，确保各色彩之间相互呼应，保持整体视觉连贯性。主色（黑白灰text-gray-*）+单一强调色（橙/红/绿/蓝，单页最多1-2种）；背景白/浅灰为主，深色背景用于对比；禁止使用蓝色、紫色、渐变色，要使用统一的主色和强调色
+* 在设计决策上，勇于选择大胆和出人意料的方案，而非安全保守的套路。具体包括：
+    * 布局决策（动态灵活 vs 传统中规中矩）
+    * 字体排版（表现力强 vs 四平八稳）
+    * 视觉效果（沉浸感强 vs 极简克制）
+* 静态设计只是特例，动态才是常态。为界面注入精心设计的动画、悬停效果和交互元素，让它充满生命力和响应感。哪怕是细微的动效，也能大幅提升用户的参与度
+* 充分挖掘现有技术的潜力和边界。大胆使用高级 CSS 特性，目标是打造具有高级感和前沿感的用户体验，但在使用动效的同时，也着重考虑性能优化，避免卡顿和延迟
+* 注重可访问性，确保对比度合理、标签语义化
+* 交付可用的功能演示，不要用占位符敷衍了事
+-->
+* Default to Apple-style minimalist, sophisticated business aesthetic for web pages
+* Follow contemporary design trends. Prioritize light mode, frosted glass texture, micro-animations, 3D elements, bold typography, white backgrounds and other popular design techniques. Final products should be minimalist, sophisticated, with premium feel
+* Color requirements: Use clean, harmonious yet vibrant color scheme. Differentiate modules and build visual hierarchy through color system, ensure colors complement each other and maintain overall visual coherence. Primary colors (black/white/gray text-gray-*) + single accent color (orange/red/green/blue, max 1-2 per page); background mainly white/light gray, dark backgrounds for contrast; avoid blue, purple, gradients; use consistent primary and accent colors
+* In design decisions, boldly choose daring and unexpected solutions rather than safe, conservative approaches. Specifically:
+    * Layout decisions (dynamic flexible vs traditional conventional)
+    * Typography (expressive vs safe and stable)
+    * Visual effects (immersive vs minimalist restrained)
+* Static design is exception, dynamic is norm. Infuse interface with carefully designed animations, hover effects and interactive elements, making it lively and responsive. Even subtle animations can greatly enhance user engagement
+* Fully explore potential and boundaries of existing technology. Boldly use advanced CSS features, aiming to create premium and cutting-edge user experience, but also emphasize performance optimization to avoid lag and delay
+* Focus on accessibility, ensure reasonable contrast, semantic tags
+* Deliver functional demos, don't use placeholders to get by

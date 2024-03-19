@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, minimum-scale=1, viewport-fit=cover" />
+    <title>Super Magic Dashboard</title>
+    <!-- React and React DOM UMD versions -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+    <!-- ECharts for charts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/6.0.0/echarts.min.js"></script>
+    <!-- React Grid Layout UMD version -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.5.2/react-grid-layout.min.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- marked for markdown -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/16.1.1/lib/marked.umd.min.js"></script>
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.34.1/tabler-icons.min.css" />
+    <!-- Style files -->
+    <link rel="stylesheet" href="./index.css" />
+    <!-- Configuration file -->
+    <script src="./config.js"></script>
+    <!-- Data configuration file -->
+    <script src="./data.js"></script>
+    <!-- Dashboard bundle file -->
+    <script src="./dashboard.js"></script>
+    <!-- Magic Project -->
+    <script>
+      window.magicDashboard = {
+        language: "zh-CN", // "zh-CN"、"en-US"
+        sources: [],
+        dataSources: [],
+        geo: [],
+        ready: false,
+        editable: false,
+        draggable: false,
+        resizable: false,
+        deletable: false,
+        expandable: true,
+      };
+      window.magicProjectConfigure = function (config) {
+        document.title = config.name;
+        window.magicDashboard = {
+          ...window.magicDashboard,
+          ...config,
+        };
+        window.language.updateFromConfig();
+      };
+    </script>
+    <!-- Magic Project Config -->
+    <script src="./magic.project.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Set ECharts Theme -->
+    <script>
+      window.ECHARTS_THEME_NAME = "dashboard";
+      window.GET_ECHARTS_THEME_CONFIG = function (dashboardConfig) {
+        var fontFamily = dashboardConfig.BODY_FONT_FAMILY;
+        var fontSize = parseFloat(dashboardConfig.BASE_FONT_SIZE);
+        var fontSizeSecondary = fontSize - 2;
+        var fontSizeWithPixel = `${fontSize}px`;
+        var fontSizeSecondaryWithPixel = `${fontSizeSecondary}px`;
+        var colorTextPrimary = dashboardConfig.COLORS_TEXT_PRIMARY;
+        var colorTextSecondary = dashboardConfig.COLORS_TEXT_SECONDARY;
+        var colorTextThird = dashboardConfig.COLORS_TEXT_THIRD;
+        var colorBorder = dashboardConfig.COLORS_BORDER;
+        var colorPrimary = dashboardConfig.COLORS_PRIMARY;
+        var color = dashboardConfig.ECHARTS_COLOR.slice();
+        return {
+          color,
+          backgroundColor: "transparent",
+          textStyle: {
+            color: colorTextPrimary,
+            fontFamily: fontFamily,
+            fontSize: fontSizeWithPixel,
+          },
+          title: {
+            textStyle: {
+              color: colorTextPrimary,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+            subtextStyle: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeSecondaryWithPixel,
+            },
+          },
+          legend: {
+            type: "scroll",
+            itemWidth: 20, // 25
+            itemHeight: 11.2, // 14
+            textStyle: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+          },
+          categoryAxis: {
+            axisLine: {
+              lineStyle: { color: colorBorder },
+            },
+            axisTick: {
+              lineStyle: { color: colorBorder },
+            },
+            axisLabel: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+              hideOverlap: true,
+            },
+            nameTextStyle: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+            splitLine: {
+              show: false,
+              lineStyle: { color: colorBorder },
+            },
+          },
+          valueAxis: {
+            alignTicks: true,
+            axisLine: {
+              lineStyle: { color: colorBorder },
+            },
+            axisTick: {
+              lineStyle: { color: colorBorder },
+            },
+            axisLabel: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+              hideOverlap: true,
+            },
+            nameTextStyle: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+            splitLine: {
+              lineStyle: { color: colorBorder },
+            },
+          },
+          toolbox: {
+            iconStyle: {
+              colorBorder: colorTextThird,
+            },
+            emphasis: {
+              iconStyle: {
+                colorBorder: colorBorder,
+              },
+            },
+          },
+          tooltip: {
+            appendTo: "body",
+            appendToBody: true,
+            renderMode: "html",
+            className: "echarts-tooltip",
+            backgroundColor: dashboardConfig.CARD_BACKGROUND,
+            padding: 6,
+            textStyle: {
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+              color: colorTextThird,
+            },
+            axisPointer: {
+              label: {
+                backgroundColor: colorPrimary,
+              },
+            },
+          },
+          pie: {
+            label: {
+              color: colorTextSecondary,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+            labelLine: {
+              lineStyle: {
+                color: colorBorder,
+              },
+            },
+          },
+          bar: {
+            label: {
+              color: colorTextSecondary,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+          },
+          line: {
+            label: {
+              color: colorTextSecondary,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+          },
+          geo: {
+            label: {
+              color: colorTextSecondary,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+          },
+          scatter: {
+            label: {
+              color: colorTextSecondary,
+              fontFamily: fontFamily,
+              fontSize: fontSizeWithPixel,
+            },
+          },
+          visualMap: {
+            padding: 0,
+            textStyle: {
+              color: colorTextThird,
+              fontFamily: fontFamily,
+              fontSize: fontSizeSecondaryWithPixel,
+            },
+          },
+        };
+      };
+      window.echarts.registerTheme(window.ECHARTS_THEME_NAME, window.GET_ECHARTS_THEME_CONFIG(window.DASHBOARD_CONFIG));
+    </script>
+    <!-- Render application -->
+    <script>
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(React.createElement(window.DashboardApp));
+    </script>
+  </body>
+</html>
