@@ -1,0 +1,53 @@
+.menu-item {
+	gap: var(--spacing-2, 8px) !important;
+	cursor: pointer !important;
+}
+
+.menu-item-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-4, 16px);
+	height: 16px;
+	aspect-ratio: 1/1;
+	color: var(--base-muted-foreground, #6b7280);
+}
+
+.menu-item-label {
+	flex: 1;
+	overflow: hidden;
+	color: var(--base-popover-foreground, #0a0a0a);
+	font-size: var(--text-sm-font-size, 14px);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.menu-item-shortcut {
+	display: inline-flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.menu-item-shortcut-item {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-5, 20px);
+	height: var(--height-h-5, 20px);
+	color: var(--base-muted-foreground, #6b7280);
+	background: var(--base-muted, #f5f5f5);
+	border-radius: var(--rounded-4, 4px);
+}
+
+.menu-item-right-content {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	margin-left: auto;
+}
+
+.menu-item-delete .menu-item-icon,
+.menu-item-delete .menu-item-label {
+	color: var(--base-destructive, #dc2626);
+}

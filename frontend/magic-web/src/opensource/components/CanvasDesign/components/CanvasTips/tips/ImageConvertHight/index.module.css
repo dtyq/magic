@@ -1,0 +1,15 @@
+.image-convert-hight {
+	display: flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+}
+
+.esc {
+	padding: 2px 6px;
+	color: var(--base-muted-foreground, #737373);
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}

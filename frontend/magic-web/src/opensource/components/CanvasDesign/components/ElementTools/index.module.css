@@ -1,0 +1,34 @@
+/* ElementTools - 中间层 z-index: 2 */
+.element-tools {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: center;
+	height: 42px;
+	padding: var(--spacing-1, 4px);
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+	transform: translate(0, 0);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.group {
+	display: inline-flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+}
+
+.divider {
+	width: 1px;
+	height: var(--width-w-6, 24px);
+	background: var(--base-border, #e5e5e5);
+}

@@ -1,0 +1,25 @@
+.image-convert-hight {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	padding: 0 var(--spacing-1, 4px) 0 var(--spacing-2, 8px);
+}
+
+.name {
+	display: flex;
+	flex: none;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: flex-start;
+	margin-right: var(--spacing-2, 8px);
+}
+
+.send-button {
+	display: flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-6, 24px) !important;
+	height: var(--height-h-6, 24px) !important;
+	padding: var(--spacing-1, 4px) !important;
+}

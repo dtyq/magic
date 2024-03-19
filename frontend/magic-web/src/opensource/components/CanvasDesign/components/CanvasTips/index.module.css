@@ -1,0 +1,15 @@
+.canvas-tips {
+	position: absolute;
+	top: var(--spacing-2, 8px);
+	left: 50%;
+	z-index: 3;
+	padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+	transform: translateX(-50%);
+	pointer-events: none;
+}
