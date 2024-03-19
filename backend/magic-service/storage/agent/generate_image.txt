@@ -1,0 +1,2375 @@
+{
+  "instructs": [
+                   {
+                       "id": "735145931530702852",
+                       "items": [
+                           {
+                               "id": "735145931530702848",
+                               "name": "大模型",
+                               "type": 1,
+                               "values": [
+                                   {
+                                       "id": "735145931530702849",
+                                       "name": "文生图 3.0",
+                                       "value": "high_aes_general_v30l_zt2i"
+                                   },
+                                   {
+                                       "id": "735145931530702850",
+                                       "name": "文生图 2.0",
+                                       "value": "high_aes_general_v21_L"
+                                   },
+                                   {
+                                       "id": "735145931530702851",
+                                       "name": "Midjourney-Fast",
+                                       "value": "fast"
+                                   },
+                                   {
+                                       "id": "765956910724214784",
+                                       "name": "Midjourney-Relax",
+                                       "value": "relax"
+                                   },
+                                   {
+                                       "id": "775055114758365184",
+                                       "name": "Midjourney-Turbo",
+                                       "value": "turbo"
+                                   },
+                                   {
+                                       "id": "775055114758365185",
+                                       "name": "Flux1-Dev",
+                                       "value": "flux1-dev"
+                                   },
+                                   {
+                                       "id": "775055114758365186",
+                                       "name": "Flux1-Schnell",
+                                       "value": "flux1-schnell"
+                                   },
+                                   {
+                                       "id": "775055114758365187",
+                                       "name": "Flux1-Pro",
+                                       "value": "flux1-pro"
+                                   },
+                                   {
+                                       "id": "775055114758365188",
+                                       "name": "GPT4o",
+                                       "value": "GPT4o"
+                                   },
+                                   {
+                                       "id": "775055114758365189",
+                                       "name": "通用2.0Pro-指令编辑（SeedEdit）",
+                                       "value": "byteedit_v2"
+                                   }
+                               ],
+                               "residency": false,
+                               "send_directly": false,
+                               "instruction_type": 1
+                           },
+                           {
+                               "id": "735146339808428032",
+                               "name": "风格",
+                               "type": 1,
+                               "values": [
+                                   {
+                                       "id": "735146339808428033",
+                                       "name": "人物摄影",
+                                       "value": "人物摄影"
+                                   },
+                                   {
+                                       "id": "735146339808428034",
+                                       "name": "电影写真",
+                                       "value": "电影写真"
+                                   },
+                                   {
+                                       "id": "735146339808428035",
+                                       "name": "中国风",
+                                       "value": "中国风"
+                                   },
+                                   {
+                                       "id": "735146339808428036",
+                                       "name": "动漫",
+                                       "value": "动漫"
+                                   },
+                                   {
+                                       "id": "735146339808428037",
+                                       "name": "3D渲染",
+                                       "value": "3D渲染"
+                                   },
+                                   {
+                                       "id": "735146339808428038",
+                                       "name": "水墨画",
+                                       "value": "水墨画"
+                                   },
+                                   {
+                                       "id": "735146339808428039",
+                                       "name": "油画",
+                                       "value": "油画"
+                                   },
+                                   {
+                                       "id": "735146339808428040",
+                                       "name": "古典",
+                                       "value": "古典"
+                                   },
+                                   {
+                                       "id": "735146339808428041",
+                                       "name": "水彩画",
+                                       "value": "水彩画"
+                                   },
+                                   {
+                                       "id": "735146339808428042",
+                                       "name": "卡通",
+                                       "value": "卡通"
+                                   },
+                                   {
+                                       "id": "735146339808428043",
+                                       "name": "平面插画",
+                                       "value": "平面插画"
+                                   },
+                                   {
+                                       "id": "735146339808428044",
+                                       "name": "风景",
+                                       "value": "风景"
+                                   },
+                                   {
+                                       "id": "735146339808428045",
+                                       "name": "手办",
+                                       "value": "手办"
+                                   },
+                                   {
+                                       "id": "735146339808428046",
+                                       "name": "抽象",
+                                       "value": "抽象"
+                                   },
+                                   {
+                                       "id": "735146339808428047",
+                                       "name": "油墨印刷",
+                                       "value": "油墨印刷"
+                                   },
+                                   {
+                                       "id": "735146339808428048",
+                                       "name": "毕加索",
+                                       "value": "毕加索"
+                                   },
+                                   {
+                                       "id": "735146339808428049",
+                                       "name": "赛博朋克",
+                                       "value": "赛博朋克"
+                                   }
+                               ],
+                               "content": "[{\"type\":\"text\",\"text\":\"风格为：\"},{\"type\":\"quick-instruction\",\"attrs\":{\"value\":\"\",\"instruction\":null}},{\"type\":\"text\",\"text\":\" \"}]",
+                               "residency": false,
+                               "send_directly": false
+                           },
+                           {
+                               "id": "735146473908731904",
+                               "name": "比例",
+                               "type": 1,
+                               "values": [
+                                   {
+                                       "id": "735146473908731905",
+                                       "name": "1比1正方形",
+                                       "value": "1:1"
+                                   },
+                                   {
+                                       "id": "735146473908731906",
+                                       "name": "2比3自拍",
+                                       "value": "2:3"
+                                   },
+                                   {
+                                       "id": "735146473908731907",
+                                       "name": "4比3 文章配图",
+                                       "value": "4:3"
+                                   },
+                                   {
+                                       "id": "735146473908731908",
+                                       "name": "9比16 手机壁纸",
+                                       "value": "9:16"
+                                   },
+                                   {
+                                       "id": "735146473908731909",
+                                       "name": "16比9 桌面壁纸",
+                                       "value": "16:9"
+                                   }
+                               ],
+                               "content": "[{\"type\":\"text\",\"text\":\"比例为：\"},{\"type\":\"quick-instruction\",\"attrs\":{\"value\":\"\",\"instruction\":null}},{\"type\":\"text\",\"text\":\" \"}]",
+                               "residency": false,
+                               "send_directly": false
+                           }
+                       ],
+                       "position": 2
+                   },
+                   {
+                       "id": "750442229859028993",
+                       "items": [
+                           {
+                               "id": "750442229859028994",
+                               "icon": "IconMoodHappy",
+                               "type": 1,
+                               "hidden": false,
+                               "residency": false,
+                               "display_type": 2
+                           },
+                           {
+                               "id": "750442229859028995",
+                               "icon": "IconFileUpload",
+                               "type": 2,
+                               "hidden": false,
+                               "residency": false,
+                               "display_type": 2
+                           },
+                           {
+                               "id": "750442229859028996",
+                               "icon": "IconMessage2Plus",
+                               "type": 3,
+                               "hidden": false,
+                               "residency": false,
+                               "display_type": 2
+                           },
+                           {
+                               "id": "750442229859028997",
+                               "icon": "IconClockPlay",
+                               "type": 4,
+                               "hidden": false,
+                               "residency": false,
+                               "display_type": 2
+                           },
+                           {
+                               "id": "750442229859028998",
+                               "icon": "IconMicrophone",
+                               "type": 5,
+                               "hidden": false,
+                               "residency": false,
+                               "display_type": 2
+                           }
+                       ],
+                       "position": 1
+                   }
+               ],
+"flow":{
+         "id": "MAGIC-FLOW-676b75b6c05ab0-89972724",
+         "name": "麦吉创造",
+         "description": "麦吉创造帮你将想象力化为现实！",
+         "icon": "",
+         "type": 1,
+         "tool_set_id": "not_grouped",
+         "edges": [
+           {
+             "id": "542305876902789120",
+             "data": {
+               "allowAddOnLine": true
+             },
+             "type": "commonEdge",
+             "style": {
+               "stroke": "#4d53e8",
+               "strokeWidth": 2
+             },
+             "source": "542305748087324672",
+             "target": "537202790173282304",
+             "markerEnd": {
+               "type": "arrow",
+               "color": "#4d53e8",
+               "width": 20,
+               "height": 20
+             },
+             "sourceHandle": "branch_676d850ad265c",
+             "targetHandle": null
+           },
+           {
+             "id": "542306027495079936",
+             "data": {
+               "allowAddOnLine": true
+             },
+             "type": "commonEdge",
+             "style": {
+               "stroke": "#4d53e8",
+               "strokeWidth": 2
+             },
+             "source": "542305748087324672",
+             "target": "542306019462987776",
+             "markerEnd": {
+               "type": "arrow",
+               "color": "#4d53e8",
+               "width": 20,
+               "height": 20
+             },
+             "sourceHandle": "branch_67481adc8f536",
+             "targetHandle": null
+           },
+           {
+             "id": "542306053101305856",
+             "data": {
+               "allowAddOnLine": true
+             },
+             "type": "commonEdge",
+             "style": {
+               "stroke": "#4d53e8",
+               "strokeWidth": 2
+             },
+             "source": "542306019462987776",
+             "target": "542304424285290496",
+             "markerEnd": {
+               "type": "arrow",
+               "color": "#4d53e8",
+               "width": 20,
+               "height": 20
+             },
+             "sourceHandle": "branch_66c444c8ca355",
+             "targetHandle": null
+           },
+           {
+             "id": "542306078934024192",
+             "data": {
+               "allowAddOnLine": true
+             },
+             "type": "commonEdge",
+             "style": {
+               "stroke": "#4d53e8",
+               "strokeWidth": 2
+             },
+             "source": "542306019462987776",
+             "target": "536938651453906944",
+             "selected": false,
+             "markerEnd": {
+               "type": "arrow",
+               "color": "#4d53e8",
+               "width": 20,
+               "height": 20
+             },
+             "sourceHandle": "branch_66c444c8ca7d5",
+             "targetHandle": null
+           }
+         ],
+         "nodes": [
+           {
+             "node_id": "536938651453906944",
+             "debug": false,
+             "name": "大模型调用",
+             "description": "",
+             "node_type": 2,
+             "node_version": "v1",
+             "meta": {
+               "position": {
+                 "x": 1629.0916261890402,
+                 "y": 1178.1243453008651
+               }
+             },
+             "params": {
+               "model": "{{modelName}}",
+               "system_prompt": {
+                 "id": "component-677633dfaf2fc",
+                 "version": "1",
+                 "type": "value",
+                 "structure": {
+                   "type": "expression",
+                   "const_value": null,
+                   "expression_value": [
+                     {
+                       "type": "input",
+                       "value": "# 定义\n\n你必须使用 `ai_image` 工具生成图片，使用且仅使用一次。\n\n## 上下文\n附件：",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "fields",
+                       "value": "542305748087324672.files",
+                       "name": "",
+                       "args": null,
+                       "trans": "toString()"
+                     },
+                     {
+                       "type": "input",
+                       "value": "\n用户消息内容：",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "fields",
+                       "value": "542305748087324672.message_content",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "input",
+                       "value": "\n\n## 重要\n- 如果用户消息内容中有指定比例，传入对应值到radio。\n- 如果用户消息内容中有指定模型，传入对应值到model。\n- 传入model的值是:",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "fields",
+                       "value": "instructions.735145931530702848.value",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "input",
+                       "value": "\n   - 如果 model 没有值，则默认是 high_aes_general_v30l_zt2i",
+                       "name": "",
+                       "args": null
+                     }
+                   ]
+                 }
+               },
+               "user_prompt": {
+                 "id": "component-677633dfaf31e",
+                 "version": "1",
+                 "type": "value",
+                 "structure": null
+               },
+               "model_config": {
+                 "auto_memory": false,
+                 "max_record": 50,
+                 "temperature": 0.4,
+                 "vision": false,
+                 "vision_model": "doubao-1.5-vision-pro-32k"
+               },
+               "tools": [],
+               "option_tools": [
+                 {
+                   "tool_id": "ai_image_ai_image",
+                   "tool_set_id": "ai_image",
+                   "async": false,
+                   "custom_system_input": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-677ea45ac848a",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": null,
+                         "description": null,
+                         "required": [],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       }
+                     }
+                   }
+                 }
+               ],
+               "knowledge_config": {
+                 "operator": "developer",
+                 "knowledge_list": [],
+                 "limit": 5,
+                 "score": 0.4
+               },
+               "messages": {
+                 "id": "component-677633dfaf338",
+                 "version": "1",
+                 "type": "form",
+                 "structure": {
+                   "type": "array",
+                   "key": "root",
+                   "sort": 0,
+                   "title": "历史消息",
+                   "description": "",
+                   "required": null,
+                   "value": null,
+                   "encryption": false,
+                   "encryption_value": null,
+                   "items": {
+                     "type": "object",
+                     "key": "messages",
+                     "sort": 0,
+                     "title": "历史消息",
+                     "description": "",
+                     "required": [
+                       "role",
+                       "content"
+                     ],
+                     "value": null,
+                     "encryption": false,
+                     "encryption_value": null,
+                     "items": null,
+                     "properties": {
+                       "role": {
+                         "type": "string",
+                         "key": "role",
+                         "sort": 0,
+                         "title": "角色",
+                         "description": "",
+                         "required": null,
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       },
+                       "content": {
+                         "type": "string",
+                         "key": "content",
+                         "sort": 1,
+                         "title": "内容",
+                         "description": "",
+                         "required": null,
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       }
+                     }
+                   },
+                   "properties": null
+                 }
+               }
+             },
+             "next_nodes": [],
+             "input": null,
+             "output": {
+               "widget": null,
+               "form": {
+                 "id": "component-677633dfaf392",
+                 "version": "1",
+                 "type": "form",
+                 "structure": {
+                   "key": "root",
+                   "sort": 0,
+                   "type": "object",
+                   "items": null,
+                   "title": "root节点",
+                   "value": null,
+                   "required": [
+                     "response",
+                     "tool_calls"
+                   ],
+                   "encryption": false,
+                   "properties": {
+                     "response": {
+                       "key": "response",
+                       "sort": 0,
+                       "type": "string",
+                       "items": null,
+                       "title": "大模型响应",
+                       "value": null,
+                       "required": null,
+                       "encryption": false,
+                       "properties": null,
+                       "description": "",
+                       "encryption_value": null
+                     },
+                     "tool_calls": {
+                       "key": "tool_calls",
+                       "sort": 1,
+                       "type": "array",
+                       "items": {
+                         "key": "",
+                         "sort": 0,
+                         "type": "object",
+                         "items": null,
+                         "title": "调用过的工具",
+                         "value": null,
+                         "required": [],
+                         "encryption": false,
+                         "properties": {
+                           "name": {
+                             "key": "name",
+                             "sort": 0,
+                             "type": "string",
+                             "items": null,
+                             "title": "工具名称",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "success": {
+                             "key": "success",
+                             "sort": 1,
+                             "type": "boolean",
+                             "items": null,
+                             "title": "是否成功",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "arguments": {
+                             "key": "arguments",
+                             "sort": 3,
+                             "type": "object",
+                             "items": null,
+                             "title": "工具参数",
+                             "value": null,
+                             "required": [],
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "call_result": {
+                             "key": "call_result",
+                             "sort": 4,
+                             "type": "string",
+                             "items": null,
+                             "title": "调用结果",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "elapsed_time": {
+                             "key": "elapsed_time",
+                             "sort": 5,
+                             "type": "string",
+                             "items": null,
+                             "title": "耗时",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "error_message": {
+                             "key": "error_message",
+                             "sort": 2,
+                             "type": "string",
+                             "items": null,
+                             "title": "错误信息",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           }
+                         },
+                         "description": "",
+                         "encryption_value": null
+                       },
+                       "title": "调用过的工具",
+                       "value": null,
+                       "required": null,
+                       "encryption": false,
+                       "properties": null,
+                       "description": "",
+                       "encryption_value": null
+                     }
+                   },
+                   "description": "",
+                   "encryption_value": null
+                 }
+               }
+             },
+             "system_output": {
+               "widget": null,
+               "form": null
+             }
+           },
+           {
+             "node_id": "537202790173282304",
+             "debug": false,
+             "name": "回复消息",
+             "description": "",
+             "node_type": 3,
+             "node_version": "v0",
+             "meta": {
+               "position": {
+                 "x": 730,
+                 "y": 640.75
+               }
+             },
+             "params": {
+               "type": "text",
+               "content": {
+                 "id": "component-663c6d64b33d4",
+                 "version": "1",
+                 "type": "value",
+                 "structure": {
+                   "type": "expression",
+                   "const_value": null,
+                   "expression_value": [
+                     {
+                       "type": "input",
+                       "value": "嘿，",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "fields",
+                       "value": "542305748087324672.user.nickname",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "input",
+                       "value": " ，来玩一场文字变魔术吧！只需告诉我你脑中的画面，文生图就能像变戏法一样，把你的文字描述变成一幅幅美图。想看什么就来什么，风景、人物、抽象画，统统不在话下，让你的创意瞬间“活”起来！比如：店铺名为KKV，明黄色集装箱设计，店内商品成列整齐划一。",
+                       "name": "",
+                       "args": null
+                     }
+                   ]
+                 }
+               },
+               "link": {
+                 "id": "component-663c6d64b33ed",
+                 "version": "1",
+                 "type": "value",
+                 "structure": {
+                   "type": "expression",
+                   "const_value": null,
+                   "expression_value": [
+                     {
+                       "type": "input",
+                       "value": "",
+                       "name": "",
+                       "args": null
+                     }
+                   ]
+                 }
+               },
+               "link_desc": {
+                 "id": "component-663c6d64b33f4",
+                 "version": "1",
+                 "type": "value",
+                 "structure": {
+                   "type": "expression",
+                   "const_value": null,
+                   "expression_value": [
+                     {
+                       "type": "input",
+                       "value": "",
+                       "name": "",
+                       "args": null
+                     }
+                   ]
+                 }
+               },
+               "recipients": null
+             },
+             "next_nodes": [],
+             "input": null,
+             "output": null,
+             "system_output": {
+               "widget": null,
+               "form": null
+             }
+           },
+           {
+             "node_id": "542304424285290496",
+             "debug": false,
+             "name": "大模型调用",
+             "description": "",
+             "node_type": 2,
+             "node_version": "v1",
+             "meta": {
+               "position": {
+                 "x": 1580,
+                 "y": 0
+               }
+             },
+             "params": {
+               "model": "DeepSeek-V3",
+               "system_prompt": {
+                 "id": "component-677633dfaf2fc",
+                 "version": "1",
+                 "type": "value",
+                 "structure": {
+                   "type": "expression",
+                   "const_value": null,
+                   "expression_value": [
+                     {
+                       "type": "input",
+                       "value": "# 定义\n\n你必须使用 `image_convert_high` 工具生成高清图片，使用且仅使用一次。\n\n## 上下文\n附件：",
+                       "name": "",
+                       "args": null
+                     },
+                     {
+                       "type": "fields",
+                       "value": "542305748087324672.files",
+                       "name": "",
+                       "args": null,
+                       "trans": "toString()"
+                     }
+                   ]
+                 }
+               },
+               "user_prompt": {
+                 "id": "component-677633dfaf31e",
+                 "version": "1",
+                 "type": "value",
+                 "structure": {
+                   "type": "expression",
+                   "const_value": null,
+                   "expression_value": [
+                     {
+                       "type": "input",
+                       "value": "",
+                       "name": "",
+                       "args": null
+                     }
+                   ]
+                 }
+               },
+               "model_config": {
+                 "auto_memory": true,
+                 "max_record": 50,
+                 "temperature": 0.3,
+                 "vision": false,
+                 "vision_model": ""
+               },
+               "tools": [],
+               "option_tools": [
+                 {
+                   "tool_id": "ai_image_image_convert_high",
+                   "tool_set_id": "ai_image",
+                   "async": false,
+                   "custom_system_input": {
+                     "widget": null,
+                     "form": {
+                       "id": "542304594559565824",
+                       "version": "1",
+                       "type": "form",
+                       "structure": null
+                     }
+                   }
+                 }
+               ],
+               "knowledge_config": {
+                 "operator": "developer",
+                 "knowledge_list": [],
+                 "limit": 5,
+                 "score": 0.4
+               },
+               "messages": {
+                 "id": "component-677633dfaf338",
+                 "version": "1",
+                 "type": "form",
+                 "structure": {
+                   "type": "array",
+                   "key": "root",
+                   "sort": 0,
+                   "title": "历史消息",
+                   "description": "",
+                   "required": null,
+                   "value": null,
+                   "encryption": false,
+                   "encryption_value": null,
+                   "items": {
+                     "type": "object",
+                     "key": "messages",
+                     "sort": 0,
+                     "title": "历史消息",
+                     "description": "",
+                     "required": [
+                       "role",
+                       "content"
+                     ],
+                     "value": null,
+                     "encryption": false,
+                     "encryption_value": null,
+                     "items": null,
+                     "properties": {
+                       "role": {
+                         "type": "string",
+                         "key": "role",
+                         "sort": 0,
+                         "title": "角色",
+                         "description": "",
+                         "required": null,
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       },
+                       "content": {
+                         "type": "string",
+                         "key": "content",
+                         "sort": 1,
+                         "title": "内容",
+                         "description": "",
+                         "required": null,
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       }
+                     }
+                   },
+                   "properties": null
+                 }
+               }
+             },
+             "next_nodes": [],
+             "input": null,
+             "output": {
+               "widget": null,
+               "form": {
+                 "id": "component-677633dfaf392",
+                 "version": "1",
+                 "type": "form",
+                 "structure": {
+                   "key": "root",
+                   "sort": 0,
+                   "type": "object",
+                   "items": null,
+                   "title": "root节点",
+                   "value": null,
+                   "required": [
+                     "response",
+                     "tool_calls"
+                   ],
+                   "encryption": false,
+                   "properties": {
+                     "response": {
+                       "key": "response",
+                       "sort": 0,
+                       "type": "string",
+                       "items": null,
+                       "title": "大模型响应",
+                       "value": null,
+                       "required": null,
+                       "encryption": false,
+                       "properties": null,
+                       "description": "",
+                       "encryption_value": null
+                     },
+                     "tool_calls": {
+                       "key": "tool_calls",
+                       "sort": 1,
+                       "type": "array",
+                       "items": {
+                         "key": "",
+                         "sort": 0,
+                         "type": "object",
+                         "items": null,
+                         "title": "调用过的工具",
+                         "value": null,
+                         "required": [],
+                         "encryption": false,
+                         "properties": {
+                           "name": {
+                             "key": "name",
+                             "sort": 0,
+                             "type": "string",
+                             "items": null,
+                             "title": "工具名称",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "success": {
+                             "key": "success",
+                             "sort": 1,
+                             "type": "boolean",
+                             "items": null,
+                             "title": "是否成功",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "arguments": {
+                             "key": "arguments",
+                             "sort": 3,
+                             "type": "object",
+                             "items": null,
+                             "title": "工具参数",
+                             "value": null,
+                             "required": [],
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "call_result": {
+                             "key": "call_result",
+                             "sort": 4,
+                             "type": "string",
+                             "items": null,
+                             "title": "调用结果",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "elapsed_time": {
+                             "key": "elapsed_time",
+                             "sort": 5,
+                             "type": "string",
+                             "items": null,
+                             "title": "耗时",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           },
+                           "error_message": {
+                             "key": "error_message",
+                             "sort": 2,
+                             "type": "string",
+                             "items": null,
+                             "title": "错误信息",
+                             "value": null,
+                             "required": null,
+                             "encryption": false,
+                             "properties": null,
+                             "description": "",
+                             "encryption_value": null
+                           }
+                         },
+                         "description": "",
+                         "encryption_value": null
+                       },
+                       "title": "调用过的工具",
+                       "value": null,
+                       "required": null,
+                       "encryption": false,
+                       "properties": null,
+                       "description": "",
+                       "encryption_value": null
+                     }
+                   },
+                   "description": "",
+                   "encryption_value": null
+                 }
+               }
+             },
+             "system_output": {
+               "widget": null,
+               "form": null
+             }
+           },
+           {
+             "node_id": "542305748087324672",
+             "debug": false,
+             "name": "开始节点",
+             "description": "",
+             "node_type": 1,
+             "node_version": "",
+             "meta": {
+               "position": {
+                 "x": 0,
+                 "y": 683.25
+               }
+             },
+             "params": {
+               "branches": [
+                 {
+                   "branch_id": "branch_67481adc8f536",
+                   "trigger_type": 1,
+                   "next_nodes": [
+                     "536938651453906944",
+                     "542306019462987776"
+                   ],
+                   "config": [],
+                   "input": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b075",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "user_id",
+                           "nickname",
+                           "chat_time",
+                           "message_type",
+                           "content",
+                           "organization_code",
+                           "conversation_id",
+                           "topic_id"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user_id": {
+                             "type": "string",
+                             "key": "user_id",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "nickname": {
+                             "type": "string",
+                             "key": "nickname",
+                             "sort": 1,
+                             "title": " 用户昵称",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "chat_time": {
+                             "type": "string",
+                             "key": "chat_time",
+                             "sort": 2,
+                             "title": "发送时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "message_type": {
+                             "type": "string",
+                             "key": "message_type",
+                             "sort": 3,
+                             "title": "消息类型",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "message_content": {
+                             "type": "string",
+                             "key": "message_content",
+                             "sort": 4,
+                             "title": "消息内容",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "files": {
+                             "type": "array",
+                             "key": "files",
+                             "sort": 5,
+                             "title": "文件列表",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": {
+                               "type": "object",
+                               "key": "files",
+                               "sort": 0,
+                               "title": "文件",
+                               "description": "",
+                               "required": [
+                                 "file_name",
+                                 "file_url"
+                               ],
+                               "value": null,
+                               "encryption": false,
+                               "encryption_value": null,
+                               "items": null,
+                               "properties": {
+                                 "file_name": {
+                                   "type": "string",
+                                   "key": "file_name",
+                                   "sort": 0,
+                                   "title": "文件名称",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_url": {
+                                   "type": "string",
+                                   "key": "file_url",
+                                   "sort": 1,
+                                   "title": "文件地址",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_ext": {
+                                   "type": "string",
+                                   "key": "file_ext",
+                                   "sort": 2,
+                                   "title": "文件后缀",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_size": {
+                                   "type": "number",
+                                   "key": "file_size",
+                                   "sort": 3,
+                                   "title": "文件大小",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 }
+                               }
+                             },
+                             "properties": null
+                           },
+                           "organization_code": {
+                             "type": "string",
+                             "key": "organization_code",
+                             "sort": 6,
+                             "title": "组织编码",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "conversation_id": {
+                             "type": "string",
+                             "key": "conversation_id",
+                             "sort": 7,
+                             "title": "会话 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "topic_id": {
+                             "type": "string",
+                             "key": "topic_id",
+                             "sort": 8,
+                             "title": "话题 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "output": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b075",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "user_id",
+                           "nickname",
+                           "chat_time",
+                           "message_type",
+                           "content",
+                           "organization_code",
+                           "conversation_id",
+                           "topic_id"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user_id": {
+                             "type": "string",
+                             "key": "user_id",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "nickname": {
+                             "type": "string",
+                             "key": "nickname",
+                             "sort": 1,
+                             "title": " 用户昵称",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "chat_time": {
+                             "type": "string",
+                             "key": "chat_time",
+                             "sort": 2,
+                             "title": "发送时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "message_type": {
+                             "type": "string",
+                             "key": "message_type",
+                             "sort": 3,
+                             "title": "消息类型",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "message_content": {
+                             "type": "string",
+                             "key": "message_content",
+                             "sort": 4,
+                             "title": "消息内容",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "files": {
+                             "type": "array",
+                             "key": "files",
+                             "sort": 5,
+                             "title": "文件列表",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": {
+                               "type": "object",
+                               "key": "files",
+                               "sort": 0,
+                               "title": "文件",
+                               "description": "",
+                               "required": [
+                                 "file_name",
+                                 "file_url"
+                               ],
+                               "value": null,
+                               "encryption": false,
+                               "encryption_value": null,
+                               "items": null,
+                               "properties": {
+                                 "file_name": {
+                                   "type": "string",
+                                   "key": "file_name",
+                                   "sort": 0,
+                                   "title": "文件名称",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_url": {
+                                   "type": "string",
+                                   "key": "file_url",
+                                   "sort": 1,
+                                   "title": "文件地址",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_ext": {
+                                   "type": "string",
+                                   "key": "file_ext",
+                                   "sort": 2,
+                                   "title": "文件后缀",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_size": {
+                                   "type": "number",
+                                   "key": "file_size",
+                                   "sort": 3,
+                                   "title": "文件大小",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 }
+                               }
+                             },
+                             "properties": null
+                           },
+                           "organization_code": {
+                             "type": "string",
+                             "key": "organization_code",
+                             "sort": 6,
+                             "title": "组织编码",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "conversation_id": {
+                             "type": "string",
+                             "key": "conversation_id",
+                             "sort": 7,
+                             "title": "会话 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "topic_id": {
+                             "type": "string",
+                             "key": "topic_id",
+                             "sort": 8,
+                             "title": "话题 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "system_output": null,
+                   "custom_system_output": null
+                 },
+                 {
+                   "branch_id": "branch_67481adc8f664",
+                   "trigger_type": 2,
+                   "next_nodes": [],
+                   "config": {
+                     "unit": "minutes",
+                     "interval": 10
+                   },
+                   "input": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b2c4",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "user_id",
+                           "nickname",
+                           "open_time",
+                           "organization_code",
+                           "conversation_id",
+                           "topic_id"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user_id": {
+                             "type": "string",
+                             "key": "user_id",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "nickname": {
+                             "type": "string",
+                             "key": "nickname",
+                             "sort": 1,
+                             "title": " 用户昵称",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "open_time": {
+                             "type": "string",
+                             "key": "open_time",
+                             "sort": 2,
+                             "title": "打开时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "organization_code": {
+                             "type": "string",
+                             "key": "organization_code",
+                             "sort": 3,
+                             "title": "组织编码",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "conversation_id": {
+                             "type": "string",
+                             "key": "conversation_id",
+                             "sort": 4,
+                             "title": "会话 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "topic_id": {
+                             "type": "string",
+                             "key": "topic_id",
+                             "sort": 5,
+                             "title": "话题 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "output": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b2c4",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "user_id",
+                           "nickname",
+                           "open_time",
+                           "organization_code",
+                           "conversation_id",
+                           "topic_id"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user_id": {
+                             "type": "string",
+                             "key": "user_id",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "nickname": {
+                             "type": "string",
+                             "key": "nickname",
+                             "sort": 1,
+                             "title": " 用户昵称",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "open_time": {
+                             "type": "string",
+                             "key": "open_time",
+                             "sort": 2,
+                             "title": "打开时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "organization_code": {
+                             "type": "string",
+                             "key": "organization_code",
+                             "sort": 3,
+                             "title": "组织编码",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "conversation_id": {
+                             "type": "string",
+                             "key": "conversation_id",
+                             "sort": 4,
+                             "title": "会话 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "topic_id": {
+                             "type": "string",
+                             "key": "topic_id",
+                             "sort": 5,
+                             "title": "话题 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "system_output": null,
+                   "custom_system_output": null
+                 },
+                 {
+                   "branch_id": "branch_67481adc8f6cb",
+                   "trigger_type": 4,
+                   "next_nodes": [],
+                   "config": [],
+                   "input": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-67481adc8f6ce",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": null,
+                         "description": null,
+                         "required": [],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       }
+                     }
+                   },
+                   "output": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-67481adc8f6ce",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": null,
+                         "description": null,
+                         "required": [],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       }
+                     }
+                   },
+                   "system_output": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b3e8",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "user_id",
+                           "nickname",
+                           "chat_time",
+                           "message_type",
+                           "content",
+                           "organization_code",
+                           "conversation_id",
+                           "topic_id"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user_id": {
+                             "type": "string",
+                             "key": "user_id",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "nickname": {
+                             "type": "string",
+                             "key": "nickname",
+                             "sort": 1,
+                             "title": " 用户昵称",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "chat_time": {
+                             "type": "string",
+                             "key": "chat_time",
+                             "sort": 2,
+                             "title": "发送时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "message_type": {
+                             "type": "string",
+                             "key": "message_type",
+                             "sort": 3,
+                             "title": "消息类型",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "message_content": {
+                             "type": "string",
+                             "key": "message_content",
+                             "sort": 4,
+                             "title": "消息内容",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "files": {
+                             "type": "array",
+                             "key": "files",
+                             "sort": 5,
+                             "title": "文件列表",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": {
+                               "type": "object",
+                               "key": "files",
+                               "sort": 0,
+                               "title": "文件",
+                               "description": "",
+                               "required": [
+                                 "file_name",
+                                 "file_url"
+                               ],
+                               "value": null,
+                               "encryption": false,
+                               "encryption_value": null,
+                               "items": null,
+                               "properties": {
+                                 "file_name": {
+                                   "type": "string",
+                                   "key": "file_name",
+                                   "sort": 0,
+                                   "title": "文件名称",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_url": {
+                                   "type": "string",
+                                   "key": "file_url",
+                                   "sort": 1,
+                                   "title": "文件地址",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_ext": {
+                                   "type": "string",
+                                   "key": "file_ext",
+                                   "sort": 2,
+                                   "title": "文件后缀",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 },
+                                 "file_size": {
+                                   "type": "number",
+                                   "key": "file_size",
+                                   "sort": 3,
+                                   "title": "文件大小",
+                                   "description": "",
+                                   "required": null,
+                                   "value": null,
+                                   "encryption": false,
+                                   "encryption_value": null,
+                                   "items": null,
+                                   "properties": null
+                                 }
+                               }
+                             },
+                             "properties": null
+                           },
+                           "organization_code": {
+                             "type": "string",
+                             "key": "organization_code",
+                             "sort": 6,
+                             "title": "组织编码",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "conversation_id": {
+                             "type": "string",
+                             "key": "conversation_id",
+                             "sort": 7,
+                             "title": "会话 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           },
+                           "topic_id": {
+                             "type": "string",
+                             "key": "topic_id",
+                             "sort": 8,
+                             "title": "话题 ID",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "custom_system_output": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-67481adc8f7c3",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": null,
+                         "description": null,
+                         "required": [],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": null
+                       }
+                     }
+                   }
+                 },
+                 {
+                   "branch_id": "branch_67481adc8f7d8",
+                   "trigger_type": 5,
+                   "next_nodes": [],
+                   "config": [],
+                   "input": {
+                     "widget": null,
+                     "form": null
+                   },
+                   "output": null,
+                   "system_output": null,
+                   "custom_system_output": null
+                 },
+                 {
+                   "branch_id": "branch_676d850ad265c",
+                   "trigger_type": 7,
+                   "next_nodes": [
+                     "537202790173282304",
+                     "537202790173282304"
+                   ],
+                   "config": [],
+                   "input": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b559",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "add_time",
+                           "user"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user": {
+                             "type": "object",
+                             "key": "user",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": [
+                               "id",
+                               "nickname",
+                               "real_name"
+                             ],
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": {
+                               "id": {
+                                 "type": "string",
+                                 "key": "id",
+                                 "sort": 0,
+                                 "title": "用户 ID",
+                                 "description": "",
+                                 "required": null,
+                                 "value": null,
+                                 "encryption": false,
+                                 "encryption_value": null,
+                                 "items": null,
+                                 "properties": null
+                               },
+                               "nickname": {
+                                 "type": "string",
+                                 "key": "nickname",
+                                 "sort": 1,
+                                 "title": "用户昵称",
+                                 "description": "",
+                                 "required": null,
+                                 "value": null,
+                                 "encryption": false,
+                                 "encryption_value": null,
+                                 "items": null,
+                                 "properties": null
+                               },
+                               "real_name": {
+                                 "type": "string",
+                                 "key": "real_name",
+                                 "sort": 2,
+                                 "title": "真实姓名",
+                                 "description": "",
+                                 "required": null,
+                                 "value": null,
+                                 "encryption": false,
+                                 "encryption_value": null,
+                                 "items": null,
+                                 "properties": null
+                               }
+                             }
+                           },
+                           "add_time": {
+                             "type": "string",
+                             "key": "add_time",
+                             "sort": 1,
+                             "title": "添加时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "output": {
+                     "widget": null,
+                     "form": {
+                       "id": "component-68106c808b559",
+                       "version": "1",
+                       "type": "form",
+                       "structure": {
+                         "type": "object",
+                         "key": "root",
+                         "sort": 0,
+                         "title": "root节点",
+                         "description": "",
+                         "required": [
+                           "add_time",
+                           "user"
+                         ],
+                         "value": null,
+                         "encryption": false,
+                         "encryption_value": null,
+                         "items": null,
+                         "properties": {
+                           "user": {
+                             "type": "object",
+                             "key": "user",
+                             "sort": 0,
+                             "title": " 用户ID",
+                             "description": "",
+                             "required": [
+                               "id",
+                               "nickname",
+                               "real_name"
+                             ],
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": {
+                               "id": {
+                                 "type": "string",
+                                 "key": "id",
+                                 "sort": 0,
+                                 "title": "用户 ID",
+                                 "description": "",
+                                 "required": null,
+                                 "value": null,
+                                 "encryption": false,
+                                 "encryption_value": null,
+                                 "items": null,
+                                 "properties": null
+                               },
+                               "nickname": {
+                                 "type": "string",
+                                 "key": "nickname",
+                                 "sort": 1,
+                                 "title": "用户昵称",
+                                 "description": "",
+                                 "required": null,
+                                 "value": null,
+                                 "encryption": false,
+                                 "encryption_value": null,
+                                 "items": null,
+                                 "properties": null
+                               },
+                               "real_name": {
+                                 "type": "string",
+                                 "key": "real_name",
+                                 "sort": 2,
+                                 "title": "真实姓名",
+                                 "description": "",
+                                 "required": null,
+                                 "value": null,
+                                 "encryption": false,
+                                 "encryption_value": null,
+                                 "items": null,
+                                 "properties": null
+                               }
+                             }
+                           },
+                           "add_time": {
+                             "type": "string",
+                             "key": "add_time",
+                             "sort": 1,
+                             "title": "添加时间",
+                             "description": "",
+                             "required": null,
+                             "value": null,
+                             "encryption": false,
+                             "encryption_value": null,
+                             "items": null,
+                             "properties": null
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "system_output": null,
+                   "custom_system_output": null
+                 }
+               ]
+             },
+             "next_nodes": [
+               "537202790173282304",
+               "542306019462987776"
+             ],
+             "input": null,
+             "output": null,
+             "system_output": {
+               "widget": null,
+               "form": null
+             }
+           },
+           {
+             "node_id": "542306019462987776",
+             "debug": false,
+             "name": "选择器",
+             "description": "",
+             "node_type": 4,
+             "node_version": "v0",
+             "meta": {
+               "position": {
+                 "x": 580,
+                 "y": 1091.75
+               }
+             },
+             "params": {
+               "branches": [
+                 {
+                   "branch_id": "branch_66c444c8ca355",
+                   "branch_type": "if",
+                   "next_nodes": [
+                     "542304424285290496"
+                   ],
+                   "parameters": {
+                     "id": "component-66c444c8ca73e",
+                     "version": "1",
+                     "type": "condition",
+                     "structure": {
+                       "ops": "OR",
+                       "children": [
+                         {
+                           "type": "compare",
+                           "template": null,
+                           "left_operands": {
+                             "type": "expression",
+                             "const_value": null,
+                             "expression_value": [
+                               {
+                                 "type": "fields",
+                                 "value": "542305748087324672.message_content",
+                                 "name": "",
+                                 "args": null
+                               }
+                             ]
+                           },
+                           "condition": "contains",
+                           "right_operands": {
+                             "type": "const",
+                             "const_value": [
+                               {
+                                 "type": "input",
+                                 "value": "转超清",
+                                 "name": "",
+                                 "args": null
+                               }
+                             ],
+                             "expression_value": null
+                           }
+                         },
+                         {
+                           "type": "compare",
+                           "template": null,
+                           "left_operands": {
+                             "type": "expression",
+                             "const_value": null,
+                             "expression_value": [
+                               {
+                                 "type": "fields",
+                                 "value": "542305748087324672.message_content",
+                                 "name": "",
+                                 "args": null
+                               }
+                             ]
+                           },
+                           "condition": "equals",
+                           "right_operands": {
+                             "type": "const",
+                             "const_value": [
+                               {
+                                 "type": "input",
+                                 "value": "转高清",
+                                 "name": "",
+                                 "args": null
+                               }
+                             ],
+                             "expression_value": null
+                           }
+                         }
+                       ]
+                     }
+                   }
+                 },
+                 {
+                   "branch_id": "branch_66c444c8ca7d5",
+                   "branch_type": "else",
+                   "next_nodes": [
+                     "536938651453906944"
+                   ],
+                   "parameters": null
+                 }
+               ]
+             },
+             "next_nodes": [
+               "542304424285290496",
+               "536938651453906944"
+             ],
+             "input": null,
+             "output": null,
+             "system_output": {
+               "widget": null,
+               "form": null
+             }
+           }
+         ],
+         "global_variable": {
+           "id": "531668872405659648",
+           "version": "1",
+           "type": "form",
+           "structure": null
+         },
+         "enabled": true,
+         "version_code": "",
+         "creator": "usi_bfeadf48ba1188c2d83615bb53fb6eb6",
+         "created_at": "2025-04-27 17:53:33",
+         "modifier": "usi_bfeadf48ba1188c2d83615bb53fb6eb6",
+         "updated_at": "2025-04-27 17:53:33",
+         "creator_info": null,
+         "modifier_info": null,
+         "user_operation": 4
+       }
+}
