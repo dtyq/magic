@@ -1,0 +1,142 @@
+.LLMParameters {
+	:global {
+		.magic-switch-checked {
+			background-color: #315CEC;
+		}
+
+		.magic-slider-handle {
+			margin-top: 0;
+		}
+
+		.magic-select-dropdown {
+			overflow: visible;
+		}
+
+		.magic-select-selector {
+			padding: 0 11px 0 3px !important;
+		}
+
+		.magic-form-item {
+			margin-bottom: 0;
+		}
+
+	}
+
+	.panel {
+		.header {
+			height: 56px;
+			display: flex;
+			padding: 0 12px;
+			justify-content: space-between;
+			align-items: center;
+
+			.h1Title {
+				font-weight: 600;
+				line-height: 20px;
+				font-size: 14px;
+				color: #1C1D23;
+			}
+
+			.LLMSelect {
+				width: 300px;
+			}
+		}
+
+		.body {
+			border-top: 1px solid #1C1D2314;
+			padding: 11px 12px;
+
+			.preSettings {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+
+				.h1Title {
+					font-weight: 600;
+					line-height: 20px;
+					font-size: 14px;
+					color: #1C1D23;
+				}
+
+
+				.preSettingsSelect {
+					width: 122px;
+
+
+					.label {
+						display: flex;
+						align-items: center;
+						font-size: 14px;
+						line-height: 20px;
+						color: #1C1D23;
+						padding-left: 8px;
+
+						.icon {
+							margin-right: 2px;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							width: 18px;
+							height: 18px;
+							margin-right: 8px;
+						}
+					}
+
+					.labelHidden {
+						display: none;
+					}
+				}
+
+			}
+
+			.parameters {
+				margin-bottom: 10px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+
+				.left {
+
+					display: flex;
+					align-items: center;
+
+					.title {
+						line-height: 20px;
+						font-size: 14px;
+						color: #1C1D23;
+					}
+
+					.icon {
+						margin-left: 2px;
+					}
+
+					.switch {
+						margin-left: 12px;
+					}
+				}
+
+				.right {
+					width: 300px;
+					display: flex;
+					align-items: center;
+					justify-content: flex-end;
+
+					.slider {
+						width: 224px;
+						display: flex;
+						align-items: center;
+						margin-right: 16px;
+					}
+
+					.input {
+						width: 68px
+					}
+
+					.option {
+						padding-left: 8px;
+					}
+				}
+			}
+		}
+	}
+}

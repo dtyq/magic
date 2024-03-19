@@ -1,0 +1,77 @@
+// 默认的接口参数配置
+export const DefaultApiSettings = {
+	method: "GET",
+	domain: "",
+	uri: null,
+	url: "",
+	path: "",
+	request: {
+		params_query: {
+			id: "component-664964481dc2e",
+			version: "1",
+			type: "form",
+			structure: {
+				type: "object",
+				key: "root",
+				sort: 0,
+				title: null,
+				description: null,
+				required: [],
+				value: null,
+				items: null,
+				properties: null,
+			},
+		},
+		params_path: {
+			id: "component-664964481dc3e",
+			version: "1",
+			type: "form",
+			structure: {
+				type: "object",
+				key: "root",
+				sort: 0,
+				title: null,
+				description: null,
+				required: [],
+				value: null,
+				items: null,
+				properties: null,
+			},
+		},
+		body_type: "json",
+		body: {
+			id: "component-664964481dc44",
+			version: "1",
+			type: "form",
+			structure: {
+				type: "object",
+				key: "root",
+				sort: 0,
+				title: null,
+				description: null,
+				required: [],
+				value: null,
+				items: null,
+				properties: null,
+			},
+		},
+		headers: {
+			id: "component-664964481dc48",
+			version: "1",
+			type: "form",
+			structure: {
+				type: "object",
+				key: "root",
+				sort: 0,
+				title: null,
+				description: null,
+				required: [],
+				value: null,
+				items: null,
+				properties: null,
+			},
+		},
+	},
+}
+
+export default {}

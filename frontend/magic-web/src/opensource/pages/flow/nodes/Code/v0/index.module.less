@@ -1,0 +1,75 @@
+.code {
+
+	:global {
+		.value-col {
+			flex: 0 0 53%;
+			max-width: 53%;
+		}
+
+		.magic-form-item {
+			margin-bottom: 0;
+		}
+
+		.editable-container {
+			&+div {
+				z-index: 1000 !important;
+			}
+		}
+	}
+
+	.codeEditor,
+	.output {
+		padding: 12px;
+		border-top: 1px solid #1C1D2314;
+        position: relative;
+
+		:global {
+			.magic-form-item-control-input-content {
+				&>div>div {
+					box-sizing: initial;
+				}
+			}
+
+			.editable-container {
+				border-radius: 0 0 8px 8px;
+				border-top: none;
+				background-color: #252526 !important;
+				color: #fff !important;
+
+
+				&::after {
+					color: #fff;
+				}
+			}
+		}
+	}
+
+	.input {
+		padding: 12px;
+		padding-top: 0;
+
+	}
+
+	.codeEditor {
+		:global {
+			.monaco-editor {
+				border-radius: 0 0 8px 8px;
+			}
+
+			.overflow-guard {
+				border-radius: 0 0 8px 8px;
+			}
+
+			.line-numbers {
+				width: 31px !important;
+			}
+		}
+	}
+}
+
+.modeWrap {
+	.text {
+		font-size: 14px;
+		color: #1C1D2399;
+	}
+}

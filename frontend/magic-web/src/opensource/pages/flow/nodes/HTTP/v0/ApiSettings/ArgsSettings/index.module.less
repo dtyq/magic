@@ -1,0 +1,81 @@
+.argsSettings {
+	:global {
+		.value-col {
+			flex: 0 0 53%;
+			max-width: 53%;
+		}
+
+		.step-title {
+			height: 20px;
+			font-size: 14px;
+			font-weight: 600;
+			line-height: 20px;
+			color: #000;
+
+			&.no-first {
+				margin-top: 15px;
+				margin-bottom: 0;
+			}
+		}
+	}
+
+	.body {
+		.selectNone {
+			height: 60px;
+			margin-top: 15px;
+			line-height: 60px;
+			color: #1c1d2399;
+			text-align: center;
+			border: 1px solid #1c1d2314;
+			border-radius: 6px;
+		}
+	}
+
+	.panelTabs {
+		height: 32px;
+		display: flex;
+		align-items: center;
+		width: 100%;
+		margin: 12px 0;
+
+		:global {
+			.magic-radio-button {
+				border-radius: 6px;
+			}
+
+			.magic-radio-button-wrapper {
+				&:first-child {
+					border-radius: 8px 0 0 8px;
+				}
+
+				&:last-child {
+					border-radius: 0 8px 8px 0;
+				}
+			}
+		}
+
+		.tabItem {
+			position: relative;
+			display: flex;
+			align-items: center;
+			align-items: center;
+			cursor: pointer;
+			font-weight: 600;
+			color: rgba(28, 31, 35, .45);
+			user-select: none;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			text-wrap: nowrap;
+			flex: 1;
+			justify-content: center;
+
+			&:hover {
+				color: #1c1f23;
+			}
+
+			&.active {
+				color: #1c1f23;
+			}
+		}
+	}
+}

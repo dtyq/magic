@@ -1,0 +1,164 @@
+.intention {
+
+	border-top: 1px solid #1C1D2314;
+
+	.input {
+		margin-bottom: 12px !important;
+
+		:global {
+			.label-col {
+				flex: 0 0 21%;
+				max-width: 21%;
+			}
+
+			.value-col {
+				flex: 0 0 86.4%;
+				max-width: 86.4%;
+			}
+		}
+	}
+
+	.model {
+		padding: 12px;
+		border-top: 1px solid #1C1D2314;
+		border-bottom: 1px solid #1C1D2314;
+		margin-bottom: 0 !important;
+
+		:global {
+			.magic-form-item-label {
+				margin-bottom: 6px;
+			}
+
+		}
+	}
+
+
+	.otherIntention {
+		font-weight: bold;
+		position: relative;
+		padding: 12px;
+		border-top: 1px solid #1C1D2314;
+		margin-top: 12px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		cursor: help;
+	}
+
+	.branchesDropdown {
+		:global {
+			.output-dropdown {
+				padding: 12px 12px 0 12px;
+			}
+
+			.magic-form-item {
+				margin-bottom: 0;
+			}
+		}
+
+
+		.branchList {
+			&:first-child {
+				border-top: 1px solid #1C1D2314;
+
+			}
+
+			.branchItem {
+				position: relative;
+				padding: 12px;
+				border-bottom: 1px solid #1C1D2314;
+
+
+				.intentionTopRow {
+					display: flex;
+					justify-content: space-between;
+					margin-bottom: 10px;
+					height: 14px;
+					align-items: center;
+
+
+					.title {
+						color: #1C1D23CC;
+						font-weight: 600;
+						line-height: 20px;
+					}
+
+					.iconX {
+						cursor: pointer;
+
+						&:hover {
+							stroke: rgb(255, 24, 9);
+						}
+					}
+				}
+
+				:global {
+
+					.intentionValue {
+						display: flex;
+						gap: 10px;
+						justify-content: space-between;
+
+						&>:nth-child(1) {
+							flex: 0 0 180px;
+							min-height: 32px;
+							align-self: flex-start;
+
+							.editable-container {
+								.app-name {
+									max-width: 20px;
+								}
+
+								.field-label {
+									.title {
+										max-width: 20px;
+									}
+								}
+
+								.splitor {
+									margin: 0 2px;
+								}
+							}
+						}
+
+						&>:nth-child(2) {
+							flex: 1;
+						}
+
+						.label {
+							font-size: 12px;
+							line-height: 16px;
+							color: #1C1D2399;
+						}
+
+					}
+				}
+			}
+		}
+
+	}
+
+	.intentionTitle {
+		margin-bottom: 10px;
+	}
+
+	.addBtn {
+		margin: 0 auto;
+		width: calc(100% - 24px);
+		height: 32px;
+		background-color: #2E2F380D;
+		color: #1C1D23CC;
+		font-size: 14px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		justify-content: center;
+		cursor: pointer;
+		line-height: 20px;
+		margin-top: 12px;
+
+		&:hover {
+			opacity: 0.8;
+		}
+	}
+}

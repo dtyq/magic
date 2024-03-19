@@ -1,0 +1,66 @@
+export const v0Template = {
+	node_id: "MAGIC-FLOW-NODE-672715fe77de17-86777968",
+	debug: false,
+	name: "数据获取",
+	description: "",
+	node_type: 19,
+	meta: [],
+	params: {
+		cache_scope: "topic",
+		cache_key: {
+			id: "component-672715fe77ded",
+			version: "1",
+			type: "value",
+			structure: {
+				type: "expression",
+				const_value: null,
+				expression_value: [
+					{
+						type: "input",
+						value: "",
+						name: "",
+						args: null,
+					},
+				],
+			},
+		},
+	},
+	next_nodes: [],
+	input: null,
+	output: {
+		widget: null,
+		form: {
+			id: "component-672715fe77e12",
+			version: "1",
+			type: "form",
+			structure: {
+				type: "object",
+				key: "root",
+				sort: 0,
+				title: "root节点",
+				description: "",
+				required: ["cache_value"],
+				value: null,
+				encryption: false,
+				encryption_value: null,
+				items: null,
+				properties: {
+					cache_value: {
+						type: "string",
+						key: "cache_value",
+						sort: 0,
+						title: "数据值",
+						description: "",
+						required: null,
+						value: null,
+						encryption: false,
+						encryption_value: null,
+						items: null,
+						properties: null,
+					},
+				},
+			},
+		},
+	},
+	system_output: null,
+}

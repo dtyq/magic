@@ -1,0 +1,154 @@
+.knowledgeDataWrap {
+
+    :global {
+        .dropdown-card {
+            padding: 0 12px 12px 12px;
+        }
+        .magic-form-item-control-input {
+            min-height: 0;
+        }
+        .magic-slider-mark {
+            top: 22px;
+            font-size: 12px;
+        }
+        .magic-slider-dot {
+            display: none;
+        }
+        .magic-slider-with-marks {
+            margin-bottom: 12px;
+        }
+    }
+
+    .knowledgeDataWrap {
+                
+        background-color: #F9F9F9;
+        padding: 10px;
+        border-radius: 8px;
+
+    }
+    .addKnowledgeBtn {
+        width: 100%;
+        text-align: center;
+        color: #315CEC;
+        height: 32px;
+        cursor: pointer;
+
+        &:hover {
+            background-color: #2E2F380D;
+        }
+    }
+}
+.knowledgeList {
+    
+    .knowledgeItem {
+        min-height: 30px;
+        margin-bottom: 12px;
+        .left {
+            flex: 0 0 160px;
+            max-width: 160px;
+        }
+
+        .right {
+            flex: 0 0 350px;
+            max-width: 350px;
+        }
+
+        .deleteIcon {
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            height: 32px;
+            width: 32px;
+            background: #2e2f380d;
+            border-radius: 8px;
+
+            &:hover {
+                opacity: 0.8;
+            }
+        }
+    }
+
+    .addBtn {
+        width: max-content;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #2E2F380D;
+        padding: 6px 11px 6px 11px;
+        gap: 2px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 10px;
+        color: #1C1D23CC;
+        &:hover {
+            opacity:0.8;
+        }
+    }
+}
+
+.addIcon {
+    padding: 2px;
+    &:hover {
+        background-color: #2E2F380D;
+    }
+}
+
+.parameters {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    :global {
+        .magic-form-item {
+            margin-bottom: 0;
+        }
+        .magic-slider-handle {
+            margin-top: 0;
+        }
+    }
+
+    .left {
+
+        display: flex;
+        align-items: center;
+
+        .title {
+            line-height: 20px;
+            font-size: 14px;
+            color: #1C1D23;
+        }
+
+        .icon {
+            margin-left: 2px;
+        }
+
+        .switch {
+            margin-left: 12px;
+        }
+    }
+
+    .right {
+        width: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+
+        .slider {
+            width: 224px;
+            display: flex;
+            align-items: center;
+            margin-right: 16px;
+        }
+
+        .input {
+            width: 68px
+        }
+
+        .option {
+            padding-left: 8px;
+        }
+    }
+}
