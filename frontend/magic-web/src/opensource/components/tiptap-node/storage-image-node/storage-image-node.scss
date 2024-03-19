@@ -1,0 +1,141 @@
+.storage-image-node {
+	position: relative;
+	display: flex;
+	align-items: center;
+	max-width: 100%;
+	margin: 1em 0;
+
+	&__image-wrapper {
+		position: relative;
+		display: inline-block;
+		max-width: 100%;
+	}
+
+	// Toolbar wrapper containing all toolbars
+	&__toolbar-wrapper {
+		position: absolute;
+		top: -40px;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		gap: 4px;
+		padding: 4px;
+		background: white;
+		border-radius: 6px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		z-index: 5;
+	}
+
+	&__separator {
+		width: 1px;
+		height: 24px;
+		background: #d9d9d9;
+		margin: auto 4px;
+	}
+
+	&__object-fit-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: 1px solid #d9d9d9;
+		border-radius: 4px;
+		background: white;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		color: rgba(0, 0, 0, 0.65);
+
+		&:hover {
+			color: var(--tt-brand-color-500);
+			border-color: var(--tt-brand-color-500);
+		}
+
+		&--active {
+			color: var(--tt-brand-color-500);
+			border-color: var(--tt-brand-color-500);
+			background: #e6f7ff;
+		}
+	}
+
+	// Alignment layout styles
+	&--align-left {
+		justify-content: flex-start;
+	}
+
+	&--align-center {
+		justify-content: center;
+	}
+
+	&--align-right {
+		justify-content: flex-end;
+	}
+
+	&__image {
+		max-width: 100%;
+		height: auto;
+		display: block;
+		border-radius: 4px;
+		transition: box-shadow 0.2s ease;
+	}
+
+	// Selected state - show border (only when editable)
+	&--selected {
+		.storage-image-node__image {
+			box-shadow: 0 0 0 2px #1890ff;
+			outline: none;
+		}
+	}
+
+	// In readonly mode (when editor is not editable), reduce visual emphasis on selection
+	.ProseMirror:not([contenteditable="true"]) & {
+		&--selected {
+			.storage-image-node__image {
+				box-shadow: none;
+				cursor: default;
+			}
+		}
+
+		.storage-image-node__image {
+			cursor: default;
+			user-select: none;
+		}
+	}
+
+	// Resizing state - disable transitions
+	&--resizing {
+		.storage-image-node__image {
+			transition: none;
+			user-select: none;
+		}
+	}
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+	.storage-image-node {
+		&__toolbar-wrapper {
+			background: #1f1f1f;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+		}
+
+		&__object-fit-button {
+			background: #1f1f1f;
+			border-color: #434343;
+			color: #a6a6a6;
+
+			&:hover {
+				color: var(--tt-brand-color-500);
+				border-color: var(--tt-brand-color-500);
+			}
+
+			&--active {
+				color: var(--tt-brand-color-500);
+				border-color: var(--tt-brand-color-500);
+				background: #111b26;
+			}
+		}
+	}
+}
+

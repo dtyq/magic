@@ -1,0 +1,37 @@
+/* =====================
+     HORIZONTAL RULE (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  --horizontal-rule-color: var(--tt-gray-light-a-300);
+
+  .dark & {
+    --horizontal-rule-color: var(--tt-gray-dark-a-300);
+  }
+
+  hr {
+    height: 0.25em;
+    padding: 0;
+    margin: 1.5em 0;
+    background-color: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--horizontal-rule-color);
+    overflow: hidden;
+
+    &::before {
+      display: table;
+      content: "";
+    }
+
+    &::after {
+      display: table;
+      clear: both;
+      content: "";
+    }
+  }
+
+  [data-type="horizontalRule"] {
+    margin-top: 1.5em;
+    margin-bottom: 1.5em;
+    padding: 0;
+  }
+}

@@ -1,0 +1,323 @@
+/* =====================
+     PARAGRAPH & CORE STYLES (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  --tt-collaboration-carets-label: var(--tt-gray-light-900);
+  --link-text-color: var(--tt-brand-color-500);
+  --thread-text: var(--tt-gray-light-900);
+  --placeholder-color: var(--tt-gray-light-a-400);
+  --thread-bg-color: var(--tt-color-yellow-inc-2);
+
+  // ai
+  --tiptap-ai-insertion-color: var(--tt-brand-color-600);
+
+  .dark & {
+    --tt-collaboration-carets-label: var(--tt-gray-dark-100);
+    --link-text-color: var(--tt-brand-color-400);
+    --thread-text: var(--tt-gray-dark-900);
+    --placeholder-color: var(--tt-gray-dark-a-400);
+    --thread-bg-color: var(--tt-color-yellow-dec-2);
+
+    --tiptap-ai-insertion-color: var(--tt-brand-color-400);
+  }
+}
+
+/* Ensure each top-level node has relative positioning 
+   so absolutely positioned placeholders work correctly */
+.tiptap.ProseMirror > * {
+  position: relative;
+}
+
+/* =====================
+     CORE EDITOR STYLES
+     ===================== */
+.tiptap.ProseMirror {
+  white-space: pre-wrap;
+  outline: none;
+  caret-color: var(--tt-cursor-color);
+  word-wrap: break-word;
+  line-height: 1.5;
+
+  // Paragraph spacing (GitHub style)
+  p {
+    margin-top: 0;
+    margin-bottom: 1em;
+    line-height: 1.5;
+
+    /* 隐藏分隔符，在 @ 内容后，会导致异常换行问题 */
+    .ProseMirror-separator {
+      display: inline;
+    }
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Hard break support
+  br {
+    display: block;
+    content: "";
+    margin: 0;
+  }
+
+  // Strong text
+  strong,
+  b {
+    font-weight: 600;
+  }
+
+  // Emphasis text
+  em,
+  i {
+    font-style: italic;
+  }
+
+  // Selection styles
+  &:not(.readonly):not(.ProseMirror-hideselection) {
+    ::selection {
+      background-color: var(--tt-selection-color);
+    }
+
+    .selection::selection {
+      background: transparent;
+    }
+  }
+
+  .selection {
+    display: inline;
+    background-color: var(--tt-selection-color);
+  }
+
+  // Selected node styles
+  .ProseMirror-selectednode:not(img):not(pre):not(.react-renderer) {
+    border-radius: var(--tt-radius-md);
+    background-color: var(--tt-selection-color);
+  }
+
+  .ProseMirror-hideselection {
+    caret-color: transparent;
+  }
+
+  // Resize cursor
+  &.resize-cursor {
+    cursor: ew-resize;
+    cursor: col-resize;
+  }
+}
+
+/* =====================
+     TEXT DECORATION
+     ===================== */
+.tiptap.ProseMirror {
+  // Text decoration inheritance for spans
+  a span {
+    text-decoration: underline;
+  }
+
+  s span {
+    text-decoration: line-through;
+  }
+
+  u span {
+    text-decoration: underline;
+  }
+
+  .tiptap-ai-insertion {
+    color: var(--tiptap-ai-insertion-color);
+  }
+}
+
+/* =====================
+     COLLABORATION
+     ===================== */
+.tiptap.ProseMirror {
+  .collaboration-carets {
+    &__caret {
+      border-right: 1px solid transparent;
+      border-left: 1px solid transparent;
+      pointer-events: none;
+      margin-left: -1px;
+      margin-right: -1px;
+      position: relative;
+      word-break: normal;
+    }
+
+    &__label {
+      color: var(--tt-collaboration-carets-label);
+      border-radius: 0.25rem;
+      border-bottom-left-radius: 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      left: -1px;
+      line-height: 1;
+      padding: 0.125rem 0.375rem;
+      position: absolute;
+      top: -1.3em;
+      user-select: none;
+      white-space: nowrap;
+    }
+  }
+}
+
+/* =====================
+     EMOJI
+     ===================== */
+.tiptap.ProseMirror [data-type="emoji"] img {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  cursor: text;
+}
+
+/* =====================
+     LINKS (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  a {
+    color: var(--link-text-color);
+    text-decoration: none;
+    background-color: transparent;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &:active,
+    &:hover {
+      outline-width: 0;
+    }
+
+    // Code in links
+    code {
+      color: inherit;
+    }
+  }
+}
+
+/* =====================
+     MENTION
+     ===================== */
+.tiptap.ProseMirror {
+  [data-type="mention"] {
+    display: inline-block;
+    color: var(--tt-brand-color-500);
+  }
+}
+
+/* =====================
+     THREADS
+     ===================== */
+.tiptap.ProseMirror {
+  // Base styles for inline threads
+  .tiptap-thread.tiptap-thread--unresolved.tiptap-thread--inline {
+    transition:
+      color 0.2s ease-in-out,
+      background-color 0.2s ease-in-out;
+    color: var(--thread-text);
+    border-bottom: 2px dashed var(--tt-color-yellow-base);
+    font-weight: 600;
+
+    &.tiptap-thread--selected,
+    &.tiptap-thread--hovered {
+      background-color: var(--thread-bg-color);
+      border-bottom-color: transparent;
+    }
+  }
+
+  // Block thread styles with images
+  .tiptap-thread.tiptap-thread--unresolved.tiptap-thread--block {
+    &:has(img) {
+      outline: 0.125rem solid var(--tt-color-yellow-base);
+      border-radius: var(--tt-radius-xs, 0.25rem);
+      overflow: hidden;
+      width: fit-content;
+
+      &.tiptap-thread--selected {
+        outline-width: 0.25rem;
+        outline-color: var(--tt-color-yellow-base);
+      }
+
+      &.tiptap-thread--hovered {
+        outline-width: 0.25rem;
+      }
+    }
+
+    // Block thread styles without images
+    &:not(:has(img)) {
+      border-radius: 0.25rem;
+      border-bottom: 0.125rem dashed var(--tt-color-yellow-base);
+      padding-bottom: 0.5rem;
+      outline: 0.25rem solid transparent;
+
+      &.tiptap-thread--hovered,
+      &.tiptap-thread--selected {
+        background-color: var(--tt-color-yellow-base);
+        outline-color: var(--tt-color-yellow-base);
+      }
+    }
+  }
+
+  // Resolved thread styles
+  .tiptap-thread.tiptap-thread--resolved.tiptap-thread--inline.tiptap-thread--selected {
+    background-color: var(--tt-color-yellow-base);
+    border-color: transparent;
+    opacity: 0.5;
+  }
+
+  // React renderer specific styles
+  .tiptap-thread.tiptap-thread--block:has(.react-renderer) {
+    margin-top: 3rem;
+    margin-bottom: 3rem;
+  }
+}
+
+/* =====================
+     PLACEHOLDER
+     ===================== */
+.is-empty:not(.with-slash)[data-placeholder]:has(
+    > .ProseMirror-trailingBreak:only-child
+  )::before {
+  content: attr(data-placeholder);
+}
+
+.is-empty.with-slash[data-placeholder]:has(
+    > .ProseMirror-trailingBreak:only-child
+  )::before {
+  content: "Write, type '/' for commands…";
+  font-style: italic;
+}
+
+.is-empty[data-placeholder]:has(
+    > .ProseMirror-trailingBreak:only-child
+  ):before {
+  pointer-events: none;
+  height: 0;
+  position: absolute;
+  width: 100%;
+  text-align: inherit;
+  left: 0;
+  right: 0;
+}
+
+.is-empty[data-placeholder]:has(> .ProseMirror-trailingBreak):before {
+  color: var(--placeholder-color);
+}
+
+/* =====================
+     DROPCURSOR
+     ===================== */
+.prosemirror-dropcursor-block,
+.prosemirror-dropcursor-inline {
+  background: var(--tt-brand-color-400) !important;
+  border-radius: 0.25rem;
+  margin-left: -1px;
+  margin-right: -1px;
+  width: 100%;
+  height: 0.188rem;
+  cursor: grabbing;
+}

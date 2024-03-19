@@ -1,0 +1,49 @@
+/* =====================
+     IMAGE STYLES (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  // 修改图片样式，避免和分隔符冲突
+  img:not(.ProseMirror-separator) {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    box-sizing: content-box;
+    background-color: transparent;
+  }
+
+  // Top-level images (not emoji)
+  > img:not([data-type="emoji"] img) {
+    margin: 1em 0;
+    outline: 0.125rem solid transparent;
+    border-radius: var(--tt-radius-xs, 0.25rem);
+    transition: outline-color 0.2s ease-in-out;
+  }
+
+  // Selected image
+  img:not([data-type="emoji"] img).ProseMirror-selectednode {
+    outline-color: var(--tt-brand-color-500);
+  }
+
+  // Image alignment
+  img[style*="float: left"] {
+    margin-right: 1em;
+  }
+
+  img[style*="float: right"] {
+    margin-left: 1em;
+  }
+
+  // Thread image handling
+  .tiptap-thread:has(> img) {
+    margin: 1em 0;
+
+    img {
+      outline: 0.125rem solid transparent;
+      border-radius: var(--tt-radius-xs, 0.25rem);
+    }
+  }
+
+  .tiptap-thread img {
+    margin: 0;
+  }
+}

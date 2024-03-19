@@ -1,0 +1,92 @@
+/* =====================
+   CODE FORMATTING (GitHub Markdown Style)
+   ===================== */
+.tiptap.ProseMirror {
+  --tt-inline-code-bg-color: var(--tt-gray-light-a-100);
+  --tt-inline-code-text-color: var(--tt-gray-light-900);
+  --tt-codeblock-bg: var(--tt-gray-light-50);
+  --tt-codeblock-text: var(--tt-gray-light-900);
+  --tt-codeblock-border: var(--tt-gray-light-a-200);
+
+  .dark & {
+    --tt-inline-code-bg-color: var(--tt-gray-dark-a-100);
+    --tt-inline-code-text-color: var(--tt-gray-dark-100);
+    --tt-codeblock-bg: var(--tt-gray-dark-a-50);
+    --tt-codeblock-text: var(--tt-gray-dark-100);
+    --tt-codeblock-border: var(--tt-gray-dark-a-200);
+  }
+
+  // Inline code
+  code {
+    background-color: var(--tt-inline-code-bg-color);
+    color: var(--tt-inline-code-text-color);
+    font-family: "JetBrains Mono NL", "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+    font-size: 0.85em;
+    line-height: 1.45;
+    border-radius: 6px;
+    padding: 0.2em 0.4em;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  // Code blocks
+  pre {
+    background-color: var(--tt-codeblock-bg);
+    color: var(--tt-codeblock-text);
+    border: 1px solid var(--tt-codeblock-border);
+    // margin: 1em 0;
+    padding: 1em;
+    font-size: 0.875em;
+    line-height: 1.45;
+    border-radius: 6px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+
+    code {
+      background-color: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      font-size: 100%;
+      line-height: inherit;
+      color: inherit;
+      -webkit-text-fill-color: inherit;
+      white-space: pre;
+      word-break: normal;
+      word-wrap: normal;
+    }
+  }
+
+  // Links in code should inherit code color
+  code a {
+    color: inherit;
+  }
+
+  // Code in headings should be slightly larger
+  h1 code,
+  h2 code,
+  h3 code {
+    font-size: 0.9em;
+  }
+
+  .diff-code {
+    font-size: 0.875em;
+    text-shadow: none !important;
+    background-color: var(--tt-codeblock-bg) !important;
+
+    code[class*="language-"],
+    pre[class*="language-"] {
+      text-shadow: none !important;
+      color: rgb(51, 51, 51);
+    }
+  }
+
+  .code-block-node-view {
+    margin-bottom: 1em;
+    background-color: var(--tt-codeblock-bg);
+  }
+
+  .code-block-node-view {
+    border: none;
+  }
+}

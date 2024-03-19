@@ -1,0 +1,83 @@
+/* =====================
+     HEADING STYLES (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  --heading-border-color: var(--tt-gray-light-a-200);
+
+  .dark & {
+    --heading-border-color: var(--tt-gray-dark-a-200);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    position: relative;
+    color: inherit;
+    font-style: inherit;
+    line-height: 1.25;
+    margin-bottom: 1rem;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    // Code in headings
+    code {
+      font-size: inherit;
+    }
+  }
+
+  // H1 - Largest heading with bottom border
+  h1 {
+    font-size: 2em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    padding-bottom: 0.3em;
+    // border-bottom: 1px solid var(--heading-border-color);
+  }
+
+  // H2 - Second level heading with bottom border
+  h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    padding-bottom: 0.3em;
+    // border-bottom: 1px solid var(--heading-border-color);
+  }
+
+  // H3 - Third level heading
+  h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin-top: 1.5em;
+  }
+
+  // H4 - Fourth level heading
+  h4 {
+    font-size: 1em;
+    font-weight: 600;
+    margin-top: 1.5em;
+  }
+
+  // H5 - Fifth level heading
+  h5 {
+    font-size: 0.875em;
+    font-weight: 600;
+    margin-top: 1.5em;
+  }
+
+  // H6 - Sixth level heading (smallest)
+  h6 {
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    color: var(--tt-gray-light-a-600);
+
+    .dark & {
+      color: var(--tt-gray-dark-a-600);
+    }
+  }
+}

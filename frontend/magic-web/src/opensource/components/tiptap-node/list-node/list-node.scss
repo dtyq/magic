@@ -1,0 +1,202 @@
+.tiptap.ProseMirror {
+  --tt-checklist-bg-color: transparent;
+  --tt-checklist-bg-active-color: var(--tt-brand-color-500);
+  --tt-checklist-border-color: var(--tt-gray-light-a-400);
+  --tt-checklist-border-active-color: var(--tt-brand-color-500);
+  --tt-checklist-check-icon-color: var(--white);
+  --tt-checklist-text-active: var(--tt-gray-light-a-500);
+
+  .dark & {
+    --tt-checklist-bg-color: transparent;
+    --tt-checklist-bg-active-color: var(--tt-brand-color-400);
+    --tt-checklist-border-color: var(--tt-gray-dark-a-400);
+    --tt-checklist-border-active-color: var(--tt-brand-color-400);
+    --tt-checklist-check-icon-color: var(--white);
+    --tt-checklist-text-active: var(--tt-gray-dark-a-500);
+  }
+}
+
+/* =====================
+     LISTS (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  // Common list styles
+  ol,
+  ul {
+    margin-top: 0;
+    margin-bottom: 1em;
+    padding-left: 2em;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    // Nested lists
+    ol,
+    ul {
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+  }
+
+  // List items
+  li {
+    margin-top: 0.25em;
+    line-height: 1.5;
+
+    // Paragraphs in list items
+    p {
+      margin-top: 1em;
+      margin-bottom: 1em;
+      line-height: 1.5;
+
+      &:first-child {
+        margin-top: 0;
+      }
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    // Lists in list items
+    > ol,
+    > ul {
+      margin-top: 0.5em;
+      margin-bottom: 0;
+    }
+  }
+
+  // Loose lists (lists with blank lines between items)
+  li + li {
+    margin-top: 0.25em;
+  }
+
+  // Ordered lists
+  ol {
+    list-style: decimal;
+
+    ol {
+      list-style: lower-alpha;
+
+      ol {
+        list-style: lower-roman;
+      }
+    }
+  }
+
+  // Unordered lists
+  ul:not([data-type="taskList"]) {
+    list-style: disc;
+
+    ul {
+      list-style: circle;
+
+      ul {
+        list-style: square;
+      }
+    }
+  }
+
+  // Task lists (GitHub style)
+  ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0;
+
+    li {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      margin-top: 0.25em;
+
+      &:not(:has(> p:first-child)) {
+        list-style-type: none;
+      }
+
+      // Checked items
+      &[data-checked="true"] {
+        > div > p {
+          color: var(--tt-checklist-text-active);
+          text-decoration: line-through;
+        }
+
+        > div > p span {
+          text-decoration: line-through;
+        }
+      }
+
+      label {
+        position: relative;
+        flex-shrink: 0;
+        margin-right: 0.5em;
+        margin-top: 0.125em;
+
+        input[type="checkbox"] {
+          position: absolute;
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        span {
+          display: block;
+          width: 1em;
+          height: 1em;
+          border: 1.5px solid var(--tt-checklist-border-color);
+          border-radius: 0.25em;
+          position: relative;
+          cursor: pointer;
+          background-color: var(--tt-checklist-bg-color);
+          transition:
+            background-color 120ms ease-in-out,
+            border-color 120ms ease-in-out;
+
+          &::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 0.75em;
+            height: 0.75em;
+            background-color: var(--tt-checklist-check-icon-color);
+            opacity: 0;
+            transition: opacity 120ms ease-in-out;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M20%206L9%2017L4%2012%22%20stroke%3D%22currentColor%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E")
+              center/contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M20%206L9%2017L4%2012%22%20stroke%3D%22currentColor%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E")
+              center/contain no-repeat;
+          }
+
+          &:hover {
+            border-color: var(--tt-checklist-border-active-color);
+          }
+        }
+
+        input[type="checkbox"]:checked + span {
+          background-color: var(--tt-checklist-bg-active-color);
+          border-color: var(--tt-checklist-border-active-color);
+
+          &::before {
+            opacity: 1;
+          }
+        }
+      }
+
+      div {
+        flex: 1 1 0%;
+        min-width: 0;
+      }
+    }
+
+    // Nested task lists
+    ul[data-type="taskList"] {
+      padding-left: 2em;
+      margin-top: 0.5em;
+    }
+  }
+}

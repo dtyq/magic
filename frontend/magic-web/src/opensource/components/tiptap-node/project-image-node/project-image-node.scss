@@ -1,0 +1,479 @@
+.project-image-node {
+	position: relative;
+	display: flex;
+	align-items: center;
+	max-width: 100%;
+	margin: 1em 0;
+
+	&__image-wrapper {
+		position: relative;
+		display: inline-block;
+		max-width: 100%;
+	}
+
+	// Toolbar wrapper containing all toolbars
+	&__toolbar-wrapper {
+		position: absolute;
+		top: -40px;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		gap: 4px;
+		padding: 4px;
+		background: white;
+		border-radius: 6px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		z-index: 5;
+	}
+
+	&__alignment-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: 1px solid #d9d9d9;
+		border-radius: 4px;
+		background: white;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		color: rgba(0, 0, 0, 0.65);
+
+		&:hover {
+			color: var(--tt-brand-color-500);
+			border-color: var(--tt-brand-color-500);
+		}
+
+		&--active {
+			color: var(--tt-brand-color-500);
+			border-color: var(--tt-brand-color-500);
+			// background: #e6f7ff;
+		}
+	}
+
+	&__separator {
+		width: 1px;
+		height: 24px;
+		background: #d9d9d9;
+		margin: auto 4px;
+	}
+
+	&__object-fit-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: 1px solid #d9d9d9;
+		border-radius: 4px;
+		background: white;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		color: rgba(0, 0, 0, 0.65);
+
+		&:hover {
+			color: var(--tt-brand-color-500);
+			border-color: var(--tt-brand-color-500);
+		}
+
+		&--active {
+			color: var(--tt-brand-color-500);
+			border-color: var(--tt-brand-color-500);
+			background: #e6f7ff;
+		}
+	}
+
+	// URL editor component
+	&__url-editor {
+		display: flex;
+		gap: 4px;
+		padding: 4px;
+		background: white;
+		border-radius: 6px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	}
+
+	&__url-input {
+		min-width: 280px;
+		height: 32px;
+		padding: 0 12px;
+		border: 1px solid #d9d9d9;
+		border-radius: 4px;
+		font-size: 14px;
+		outline: none;
+		transition: all 0.2s ease;
+
+		&:focus {
+			border-color: var(--tt-brand-color-500);
+			box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+		}
+
+		&::placeholder {
+			color: rgba(0, 0, 0, 0.25);
+		}
+	}
+
+	&__url-action-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: 1px solid #d9d9d9;
+		border-radius: 4px;
+		background: white;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		color: rgba(0, 0, 0, 0.65);
+
+		&:hover {
+			border-color: var(--tt-brand-color-500);
+		}
+
+		&--confirm {
+			color: #52c41a;
+
+			&:hover {
+				color: #73d13d;
+				border-color: #52c41a;
+				background: #f6ffed;
+			}
+		}
+
+		&--cancel {
+			color: #ff4d4f;
+
+			&:hover {
+				color: #ff7875;
+				border-color: #ff4d4f;
+				background: #fff2f0;
+			}
+		}
+	}
+
+	// Alignment layout styles
+	&--align-left {
+		justify-content: flex-start;
+	}
+
+	&--align-center {
+		justify-content: center;
+	}
+
+	&--align-right {
+		justify-content: flex-end;
+	}
+
+	&__image {
+		max-width: 100%;
+		height: auto;
+		display: block;
+		border-radius: 4px;
+		transition: box-shadow 0.2s ease;
+		object-fit: cover;
+	}
+
+	// Selected state - show border (only when editable)
+	&--selected {
+		.project-image-node__image {
+			box-shadow: 0 0 0 2px var(--tt-brand-color-500);
+			outline: none;
+		}
+	}
+
+	// In readonly mode (when editor is not editable), reduce visual emphasis on selection
+	.ProseMirror:not([contenteditable="true"]) & {
+		&--selected {
+			.project-image-node__image {
+				box-shadow: none;
+				cursor: default;
+			}
+		}
+
+		.project-image-node__image {
+			cursor: default;
+			user-select: none;
+		}
+	}
+
+	// Resizing state - disable transitions
+	&--resizing {
+		.project-image-node__image {
+			transition: none;
+			user-select: none;
+		}
+	}
+
+	// Resize handles
+	&__resize-handle {
+		position: absolute;
+		width: 12px;
+		height: 12px;
+		background: var(--tt-brand-color-500);
+		border: 2px solid white;
+		border-radius: 50%;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+		z-index: 5;
+		cursor: pointer;
+
+		&--nw {
+			top: -6px;
+			left: -6px;
+			cursor: nw-resize;
+		}
+
+		&--ne {
+			top: -6px;
+			right: -6px;
+			cursor: ne-resize;
+		}
+
+		&--sw {
+			bottom: -6px;
+			left: -6px;
+			cursor: sw-resize;
+		}
+
+		&--se {
+			bottom: -6px;
+			right: -6px;
+			cursor: se-resize;
+		}
+
+		&:hover {
+			background: var(--tt-brand-color-500);
+			transform: scale(1.2);
+		}
+	}
+
+	&__placeholder {
+		height: 50px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		padding: 10px;
+		border-radius: 8px;
+		position: relative;
+		overflow: hidden;
+		width: 100%;
+		background: #f9f9f9;
+		color: #888a92;
+	}
+
+	&__icon {
+		position: absolute;
+		left: -28px;
+		bottom: -28px;
+		opacity: 0.06;
+	}
+
+	&__upload-icon-wrapper {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: inherit;
+	}
+
+	&__progress-wrapper {
+		position: absolute;
+		bottom: 8px;
+		right: 8px;
+		width: 24px;
+		height: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	&__progress-circle {
+		width: 20px;
+		height: 20px;
+		border: 2px solid rgba(24, 144, 255, 0.3);
+		border-top-color: var(--tt-brand-color-500);
+		border-radius: 50%;
+		animation: project-image-spin 0.8s linear infinite;
+	}
+
+	&__progress-text {
+		font-size: 14px;
+		font-weight: 500;
+		text-align: center;
+		color: inherit;
+	}
+
+	&__error-content {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	&__error-title {
+		font-size: 14px;
+		font-weight: 500;
+		color: inherit;
+	}
+
+	&__retry-button {
+		font-size: 14px;
+		color: var(--tt-brand-color-500);
+		background: transparent;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		text-decoration: underline;
+		transition: opacity 0.2s ease;
+
+		&:hover {
+			opacity: 0.8;
+		}
+
+		&:active {
+			opacity: 0.6;
+		}
+	}
+
+	// Keep legacy styles for backward compatibility
+	&__loading-spinner {
+		width: 24px;
+		height: 24px;
+		border: 3px solid #f0f0f0;
+		border-top-color: var(--tt-brand-color-500);
+		border-radius: 50%;
+		animation: project-image-spin 0.8s linear infinite;
+	}
+
+	&__error-icon {
+		font-size: 32px;
+	}
+
+	&__error-message {
+		font-size: 14px;
+		text-align: center;
+	}
+}
+
+// Animations
+@keyframes project-image-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+	.project-image-node {
+		&__alignment-toolbar,
+		&__url-editor {
+			background: #1f1f1f;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+		}
+
+		&__alignment-button {
+			background: #1f1f1f;
+			border-color: #434343;
+			color: #a6a6a6;
+
+			&:hover {
+				color: var(--tt-brand-color-500);
+				border-color: var(--tt-brand-color-500);
+				background: #111b26;
+			}
+
+			&--active {
+				color: var(--tt-brand-color-500);
+				border-color: var(--tt-brand-color-500);
+				background: #111b26;
+			}
+		}
+
+		&__object-fit-button {
+			background: #1f1f1f;
+			border-color: #434343;
+			color: #a6a6a6;
+
+			&:hover {
+				color: var(--tt-brand-color-500);
+				border-color: var(--tt-brand-color-500);
+			}
+
+			&--active {
+				color: var(--tt-brand-color-500);
+				border-color: var(--tt-brand-color-500);
+				background: #111b26;
+			}
+		}
+
+		&__url-input {
+			background: #1f1f1f;
+			border-color: #434343;
+			color: #e8e8e8;
+
+			&:focus {
+				border-color: var(--tt-brand-color-500);
+				box-shadow: 0 0 0 2px rgba(64, 169, 255, 0.2);
+			}
+
+			&::placeholder {
+				color: rgba(255, 255, 255, 0.25);
+			}
+		}
+
+		&__url-action-button {
+			background: #1f1f1f;
+			border-color: #434343;
+			color: #a6a6a6;
+
+			&:hover {
+				border-color: var(--tt-brand-color-500);
+			}
+
+			&--confirm {
+				color: #95de64;
+
+				&:hover {
+					color: #b7eb8f;
+					border-color: #52c41a;
+					background: #162312;
+				}
+			}
+
+			&--cancel {
+				color: #ff7875;
+
+				&:hover {
+					color: #ffa39e;
+					border-color: #ff4d4f;
+					background: #2a1215;
+				}
+			}
+		}
+
+		&__placeholder {
+			&--loading {
+				background: rgba(238, 243, 253, 0.8);
+				color: var(--tt-brand-color-500);
+			}
+
+			&--error {
+				background: rgba(255, 248, 235, 0.8);
+				border-color: rgba(250, 140, 22, 0.2);
+				color: #ffa940;
+			}
+		}
+
+		&__progress-circle {
+			border-color: rgba(64, 169, 255, 0.3);
+			border-top-color: var(--tt-brand-color-500);
+		}
+
+		&__loading-spinner {
+			border-color: #434343;
+			border-top-color: var(--tt-brand-color-500);
+		}
+	}
+}

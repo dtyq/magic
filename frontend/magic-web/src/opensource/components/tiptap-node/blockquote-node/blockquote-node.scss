@@ -1,0 +1,52 @@
+/* =====================
+     BLOCKQUOTE (GitHub Markdown Style)
+     ===================== */
+.tiptap.ProseMirror {
+  --blockquote-border-color: var(--tt-gray-light-a-300);
+  --blockquote-text-color: var(--tt-gray-light-a-600);
+
+  .dark & {
+    --blockquote-border-color: var(--tt-gray-dark-a-300);
+    --blockquote-text-color: var(--tt-gray-dark-a-600);
+  }
+
+  blockquote {
+    position: relative;
+    padding-left: 1em;
+    padding-right: 1em;
+    margin: 1em 0;
+    color: var(--blockquote-text-color);
+    border-left: 0.25em solid var(--blockquote-border-color);
+
+    // First paragraph in blockquote should have no top margin
+    > p:first-child,
+    > :first-child {
+      margin-top: 0;
+    }
+
+    // Last element in blockquote should have no bottom margin
+    > p:last-child,
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    // Nested blockquotes
+    blockquote {
+      margin-top: 0.5em;
+      margin-bottom: 0.5em;
+    }
+
+    // Code blocks in blockquotes
+    pre {
+      margin-top: 0.5em;
+      margin-bottom: 0.5em;
+    }
+
+    // Lists in blockquotes
+    ol,
+    ul {
+      margin-top: 0.5em;
+      margin-bottom: 0.5em;
+    }
+  }
+}
