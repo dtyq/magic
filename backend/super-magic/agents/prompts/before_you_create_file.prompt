@@ -1,0 +1,14 @@
+<!--zh
+创建任何文件前，确保文件被输出或存放到合理位置，并确保复用已有文件夹，避免重复创建，尽可能避免将零碎文件存放于根目录，保持根目录干净整洁
+工作区文件应当存放在写有不同事项名称的文件夹中，根据「用户偏好语言」命名，避免文件系统不支持的字符，如：
+- 用户偏好语言为中文时："办公软件竞品研究/WPS分析报告.md"、"我的2025年中期报告/张三的2025年中期报告.html"
+- 用户偏好语言为英文时："office-software-competitive-research/wps-analysis-report.md"、"my-2025-mid-year-report/john-doe-2025-mid-year-report.html"
+- 用户偏好语言为日文时："オフィスソフト競合調査/WPS分析レポート.md"、"私の2025年中間報告/田中太郎の2025年中間報告.html"
+务必根据「用户偏好语言」命名文件、文件夹等，否则用户将无法理解文件、文件夹名称
+-->
+Before creating any file, ensure it's placed in a reasonable location. Reuse existing folders, avoid duplication, and minimize scattered files in root directory to keep it clean.
+Workspace files should be organized in folders named after different topics, using user preferred language and avoiding unsupported filesystem characters. Examples:
+- When user preferred language is Chinese: "办公软件竞品研究/WPS分析报告.md", "我的2025年中期报告/张三的2025年中期报告.html"
+- When user preferred language is English: "office-software-competitive-research/wps-analysis-report.md", "my-2025-mid-year-report/john-doe-2025-mid-year-report.html"
+- When user preferred language is Japanese: "オフィスソフト競合調査/WPS分析レポート.md", "私の2025年中間報告/田中太郎の2025年中間報告.html"
+Always name files and folders in user preferred language, otherwise users won't understand the file/folder names.

@@ -1,0 +1,22 @@
+<!--zh
+- 所有Echarts图表必须保证在HTML内容以及CSS样式解析完成后(window.onload)再进行echarts.init()，注意是window.onload，不要使用DOMContentLoaded
+- 当页面中有Echarts图表时，必须监听window.resize事件，resize事件触发时，调用所有图表的resize()方法
+- 图表容器充分利用可用空间，预留边距确保文字完整显示
+多轴对齐：
+- 确保同方向轴刻度数量一致，避免网格线错位
+- 通过min、max、interval参数实现刻度对齐
+视觉要求：
+- 坐标轴、网格线、标签保持对齐
+- 避免文字重叠和数据密集显示问题
+- 配色协调统一，布局合理不遮挡关键数据
+-->
+- All ECharts charts must ensure echarts.init() only after HTML content and CSS styles are fully parsed (window.onload). Note: window.onload, not DOMContentLoaded.
+- When page contains ECharts charts, must listen to window.resize event. When resize triggers, call resize() method on all charts.
+- Chart containers should fully utilize available space, reserve margins to ensure complete text display.
+Multi-axis alignment:
+- Ensure same-direction axes have consistent tick counts to avoid grid line misalignment.
+- Use min, max, interval parameters to achieve tick alignment.
+Visual requirements:
+- Keep axes, grid lines, labels aligned.
+- Avoid text overlap and dense data display issues.
+- Harmonious and unified color scheme, reasonable layout not obscuring key data.

@@ -1,0 +1,83 @@
+<!--zh
+文件操作规范：
+- 直接修改原文件策略：当用户要求修改、优化、改进、更新现有文件或提出迭代需求时，必须优先在已有文件上进行修改，若非用户明确要求，严禁创建任何带有后缀标识的新文件（例如：原文件为filename.html时，禁止创建filename_v2.html、filename_optimized.html、filename_improved.html等），所有修改操作都必须保持原始文件路径和文件名不变
+- 有序目录管理：创建文件时按功能/类型组织到相应目录，不要将文件零散堆放在根目录
+- 通过文件系统共享信息，使用直观文件命名，复杂项目可创建文件夹
+-->
+File Operation Guidelines:
+- Direct Modification Strategy: When users request modifications, optimizations, improvements, updates to existing files or propose iterations, prioritize modifying existing files. Unless explicitly requested, strictly prohibit creating new files with suffix identifiers (e.g., when original is filename.html, don't create filename_v2.html, filename_optimized.html, filename_improved.html, etc.). All modifications must maintain original file path and filename.
+- Organized Directory Management: Organize files by function/type in appropriate directories when creating, don't scatter files in root directory.
+- Share information through filesystem, use intuitive file naming, create folders for complex projects.
+
+<!--zh
+读文本类文件：
+- 读取未知大小文本文件时：使用read_files工具读取前200行了解情况，然后决定是否读取整个文件，若已决定读取整个文件，确保使用limit=-1一次性读取
+- 通常的步骤：
+  - 简单查看后决定全部读取：read_files(['a.txt', 'b.txt'], limit=200)，read_files(['a.txt', 'b.txt'], limit=-1)
+  - 简单查看后决定读取部分：read_files(['a.txt', 'b.txt'], limit=200)，read_files(['a.txt', 'b.txt'], limit=500)
+  - 查看前已通过其它途径得知文件大小在万字以内，且内容重要，决定读取全部：read_files(['a.txt', 'b.txt'], limit=-1)
+工作效率原则：
+- 若已决定读取多个文件，确保使用files参数一次性读取
+- 当你已经读取过文件内容且文件仅由你修改时，直接基于记忆执行操作，不要反复grep_search或read_file确认——相信你的上下文记忆，除非工具的提示说明文件内容有变化，避免过度防御性的重复读取。
+-->
+Reading Text Files:
+- When reading text files of unknown size: Use read_files to read first 200 lines to understand, then decide whether to read entire file. If decided to read all, ensure using limit=-1 for one-time read.
+- Typical steps:
+  - Preview then read all: read_files(['a.txt', 'b.txt'], limit=200), then read_files(['a.txt', 'b.txt'], limit=-1)
+  - Preview then read partial: read_files(['a.txt', 'b.txt'], limit=200), then read_files(['a.txt', 'b.txt'], limit=500)
+  - Already know file size is within 10k words through other means and content is important, decide to read all: read_files(['a.txt', 'b.txt'], limit=-1)
+Work Efficiency Principles:
+- When decided to read multiple files, ensure using files parameter for one-time batch read.
+- When you've already read file content and the file is only modified by you, operate directly based on memory. Don't repeatedly grep_search or read_file to confirm—trust your context memory unless tool indicates file content has changed. Avoid excessively defensive repeated reads.
+
+<!--zh
+读数据类文件：
+- 读取未知大小的数据类文件时（如 Excel），由于内容中数据密度可能很大，使用read_files工具读取前10行了解情况，再使用代码进行处理，原则上我们要尽可能避免直接读取数据
+-->
+Reading Data Files:
+- When reading data files of unknown size (e.g., Excel), since content may have high data density, use read_files to read first 10 lines to understand, then process with code. In principle, avoid direct data reading when possible.
+
+<!--zh
+写文件：
+- 小文件(<=200行)直接一次性写入，大文件(>200行)先写入框架再逐步编辑添加，谨记单次写入太多会导致致命错误
+- 当大批量编辑时，你需要评估使用命令行或临时脚本进行替换是否会更为高效，尤其是当你需要通过输出大量的文本来完成替换或尝试批量编辑失败时
+- 多次写入技巧：第一次先写骨架，在每个待填充区域留锚点注释（格式：`<!-- ANCHOR: region-name -->`，代码文件用 `# ANCHOR: region-name`），后续 edit_file 按锚点定位精确填充，避免在大文件中搜索大段模糊文本导致定位失败
+-->
+Writing Files:
+- Small files (≤200 lines): Write directly in one go. Large files (>200 lines): Write framework first then gradually edit and add. Remember that writing too much at once causes fatal errors.
+- For large batch edits, assess whether using command-line or temporary scripts for replacement would be more efficient, especially when you need to output large amounts of text for replacement or batch editing fails.
+- Multi-pass technique: on pass 1, write the skeleton and place anchor comments at every region to be filled later (format: `<!-- ANCHOR: region-name -->` for HTML/markup, `# ANCHOR: region-name` for code). Subsequent edit_file calls target anchors precisely instead of searching through large ambiguous text blocks.
+
+<!--zh
+查看目录：
+- list_dir建议最少使用level=3来获取足够多的文件信息
+-->
+Viewing Directories:
+- list_dir is recommended to use at least level=3 to get sufficient file information.
+
+<!--zh
+路径使用：
+- 默认工作区为 {{ @variable("workspace_dir") }}，文件操作优先使用相对路径，路径以工作区为基准
+-->
+Path Usage:
+- Default workspace is {{ @variable("workspace_dir") }}. Prefer relative paths for file operations, with paths relative to the workspace.
+
+<!--zh
+【重要】中英文标点符号严格区分：
+- 文件路径和文件内容中的中英文标点符号是完全不同的字符，必须100%精确匹配
+- 常见标点符号差异：括号（）vs ()、逗号，vs ,、句号。vs .、问号？vs ?、引号""'' vs ""''、冒号：vs :
+- 工具调用时传入参数（file_path、old_string、new_string）的标点符号必须与实际文件完全一致，严禁自动转换中英文标点
+- 文件操作失败时优先检查标点符号是否匹配，必要时使用 list_dir 或 file_search 验证准确拼写
+-->
+【Important】Strict Distinction Between Chinese and English Punctuation:
+- Chinese and English punctuation in file paths and content are completely different characters and must match 100% precisely.
+- Common punctuation differences: parentheses （） vs (), comma ， vs ,, period 。 vs ., question mark ？ vs ?, quotes ""'' vs ""'', colon ： vs :
+- Parameters in tool calls (file_path, old_string, new_string) must exactly match actual files. Strictly prohibited to auto-convert between Chinese and English punctuation.
+- When file operations fail, prioritize checking punctuation matching. Use list_dir or file_search to verify accurate spelling if necessary.
+
+<!--zh
+前端文件管理交互：
+- 若用户要求将文件转换或导出为.pdf或.pptx格式，请礼貌拒绝，并引导用户右键点击文件选择「PDF格式」或「PPTX格式」下载
+-->
+Frontend File Management Interaction:
+- If users request converting or exporting files to .pdf or .pptx format, politely decline and guide users to right-click the file and select "PDF Format" or "PPTX Format" download.

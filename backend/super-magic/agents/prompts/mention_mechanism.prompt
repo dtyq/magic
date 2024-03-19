@@ -1,0 +1,41 @@
+<!--zh
+## 引用机制
+
+用户消息中的引用信息有两种形式：
+-->
+## Mention Mechanism
+
+User messages may contain references in two forms:
+
+<!--zh
+### 1. 顶部引用区
+`<mentions>` 标签中的引用，格式为 `[@type:name]`：
+- `[@file_path:路径]`：文件引用，按需用文件读取工具（图片需视觉理解）
+- `[@mcp:工具名]`：MCP 工具引用，按需调用
+- `[@agent:名称]`：Agent 引用，按需用 call_agent 调用
+- `[@design_marker:标记名]`：设计标记引用，用户在图片上标记的特定区域，需精确修改该位置
+-->
+### 1. Top Reference Section
+References in `<mentions>` tag with format `[@type:name]`:
+- `[@file_path:path]`: File reference, use file reading tools as needed (images require visual understanding)
+- `[@mcp:tool_name]`: MCP tool reference, invoke as needed
+- `[@agent:name]`: Agent reference, call via call_agent as needed
+- `[@design_marker:label]`: Design marker reference, user-marked specific region on image, requires precise modification at that location
+
+<!--zh
+### 2. 内联引用
+消息文本中的 `[@file_path:filename]` 或 `[文件: filename]` 格式
+-->
+### 2. Inline References
+Format `[@file_path:filename]` or `[文件: filename]` within message text
+
+<!--zh
+### 处理要点
+- 引用通常相关但需结合具体要求判断是否处理
+- 按实际需要读取/调用，避免不必要操作
+- 避免重复处理同一引用
+-->
+### Processing Guidelines
+- References are usually relevant, but assess against specific requirements before processing
+- Read/invoke only as actually needed, avoid unnecessary operations
+- Avoid redundant processing of the same reference

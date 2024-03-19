@@ -1,0 +1,2 @@
+<!--zh: 若用户需求与工作区已有文件有关，必须使用list_dir充分了解工作区文件情况，再进行下一步动作；若为明确的行动指令且无关文件时，直接执行无需list_dir-->
+When user requests involve workspace files, use list_dir to understand the workspace before proceeding. For explicit actions unrelated to files, execute directly without list_dir.

@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CUSTOMIZE: <title> must be "[Topic Name] 深度调研" or "[Topic Name] Research" — never leave as generic "Deep Research Report" -->
+    <title>Global AI Agent Market — Deep Research 2025</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans SC', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        serif: ['Georgia', 'Cambria', 'Times New Roman', 'Times', 'serif'],
+                    },
+                    colors: {
+                        apple: {
+                            gray: '#f5f5f7',
+                            dark: '#1d1d1f',
+                            blue: '#0071e3',
+                            blueHover: '#0077ed',
+                            text: '#1d1d1f',
+                            secondary: '#86868b',
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px rgba(0,0,0,0.04)',
+                        'card': '0 10px 30px rgba(0,0,0,0.06)',
+                    },
+                    typography: {
+                        DEFAULT: {
+                            css: {
+                                color: '#1d1d1f',
+                                maxWidth: '65ch',
+                            },
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #fbfbfd; color: #1d1d1f; -webkit-font-smoothing: antialiased; }
+        .glass-nav { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .section-title { letter-spacing: -0.02em; }
+        .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 15px 35px rgba(0,0,0,0.08); }
+
+        /* Animated Background for Header */
+        .hero-bg {
+            background-color: #ffffff;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(0, 113, 227, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(52, 199, 89, 0.08) 0px, transparent 50%),
+                radial-gradient(#0071e3 0.5px, transparent 0.5px),
+                radial-gradient(#0071e3 0.5px, #ffffff 0.5px);
+            background-size: 100% 100%, 100% 100%, 20px 20px, 20px 20px;
+            background-position: 0 0, 0 0, 0 0, 10px 10px;
+            opacity: 1;
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 600px;
+            z-index: 0;
+            pointer-events: none;
+            mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+        }
+
+        .meta-pill {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,0,0,0.05);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .meta-pill:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .citation-ref {
+            color: #0071e3;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.75em;
+            vertical-align: super;
+            margin-left: 1px;
+            padding: 0 2px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .citation-ref:hover { background-color: rgba(0, 113, 227, 0.1); }
+
+        /* Glossary Term Style */
+        .glossary-term {
+            border-bottom: 1px dashed #86868b;
+            cursor: help;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .glossary-term:hover {
+            color: #0071e3;
+            border-bottom-color: #0071e3;
+        }
+
+        .timeline-line { position: absolute; left: 24px; top: 0; bottom: 0; width: 2px; background: #e5e5ea; z-index: 0; }
+
+        /* Typography for Long Form Text */
+        .prose-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.125rem;
+            line-height: 1.8;
+            color: #1d1d1f;
+        }
+        .prose-text p { margin-bottom: 1.5em; }
+        .prose-text h3 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5em;
+            margin-bottom: 0.75em;
+            letter-spacing: -0.02em;
+            color: #1d1d1f;
+        }
+        .prose-text h4 {
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin-top: 2em;
+            margin-bottom: 0.75em;
+            color: #1d1d1f;
+        }
+        .prose-text blockquote {
+            border-left: none;
+            padding: 2.5em;
+            font-style: normal;
+            color: #1d1d1f;
+            margin: 3em 0;
+            background: linear-gradient(135deg, #f5f5f7 0%, #ffffff 100%);
+            border-radius: 20px;
+            position: relative;
+            font-weight: 500;
+            font-size: 1.25rem;
+            line-height: 1.5;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+        .prose-text blockquote::before {
+            content: '\201C';
+            font-family: serif;
+            font-size: 5rem;
+            color: #0071e3;
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            opacity: 0.15;
+            line-height: 1;
+        }
+        .prose-text blockquote em {
+            display: block;
+            margin-top: 1em;
+            font-size: 0.875rem;
+            font-style: normal;
+            color: #86868b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .prose-text ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin-bottom: 1.5em;
+        }
+        .prose-text li {
+            margin-bottom: 0.5em;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #86868b; }
+
+        /* Citation Tooltip */
+        .citation-tooltip {
+            position: absolute;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            max-width: 320px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            pointer-events: auto;
+            display: none;
+        }
+        .citation-tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+            display: block;
+        }
+        .citation-tooltip .source-name {
+            font-weight: 600;
+            color: #86868b;
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .citation-tooltip .source-title {
+            color: #1d1d1f;
+            font-weight: 500;
+            line-height: 1.4;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .citation-tooltip .source-link {
+            font-size: 0.75rem;
+            color: #0071e3;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .citation-tooltip .source-link:hover {
+            text-decoration: underline;
+        }
+        /* Polarity Spectrum Styles */
+        .polarity-bar {
+            height: 8px;
+            background: #e5e5ea;
+            border-radius: 4px;
+            position: relative;
+            margin: 20px 0;
+        }
+        .polarity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0071e3, #34c759);
+            border-radius: 4px;
+            opacity: 0.3;
+        }
+        .polarity-marker {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border: 3px solid #0071e3;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 2;
+        }
+        .polarity-label {
+            font-size: 0.75rem;
+            color: #86868b;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Reality Check: X vs √ Card Styles */
+        /* 每张卡片分上下两区：红色误解区（X）+ 白色真相区（√） */
+        .myth-card {
+            background: #fff;
+            border: 1px solid #f5f5f7;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+            transition: box-shadow 0.3s ease;
+        }
+        .myth-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        /* 顶部：误解（红色背景 + X 图标） */
+        .myth-misconception {
+            padding: 16px 20px;
+            background: rgba(255, 59, 48, 0.04);
+            border-bottom: 1px solid rgba(255, 59, 48, 0.12);
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .myth-icon {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+            font-size: 0.75rem;
+        }
+        .myth-icon.cross { background: #ff3b3020; color: #ff3b30; }
+        .myth-icon.check { background: #34c75920; color: #34c759; }
+        .myth-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 4px;
+        }
+        .myth-label.misconception { color: #ff3b30; }
+        .myth-label.truth { color: #34c759; }
+        /* 底部：真相（白色背景 + √ 图标） */
+        .myth-truth {
+            padding: 16px 20px;
+            background: #fff;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            flex: 1;
+        }
+        .myth-truth-body p {
+            font-size: 0.875rem;
+            line-height: 1.65;
+            color: #3a3a3c;
+            margin: 0 0 6px 0;
+        }
+        .myth-truth-hint {
+            font-size: 0.72rem;
+            color: #86868b;
+            margin-top: 4px;
+        }
+        /* Verdict Card */
+        .verdict-card {
+            background: linear-gradient(135deg, #0c1445 0%, #1a237e 45%, #283593 100%);
+            color: white;
+            border-radius: 24px;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(26, 35, 126, 0.45);
+        }
+        .verdict-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.6);
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: block;
+        }
+        .verdict-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(to right, #ffffff 0%, #90caf9 60%, #64b5f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Perspective Cards */
+        .perspective-card {
+            background: #fff;
+            border: 1px solid #f5f5f7;
+            border-radius: 20px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        .perspective-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+            border-color: rgba(0, 113, 227, 0.3);
+        }
+        .role-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        /* Signal Indicators */
+        .signal-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid #f5f5f7;
+        }
+        .signal-row:last-child { border-bottom: none; }
+        .signal-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .signal-light.green { background-color: #34c759; color: rgba(52, 199, 89, 0.4); }
+        .signal-light.yellow { background-color: #ffcc00; color: rgba(255, 204, 0, 0.4); }
+        .signal-light.red { background-color: #ff3b30; color: rgba(255, 59, 48, 0.4); }
+
+        /* Impact Table */
+        .impact-table th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #86868b;
+            font-weight: 600;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e5ea;
+        }
+        .impact-table td {
+            padding: 20px 0;
+            border-bottom: 1px solid #f5f5f7;
+            font-size: 0.95rem;
+            color: #1d1d1f;
+        }
+        .impact-score {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-bg"></div>
+
+    <!-- Navigation -->
+    <nav class="glass-nav fixed w-full z-50 top-0 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <!--
+                CUSTOMIZE nav brand:
+                - Icon: pick a fa-solid icon that matches the research topic
+                  (e.g. fa-robot for AI, fa-chart-line for markets, fa-shield-halved for security, fa-flask for biotech)
+                - Label: use a SHORT topic keyword (≤15 chars), NOT "Deep Research"
+                  e.g. "AI Agents", "OpenClaw", "EV Market", "CRISPR"
+            -->
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-robot text-sm"></i>
+                </div>
+                <span class="font-semibold text-sm tracking-tight text-gray-900">AI Agents</span>
+            </div>
+            <div class="hidden md:flex gap-8 text-xs font-medium text-gray-500 overflow-x-auto">
+                <a href="#summary" class="hover:text-apple-blue transition-colors whitespace-nowrap">Summary</a>
+                <a href="#reality-check" class="hover:text-apple-blue transition-colors whitespace-nowrap">Reality Check</a>
+                <a href="#analysis" class="hover:text-apple-blue transition-colors whitespace-nowrap">Deep Analysis</a>
+                <a href="#landscape" class="hover:text-apple-blue transition-colors whitespace-nowrap">Landscape</a>
+                <a href="#verdict" class="hover:text-apple-blue transition-colors whitespace-nowrap">Strategic Verdict</a>
+            </div>
+            <div class="text-xs text-gray-400 font-medium border border-gray-200 px-3 py-1 rounded-full whitespace-nowrap">
+                <i class="fa-solid fa-check-circle text-green-500 mr-1"></i> Verified
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="pt-32 pb-16 px-6 max-w-5xl mx-auto relative">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/80 border border-blue-100 text-apple-blue text-xs font-bold tracking-wide mb-6">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-apple-blue"></span>
+                    </span>
+                    CONFIDENTIAL REPORT
+                </div>
+                <h1 class="text-5xl md:text-6xl font-bold leading-tight tracking-tight text-gray-900 mb-4 section-title">
+                    Global AI Agent Market<br>
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-apple-blue to-purple-600">Strategic Analysis 2025</span>
+                </h1>
+                <p class="text-xl text-gray-500 max-w-2xl font-light leading-relaxed">
+                    A comprehensive deep-dive into the transition from LLMs to LAMs, analyzing enterprise adoption, reliability bottlenecks, and the emerging multi-agent economy.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500 border-t border-gray-100/50 pt-8">
+            <div class="meta-pill">
+                <i class="fa-regular fa-calendar text-apple-blue"></i>
+                <span>Mar 03, 2026</span>
+            </div>
+            <div class="meta-pill">
+                <i class="fa-solid fa-robot text-purple-500"></i>
+                <span>Research Agent v2.0</span>
+            </div>
+            <div class="meta-pill">
+                <i class="fa-solid fa-globe text-green-500"></i>
+                <span>Global Scope</span>
+            </div>
+            <div class="meta-pill">
+                <i class="fa-solid fa-clock text-orange-500"></i>
+                <span>25 min Read</span>
+            </div>
+            <div class="meta-pill">
+                <i class="fa-solid fa-layer-group text-gray-500"></i>
+                <span>12 Sources Verified</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-6 space-y-24 pb-24">
+
+    <main class="max-w-5xl mx-auto px-6 space-y-24 pb-24">
+
+        <!-- TL;DR / Core Conclusion (Promoted) -->
+        <section id="tldr" class="scroll-mt-32">
+            <div class="bg-gradient-to-br from-gray-900 to-black text-white p-10 rounded-3xl shadow-card relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full opacity-20 blur-3xl -mr-16 -mt-16"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                            <i class="fa-solid fa-lightbulb text-white text-sm"></i>
+                        </div>
+                        <span class="text-blue-300 font-bold tracking-wider text-xs uppercase">Core Conclusion</span>
+                    </div>
+                    <h2 id="core-conclusion" class="text-2xl md:text-3xl font-bold leading-relaxed mb-6 min-h-[120px]">
+                        The AI Agent market is shifting from <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">"Chat-based"</span> to <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">"Action-based"</span> workflows. Enterprise adoption has grown by 300% YoY, driven by autonomous coding and data analysis capabilities.
+                    </h2>
+                    <div class="flex flex-wrap gap-4">
+                        <div class="bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg text-sm font-medium border border-white/10">
+                            <i class="fa-solid fa-check text-green-400 mr-2"></i> High Confidence
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg text-sm font-medium border border-white/10">
+                            <i class="fa-solid fa-shield-halved text-blue-400 mr-2"></i> Verified by 12 Sources
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Executive Summary (Bento Grid) -->
+        <section id="summary" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-bolt text-apple-blue"></i> Executive Summary
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- Metric Card 1 -->
+                <div class="md:col-span-1 bg-white p-8 rounded-3xl shadow-soft card-hover border border-gray-100 flex flex-col justify-between">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Market Size (2025)</h3>
+                    <div class="text-4xl font-bold text-gray-900 mt-2 flex items-baseline">
+                        $<span class="count-up" data-value="28.5">0</span>B
+                    </div>
+                    <div class="text-green-600 text-sm font-medium mt-2">
+                        <i class="fa-solid fa-arrow-trend-up"></i> +<span class="count-up" data-value="42">0</span>% CAGR
+                    </div>
+                </div>
+                <!-- Metric Card 2 -->
+                <div class="md:col-span-1 bg-white p-8 rounded-3xl shadow-soft card-hover border border-gray-100 flex flex-col justify-between">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Key Risk</h3>
+                    <div class="text-lg font-semibold text-gray-900 mt-2">Data Privacy & Compliance</div>
+                    <p class="text-gray-400 text-xs mt-2">Top barrier for <span class="count-up" data-value="65">0</span>% of CIOs</p>
+                </div>
+                <!-- Chart Card -->
+                <div class="md:col-span-2 bg-white p-6 rounded-3xl shadow-soft card-hover border border-gray-100 flex flex-col">
+                     <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Adoption Trend</h3>
+                     <div id="chart-mini-adoption" class="flex-1 w-full min-h-[150px]"></div>
+                </div>
+
+                <!-- Strategic Implications List -->
+                <div class="md:col-span-4 bg-white p-8 rounded-3xl shadow-soft card-hover border border-gray-100">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-4">Strategic Implications</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                <i class="fa-solid fa-layer-group text-apple-blue text-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-900">Vertical Integration</h4>
+                                <p class="text-xs text-gray-500 mt-1">Winning over horizontal platforms.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+                                <i class="fa-solid fa-network-wired text-green-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-900">Orchestration</h4>
+                                <p class="text-xs text-gray-500 mt-1">Multi-agent is the new standard.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
+                                <i class="fa-solid fa-code-branch text-purple-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-900">Open Source</h4>
+                                <p class="text-xs text-gray-500 mt-1">Llama 3 closing the gap.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reality Check (Myth Buster) -->
+        <!--
+            Layout: two rows
+            Row 1 — 4 myth cards in 2-col grid (full width)
+            Row 2 — Polarity (7/12) + Early Adopters Personas (5/12) side by side, items-stretch for equal height
+        -->
+        <section id="reality-check" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-glasses text-apple-blue"></i> Reality Check
+            </h2>
+
+            <!-- Row 1: Myth Cards (X vs √) — 2-column grid, full width -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+
+                <!-- Myth Card 1 -->
+                <div class="myth-card">
+                    <div class="myth-misconception">
+                        <div class="myth-icon cross"><i class="fa-solid fa-xmark"></i></div>
+                        <div>
+                            <div class="myth-label misconception">Misconception</div>
+                            <p class="text-sm font-semibold text-gray-800">Agents replace humans entirely</p>
+                        </div>
+                    </div>
+                    <div class="myth-truth">
+                        <div class="myth-icon check"><i class="fa-solid fa-check"></i></div>
+                        <div class="myth-truth-body">
+                            <div class="myth-label truth">Truth</div>
+                            <p>Agents act as <strong>force multipliers operating within an OODA loop</strong> — they plan, execute, and self-correct autonomously, but still require Human-in-the-Loop checkpoints for high-stakes decisions. Full autonomy today is limited to low-risk, bounded environments.</p>
+                            <p class="myth-truth-hint">Key distinction: autonomous executor vs. passive responder</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Myth Card 2 -->
+                <div class="myth-card">
+                    <div class="myth-misconception">
+                        <div class="myth-icon cross"><i class="fa-solid fa-xmark"></i></div>
+                        <div>
+                            <div class="myth-label misconception">Misconception</div>
+                            <p class="text-sm font-semibold text-gray-800">One model rules them all</p>
+                        </div>
+                    </div>
+                    <div class="myth-truth">
+                        <div class="myth-icon check"><i class="fa-solid fa-check"></i></div>
+                        <div class="myth-truth-body">
+                            <div class="myth-label truth">Truth</div>
+                            <p>Specialized small models <strong>consistently outperform generalists</strong> on constrained tasks (coding, medical diagnosis) while costing 10–100× less per call. The winning architecture is a <em>router + specialist ensemble</em>, not a single monolithic model.</p>
+                            <p class="myth-truth-hint">Implication: model selection strategy matters more than raw capability</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Myth Card 3 -->
+                <div class="myth-card">
+                    <div class="myth-misconception">
+                        <div class="myth-icon cross"><i class="fa-solid fa-xmark"></i></div>
+                        <div>
+                            <div class="myth-label misconception">Misconception</div>
+                            <p class="text-sm font-semibold text-gray-800">Agents are just better Chatbots</p>
+                        </div>
+                    </div>
+                    <div class="myth-truth">
+                        <div class="myth-icon check"><i class="fa-solid fa-check"></i></div>
+                        <div class="myth-truth-body">
+                            <div class="myth-label truth">Truth</div>
+                            <p>Chatbots are <strong>pull-based Q&A interfaces</strong>; agents are <strong>push-based execution runtimes</strong>. Think of the difference between Python's <code>requests</code> library (tool) and Linux (OS) — agents manage process scheduling, I/O, and memory (context) the same way an OS manages compute resources.</p>
+                            <p class="myth-truth-hint">Analogy: LangChain = library, Agent framework = runtime OS</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Myth Card 4 — add a 4th to balance the 2×2 grid -->
+                <div class="myth-card">
+                    <div class="myth-misconception">
+                        <div class="myth-icon cross"><i class="fa-solid fa-xmark"></i></div>
+                        <div>
+                            <div class="myth-label misconception">Misconception</div>
+                            <p class="text-sm font-semibold text-gray-800">Production-ready out of the box</p>
+                        </div>
+                    </div>
+                    <div class="myth-truth">
+                        <div class="myth-icon check"><i class="fa-solid fa-check"></i></div>
+                        <div class="myth-truth-body">
+                            <div class="myth-label truth">Truth</div>
+                            <p>Most agent frameworks ship with <strong>minimal sandboxing and no supply-chain verification</strong>. Success rates on unconstrained 10-step tasks hover around 15–25%. Treat them as an experimental intern, not a senior employee — always run in an isolated environment (Docker / VM) before any production exposure.</p>
+                            <p class="myth-truth-hint">Deployment rule: sandbox first, production never without audit</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Row 2: Polarity (7/12) + Early Adopters Personas (5/12) — equal height -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+
+                <!-- Polarity Spectrum -->
+                <div class="lg:col-span-7 bg-white p-8 rounded-3xl border border-gray-100 shadow-soft flex flex-col">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-6">Subject Polarity Analysis</h3>
+                    <div class="space-y-8 flex-1">
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <span class="polarity-label">Experimental</span>
+                                <span class="polarity-label">Production Ready</span>
+                            </div>
+                            <div class="polarity-bar">
+                                <div class="polarity-fill" style="width: 100%"></div>
+                                <div class="polarity-marker" style="left: 65%"></div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">Moving towards production, but reliability issues persist.</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <span class="polarity-label">Cost Efficient</span>
+                                <span class="polarity-label">Expensive</span>
+                            </div>
+                            <div class="polarity-bar">
+                                <div class="polarity-fill" style="width: 100%"></div>
+                                <div class="polarity-marker" style="left: 80%"></div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">High token consumption makes complex agents costly.</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <span class="polarity-label">Centralized</span>
+                                <span class="polarity-label">Decentralized</span>
+                            </div>
+                            <div class="polarity-bar">
+                                <div class="polarity-fill" style="width: 100%"></div>
+                                <div class="polarity-marker" style="left: 30%"></div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">Currently dominated by major API providers (OpenAI, Anthropic).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Early Adopters Personas — flex-1 centers items vertically to match polarity height -->
+                <div class="lg:col-span-5 bg-white p-8 rounded-3xl border border-gray-100 shadow-soft flex flex-col">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-6">Early Adopters</h3>
+                    <div class="space-y-6 flex-1 flex flex-col justify-center">
+                        <div class="flex items-start gap-4">
+                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 text-lg">👨‍💻</div>
+                            <div>
+                                <div class="font-bold text-gray-900 text-sm">Geek Developers</div>
+                                <p class="text-xs text-gray-500 mt-1 leading-relaxed">Seeking local sovereignty; frustrated by cloud API rate limits and data-privacy constraints.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 text-lg">⚙️</div>
+                            <div>
+                                <div class="font-bold text-gray-900 text-sm">Automation Engineers</div>
+                                <p class="text-xs text-gray-500 mt-1 leading-relaxed">Leveraging visual-recognition capabilities to automate legacy systems that lack APIs.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center shrink-0 text-lg">🚀</div>
+                            <div>
+                                <div class="font-bold text-gray-900 text-sm">Solo Founders</div>
+                                <p class="text-xs text-gray-500 mt-1 leading-relaxed">Using agents to operate entire business functions (support, marketing, code review) without hiring.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Research Scope -->
+        <section id="method" class="scroll-mt-24">
+            <div class="bg-apple-gray rounded-2xl p-6 border border-gray-200">
+                <div class="flex flex-col md:flex-row gap-6 text-sm">
+                    <div class="flex-1">
+                        <span class="block text-gray-500 text-xs font-bold uppercase mb-1">Research Goal</span>
+                        <p class="text-gray-800">Evaluate the maturity of autonomous agents in enterprise environments.</p>
+                    </div>
+                    <div class="w-px bg-gray-300 hidden md:block"></div>
+                    <div class="flex-1">
+                        <span class="block text-gray-500 text-xs font-bold uppercase mb-1">Sources Analyzed</span>
+                        <p class="text-gray-800">12 Industry Reports (Gartner, Forrester), 50+ News Articles, GitHub Repos.</p>
+                    </div>
+                    <div class="w-px bg-gray-300 hidden md:block"></div>
+                    <div class="flex-1">
+                        <span class="block text-gray-500 text-xs font-bold uppercase mb-1">Constraints</span>
+                        <p class="text-gray-800">Focus on software agents (excluding physical robotics).</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Deep Analysis Section (Long Form Text) -->
+        <section id="analysis" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-align-left text-apple-blue"></i> Deep Analysis
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                <!-- Main Text Column -->
+                <div class="lg:col-span-8 prose-text">
+
+                    <h3>1. The Shift from "Chat" to "Work"</h3>
+                    <p>
+                        The defining characteristic of the AI landscape in 2025 is the decisive shift from conversational interfaces to autonomous execution layers. While 2023-2024 focused on Large Language Models (LLMs) as knowledge retrieval engines, 2025 has seen the emergence of <span class="glossary-term" data-term="LAM">Large Action Models (LAMs)</span> capable of navigating graphical user interfaces and executing complex, multi-step workflows without human intervention <a href="#s1" class="citation-ref">[S1]</a>.
+                    </p>
+                    <p>
+                        This transition is not merely technical but structural. Enterprises are no longer satisfied with AI that "drafts emails"; they demand AI that "resolves tickets". Data from Forrester indicates that <strong>42% of Fortune 500 companies</strong> have moved at least one agentic workflow into production, up from just 12% in 2024 <a href="#s2" class="citation-ref">[S2]</a>. The primary drivers for this adoption are cost reduction in high-volume, low-variance tasks (such as invoice processing and L1 customer support) and the need for 24/7 operational capability.
+                    </p>
+                    <blockquote>
+                        "The era of the chatbot is over. The era of the digital employee has begun. We are seeing agents that don't just talk, but do—accessing APIs, writing code, and deploying software." — <em>Gartner Strategic Report 2025</em> <a href="#s1" class="citation-ref">[S1]</a>
+                    </blockquote>
+
+                    <h3>2. The "Agentic" Architecture: Multi-Agent Systems (MAS)</h3>
+                    <p>
+                        Single-agent systems, while easier to deploy, have hit a performance ceiling. They struggle with long-horizon tasks due to context window limitations and error propagation. The industry solution has been a pivot to <span class="glossary-term" data-term="MAS">Multi-Agent Systems (MAS)</span>, where specialized agents collaborate to solve complex problems <a href="#s3" class="citation-ref">[S3]</a>.
+                    </p>
+                    <p>
+                        In a typical MAS setup for software development, for instance, one agent might act as the "Product Manager" breaking down requirements, another as the "Developer" writing code, and a third as the "QA Engineer" writing tests. Microsoft's research on AutoGen demonstrates that this role-playing architecture reduces hallucination rates by approximately 40% compared to zero-shot prompting of a single model <a href="#s3" class="citation-ref">[S3]</a>.
+                    </p>
+                    <p>
+                        However, this complexity comes at a cost. Orchestrating multiple agents introduces significant latency and token consumption. A single user request might trigger 50+ internal agent-to-agent turns, ballooning operational costs. This "reliability-cost trade-off" remains the central architectural debate of 2025.
+                    </p>
+
+                    <h3>3. The Reliability Gap and "Human-in-the-Loop"</h3>
+                    <p>
+                        Despite the hype, reliability remains the Achilles' heel of autonomous agents. While agents can perform impressive demos, their success rate in unconstrained environments often hovers around 70-80% <a href="#s4" class="citation-ref">[S4]</a>. For critical business processes like financial reconciliation or medical diagnosis, this error rate is unacceptable.
+                    </p>
+                    <p>
+                        Consequently, the dominant deployment model is <span class="glossary-term" data-term="HITL">"Human-in-the-Loop" (HITL)</span> or "Human-on-the-Loop". In this paradigm, agents propose actions, but a human operator must approve high-stakes decisions. This hybrid approach allows organizations to leverage AI speed while mitigating risk. As confidence scores improve, we expect a gradual transition to "Human-on-the-Loop" (supervisory control) and eventually full autonomy for specific, bounded domains.
+                    </p>
+
+                    <!-- Key Drivers (New) -->
+                    <h4>Key Drivers Behind the Shift</h4>
+                    <div class="grid grid-cols-2 gap-4 my-8">
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="fa-solid fa-microchip text-blue-500"></i>
+                                <span class="text-xs font-bold uppercase text-gray-500">Supply</span>
+                            </div>
+                            <p class="text-sm font-medium">Cheaper inference costs (Llama 3, DeepSeek) enabling multi-step agent loops.</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="fa-solid fa-users text-green-500"></i>
+                                <span class="text-xs font-bold uppercase text-gray-500">Demand</span>
+                            </div>
+                            <p class="text-sm font-medium">Enterprise need for automation beyond simple Q&A chatbots.</p>
+                        </div>
+                    </div>
+
+                    <!-- Impact Matrix (New) -->
+                    <h4>Stakeholder Impact Matrix</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full impact-table text-left">
+                            <thead>
+                                <tr>
+                                    <th>Stakeholder</th>
+                                    <th>Impact</th>
+                                    <th>Primary Outcome</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="font-medium">Enterprises</td>
+                                    <td><span class="impact-score bg-green-500"></span> Positive</td>
+                                    <td>Reduced OpEx, 24/7 availability.</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-medium">Developers</td>
+                                    <td><span class="impact-score bg-blue-500"></span> Transformative</td>
+                                    <td>Shift from writing code to orchestrating agents.</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-medium">Junior Staff</td>
+                                    <td><span class="impact-score bg-red-500"></span> Negative</td>
+                                    <td>Automation of entry-level cognitive tasks.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sidebar / Visuals Column -->
+                <div class="lg:col-span-4 space-y-8 sticky top-24 self-start">
+                    <!-- Chart: Reliability vs Cost -->
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <div class="flex items-center justify-between mb-6">
+                            <h4 class="font-bold text-gray-900 text-sm uppercase tracking-wide">Reliability vs. Cost</h4>
+                            <div class="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">Live Data</div>
+                        </div>
+                        <div id="chart-scatter" class="w-full h-64"></div>
+                        <p class="text-xs text-gray-500 mt-4 leading-relaxed">
+                            <span class="font-semibold text-apple-blue">Insight:</span> Multi-agent systems achieve higher reliability but at exponentially higher token costs.
+                        </p>
+                    </div>
+
+                    <!-- Key Stat Box -->
+                    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-3xl border border-blue-100 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-500 rounded-full opacity-10 blur-2xl"></div>
+                        <div class="text-5xl font-bold text-apple-blue mb-2 tracking-tight">40%</div>
+                        <div class="text-base text-gray-900 font-bold mb-2">Reduction in Hallucinations</div>
+                        <p class="text-sm text-gray-600 leading-relaxed">
+                            Achieved by using role-based Multi-Agent Systems compared to single-shot prompting <a href="#s3" class="citation-ref">[S3]</a>.
+                        </p>
+                    </div>
+
+                     <!-- Quote Box -->
+                     <div class="bg-gray-900 text-white p-8 rounded-3xl shadow-card relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-br from-gray-800 to-black opacity-50"></div>
+                        <i class="fa-solid fa-quote-left text-gray-700 text-4xl mb-4 absolute top-6 left-6 opacity-20 transform group-hover:scale-110 transition-transform"></i>
+                        <div class="relative z-10">
+                            <p class="text-lg leading-relaxed font-medium mb-6">
+                                "The bottleneck is no longer intelligence; it's orchestration. How we wire models together matters more than the model itself."
+                            </p>
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-xs font-bold">CA</div>
+                                <div class="text-sm">
+                                    <div class="font-bold text-white">Chief AI Officer</div>
+                                    <div class="text-gray-400">Fortune 100 Bank</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Market Landscape (Graph) -->
+        <section id="landscape" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-map text-apple-blue"></i> Market Landscape
+            </h2>
+            <p class="text-gray-600 leading-relaxed mb-6 max-w-3xl">
+                The ecosystem is dividing into three distinct layers: Foundation Models providing the raw intelligence, Orchestration Frameworks managing the flow and state, and Vertical Applications delivering end-user value.
+            </p>
+            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-[500px] w-full" id="chart-landscape"></div>
+        </section>
+
+        <!-- Comparative Analysis (Radar) -->
+        <section id="comparison" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-scale-balanced text-apple-blue"></i> Framework Comparison
+            </h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div class="prose-text">
+                    <p>
+                        We compared the top 3 agentic frameworks: <strong>LangGraph</strong>, <strong>AutoGen</strong>, and <strong>CrewAI</strong> across 5 key dimensions.
+                    </p>
+                    <ul>
+                        <li>
+                            <strong class="text-blue-600">LangGraph</strong> excels in <strong>control flow</strong>. It treats agent workflows as a graph, allowing for cycles and precise state management. This makes it the preferred choice for production engineering teams requiring deterministic behavior.
+                        </li>
+                        <li>
+                            <strong class="text-green-600">AutoGen</strong> (Microsoft) dominates in <strong>conversational simulation</strong>. Its ability to spawn multiple agents that "talk" to each other makes it powerful for creative problem solving and complex reasoning tasks, though it can be harder to control.
+                        </li>
+                        <li>
+                            <strong class="text-orange-500">CrewAI</strong> focuses on <strong>usability</strong>. It provides a higher-level abstraction with role-based orchestration, making it the easiest entry point for developers new to agentic workflows.
+                        </li>
+                    </ul>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm h-[400px]" id="chart-radar"></div>
+            </div>
+        </section>
+
+        <!-- SWOT Analysis -->
+        <section id="swot" class="scroll-mt-24">
+             <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-chess-board text-apple-blue"></i> SWOT Analysis
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Strengths -->
+                <div class="bg-green-50/50 p-8 rounded-3xl border border-green-100">
+                    <h3 class="text-green-700 font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-plus-circle"></i> Strengths
+                    </h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li>• 24/7 autonomous operation capability</li>
+                        <li>• Significant reduction in operational costs</li>
+                        <li>• Scalability of knowledge work</li>
+                    </ul>
+                </div>
+                <!-- Weaknesses -->
+                <div class="bg-orange-50/50 p-8 rounded-3xl border border-orange-100">
+                    <h3 class="text-orange-700 font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-minus-circle"></i> Weaknesses
+                    </h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li>• Hallucination in complex reasoning steps</li>
+                        <li>• High latency for multi-step chains</li>
+                        <li>• Lack of standardized testing protocols</li>
+                    </ul>
+                </div>
+                <!-- Opportunities -->
+                <div class="bg-blue-50/50 p-8 rounded-3xl border border-blue-100">
+                    <h3 class="text-blue-700 font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-trend-up"></i> Opportunities
+                    </h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li>• Vertical-specific agents (Legal, Medical)</li>
+                        <li>• On-device local agent execution</li>
+                        <li>• Standardization of agent-to-agent protocols</li>
+                    </ul>
+                </div>
+                <!-- Threats -->
+                <div class="bg-red-50/50 p-8 rounded-3xl border border-red-100">
+                    <h3 class="text-red-700 font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved"></i> Threats
+                    </h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li>• Regulatory crackdowns on autonomous AI</li>
+                        <li>• Security vulnerabilities (Prompt Injection)</li>
+                        <li>• Data privacy breaches</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Evidence Matrix -->
+        <section id="evidence" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-table-list text-apple-blue"></i> Evidence Matrix
+            </h2>
+            <div class="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+                <table class="w-full text-sm text-left text-gray-600 bg-white">
+                    <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th scope="col" class="px-6 py-4 font-semibold">Key Claim</th>
+                            <th scope="col" class="px-6 py-4 font-semibold">Source</th>
+                            <th scope="col" class="px-6 py-4 font-semibold">Data Point</th>
+                            <th scope="col" class="px-6 py-4 font-semibold">Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 font-medium text-gray-900">Market growth to $28.5B</td>
+                            <td class="px-6 py-4 text-apple-blue">Gartner Report 2024</td>
+                            <td class="px-6 py-4">"Projected revenue by Q4 2025"</td>
+                            <td class="px-6 py-4">
+                                <span class="bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-semibold">High</span>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 font-medium text-gray-900">300% YoY Adoption</td>
+                            <td class="px-6 py-4 text-apple-blue">Forrester Survey</td>
+                            <td class="px-6 py-4">"Survey of 500 CIOs"</td>
+                            <td class="px-6 py-4">
+                                <span class="bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-semibold">High</span>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 font-medium text-gray-900">Reduced Hallucination</td>
+                            <td class="px-6 py-4 text-apple-blue">arXiv Paper (Microsoft)</td>
+                            <td class="px-6 py-4">"Multi-agent benchmarks"</td>
+                            <td class="px-6 py-4">
+                                <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-md text-xs font-semibold">Medium</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Timeline -->
+        <section id="timeline" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-timeline text-apple-blue"></i> Evolution Roadmap
+            </h2>
+            <div class="relative pl-8 space-y-12">
+                <div class="timeline-line"></div>
+
+                <!-- Item 1 -->
+                <div class="relative z-10">
+                    <div class="absolute -left-10 w-6 h-6 rounded-full bg-gray-200 border-4 border-white shadow-sm flex items-center justify-center"></div>
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm card-hover">
+                        <span class="text-xs font-bold text-gray-400 uppercase">2023</span>
+                        <h3 class="text-lg font-bold text-gray-900 mt-1">The Chat Era</h3>
+                        <p class="text-gray-600 text-sm mt-2">Focus on single-turn Q&A. ChatGPT plugins introduced basic tool use.</p>
+                    </div>
+                </div>
+
+                <!-- Item 2 -->
+                <div class="relative z-10">
+                    <div class="absolute -left-10 w-6 h-6 rounded-full bg-apple-blue border-4 border-white shadow-sm flex items-center justify-center"></div>
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm card-hover border-l-4 border-l-apple-blue">
+                        <span class="text-xs font-bold text-apple-blue uppercase">2024 - 2025 (Current)</span>
+                        <h3 class="text-lg font-bold text-gray-900 mt-1">The Agentic Era</h3>
+                        <p class="text-gray-600 text-sm mt-2">Multi-step reasoning loops. Agents writing code, browsing web, and orchestrating workflows.</p>
+                    </div>
+                </div>
+
+                <!-- Item 3 -->
+                <div class="relative z-10">
+                    <div class="absolute -left-10 w-6 h-6 rounded-full bg-gray-200 border-4 border-white shadow-sm flex items-center justify-center"></div>
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm card-hover">
+                        <span class="text-xs font-bold text-gray-400 uppercase">2026+</span>
+                        <h3 class="text-lg font-bold text-gray-900 mt-1">The LAM Era</h3>
+                        <p class="text-gray-600 text-sm mt-2">Large Action Models natively interacting with GUIs. "Computer Use" becomes standard.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detailed Case Studies -->
+        <section id="cases" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-briefcase text-apple-blue"></i> Case Studies
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Case 1 -->
+                <!-- Header: py-4 px-6 + min-h instead of fixed h-32 — content drives height -->
+                <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-soft card-hover">
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center min-h-[56px]">
+                        <h3 class="text-white font-bold text-lg leading-snug">FinTech: Auto-Reconciliation</h3>
+                    </div>
+                    <div class="p-7 space-y-4">
+                        <div>
+                            <span class="text-xs font-bold text-gray-400 uppercase">Challenge</span>
+                            <p class="text-sm text-gray-700 mt-1">Manual matching of 50k+ transactions/month took 200 hours.</p>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold text-gray-400 uppercase">Solution</span>
+                            <p class="text-sm text-gray-700 mt-1">Multi-agent system: Agent A reads PDF invoices, Agent B queries DB, Agent C matches.</p>
+                        </div>
+                        <div class="pt-4 border-t border-gray-100">
+                            <span class="text-xs font-bold text-green-600 uppercase">Result</span>
+                            <p class="text-base font-bold text-gray-900 mt-1">95% reduction in manual effort.</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Case 2 -->
+                <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-soft card-hover">
+                    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center min-h-[56px]">
+                        <h3 class="text-white font-bold text-lg leading-snug">DevOps: Self-Healing Infra</h3>
+                    </div>
+                    <div class="p-7 space-y-4">
+                        <div>
+                            <span class="text-xs font-bold text-gray-400 uppercase">Challenge</span>
+                            <p class="text-sm text-gray-700 mt-1">Downtime from minor config drifts required on-call engineers.</p>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold text-gray-400 uppercase">Solution</span>
+                            <p class="text-sm text-gray-700 mt-1">Agent monitors logs, identifies drift, proposes Terraform fix, waits for approval.</p>
+                        </div>
+                        <div class="pt-4 border-t border-gray-100">
+                            <span class="text-xs font-bold text-green-600 uppercase">Result</span>
+                            <p class="text-base font-bold text-gray-900 mt-1">MTTR improved by 60%.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Strategic Verdict & Perspectives -->
+        <section id="verdict" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                <i class="fa-solid fa-gavel text-apple-blue"></i> Strategic Verdict
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- The Magic Stance (Strong Signal) -->
+                <div class="lg:col-span-2 verdict-card">
+                    <div class="absolute top-0 right-0 w-72 h-72 bg-blue-400 opacity-20 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-indigo-300 opacity-10 rounded-full blur-2xl -ml-12 -mb-12"></div>
+                    <span class="verdict-label">OUR CONVICTION</span>
+                    <h3 class="verdict-title">Agentic Workflows are Inevitable.</h3>
+                    <p class="text-gray-300 text-lg leading-relaxed mb-8">
+                        The efficiency gains from autonomous agents are too significant to ignore. While reliability is a hurdle today, the cost-curve of intelligence is collapsing. Organizations that fail to pilot agentic workflows in 2025 will face a structural disadvantage by 2027.
+                    </p>
+                    <div class="flex gap-4">
+                        <div class="bg-white/10 backdrop-blur px-4 py-2 rounded-lg border border-white/10 text-sm font-medium">
+                            Action: <span class="text-white">Aggressive Adoption</span>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur px-4 py-2 rounded-lg border border-white/10 text-sm font-medium">
+                            Timeframe: <span class="text-white">Immediate (Q3 2025)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Forward Looking Signals (Watchlist) -->
+                <div class="lg:col-span-1 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-4">Forward-Looking Signals</h3>
+                    <div class="space-y-1">
+                        <div class="signal-row">
+                            <div>
+                                <div class="text-sm font-bold text-gray-900">GPT-5 Release</div>
+                                <div class="text-xs text-gray-500">Expected Q4 2025</div>
+                            </div>
+                            <div class="signal-light green"></div>
+                        </div>
+                        <div class="signal-row">
+                            <div>
+                                <div class="text-sm font-bold text-gray-900">EU AI Act Enforcement</div>
+                                <div class="text-xs text-gray-500">Regulatory Headwind</div>
+                            </div>
+                            <div class="signal-light yellow"></div>
+                        </div>
+                        <div class="signal-row">
+                            <div>
+                                <div class="text-sm font-bold text-gray-900">Open Source Agents</div>
+                                <div class="text-xs text-gray-500">Rapid Commoditization</div>
+                            </div>
+                            <div class="signal-light green"></div>
+                        </div>
+                        <div class="signal-row">
+                            <div>
+                                <div class="text-sm font-bold text-gray-900">GPU Shortage</div>
+                                <div class="text-xs text-gray-500">Supply Chain Risk</div>
+                            </div>
+                            <div class="signal-light red"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role-based Perspectives -->
+            <div class="mt-12">
+                <h3 class="text-xl font-bold text-gray-900 mb-6">Perspectives by Role</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- CEO Perspective -->
+                    <div class="perspective-card">
+                        <span class="role-badge bg-blue-100 text-blue-700">For CEOs</span>
+                        <h4 class="font-bold text-gray-900 mb-2">The Efficiency Play</h4>
+                        <p class="text-sm text-gray-600 leading-relaxed">
+                            Focus on "Service-as-a-Software". Replace headcount in non-core functions (support, data entry) with agents. Expect 30-50% OpEx reduction in these areas.
+                        </p>
+                    </div>
+                    <!-- CTO Perspective -->
+                    <div class="perspective-card">
+                        <span class="role-badge bg-purple-100 text-purple-700">For CTOs</span>
+                        <h4 class="font-bold text-gray-900 mb-2">The Architecture Shift</h4>
+                        <p class="text-sm text-gray-600 leading-relaxed">
+                            Move from stateless APIs to stateful agent graphs. Invest in "Evals" (testing frameworks) immediately—reliability is your new technical debt.
+                        </p>
+                    </div>
+                    <!-- Investor Perspective -->
+                    <div class="perspective-card">
+                        <span class="role-badge bg-green-100 text-green-700">For Investors</span>
+                        <h4 class="font-bold text-gray-900 mb-2">The Moat Analysis</h4>
+                        <p class="text-sm text-gray-600 leading-relaxed">
+                            Avoid "Wrapper" startups. Look for companies with proprietary data that agents can act upon. The value accrues to the vertical application layer.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Methodology -->
+        <section id="methodology" class="scroll-mt-24 border-t border-gray-200 pt-12">
+            <h2 class="text-lg font-bold mb-6 text-gray-900">Research Methodology</h2>
+            <p class="text-sm text-gray-600 leading-relaxed max-w-3xl mb-8">
+                This report was generated using an autonomous multi-step research workflow. The agent performed recursive retrieval, cross-source verification, and synthesis to ensure high confidence in the findings.
+            </p>
+            <!-- Research Funnel Visualization -->
+            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-[300px] w-full" id="chart-funnel"></div>
+        </section>
+
+        <!-- Sources — include all retrieved sources; Standard depth >= 15, Expert >= 25 -->
+        <section id="sources" class="scroll-mt-24 pt-12">
+            <h2 class="text-lg font-bold mb-6 text-gray-900">Sources & References</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <a href="https://www.gartner.com/en/articles/top-technology-trends-2025" target="_blank" id="s1" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S1] Gartner Research</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">Top Strategic Technology Trends for 2025</div>
+                </a>
+                <a href="https://www.forrester.com/report/state-of-ai-agents-2025" target="_blank" id="s2" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S2] Forrester</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">The State of AI Agents in Enterprise</div>
+                </a>
+                <a href="https://arxiv.org/abs/2308.08155" target="_blank" id="s3" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S3] Microsoft Research</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">AutoGen: Enabling Next-Gen LLM Applications</div>
+                </a>
+                <a href="https://www.industry-benchmarks.com/ai-agents-q4-2024" target="_blank" id="s4" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S4] Industry Benchmarks</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">Agent Reliability Report Q4 2024</div>
+                </a>
+                <a href="https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai-in-2025" target="_blank" id="s5" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S5] McKinsey & Company</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">The State of AI in 2025: Agents Take Center Stage</div>
+                </a>
+                <a href="https://a16z.com/ai-agents-market-map-2025/" target="_blank" id="s6" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S6] Andreessen Horowitz</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">AI Agents Market Map 2025</div>
+                </a>
+                <a href="https://www.idc.com/getdoc.jsp?containerId=prUS52345625" target="_blank" id="s7" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S7] IDC Research</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">Worldwide AI Software Forecast 2025–2029</div>
+                </a>
+                <a href="https://arxiv.org/abs/2401.05671" target="_blank" id="s8" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S8] Stanford HAI</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">Risks and Limitations of Autonomous AI Agents</div>
+                </a>
+                <a href="https://openai.com/research/planning-with-agents" target="_blank" id="s9" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S9] OpenAI Research</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">Planning and Decision-Making in LLM Agents</div>
+                </a>
+                <a href="https://www.wired.com/story/ai-agents-enterprise-2025/" target="_blank" id="s10" class="block p-4 rounded-xl bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md group scroll-mt-24">
+                    <div class="text-xs text-gray-400 mb-1">[S10] WIRED</div>
+                    <div class="text-sm font-medium text-apple-blue group-hover:underline truncate">Why Every Company Is Building AI Agents Now</div>
+                </a>
+                <!-- Add more source cards as needed to reach depth mode threshold -->
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 py-12 mt-12">
+        <div class="max-w-5xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-layer-group text-sm"></i>
+                </div>
+                <div class="text-left">
+                    <div class="font-bold text-gray-900 text-sm">Deep Research</div>
+                    <div class="text-xs text-gray-500">Powered by [Agent Name]</div>
+                </div>
+            </div>
+            <div class="text-center md:text-right text-gray-400 text-sm">
+                <p>&copy; 2026 [Agent Name]. Generated for [User].</p>
+                <div class="mt-2 text-xs">
+                    <a href="#" class="hover:text-apple-blue transition-colors mr-4">Privacy Policy</a>
+                    <a href="#" class="hover:text-apple-blue transition-colors">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Chart Initialization -->
+    <!-- ECharts rendering rules: always use window.onload (not DOMContentLoaded); listen to window.resize and call resize() on all chart instances; reserve sufficient margin so labels are never clipped. -->
+    <script>
+        window.onload = function () {
+            // Chart 1: Mini Adoption Trend (in Summary)
+            var chartMini = echarts.init(document.getElementById('chart-mini-adoption'));
+            chartMini.setOption({
+                color: ['#0071e3', '#34c759'],
+                tooltip: { trigger: 'axis', show: true, formatter: '{b}: {c}%' },
+                grid: { left: '-10%', right: '-10%', top: '10%', bottom: '0%', containLabel: false },
+                xAxis: { type: 'category', show: false, data: ['22', '23', '24', '25'] },
+                yAxis: { type: 'value', show: false },
+                series: [
+                    {
+                        type: 'line',
+                        smooth: true,
+                        showSymbol: false,
+                        data: [5, 15, 45, 85],
+                        lineStyle: { width: 3, color: '#0071e3' },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(0, 113, 227, 0.2)' },
+                                { offset: 1, color: 'rgba(0, 113, 227, 0)' }
+                            ])
+                        }
+                    }
+                ]
+            });
+
+            // Chart 2: Market Landscape (Tree Map or Graph)
+            var chartLandscape = echarts.init(document.getElementById('chart-landscape'));
+            chartLandscape.setOption({
+                tooltip: { trigger: 'item', triggerOn: 'mousemove' },
+                series: [
+                    {
+                        type: 'tree',
+                        data: [{
+                            name: 'AI Agents Ecosystem',
+                            children: [
+                                {
+                                    name: 'Foundation Models',
+                                    children: [
+                                        { name: 'Proprietary (GPT-4, Claude)' },
+                                        { name: 'Open Source (Llama 3, DeepSeek)' }
+                                    ]
+                                },
+                                {
+                                    name: 'Orchestration',
+                                    children: [
+                                        { name: 'LangChain / LangGraph' },
+                                        { name: 'Microsoft AutoGen' },
+                                        { name: 'CrewAI' }
+                                    ]
+                                },
+                                {
+                                    name: 'Applications',
+                                    children: [
+                                        { name: 'Coding (Devin, Cursor)' },
+                                        { name: 'Support (Intercom)' },
+                                        { name: 'Finance' }
+                                    ]
+                                }
+                            ]
+                        }],
+                        top: '5%', left: '15%', bottom: '5%', right: '20%',
+                        symbolSize: 7,
+                        label: { position: 'left', verticalAlign: 'middle', align: 'right', fontSize: 14 },
+                        leaves: { label: { position: 'right', verticalAlign: 'middle', align: 'left' } },
+                        expandAndCollapse: true,
+                        animationDuration: 550,
+                        animationDurationUpdate: 750
+                    }
+                ]
+            });
+
+            // Chart 3: Radar Comparison
+            var chartRadar = echarts.init(document.getElementById('chart-radar'));
+            chartRadar.setOption({
+                legend: { data: ['LangGraph', 'AutoGen', 'CrewAI'], bottom: 0 },
+                radar: {
+                    indicator: [
+                        { name: 'Ease of Use', max: 10 },
+                        { name: 'Control', max: 10 },
+                        { name: 'Multi-Agent', max: 10 },
+                        { name: 'Production Ready', max: 10 },
+                        { name: 'Cost Efficiency', max: 10 }
+                    ],
+                    shape: 'circle',
+                    splitNumber: 5,
+                    axisName: { color: '#86868b' }
+                },
+                series: [{
+                    type: 'radar',
+                    data: [
+                        { value: [6, 10, 8, 9, 7], name: 'LangGraph', itemStyle: { color: '#0071e3' } },
+                        { value: [7, 8, 10, 7, 8], name: 'AutoGen', itemStyle: { color: '#34c759' } },
+                        { value: [10, 6, 9, 6, 9], name: 'CrewAI', itemStyle: { color: '#ff9500' } }
+                    ],
+                    areaStyle: { opacity: 0.1 }
+                }]
+            });
+
+            // Chart 4: Scatter Plot (Reliability vs Cost)
+            var chartScatter = echarts.init(document.getElementById('chart-scatter'));
+            chartScatter.setOption({
+                grid: { top: '10%', right: '10%', bottom: '20%', left: '12%' },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function (params) {
+                        return `<div class="text-xs font-semibold">${params.data[2]}</div>
+                                <div class="text-xs text-gray-500">Cost: ${params.data[0]} tokens</div>
+                                <div class="text-xs text-gray-500">Reliability: ${params.data[1]}%</div>`;
+                    },
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderColor: '#eee',
+                    textStyle: { color: '#333' }
+                },
+                xAxis: {
+                    name: 'Cost (Tokens)',
+                    nameLocation: 'middle',
+                    nameGap: 25,
+                    splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: '#86868b', fontSize: 10 }
+                },
+                yAxis: {
+                    name: 'Reliability (%)',
+                    nameLocation: 'middle',
+                    nameGap: 30,
+                    splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: '#86868b', fontSize: 10 }
+                },
+                series: [{
+                    symbolSize: 12,
+                    data: [
+                        [10, 50, 'Zero-shot'],
+                        [20, 65, 'Few-shot'],
+                        [30, 70, 'CoT'],
+                        [50, 80, 'RAG'],
+                        [80, 85, 'ReAct'],
+                        [120, 90, 'Multi-Agent']
+                    ],
+                    type: 'scatter',
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0071e3' },
+                            { offset: 1, color: '#00c6fb' }
+                        ]),
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(0, 113, 227, 0.3)'
+                    }
+                }]
+            });
+
+            // Resize charts on window resize
+            window.addEventListener('resize', function() {
+                chartMini.resize();
+                chartLandscape.resize();
+                chartRadar.resize();
+                chartScatter.resize();
+                chartFunnel.resize();
+            });
+
+            // CountUp Animation
+            const animateCountUp = (el) => {
+                const target = parseFloat(el.getAttribute('data-value'));
+                const duration = 2000;
+                const start = 0;
+                const startTime = performance.now();
+
+                const update = (currentTime) => {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+
+                    // EaseOutQuart
+                    const ease = 1 - Math.pow(1 - progress, 4);
+
+                    const current = start + (target - start) * ease;
+                    el.textContent = current.toFixed(target % 1 === 0 ? 0 : 1);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(update);
+                    }
+                };
+                requestAnimationFrame(update);
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        animateCountUp(entry.target);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            document.querySelectorAll('.count-up').forEach(el => observer.observe(el));
+
+            // Glossary Tooltip Logic
+            const glossaryData = {
+                "LAM": "Large Action Model. A type of AI model designed not just to generate text, but to execute actions in software environments (e.g., clicking buttons, calling APIs).",
+                "MAS": "Multi-Agent System. A network of autonomous agents that interact to solve problems that are difficult or impossible for an individual agent.",
+                "HITL": "Human-in-the-Loop. A model of interaction where the AI system requires human intervention or approval for key decisions."
+            };
+
+            document.querySelectorAll('.glossary-term').forEach(term => {
+                term.addEventListener('mouseenter', (e) => {
+                    clearTimeout(hideTimeout);
+                    const key = term.getAttribute('data-term');
+                    const def = glossaryData[key];
+
+                    if (def) {
+                        tooltip.innerHTML = `
+                            <span class="source-name">GLOSSARY</span>
+                            <span class="source-title" style="margin-bottom:0">${def}</span>
+                        `;
+
+                        const rect = term.getBoundingClientRect();
+                        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                        let leftPos = rect.left + scrollLeft;
+                        if (leftPos + 320 > window.innerWidth) leftPos = window.innerWidth - 340;
+
+                        tooltip.style.top = (rect.bottom + scrollTop + 8) + 'px';
+                        tooltip.style.left = leftPos + 'px';
+                        tooltip.classList.add('visible');
+                    }
+                });
+
+                term.addEventListener('mouseleave', () => {
+                    hideTimeout = setTimeout(() => {
+                        tooltip.classList.remove('visible');
+                    }, 300);
+                });
+            });
+
+            // Typewriter Effect Logic
+            const conclusionEl = document.getElementById('core-conclusion');
+            if (conclusionEl) {
+                // Collect text nodes to preserve markup and calculate total length
+                const textNodes = [];
+                let totalChars = 0;
+
+                const walk = (node) => {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const text = node.textContent;
+                        textNodes.push({
+                            node,
+                            text,
+                            startIndex: totalChars
+                        });
+                        totalChars += text.length;
+                    } else {
+                        for (const child of node.childNodes) {
+                            walk(child);
+                        }
+                    }
+                };
+                walk(conclusionEl);
+
+                // Clear text initially
+                textNodes.forEach(item => item.node.textContent = '');
+
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const duration = 1500; // 1.5 seconds fixed duration
+                            let startTime = null;
+
+                            conclusionEl.classList.add('typing-cursor');
+
+                            const animate = (currentTime) => {
+                                if (!startTime) startTime = currentTime;
+                                const elapsed = currentTime - startTime;
+                                const progress = Math.min(elapsed / duration, 1);
+
+                                // Calculate how many chars should be visible globally
+                                const currentGlobalCharCount = Math.floor(progress * totalChars);
+
+                                // Update each node
+                                textNodes.forEach(item => {
+                                    const { node, text, startIndex } = item;
+                                    if (currentGlobalCharCount >= startIndex) {
+                                        const charsForThisNode = Math.max(0, Math.min(text.length, currentGlobalCharCount - startIndex));
+                                        // Only update if changed to avoid layout thrashing
+                                        if (node.textContent.length !== charsForThisNode) {
+                                            node.textContent = text.substring(0, charsForThisNode);
+                                        }
+                                    }
+                                });
+
+                                if (progress < 1) {
+                                    requestAnimationFrame(animate);
+                                } else {
+                                    conclusionEl.classList.remove('typing-cursor');
+                                }
+                            };
+
+                            requestAnimationFrame(animate);
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, { threshold: 0.1 });
+
+                observer.observe(conclusionEl);
+            }
+            var chartFunnel = echarts.init(document.getElementById('chart-funnel'));
+            chartFunnel.setOption({
+                title: { text: 'Research Data Pipeline', left: 'center', textStyle: { fontSize: 14, color: '#86868b' } },
+                tooltip: { trigger: 'item', triggerOn: 'mousemove' },
+                series: {
+                    type: 'sankey',
+                    layout: 'none',
+                    emphasis: { focus: 'adjacency' },
+                    data: [
+                        { name: 'Raw Sources (1,200+)' },
+                        { name: 'Relevant (50+)' },
+                        { name: 'Verified (12)' },
+                        { name: 'Key Insights (3)' },
+                        { name: 'Web Search' },
+                        { name: 'Academic Papers' },
+                        { name: 'Industry Reports' }
+                    ],
+                    links: [
+                        { source: 'Web Search', target: 'Raw Sources (1,200+)', value: 800 },
+                        { source: 'Academic Papers', target: 'Raw Sources (1,200+)', value: 200 },
+                        { source: 'Industry Reports', target: 'Raw Sources (1,200+)', value: 200 },
+                        { source: 'Raw Sources (1,200+)', target: 'Relevant (50+)', value: 50 },
+                        { source: 'Relevant (50+)', target: 'Verified (12)', value: 12 },
+                        { source: 'Verified (12)', target: 'Key Insights (3)', value: 3 }
+                    ],
+                    lineStyle: { color: 'gradient', curveness: 0.5 }
+                }
+            });
+        };
+    </script>
+
+    <!-- Citation Hover Tooltip — copy this block verbatim into every generated report -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'citation-tooltip';
+            document.body.appendChild(tooltip);
+
+            let hideTimeout;
+
+            tooltip.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); });
+            tooltip.addEventListener('mouseleave', () => {
+                hideTimeout = setTimeout(() => tooltip.classList.remove('visible'), 300);
+            });
+
+            document.querySelectorAll('.citation-ref').forEach(ref => {
+                ref.addEventListener('mouseenter', () => {
+                    clearTimeout(hideTimeout);
+                    const targetId = ref.getAttribute('href').replace('#', '');
+                    const targetEl = document.getElementById(targetId);
+                    if (!targetEl) return;
+
+                    const sourceName = (targetEl.querySelector('[data-source-name]') || targetEl.querySelector('.text-xs') || {}).textContent || '';
+                    const sourceTitle = (targetEl.querySelector('[data-source-title]') || targetEl.querySelector('.text-sm') || {}).textContent || '';
+                    const sourceUrl = targetEl.getAttribute('href') || '#';
+
+                    tooltip.innerHTML = `
+                        <span class="source-name">${sourceName}</span>
+                        <span class="source-title">${sourceTitle}</span>
+                        <div class="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100">
+                            <a href="${sourceUrl}" target="_blank" class="source-link">
+                                <i class="fa-solid fa-up-right-from-square"></i> Visit
+                            </a>
+                            <div class="w-px h-3 bg-gray-200"></div>
+                            <a href="#${targetId}" class="source-link" style="color:#86868b">
+                                <i class="fa-solid fa-arrow-down"></i> Footer
+                            </a>
+                        </div>`;
+
+                    const rect = ref.getBoundingClientRect();
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                    // IMPORTANT: top uses scrollTop, left uses scrollLeft — never mix them
+                    let leftPos = rect.left + scrollLeft;
+                    if (leftPos + 320 > window.innerWidth) leftPos = window.innerWidth - 340;
+                    tooltip.style.top = (rect.bottom + scrollTop + 8) + 'px';
+                    tooltip.style.left = leftPos + 'px';
+                    tooltip.classList.add('visible');
+                });
+
+                ref.addEventListener('mouseleave', () => {
+                    hideTimeout = setTimeout(() => tooltip.classList.remove('visible'), 300);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
