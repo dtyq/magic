@@ -1,0 +1,498 @@
+from app.i18n import i18n
+import asyncio
+import os
+import json
+from pathlib import Path
+from typing import Dict, Optional, Union
+import importlib
+import importlib.metadata
+import inspect
+
+from app.core.context.agent_context import AgentContext
+from agentlang.event.data import ErrorEventData
+from agentlang.event.event import EventType
+from app.core.stream.http_subscription_stream import HTTPSubscriptionStream
+from app.core.stream.stdout_stream import StdoutStream
+from agentlang.config.config import config
+from app.magic.agent import Agent
+from app.service.agent_service import AgentService
+from app.service.agent_config_converter import AgentConfigConverter
+from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
+
+from app.service.agent_event.rag_listener_service import RagListenerService
+from app.service.agent_event.resource_cleanup_listener_service import ResourceCleanupListenerService
+from app.service.agent_event.stream_listener_service import StreamListenerService
+from app.service.agent_event.checkpoint_listener_service import CheckpointListenerService
+from app.infrastructure.observability import install_tool_monitoring_listener
+from app.service.mcp_service import MCPService
+from app.paths import PathManager
+from app.channel.startup import auto_connect_channels_for_current_sandbox
+from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
+from agentlang.logger import get_logger
+from app.core.base_service import Base
+
+logger = get_logger(__name__)
+
+
+class AgentDispatcher(Base):
+    SERVICE_TYPE = "dispatcher"
+    TRACE_EXCLUDE_METHODS = {"get_instance"}
+    """
+    Agent调度器，负责Agent的创建、初始化和运行
+
+    主要职责：
+    1. 创建和初始化Agent及其上下文
+    2. 注册Agent事件监听器
+    3. 处理工作区初始化
+    4. 运行Agent处理任务
+    """
+
+    # 单例实例
+    _instance = None
+
+    @classmethod
+    def get_instance(cls):
+        """获取AgentDispatcher单例实例"""
+        if cls._instance is None:
+            cls._instance = AgentDispatcher()
+        return cls._instance
+
+    def __init__(self):
+        """初始化Agent调度器"""
+        if self.__class__._instance is not None:
+            return
+
+        self.agent_context: Optional[AgentContext] = None
+        self.http_stream: Optional[HTTPSubscriptionStream] = None
+        self.is_workspace_initialized: bool = False  # 工作区初始化状态标志
+        self.agent_service = AgentService()  # 创建AgentService实例
+        self.config_converter = AgentConfigConverter()  # 创建自定义Agent配置转换器
+        self.agents: Dict[str, Agent] = {}  # 用于存储不同类型的agent
+
+        # 标记 init 事件是否已经发送过（用于沙箱预启动场景的延迟发送）
+        self.init_event_dispatched: bool = False
+
+        # 设置为单例实例
+        self.__class__._instance = self
+
+    async def setup(self):
+        """设置Agent上下文和注册监听器"""
+        self.agent_context = self.agent_service.create_agent_context(
+            stream_mode=False,
+            task_id="",
+            streams=[StdoutStream()],
+            is_main_agent=True,
+            sandbox_id=str(config.get("sandbox.id")),
+        )
+
+        self.agent_context.update_activity_time()
+
+        # 注册各种监听器
+        FileStorageListenerService.register_standard_listeners(self.agent_context)
+        StreamListenerService.register_standard_listeners(self.agent_context)
+        RagListenerService.register_standard_listeners(self.agent_context)
+        # FileListenerService.register_standard_listeners(self.agent_context)
+        CheckpointListenerService.register_standard_listeners(self.agent_context)
+        ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
+
+        # 注册工具监控监听器（非侵入式）
+        install_tool_monitoring_listener(self.agent_context)
+
+        # 从 entry points 中获取注册的监听器，group=supermagic.listeners.register
+        group = "supermagic.agent_dispatcher.listeners.register"
+        listeners_entry_points = list(importlib.metadata.entry_points(group=group))
+        for entry_point in listeners_entry_points:
+            try:
+                logger.info(f"发现 agent_dispatcher 监听器: {entry_point.name}")
+                module_name = entry_point.value.split(":")[0]
+                method_name = entry_point.value.split(":")[1]
+                module = importlib.import_module(module_name)
+
+                found_method = False
+                for name, obj in inspect.getmembers(module):
+                    if inspect.isclass(obj) and hasattr(obj, method_name):
+                        class_method = getattr(obj, method_name)
+                        # 调用类的静态方法
+                        class_method(self.agent_context)
+                        found_method = True
+                        logger.info(f"已注册 agent_dispatcher 监听器: {entry_point.name}")
+                        break
+
+                if not found_method:
+                    logger.warning(f"模块 {module_name} 中没有找到类提供的静态方法 {method_name}，跳过")
+            except Exception as e:
+                logger.error(f"注册监听器 {entry_point.name} 时出错: {e!s}")
+                # 继续处理其他监听器，不中断流程
+
+        # TODO： 更优雅的方式管理所有需要自启的设施
+        # 自动重连上次保存的 IM 渠道（connect 内部已非阻塞，此处 await 仅等待参数传递）
+        await auto_connect_channels_for_current_sandbox()
+
+        logger.info("AgentDispatcher 初始化完成")
+        return self
+
+    async def load_init_client_message(self) -> bool:
+        """
+        检查初始化客户端消息文件是否存在
+
+        Returns:
+            bool: 文件是否存在
+        """
+        if self.agent_context.get_init_client_message() is not None:
+            logger.info("agent_context 已存在客户端初始化消息，跳过文件加载")
+            return True
+
+        try:
+            init_client_message_file = PathManager.get_init_client_message_file()
+            if os.path.exists(init_client_message_file):
+                with open(init_client_message_file, "r", encoding="utf-8") as f:
+                    init_message_data = json.load(f)
+                    init_message = InitClientMessage(**init_message_data)
+                    await self.initialize_workspace(init_message)
+                    logger.info(f"已从 {init_client_message_file} 加载客户端初始化消息")
+                    return True
+            else:
+                logger.error(f"客户端初始化消息文件 {init_client_message_file} 不存在")
+                return False
+        except Exception as e:
+            logger.error(f"加载客户端初始化消息时出错: {e}")
+            return False
+
+    async def initialize_workspace(self, init_message: InitClientMessage):
+        """初始化工作区"""
+        logger.info("开始工作区初始化流程")
+
+        # ========== 配置更新阶段 - 每次都执行 ==========
+        # 保存初始化消息到文件
+        from app.utils.init_client_message_util import InitClientMessageUtil
+        InitClientMessageUtil.save_init_client_message(init_message)
+
+        # 从 init_message.metadata 提取并设置关键字段
+        if init_message.metadata:
+            # 设置 task_id
+            if init_message.metadata.super_magic_task_id:
+                self.agent_context.set_task_id(init_message.metadata.super_magic_task_id)
+                logger.info(f"从 metadata 设置任务ID: {init_message.metadata.super_magic_task_id}")
+
+                # 初始化序列号管理
+                self.agent_context.initialize_task_sequence()
+                logger.info(f"已初始化任务序列号管理: {init_message.metadata.super_magic_task_id}")
+
+            # 设置 sandbox_id
+            if init_message.metadata.sandbox_id:
+                self.agent_context.set_sandbox_id(init_message.metadata.sandbox_id)
+                logger.info(f"从 metadata 设置沙盒ID: {init_message.metadata.sandbox_id}")
+
+            # 设置 organization_code
+            if init_message.metadata.organization_code:
+                self.agent_context.set_organization_code(init_message.metadata.organization_code)
+                logger.info(f"从 metadata 设置组织编码: {init_message.metadata.organization_code}")
+
+            logger.info(f"init_message.metadata.language: {init_message.metadata.language}")
+            # 设置用户语言
+            if init_message.metadata.language:
+                i18n.set_language(init_message.metadata.language)
+                logger.info(f"从 metadata 设置用户语言: {init_message.metadata.language}")
+            else:
+                # 默认设置为中文
+                i18n.set_language("zh_CN")
+                logger.info("使用默认语言: zh_CN")
+
+        # 设置 Agent Profile（如果提供）
+        if init_message.agent:
+            from app.core.entity.agent_profile import AgentProfile
+
+            agent_profile = AgentProfile(
+                name=init_message.agent.get('name', ''),
+                description=init_message.agent.get('description', '')
+            )
+            self.agent_context.set_agent_profile(agent_profile)
+            logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
+
+        # ========== 资源初始化阶段 - 仅首次执行 ==========
+        if self.is_workspace_initialized:
+            logger.info("工作区已经初始化过，跳过资源创建和工作区初始化")
+            return
+
+        logger.info("首次初始化工作区，开始创建资源...")
+
+        # HTTP订阅流 - 通过环境变量控制是否启用
+        enable_http_stream = os.getenv("ENABLE_HTTP_SUBSCRIPTION_STREAM", "true").lower() == "true"
+        if init_message.message_subscription_config and not self.http_stream:
+            if enable_http_stream:
+                self.http_stream = HTTPSubscriptionStream(init_message.message_subscription_config)
+                self.agent_context.add_stream(self.http_stream)
+                logger.info("创建和添加了HTTP订阅流")
+            else:
+                logger.info("HTTP订阅流已通过环境变量 ENABLE_HTTP_SUBSCRIPTION_STREAM 禁用，跳过创建")
+
+        # 设置聊天历史目录
+        # if init_message.chat_history_dir:
+        #     self.agent_context.set_chat_history_dir(init_message.chat_history_dir)
+        #     logger.info(f"从 init_message 设置聊天历史目录: {init_message.chat_history_dir}")
+
+        fetch_history = getattr(init_message, "fetch_history", True)
+        if fetch_history:
+            await self.agent_service.init_workspace(agent_context=self.agent_context, fetch_history=True)
+        else:
+            logger.info("客户端请求跳过远端聊天历史下载")
+            await self.agent_service.init_workspace(agent_context=self.agent_context, fetch_history=False)
+
+        # 改为按需加载agent，不再预先创建
+        self.is_workspace_initialized = True
+
+        # 标记 init 事件已发送（非预启动场景）
+        # 只有在 skip_init_messages 不为 True 时才标记已发送
+        # 因为如果 skip_init_messages=True，init 事件实际上没有发送
+        metadata = self.agent_context.get_init_client_message_metadata()
+        if metadata and metadata.skip_init_messages is True:
+            logger.info("工作区初始化完成（预启动场景，init 事件未发送）")
+        else:
+            # 非预启动场景，init_workspace 方法已发送 init 事件
+            if not self.init_event_dispatched:
+                self.set_init_event_dispatched(True)
+                logger.info("工作区初始化完成，标记 init 事件已发送（非预启动场景）")
+            else:
+                logger.info("工作区初始化完成")
+
+    async def switch_agent(self, agent_mode: Union[AgentMode, str]):
+        """
+        根据agent_mode切换到相应的agent
+
+        Args:
+            agent_mode: Agent模式，可以是AgentMode枚举或者自定义Agent的字符串ID
+
+        Returns:
+            Agent: 选择的Agent实例
+        """
+        # 如果是字符串，需要判断是内置AgentMode还是自定义Agent ID
+        if isinstance(agent_mode, str):
+            # 1. 优先检查是否为内置 AgentMode 值
+            if agent_mode in {mode.value for mode in AgentMode}:
+                agent_mode = AgentMode(agent_mode)
+                logger.info(f"识别为内置 AgentMode: {agent_mode}")
+                agent_type = agent_mode.get_agent_type()
+            # 2. 自定义 Agent ID（含 sma- 前缀），从 API 获取配置
+            elif agent_mode.strip() and "sma-" in agent_mode.lower():
+                logger.info(f"识别为自定义 Agent ID，准备从 API 获取配置")
+                agent_file_path, agent_details = await self.config_converter.convert_api_to_agent_file(agent_mode)
+                agent_type = agent_mode
+                if agent_type in self.agents:
+                    logger.info(f"清理已缓存的 Agent: {agent_type}")
+                    del self.agents[agent_type]
+
+                # 设置专属 agent_profile（name 为空时保持默认 profile，避免角色段为空）
+                from app.core.entity.agent_profile import AgentProfile
+                lang = i18n.get_language()
+                name = agent_details.get_localized_name(lang)
+                if name:
+                    role = agent_details.get_localized_role(lang)
+                    description = agent_details.get_localized_description(lang)
+                    profile = AgentProfile(name=name, role=role, description=description)
+                    self.agent_context.set_agent_profile(profile)
+                    logger.info(f"设置自定义 Agent profile: name={name}, role={role}, lang={lang}")
+                else:
+                    logger.info("API 未返回 agent name，保持默认 AgentProfile")
+
+            # 3. 字符串为空，回退到默认模式
+            elif not agent_mode.strip():
+                logger.info(f"Agent ID 为空，回退到默认模式: {AgentMode.GENERAL}")
+                agent_mode = AgentMode.GENERAL
+                agent_type = agent_mode.get_agent_type()
+            else:
+                custom_agent_mode = agent_mode.strip()
+
+                # 4. 优先检查本地 agents 目录（支持递归扫描）
+                local_agent_type = await self._resolve_local_agent_type(custom_agent_mode)
+                if local_agent_type != AgentMode.GENERAL.get_agent_type():
+                    agent_type = local_agent_type
+                else:
+                    agent_mode = AgentMode.GENERAL
+                    agent_type = agent_mode.get_agent_type()
+                    logger.warning('未找到任何 Agent，回退到默认模式: {AgentMode.GENERAL}')
+        else:
+            # 使用 AgentMode 的 get_agent_type 方法
+            agent_type = agent_mode.get_agent_type()
+
+        # 按需创建agent
+        self.agents[agent_type] = await self.agent_service.create_agent(agent_type, self.agent_context)
+
+        # 获取选中的agent实例
+        selected_agent = self.agents[agent_type]
+
+        return selected_agent
+
+    async def _resolve_local_agent_type(self, agent_mode: str) -> str:
+        """
+        解析本地 agent 类型：递归扫描 agents 目录（最大3层），若存在对应的 .agent 文件则使用，否则回退到通用模式
+
+        Args:
+            agent_mode: 用户传入的 agent 标识（如 movie）
+
+        Returns:
+            str: agent_type，用于加载 agents/{agent_type}.agent（可能包含子目录路径，如 custom/movie）
+        """
+        from app.utils.async_file_utils import async_exists, async_scandir
+
+        agents_dir = PathManager.get_project_root() / "agents"
+        if not await async_exists(agents_dir):
+            logger.warning("agents 目录不存在，回退到通用模式")
+            return AgentMode.GENERAL.get_agent_type()
+
+        # 递归扫描，最多3层，找到第一个匹配的就返回
+        found_path = await self._scan_agent_recursive(agents_dir, agent_mode, max_depth=3)
+        if found_path:
+            # 返回相对于 agents_dir 的路径（不含 .agent 扩展名）
+            relative_path = found_path.relative_to(agents_dir).with_suffix('')
+            agent_type = str(relative_path).replace(os.sep, '/')  # 统一使用 / 分隔符
+            logger.info(f"在 agents 目录找到本地 Agent 文件: {agent_type}.agent")
+            return agent_type
+
+        logger.info(f"agents 目录未找到 {agent_mode}.agent（递归3层），回退到通用模式")
+        return AgentMode.GENERAL.get_agent_type()
+
+    async def _scan_agent_recursive(self, directory: Path, target_name: str, max_depth: int, current_depth: int = 1) -> Optional[Path]:
+        """
+        递归扫描目录查找指定名称的 .agent 文件
+
+        Args:
+            directory: 当前扫描的目录
+            target_name: 目标文件名（不含 .agent 扩展名）
+            max_depth: 最大扫描深度
+            current_depth: 当前深度（从1开始）
+
+        Returns:
+            Optional[Path]: 找到的文件路径，未找到返回 None
+        """
+        from app.utils.async_file_utils import async_scandir
+
+        try:
+            entries = await async_scandir(directory)
+
+            # 先检查当前层的文件
+            for entry in entries:
+                if entry.is_file() and entry.name.endswith(".agent"):
+                    if Path(entry.name).stem == target_name:
+                        return Path(entry.path)
+
+            # 如果未达到最大深度，递归扫描子目录
+            if current_depth < max_depth:
+                for entry in entries:
+                    if entry.is_dir():
+                        found = await self._scan_agent_recursive(
+                            Path(entry.path),
+                            target_name,
+                            max_depth,
+                            current_depth + 1
+                        )
+                        if found:
+                            return found
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"扫描目录 {directory} 时出错: {e}")
+            return None
+
+    async def run_agent(self, agent: Agent):
+        """
+        运行Agent处理任务
+
+        Args:
+            agent: Agent实例
+
+        Returns:
+            bool: 是否成功运行
+        """
+        await self.agent_service.run_agent(agent=agent)
+
+    async def dispatch_agent(self, message: ChatClientMessage):
+        """
+        调度agent执行任务
+
+        Args:
+            client_message: 客户端消息
+
+        Returns:
+            bool: 是否成功调度
+        """
+        # 确保工作区已初始化
+        if not self.is_workspace_initialized:
+            initialized = await self.load_init_client_message()
+            if not initialized:
+                logger.error("智能体未初始化，请先调用工作区初始化")
+                await self.agent_context.dispatch_event(
+                    EventType.ERROR,
+                    ErrorEventData(
+                        agent_context=self.agent_context, error_message="智能体未初始化，请先调用工作区初始化"
+                    ),
+                )
+                return
+
+        self.agent_context.set_chat_client_message(message)
+
+        # 使用 agent_mode 进行 agent 选择
+        agent = await self.switch_agent(message.agent_mode)
+
+        # 初始化 MCP 配置
+        logger.info("正在初始化 MCP 配置...")
+        await MCPService.initialize_from_config(message.mcp_config, self.agent_context)
+
+        # 保存当前模型配置（在 MCP 初始化之后，以便保存正确的 MCP 服务器信息）
+        self._save_session_config(message, agent)
+
+        await self.run_agent(agent=agent)
+
+        return True
+
+    def set_init_event_dispatched(self, dispatched: bool) -> None:
+        """设置 init 事件发送状态
+
+        Args:
+            dispatched: init 事件是否已发送
+        """
+        self.init_event_dispatched = dispatched
+        logger.info(f"设置 init 事件发送状态: {dispatched}")
+
+    def is_init_event_dispatched(self) -> bool:
+        """检查 init 事件是否已发送
+
+        Returns:
+            bool: init 事件是否已发送
+        """
+        return self.init_event_dispatched
+
+    def _save_session_config(self, message: ChatClientMessage, agent: Agent):
+        """
+        保存当前会话配置到聊天历史中（包括模型、图片模型、MCP服务器等）
+
+        Args:
+            message: 客户端消息
+            agent: Agent实例
+        """
+        try:
+            current_model_id = message.model_id
+            current_image_model_id = None
+            current_image_model_sizes = None
+            current_mcp_servers = None
+
+            if message.dynamic_config:
+                image_model_config = message.dynamic_config.get("image_model")
+                if image_model_config and isinstance(image_model_config, dict):
+                    current_image_model_id = image_model_config.get("model_id")
+                    current_image_model_sizes = image_model_config.get("sizes")
+
+            # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
+            agent_context = agent.agent_context
+            if agent_context and agent_context.has_skill("using-mcp"):
+                from app.mcp.manager import get_global_mcp_manager
+                manager = get_global_mcp_manager()
+                if manager:
+                    current_mcp_servers = {}
+                    for server_name in manager.get_connected_servers():
+                        tools = manager.get_server_tools(server_name)
+                        current_mcp_servers[server_name] = tools
+
+            agent.chat_history.save_session_config(current_model_id, current_image_model_id, current_image_model_sizes, current_mcp_servers)
+        except Exception as e:
+            logger.debug(f"保存会话配置时出错: {e}")
