@@ -1,0 +1,42 @@
+.modal {
+	:global {
+
+		.magic-modal-body {
+			max-height: 60vh;
+			overflow: auto;
+		}
+	}
+
+	.form {
+		:global {
+
+			.magic-form-item-control-input-content {
+				display: flex;
+				flex-direction: column;
+				width: 100%;
+
+				&>div {
+					width: 100%;
+				}
+
+				.magic-form-item {
+					width: 100%;
+				}
+			}
+
+			.label-col {
+				flex: 0 0 32.666667%;
+				max-width: 32.666667%;
+			}
+
+			.value-col {
+				flex: 0 0 50%;
+				max-width: 50%;
+			}
+		}
+	}
+
+	.debug {
+		min-height: 200px;
+	}
+}

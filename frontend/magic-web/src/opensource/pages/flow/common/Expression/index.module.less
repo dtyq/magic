@@ -1,0 +1,37 @@
+.LLMInput {
+
+    :global {
+        .magic-form-item-label {
+            padding-bottom: 6px!important;
+			&>label {
+                font-size: 12px;
+			    line-height: 16px;
+                color: #1C1D2399;
+            }
+        }
+    }
+
+	.header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		height: 20px;
+
+		.left,
+		.right {
+			font-size: 12px;
+			line-height: 16px;
+			color: #1C1D2399;
+		}
+	}
+
+	.body {
+		margin-top: 6px;
+
+		:global {
+			.magic-form-item {
+				margin-bottom: 0 !important;
+			}
+		}
+	}
+}
