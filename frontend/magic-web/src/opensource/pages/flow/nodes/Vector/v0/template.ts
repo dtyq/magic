@@ -1,0 +1,63 @@
+export const v0Template = {
+	node_id: "MAGIC-FLOW-NODE-674eb95296a950-98353554",
+	debug: false,
+	name: "知识库片段存储",
+	description: "",
+	node_type: 16,
+	meta: [],
+	params: {
+		knowledge_code: "",
+		vector_database_id: {
+			id: "component-674eb95296aa6",
+			version: "1",
+			type: "value",
+			structure: {
+				type: "expression",
+				const_value: null,
+				expression_value: null,
+			},
+		},
+		content: {
+			id: "component-674eb95296ac2",
+			version: "1",
+			type: "value",
+			structure: {
+				type: "expression",
+				const_value: null,
+				expression_value: null,
+			},
+		},
+		metadata: {
+			id: "component-674eb95296acc",
+			version: "1",
+			type: "form",
+			structure: {
+				type: "object",
+				key: "root",
+				sort: 0,
+				title: null,
+				description: null,
+				required: [],
+				value: null,
+				encryption: false,
+				encryption_value: null,
+				items: null,
+				properties: null,
+			},
+		},
+		business_id: {
+			id: "component-674eb95296ae2",
+			version: "1",
+			type: "value",
+			structure: {
+				type: "expression",
+				const_value: null,
+				expression_value: null,
+			},
+		},
+	},
+	next_nodes: [],
+	input: null,
+	output: null,
+	system_output: null,
+}

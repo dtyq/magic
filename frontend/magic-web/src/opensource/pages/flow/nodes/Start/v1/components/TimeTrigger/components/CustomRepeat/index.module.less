@@ -1,0 +1,93 @@
+.customRepeat {
+	background-color: #F9F9F9;
+	border-radius: 4px;
+	margin-top: 16px;
+	padding: 10px;
+	color: #333333;
+
+	&>p:first-child {
+		color: #333333;
+		font-size: 14px;
+		font-weight: 700;
+	}
+
+	.repeatRate {
+		&>p:first-child {
+			margin-bottom: 10px;
+		}
+
+		.repeatType {
+			display: flex;
+			align-items: center;
+			margin-bottom: 10px;
+
+			&>span {
+				margin-right: 10px;
+			}
+
+			&>div:nth-child(2) {
+				flex: 0 0 150px;
+				margin-right: 10px;
+			}
+
+			&>div:last-child {
+				flex: 1 1;
+			}
+		}
+
+		.rate {
+			display: flex;
+			flex-direction: row;
+			margin-bottom: 10px;
+			flex-wrap: wrap;
+
+			&>span {
+				cursor: pointer;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				width: 42px;
+				height: 32px;
+				box-sizing: border-box;
+				align-items: center;
+				flex: 0 0 40px;
+				height: 30px;
+				color: #333;
+				border-radius: 4px;
+				background-color: #FFFFFF;
+				margin-right: 10px;
+				margin-bottom: 10px;
+				border: 1px solid #EEEEEE;
+				user-select: none;
+
+				&.checked {
+					color: white;
+					background-color: #3B81F7;
+					margin-right: 10px;
+					border-color: #3B81F7;
+				}
+			}
+		}
+
+		.dateRate {
+			&>span {
+				width: 32px;
+				height: 32px;
+			}
+		}
+	}
+
+	.deadline {
+		&>p:first-child {
+			margin-bottom: 10px;
+		}
+
+		label {
+			margin-right: 5px;
+		}
+
+		label:first-child {
+			margin-right: 20px;
+		}
+	}
+}

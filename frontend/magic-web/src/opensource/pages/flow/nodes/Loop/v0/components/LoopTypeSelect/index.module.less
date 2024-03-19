@@ -1,0 +1,37 @@
+.loopTypeSelect {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+
+	.loopTypeCard {
+		display: flex;
+		align-items: center;
+		flex: 1;
+		gap: 4px;
+		padding: 10px 12px;
+		height: 40px;
+		border-radius: 4px;
+		border: 1px solid #1C1D2314;
+		cursor: pointer;
+
+		&:hover {
+			background-color: #EEF3FD;
+		}
+
+		&.active {
+			border: 2px solid #315CEC;
+			background-color: #EEF3FD;
+		}
+
+		.label {
+			color: #1C1D23CC;
+			font-family: PingFang SC;
+			font-size: 14px;
+			font-weight: 400;
+			line-height: 20px;
+			text-align: left;
+
+		}
+	}
+}

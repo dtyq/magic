@@ -1,0 +1,48 @@
+.timeTrigger {
+
+	:global {
+		.magic-picker {
+			background-color: white;
+			border-color: rgb(238, 238, 238);
+			border-radius: 8px;
+
+			&:hover,
+			&:focus {
+				border-color: rgb(59, 129, 247);
+			}
+		}
+	}
+
+	.cycleSelect {
+		margin-bottom: 0;
+
+		:global {
+			.magic-form-item-control-input-content {
+				display: flex;
+
+				&>div {
+					width: 100%;
+				}
+
+			}
+		}
+
+		.typeOption {
+			flex: 1 1;
+			margin-right: 10px;
+			margin-bottom: 0;
+		}
+
+		.dayOption {
+			flex: 0 0 120px;
+			margin-right: 10px;
+			margin-bottom: 0;
+		}
+
+		.timeOption {
+			flex: 0 0 80px;
+			margin-bottom: 0;
+
+		}
+	}
+}

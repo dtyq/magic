@@ -1,0 +1,115 @@
+.vectorDatabaseMatch {
+    :global {
+        .magic-form {
+            .dropdown-card {
+                padding: 0 12px 12px 12px;
+            }
+        }
+    }
+	.filters {
+		.filterItem {
+            min-height: 30px;
+            margin-bottom: 12px;
+			.left {
+				flex: 0 0 160px;
+                max-width: 160px;
+			}
+
+			.operator {
+				flex: 0 0 100px;
+                max-width: 100px;
+			}
+
+			.right {
+				flex: 0 0 350px;
+                max-width: 350px;
+			}
+
+			.deleteIcon {
+
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				height: 32px;
+				width: 32px;
+				background: #2e2f380d;
+				border-radius: 8px;
+
+				&:hover {
+					opacity: 0.8;
+				}
+			}
+		}
+
+        .addBtn {
+            width: max-content;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #2E2F380D;
+            padding: 6px 11px 6px 11px;
+            gap: 2px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+            color: #1C1D23CC;
+            &:hover {
+                opacity:0.8;
+            }
+        }
+	}
+
+}
+
+
+.filterTypeWrap {
+
+    :global {
+        .magic-form-item-control-input {
+            min-height: 20px;
+        }
+        .magic-form-item-control-input-content {
+            min-height: 20px;
+            &>div {
+                height: 20px;
+                display: flex;
+            }
+        }
+        .magic-label-department-names {
+            display: contents;
+        }
+        .magic-select {
+            width: 70px!important;
+            height: 20px;
+            min-height: 20px!important;
+            .magic-select-selector {
+                width: 70px;
+                height: 20px!important;
+                min-height: 20px!important;
+                border-radius: 4px;
+                .magic-select-selection-search {
+                    height: 20px;
+                }
+                input {
+                    height: 20px !important;
+                }
+                
+            }
+            .magic-select-selection-item {
+                font-size: 12px;
+                font-weight: 400;
+                line-height: 16px;
+
+            }
+            .magic-select-dropdown {
+                top: 20px!important;
+            }
+        }
+    }
+
+	.text {
+		font-size: 12px;
+		color: #1C1D2399;
+	}
+}

@@ -1,0 +1,57 @@
+export const v0Template = {
+	node_id: "MAGIC-FLOW-NODE-674c4f70bc3966-92064256",
+	debug: false,
+	name: "工具",
+	description: "",
+	node_type: 26,
+	meta: [],
+	params: {
+		tool_id: "",
+		mode: "llm",
+		custom_system_input: {
+			widget: null,
+			form: {
+				id: "component-674c4f70bc3a8",
+				version: "1",
+				type: "form",
+				structure: {
+					type: "object",
+					key: "root",
+					sort: 0,
+					title: null,
+					description: null,
+					required: [],
+					value: null,
+					encryption: false,
+					encryption_value: null,
+					items: null,
+					properties: null,
+				},
+			},
+		},
+		async: false,
+		model: "gpt-4o-global",
+		model_config: {
+			auto_memory: false,
+			max_record: 50,
+			temperature: 0.5,
+		},
+		user_prompt: {
+			id: "component-674c4f70bc485",
+			version: "1",
+			type: "value",
+			structure: {
+				type: "expression",
+				const_value: null,
+				expression_value: null,
+			},
+		},
+	},
+	next_nodes: [],
+	input: {
+		widget: null,
+		form: null,
+	},
+	output: null,
+	system_output: null,
+}

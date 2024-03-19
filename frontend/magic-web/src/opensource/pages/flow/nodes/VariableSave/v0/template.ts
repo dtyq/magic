@@ -1,0 +1,36 @@
+export const v0Template = {
+	node_id: "MAGIC-FLOW-NODE-6788da4d9c3177-24302881",
+	debug: false,
+	name: "变量保存",
+	description: "",
+	node_type: 21,
+	node_version: "",
+	meta: [],
+	params: {
+		variables: {
+			form: {
+				id: "component-6788da4d9c333",
+				version: "1",
+				type: "form",
+				structure: {
+					type: "object",
+					key: "root",
+					sort: 0,
+					title: null,
+					description: null,
+					required: [],
+					value: null,
+					encryption: false,
+					encryption_value: null,
+					items: null,
+					properties: null,
+				},
+			},
+			page: null,
+		},
+	},
+	next_nodes: [],
+	input: null,
+	output: null,
+	system_output: null,
+}
