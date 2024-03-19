@@ -1,0 +1,92 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic\Application\Agent\Service;
+
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetEmployeeDetailResponseDTO;
+use Qbhy\HyperfAuth\Authenticatable;
+
+/**
+ * 后台管理 Agent 应用服务.
+ */
+class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
+{
+    /**
+     * 审核员工版本.
+     */
+    public function reviewAgentVersion(Authenticatable $authorization, int $id, ReviewAgentVersionRequestDTO $requestDTO): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        // 获取修改者
+        $modifier = $dataIsolation->getCurrentUserId();
+
+        // 调用 DomainService 审核版本
+        $this->superMagicAgentDomainService->reviewAgentVersion(
+            $dataIsolation,
+            $id,
+            $requestDTO->getAction(),
+            $modifier,
+            $requestDTO->getPublisherType() ?: null
+        );
+    }
+
+    /**
+     * 根据员工code查询员工详情.
+     */
+    public function getDetailByCode(Authenticatable $authorization, string $code): GetEmployeeDetailResponseDTO
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        // 1. 查询 Agent 基本信息（不存在会抛出异常）
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+
+        // 2. 更新 Agent 图标 URL（将路径转换为完整URL）
+        $this->updateAgentEntityIcon($agent);
+
+        // 3. 处理 prompt
+        $prompt = $agent->getPrompt();
+
+        // 4. 兼容旧数据
+        $nameI18n = $agent->getNameI18n();
+        $descriptionI18n = $agent->getDescriptionI18n();
+        if (! $nameI18n) {
+            foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+                $nameI18n[$languageCode] = $agent->getName();
+            }
+        }
+        if (! $descriptionI18n) {
+            foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+                $descriptionI18n[$languageCode] = $agent->getDescription();
+            }
+        }
+
+        // 5. 构建响应 DTO
+        return new GetEmployeeDetailResponseDTO(
+            id: $agent->getId(),
+            code: $agent->getCode(),
+            versionCode: $agent->getVersionCode(),
+            versionId: $agent->getVersionId() ? (string) $agent->getVersionId() : null,
+            name: $agent->getI18nName($dataIsolation->getLanguage()),
+            description: $agent->getI18nDescription($dataIsolation->getLanguage()),
+            nameI18n: $nameI18n,
+            roleI18n: $descriptionI18n,
+            descriptionI18n: $agent->getDescriptionI18n(),
+            icon: $agent->getIcon(),
+            iconType: $agent->getIconType(),
+            prompt: $prompt,
+            enabled: $agent->getEnabled() ?? false,
+            sourceType: $agent->getSourceType()->value,
+            pinnedAt: $agent->getPinnedAt(),
+            projectId: $agent->getProjectId(),
+            createdAt: $agent->getCreatedAt(),
+            updatedAt: $agent->getUpdatedAt()
+        );
+    }
+}
