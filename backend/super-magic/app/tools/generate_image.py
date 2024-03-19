@@ -1,0 +1,1617 @@
+"""
+图片生成和编辑工具
+该模块提供文本到图片生成和图片编辑功能。
+模型通过 GenerateImageParams 的 model 参数指定，不再从环境变量读取。
+生成/编辑的图片将保存到 .workspace/generate_image 或 .workspace/edited_image 目录，并可在前端预览。
+
+支持的模型响应格式：
+- Magic-service API（新格式）：{"created": ..., "data": [{"url": "...", "size": "..."}], "usage": {...}, "provider": "..."}
+- Magic-service API（旧格式）：[{"success": true, "data": {...}}]
+- Gemini 模型：imageData 字段
+- Qwen 模型：output.results 或 output.choices 结构
+- Doubao 模型：data.data 数组，包含 url 字段（例如：doubao-seedream-4-0-250828）
+- VolcEngine 模型：data.image_urls 数组
+"""
+
+from app.i18n import i18n
+import asyncio
+import json
+import os
+import time
+import traceback
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+import aiofiles
+import aiohttp
+import httpx
+from pydantic import Field
+
+from agentlang.config.config import config
+from agentlang.config.dynamic_config import dynamic_config
+from agentlang.context.tool_context import ToolContext
+from agentlang.event.event import EventType
+from agentlang.logger import get_logger
+from agentlang.paths import PathManager
+from agentlang.tools.tool_result import ToolResult
+from agentlang.utils.file import generate_safe_filename
+from agentlang.utils.metadata import MetadataUtil
+from agentlang.utils.retry import retry_with_exponential_backoff
+from app.utils.async_file_utils import async_exists, async_stat, async_mkdir
+from app.api.http_dto.file_notification_dto import FileNotificationRequest
+from app.core.context.agent_context import AgentContext
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.tool.tool_result import ImageToolResult
+from app.infrastructure.magic_service.client import MagicServiceClient
+from app.infrastructure.magic_service.config import MagicServiceConfigLoader
+from app.service.file_service import FileService
+from app.tools.abstract_file_tool import AbstractFileTool
+from app.tools.core import BaseToolParams, tool
+from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.utils.credential_utils import sanitize_headers
+from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
+
+logger = get_logger(__name__)
+
+
+class GenerateImageParams(BaseToolParams):
+    prompt: str = Field(
+        ...,
+        description="""<!--zh
+能力：生成、编辑、创作海报、漫画、插画、卡通、手绘、油画、水彩、素描、版画等跟图片创作相关的能力
+严格禁止：包含任何风险关键词，如色情、暴力或种族歧视。
+明确主题：清晰地说明图像的主题，如活动、产品、电影等，让模型清楚地知道图像的主要内容
+详细描述元素：对画面中的主要元素进行详细描述，包括形状、颜色、位置等，让模型能够准确地生成想要的画面
+突出风格：明确图像的风格，如科技感、时尚感、复古风等，通过色彩搭配、字体选择等细节来体现风格特点
+合理布局：描述图像的布局，包括元素的排列顺序、大小比例等，使海报整体看起来协调美观
+关键信息：确保图像包含的关键信息，如标题、标语、时间、地点、联系方式等，清晰可读，方便观众获取重要信息
+
+海报示例：
+生成一张科技产品发布会活动海报。画面中心是一个未来感十足的智能手机，屏幕亮起，展示着产品的关键功能图标，如高清摄像头、超长续航等。
+背景是现代化的发布会场馆，有巨大的LED屏幕，上面滚动播放着发布会的主题标语'未来科技，触手可及'。整体色调以冷色调为主，蓝色和银色搭配，营造出科技感和高端感。
+画面中还有一群穿着时尚的观众，他们或举着手机拍照，或聚精会神地观看，体现出发布会的热烈氛围。海报底部有活动的时间、地点和主办方的标志，字体简洁大方，与整体风格协调
+
+图像示例：
+主题：生成一幅未来城市夜景图像
+未来城市夜景，赛博朋克风格，霓虹灯光闪烁，高耸的摩天大楼，透明的空中交通管道，飞行汽车穿梭其中，
+地面有行人和机器人，充满科技感和未来感，夜晚，星空背景，4K超高清，电影级画质
+-->
+Capabilities: Generate, edit, create posters, comics, illustrations, cartoons, hand-drawn, oil paintings, watercolors, sketches, prints and other image creation capabilities
+Strict prohibitions: No risk keywords such as pornography, violence or racism
+Clear theme: Clearly state image theme such as event, product, movie etc., let model know main content
+Detailed elements: Describe main elements including shape, color, position etc., let model accurately generate desired scene
+Highlight style: Specify image style such as tech feel, fashion sense, retro style etc., reflect style through color matching, font selection details
+Reasonable layout: Describe layout including element arrangement, size proportions etc., make poster coordinated and aesthetically pleasing
+Key information: Ensure image contains key information such as title, slogan, time, location, contact info etc., clear and readable for audience
+
+Poster example:
+Generate a tech product launch event poster. Center features a futuristic smartphone with screen lit up showing key feature icons like HD camera, long battery life.
+Background is modern launch venue with giant LED screen scrolling launch theme slogan 'Future Tech, Within Reach'. Overall cool tone dominated by blue and silver, creating tech and premium feel.
+Also fashionably dressed audience either taking photos with phones or watching attentively, reflecting enthusiastic atmosphere. Poster bottom has event time, location and organizer logo with clean elegant fonts matching overall style
+
+Image example:
+Theme: Generate future city night scene
+Future city night scene, cyberpunk style, neon lights flashing, towering skyscrapers, transparent aerial traffic tubes, flying cars shuttling through,
+Ground with pedestrians and robots, full of tech and futuristic feel, night time, starry background, 4K ultra HD, cinema quality
+""",
+    )
+    mode: str = Field(
+        ...,
+        description="""<!--zh
+操作模式：
+**生成模式 (generate)**：从头创建新图片 - 使用场景：根据文本描述生成图片 -
+    参数：mode='generate' - 示例：生成一只可爱的猫、创建标志、绘制风景画
+**编辑模式 (edit)**：修改现有图片 - 使用场景：基于特定现有图片编辑或修改图片
+    参数：mode='edit'，必须提供 image_path 参数 - 示例：将白猫改成红色、在图片上添加文字、更改背景颜色、移除对象、修改现有图片的颜色/特征
+**重要提示**：当用户说'将[现有项目]更改/修改/编辑为[新状态]'时，使用编辑模式并指定现有图片文件的路径
+-->
+Operation mode:
+**Generate mode (generate)**: Create new image from scratch - Use case: Generate image from text description -
+    Parameters: mode='generate' - Examples: Generate a cute cat, create a logo, draw a landscape
+**Edit mode (edit)**: Modify existing image - Use case: Edit or modify based on specific existing image
+    Parameters: mode='edit', must provide image_path parameter - Examples: Change white cat to red, add text to image, change background color, remove objects, modify existing image colors/features
+**Important tip**: When user says 'change/modify/edit [existing item] to [new state]', use edit mode and specify existing image file path
+""",
+    )
+    image_count: int = Field(
+        1,
+        description="""<!--zh: 要生成的图片数量（仅用于生成模式），默认为1，最大为4。当用户的提示词中有组或多个项目时，应设置为4-->
+Number of images to generate (generate mode only), default 1, max 4. Should set to 4 when user's prompt contains groups or multiple items""",
+    )
+    size: str = Field(
+        "2048x2048",
+        description="""<!--zh
+要生成或编辑的图片尺寸
+指定生成图片的尺寸信息。支持以下两种方法，且不能同时使用。
+方法1：指定图片的宽度和高度，范围：'2048x2048'、'2304x1728'、'1728x2304'、'2560x1440'、'1440x2560'、'2496x1664'、'1664x2496'、'3024x1296'
+方法2：指定图片的宽高比，范围：'1:1'、'4:3'、'3:4'、'16:9'、'9:16'、'3:2'、'2:3'、'21:9'
+注意：当用户需要进行图片编辑时，请参考他们引用的图片尺寸，并相应设置尺寸以保持图片尺寸的一致性。
+-->
+Image size to generate or edit
+Specify dimension information for generated image. Supports two methods, cannot use simultaneously.
+Method 1: Specify width and height, options: '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560', '2496x1664', '1664x2496', '3024x1296'
+Method 2: Specify aspect ratio, options: '1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', '21:9'
+Note: When user needs image editing, refer to their referenced image dimensions and set size accordingly to maintain consistency.
+""",
+    )
+    image_name: str = Field(
+        "",
+        description="""<!--zh
+根据用户偏好语言命名文件，使用描述性文件名：- **中文用户**：使用中文，例如：'可爱小猫'、'黑色小狗' -
+**英文用户**：使用英文描述，例如：'cute_cat'、'sunset_landscape'
+**避免特殊字符**：不要使用 / \\ : * ? ' < > | 字符
+**建议格式**：3-5个词，用下划线连接，反映核心内容
+-->
+Name file according to user preferred language using descriptive filename: - **Chinese users**: Use Chinese, e.g., '可爱小猫', '黑色小狗' -
+**English users**: Use English description, e.g., 'cute_cat', 'sunset_landscape'
+**Avoid special characters**: Don't use / \\ : * ? ' < > | characters
+**Recommended format**: 3-5 words, underscore-connected, reflecting core content
+""",
+    )
+    output_path: str = Field(
+        "",
+        description="""<!--zh: 保存图片的目录（如果为空则根据模式自动确定），如果语言是中文，例如：'图片目录'，否则为'images'-->
+Directory to save images (auto-determined by mode if empty), if language is Chinese e.g., '图片目录', otherwise 'images'""",
+    )
+    image_paths: List[str] = Field(
+        default_factory=list,
+        description="""<!--zh
+要编辑的图片路径列表。每个路径应该是工作区目录中的相对文件路径，例如：['images/white_cat.jpg', '图片目录/可爱小猫.png']确保所有图片文件都存在。
+**编辑模式必需**：支持多张图片进行批量编辑操作。当用户说'更改[现有项目]'时，提供所有相关图片文件的路径。
+-->
+List of image paths to edit. Each path should be relative file path in workspace directory, e.g., ['images/white_cat.jpg', '图片目录/可爱小猫.png']. Ensure all image files exist.
+**Required for edit mode**: Supports batch editing of multiple images. When user says 'change [existing item]', provide all relevant image file paths.
+""",
+    )
+    override: bool = Field(
+        False,
+        description="""<!--zh: 是否覆盖现有文件-->
+Whether to override existing files""",
+    )
+    model: str = Field(
+        "",
+        description="""<!--zh
+用户指定模型，需按照用户指定模型执行。如果用户未指定，则根据以下决策逻辑选择合适的模型。
+
+【可用模型列表】
+
+文本生成图片模型（用于从零创建新图片）：
+- doubao-seedream-4-0-250828：中文文字渲染最佳
+- qwen-image：通用模型
+- high_aes_general_v21_L：通用模型
+
+图片编辑模型（用于修改现有图片）：
+- doubao-seedream-4-0-250828：首选
+- qwen-image-edit：专用编辑模型
+
+【模型选择决策逻辑】（按优先级顺序）
+
+1. 用户明确指定模型 → 直接使用用户指定的模型
+
+2. 判断是否有参考图片：
+   - 有参考图片（需要编辑）→ 使用图片编辑模型
+     * 首选：doubao-seedream-4-0-250828
+     * 备选：qwen-image-edit
+
+3. 特殊风格需求判断：
+   - 动漫风格、东方美学、追求艺术感（不需要精确文字或布局）
+     * 首选：doubao-seedream-4-0-250828（视觉效果极佳）
+     * 备选：qwen-image-edit
+
+4. 文字渲染需求判断：
+   - 需要渲染中文文字 → 使用 doubao-seedream-4-0-250828（中文文字渲染最佳）
+
+
+5. 默认情况（无特殊需求）：
+   - 使用 doubao-seedream-4-0-250828
+
+【实际应用场景示例】
+
+场景 1：用户说"生成一张科技感海报"
+- 分析：没有参考图，需要生成新图片
+- 选择：doubao-seedream-4-0-250828
+
+场景 2：用户上传产品图并说"把背景换成森林"
+- 分析：有参考图，需要编辑现有图片
+- 选择：doubao-seedream-4-0-250828（编辑模式）
+
+场景 3：用户说"生成动漫风格的魔法少女"
+- 分析：动漫风格需求，追求视觉效果
+- 选择：doubao-seedream-4-0-250828
+
+场景 4：用户说"生成一张包含'欢迎光临'文字的海报"
+- 分析：需要渲染中文文字
+- 选择：doubao-seedream-4-0-250828
+-->
+User-specified model, execute according to user specification. If user doesn't specify, select appropriate model based on following decision logic.
+
+[Available Model List]
+
+Text-to-image models (for creating new images from scratch):
+- doubao-seedream-4-0-250828: Best Chinese text rendering
+- qwen-image: General-purpose model
+- high_aes_general_v21_L: General-purpose model
+
+Image editing models (for modifying existing images):
+- doubao-seedream-4-0-250828: First choice
+- qwen-image-edit: Dedicated editing model
+
+[Model Selection Decision Logic] (in priority order)
+
+1. User explicitly specifies model → Use user-specified model directly
+
+2. Determine if reference images exist:
+   - Has reference images (need editing) → Use image editing model
+     * First choice: doubao-seedream-4-0-250828
+     * Alternative: qwen-image-edit
+
+3. Special style requirements:
+   - Anime style, Eastern aesthetics, artistic feel (no need for precise text or layout)
+     * First choice: doubao-seedream-4-0-250828 (excellent visual effects)
+     * Alternative: qwen-image-edit
+
+4. Text rendering requirements:
+   - Need Chinese text rendering → Use doubao-seedream-4-0-250828 (best Chinese text rendering)
+
+
+5. Default (no special requirements):
+   - Use doubao-seedream-4-0-250828
+
+[Practical Application Examples]
+
+Scenario 1: User says "Generate a tech-style poster"
+- Analysis: No reference image, need new image generation
+- Choice: doubao-seedream-4-0-250828
+
+Scenario 2: User uploads product image and says "Change background to forest"
+- Analysis: Has reference image, need to edit existing image
+- Choice: doubao-seedream-4-0-250828 (edit mode)
+
+Scenario 3: User says "Generate anime style magical girl"
+- Analysis: Anime style requirement, pursuing visual effects
+- Choice: doubao-seedream-4-0-250828
+
+Scenario 4: User says "Generate poster with '欢迎光临' text"
+- Analysis: Need Chinese text rendering
+- Choice: doubao-seedream-4-0-250828
+""",
+    )
+
+
+@tool()
+class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceGuardTool[GenerateImageParams]):
+    """<!--zh
+    图片生成和编辑工具
+    该工具支持使用文本提示进行文本到图片生成和图片编辑。
+    模型会根据操作模式和提示内容分析自动选择。
+
+    **模式选择指南：**
+    - **使用 EDIT 模式**：用户想要修改现有图片（例如："把白猫改成红色"、"让天空变蓝"、"在图片上添加文字"）
+    - **使用 GENERATE 模式**：用户想要从头创建全新的图片（例如："生成一只可爱的猫"、"创建一幅风景画"）
+
+    **编辑模式要求：**
+    - 必须提供 image_paths 参数，包含一个或多个现有图片文件
+    - 每个 image_path 应该是工作区目录内的相对文件路径
+    - 示例：单张图片 ['images/white_cat.jpg']，多张图片 ['images/cat1.jpg', '图片目录/cat2.png']
+    - 使用编辑模式前确保所有图片文件存在
+    - 支持使用相同提示批量编辑多张图片
+
+    **使用提示：**
+    - 提示应该具体明确，包括风格、颜色、构图等细节
+    - 编辑时，清楚指定要修改的部分
+    - 生成多张图片时，设置 image_count 参数（最多 4 张）
+    - 通过 size 参数控制生成图片的尺寸（例如："512x512"、"1:1"）
+    -->
+    Image generation and editing tool
+    This tool supports text-to-image generation and image editing using text prompts.
+    Model automatically selects based on operation mode and prompt content.
+
+    **Mode Selection Guide:**
+    - **Use EDIT mode**: User wants to modify existing images (e.g., "change white cat to red", "make sky blue", "add text to image")
+    - **Use GENERATE mode**: User wants to create entirely new images from scratch (e.g., "generate a cute cat", "create a landscape painting")
+
+    **Edit Mode Requirements:**
+    - Must provide image_paths parameter with one or more existing image files
+    - Each image_path should be relative file path within workspace directory
+    - Examples: single image ['images/white_cat.jpg'], multiple images ['images/cat1.jpg', 'image-dir/cat2.png']
+    - Ensure all image files exist before using edit mode
+    - Supports batch editing multiple images with same prompt
+
+    **Usage Tips:**
+    - Prompts should be specific and clear, including style, color, composition details
+    - When editing, clearly specify parts to modify
+    - When generating multiple images, set image_count parameter (max 4)
+    - Control generated image size via size parameter (e.g., "512x512", "1:1")
+
+    """
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+当用户出现以下场景时，直接调用generate_image工具
+- 用户上传图片附件、并希望参考上传的图片附件创造、编辑一张或多张新图片
+- 用户希望批量生成、创造图片，如：创建一组连续相似的近代风格的风景图
+- 用户目的是创造、创建、生成、编辑图片时，应遵循：
+    - 存在参考图时，应利用image_paths参数提供参考图
+    - 避免使用视觉理解的结果来生成图片，这会导致细节丢失
+    - 避免调用图片搜索来交付图片
+-->
+Call generate_image tool directly when user has following scenarios:
+- User uploads image attachments and wants to create/edit one or more new images based on uploaded image attachments
+- User wants to batch generate/create images, e.g., create a series of similar modern-style landscape images
+- When user's purpose is to create/generate/edit images, follow these rules:
+    - When reference images exist, use image_paths parameter to provide reference images
+    - Avoid using visual understanding results to generate images, this causes detail loss
+    - Avoid calling image search to deliver images
+"""
+
+    # 跟踪每个对话的生成计数
+    _generation_counts = defaultdict(int)
+    MAX_IMAGES_PER_CONVERSATION = 30
+    MAX_EDITS_PER_CONVERSATION = 20
+
+    def __init__(self, **data):
+        """
+        初始化图片生成/编辑工具
+        """
+        # 设置基础目录为工作区目录
+        if "base_dir" not in data:
+            data["base_dir"] = PathManager.get_workspace_dir()
+
+        super().__init__(**data)
+
+        # 延迟初始化，避免在构建环境中因缺少配置而失败
+        self.visual_service = None
+        self._initialized = False
+        # 初始化用于 URL 生成的文件服务 - 临时禁用以修复循环导入
+        self._file_service = None
+
+    def _initialize_service(self):
+        """延迟服务初始化，仅在需要时执行"""
+        if self._initialized:
+            return
+
+        try:
+            # 仅支持 magic-service 平台
+            self.visual_service = None
+
+            # 验证 magic-service 配置
+            api_base_url = config.get("image_generator.text_to_image_api_base_url")
+            access_key = config.get("image_generator.text_to_image_access_key")
+
+            if not api_base_url or not access_key:
+                raise ValueError("magic-service platform not configured with API address or access credentials")
+
+            self._initialized = True
+            logger.info("GenerateImage 工具服务初始化成功")
+
+        except Exception as e:
+            logger.warning(f"GenerateImage 工具服务初始化失败: {e}")
+            raise
+
+    def is_available(self) -> bool:
+        """
+        检查工具是否可用，验证所需配置是否存在
+
+        Returns:
+            bool: 工具是否可用
+        """
+        try:
+            # 仅支持 magic-service 平台
+            # 验证 magic-service 配置
+            api_base_url = config.get("image_generator.text_to_image_api_base_url")
+            access_key = config.get("image_generator.text_to_image_access_key")
+            return bool(api_base_url and access_key)
+
+        except Exception as e:
+            logger.warning(f"检查 GenerateImage 工具可用性失败: {e}")
+            return False
+
+    def _get_workspace_path(self) -> Path:
+        """使用 PathManager 获取工作区目录路径"""
+        workspace_dir = PathManager.get_workspace_dir()
+        logger.debug(f"使用 PathManager 获取工作区目录: {workspace_dir}")
+        return workspace_dir
+
+    def _is_file_in_workspace(self, file_path: str) -> bool:
+        """检查文件是否在工作区目录内"""
+        workspace_path = self._get_workspace_path()
+        file_abs_path = Path(file_path).resolve()
+        workspace_abs_path = workspace_path.resolve()
+
+        # 检查文件是否在工作区目录内
+        try:
+            file_abs_path.relative_to(workspace_abs_path)
+            logger.debug(f"文件在工作区内: {file_path}")
+            return True
+        except ValueError:
+            logger.debug(f"文件不在工作区内: {file_path}")
+            return False
+
+    async def _generate_presigned_url_for_file(self, file_path: str) -> Optional[str]:
+        """
+        为文件生成预签名 URL
+        支持多个存储平台：TOS、阿里云 OSS、本地存储
+
+        Args:
+            file_path: 文件在存储系统中的路径（相对路径）
+
+        Returns:
+            str: 预签名 URL，失败则返回 None
+        """
+        try:
+            # 创建文件服务实例
+            file_service = FileService()
+
+            # 获取文件下载链接
+            download_result = await file_service.get_file_download_url(file_path, expires_in=7200, options={"size": 80})
+
+            # 提取下载URL
+            presigned_url = download_result.get("download_url")
+            platform = download_result.get("platform")
+
+            logger.info(f"为 {platform} 存储生成预签名 URL，file_path: {file_path}")
+            logger.info(f"生成的预签名 URL: {presigned_url}")
+            return presigned_url
+
+        except Exception as e:
+            logger.error(f"为文件 {file_path} 生成预签名 URL 失败: {e}")
+            return None
+
+    async def _convert_local_image_to_url(self, image_path: str, output_path: str) -> Optional[str]:
+        """将本地图片文件转换为可访问的预签名 URL"""
+        try:
+            image_path = image_path.lstrip('/')
+
+            # 检查文件是否存在
+            if not await async_exists(image_path):
+                logger.error(f"图片文件不存在: {image_path}")
+                image_path = output_path + "/" + image_path
+                if not await async_exists(image_path):
+                    raise ValueError(f"Image file does not exist: {image_path}")
+
+            logger.info(f"将本地图片转换为 URL: {image_path}")
+
+            # 构造存储系统中的完整 file_path
+            file_path = Path(image_path)
+            # 如果 image_path 是绝对路径，需要转换为相对路径
+            if file_path.is_absolute():
+                # 尝试获取相对于工作区的路径
+                try:
+                    workspace_dir = PathManager.get_workspace_dir()
+                    file_path = str(file_path.relative_to(workspace_dir))
+                except ValueError:
+                    # 如果不在工作区内，使用文件名
+                    file_path = file_path.name
+            else:
+                # 已经是相对路径，转换为字符串
+                file_path = str(file_path)
+
+            logger.info(f"为存储生成 image_path: {file_path}")
+
+            # 生成预签名 URL
+            presigned_url = await self._generate_presigned_url_for_file(file_path)
+            if not presigned_url:
+                logger.error(f"生成预签名 URL 失败: {file_path}")
+                return None
+
+            logger.info(f"本地图片已转换为 URL: {file_path} -> {presigned_url}")
+            return presigned_url
+
+        except Exception as e:
+            logger.error(f"将本地图片转换为 URL 失败: {file_path}，错误: {e}")
+            return None
+
+    async def _generate_image_via_magic_service(self, params: GenerateImageParams) -> List[str]:
+        """通过 magic-service 平台生成图片"""
+        try:
+            # 获取 magic-service 相关配置
+            api_base_url = config.get("image_generator.text_to_image_api_base_url")
+            access_key = config.get("image_generator.text_to_image_access_key")
+
+            if not api_base_url or not access_key:
+                raise ValueError("magic-service API address or access credentials not configured")
+
+            # 构建请求 URL
+            url = f"{api_base_url.rstrip('/')}/images/generations"
+
+            # 优先从 dynamic_config.yaml 的 image_model.model_id 获取模型
+            model = params.model
+            try:
+                config_data = dynamic_config.read_dynamic_config()
+                if config_data:
+                    image_model_config = config_data.get("image_model", {})
+                    if isinstance(image_model_config, dict):
+                        model_id = image_model_config.get("model_id")
+                        if model_id and isinstance(model_id, str) and model_id.strip():
+                            model = model_id.strip()
+                            logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
+            except Exception as e:
+                logger.debug(f"读取 dynamic_config.yaml 中的 image_model.model_id 失败，使用 params.model: {e}")
+
+            # 如果 model 仍然为空，使用兜底默认模型
+            if not model or not model.strip():
+                model = "doubao-seedream-4-0-250828"
+                logger.info(f"未指定模型且配置文件未设置，使用默认模型: {model}")
+
+            # 验证模型是否在不许的列表中，如果是则使用兜底模型
+            not_allowed_models = ["qwen-image-edit", "auto"]
+            # 如果模型在不允许的列表中，并且image_paths为空，则使用兜底模型
+            if model in not_allowed_models and params.image_paths == []:
+                logger.warning(f"模型 {model} 在不允许的列表中 {not_allowed_models}，使用兜底模型 qwen-image")
+                model = "doubao-seedream-4-0-250828"
+
+            if model == "qwen-image":
+                params.size = "1328x1328"
+
+            # 构建请求参数
+            payload = {
+                "model": model,
+                "prompt": params.prompt,
+                "size": params.size if params.size else "2048x2048",
+                "images": params.image_paths,
+                "n": params.image_count,
+                "sequential_image_generation": "auto",
+            }
+
+            # 使用 Magic 元数据构建请求头
+            headers = self._build_api_headers(access_key)
+
+            logger.info(f"调用 magic-service API: {url}")
+            logger.info(f"请求参数: {payload}")
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=240) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"API request failed, status code: {response.status}, error: {error_text}")
+
+                    response_data = await response.json()
+                    logger.info(f"magic-service API response: {response_data}")
+
+                    # 处理新的 magic-service 响应格式
+                    # 新格式：{"created": ..., "data": [...], "usage": {...}, "provider": "..."}
+                    # 旧格式：[{"success": true, "data": {...}}]
+                    if isinstance(response_data, dict) and "data" in response_data:
+                        # 新格式 - 直接从 data 数组中提取 URL
+                        data_array = response_data.get("data", [])
+                        image_urls = []
+                        for item in data_array:
+                            if isinstance(item, dict) and "url" in item:
+                                image_urls.append(item["url"])
+                                logger.debug(f"新格式：找到图片 URL: {item['url']}")
+
+                        if not image_urls:
+                            logger.warning(f"新格式：响应中未找到图片 URL: {response_data}")
+                            raise Exception("No valid image URLs returned from magic-service")
+
+                        logger.info(f"新格式：成功解析 {len(image_urls)} 个图片 URL")
+                    else:
+                        # 旧格式 - 使用现有解析器策略
+                        parser = ResponseParserFactory.get_parser(model)
+                        image_urls = parser.parse(response_data, model)
+
+                    # 如果返回的图片数量超过请求数量，仅返回请求的数量
+                    return image_urls[: params.image_count]
+
+        except Exception as e:
+            logger.error(f"magic-service 图片生成失败: {e}")
+            raise
+
+    async def _edit_image_via_magic_service(self, params: GenerateImageParams) -> List[str]:
+        """通过 magic-service 平台编辑图片"""
+        try:
+            # 获取 magic-service 相关配置
+            api_base_url = config.get("image_generator.text_to_image_api_base_url")
+            access_key = config.get("image_generator.text_to_image_access_key")
+
+            if not api_base_url or not access_key:
+                raise ValueError("magic-service API address or access credentials not configured")
+
+            # 构建请求 URL
+            url = f"{api_base_url.rstrip('/')}/images/edits"
+
+            # 优先从 dynamic_config.yaml 的 image_model.model_id 获取模型
+            model = params.model
+            try:
+                config_data = dynamic_config.read_dynamic_config()
+                if config_data:
+                    image_model_config = config_data.get("image_model", {})
+                    if isinstance(image_model_config, dict):
+                        model_id = image_model_config.get("model_id")
+                        if model_id and isinstance(model_id, str) and model_id.strip():
+                            model = model_id.strip()
+                            logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
+            except Exception as e:
+                logger.debug(f"读取 dynamic_config.yaml 中的 image_model.model_id 失败，使用 params.model: {e}")
+
+            # 如果 model 仍然为空，使用兜底默认模型
+            if not model or not model.strip():
+                model = "doubao-seedream-4-0-250828"
+                logger.info(f"未指定模型且配置文件未设置，使用默认模型: {model}")
+
+            # 验证模型是否在不允许的列表中，如果是则使用兜底模型
+            not_allowed_models = ["Midjourney-turbo", "qwen-image", "high_aes_general_v21_L", "auto"]
+            if model in not_allowed_models:
+                logger.warning(f"模型 {model} 在不允许的列表中 {not_allowed_models}，使用兜底模型 qwen-image-edit")
+                model = "doubao-seedream-4-0-250828"
+
+            # 验证 image_paths 参数
+            if not params.image_paths:
+                raise ValueError("Must provide at least one image path or URL for editing")
+
+            # 如果需要，将本地图片转换为 URL
+            image_urls = []
+            for image_source in params.image_paths:
+                image_url = image_source
+
+                # 检查是否为本地文件（不是 URL）
+                if not image_source.startswith(("http://", "https://")):
+                    # 处理本地文件路径
+                    logger.info(f"将本地图片转换为 URL: {image_source}")
+                    image_url = await self._convert_local_image_to_url(image_source, params.output_path)
+                    if not image_url:
+                        raise ValueError(f"Failed to convert local image to accessible URL: {image_source}")
+                    logger.info(f"本地图片已转换为 URL: {image_source} -> {image_url}")
+
+                image_urls.append(image_url)
+
+            logger.info(f"正在处理 {len(image_urls)} 张图片进行编辑")
+
+            # 构建请求参数
+            payload = {
+                "model": model,
+                "images": image_urls,
+                "prompt": params.prompt,
+                "n": params.image_count,
+                "size": params.size,
+                "sequential_image_generation": "auto",
+            }
+
+            # 使用 Magic 元数据构建请求头
+            headers = self._build_api_headers(access_key)
+
+            logger.info(f"调用 magic-service API: {url}")
+            logger.info(f"请求参数: {payload}")
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=240) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"API request failed, status code: {response.status}, error: {error_text}")
+
+                    response_data = await response.json()
+                    logger.info(f"magic-service API response: {response_data}")
+
+                    # 处理新的 magic-service 响应格式
+                    # 新格式：{"created": ..., "data": [...], "usage": {...}, "provider": "..."}
+                    # 旧格式：[{"success": true, "data": {...}}]
+                    if isinstance(response_data, dict) and "data" in response_data:
+                        # 新格式 - 直接从 data 数组中提取 URL
+                        data_array = response_data.get("data", [])
+                        image_urls = []
+                        for item in data_array:
+                            if isinstance(item, dict) and "url" in item:
+                                image_urls.append(item["url"])
+                                logger.debug(f"新格式：找到图片 URL: {item['url']}")
+
+                        if not image_urls:
+                            logger.warning(f"新格式：响应中未找到图片 URL: {response_data}")
+                            raise Exception("No valid image URLs returned from magic-service")
+
+                        logger.info(f"新格式：成功解析 {len(image_urls)} 个图片 URL")
+                    else:
+                        # 旧格式 - 使用现有解析器策略
+                        parser = ResponseParserFactory.get_parser(model)
+                        image_urls = parser.parse(response_data, model)
+
+                    return image_urls
+
+        except Exception as e:
+            logger.error(f"magic-service 图片编辑失败: {e}")
+            raise
+
+    def _process_url(self, url: str) -> str:
+        """处理 URL，保留签名参数的原始编码"""
+        try:
+            parsed = urlparse(url)
+            if not parsed.query:
+                return url
+
+            # 解析查询参数
+            query_params = parse_qs(parsed.query)
+            signature_params = ["x-signature", "signature", "sig"]
+            processed_params = {}
+
+            for key, values in query_params.items():
+                # 保留签名参数的原始值，不进行额外编码
+                processed_params[key] = values[0]
+
+            # 重建 URL
+            encoded_query = urlencode(processed_params)
+            return urlunparse(
+                (parsed.scheme, parsed.netloc, parsed.path, parsed.params, encoded_query, parsed.fragment)
+            )
+        except Exception as e:
+            logger.warning(f"URL 解析失败，使用原始 URL: {e}")
+            return url
+
+    def _get_headers_strategies(self) -> List[Dict[str, str]]:
+        """获取不同的请求头策略"""
+        return [
+            {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Referer": "https://www.google.com/",
+                "Origin": "https://www.google.com",
+            },
+            {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "image/*,*/*;q=0.8",
+                "Referer": "https://www.google.com/",
+            },
+            {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+        ]
+
+    async def _try_download_with_strategy(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        headers: Dict[str, str],
+        strategy_idx: int,
+    ) -> bytes:
+        """使用指定策略尝试下载图片"""
+        logger.debug(f"使用请求头策略 {strategy_idx + 1} 下载")
+        response = await client.get(url, headers=headers)
+
+        if response.status_code != 200:
+            if response.status_code == 403:
+                logger.warning(f"策略 {strategy_idx + 1} 返回 403")
+            raise Exception(f"Download failed with status code: {response.status_code}")
+
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            logger.warning(f"响应可能不是图片类型: {content_type}")
+
+        image_data = response.content
+        file_size = len(image_data)
+
+        if file_size == 0:
+            raise Exception("Downloaded image data is empty (size = 0)")
+
+        return image_data
+
+    async def _download_with_single_strategy(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        headers: Dict[str, str],
+        strategy_idx: int,
+    ) -> bytes:
+        """使用单个策略下载，带指数退避重试（最多3次）"""
+        return await retry_with_exponential_backoff(
+            self._try_download_with_strategy,
+            client,
+            url,
+            headers,
+            strategy_idx,
+            max_retries=2,  # 初始尝试 + 2次重试 = 共3次
+            initial_delay=1.0,
+            exponential_base=2.0,
+            jitter=True,
+        )
+
+    async def _download_image_data(self, url: str) -> bytes:
+        """下载图片数据，使用多种策略和指数退避重试机制"""
+        processed_url = self._process_url(url)
+        logger.debug(f"处理后的 URL: {processed_url}")
+
+        headers_strategies = self._get_headers_strategies()
+        last_exception = None
+
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=240.0) as client:
+            for strategy_idx, headers in enumerate(headers_strategies):
+                try:
+                    # 使用指数退避重试下载（每个策略最多3次尝试）
+                    image_data = await self._download_with_single_strategy(
+                        client, processed_url, headers, strategy_idx
+                    )
+                    logger.info(f"异步下载成功，大小: {len(image_data)} 字节")
+                    return image_data
+
+                except Exception as e:
+                    last_exception = e
+                    # 如果不是最后一个策略，尝试下一个
+                    if strategy_idx < len(headers_strategies) - 1:
+                        logger.warning(f"策略 {strategy_idx + 1} 所有重试均失败: {e}，尝试下一个策略")
+                        continue
+                    # 最后一个策略也失败了
+                    logger.error(f"所有下载策略均失败，最后错误: {e}")
+                    raise
+
+        # 所有策略都失败
+        if last_exception:
+            raise last_exception
+        raise Exception("All download strategies failed")
+
+    async def _download_image(
+        self,
+        url: str,
+        save_dir: str,
+        custom_filename: str,
+        should_override: bool = False,
+        tool_context: ToolContext = None,
+    ) -> tuple[str, bool]:
+        """下载并保存图片到指定目录"""
+        if not url or not url.startswith(("http://", "https://")):
+            raise ValueError(f"Invalid URL format: {url}")
+
+        # 清理 URL
+        url = url.strip("\"'")
+        logger.debug(f"下载图片 URL: {url}")
+
+        # 验证 URL 格式
+        try:
+            parsed_url = urlparse(url)
+            if not parsed_url.scheme or not parsed_url.netloc:
+                raise ValueError(f"Invalid URL format: {url}")
+        except Exception as e:
+            logger.error(f"URL 解析失败: {e}")
+            raise ValueError(f"Invalid URL format: {url}")
+
+        # 准备保存路径
+        save_path_str = os.path.join(save_dir, f"{custom_filename}.jpg")
+        save_path, error = self.get_safe_path(save_path_str)
+        if error:
+            raise ValueError(error)
+
+        await async_mkdir(save_path.parent, parents=True, exist_ok=True)
+
+        # 处理文件名冲突
+        if await async_exists(save_path) and not should_override:
+            counter = 1
+            while True:
+                new_filename = f"{custom_filename}_{counter}.jpg"
+                new_path_str = os.path.join(save_dir, new_filename)
+                new_path, new_error = self.get_safe_path(new_path_str)
+                if new_error:
+                    raise ValueError(new_error)
+                if not await async_exists(new_path):
+                    save_path = new_path
+                    break
+                counter += 1
+
+        # 使用 versioning context 处理事件
+        async with self._file_versioning_context(tool_context, save_path, update_timestamp=False) as file_existed_before:
+            logger.info("使用异步 httpx 下载图片")
+            try:
+                # 下载图片数据
+                image_data = await self._download_image_data(url)
+                file_size = len(image_data)
+
+                # 保存图片
+                async with aiofiles.open(save_path, "wb") as f:
+                    await f.write(image_data)
+                    await f.flush()
+
+                # 发送文件通知
+                try:
+                    await self._send_file_notification(str(save_path), file_existed_before, file_size)
+                except Exception as e:
+                    logger.warning(f"发送文件通知失败: {e}")
+
+                return str(save_path), file_existed_before
+
+            except Exception as e:
+                logger.error(f"图片下载失败: {e}")
+                raise
+
+    def _build_api_headers(self, access_key: str) -> Dict[str, str]:
+        """使用 Magic 元数据构建 API 请求头，遵循 factory.py 的模式"""
+        # 构建默认请求头
+        headers = {"Content-Type": "application/json", "api-key": f"{access_key}"}
+
+        # 添加 Magic-Authorization 与 User-Authorization
+        MetadataUtil.add_magic_and_user_authorization_headers(headers)
+
+        # 如果 MetadataUtil 已初始化，添加 Magic 元数据请求头
+        if MetadataUtil.is_initialized():
+            # 将 task_id 添加到请求头
+            task_id = MetadataUtil.get_metadata().get("super_magic_task_id")
+            if task_id:
+                headers["Magic-Task-Id"] = task_id
+
+            # 将 topic_id 添加到请求头
+            topic_id = MetadataUtil.get_metadata().get("topic_id")
+            if topic_id:
+                headers["Magic-Topic-Id"] = topic_id
+
+            # 将 chat_topic_id 添加到请求头
+            chat_topic_id = MetadataUtil.get_metadata().get("chat_topic_id")
+            if chat_topic_id:
+                headers["Magic-Chat-Topic-Id"] = chat_topic_id
+
+            # 将 language 添加到请求头
+            language = MetadataUtil.get_metadata().get("language")
+            if language:
+                headers["Magic-Language"] = language
+
+        logger.info(f"构建的 API 请求头: {json.dumps(sanitize_headers(headers), ensure_ascii=False, indent=2)}")
+        return headers
+
+    def _get_conversation_id_from_context(self, tool_context: ToolContext) -> str:
+        """从工具上下文中获取对话 ID"""
+        if hasattr(tool_context, "agent_context") and tool_context.get_extension_typed("agent_context", AgentContext):
+            agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
+            if agent_context:
+                chat_msg = agent_context.get_chat_client_message()
+                if chat_msg and hasattr(chat_msg, "message_id"):
+                    return chat_msg.message_id
+        return ""
+
+    async def _dispatch_file_event(self, tool_context: ToolContext, file_path: str, event_type: EventType) -> None:
+        """分发文件创建/更新事件"""
+        # 使用父类的通用方法，传递 source=5 (AI generated)
+        await super()._dispatch_file_event(tool_context, file_path, event_type, is_screenshot=False, source=5)
+
+    async def _send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
+        """图片下载后发送文件变更通知"""
+        try:
+            # 如果未提供大小，则从磁盘获取
+            if file_size is None:
+                stat_result = await async_stat(file_path)
+                file_size = stat_result.st_size
+
+            # 根据文件是否存在确定操作类型（CREATE/UPDATE/DELETE）
+            operation = "UPDATE" if file_existed else "CREATE"
+
+            # 获取相对路径（相对于工作区）
+            try:
+                relative_path = Path(file_path).relative_to(self.base_dir)
+            except ValueError:
+                # 如果文件不在工作区内，使用文件名
+                relative_path = Path(file_path).name
+
+            # 创建文件通知请求
+            notification_request = FileNotificationRequest(
+                timestamp=int(time.time()),
+                operation=operation,
+                file_path=str(relative_path),
+                file_size=file_size,
+                is_directory=0,  # 图片文件不是目录
+                source=5,  # AI 图片生成
+            )
+
+            # 发送通知
+            await send_file_notification(notification_request)
+            logger.info(f"文件通知已发送: {operation} {relative_path} ({file_size} 字节)")
+
+        except Exception as e:
+            logger.error(f"发送文件通知失败 {file_path}: {e}")
+            # 不抛出异常，避免影响主流程
+
+    async def execute(self, tool_context: ToolContext, params: GenerateImageParams) -> ImageToolResult:
+        """执行图片生成或编辑（工具系统入口）"""
+        return await self.execute_purely(tool_context, params, skip_limit_check=False)
+
+    async def execute_purely(
+        self,
+        tool_context: ToolContext,
+        params: GenerateImageParams,
+        skip_limit_check: bool = False
+    ) -> ImageToolResult:
+        """执行图片生成或编辑（纯执行方法，可选择跳过限制检查）
+
+        Args:
+            tool_context: 工具上下文
+            params: 图片生成参数
+            skip_limit_check: 是否跳过对话级别的限制检查（默认 False）
+                当设置为 True 时，将跳过 MAX_IMAGES_PER_CONVERSATION 和 MAX_EDITS_PER_CONVERSATION 的检查
+                适用于内部工具调用场景（如 generate_images_to_canvas）
+
+        Returns:
+            ImageToolResult: 图片生成结果
+        """
+        try:
+            # 延迟服务初始化
+            self._initialize_service()
+
+            # 获取对话ID（即使跳过限制检查，仍需要用于后续计数更新）
+            conversation_id = self._get_conversation_id_from_context(tool_context)
+
+            # 验证模式和参数
+            if params.mode not in ["generate", "edit"]:
+                raise ValueError("Mode must be 'generate' or 'edit'")
+
+            # 如果未指定，自动确定输出路径
+            if not params.output_path:
+                params.output_path = "图片目录"
+
+            if params.mode == "edit":
+                # 图片编辑模式
+                # 只有在不跳过限制检查时才进行限制验证
+                if not skip_limit_check and self._generation_counts[conversation_id] >= self.MAX_EDITS_PER_CONVERSATION:
+                    raise ValueError(
+                        f"Reached conversation image editing limit ({self.MAX_EDITS_PER_CONVERSATION} edits)"
+                    )
+
+                # 验证编辑参数
+                if not params.image_paths:
+                    raise ValueError("Must provide at least one image path or URL for editing")
+
+                # 编辑图片
+                image_urls = await self._edit_image_via_magic_service(params)
+                operation_type = "edit"
+                message_codes = {
+                    "success": "edit_image.success",
+                    "success_with_files": "edit_image.success_with_files",
+                    "error": "edit_image.error",
+                    "multiple": "edit_image.multiple",
+                    "no_images": "edit_image.no_images",
+                    "file_names": "edit_image.file_names",
+                    "saved_to": "edit_image.saved_to",
+                }
+            else:
+                # 图片生成模式
+                # 只有在不跳过限制检查时才进行限制验证
+                if not skip_limit_check and self._generation_counts[conversation_id] >= self.MAX_IMAGES_PER_CONVERSATION:
+                    raise ValueError(
+                        f"Reached conversation image generation limit ({self.MAX_IMAGES_PER_CONVERSATION} images)"
+                    )
+
+                # 验证生成参数
+                if params.image_count <= 0:
+                    raise ValueError("Number of images to generate must be greater than 0")
+                if params.image_count > 4:
+                    raise ValueError("Maximum 4 images can be generated at once")
+
+                # 生成图片（使用 params.model 指定的模型，仅支持 magic-service 平台）
+                image_urls = await self._generate_image_via_magic_service(params)
+
+                operation_type = "generate"
+                message_codes = {
+                    "success": "generate_image.success",
+                    "success_with_files": "generate_image.success_with_files",
+                    "error": "generate_image.error",
+                    "multiple": "generate_image.multiple",
+                    "no_images": "generate_image.no_images",
+                    "file_names": "generate_image.file_names",
+                    "saved_to": "generate_image.saved_to",
+                }
+            if not image_urls:
+                raise ValueError(f"Image {operation_type} failed")
+
+            # 保存图片
+            save_dir = os.path.join(self.base_dir, params.output_path)
+            base_filename = params.image_name if params.image_name else generate_safe_filename(params.prompt)
+            saved_paths = []
+            relative_paths = []
+
+            for idx, url in enumerate(image_urls):
+                try:
+                    # 如果有多张图片，在文件名中添加序号
+                    custom_filename = f"{base_filename}_{idx + 1}" if len(image_urls) > 1 else base_filename
+                    saved_path, file_existed = await self._download_image(
+                        url, save_dir, custom_filename, params.override, tool_context
+                    )
+                    saved_paths.append(saved_path)
+                    # 将绝对路径转换为相对路径用于文件事件
+                    relative_path = Path(saved_path).relative_to(self.base_dir)
+                    relative_paths.append(str(relative_path))
+                    logger.info(f"图片已保存: {relative_path}")
+                except Exception as e:
+                    logger.error(f"保存图片失败: {e}")
+                    continue
+
+            if not saved_paths:
+                raise ValueError("All image saves failed")
+
+            # 更新生成计数
+            self._generation_counts[conversation_id] += len(saved_paths)
+
+            # 使用文件名构建内容信息
+            file_names = [os.path.basename(path) for path in saved_paths]
+            content_with_files = i18n.translate(message_codes["success_with_files"], category="tool.messages", count=len(saved_paths), file_names=", ".join(file_names)
+            )
+
+            extra_info = {
+                "saved_images": saved_paths,
+                "file_names": file_names,
+                "relative_paths": relative_paths,
+                "prompt": params.prompt,
+                "mode": params.mode,
+                "image_count": len(saved_paths),
+            }
+
+            if params.mode == "generate":
+                # 从 size 参数解析宽度和高度用于 extra_info
+                try:
+                    if "x" in params.size:
+                        width_str, height_str = params.size.split("x", 1)
+                        width = int(width_str.strip())
+                        height = int(height_str.strip())
+                    else:
+                        width = height = 512
+                except (ValueError, AttributeError):
+                    width = height = 512
+
+                extra_info.update({"width": width, "height": height, "size": params.size})
+            else:
+                extra_info.update({"original_images": params.image_paths if params.image_paths else []})
+
+            return ImageToolResult(
+                success=True,
+                message=i18n.translate(message_codes["success"], category="tool.messages", count=len(saved_paths)),
+                content=content_with_files,
+                image_paths=saved_paths,
+                images=saved_paths,
+                extra_info=extra_info,
+            )
+
+        except Exception as e:
+            logger.error(f"图片{params.mode if hasattr(params, 'mode') else '操作'}失败: {e}")
+
+            # 根据模式确定消息代码
+            if hasattr(params, "mode") and params.mode == "edit":
+                error_code = "edit_image.error"
+            else:
+                error_code = "generate_image.error"
+
+            return ImageToolResult(
+                success=False,
+                message=i18n.translate(error_code, category="tool.messages", error=str(e)),
+                content=i18n.translate(error_code, category="tool.messages", error=str(e)),
+                image_paths=[],
+                images=[],
+                extra_info={
+                    "error": str(e),
+                    "prompt": params.prompt,
+                    "mode": getattr(params, "mode", "unknown"),
+                    "original_images": getattr(params, "image_paths", []) if hasattr(params, "image_paths") else [],
+                },
+            )
+
+    async def get_tool_detail(
+        self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        """
+        获取工具详情用于前端预览
+
+        Args:
+            tool_context: 工具上下文
+            result: 工具执行结果
+            arguments: 工具参数
+
+        Returns:
+            Optional[ToolDetail]: 图片预览的工具详情，如果不可用则返回 None
+        """
+        # 检查结果是否成功且类型正确
+        if not result.ok or not isinstance(result, ImageToolResult):
+            logger.debug("工具结果不成功或不是 ImageToolResult 类型")
+            return None
+
+        # 从结果中获取已保存的图片
+        saved_images = result.extra_info.get("saved_images", []) if result.extra_info else []
+        if not saved_images:
+            logger.warning("工具结果中未找到已保存的图片")
+            return None
+
+        # 使用第一张图片进行预览
+        first_image_path = saved_images[0]
+
+        # 使用安全路径检查验证文件路径
+        try:
+            safe_path, error = self.get_safe_path(first_image_path)
+            if error:
+                logger.error(f"无效的图片路径: {error}，路径: {first_image_path}")
+                return None
+
+            # 检查图片文件是否实际存在
+            if not await async_exists(safe_path):
+                logger.warning(f"图片文件不存在: {safe_path}")
+                return None
+
+            # 验证它确实是图片文件
+            if not safe_path.suffix.lower() in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+                logger.warning(f"文件不是识别的图片格式: {safe_path}")
+                return None
+
+            # 文件大小的额外检查（基本验证）
+            try:
+                file_stat = await async_stat(safe_path)
+                file_size = file_stat.st_size
+                if file_size == 0:
+                    logger.warning(f"图片文件为空: {safe_path}")
+                    return None
+                elif file_size < 100:  # 非常小的文件可能已损坏
+                    logger.warning(f"图片文件异常小 ({file_size} 字节): {safe_path}")
+                    return None
+            except OSError as e:
+                logger.error(f"检查图片文件大小出错: {e}")
+                return None
+
+        except Exception as e:
+            logger.error(f"验证图片路径出错 {first_image_path}: {e}")
+            return None
+
+        # 获取用于显示的文件名
+        file_name = os.path.basename(first_image_path)
+        # prompt = arguments.get("prompt", "") if arguments else ""
+        logger.info(f"为图片创建工具详情: {file_name}")
+
+        # 以 markdown 格式返回图片内容
+        return ToolDetail(type=DisplayType.IMAGE, data=FileContent(file_name=file_name, content=file_name))
+
+    def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
+        """获取备注内容"""
+        if isinstance(result, ImageToolResult) and result.extra_info:
+            saved_images = result.extra_info.get("saved_images", [])
+            image_count = len(saved_images)
+            mode = result.extra_info.get("mode", "generate")
+
+            if image_count == 1:
+                return os.path.basename(saved_images[0])
+            elif image_count > 1:
+                if mode == "edit":
+                    return i18n.translate("edit_image.multiple", category="tool.messages", count=image_count)
+                else:
+                    return i18n.translate("generate_image.multiple", category="tool.messages", count=image_count)
+            else:
+                if mode == "edit":
+                    return i18n.translate("edit_image.failed", category="tool.messages")
+                else:
+                    return i18n.translate("generate_image.failed", category="tool.messages")
+
+        return i18n.translate("generate_image.processing", category="tool.messages")
+
+    async def get_after_tool_call_friendly_content(
+        self, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
+    ) -> str:
+        """工具执行后获取友好的输出内容"""
+        if not result.ok:
+            # 根据模式确定错误消息
+            mode = arguments.get("mode", "generate") if arguments else "generate"
+            if mode == "edit":
+                return i18n.translate("edit_image.error", category="tool.messages", error=result.content)
+            else:
+                return i18n.translate("generate_image.error", category="tool.messages", error=result.content)
+
+        if isinstance(result, ImageToolResult):
+            image_count = len(result.images) if result.images else 0
+            saved_images = result.extra_info.get("saved_images", []) if result.extra_info else []
+            file_names = result.extra_info.get("file_names", []) if result.extra_info else []
+            relative_paths = result.extra_info.get("relative_paths", []) if result.extra_info else []
+            mode = result.extra_info.get("mode", "generate") if result.extra_info else "generate"
+
+            # 如果图片数量为 0，操作失败
+            if image_count == 0:
+                if mode == "edit":
+                    return i18n.translate("edit_image.error", category="tool.messages", error=i18n.translate("edit_image.no_images", category="tool.messages")
+                    )
+                else:
+                    return i18n.translate("generate_image.error", category="tool.messages", error=i18n.translate("generate_image.no_images", category="tool.messages"),
+                    )
+
+            # 如果可用，使用相对路径，否则使用文件名
+            if saved_images and relative_paths:
+                if mode == "edit":
+                    file_info = i18n.translate("edit_image.file_names", category="tool.messages", file_names=", ".join(relative_paths)
+                    )
+                    return i18n.translate("edit_image.success", category="tool.messages") + f"，{file_info}"
+                else:
+                    file_info = i18n.translate("generate_image.file_names", category="tool.messages", file_names=", ".join(relative_paths)
+                    )
+                    return i18n.translate("generate_image.success", category="tool.messages") + f"，{file_info}"
+            elif saved_images and file_names:
+                if mode == "edit":
+                    file_info = i18n.translate("edit_image.file_names", category="tool.messages", file_names=", ".join(file_names)
+                    )
+                    return i18n.translate("edit_image.success", category="tool.messages") + f"，{file_info}"
+                else:
+                    file_info = i18n.translate("generate_image.file_names", category="tool.messages", file_names=", ".join(file_names)
+                    )
+                    return i18n.translate("generate_image.success", category="tool.messages") + f"，{file_info}"
+            elif saved_images:
+                if mode == "edit":
+                    return (
+                        i18n.translate("edit_image.success", category="tool.messages")
+                        + f"，{i18n.translate("edit_image.saved_to", category="tool.messages", paths=', '.join(saved_images))}"
+                    )
+                else:
+                    return (
+                        i18n.translate("generate_image.success", category="tool.messages")
+                        + f"，{i18n.translate("generate_image.saved_to", category="tool.messages", paths=', '.join(saved_images))}"
+                    )
+
+            if mode == "edit":
+                return i18n.translate("edit_image.success", category="tool.messages", count=image_count)
+            else:
+                return i18n.translate("generate_image.success", category="tool.messages", count=image_count)
+
+        return i18n.translate("generate_image.success", category="tool.messages")
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        """工具执行后获取友好的操作和备注"""
+        # 确定模式和相应的操作/消息代码
+        mode = arguments.get("mode", "generate") if arguments else "generate"
+        action_code = self.name
+        if mode == "edit":
+            error_message_code = "edit_image.error"
+            multiple_message_code = "edit_image.multiple"
+        else:
+            error_message_code = "generate_image.error"
+            multiple_message_code = "generate_image.multiple"
+
+        if not result.ok:
+            return {
+                "action": i18n.translate(action_code, category="tool.actions"),
+                "remark": i18n.translate(error_message_code, category="tool.messages", error=result.content),
+            }
+
+        if isinstance(result, ImageToolResult) and result.extra_info:
+            saved_images = result.extra_info.get("saved_images", [])
+            image_count = len(saved_images)
+
+            if image_count == 1:
+                return {"action": i18n.translate(action_code, category="tool.actions"), "remark": os.path.basename(saved_images[0])}
+            else:
+                return {
+                    "action": i18n.translate(action_code, category="tool.actions"),
+                    "remark": i18n.translate(multiple_message_code, category="tool.messages", count=image_count),
+                }
+
+        return {"action": i18n.translate(action_code, category="tool.actions"), "remark": self._get_remark_content(result, arguments)}
+
+
+async def send_file_notification(request: FileNotificationRequest) -> None:
+    """
+    发送图片下载完成通知给 Magic Service
+
+    Args:
+        request: 图片下载完成通知请求，包含时间戳、操作类型、文件路径、文件大小和是否为目录
+    Returns:
+        None
+    Example:
+        send_file_notification(request)
+        {
+            "timestamp": 1757041481,
+            "operation": "UPDATE",
+            "file_path": ".visual",
+            "file_size": 0,
+            "is_directory": 0,
+            "source": 5
+        }
+    """
+    try:
+        # 1. 打印请求参数，方便后续调试
+        logger.info(f"收到图片下载完成通知: {request.model_dump_json()}")
+        logger.info(
+            f"图片路径: {request.file_path}, 操作: {request.operation}, 大小: {request.file_size} bytes, 是否目录: {request.is_directory}"
+        )
+
+        # 2. 调用 InitClientMessageUtil 获取 metadata
+        try:
+            metadata = InitClientMessageUtil.get_metadata()
+            logger.info(f"成功获取系统初始化 metadata，包含 {len(metadata)} 个字段")
+        except InitializationError as e:
+            logger.error(f"系统未初始化: {e}")
+
+        # 3. 初始化 magic-service 客户端并调用远程接口
+        try:
+            config = MagicServiceConfigLoader.load_with_fallback()
+            logger.info(f"Magic Service 配置加载成功: {config.api_base_url}")
+
+            async with MagicServiceClient(config) as client:
+                logger.info(f"即将调用 Magic Service API: {client._send_file_notification_internal}")
+                result = await client.send_file_notification(metadata=metadata, notification_data=request.model_dump())
+
+            logger.info("图片下载完成通知成功转发到 Magic Service")
+
+        except Exception as e:
+            logger.error(f"Magic Service 配置或调用异常: {e}")
+            logger.error(traceback.format_exc())
+    except Exception as e:
+        logger.error(f"处理图片下载完成通知时发生未知错误: {e}")
+        logger.error(traceback.format_exc())
+
+
+class ResponseParser:
+    """解析 API 响应的基类"""
+
+    def parse(self, response_data: List[Dict], model: str) -> List[str]:
+        """解析响应数据并提取图片 URL"""
+        raise NotImplementedError
+
+
+class GeminiResponseParser(ResponseParser):
+    """Gemini 模型的解析器（gemini-2.5-flash-image-preview 等）"""
+
+    def parse(self, response_data: List[Dict], model: str) -> List[str]:
+        """解析 Gemini 模型响应"""
+        if not isinstance(response_data, list) or len(response_data) == 0:
+            raise Exception("Invalid API response format")
+
+        image_urls = []
+        for item in response_data:
+            if isinstance(item, dict):
+                # Gemini 模型通常直接返回 imageData
+                if item.get("imageData"):
+                    image_urls.append(item.get("imageData"))
+                    logger.debug(f"Gemini 解析器：找到 imageData URL: {item.get('imageData')}")
+
+        if not image_urls:
+            logger.warning(f"Gemini 解析器：响应中未找到图片 URL: {response_data}")
+            raise Exception("No valid image URLs returned from Gemini model")
+
+        logger.info(f"Gemini 解析器：成功解析 {len(image_urls)} 个图片 URL")
+        return image_urls
+
+
+class QwenResponseParser(ResponseParser):
+    """Qwen 模型的解析器（qwen-image、qwen-image-edit 等）"""
+
+    def parse(self, response_data: List[Dict], model: str) -> List[str]:
+        """解析 Qwen 模型响应"""
+        if not isinstance(response_data, list) or len(response_data) == 0:
+            raise Exception("Invalid API response format")
+
+        image_urls = []
+        for item in response_data:
+            if isinstance(item, dict) and item.get("success"):
+                output = item.get("output", {})
+
+                # 处理 qwen-image 生成响应格式（output.results）
+                if "qwen-image" in model and output:
+                    results = output.get("results", [])
+                    for result in results:
+                        url = result.get("url")
+                        if url:
+                            image_urls.append(url)
+                            logger.debug(f"Qwen 解析器：找到 qwen-image URL: {url}")
+
+                # 处理其他 qwen 模型格式（如编辑的 choices 结构）
+                else:
+                    choices = output.get("choices", [])
+                    for choice in choices:
+                        message = choice.get("message", {})
+                        content = message.get("content", [])
+                        for content_item in content:
+                            image_url = content_item.get("image")
+                            if image_url:
+                                image_urls.append(image_url)
+                                logger.debug(f"Qwen 解析器：找到 choice 图片 URL: {image_url}")
+
+        if not image_urls:
+            logger.warning(f"Qwen 解析器：响应中未找到图片 URL: {response_data}")
+            raise Exception("No valid image URLs returned from Qwen model")
+
+        logger.info(f"Qwen 解析器：成功解析 {len(image_urls)} 个图片 URL")
+        return image_urls
+
+
+class VolcEngineResponseParser(ResponseParser):
+    """VolcEngine 模型的解析器（high_aes_general_v21_L、high_aes_general_v30l 等）"""
+
+    def parse(self, response_data: List[Dict], model: str) -> List[str]:
+        """解析 VolcEngine 模型响应"""
+        if not isinstance(response_data, list) or len(response_data) == 0:
+            raise Exception("Invalid API response format")
+
+        image_urls = []
+        for item in response_data:
+            if isinstance(item, dict) and item.get("success"):
+                # VolcEngine 模型使用 data.image_urls 格式
+                if item.get("data"):
+                    data = item.get("data", {})
+                    if data.get("status") == "done" and data.get("image_urls"):
+                        for url in data.get("image_urls", []):
+                            image_urls.append(url)
+                            logger.debug(f"VolcEngine 解析器：找到图片 URL: {url}")
+
+                        # 记录额外的 VolcEngine 特定信息
+                        if data.get("resp_data"):
+                            try:
+                                import json
+
+                                resp_data = json.loads(data.get("resp_data", "{}"))
+                                request_id = resp_data.get("request_id", "")
+                                llm_result = resp_data.get("llm_result", "")
+                                if request_id:
+                                    logger.debug(f"VolcEngine 解析器：请求 ID: {request_id}")
+                                if llm_result:
+                                    logger.debug(f"VolcEngine 解析器：LLM 结果: {llm_result[:100]}...")
+                            except json.JSONDecodeError:
+                                logger.debug("VolcEngine 解析器：无法解析 resp_data JSON")
+
+        if not image_urls:
+            logger.warning(f"VolcEngine 解析器：响应中未找到图片 URL: {response_data}")
+            raise Exception("No valid image URLs returned from VolcEngine model")
+
+        logger.info(f"VolcEngine 解析器：成功解析模型 {model} 的 {len(image_urls)} 个图片 URL")
+        return image_urls
+
+
+class DoubaoResponseParser(ResponseParser):
+    """Doubao 模型的解析器（doubao-seedream-4-0-250828 等）"""
+
+    def parse(self, response_data: List[Dict], model: str) -> List[str]:
+        """解析 Doubao 模型响应"""
+        if not isinstance(response_data, list) or len(response_data) == 0:
+            raise Exception("Invalid API response format")
+
+        image_urls = []
+        for item in response_data:
+            if isinstance(item, dict) and item.get("success"):
+                # Doubao 模型使用 data.data 格式
+                data = item.get("data", {})
+                if data:
+                    # 从 data.data 数组中提取图片 URL
+                    data_array = data.get("data", [])
+                    for data_item in data_array:
+                        url = data_item.get("url")
+                        if url:
+                            image_urls.append(url)
+                            logger.debug(f"Doubao 解析器：找到图片 URL: {url}")
+
+                    # 记录额外的 Doubao 特定信息
+                    model_name = data.get("model", "")
+                    created = data.get("created", "")
+                    usage = data.get("usage", {})
+                    if model_name:
+                        logger.debug(f"Doubao 解析器：模型: {model_name}")
+                    if created:
+                        logger.debug(f"Doubao 解析器：创建时间: {created}")
+                    if usage:
+                        generated_images = usage.get("generated_images", 0)
+                        output_tokens = usage.get("output_tokens", 0)
+                        total_tokens = usage.get("total_tokens", 0)
+                        logger.debug(
+                            f"Doubao 解析器：使用情况 - 生成图片数: {generated_images}, 输出 tokens: {output_tokens}, 总 tokens: {total_tokens}"
+                        )
+
+        if not image_urls:
+            logger.warning(f"Doubao 解析器：响应中未找到图片 URL: {response_data}")
+            raise Exception("No valid image URLs returned from Doubao model")
+
+        logger.info(f"Doubao 解析器：成功解析模型 {model} 的 {len(image_urls)} 个图片 URL")
+        return image_urls
+
+
+class ResponseParserFactory:
+    """根据模型创建相应响应解析器的工厂类"""
+
+    @staticmethod
+    def get_parser(model: str) -> ResponseParser:
+        """根据模型名称获取相应的解析器"""
+        model_lower = model.lower()
+
+        if "gemini" in model_lower:
+            logger.info(f"识别到 Gemini 模型 '{model}'，使用 Gemini 解析器")
+            return GeminiResponseParser()
+        elif "qwen" in model_lower:
+            logger.info(f"识别到 Qwen 模型 '{model}'，使用 Qwen 解析器")
+            return QwenResponseParser()
+        elif "doubao" in model_lower or "seedream" in model_lower:
+            # 像 doubao-seedream-4-0-250828 这样的 Doubao 模型使用专用的 Doubao 解析器
+            logger.info(f"识别到 Doubao 模型 '{model}'，使用 Doubao 解析器")
+            return DoubaoResponseParser()
+        elif any(keyword in model_lower for keyword in ["high_aes", "volcengine", "general", "v21", "v30"]):
+            # 像 high_aes_general_v21_L 这样的 VolcEngine 模型使用专用的 VolcEngine 解析器
+            logger.info(f"识别到 VolcEngine 模型 '{model}'，使用 VolcEngine 解析器")
+            return VolcEngineResponseParser()
+        else:
+            # 对于未知模型，默认使用 VolcEngine 解析器（大多数 magic-service 模型使用此格式）
+            logger.warning(f"未知模型 '{model}'，默认使用 VolcEngine 解析器")
+            return VolcEngineResponseParser()
