@@ -1,0 +1,377 @@
+"""
+Skill API Routes
+
+提供 Skill SDK 工具调用的 HTTP 接口
+"""
+import json
+import traceback
+import uuid
+from typing import Dict, Any, Optional, List
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from agentlang.logger import get_logger
+from agentlang.tools.tool_result import ToolResult
+from app.api.http_dto.response import (
+    BaseResponse,
+    create_success_response,
+    create_error_response,
+)
+from app.core.context.agent_context import AgentContext
+from app.service.agent_dispatcher import AgentDispatcher
+from app.tools.core.tool_call_executor import tool_call_executor
+from agentlang.chat_history.chat_history_models import ToolCall, FunctionCall
+from app.mcp.manager import get_global_mcp_manager
+
+router = APIRouter(prefix="/skills", tags=["Skill工具调用"])
+
+logger = get_logger(__name__)
+
+# 创建 AgentDispatcher 实例
+agent_dispatcher = AgentDispatcher.get_instance()
+
+class CallToolRequest(BaseModel):
+    """工具调用请求模型"""
+    tool_name: str = Field(..., description="工具名称")
+    tool_params: Dict[str, Any] = Field(..., description="工具参数字典")
+    tool_call_id: Optional[str] = Field(None, description="工具调用ID，如果不提供则自动生成")
+
+
+@router.post("/call_tool", response_model=BaseResponse)
+async def call_tool(request: CallToolRequest):
+    """
+    调用工具接口
+
+    用于 Skill SDK 通过 HTTP 请求调用工具
+    """
+    try:
+        # 从 AgentDispatcher 获取 agent_context
+        agent_context = agent_dispatcher.agent_context
+        if not agent_context:
+            return create_error_response(
+                message="Agent context 未初始化",
+                data={"ok": False, "content": "Agent context 未初始化，请先初始化工作区"}
+            )
+
+        # 生成 tool_call_id
+        tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
+
+        logger.info(
+            f"Skill SDK 通过 HTTP 调用工具: {request.tool_name}, params: {request.tool_params}, "
+            f"tool_call_id: {tool_call_id}, agent_name: {agent_context.get_agent_name()}"
+        )
+
+        # 创建 ToolCall 对象
+        tool_call = ToolCall(
+            id=tool_call_id,
+            type="function",
+            function=FunctionCall(
+                name=request.tool_name,
+                arguments=json.dumps(request.tool_params, ensure_ascii=False)
+            )
+        )
+
+        # 使用 tool_call_executor 执行工具
+        results = await tool_call_executor.execute(
+            tool_calls=[tool_call],
+            agent_context=agent_context
+        )
+
+        # 返回第一个结果
+        if results:
+            result = results[0]
+            logger.debug(f"工具调用完成: {request.tool_name}, ok: {result.ok}")
+
+            # 将 ToolResult 转换为字典
+            result_dict = {
+                "ok": result.ok,
+                "content": result.content,
+                "tool_call_id": result.tool_call_id,
+                "execution_time": result.execution_time,
+                "name": result.name,
+                "data": result.data,
+            }
+
+            return create_success_response(
+                message="工具调用成功" if result.ok else "工具调用失败",
+                data=result_dict
+            )
+        else:
+            error_msg = "工具执行未返回结果"
+            logger.error(error_msg)
+            return create_error_response(
+                message=error_msg,
+                data={"ok": False, "content": error_msg}
+            )
+
+    except HTTPException:
+        # 重新抛出 HTTP 异常
+        raise
+    except Exception as e:
+        logger.error(f"调用工具时发生异常: {e}", exc_info=True)
+        logger.error(traceback.format_exc())
+        return create_error_response(
+            message=f"调用工具失败: {str(e)}",
+            data={"ok": False, "content": str(e)}
+        )
+
+
+# ==========================
+# MCP API
+# ==========================
+
+class McpCallRequest(BaseModel):
+    """MCP 工具调用请求模型"""
+    server_name: str = Field(..., description="MCP 服务器名称")
+    tool_name: str = Field(..., description="工具名称（原始名称）")
+    tool_params: Dict[str, Any] = Field(..., description="工具参数字典")
+    tool_call_id: Optional[str] = Field(None, description="工具调用ID")
+
+
+@router.post("/mcp_call", response_model=BaseResponse)
+async def mcp_call(request: McpCallRequest):
+    """
+    调用 MCP 工具接口
+
+    用于 MCP SDK 通过 HTTP 请求调用 MCP 工具
+    """
+    try:
+        # 从 AgentDispatcher 获取 agent_context
+        agent_context = agent_dispatcher.agent_context
+        if not agent_context:
+            return create_error_response(
+                message="Agent context 未初始化",
+                data={"ok": False, "content": "Agent context 未初始化，请先初始化工作区"}
+            )
+
+        manager = get_global_mcp_manager()
+        if not manager:
+            return create_error_response(
+                message="MCP 管理器未初始化",
+                data={"ok": False, "content": "MCP 管理器未初始化"}
+            )
+
+        # 根据服务器名称和原始工具名称获取完整的工具名称（如 mcp_a_toolname）
+        full_tool_name = manager.get_full_tool_name(request.server_name, request.tool_name)
+        if not full_tool_name:
+            return create_error_response(
+                message=f"未找到工具: {request.server_name}.{request.tool_name}",
+                data={"ok": False, "content": f"未找到工具: {request.server_name}.{request.tool_name}"}
+            )
+
+        # 生成 tool_call_id
+        tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
+
+        logger.info(
+            f"MCP SDK 通过 HTTP 调用工具: {full_tool_name} (服务器: {request.server_name}, 原始名称: {request.tool_name}), "
+            f"params: {request.tool_params}, tool_call_id: {tool_call_id}, agent_name: {agent_context.get_agent_name()}"
+        )
+
+        # 创建 ToolCall 对象，使用统一的 tool_call_executor 执行
+        tool_call = ToolCall(
+            id=tool_call_id,
+            type="function",
+            function=FunctionCall(
+                name=full_tool_name,
+                arguments=json.dumps(request.tool_params, ensure_ascii=False)
+            )
+        )
+
+        # 使用统一的 tool_call_executor 执行工具
+        results = await tool_call_executor.execute(
+            tool_calls=[tool_call],
+            agent_context=agent_context
+        )
+
+        # 返回第一个结果
+        if results:
+            result = results[0]
+            logger.debug(f"MCP 工具调用完成: {full_tool_name}, ok: {result.ok}")
+
+            # 将 ToolResult 转换为字典
+            result_dict = {
+                "ok": result.ok,
+                "content": result.content,
+                "tool_call_id": result.tool_call_id,
+                "execution_time": result.execution_time,
+                "name": result.name,
+                "data": result.data,
+            }
+
+            return create_success_response(
+                message="MCP 工具调用成功" if result.ok else "MCP 工具调用失败",
+                data=result_dict
+            )
+        else:
+            return create_error_response(
+                message="工具执行失败，未返回结果",
+                data={"ok": False, "content": "工具执行失败，未返回结果"}
+            )
+
+    except HTTPException:
+        # 重新抛出 HTTP 异常
+        raise
+    except Exception as e:
+        logger.error(f"调用 MCP 工具时发生异常: {e}", exc_info=True)
+        logger.error(traceback.format_exc())
+        return create_error_response(
+            message=f"调用 MCP 工具失败: {str(e)}",
+            data={"ok": False, "content": str(e)}
+        )
+
+
+@router.get("/mcp_servers", response_model=BaseResponse)
+async def get_mcp_servers():
+    """
+    获取 MCP 服务器列表
+    """
+    try:
+        manager = get_global_mcp_manager()
+        if not manager:
+            return create_success_response(
+                message="MCP 管理器未初始化",
+                data={"servers": []}
+            )
+
+        # 只返回已成功连接的服务器
+        servers = []
+
+        for server_name in manager.get_connected_servers():
+            # 获取该服务器的工具
+            server_tools = manager.get_server_tools(server_name)
+
+            # 获取 label_name
+            label_name = ""
+            config = manager.get_server_config(server_name)
+            if config and config.server_options and isinstance(config.server_options, dict):
+                label_name = config.server_options.get("label_name", "")
+
+            servers.append({
+                "name": server_name,
+                "label_name": label_name,
+                "status": "success",
+                "tool_count": len(server_tools),
+                "tools": server_tools,
+                "error": None
+            })
+
+        return create_success_response(
+            message=f"获取服务器列表成功，共 {len(servers)} 个服务器",
+            data={"servers": servers}
+        )
+
+    except Exception as e:
+        logger.error(f"获取 MCP 服务器列表时发生异常: {e}", exc_info=True)
+        return create_error_response(
+            message=f"获取服务器列表失败: {str(e)}",
+            data={"servers": []}
+        )
+
+
+@router.get("/mcp_tools", response_model=BaseResponse)
+async def get_mcp_tools(server_name: Optional[str] = None):
+    """
+    获取 MCP 工具列表
+
+    Args:
+        server_name: 可选，指定服务器名称过滤
+    """
+    try:
+        manager = get_global_mcp_manager()
+        if not manager:
+            return create_success_response(
+                message="MCP 管理器未初始化",
+                data={"tools": []}
+            )
+
+        # 获取所有工具
+        all_tools = await manager.get_all_tools()
+
+        # 过滤指定服务器的工具
+        tools = []
+        for tool_name, tool_info in all_tools.items():
+            if server_name and tool_info.server_name != server_name:
+                continue
+
+            tools.append({
+                "name": tool_name,
+                "original_name": tool_info.original_name,
+                "server_name": tool_info.server_name,
+                "description": tool_info.description,
+                "input_schema": tool_info.inputSchema
+            })
+
+        message = f"获取工具列表成功，共 {len(tools)} 个工具"
+        if server_name:
+            message += f"（服务器: {server_name}）"
+
+        return create_success_response(
+            message=message,
+            data={"tools": tools}
+        )
+
+    except Exception as e:
+        logger.error(f"获取 MCP 工具列表时发生异常: {e}", exc_info=True)
+        return create_error_response(
+            message=f"获取工具列表失败: {str(e)}",
+            data={"tools": []}
+        )
+
+
+@router.get("/mcp_tool_schema", response_model=BaseResponse)
+async def get_mcp_tool_schema(server_name: str, tool_name: str):
+    """
+    获取 MCP 工具 Schema（支持单个或多个工具）
+
+    Args:
+        server_name: 服务器名称
+        tool_name: 工具名称（原始名称），支持逗号分隔多个工具名
+    """
+    try:
+        manager = get_global_mcp_manager()
+        if not manager:
+            return create_error_response(
+                message="MCP 管理器未初始化",
+                data={"results": []}
+            )
+
+        # 解析工具名（支持逗号分隔）
+        tool_names = [name.strip() for name in tool_name.split(',')]
+
+        # 获取所有工具
+        all_tools = await manager.get_all_tools()
+
+        results = []
+        for t_name in tool_names:
+            found = False
+            for full_name, t_info in all_tools.items():
+                if (t_info.server_name == server_name and
+                    t_info.original_name == t_name):
+                    results.append({
+                        "tool_name": t_name,
+                        "server_name": server_name,
+                        "schema": t_info.inputSchema
+                    })
+                    found = True
+                    break
+
+            if not found:
+                results.append({
+                    "tool_name": t_name,
+                    "server_name": server_name,
+                    "error": f"未找到工具: {server_name}.{t_name}"
+                })
+
+        # 统一返回数组格式
+        return create_success_response(
+            message=f"获取 {len(tool_names)} 个工具 Schema 完成",
+            data={"results": results}
+        )
+
+    except Exception as e:
+        logger.error(f"获取工具 Schema 时发生异常: {e}", exc_info=True)
+        return create_error_response(
+            message=f"获取工具 Schema 失败: {str(e)}",
+            data={"schema": {}}
+        )

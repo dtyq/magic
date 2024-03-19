@@ -1,0 +1,14 @@
+{
+    "messages.task.failed": {
+        "zh_CN": "系统繁忙，请稍后再试",
+        "en_US": "The system is busy, please try again later"
+    },
+    "agent_profile.desc_with_role": {
+        "zh_CN": "你叫{name}，是一名{role}。{description}",
+        "en_US": "Your name is {name}, you are a {role}. {description}"
+    },
+    "agent_profile.desc_without_role": {
+        "zh_CN": "你叫{name}。{description}",
+        "en_US": "Your name is {name}. {description}"
+    }
+}
