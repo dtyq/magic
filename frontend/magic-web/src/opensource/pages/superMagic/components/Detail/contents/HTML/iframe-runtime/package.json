@@ -1,0 +1,15 @@
+{
+	"name": "iframe-runtime",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "NODE_ENV=production vite build",
+		"build:watch": "WATCH=true vite build"
+	},
+	"devDependencies": {
+		"terser": "^5.46.0",
+		"typescript": "^5.3.3",
+		"vite": "^5.0.0"
+	}
+}
