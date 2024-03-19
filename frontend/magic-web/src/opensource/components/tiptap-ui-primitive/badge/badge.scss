@@ -1,0 +1,99 @@
+.tiptap-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-feature-settings:
+    "salt" on,
+    "cv01" on;
+  line-height: 1.15;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: solid 1px;
+  border-radius: var(--tt-radius-sm, 0.375rem);
+  transition-property: background, color, opacity;
+  transition-duration: var(--tt-transition-duration-default);
+  transition-timing-function: var(--tt-transition-easing-default);
+
+  /* button size large */
+  &[data-size="large"] {
+    font-size: 0.75rem;
+    height: 1.5rem;
+    min-width: 1.5rem;
+    padding: 0.375rem;
+    border-radius: var(--tt-radius-md, 0.375rem);
+  }
+
+  /* button size small */
+  &[data-size="small"] {
+    height: 1rem;
+    min-width: 1rem;
+    padding: 0.125rem;
+    border-radius: var(--tt-radius-xs, 0.25rem);
+  }
+
+  /* trim / expand text of the button */
+  .tiptap-badge-text {
+    padding: 0 0.125rem;
+    flex-grow: 1;
+    text-align: left;
+  }
+
+  &[data-text-trim="on"] {
+    .tiptap-badge-text {
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+  }
+
+  /* standard icon, what is used */
+  .tiptap-badge-icon {
+    pointer-events: none;
+    flex-shrink: 0;
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  &[data-size="large"] .tiptap-badge-icon {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+}
+
+/* --------------------------------------------
+----------- BADGE COLOR SETTINGS -------------
+-------------------------------------------- */
+
+.tiptap-badge {
+  background-color: var(--tt-badge-bg-color);
+  border-color: var(--tt-badge-border-color);
+  color: var(--tt-badge-text-color);
+
+  .tiptap-badge-icon {
+    color: var(--tt-badge-icon-color);
+  }
+
+  /* Emphasized */
+  &[data-appearance="emphasized"] {
+    background-color: var(--tt-badge-bg-color-emphasized);
+    border-color: var(--tt-badge-border-color-emphasized);
+    color: var(--tt-badge-text-color-emphasized);
+
+    .tiptap-badge-icon {
+      color: var(--tt-badge-icon-color-emphasized);
+    }
+  }
+
+  /* Subdued */
+  &[data-appearance="subdued"] {
+    background-color: var(--tt-badge-bg-color-subdued);
+    border-color: var(--tt-badge-border-color-subdued);
+    color: var(--tt-badge-text-color-subdued);
+
+    .tiptap-badge-icon {
+      color: var(--tt-badge-icon-color-subdued);
+    }
+  }
+}
