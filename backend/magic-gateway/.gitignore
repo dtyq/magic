@@ -1,0 +1,13 @@
+.env
+api-gateway
+test_client/api-gateway
+config/pre/.env
+config/prod/.env
+config/test/.env
+redis_data
+magic-gateway
+api-gateway
+redis_data
+.cursor/
+docs/
+debug/
