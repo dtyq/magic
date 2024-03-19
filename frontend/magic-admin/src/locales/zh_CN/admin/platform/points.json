@@ -1,0 +1,158 @@
+{
+	"organizationPoints": "组织积分",
+	"organizationPointsPage": {
+		"actions": {
+			"addPoints": "增加积分",
+			"operationPoints": "操作积分",
+			"viewPointsDetail": "查看积分明细",
+			"bindPackage": "绑定套餐"
+		},
+		"columns": {
+			"action": "操作",
+			"balance": "可用积分",
+			"createdTime": "创建时间",
+			"creator": "创建者",
+			"creatorPhone": "手机号",
+			"currentPlan": "当前计划",
+			"invitationCode": "邀请码",
+			"organizationCode": "组织代码",
+			"organizationName": "组织名称",
+			"usedPoints": "已使用积分",
+			"enterpriseVersion": "企业版",
+			"personalVersion": "个人版"
+		},
+		"detailModal": {
+			"columns": {
+				"operationDescription": "操作描述",
+				"operationTime": "操作时间",
+				"pointsChange": "积分变动",
+				"topicId": "话题ID",
+				"userId": "用户ID"
+			},
+			"currentBalanceLabel": "当前可用积分：",
+			"organizationCodeLabel": "组织代码：",
+			"organizationNameLabel": "组织名称：",
+			"pagination": {
+				"total": "共 {{total}} 条明细"
+			},
+			"title": "积分明细"
+		},
+		"message": {
+			"addPointsSuccess": "积分操作成功",
+			"fetchDetailFailed": "获取积分明细失败",
+			"operationFailed": "操作失败，请重试",
+			"bindPackageSuccess": "套餐绑定成功"
+		},
+		"modal": {
+			"cancelButton": "取消",
+			"confirmAddPointsContent": "确认为组织「{{organization}}」下的用户「{{user}}」 {{action}} {{points}} 积分吗？",
+			"add": "增加",
+			"subtractAction": "扣除",
+			"confirmAddPointsTitle": "确认增加积分",
+			"confirmButton": "确认",
+			"currentBalanceLabel": "当前可用积分：",
+			"organizationCodeLabel": "组织代码：",
+			"organizationNameLabel": "组织名称：",
+			"organizationTypeLabel": "组织类型：",
+			"currentPlanLabel": "当前套餐：",
+			"sortLabel": "套餐排序：",
+			"pointsAmountLabel": "积分数量",
+			"pointsAmountMin": "请输入要增加的积分数量",
+			"pointsAmountPlaceholder": "请输入要增加/扣除的积分数量",
+			"pointsOperationTitle": "积分操作",
+			"remarkLabel": "备注",
+			"remarkPlaceholder": "请输入备注（可选）",
+			"pleaseSelectPackage": "请选择套餐",
+			"bindPackageTitle": "绑定套餐",
+			"confirmBindPackageTitle": "确认绑定套餐",
+			"confirmBindPackageContent": "确认为组织「{{organization}}」绑定套餐「{{packageName}}」，席位数量为 {{seatCount}} 吗？",
+			"confirmBindPackageContentPerson": "确认为组织「{{organization}}」绑定套餐「{{packageName}}」吗？",
+			"packageLabel": "选择套餐",
+			"packageRequired": "请选择套餐",
+			"packagePlaceholder": "请选择套餐",
+			"seatCountLabel": "席位数量",
+			"seatCountRequired": "请输入席位数量",
+			"seatCountPlaceholder": "请输入席位数量",
+			"seatCountMin": "席位数量不能少于0",
+			"enable": "启用",
+			"disable": "禁用",
+			"tooltipTitle": "企业版不可选择个人套餐，个人版不可选择企业/团队套餐，不可选择比当前套餐排序更小的套餐"
+		},
+		"pagination": {
+			"total": "共 {{total}} 条数据"
+		},
+		"search": {
+			"magicIdPlaceholder": "请输入MagicID",
+			"phonePlaceholder": "请输入手机号",
+			"placeholder": "请输入组织名称"
+		}
+	},
+	"taskStatistics": "任务统计",
+	"taskStatisticsPage": {
+		"columns": {
+			"cost": "成本",
+			"costCNY": "成本 (¥)",
+			"costUSD": "成本 ($)",
+			"lastMessageContent": "最近消息内容",
+			"lastMessageTime": "最近消息时间",
+			"lastTaskStartTime": "话题更新时间",
+			"limitTimes": "限制次数",
+			"organizationCode": "组织 Code",
+			"sandboxId": "沙盒 ID",
+			"status": "状态",
+			"taskRounds": "对话轮次",
+			"topicId": "话题 ID",
+			"topicName": "话题名称",
+			"userName": "用户名"
+		},
+		"error": {
+			"fetchSandboxStatusFailed": "获取沙盒状态失败:"
+		},
+		"filter": {
+			"inputOrganizationCodePlaceholder": "输入组织Code",
+			"organizationCodeLabel": "组织Code：",
+			"sandboxIdLabel": "沙盒ID：",
+			"searchSandboxIdPlaceholder": "搜索沙盒ID",
+			"searchTopicIdPlaceholder": "搜索话题ID",
+			"searchTopicNamePlaceholder": "搜索话题名称",
+			"searchUserNamePlaceholder": "搜索用户名",
+			"selectStatusPlaceholder": "选择状态",
+			"statusLabel": "状态：",
+			"topicIdLabel": "话题ID：",
+			"topicNameLabel": "话题名称：",
+			"userNameLabel": "用户名："
+		},
+		"modal": {
+			"closeButton": "关闭",
+			"sandboxStatusTitle": "沙盒状态 (话题ID: {{topicId}})",
+			"statusLabel": "状态:"
+		},
+		"pagination": {
+			"total": "共 {{total}} 条数据"
+		},
+		"search": {
+			"closeButton": "关闭",
+			"placeholderSandboxId": "搜索沙盒ID",
+			"placeholderTopicName": "搜索话题名称",
+			"placeholderUserName": "搜索用户名",
+			"resetButton": "重置",
+			"searchButton": "搜索",
+			"searchSandboxId": "搜索沙盒ID",
+			"searchTopicId": "搜索话题ID",
+			"searchTopicName": "搜索话题名称",
+			"searchUserName": "搜索用户名"
+		},
+		"statistics": {
+			"statusStatistics": "状态统计",
+			"total": "总计",
+			"totalTopics": "话题总数",
+			"totalUsers": "用户总数"
+		},
+		"status": {
+			"error": "错误",
+			"finished": "完成",
+			"running": "运行中",
+			"suspended": "已暂停"
+		}
+	}
+}

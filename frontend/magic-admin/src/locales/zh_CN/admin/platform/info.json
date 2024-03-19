@@ -1,0 +1,30 @@
+{
+	"maintainStatus": "维护状态",
+	"maintainDesc": "维护描述",
+	"globalMaintain": "全局维护",
+	"basicInfo": "基础信息",
+	"otherInfo": "其它信息",
+	"uploadLogo": "上传图标",
+	"uploadSvgTip": "建议上传 SVG 图标，大小不超过 2 M",
+	"platformZhLogo": "平台中文 LOGO",
+	"platformEnLogo": "平台英文 LOGO",
+	"platformGraphicLogo": "平台图形 LOGO",
+	"platformFavicon": "平台 Favicon",
+	"platformDefaultLanguage": "平台默认语言",
+	"platformDefaultLanguageOptions": {
+		"zh_CN": "简体中文",
+		"en_US": "英文"
+	},
+	"platformDefaultLanguageTip": "设置的语言为平台初始化时的默认语言，所有支持多语言的功能将采用此默认语言",
+	"platformName": "平台名称",
+	"platformNamePlaceholder": "请输入平台名称",
+	"titlePlaceholder": "请输入平台 Title",
+	"keywordsPlaceholder": "请输入平台 Keywords",
+	"descriptionPlaceholder": "请输入平台 Description",
+	"uploadSizeLimit": "文件大小不能超过 2 M",
+	"mainAgentPrompt": "主 Agent 提示词",
+	"agentRoleName": "角色名称",
+	"agentRoleNamePlaceholder": "请输入主 Agent 的角色名称，如：超级麦吉",
+	"agentRoleDescription": "角色介绍",
+	"agentRoleDescriptionPlaceholder": "请输入主 Agent 的角色介绍，如：由广东灯塔引擎科技有限公司创造，是一个复杂的通用人工智能。"
+}

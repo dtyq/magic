@@ -1,0 +1,158 @@
+{
+	"organizationPoints": "Organization Points",
+	"organizationPointsPage": {
+		"actions": {
+			"addPoints": "Add Points",
+			"operationPoints": "Operation Points",
+			"viewPointsDetail": "View Points Detail",
+			"bindPackage": "Bind Package"
+		},
+		"columns": {
+			"action": "Action",
+			"balance": "Available Points",
+			"createdTime": "Created Time",
+			"creator": "Creator",
+			"creatorPhone": "Phone",
+			"currentPlan": "Current Plan",
+			"invitationCode": "Invitation Code",
+			"organizationCode": "Organization Code",
+			"organizationName": "Organization Name",
+			"usedPoints": "Used Points",
+			"enterpriseVersion": "Enterprise",
+			"personalVersion": "Personal"
+		},
+		"detailModal": {
+			"columns": {
+				"operationDescription": "Operation Description",
+				"operationTime": "Operation Time",
+				"pointsChange": "Points Change",
+				"topicId": "Topic ID",
+				"userId": "User ID"
+			},
+			"currentBalanceLabel": "Current Available Points:",
+			"organizationCodeLabel": "Organization Code:",
+			"organizationNameLabel": "Organization Name:",
+			"pagination": {
+				"total": "Total {{total}} details"
+			},
+			"title": "Points Detail"
+		},
+		"message": {
+			"addPointsSuccess": "Points operation successfully",
+			"fetchDetailFailed": "Failed to fetch points detail",
+			"operationFailed": "Operation failed, please try again",
+			"bindPackageSuccess": "Package bound successfully"
+		},
+		"modal": {
+			"cancelButton": "Cancel",
+			"confirmAddPointsContent": "Are you sure you want to {{action}} {{points}} points to the user \"{{user}}\" under the organization \"{{organization}}\"?",
+			"add": "add",
+			"subtract": "subtract",
+			"confirmAddPointsTitle": "Confirm Add Points",
+			"confirmButton": "Confirm",
+			"currentBalanceLabel": "Current Available Points:",
+			"organizationCodeLabel": "Organization Code:",
+			"organizationNameLabel": "Organization Name:",
+			"organizationTypeLabel": "Organization Type:",
+			"currentPlanLabel": "Current Plan:",
+			"sortLabel": "Plan Sort:",
+			"pointsAmountLabel": "Points Amount",
+			"pointsAmountMin": "Please enter the points amount to add",
+			"pointsAmountPlaceholder": "Please enter the points amount to add/subtract",
+			"pointsOperationTitle": "Points Operation",
+			"remarkLabel": "Remark",
+			"remarkPlaceholder": "Please enter remark (optional)",
+			"pleaseSelectPackage": "Please select a package",
+			"bindPackageTitle": "Bind Package",
+			"confirmBindPackageTitle": "Confirm Bind Package",
+			"confirmBindPackageContent": "Are you sure you want to bind package \"{{packageName}}\" with {{seatCount}} seats to organization \"{{organization}}\"?",
+			"confirmBindPackageContentPerson": "Are you sure you want to bind package \"{{packageName}}\" to organization \"{{organization}}\"?",
+			"packageLabel": "Select Package",
+			"packageRequired": "Please select a package",
+			"packagePlaceholder": "Please select a package",
+			"seatCountLabel": "Seat Count",
+			"seatCountRequired": "Please enter seat count",
+			"seatCountPlaceholder": "Please enter seat count",
+			"seatCountMin": "Seat count cannot be less than 0",
+			"enable": "Enable",
+			"disable": "Disable",
+			"tooltipTitle": "Enterprise version cannot select personal package, personal version cannot select enterprise/team package, cannot select package with smaller sort than the current package"
+		},
+		"pagination": {
+			"total": "Total {{total}} items"
+		},
+		"search": {
+			"magicIdPlaceholder": "Please enter MagicID to search",
+			"phonePlaceholder": "Please enter phone to search",
+			"placeholder": "Please enter organization name to search"
+		}
+	},
+	"taskStatistics": "Task Statistics",
+	"taskStatisticsPage": {
+		"columns": {
+			"cost": "Cost",
+			"costCNY": "Cost (¥)",
+			"costUSD": "Cost ($)",
+			"lastMessageContent": "Last Message Content",
+			"lastMessageTime": "Last Message Time",
+			"lastTaskStartTime": "Topic Update Time",
+			"limitTimes": "Limit Times",
+			"organizationCode": "Organization Code",
+			"sandboxId": "Sandbox ID",
+			"status": "Status",
+			"taskRounds": "Task Rounds",
+			"topicId": "Topic ID",
+			"topicName": "Topic Name",
+			"userName": "User Name"
+		},
+		"error": {
+			"fetchSandboxStatusFailed": "Failed to fetch sandbox status:"
+		},
+		"filter": {
+			"inputOrganizationCodePlaceholder": "Input Organization Code",
+			"organizationCodeLabel": "Organization Code:",
+			"sandboxIdLabel": "Sandbox ID:",
+			"searchSandboxIdPlaceholder": "Search Sandbox ID",
+			"searchTopicIdPlaceholder": "Search Topic ID",
+			"searchTopicNamePlaceholder": "Search Topic Name",
+			"searchUserNamePlaceholder": "Search User Name",
+			"selectStatusPlaceholder": "Select Status",
+			"statusLabel": "Status:",
+			"topicIdLabel": "Topic ID:",
+			"topicNameLabel": "Topic Name:",
+			"userNameLabel": "User Name:"
+		},
+		"modal": {
+			"closeButton": "Close",
+			"sandboxStatusTitle": "Sandbox Status (Topic ID: {{topicId}})",
+			"statusLabel": "Status:"
+		},
+		"pagination": {
+			"total": "Total {{total}} items"
+		},
+		"search": {
+			"closeButton": "Close",
+			"placeholderSandboxId": "Search Sandbox ID",
+			"placeholderTopicName": "Search Topic Name",
+			"placeholderUserName": "Search User Name",
+			"resetButton": "Reset",
+			"searchButton": "Search",
+			"searchSandboxId": "Search Sandbox ID",
+			"searchTopicId": "Search Topic ID",
+			"searchTopicName": "Search Topic Name",
+			"searchUserName": "Search User Name"
+		},
+		"statistics": {
+			"statusStatistics": "Status Statistics",
+			"total": "Total",
+			"totalTopics": "Total Topics",
+			"totalUsers": "Total Users"
+		},
+		"status": {
+			"error": "Error",
+			"finished": "Finished",
+			"running": "Running",
+			"suspended": "Suspended"
+		}
+	}
+}

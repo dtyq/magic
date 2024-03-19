@@ -1,0 +1,15 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="4.31885" y="11.0392" width="28.135" height="33.3452" rx="4" transform="rotate(-15 4.31885 11.0392)" fill="url(#paint0_linear_7384_926)"/>
+<foreignObject x="10.1808" y="11.1807" width="37.6385" height="37.6386"><div xmlns="http://www.w3.org/1999/xhtml" style="backdrop-filter:blur(2.5px);clip-path:url(#bgblur_0_7384_926_clip_path);height:100%;width:100%"></div></foreignObject><path data-figma-bg-blur-radius="5" d="M16.9198 19.7986C17.131 17.5996 19.0848 15.9881 21.2838 16.1993L39.2014 17.9197C41.4004 18.1309 43.0119 20.0847 42.8008 22.2838L41.0803 40.2014C40.8691 42.4004 38.9153 44.0119 36.7163 43.8007L18.7987 42.0802C16.5997 41.8691 14.9882 39.9153 15.1993 37.7162L16.9198 19.7986Z" fill="#B1FFDE" fill-opacity="0.4"/>
+<rect x="21.8969" y="20.2766" width="8" height="3" rx="1.5" transform="rotate(5.48479 21.8969 20.2766)" fill="white"/>
+<rect x="21.4189" y="25.2537" width="16" height="3" rx="1.5" transform="rotate(5.48479 21.4189 25.2537)" fill="white"/>
+<rect x="20.941" y="30.2308" width="16" height="3" rx="1.5" transform="rotate(5.48479 20.941 30.2308)" fill="white"/>
+<rect x="20.4631" y="35.2079" width="16" height="3" rx="1.5" transform="rotate(5.48479 20.4631 35.2079)" fill="white"/>
+<defs>
+<clipPath id="bgblur_0_7384_926_clip_path" transform="translate(-10.1808 -11.1807)"><path d="M16.9198 19.7986C17.131 17.5996 19.0848 15.9881 21.2838 16.1993L39.2014 17.9197C41.4004 18.1309 43.0119 20.0847 42.8008 22.2838L41.0803 40.2014C40.8691 42.4004 38.9153 44.0119 36.7163 43.8007L18.7987 42.0802C16.5997 41.8691 14.9882 39.9153 15.1993 37.7162L16.9198 19.7986Z"/>
+</clipPath><linearGradient id="paint0_linear_7384_926" x1="-1.93338" y1="7.39211" x2="26.2016" y2="40.2163" gradientUnits="userSpaceOnUse">
+<stop stop-color="#5EC9FF"/>
+<stop offset="1" stop-color="#71D56B"/>
+</linearGradient>
+</defs>
+</svg>
