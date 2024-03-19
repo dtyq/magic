@@ -1,0 +1,400 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+use App\Interfaces\Middleware\Auth\OptionalSandboxUserAuthMiddleware;
+use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
+use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AudioMarkerApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AudioProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\MessageApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectInvitationLinkApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxPreWarmApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SuperAgentMemoryApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
+use Hyperf\HttpServer\Router\Router;
+
+Router::addGroup(
+    '/api/v1/super-agent',
+    static function () {
+        // 工作区管理
+        Router::addGroup('/workspaces', static function () {
+            // 获取工作区列表
+            Router::get('/queries', [WorkspaceApi::class, 'getWorkspaceList']);
+            // 获取工作区详情
+            Router::get('/{id}', [WorkspaceApi::class, 'getWorkspaceDetail']);
+            // 获取工作区下的话题列表（优化时再实现）
+            Router::post('/{id}/topics', [WorkspaceApi::class, 'getWorkspaceTopics']);
+            // 创建工作区
+            Router::post('', [WorkspaceApi::class, 'createWorkspace']);
+            // 更新工作区
+            Router::put('/{id}', [WorkspaceApi::class, 'updateWorkspace']);
+            // 删除工作区（逻辑删除）
+            Router::delete('/{id}', [WorkspaceApi::class, 'deleteWorkspace']);
+            // 解绑工作区（保留项目和话题）
+            Router::put('/{id}/detach', [WorkspaceApi::class, 'detachWorkspace']);
+            // 设置工作区归档状态
+            Router::post('/set-archived', [WorkspaceApi::class, 'setArchived']);
+            // 获取应用工作区（不存在则创建）
+            Router::get('/app/{code}', [WorkspaceApi::class, 'getAppWorkspace']);
+            // 批量转让工作区
+            Router::post('/transfer', [WorkspaceApi::class, 'transferWorkspaces']);
+        });
+
+        // 项目管理
+        Router::addGroup('/projects', static function () {
+            // 获取项目列表
+            Router::get('/queries', [ProjectApi::class, 'index']);
+            // 获取用户参与的项目列表（支持协作项目过滤）
+            Router::post('/participated', [ProjectApi::class, 'getParticipatedProjects']);
+            // 获取项目详情
+            Router::get('/{id}', [ProjectApi::class, 'show']);
+            // 创建项目
+            Router::post('', [ProjectApi::class, 'store']);
+            // 更新项目
+            Router::put('/{id}', [ProjectApi::class, 'update']);
+            // 删除项目
+            Router::delete('/{id}', [ProjectApi::class, 'destroy']);
+            // 批量删除项目
+            Router::post('/batch-delete', [ProjectApi::class, 'batchDelete']);
+            // 置顶项目
+            Router::put('/{id}/pin', [ProjectApi::class, 'pin']);
+            // 获取项目下的话题列表
+            Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
+            // 检查是否需要更新项目文件列表
+            Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
+            // 获取附件列表
+            Router::get('/{id}/cloud-files', [ProjectApi::class, 'getCloudFiles']);
+            // 复制项目
+            Router::post('/fork', [ProjectApi::class, 'fork']);
+            // 查询复制状态
+            Router::get('/{id}/fork-status', [ProjectApi::class, 'forkStatus']);
+            // 移动项目到另一个工作区
+            Router::post('/move', [ProjectApi::class, 'moveProject']);
+            // 批量移动项目到另一个工作区
+            Router::post('/batch-move', [ProjectApi::class, 'batchMoveProjects']);
+            // 批量转让项目
+            Router::post('/transfer', [ProjectApi::class, 'transferProjects']);
+
+            // 项目成员资源管理
+            Router::addGroup('/{projectId}/members', static function () {
+                // 获取项目协作成员
+                Router::get('', [ProjectMemberApi::class, 'getMembers']);
+                // 更新项目协作成员（新版本不需要接口）
+                //                Router::put('', [ProjectMemberApi::class, 'updateMembers']);
+                // 添加项目成员
+                Router::post('', [ProjectMemberApi::class, 'createProjectMembers']);
+                // 批量删除成员
+                Router::delete('', [ProjectMemberApi::class, 'deleteProjectMembers']);
+                // 批量更新成员-权限
+                Router::put('/roles', [ProjectMemberApi::class, 'updateProjectMemberRoles']);
+            });
+
+            // 项目邀请链接管理
+            Router::addGroup('/{projectId}/invitation-links', static function () {
+                // 获取项目邀请链接信息
+                Router::get('', [ProjectInvitationLinkApi::class, 'getInvitationLink']);
+                // 开启/关闭邀请链接
+                Router::put('/toggle', [ProjectInvitationLinkApi::class, 'toggleInvitationLink']);
+                // 重置邀请链接
+                Router::post('/reset', [ProjectInvitationLinkApi::class, 'resetInvitationLink']);
+                // 设置密码保护
+                Router::post('/password', [ProjectInvitationLinkApi::class, 'setPassword']);
+                // 重新设置密码
+                Router::post('/reset-password', [ProjectInvitationLinkApi::class, 'resetPassword']);
+                // 修改邀请链接密码
+                Router::put('/change-password', [ProjectInvitationLinkApi::class, 'changePassword']);
+                // 修改权限级别
+                Router::put('/permission', [ProjectInvitationLinkApi::class, 'updateDefaultJoinPermission']);
+            });
+        });
+
+        // 音频项目管理
+        Router::addGroup('/audio-projects', static function () {
+            // 获取音频项目列表
+            Router::post('/queries', [AudioProjectApi::class, 'index']);
+            // 创建音频项目
+            Router::post('', [AudioProjectApi::class, 'store']);
+            // 获取未分组音频项目数量
+            Router::get('/ungrouped/count', [AudioProjectApi::class, 'getUngroupedCount']);
+            // 更新音频项目标签
+            Router::put('/{projectId}/tags', [AudioProjectApi::class, 'updateTags']);
+            // 导入已有音频文件到项目
+            Router::post('/import-files', [AudioProjectApi::class, 'importFiles']);
+
+            // 音频标记管理
+            Router::addGroup('/{projectId}/markers', static function () {
+                // 创建音频标记
+                Router::post('', [AudioMarkerApi::class, 'createMarker']);
+                // 获取音频标记列表
+                Router::get('', [AudioMarkerApi::class, 'getMarkersList']);
+                // 获取音频标记详情
+                Router::get('/{id}', [AudioMarkerApi::class, 'getMarkerDetail']);
+                // 更新音频标记
+                Router::put('/{id}', [AudioMarkerApi::class, 'updateMarker']);
+                // 删除音频标记
+                Router::delete('/{id}', [AudioMarkerApi::class, 'deleteMarker']);
+            });
+        });
+
+        // 协作项目相关路由分组
+        Router::addGroup('/collaboration-projects', static function () {
+            // 获取协作项目列表
+            Router::get('', [ProjectMemberApi::class, 'getCollaborationProjects']);
+            // 获取协作项目创建者列表
+            Router::get('/creators', [ProjectMemberApi::class, 'getCollaborationProjectCreators']);
+            // 更新项目置顶状态
+            Router::put('/{project_id}/pin', [ProjectMemberApi::class, 'updateProjectPin']);
+            // 更新项目快捷方式状态
+            Router::put('/{project_id}/shortcut', [ProjectMemberApi::class, 'updateProjectShortcut']);
+        });
+
+        // 话题相关
+        Router::addGroup('/topics', static function () {
+            // 获取话题详情
+            Router::get('/{id}', [TopicApi::class, 'getTopic']);
+            // 通过话题ID获取消息列表
+            Router::post('/{id}/messages', [TopicApi::class, 'getMessagesByTopicId']);
+            // 创建话题
+            Router::post('', [TopicApi::class, 'createTopic']);
+            // 更新话题
+            Router::put('/{id}', [TopicApi::class, 'updateTopic']);
+            // 删除话题
+            Router::post('/delete', [TopicApi::class, 'deleteTopic']);
+            // 智能重命名话题
+            Router::post('/rename', [TopicApi::class, 'renameTopic']);
+            // 中断话题任务
+            Router::post('/{id}/terminate', [TopicApi::class, 'terminateTask']);
+            // Checkpoint 回滚管理
+            Router::addGroup('/{id}/checkpoints', static function () {
+                // 直接回滚检查点
+                Router::post('/rollback', [TopicApi::class, 'rollbackCheckpoint']);
+
+                Router::addGroup('/rollback', static function () {
+                    // 检查回滚检查点的可行性
+                    Router::post('/check', [TopicApi::class, 'rollbackCheckpointCheck']);
+                    // 开始回滚检查点（标记状态而非删除）
+                    Router::post('/start', [TopicApi::class, 'rollbackCheckpointStart']);
+                    // 提交回滚检查点（物理删除撤回状态的消息）
+                    Router::post('/commit', [TopicApi::class, 'rollbackCheckpointCommit']);
+                    // 撤销回滚检查点（将撤回状态的消息恢复为正常状态）
+                    Router::post('/undo', [TopicApi::class, 'rollbackCheckpointUndo']);
+                });
+            });
+            // 复制话题消息
+            Router::addGroup('/{id}/duplicate-chat', static function () {
+                // 复制话题消息（同步）
+                Router::post('', [TopicApi::class, 'duplicateChat']);
+                // 复制话题消息（异步）
+                Router::post('/create-job', [TopicApi::class, 'duplicateChatAsync']);
+                // 检查复制话题消息是否成功
+                Router::post('/check', [TopicApi::class, 'duplicateChatCheck']);
+            });
+        });
+
+        // 任务相关
+        Router::addGroup('/tasks', static function () {
+            // 创建任务（发送消息给 Agent）
+            Router::post('', [TaskApi::class, 'createTask']);
+            // 取消任务
+            Router::post('/{id}/cancel', [TaskApi::class, 'cancelTask']);
+            // 获取任务状态（轻量级查询，用于轮询）
+            Router::get('/{id}/status', [TaskApi::class, 'getTaskStatus']);
+            // 获取任务下的附件列表
+            Router::get('/{id}/attachments', [TaskApi::class, 'getTaskAttachments']);
+        });
+
+        // 消息队列管理
+        Router::addGroup('/message-queue', static function () {
+            // 创建消息队列
+            Router::post('', [MessageApi::class, 'createMessageQueue']);
+            // 修改消息队列
+            Router::put('/{id}', [MessageApi::class, 'updateMessageQueue']);
+            // 删除消息队列
+            Router::delete('/{id}', [MessageApi::class, 'deleteMessageQueue']);
+            // 查询消息队列
+            Router::post('/queries', [MessageApi::class, 'queryMessageQueues']);
+            // 消费消息
+            Router::post('/{id}/consume', [MessageApi::class, 'consumeMessageQueue']);
+        });
+
+        // 消息定时任务
+        Router::addGroup('/message-schedule', static function () {
+            // 创建定时任务
+            Router::post('', [MessageApi::class, 'createMessageSchedule']);
+            // 修改定时任务
+            Router::put('/{id}', [MessageApi::class, 'updateMessageSchedule']);
+            // 删除定时任务
+            Router::delete('/{id}', [MessageApi::class, 'deleteMessageSchedule']);
+            // 查询定时任务
+            Router::post('/queries', [MessageApi::class, 'queryMessageSchedules']);
+            // 查询定时任务详情
+            Router::get('/{id}', [MessageApi::class, 'getMessageScheduleDetail']);
+            // 查询定时任务执行日志
+            Router::post('/{id}/logs', [MessageApi::class, 'getMessageScheduleLogs']);
+            // 手动执行定时任务（测试用途）
+            Router::post('/{id}/execute', [MessageApi::class, 'executeMessageScheduleForTest']);
+        });
+
+        Router::addGroup('/file', static function () {
+            // 获取项目文件上传STS Token
+            Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 获取话题文件上传STS Token
+            Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
+            // 创建文件和文件夹
+            Router::post('', [FileApi::class, 'createFile']);
+            // 保存附件关系
+            Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
+            // 批量保存附件关系
+            Router::post('/project/batch-save', [FileApi::class, 'batchSaveProjectFiles']);
+            // 保存文件内容
+            Router::post('/save', [FileApi::class, 'saveFileContent']);
+            // 删除附件
+            Router::delete('/{id}', [FileApi::class, 'deleteFile']);
+            // 删除目录及其下所有文件
+            Router::post('/directory/delete', [FileApi::class, 'deleteDirectory']);
+            // 重命名文件
+            Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
+            // 移动文件
+            Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 复制文件
+            Router::post('/{id}/copy', [FileApi::class, 'copyFile']);
+            // 获取文件版本列表
+            Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
+            // 文件回滚到指定版本
+            Router::post('/{id}/rollback', [FileApi::class, 'rollbackFileToVersion']);
+            // 替换文件
+            Router::post('/{id}/replace', [FileApi::class, 'replaceFile']);
+            // 批量移动文件
+            Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
+            // 批量复制文件
+            Router::post('/batch-copy', [FileApi::class, 'batchCopyFile']);
+            // 批量删除文件
+            Router::post('/batch-delete', [FileApi::class, 'batchDeleteFiles']);
+
+            // 批量操作状态查询
+            Router::addGroup('/batch-operation', static function () {
+                // 检查批量操作状态
+                Router::get('/check', [FileApi::class, 'checkBatchOperationStatus']);
+            });
+
+            // 文件编辑状态管理
+            // 加入编辑
+            Router::post('/{fileId}/join-editing', [FileEditingApi::class, 'joinEditing']);
+            // 离开编辑
+            Router::post('/{fileId}/leave-editing', [FileEditingApi::class, 'leaveEditing']);
+            // 获取编辑用户数量
+            Router::get('/{fileId}/editing-users', [FileEditingApi::class, 'getEditingUsers']);
+
+            // 根据文件id获取文件基本信息（需要登录态）
+            Router::get('/{id}', [FileApi::class, 'getFileInfo']);
+        });
+
+        Router::addGroup('/sandbox', static function () {
+            // 初始化沙盒
+            Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
+            // 获取沙盒状态
+            Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+            // 升级沙箱镜像
+            Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
+            // 预启动沙箱
+            Router::post('/pre-warm', [SandboxPreWarmApi::class, 'preWarmSandbox']);
+        });
+
+        // 邀请链接访问（需要认证，面向外部用户）
+        Router::addGroup('/invitation', static function () {
+            // 通过Token访问邀请链接（外部用户预览）
+            Router::get('/links/{token}', [ProjectInvitationLinkApi::class, 'getInvitationByToken']);
+
+            // 加入项目（外部用户操作）
+            Router::post('/join', [ProjectInvitationLinkApi::class, 'joinProject']);
+        });
+    },
+    ['middleware' => [SandboxUserAuthMiddleware::class]]
+);
+
+// 一定需要登录态的接口
+Router::addGroup(
+    '/api/v1/super-agent',
+    static function () {
+        // 投递消息
+        Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
+
+        // 长期记忆管理（沙箱token验证已移到API层内部）
+        Router::addGroup('/memories', static function () {
+            Router::post('', [SuperAgentMemoryApi::class, 'createMemory']);
+            Router::put('/{id}', [SuperAgentMemoryApi::class, 'agentUpdateMemory']);
+            Router::delete('/{id}', [SuperAgentMemoryApi::class, 'deleteMemory']);
+        });
+
+        // 文件相关
+        Router::addGroup('/file', static function () {
+            // 沙盒文件变更通知
+            Router::post('/sandbox/notifications', [FileApi::class, 'handleSandboxNotification']);
+            // 刷新 STS Token (提供 super - magic 使用， 通过 metadata 换取目录信息)
+            Router::post('/refresh-sts-token', [FileApi::class, 'refreshStsToken']);
+            // 新增话题附件列表(git 管理)
+            // Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
+
+            // 根据文件id获取文件名称
+            Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
+        });
+    },
+    ['middleware' => [SandboxUserAuthMiddleware::class]]
+);
+
+// 可能使用临时访问密码访问的接口（兼容前端组件）
+Router::addGroup(
+    '/api/v1/super-agent',
+    static function () {
+        // 获取项目的附件列表
+        Router::addGroup('/projects', static function () {
+            Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachments']);
+        });
+        // 获取话题的附件列表
+        Router::addGroup('/topics', static function () {
+            Router::post('/{id}/attachments', [TopicApi::class, 'getTopicAttachments']);
+            // 根据相对路径获取文件URL
+            Router::post('/get-file-urls-by-path', [FileApi::class, 'getFileUrlsByPath']);
+        });
+        Router::post('/tasks/get-file-url', [FileApi::class, 'getFileUrls']);
+
+        // 批量下载相关（支持token访问）
+        Router::addGroup('/file/batch-download', static function () {
+            // 创建批量下载任务（支持token访问）
+            Router::post('/create', [FileApi::class, 'createBatchDownload']);
+            // 检查批量下载状态（支持token访问）
+            Router::get('/check', [FileApi::class, 'checkBatchDownload']);
+        });
+
+        // 文件转换相关（支持token访问）
+        Router::addGroup('/file-convert', static function () {
+            // 创建文件转换任务（支持token访问）
+            Router::post('/create', [TaskApi::class, 'convertFiles']);
+            // 检查文件转换状态（支持token访问）
+            Router::get('/check', [TaskApi::class, 'checkFileConvertStatus']);
+        });
+    },
+    ['middleware' => [OptionalSandboxUserAuthMiddleware::class]]
+);
+
+// V2 API Routes
+Router::addGroup(
+    '/api/v2/super-agent',
+    static function () {
+        // 获取项目的附件列表 V2 (不返回树状结构)
+        Router::addGroup('/projects', static function () {
+            Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachmentsV2']);
+        });
+    },
+    ['middleware' => [UserAuthMiddleware::class]]
+);
