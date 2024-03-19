@@ -1,0 +1,2164 @@
+{
+    "path": "emojis/",
+    "animated_path": "animated/",
+    "emojis": [
+        {
+            "names": {
+                "zh_CN": "微笑",
+                "en_US": "Smile",
+                "ms_MY": "Senyuman",
+                "vi_VN": "Nụ cười",
+                "th_TH": "ยิ้ม",
+                "fil_PH": "Ngiti",
+                "en_SG": "Smile"
+            },
+            "filePath": "slightly_smiling_face.png",
+            "code": "slightly_smiling_face"
+        },
+        {
+            "names": {
+                "zh_CN": "可爱",
+                "en_US": "Lovely",
+                "ms_MY": "Comel",
+                "vi_VN": "Dễ thương",
+                "th_TH": "น่ารัก",
+                "fil_PH": "Kaaya-aya",
+                "en_SG": "Lovely"
+            },
+            "filePath": "smiling_face_with_smiling_eyes.png",
+            "code": "smiling_face_with_smiling_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "憨笑",
+                "en_US": "Simper",
+                "ms_MY": "Ketawa bodoh",
+                "vi_VN": "Cười ngớ ngẩn",
+                "th_TH": "ยิ้มกว้าง",
+                "fil_PH": "Tawang-tawa",
+                "en_SG": "Simper"
+            },
+            "filePath": "grinning_face_with_smiling_eyes.png",
+            "code": "grinning_face_with_smiling_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "发呆",
+                "en_US": "Be in a daze",
+                "ms_MY": "Terpaku",
+                "vi_VN": "Ngây ngẩn",
+                "th_TH": "มองว่างเปล่า",
+                "fil_PH": "Nangangapa",
+                "en_SG": "Be in a daze"
+            },
+            "filePath": "shaking_face.png",
+            "code": "shaking_face"
+        },
+        {
+            "names": {
+                "zh_CN": "得意",
+                "en_US": "Proud",
+                "ms_MY": "Bangga",
+                "vi_VN": "Tự hào",
+                "th_TH": "ภูมิใจ",
+                "fil_PH": "Mayabang",
+                "en_SG": "Proud"
+            },
+            "filePath": "smiling_face_with_sunglasses.png",
+            "code": "smiling_face_with_sunglasses"
+        },
+        {
+            "names": {
+                "zh_CN": "大哭",
+                "en_US": "Cry loudly",
+                "ms_MY": "Menangis teresak-esak",
+                "vi_VN": "Khóc lớn",
+                "th_TH": "ร้องไห้เสียงดัง",
+                "fil_PH": "Umiyak nang malakas",
+                "en_SG": "Cry loudly"
+            },
+            "filePath": "loudly_crying_face.png",
+            "code": "loudly_crying_face"
+        },
+        {
+            "names": {
+                "zh_CN": "颠倒",
+                "en_US": "Upside down",
+                "ms_MY": "Terbalik",
+                "vi_VN": "Ngược lại",
+                "th_TH": "กลับหัวกลับหาง",
+                "fil_PH": "Baligtad",
+                "en_SG": "Upside down"
+            },
+            "filePath": "upside_down_face.png",
+            "code": "upside_down_face"
+        },
+        {
+            "names": {
+                "zh_CN": "闭嘴",
+                "en_US": "Shut up",
+                "ms_MY": "Diam",
+                "vi_VN": "Im lặng",
+                "th_TH": "หุบปาก",
+                "fil_PH": "Tumahimik",
+                "en_SG": "Shut up"
+            },
+            "filePath": "zipper_mouth_face.png",
+            "code": "zipper_mouth_face"
+        },
+        {
+            "names": {
+                "zh_CN": "睡觉",
+                "en_US": "Sleep",
+                "ms_MY": "Tidur",
+                "vi_VN": "Ngủ",
+                "th_TH": "นอน",
+                "fil_PH": "Tulog",
+                "en_SG": "Sleep"
+            },
+            "filePath": "sleeping_face.png",
+            "code": "sleeping_face"
+        },
+        {
+            "names": {
+                "zh_CN": "眩晕",
+                "en_US": "Dizziness",
+                "ms_MY": "Pening",
+                "vi_VN": "Chóng mặt",
+                "th_TH": "เวียนศีรษะ",
+                "fil_PH": "Pagkahilo",
+                "en_SG": "Dizziness"
+            },
+            "filePath": "woozy_face.png",
+            "code": "woozy_face"
+        },
+        {
+            "names": {
+                "zh_CN": "热脸",
+                "en_US": "Warm face",
+                "ms_MY": "Muka panas",
+                "vi_VN": "Mặt nóng",
+                "th_TH": "ใบหน้าอุ่น",
+                "fil_PH": "Mainit na mukha",
+                "en_SG": "Warm face"
+            },
+            "filePath": "hot_face.png",
+            "code": "hot_face"
+        },
+        {
+            "names": {
+                "zh_CN": "OK",
+                "en_US": "OK",
+                "ms_MY": "Baik",
+                "vi_VN": "Được",
+                "th_TH": "โอเค",
+                "fil_PH": "Okey",
+                "en_SG": "OK"
+            },
+            "filePath": "ok_hand.png",
+            "code": "ok_hand",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "ok_hand_light_skin_tone.png",
+                    "code": "ok_hand_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "ok_hand_medium_light_skin_tone.png",
+                    "code": "ok_hand_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "ok_hand_medium_skin_tone.png",
+                    "code": "ok_hand_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "ok_hand_medium_dark_skin_tone.png",
+                    "code": "ok_hand_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "ok_hand_dark_skin_tone.png",
+                    "code": "ok_hand_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "点赞",
+                "en_US": "Like",
+                "ms_MY": "Suka",
+                "vi_VN": "Thích",
+                "th_TH": "กดไลค์",
+                "fil_PH": "Mag-like",
+                "en_SG": "Like"
+            },
+            "filePath": "thumbs_up.png",
+            "code": "thumbs_up",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "thumbs_up_light_skin_tone.png",
+                    "code": "thumbs_up_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "thumbs_up_medium_light_skin_tone.png",
+                    "code": "thumbs_up_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "thumbs_up_medium_skin_tone.png",
+                    "code": "thumbs_up_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "thumbs_up_medium_dark_skin_tone.png",
+                    "code": "thumbs_up_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "thumbs_up_dark_skin_tone.png",
+                    "code": "thumbs_up_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "胜利",
+                "en_US": "Victory",
+                "ms_MY": "Kemenangan",
+                "vi_VN": "Thắng lợi",
+                "th_TH": "ชัยชนะ",
+                "fil_PH": "Tagumpay",
+                "en_SG": "Victory"
+            },
+            "filePath": "victory_hand.png",
+            "code": "victory_hand",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "victory_hand_light_skin_tone.png",
+                    "code": "victory_hand_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "victory_hand_medium_light_skin_tone.png",
+                    "code": "victory_hand_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "victory_hand_medium_skin_tone.png",
+                    "code": "victory_hand_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "victory_hand_medium_dark_skin_tone.png",
+                    "code": "victory_hand_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "victory_hand_dark_skin_tone.png",
+                    "code": "victory_hand_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "挥手",
+                "en_US": "Wave",
+                "ms_MY": "Melambai",
+                "vi_VN": "Vẫy tay",
+                "th_TH": "โบกมือ",
+                "fil_PH": "Magwawagayway",
+                "en_SG": "Wave"
+            },
+            "filePath": "waving_hand.png",
+            "code": "waving_hand",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "waving_hand_light_skin_tone.png",
+                    "code": "waving_hand_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "waving_hand_medium_light_skin_tone.png",
+                    "code": "waving_hand_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "waving_hand_medium_skin_tone.png",
+                    "code": "waving_hand_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "waving_hand_medium_dark_skin_tone.png",
+                    "code": "waving_hand_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "waving_hand_dark_skin_tone.png",
+                    "code": "waving_hand_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "比心",
+                "en_US": "Make a heart gesture",
+                "ms_MY": "Buat gerakan hati",
+                "vi_VN": "Làm cử chỉ hình tim",
+                "th_TH": "ทำท่าหัวใจ",
+                "fil_PH": "Gumawa ng heart gesture",
+                "en_SG": "Make a heart gesture"
+            },
+            "filePath": "hand_with_index_finger_and_thumb_crossed.png",
+            "code": "hand_with_index_finger_and_thumb_crossed",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "hand_with_index_finger_and_thumb_crossed_light_skin_tone.png",
+                    "code": "hand_with_index_finger_and_thumb_crossed_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "hand_with_index_finger_and_thumb_crossed_medium_light_skin_tone.png",
+                    "code": "hand_with_index_finger_and_thumb_crossed_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "hand_with_index_finger_and_thumb_crossed_medium_skin_tone.png",
+                    "code": "hand_with_index_finger_and_thumb_crossed_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "hand_with_index_finger_and_thumb_crossed_medium_dark_skin_tone.png",
+                    "code": "hand_with_index_finger_and_thumb_crossed_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "hand_with_index_finger_and_thumb_crossed_dark_skin_tone.png",
+                    "code": "hand_with_index_finger_and_thumb_crossed_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "鼓掌",
+                "en_US": "Applaud",
+                "ms_MY": "Tepuk tangan",
+                "vi_VN": "Vỗ tay",
+                "th_TH": "ปรบมือ",
+                "fil_PH": "Pumalakpak",
+                "en_SG": "Applaud"
+            },
+            "filePath": "clapping_hands.png",
+            "code": "clapping_hands",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "clapping_hands_light_skin_tone.png",
+                    "code": "clapping_hands_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "clapping_hands_medium_light_skin_tone.png",
+                    "code": "clapping_hands_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "clapping_hands_medium_skin_tone.png",
+                    "code": "clapping_hands_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "clapping_hands_medium_dark_skin_tone.png",
+                    "code": "clapping_hands_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "clapping_hands_dark_skin_tone.png",
+                    "code": "clapping_hands_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "拿捏",
+                "en_US": "Have a good grasp of",
+                "ms_MY": "Memiliki pegangan yang baik",
+                "vi_VN": "Nắm bắt tốt",
+                "th_TH": "มีความเข้าใจและควบคุมได้ดี",
+                "fil_PH": "May magandang pagkakaalam at kontrol",
+                "en_SG": "Have a good grasp of"
+            },
+            "filePath": "pinched_fingers.png",
+            "code": "pinched_fingers",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "pinched_fingers_light_skin_tone.png",
+                    "code": "pinched_fingers_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "pinched_fingers_medium_light_skin_tone.png",
+                    "code": "pinched_fingers_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "pinched_fingers_medium_skin_tone.png",
+                    "code": "pinched_fingers_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "pinched_fingers_medium_dark_skin_tone.png",
+                    "code": "pinched_fingers_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "pinched_fingers_dark_skin_tone.png",
+                    "code": "pinched_fingers_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "向上",
+                "en_US": "Upward",
+                "ms_MY": "Ke atas",
+                "vi_VN": "Lên trên",
+                "th_TH": "ขึ้น",
+                "fil_PH": "Pataas",
+                "en_SG": "Upward"
+            },
+            "filePath": "backhand_index_pointing_up.png",
+            "code": "backhand_index_pointing_up",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "backhand_index_pointing_up_light_skin_tone.png",
+                    "code": "backhand_index_pointing_up_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "backhand_index_pointing_up_medium_light_skin_tone.png",
+                    "code": "backhand_index_pointing_up_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "backhand_index_pointing_up_medium_skin_tone.png",
+                    "code": "backhand_index_pointing_up_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "backhand_index_pointing_up_medium_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_up_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "backhand_index_pointing_up_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_up_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "向下",
+                "en_US": "Downward",
+                "ms_MY": "Ke bawah",
+                "vi_VN": "Xuống dưới",
+                "th_TH": "ลง",
+                "fil_PH": "Pababa",
+                "en_SG": "Downward"
+            },
+            "filePath": "backhand_index_pointing_down.png",
+            "code": "backhand_index_pointing_down",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "backhand_index_pointing_down_light_skin_tone.png",
+                    "code": "backhand_index_pointing_down_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "backhand_index_pointing_down_medium_light_skin_tone.png",
+                    "code": "backhand_index_pointing_down_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "backhand_index_pointing_down_medium_skin_tone.png",
+                    "code": "backhand_index_pointing_down_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "backhand_index_pointing_down_medium_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_down_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "backhand_index_pointing_down_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_down_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "向左",
+                "en_US": "To the left",
+                "ms_MY": "Ke kiri",
+                "vi_VN": "Sang trái",
+                "th_TH": "ไปทางซ้าย",
+                "fil_PH": "Sa kaliwa",
+                "en_SG": "To the left"
+            },
+            "filePath": "backhand_index_pointing_left.png",
+            "code": "backhand_index_pointing_left",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "backhand_index_pointing_left_light_skin_tone.png",
+                    "code": "backhand_index_pointing_left_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "backhand_index_pointing_left_medium_light_skin_tone.png",
+                    "code": "backhand_index_pointing_left_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "backhand_index_pointing_left_medium_skin_tone.png",
+                    "code": "backhand_index_pointing_left_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "backhand_index_pointing_left_medium_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_left_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "backhand_index_pointing_left_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_left_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "向右",
+                "en_US": "To the right",
+                "ms_MY": "Ke kanan",
+                "vi_VN": "Sang phải",
+                "th_TH": "ไปทางขวา",
+                "fil_PH": "Sa kanan",
+                "en_SG": "To the right"
+            },
+            "filePath": "backhand_index_pointing_right.png",
+            "code": "backhand_index_pointing_right",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "backhand_index_pointing_right_medium_light_skin_tone.png",
+                    "code": "backhand_index_pointing_right_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "backhand_index_pointing_right_medium_light_skin_tone.png",
+                    "code": "backhand_index_pointing_right_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "backhand_index_pointing_right_medium_skin_tone.png",
+                    "code": "backhand_index_pointing_right_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "backhand_index_pointing_right_medium_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_right_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "backhand_index_pointing_right_dark_skin_tone.png",
+                    "code": "backhand_index_pointing_right_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "强壮",
+                "en_US": "Strong",
+                "ms_MY": "Kuat",
+                "vi_VN": "Mạnh mẽ",
+                "th_TH": "แข็งแรง",
+                "fil_PH": "Malakas",
+                "en_SG": "Strong"
+            },
+            "filePath": "flexed_biceps.png",
+            "code": "flexed_biceps",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "flexed_biceps_light_skin_tone.png",
+                    "code": "flexed_biceps_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "flexed_biceps_medium_light_skin_tone.png",
+                    "code": "flexed_biceps_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "flexed_biceps_medium_skin_tone.png",
+                    "code": "flexed_biceps_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "flexed_biceps_medium_dark_skin_tone.png",
+                    "code": "flexed_biceps_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "flexed_biceps_dark_skin_tone.png",
+                    "code": "flexed_biceps_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "阻止",
+                "en_US": "Prevent",
+                "ms_MY": "Mencegah",
+                "vi_VN": "Ngăn cản",
+                "th_TH": "ป้องกัน",
+                "fil_PH": "pigilan",
+                "en_SG": "Prevent"
+            },
+            "filePath": "leftwards_pushing_hand.png",
+            "code": "leftwards_pushing_hand",
+            "skinTones": [
+                {
+                    "tone": "light",
+                    "filePath": "leftwards_pushing_hand_light_skin_tone.png",
+                    "code": "leftwards_pushing_hand_light_skin_tone"
+                },
+                {
+                    "tone": "medium_light",
+                    "filePath": "leftwards_pushing_hand_medium_light_skin_tone.png",
+                    "code": "leftwards_pushing_hand_medium_light_skin_tone"
+                },
+                {
+                    "tone": "medium",
+                    "filePath": "leftwards_pushing_hand_medium_skin_tone.png",
+                    "code": "leftwards_pushing_hand_medium_skin_tone"
+                },
+                {
+                    "tone": "medium_dark",
+                    "filePath": "leftwards_pushing_hand_medium_dark_skin_tone.png",
+                    "code": "leftwards_pushing_hand_medium_dark_skin_tone"
+                },
+                {
+                    "tone": "dark",
+                    "filePath": "leftwards_pushing_hand_dark_skin_tone.png",
+                    "code": "leftwards_pushing_hand_dark_skin_tone"
+                }
+            ]
+        },
+        {
+            "names": {
+                "zh_CN": "笑脸",
+                "en_US": "Smiling face",
+                "ms_MY": "Wajah tersenyum",
+                "vi_VN": "Mặt cười",
+                "th_TH": "ใบหน้ายิ้ม",
+                "fil_PH": "Nagbibigay ng ngiti na mukha",
+                "en_SG": "Smiling face"
+            },
+            "filePath": "smiling_face.png",
+            "code": "smiling_face"
+        },
+        {
+            "names": {
+                "zh_CN": "释然",
+                "en_US": "Relieved",
+                "ms_MY": "Tenang kembali",
+                "vi_VN": "Thoải mái",
+                "th_TH": "โล่งใจ",
+                "fil_PH": "Mapagaan ang loob",
+                "en_SG": "Relieved"
+            },
+            "filePath": "relieved_face.png",
+            "code": "relieved_face"
+        },
+        {
+            "names": {
+                "zh_CN": "大眼",
+                "en_US": "Big eyes",
+                "ms_MY": "Mata besar",
+                "vi_VN": "Mắt to",
+                "th_TH": "ตาโต",
+                "fil_PH": "Malalaking mata",
+                "en_SG": "Big eyes"
+            },
+            "filePath": "grinning_face_with_big_eyes.png",
+            "code": "grinning_face_with_big_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "咧嘴",
+                "en_US": "Grinning with mouth open",
+                "ms_MY": "Tersenyum lebar dengan mulut terbuka",
+                "vi_VN": "Cười toe toét",
+                "th_TH": "ยิ้มกว้างและเปิดปาก",
+                "fil_PH": "Malawak na ngiti na may bukas na bibig",
+                "en_SG": "Grinning with mouth open"
+            },
+            "filePath": "grinning_face.png",
+            "code": "grinning_face"
+        },
+        {
+            "names": {
+                "zh_CN": "眯笑",
+                "en_US": "Smiling with squinted eyes",
+                "ms_MY": "Tersenyum dengan mata sipit",
+                "vi_VN": "Cười híp mắt",
+                "th_TH": "ยิ้มและมองด้วยตาปริ",
+                "fil_PH": "Ngumiti na may nakapikit na mata",
+                "en_SG": "Smiling with squinted eyes"
+            },
+            "filePath": "grinning_squinting_face.png",
+            "code": "grinning_squinting_face"
+        },
+        {
+            "names": {
+                "zh_CN": "灿烂",
+                "en_US": "Brilliant",
+                "ms_MY": "Cemerlang",
+                "vi_VN": "Rạng rỡ",
+                "th_TH": "สุกใส",
+                "fil_PH": "Masigla at makintab",
+                "en_SG": "Brilliant"
+            },
+            "filePath": "beaming_face_with_smiling_eyes.png",
+            "code": "beaming_face_with_smiling_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "鬼脸",
+                "en_US": "Funny face",
+                "ms_MY": "Wajah lucu",
+                "vi_VN": "Mặt xấu",
+                "th_TH": "ใบหน้าแหวกแนว",
+                "fil_PH": "Mukhang nakakatawa",
+                "en_SG": "Funny face"
+            },
+            "filePath": "grimacing_face.png",
+            "code": "grimacing_face"
+        },
+        {
+            "names": {
+                "zh_CN": "惊讶",
+                "en_US": "Surprised",
+                "ms_MY": "Terkejut",
+                "vi_VN": "Ngạc nhiên",
+                "th_TH": "ตกใจ",
+                "fil_PH": "Nagulat",
+                "en_SG": "Surprised"
+            },
+            "filePath": "astonished_face.png",
+            "code": "astonished_face"
+        },
+        {
+            "names": {
+                "zh_CN": "拥抱",
+                "en_US": "Hug",
+                "ms_MY": "Peluk",
+                "vi_VN": "Ôm",
+                "th_TH": "กอด",
+                "fil_PH": "Yakap",
+                "en_SG": "Hug"
+            },
+            "filePath": "hugging_face.png",
+            "code": "hugging_face"
+        },
+        {
+            "names": {
+                "zh_CN": "捂嘴",
+                "en_US": "Cover mouth",
+                "ms_MY": "Tutup mulut",
+                "vi_VN": "Che miệng",
+                "th_TH": "ปิดปาก",
+                "fil_PH": "Takip ang bibig",
+                "en_SG": "Cover mouth"
+            },
+            "filePath": "face_with_hand_over_mouth.png",
+            "code": "face_with_hand_over_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "亲亲",
+                "en_US": "Kiss",
+                "ms_MY": "Cium",
+                "vi_VN": "Hôn",
+                "th_TH": "จูบ",
+                "fil_PH": "Halik",
+                "en_SG": "Kiss"
+            },
+            "filePath": "kissing_face_with_closed_eyes.png",
+            "code": "kissing_face_with_closed_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "亲一下",
+                "en_US": "Kiss once",
+                "ms_MY": "Cium sekali",
+                "vi_VN": "Hôn một cái",
+                "th_TH": "จูบหนึ่งครั้ง",
+                "fil_PH": "Halik isang beses",
+                "en_SG": "Kiss once"
+            },
+            "filePath": "kissing_face_with_smiling_eyes.png",
+            "code": "kissing_face_with_smiling_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "坏笑",
+                "en_US": "Wicked smile",
+                "ms_MY": "Senyum jahat",
+                "vi_VN": "Cười xấu xa",
+                "th_TH": "ยิ้มร้าย",
+                "fil_PH": "Masamang ngiti",
+                "en_SG": "Wicked smile"
+            },
+            "filePath": "smirking_face.png",
+            "code": "smirking_face"
+        },
+        {
+            "names": {
+                "zh_CN": "派对",
+                "en_US": "Party",
+                "ms_MY": "Pesta",
+                "vi_VN": "Tiệc tùng",
+                "th_TH": "งานเลี้ยง",
+                "fil_PH": "Piyesta",
+                "en_SG": "Party"
+            },
+            "filePath": "partying_face.png",
+            "code": "partying_face"
+        },
+        {
+            "names": {
+                "zh_CN": "美味",
+                "en_US": "Delicious",
+                "ms_MY": "Sedap",
+                "vi_VN": "Ngon ngon",
+                "th_TH": "อร่อย",
+                "fil_PH": "Masarap",
+                "en_SG": "Delicious"
+            },
+            "filePath": "face_savoring_food.png",
+            "code": "face_savoring_food"
+        },
+        {
+            "names": {
+                "zh_CN": "吐舌",
+                "en_US": "Stick out tongue",
+                "ms_MY": "Julurkan lidah",
+                "vi_VN": "Lè lưỡi",
+                "th_TH": "ยื่นลิ้นออกมา",
+                "fil_PH": "Ilabas ang dila",
+                "en_SG": "Stick out tongue"
+            },
+            "filePath": "squinting_face_with_tongue.png",
+            "code": "squinting_face_with_tongue"
+        },
+        {
+            "names": {
+                "zh_CN": "伸舌",
+                "en_US": "Stretch out tongue",
+                "ms_MY": "Merentangkan lidah",
+                "vi_VN": "Duỗi lưỡi ra",
+                "th_TH": "ยืดลิ้นออกมา",
+                "fil_PH": "Ipagpalawig ang dila",
+                "en_SG": "Stretch out tongue"
+            },
+            "filePath": "face_with_tongue.png",
+            "code": "face_with_tongue"
+        },
+        {
+            "names": {
+                "zh_CN": "右眨眼",
+                "en_US": "Wink right",
+                "ms_MY": "Kedip mata kanan",
+                "vi_VN": "Nháy mắt phải",
+                "th_TH": "หลบตาไปทางขวา",
+                "fil_PH": "Pagkilos ng mata sa kanan",
+                "en_SG": "Wink right"
+            },
+            "filePath": "winking_face.png",
+            "code": "winking_face"
+        },
+        {
+            "names": {
+                "zh_CN": "左眨眼",
+                "en_US": "Wink left",
+                "ms_MY": "Kedip mata kiri",
+                "vi_VN": "Nháy mắt trái",
+                "th_TH": "หลบตาไปทางซ้าย",
+                "fil_PH": "Pagkilos ng mata sa kaliwa",
+                "en_SG": "Wink left"
+            },
+            "filePath": "winking_face_with_tongue.png",
+            "code": "winking_face_with_tongue"
+        },
+        {
+            "names": {
+                "zh_CN": "搞怪",
+                "en_US": "Wacky",
+                "ms_MY": "Pelik",
+                "vi_VN": "Kỳ quặc",
+                "th_TH": "ประหลาด",
+                "fil_PH": "Kakaiba",
+                "en_SG": "Wacky"
+            },
+            "filePath": "zany_face.png",
+            "code": "zany_face"
+        },
+        {
+            "names": {
+                "zh_CN": "爱心",
+                "en_US": "Love",
+                "ms_MY": "Cinta",
+                "vi_VN": "Tim",
+                "th_TH": "หัวใจรัก",
+                "fil_PH": "Puso ng pag-ibig",
+                "en_SG": "Love"
+            },
+            "filePath": "smiling_face_with_hearts.png",
+            "code": "smiling_face_with_hearts"
+        },
+        {
+            "names": {
+                "zh_CN": "飞吻",
+                "en_US": "Blow a kiss",
+                "ms_MY": "Buat ciuman angin",
+                "vi_VN": "Gửi nụ hôn bay",
+                "th_TH": "โบกมือและส่งจูบ",
+                "fil_PH": "Magpadala ng halik na hangin",
+                "en_SG": "Blow a kiss"
+            },
+            "filePath": "face_blowing_a_kiss.png",
+            "code": "face_blowing_a_kiss"
+        },
+        {
+            "names": {
+                "zh_CN": "粉丝",
+                "en_US": "Fans",
+                "ms_MY": "Peminat",
+                "vi_VN": "Người hâm mộ",
+                "th_TH": "แฟนคลับ",
+                "fil_PH": "Tagahanga",
+                "en_SG": "Fans"
+            },
+            "filePath": "star_struck.png",
+            "code": "star_struck"
+        },
+        {
+            "names": {
+                "zh_CN": "花痴",
+                "en_US": "Infatuated",
+                "ms_MY": "Terpesona",
+                "vi_VN": "Si mê",
+                "th_TH": "หลงใหล",
+                "fil_PH": "Nabighani",
+                "en_SG": "Infatuated"
+            },
+            "filePath": "smiling_face_with_heart_eyes.png",
+            "code": "smiling_face_with_heart_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "书呆",
+                "en_US": "Bookworm",
+                "ms_MY": "Penggemar buku",
+                "vi_VN": "Người mê sách",
+                "th_TH": "คนรักหนังสือ",
+                "fil_PH": "Mga taong mahilig sa libro",
+                "en_SG": "Bookworm"
+            },
+            "filePath": "nerd_face.png",
+            "code": "nerd_face"
+        },
+        {
+            "names": {
+                "zh_CN": "伪装",
+                "en_US": "Disguise",
+                "ms_MY": "Penyamaran",
+                "vi_VN": "Giả trang",
+                "th_TH": "การปลอมตัว",
+                "fil_PH": "Pagpapanggap",
+                "en_SG": "Disguise"
+            },
+            "filePath": "disguised_face.png",
+            "code": "disguised_face"
+        },
+        {
+            "names": {
+                "zh_CN": "单镜",
+                "en_US": "Single lens",
+                "ms_MY": "Kanta tunggal",
+                "vi_VN": "Kính đơn",
+                "th_TH": "เลนส์เดี่ยว",
+                "fil_PH": "Isang salamin",
+                "en_SG": "Single lens"
+            },
+            "filePath": "face_with_monocle.png",
+            "code": "face_with_monocle"
+        },
+        {
+            "names": {
+                "zh_CN": "流涎",
+                "en_US": "Drool",
+                "ms_MY": "Berair liur",
+                "vi_VN": "Chảy nước miếng",
+                "th_TH": "ไหลน้ำลาย",
+                "fil_PH": "Tumulo ng laway",
+                "en_SG": "Drool"
+            },
+            "filePath": "drooling_face.png",
+            "code": "drooling_face"
+        },
+        {
+            "names": {
+                "zh_CN": "傻笑",
+                "en_US": "Giggle foolishly",
+                "ms_MY": "Ketawa bodoh",
+                "vi_VN": "Cười ngớ ngẩn",
+                "th_TH": "หัวเราะอย่างโง่เขลา",
+                "fil_PH": "Tumawa nang hangal",
+                "en_SG": "Giggle foolishly"
+            },
+            "filePath": "grinning_face_with_sweat.png",
+            "code": "grinning_face_with_sweat"
+        },
+        {
+            "names": {
+                "zh_CN": "流汗",
+                "en_US": "Sweat",
+                "ms_MY": "Berpeluh",
+                "vi_VN": "Đổ mồ hôi",
+                "th_TH": "เหงื่อไหล",
+                "fil_PH": "Magpawis",
+                "en_SG": "Sweat"
+            },
+            "filePath": "downcast_face_with_sweat.png",
+            "code": "downcast_face_with_sweat"
+        },
+        {
+            "names": {
+                "zh_CN": "悲释",
+                "en_US": "Release sadness",
+                "ms_MY": "Lepaskan kesedihan",
+                "vi_VN": "Giải tỏa nỗi buồn",
+                "th_TH": "ปลดปล่อยความเศร้า",
+                "fil_PH": "Ilabas ang kalungkutan",
+                "en_SG": "Release sadness"
+            },
+            "filePath": "sad_but_relieved_face.png",
+            "code": "sad_but_relieved_face"
+        },
+        {
+            "names": {
+                "zh_CN": "哭泣",
+                "en_US": "Cry",
+                "ms_MY": "Menangis",
+                "vi_VN": "Khóc",
+                "th_TH": "ร้องไห้",
+                "fil_PH": "Umiyak",
+                "en_SG": "Cry"
+            },
+            "filePath": "crying_face.png",
+            "code": "crying_face"
+        },
+        {
+            "names": {
+                "zh_CN": "笑泪",
+                "en_US": "Laughing with tears",
+                "ms_MY": "Ketawa sambil menangis",
+                "vi_VN": "Cười ra nước mắt",
+                "th_TH": "หัวเราะพร้อมน้ำตา",
+                "fil_PH": "Tumawa habang may luha",
+                "en_SG": "Laughing with tears"
+            },
+            "filePath": "smiling_face_with_tear.png",
+            "code": "smiling_face_with_tear"
+        },
+        {
+            "names": {
+                "zh_CN": "笑哭",
+                "en_US": "Laughing and crying",
+                "ms_MY": "Ketawa dan menangis",
+                "vi_VN": "Cười và khóc",
+                "th_TH": "หัวเราะและร้องไห้",
+                "fil_PH": "Tumawa at umiyak",
+                "en_SG": "Laughing and crying"
+            },
+            "filePath": "face_with_tears_of_joy.png",
+            "code": "face_with_tears_of_joy"
+        },
+        {
+            "names": {
+                "zh_CN": "狂笑",
+                "en_US": "Wild laughter",
+                "ms_MY": "Ketawa berdekah-dekah",
+                "vi_VN": "Cười cuồng nộ",
+                "th_TH": "หัวเราะอย่างบ้าคลั่ง",
+                "fil_PH": "Tumawa nang mabangis",
+                "en_SG": "Wild laughter"
+            },
+            "filePath": "rolling_on_the_floor_laughing.png",
+            "code": "rolling_on_the_floor_laughing"
+        },
+        {
+            "names": {
+                "zh_CN": "忍泪",
+                "en_US": "Suppress tears",
+                "ms_MY": "Tahan air mata",
+                "vi_VN": "Kìm nén nước mắt",
+                "th_TH": "ระงับน้ำตา",
+                "fil_PH": "Tiyakin ang luha",
+                "en_SG": "Suppress tears"
+            },
+            "filePath": "face_holding_back_tears.png",
+            "code": "face_holding_back_tears"
+        },
+        {
+            "names": {
+                "zh_CN": "无聊",
+                "en_US": "Bored",
+                "ms_MY": "Bosan",
+                "vi_VN": "Chán",
+                "th_TH": "เบื่อ",
+                "fil_PH": "Nakakainip",
+                "en_SG": "Bored"
+            },
+            "filePath": "expressionless_face.png",
+            "code": "expressionless_face"
+        },
+        {
+            "names": {
+                "zh_CN": "歪嘴",
+                "en_US": "Twisted mouth",
+                "ms_MY": "Mulut bengkok",
+                "vi_VN": "Miệng méo",
+                "th_TH": "ปากบิด",
+                "fil_PH": "Baluktot na bibig",
+                "en_SG": "Twisted mouth"
+            },
+            "filePath": "face_with_diagonal_mouth.png",
+            "code": "face_with_diagonal_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "虚线脸",
+                "en_US": "Dotted line face",
+                "ms_MY": "Wajah garis putus-putus",
+                "vi_VN": "Mặt đường kẻ虚线",
+                "th_TH": "ใบหน้าเส้นประ",
+                "fil_PH": "Mukhang dotted line",
+                "en_SG": "Dotted line face"
+            },
+            "filePath": "dotted_line_face.png",
+            "code": "dotted_line_face"
+        },
+        {
+            "names": {
+                "zh_CN": "中立",
+                "en_US": "Neutral",
+                "ms_MY": "Tidak berpihak",
+                "vi_VN": "Trung lập",
+                "th_TH": "เป็นกลาง",
+                "fil_PH": "Neutral",
+                "en_SG": "Neutral"
+            },
+            "filePath": "neutral_face.png",
+            "code": "neutral_face"
+        },
+        {
+            "names": {
+                "zh_CN": "无趣",
+                "en_US": "Dull",
+                "ms_MY": "Tidak menarik",
+                "vi_VN": "Vô vị",
+                "th_TH": "ไม่น่าสนใจ",
+                "fil_PH": "Walang saysay",
+                "en_SG": "Dull"
+            },
+            "filePath": "unamused_face.png",
+            "code": "unamused_face"
+        },
+        {
+            "names": {
+                "zh_CN": "白眼",
+                "en_US": "Roll one's eyes",
+                "ms_MY": "Membaling mata",
+                "vi_VN": "Lườm",
+                "th_TH": "มองด้วยสายตาเหยียดหยาม",
+                "fil_PH": "Magmura ng mata",
+                "en_SG": "Roll one's eyes"
+            },
+            "filePath": "face_with_rolling_eyes.png",
+            "code": "face_with_rolling_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "脸红",
+                "en_US": "Blush",
+                "ms_MY": "Merah muka",
+                "vi_VN": "Mặt đỏ",
+                "th_TH": "หน้าแดง",
+                "fil_PH": "Mapula ang mukha",
+                "en_SG": "Blush"
+            },
+            "filePath": "flushed_face.png",
+            "code": "flushed_face"
+        },
+        {
+            "names": {
+                "zh_CN": "失望",
+                "en_US": "Disappointed",
+                "ms_MY": "Kecewa",
+                "vi_VN": "Thất vọng",
+                "th_TH": "ผิดหวัง",
+                "fil_PH": "Napahiya",
+                "en_SG": "Disappointed"
+            },
+            "filePath": "disappointed_face.png",
+            "code": "disappointed_face"
+        },
+        {
+            "names": {
+                "zh_CN": "沉思",
+                "en_US": "Meditate",
+                "ms_MY": "Merenung",
+                "vi_VN": "Trầm tư",
+                "th_TH": "ครุ่นคิด",
+                "fil_PH": "Mag-isip",
+                "en_SG": "Meditate"
+            },
+            "filePath": "pensive_face.png",
+            "code": "pensive_face"
+        },
+        {
+            "names": {
+                "zh_CN": "坚持",
+                "en_US": "Persist",
+                "ms_MY": "Bertekun",
+                "vi_VN": "Kiên trì",
+                "th_TH": "ยืนหยัด",
+                "fil_PH": "Tumigil",
+                "en_SG": "Persist"
+            },
+            "filePath": "persevering_face.png",
+            "code": "persevering_face"
+        },
+        {
+            "names": {
+                "zh_CN": "困惑",
+                "en_US": "Confused",
+                "ms_MY": "Bingung",
+                "vi_VN": "Bối rối",
+                "th_TH": "สับสน",
+                "fil_PH": "Malito",
+                "en_SG": "Confused"
+            },
+            "filePath": "confounded_face.png",
+            "code": "confounded_face"
+        },
+        {
+            "names": {
+                "zh_CN": "晕",
+                "en_US": "Dizzy",
+                "ms_MY": "Pening",
+                "vi_VN": "Choáng váng",
+                "th_TH": "หน้ามืด",
+                "fil_PH": "Mapula ang ulo",
+                "en_SG": "Dizzy"
+            },
+            "filePath": "face_with_spiral_eyes.png",
+            "code": "face_with_spiral_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "迷糊",
+                "en_US": "Confused and dazed",
+                "ms_MY": "Bingung dan mengantuk",
+                "vi_VN": "Lơ mơ, ngơ ngác",
+                "th_TH": "สับสนและมึนงง",
+                "fil_PH": "Malito at natutulog-tulog",
+                "en_SG": "Confused and dazed"
+            },
+            "filePath": "face_with_crossed_out_eyes.png",
+            "code": "face_with_crossed_out_eyes"
+        },
+        {
+            "names": {
+                "zh_CN": "疲惫",
+                "en_US": "Tired",
+                "ms_MY": "Letih",
+                "vi_VN": "Mệt mỏi",
+                "th_TH": "เหนื่อยล้า",
+                "fil_PH": "Pagod",
+                "en_SG": "Tired"
+            },
+            "filePath": "weary_face.png",
+            "code": "weary_face"
+        },
+        {
+            "names": {
+                "zh_CN": "困倦",
+                "en_US": "Sleepy",
+                "ms_MY": "Mengantuk",
+                "vi_VN": "Buồn ngủ",
+                "th_TH": "ง่วงนอน",
+                "fil_PH": "Natutulog-tulog",
+                "en_SG": "Sleepy"
+            },
+            "filePath": "tired_face.png",
+            "code": "tired_face"
+        },
+        {
+            "names": {
+                "zh_CN": "难过",
+                "en_US": "Sad",
+                "ms_MY": "Sedih",
+                "vi_VN": "Buồn",
+                "th_TH": "เศร้า",
+                "fil_PH": "Malungkot",
+                "en_SG": "Sad"
+            },
+            "filePath": "slightly_frowning_face.png",
+            "code": "slightly_frowning_face"
+        },
+        {
+            "names": {
+                "zh_CN": "担忧",
+                "en_US": "Worried",
+                "ms_MY": "Bimbang",
+                "vi_VN": "Lo lắng",
+                "th_TH": "กังวล",
+                "fil_PH": "Mag-alala",
+                "en_SG": "Worried"
+            },
+            "filePath": "worried_face.png",
+            "code": "worried_face"
+        },
+        {
+            "names": {
+                "zh_CN": "皱眉",
+                "en_US": "Frown",
+                "ms_MY": "Mengerutkan kening",
+                "vi_VN": "Nhíu mày",
+                "th_TH": "ย่นหน้า",
+                "fil_PH": "Magpuno ng nuo",
+                "en_SG": "Frown"
+            },
+            "filePath": "frowning_face.png",
+            "code": "frowning_face"
+        },
+        {
+            "names": {
+                "zh_CN": "挑眉",
+                "en_US": "Raise an eyebrow",
+                "ms_MY": "Angkat kening",
+                "vi_VN": "Nghiêng mày",
+                "th_TH": "ยกคิ้ว",
+                "fil_PH": "Itinaas ang kilay",
+                "en_SG": "Raise an eyebrow"
+            },
+            "filePath": "face_with_raised_eyebrow.png",
+            "code": "face_with_raised_eyebrow"
+        },
+        {
+            "names": {
+                "zh_CN": "惊愁",
+                "en_US": "Surprised and worried",
+                "ms_MY": "Terkejut dan bimbang",
+                "vi_VN": "Bất ngờ và lo lắng",
+                "th_TH": "ประหลาดใจและกังวล",
+                "fil_PH": "Nagulat at nag-alala",
+                "en_SG": "Surprised and worried"
+            },
+            "filePath": "frowning_face_with_open_mouth.png",
+            "code": "frowning_face_with_open_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "噤声",
+                "en_US": "Be silent",
+                "ms_MY": "Diam",
+                "vi_VN": "Im lặng",
+                "th_TH": "เงียบ",
+                "fil_PH": "Tahimik",
+                "en_SG": "Be silent"
+            },
+            "filePath": "hushed_face.png",
+            "code": "hushed_face"
+        },
+        {
+            "names": {
+                "zh_CN": "张嘴",
+                "en_US": "Open mouth",
+                "ms_MY": "Buka mulut",
+                "vi_VN": "Mở miệng",
+                "th_TH": "เปิดปาก",
+                "fil_PH": "Buksan ang bibig",
+                "en_SG": "Open mouth"
+            },
+            "filePath": "face_with_open_mouth.png",
+            "code": "face_with_open_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "痛苦",
+                "en_US": "Painful",
+                "ms_MY": "Sakit",
+                "vi_VN": "Đau đớn",
+                "th_TH": "เจ็บปวด",
+                "fil_PH": "Masakit",
+                "en_SG": "Painful"
+            },
+            "filePath": "anguished_face.png",
+            "code": "anguished_face"
+        },
+        {
+            "names": {
+                "zh_CN": "害怕",
+                "en_US": "Afraid",
+                "ms_MY": "Takut",
+                "vi_VN": "Sợ hãi",
+                "th_TH": "กลัว",
+                "fil_PH": "Natatakot",
+                "en_SG": "Afraid"
+            },
+            "filePath": "fearful_face.png",
+            "code": "fearful_face"
+        },
+        {
+            "names": {
+                "zh_CN": "汗惧",
+                "en_US": "Tremble with fear",
+                "ms_MY": "Bergetar kerana takut",
+                "vi_VN": "Run sợ hãi",
+                "th_TH": "สั่นกลัว",
+                "fil_PH": "Sumasalpok dahil sa takot",
+                "en_SG": "Tremble with fear"
+            },
+            "filePath": "anxious_face_with_sweat.png",
+            "code": "anxious_face_with_sweat"
+        },
+        {
+            "names": {
+                "zh_CN": "绷带",
+                "en_US": "Bandage",
+                "ms_MY": "Pemebalut",
+                "vi_VN": "Buồn ngủ",
+                "th_TH": "ผ้าก.bind",
+                "fil_PH": "Panghimulos",
+                "en_SG": "Bandage"
+            },
+            "filePath": "face_with_head_bandage.png",
+            "code": "face_with_head_bandage"
+        },
+        {
+            "names": {
+                "zh_CN": "迷茫",
+                "en_US": "Confused and lost",
+                "ms_MY": "Bingung dan hilang arah",
+                "vi_VN": "Bối rối và mất phương hướng",
+                "th_TH": "สับสนและหลงทาง",
+                "fil_PH": "Malito at nawawala sa landas",
+                "en_SG": "Confused and lost"
+            },
+            "filePath": "confused_face.png",
+            "code": "confused_face"
+        },
+        {
+            "names": {
+                "zh_CN": "惊恐",
+                "en_US": "Alarmed and terrified",
+                "ms_MY": "Terkejut dan ketakutan",
+                "vi_VN": "Kinh hoàng và hoảng sợ",
+                "th_TH": "ตกใจและหวาดกลัว",
+                "fil_PH": "Natakot at nagulat",
+                "en_SG": "Alarmed and terrified"
+            },
+            "filePath": "face_screaming_in_fear.png",
+            "code": "face_screaming_in_fear"
+        },
+        {
+            "names": {
+                "zh_CN": "生气",
+                "en_US": "Angry",
+                "ms_MY": "marah",
+                "vi_VN": "Tức giận",
+                "th_TH": "โกรธ",
+                "fil_PH": "Galit",
+                "en_SG": "Angry"
+            },
+            "filePath": "angry_face.png",
+            "code": "angry_face"
+        },
+        {
+            "names": {
+                "zh_CN": "怒喷",
+                "en_US": "Angrily blast",
+                "ms_MY": "Marah-marah meledak",
+                "vi_VN": "Tức giận phun trào",
+                "th_TH": "โกรธจัดพ่นออกมา",
+                "fil_PH": "Galit na sumabog",
+                "en_SG": "Angrily blast"
+            },
+            "filePath": "face_with_steam_from_nose.png",
+            "code": "face_with_steam_from_nose"
+        },
+        {
+            "names": {
+                "zh_CN": "盛怒",
+                "en_US": "Furious",
+                "ms_MY": "Marah besar",
+                "vi_VN": "Tức giận dữ dội",
+                "th_TH": "โกรธมาก",
+                "fil_PH": "Galit na galit",
+                "en_SG": "Furious"
+            },
+            "filePath": "enraged_face.png",
+            "code": "enraged_face"
+        },
+        {
+            "names": {
+                "zh_CN": "禁言",
+                "en_US": "Mute",
+                "ms_MY": "Bisukan",
+                "vi_VN": "Cấm nói",
+                "th_TH": "ห้ามพูด",
+                "fil_PH": "Pigilan ang pagsasalita",
+                "en_SG": "Mute"
+            },
+            "filePath": "face_with_symbols_on_mouth.png",
+            "code": "face_with_symbols_on_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "爆炸",
+                "en_US": "Explode",
+                "ms_MY": "Meletup",
+                "vi_VN": "Nổ tung",
+                "th_TH": "ระเบิด",
+                "fil_PH": "Sumabog",
+                "en_SG": "Explode"
+            },
+            "filePath": "exploding_head.png",
+            "code": "exploding_head"
+        },
+        {
+            "names": {
+                "zh_CN": "呼气",
+                "en_US": "Exhale",
+                "ms_MY": "Hempas nafas keluar",
+                "vi_VN": "Thở ra",
+                "th_TH": "หายใจออก",
+                "fil_PH": "Huminga ng labas",
+                "en_SG": "Exhale"
+            },
+            "filePath": "face_exhaling.png",
+            "code": "face_exhaling"
+        },
+        {
+            "names": {
+                "zh_CN": "喷嚏",
+                "en_US": "Sneeze",
+                "ms_MY": "Bersin",
+                "vi_VN": "Hắt hơi",
+                "th_TH": "จาม",
+                "fil_PH": "Umubo",
+                "en_SG": "Sneeze"
+            },
+            "filePath": "sneezing_face.png",
+            "code": "sneezing_face"
+        },
+        {
+            "names": {
+                "zh_CN": "口罩",
+                "en_US": "Mask",
+                "ms_MY": "Topeng muka",
+                "vi_VN": "Khẩu trang",
+                "th_TH": "หน้ากากอนามัย",
+                "fil_PH": "Maskara",
+                "en_SG": "Mask"
+            },
+            "filePath": "face_with_medical_mask.png",
+            "code": "face_with_medical_mask"
+        },
+        {
+            "names": {
+                "zh_CN": "测温",
+                "en_US": "Take temperature",
+                "ms_MY": "Mengambil suhu",
+                "vi_VN": "đo nhiệt độ",
+                "th_TH": "วัดอุณหภูมิ",
+                "fil_PH": "Kumukuha ng temperatura",
+                "en_SG": "Take temperature"
+            },
+            "filePath": "face_with_thermometer.png",
+            "code": "face_with_thermometer"
+        },
+        {
+            "names": {
+                "zh_CN": "冷脸",
+                "en_US": "Cold expression",
+                "ms_MY": "Ekspresi sejuk",
+                "vi_VN": "Biểu hiện lạnh lùng",
+                "th_TH": "สีหน้าเย็นชา",
+                "fil_PH": "Malamig na ekspresyon",
+                "en_SG": "Cold expression"
+            },
+            "filePath": "cold_face.png",
+            "code": "cold_face"
+        },
+        {
+            "names": {
+                "zh_CN": "呕吐",
+                "en_US": "Vomit",
+                "ms_MY": "Muntah",
+                "vi_VN": "Nôn mửa",
+                "th_TH": "อ้วก",
+                "fil_PH": "Umubo",
+                "en_SG": "Vomit"
+            },
+            "filePath": "face_vomiting.png",
+            "code": "face_vomiting"
+        },
+        {
+            "names": {
+                "zh_CN": "恶心",
+                "en_US": "Nauseous",
+                "ms_MY": "Mual",
+                "vi_VN": "Buồn nôn",
+                "th_TH": "คลื่นไส้",
+                "fil_PH": "Nawawalan ng gana",
+                "en_SG": "Nauseous"
+            },
+            "filePath": "nauseated_face.png",
+            "code": "nauseated_face"
+        },
+        {
+            "names": {
+                "zh_CN": "思考",
+                "en_US": "Think",
+                "ms_MY": "Berfikir",
+                "vi_VN": "Suy nghĩ",
+                "th_TH": "คิด",
+                "fil_PH": "Isipin",
+                "en_SG": "Think"
+            },
+            "filePath": "thinking_face.png",
+            "code": "thinking_face"
+        },
+        {
+            "names": {
+                "zh_CN": "哈欠",
+                "en_US": "Yyawn",
+                "ms_MY": "Menguap",
+                "vi_VN": "Hắt hơi ngáp",
+                "th_TH": "หาว",
+                "fil_PH": "Huminga ng malalim na may pagkahikab",
+                "en_SG": "Yawn"
+            },
+            "filePath": "yawning_face.png",
+            "code": "yawning_face"
+        },
+        {
+            "names": {
+                "zh_CN": "嘘声",
+                "en_US": "Booing",
+                "ms_MY": "Bunyi sorakan tidak setuju",
+                "vi_VN": "Tiếng huýt",
+                "th_TH": "เสียงโห่",
+                "fil_PH": "Bunyi panlalait",
+                "en_SG": "Booing"
+            },
+            "filePath": "shushing_face.png",
+            "code": "shushing_face"
+        },
+        {
+            "names": {
+                "zh_CN": "惊捂",
+                "en_US": "Cover in surprise",
+                "ms_MY": "Tutup dengan terkejut",
+                "vi_VN": "Che tay trong kinh ngạc",
+                "th_TH": "ปิดด้วยความประหลาดใจ",
+                "fil_PH": "Takpan sa pagtataka",
+                "en_SG": "Cover in surprise"
+            },
+            "filePath": "face_with_open_eyes_and_hand_over_mouth.png",
+            "code": "face_with_open_eyes_and_hand_over_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "偷看",
+                "en_US": "Peek",
+                "ms_MY": "Mengintai",
+                "vi_VN": "Nhìn trộm",
+                "th_TH": "แอบดู",
+                "fil_PH": "Mangiting tingin",
+                "en_SG": "Peek"
+            },
+            "filePath": "face_with_peeking_eye.png",
+            "code": "face_with_peeking_eye"
+        },
+        {
+            "names": {
+                "zh_CN": "困脸",
+                "en_US": "Sleepy expression",
+                "ms_MY": "Ekspresi mengantuk",
+                "vi_VN": "Biểu hiện buồn ngủ",
+                "th_TH": "สีหน้าเหนื่อยและง่วงนอน",
+                "fil_PH": "Mabagal na ekspresyon na may antok",
+                "en_SG": "Sleepy expression"
+            },
+            "filePath": "sleepy_face.png",
+            "code": "sleepy_face"
+        },
+        {
+            "names": {
+                "zh_CN": "无嘴",
+                "en_US": "Mouthless",
+                "ms_MY": "Tanpa mulut",
+                "vi_VN": "Không có miệng",
+                "th_TH": "ไม่มีปาก",
+                "fil_PH": "Walang bibig",
+                "en_SG": "Mouthless"
+            },
+            "filePath": "face_without_mouth.png",
+            "code": "face_without_mouth"
+        },
+        {
+            "names": {
+                "zh_CN": "亲吻",
+                "en_US": "Kiss",
+                "ms_MY": "Cium",
+                "vi_VN": "Hôn",
+                "th_TH": "จูบ",
+                "fil_PH": "Halik",
+                "en_SG": "Kiss"
+            },
+            "filePath": "kissing_face.png",
+            "code": "kissing_face"
+        },
+        {
+            "names": {
+                "zh_CN": "说谎",
+                "en_US": "Lie",
+                "ms_MY": "Membohong",
+                "vi_VN": "Nói dối",
+                "th_TH": "โกหก",
+                "fil_PH": "Mangloloko",
+                "en_SG": "Lie"
+            },
+            "filePath": "lying_face.png",
+            "code": "lying_face"
+        },
+        {
+            "names": {
+                "zh_CN": "财迷",
+                "en_US": "Money-mad",
+                "ms_MY": "Obsessed with money",
+                "vi_VN": "Tham tiền",
+                "th_TH": "หลงใหลในเงิน",
+                "fil_PH": "Masigasig sa pera",
+                "en_SG": "Money-mad"
+            },
+            "filePath": "money_mouth_face.png",
+            "code": "money_mouth_face"
+        },
+        {
+            "names": {
+                "zh_CN": "敬礼",
+                "en_US": "Salute",
+                "ms_MY": "Tabik hormat",
+                "vi_VN": "Chào kính",
+                "th_TH": "ยกมือไหว้",
+                "fil_PH": "Magpaalala",
+                "en_SG": "Salute"
+            },
+            "filePath": "saluting_face.png",
+            "code": "saluting_face"
+        },
+        {
+            "names": {
+                "zh_CN": "云端",
+                "en_US": "Cloud",
+                "ms_MY": "Awan computing",
+                "vi_VN": "Mây cao",
+                "th_TH": "เมฆ",
+                "fil_PH": "Ulap",
+                "en_SG": "Cloud"
+            },
+            "filePath": "face_in_clouds.png",
+            "code": "face_in_clouds"
+        },
+        {
+            "names": {
+                "zh_CN": "恶魔",
+                "en_US": "Demon",
+                "ms_MY": "Syaitan",
+                "vi_VN": "Ác quỷ",
+                "th_TH": "ปีศาจ",
+                "fil_PH": "Demonyo",
+                "en_SG": "Demon"
+            },
+            "filePath": "smiling_face_with_horns.png",
+            "code": "smiling_face_with_horns"
+        },
+        {
+            "names": {
+                "zh_CN": "小丑",
+                "en_US": "",
+                "ms_MY": "",
+                "vi_VN": "",
+                "th_TH": "",
+                "fil_PH": "",
+                "en_SG": ""
+            },
+            "filePath": "clown_face.png",
+            "code": "clown_face"
+        },
+        {
+            "names": {
+                "zh_CN": "吻印",
+                "en_US": "Kiss mark",
+                "ms_MY": "Tanda ciuman",
+                "vi_VN": "Dấu hôn",
+                "th_TH": "รอยจูบ",
+                "fil_PH": "Tandang halik",
+                "en_SG": "Kiss mark"
+            },
+            "filePath": "kiss_mark.png",
+            "code": "kiss_mark"
+        },
+        {
+            "names": {
+                "zh_CN": "咬唇",
+                "en_US": "Bite lip",
+                "ms_MY": "Gigit bibir",
+                "vi_VN": "Cắn môi",
+                "th_TH": "กัดริมฝีปาก",
+                "fil_PH": "Kumagat ng labi",
+                "en_SG": "Bite lip"
+            },
+            "filePath": "biting_lip.png",
+            "code": "biting_lip"
+        },
+        {
+            "names": {
+                "zh_CN": "红心",
+                "en_US": "Red heart",
+                "ms_MY": "Hati merah",
+                "vi_VN": "Trái tim đỏ",
+                "th_TH": "หัวใจสีแดง",
+                "fil_PH": "Puso na pula",
+                "en_SG": "Red heart"
+            },
+            "filePath": "red_heart.png",
+            "code": "red_heart"
+        },
+        {
+            "names": {
+                "zh_CN": "燃烧",
+                "en_US": "Burn",
+                "ms_MY": "Bakar",
+                "vi_VN": "Cháy",
+                "th_TH": "เผาไหม้",
+                "fil_PH": "Sunog",
+                "en_SG": "Burn"
+            },
+            "filePath": "heart_on_fire.png",
+            "code": "heart_on_fire"
+        },
+        {
+            "names": {
+                "zh_CN": "心伤",
+                "en_US": "Heartbroken",
+                "ms_MY": "Hati hancur",
+                "vi_VN": "Tổn thương tâm hồn",
+                "th_TH": "อกแตกสลาย",
+                "fil_PH": "Masira ang puso",
+                "en_SG": "Heartbroken"
+            },
+            "filePath": "mending_heart.png",
+            "code": "mending_heart"
+        },
+        {
+            "names": {
+                "zh_CN": "心碎",
+                "en_US": "Heartbroken",
+                "ms_MY": "Hati hancur",
+                "vi_VN": "Tấm lòng tan vỡ",
+                "th_TH": "หัวใจสลาย",
+                "fil_PH": "Masira ang puso",
+                "en_SG": "Heartbroken"
+            },
+            "filePath": "broken_heart.png",
+            "code": "broken_heart"
+        },
+        {
+            "names": {
+                "zh_CN": "满分",
+                "en_US": "Full marks",
+                "ms_MY": "Markah penuh",
+                "vi_VN": "Điểm tuyệt đối",
+                "th_TH": "คะแนนเต็ม",
+                "fil_PH": "Punong-puntos",
+                "en_SG": "Full marks"
+            },
+            "filePath": "hundred_points.png",
+            "code": "hundred_points"
+        },
+        {
+            "names": {
+                "zh_CN": "情书",
+                "en_US": "Love letter",
+                "ms_MY": "Surat cinta",
+                "vi_VN": "Thư tình",
+                "th_TH": "จดหมายรัก",
+                "fil_PH": "Sulat ng pag-ibig",
+                "en_SG": "Love letter"
+            },
+            "filePath": "love_letter.png",
+            "code": "love_letter"
+        },
+        {
+            "names": {
+                "zh_CN": "炸弹",
+                "en_US": "Bomb",
+                "ms_MY": "Bomba",
+                "vi_VN": "Quả bom",
+                "th_TH": "ระเบิด",
+                "fil_PH": "Bomba",
+                "en_SG": "Bomb"
+            },
+            "filePath": "bomb.png",
+            "code": "bomb"
+        },
+        {
+            "names": {
+                "zh_CN": "便便",
+                "en_US": "Excrement",
+                "ms_MY": "Taik",
+                "vi_VN": "Phân",
+                "th_TH": "อุจจาระ",
+                "fil_PH": "Dumi",
+                "en_SG": "Excrement"
+            },
+            "filePath": "pile_of_poo.png",
+            "code": "pile_of_poo"
+        },
+        {
+            "names": {
+                "zh_CN": "幽灵",
+                "en_US": "Ghost",
+                "ms_MY": "Hantu",
+                "vi_VN": "Ma",
+                "th_TH": "ผี",
+                "fil_PH": "Multo",
+                "en_SG": "Ghost"
+            },
+            "filePath": "ghost.png",
+            "code": "ghost"
+        },
+        {
+            "names": {
+                "zh_CN": "蛋糕",
+                "en_US": "Cake",
+                "ms_MY": "Kek",
+                "vi_VN": "Bánh ngọt",
+                "th_TH": "เค้ก",
+                "fil_PH": "Kek",
+                "en_SG": "Cake"
+            },
+            "filePath": "birthday_cake.png",
+            "code": "birthday_cake"
+        },
+        {
+            "names": {
+                "zh_CN": "飞机",
+                "en_US": "Aircraft",
+                "ms_MY": "Pesawat",
+                "vi_VN": "Máy bay",
+                "th_TH": "เครื่องบิน",
+                "fil_PH": "Sasakyang panghimpapawid",
+                "en_SG": "Aircraft"
+            },
+            "filePath": "airplane.png",
+            "code": "airplane"
+        },
+        {
+            "names": {
+                "zh_CN": "高铁",
+                "en_US": "High-speed rail",
+                "ms_MY": "Kereta api berkelajuan tinggi",
+                "vi_VN": "Tàu cao tốc",
+                "th_TH": "รถไฟความเร็วสูง",
+                "fil_PH": "Mabilis na riles ng tren",
+                "en_SG": "High-speed rail"
+            },
+            "filePath": "bullet_train.png",
+            "code": "bullet_train"
+        },
+        {
+            "names": {
+                "zh_CN": "啤酒",
+                "en_US": "Beer",
+                "ms_MY": "Bir",
+                "vi_VN": "Bia",
+                "th_TH": "เบียร์",
+                "fil_PH": "Beer",
+                "en_SG": "Beer"
+            },
+            "filePath": "beer_mug.png",
+            "code": "beer_mug"
+        },
+        {
+            "names": {
+                "zh_CN": "碰杯",
+                "en_US": "Clink glasses",
+                "ms_MY": "Bersuap gelas",
+                "vi_VN": "Chạm cốc",
+                "th_TH": "ชนแก้ว",
+                "fil_PH": "Pagsalubong ng baso",
+                "en_SG": "Clink glasses"
+            },
+            "filePath": "clinking_beer_mugs.png",
+            "code": "clinking_beer_mugs"
+        },
+        {
+            "names": {
+                "zh_CN": "奶茶",
+                "en_US": "Milk tea",
+                "ms_MY": "Teh susu",
+                "vi_VN": "Trà sữa",
+                "th_TH": "ชานม",
+                "fil_PH": "Tsaa ng gatas",
+                "en_SG": "Milk tea"
+            },
+            "filePath": "bubble_tea.png",
+            "code": "bubble_tea"
+        },
+        {
+            "names": {
+                "zh_CN": "吸管杯",
+                "en_US": "Straw cup",
+                "ms_MY": "Cawan penyedut",
+                "vi_VN": "Cốc có ống hút",
+                "th_TH": "แก้วดูด",
+                "fil_PH": "Kubeta na may sipilyo",
+                "en_SG": "Straw cup"
+            },
+            "filePath": "cup_with_straw.png",
+            "code": "cup_with_straw"
+        },
+        {
+            "names": {
+                "zh_CN": "热饮",
+                "en_US": "Hot beverage",
+                "ms_MY": "Minuman panas",
+                "vi_VN": "Thức uống nóng",
+                "th_TH": "เครื่องดื่มร้อน",
+                "fil_PH": "Mainit na inumin",
+                "en_SG": "Hot beverage"
+            },
+            "filePath": "hot_beverage.png",
+            "code": "hot_beverage"
+        },
+        {
+            "names": {
+                "zh_CN": "火焰",
+                "en_US": "Flame",
+                "ms_MY": "Api",
+                "vi_VN": "Lửa",
+                "th_TH": "เปลวไฟ",
+                "fil_PH": " apoy",
+                "en_SG": "Flame"
+            },
+            "filePath": "fire.png",
+            "code": "fire"
+        },
+        {
+            "names": {
+                "zh_CN": "魔杖",
+                "en_US": "Magic wand",
+                "ms_MY": "Tongkat ajaib",
+                "vi_VN": "Cây đũa thần",
+                "th_TH": "ไม้กายสิทธิ์",
+                "fil_PH": "Magic wand",
+                "en_SG": "Magic wand"
+            },
+            "filePath": "magic_wand.png",
+            "code": "magic_wand"
+        },
+        {
+            "names": {
+                "zh_CN": "礼炮",
+                "en_US": "Salute cannon",
+                "ms_MY": "Meriam hormat",
+                "vi_VN": "Pháo lễ",
+                "th_TH": "ปืนใหญ่ยิงสวัสดิการ",
+                "fil_PH": "Salutong baril",
+                "en_SG": "Salute cannon"
+            },
+            "filePath": "party_popper.png",
+            "code": "party_popper"
+        },
+        {
+            "names": {
+                "zh_CN": "红包",
+                "en_US": "Red envelope",
+                "ms_MY": "Kotak merah",
+                "vi_VN": "Phong bì đỏ",
+                "th_TH": "ซองแดง",
+                "fil_PH": "Pulang sobre",
+                "en_SG": "Red envelope"
+            },
+            "filePath": "red_envelope.png",
+            "code": "red_envelope"
+        },
+        {
+            "names": {
+                "zh_CN": "玫瑰",
+                "en_US": "Rose",
+                "ms_MY": "Mawar",
+                "vi_VN": "Hoa hồng",
+                "th_TH": "ดอกกุหลาบ",
+                "fil_PH": "Rosas",
+                "en_SG": "Rose"
+            },
+            "filePath": "rose.png",
+            "code": "rose"
+        },
+        {
+            "names": {
+                "zh_CN": "残花",
+                "en_US": "Withered flower",
+                "ms_MY": "Bunga layu",
+                "vi_VN": "Hoa tàn",
+                "th_TH": "ดอกไม้ซาก",
+                "fil_PH": "Patay na bulaklak",
+                "en_SG": "Withered flower"
+            },
+            "filePath": "wilted_flower.png",
+            "code": "wilted_flower"
+        }
+    ]
+}
