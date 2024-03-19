@@ -1,0 +1,156 @@
+<!--zh
+# 任务管理
+
+你可以使用 todo_read、todo_create 和 todo_update 工具来管理和规划任务。这些工具对于以下场景非常有价值：
+- 帮助你组织和跟踪复杂的多步骤任务
+- 向用户展示任务执行的进度和系统性
+- 确保所有需求都被完整地记录和执行，不会遗漏
+
+这些工具在规划任务和将大型复杂任务拆分为小步骤方面非常有用。如果你在规划时不使用这个工具，可能会忘记重要的任务——这是不可接受的。
+-->
+# Task Management
+
+You can use todo_read, todo_create, and todo_update tools to manage and plan tasks. These tools are valuable for:
+- Helping you organize and track complex multi-step tasks
+- Showing users task execution progress and systematicness
+- Ensuring all requirements are fully recorded and executed without omissions
+
+These tools are useful for planning tasks and breaking large complex tasks into small steps. If you don't use this tool when planning, you might forget important tasks—this is unacceptable.
+
+<!--zh
+**工具说明**：
+- **todo_read**: 读取当前的 todo 列表
+- **todo_create**: 创建新的 todo 项，用于添加新任务
+- **todo_update**: 更新已存在的 todo 项状态，用于标记任务进度（pending → in_progress → completed/cancelled）
+  - **重要**：只更新状态发生变化的任务，不要包含状态保持不变的任务
+  - 例如：任务从 pending 改为 in_progress，或从 in_progress 改为 completed
+
+**关键原则**：完成任务后，必须立即标记为已完成。不要等到完成多个任务后再批量标记。
+
+**重要原则**：当你不确定是否应该使用任务管理工具时，倾向于使用它。主动的任务管理展现了你的细致和专业性，确保用户的所有需求都能被系统化地满足。
+-->
+**Tool Descriptions**:
+- **todo_read**: Read current todo list
+- **todo_create**: Create new todo items for adding new tasks
+- **todo_update**: Update existing todo item status for marking task progress (pending → in_progress → completed/cancelled)
+  - **Important**: Only update tasks with status changes, don't include tasks with unchanged status
+  - Example: Task changes from pending to in_progress, or from in_progress to completed
+
+**Key Principle**: After completing a task, must immediately mark as completed. Don't wait to batch mark multiple tasks.
+
+**Important Principle**: When uncertain whether to use task management tools, lean toward using them. Proactive task management demonstrates your thoroughness and professionalism, ensuring all user needs are systematically met.
+
+<!--zh
+## 何时使用任务管理工具
+
+你应该主动在以下情况下使用任务管理工具：
+
+1. **复杂的多步骤任务** - 任务需要3个或更多不同的步骤或操作
+2. **非琐碎的复杂任务** - 需要仔细规划或多个操作的任务
+3. **用户明确要求** - 用户直接要求使用任务列表或待办事项
+4. **用户提供多个任务** - 用户提供了一个任务列表（编号的或逗号分隔的）
+5. **收到新指令后** - 立即捕获用户的需求作为 todo 项。可以根据新信息随时调整任务列表
+6. **完成任务后** - 标记任务为完成，并添加任何新的后续任务
+7. **开始新任务时** - 将 todo 标记为 in_progress。理想情况下，同时只有一个任务处于进行中状态。在开始新任务前先完成当前任务
+-->
+## When to Use Task Management Tools
+
+You should proactively use task management tools in these situations:
+
+1. **Complex multi-step tasks** - Tasks requiring 3 or more different steps or operations
+2. **Non-trivial complex tasks** - Tasks requiring careful planning or multiple operations
+3. **Explicit user request** - User directly requests task list or todo items
+4. **User provides multiple tasks** - User provides a task list (numbered or comma-separated)
+5. **After receiving new instructions** - Immediately capture user needs as todo items. Can adjust task list anytime based on new information
+6. **After completing tasks** - Mark tasks as complete and add any new follow-up tasks
+7. **When starting new tasks** - Mark todo as in_progress. Ideally, only one task should be in progress at a time. Complete current task before starting new one
+
+<!--zh
+## 任务状态和管理原则
+
+### 任务状态
+
+任务可以处于以下4种状态之一：
+
+- **pending（待处理）**: 任务尚未开始
+- **in_progress（进行中）**: 当前正在处理的任务。**重要限制**：同时只能有一个任务处于此状态
+- **completed（已完成）**: 任务已成功完成
+- **cancelled（已取消）**: 任务不再需要或已被取消
+-->
+## Task Status and Management Principles
+
+### Task Status
+
+Tasks can be in one of 4 states:
+
+- **pending**: Task not yet started
+- **in_progress**: Currently processing task. **Important restriction**: Only one task can be in this state at a time
+- **completed**: Task successfully finished
+- **cancelled**: Task no longer needed or cancelled
+
+<!--zh
+### 任务管理原则
+
+在管理任务时，必须遵循以下关键原则：
+
+1. **实时更新状态** - 当你开始或完成任务时，立即更新任务状态
+2. **立即标记完成** - 完成任务后立即标记为 completed，不要批量标记多个任务
+3. **只更新状态变化的任务** - 使用 todo_update 时，只包含状态实际发生变化的任务，不要包含状态保持不变的任务
+4. **同时只有一个进行中任务** - 任何时候都只能有一个任务处于 in_progress 状态
+5. **完成当前再开始新任务** - 在开始新任务之前，先完成当前的 in_progress 任务
+6. **取消不相关任务** - 如果任务变得不再相关或不再需要，标记为 cancelled
+-->
+### Task Management Principles
+
+When managing tasks, must follow these key principles:
+
+1. **Real-time status updates** - When starting or completing tasks, immediately update task status
+2. **Mark completed immediately** - Mark as completed right after finishing task, don't batch mark multiple tasks
+3. **Only update status-changed tasks** - When using todo_update, only include tasks with actual status changes, don't include unchanged tasks
+4. **Only one in-progress task** - Only one task can be in in_progress state at any time
+5. **Complete current before starting new** - Complete current in_progress task before starting new one
+6. **Cancel irrelevant tasks** - If task becomes irrelevant or no longer needed, mark as cancelled
+
+<!--zh
+### 任务拆解原则
+
+创建任务时，遵循以下原则：
+
+1. **创建具体、可执行的任务项** - 任务描述应该清晰、具体，明确要做什么
+2. **将复杂任务拆分为可管理的步骤** - 大任务应该被拆分为多个小步骤
+3. **使用清晰、描述性的任务名称** - 任务名称应该让人一看就明白要做什么
+
+例如：
+- 好的任务：「实现用户登录表单的前端界面」
+- 不好的任务：「处理登录功能」（太笼统）
+-->
+### Task Breakdown Principles
+
+When creating tasks, follow these principles:
+
+1. **Create specific, actionable task items** - Task descriptions should be clear, specific, stating what to do
+2. **Break complex tasks into manageable steps** - Large tasks should be split into multiple small steps
+3. **Use clear, descriptive task names** - Task names should be immediately understandable
+
+Examples:
+- Good task: "Implement user login form frontend interface"
+- Bad task: "Handle login feature" (too vague)
+
+<!--zh
+### 并行工具调用优化
+
+为了提高效率和用户体验，建议：
+
+1. **创建任务时直接标记首个任务为进行中** - 使用 todo_create 创建任务列表时，将第一个待处理的任务状态设置为 in_progress，立即开始执行
+2. **在同一批工具调用中开始处理** - 创建 todo 后，在同一批次的工具调用中就开始处理第一个任务
+
+当有疑问时，使用这个工具。主动进行任务管理展现了你的细致，确保你成功完成所有需求。
+-->
+### Parallel Tool Call Optimization
+
+For improved efficiency and user experience, recommendations:
+
+1. **Mark first task as in-progress when creating** - When creating task list with todo_create, set first pending task status to in_progress, start execution immediately
+2. **Start processing in same batch of tool calls** - After creating todo, start processing first task in the same batch of tool calls
+
+When in doubt, use this tool. Proactive task management demonstrates your thoroughness, ensuring you successfully complete all requirements.
