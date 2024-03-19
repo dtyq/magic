@@ -1,0 +1,389 @@
+@import "@/opensource/styles/_tiptap-variables.scss"; /* TipTap editor variables (scoped) */
+@import "@/opensource/styles/_keyframe-animations.scss";
+@import "@/opensource/styles/lucide.css";
+@import "@/opensource/styles/tabler-icon.css";
+
+/**
+ * Import order controls CSS specificity (first has lowest priority):
+ * 1. Ant Design reset (lowest priority)
+ * 2. Tailwind CSS base styles
+ * 3. Custom component styles (highest priority)
+ */
+@import "antd/es/style/reset.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+	/* Skeleton loading component - unified loading animation */
+	.skeleton {
+		@apply relative overflow-hidden bg-fill-secondary;
+	}
+
+	.skeleton::after {
+		content: "";
+		@apply absolute inset-0 animate-skeleton;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.6) 50%,
+			transparent 100%
+		);
+		background-size: 200% 100%;
+	}
+
+	.dark .skeleton {
+		@apply bg-fill;
+	}
+
+	.dark .skeleton::after {
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.15) 50%,
+			transparent 100%
+		);
+	}
+
+	/* Hide scrollbar */
+	.no-scrollbar::-webkit-scrollbar {
+		display: none;
+	}
+
+	.no-scrollbar {
+		-ms-overflow-style: none; /* IE and Edge */
+		scrollbar-width: none; /* Firefox */
+	}
+
+	/* Topic status text shimmer - uses keyframes from _keyframe-animations.scss */
+	.topic-status-shimmer {
+		background-image: linear-gradient(
+			90deg,
+			#d1d1d1 0%,
+			#0a0a0a 17.79%,
+			#e5e5e5 50%,
+			#0a0a0a 82.21%,
+			#d1d1d1 100%
+		);
+		background-size: 200% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+		animation: shimmer 4s ease-in-out infinite;
+	}
+
+	.dark .topic-status-shimmer {
+		background-image: linear-gradient(
+			90deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			#0a0a0a 17.79%,
+			rgba(255, 255, 255, 0.15) 50%,
+			#0a0a0a 82.21%,
+			rgba(255, 255, 255, 0.08) 100%
+		);
+	}
+}
+
+@layer base {
+	:root {
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		overflow: hidden;
+
+		/* scrollbar-gutter: stable; */
+		scroll-behavior: smooth;
+
+		--safe-area-inset-top: env(safe-area-inset-top);
+		--safe-area-inset-bottom: env(safe-area-inset-bottom);
+		--safe-area-inset-left: env(safe-area-inset-left);
+		--safe-area-inset-right: env(safe-area-inset-right);
+		--mobile-tabbar-height: 60px;
+
+		/* z-index：所有悬浮层的 z-index 都基于1000，业务中普通场景不需要自己控制 z-index
+		*/
+		--z-index-popup: 1000;
+		--z-index-dialog: var(--z-index-popup);
+		--z-index-dropdown: var(--z-index-popup);
+		--z-index-drawer: var(--z-index-popup);
+		--z-index-tooltip: var(--z-index-popup);
+		--z-index-modal: var(--z-index-popup);
+		--z-index-select: var(--z-index-popup);
+		/** 兼容ant-mobile的popup z-index */
+		--adm-popup-z-index: var(--z-index-popup);
+		--adm-mask-z-index: var(--z-index-popup);
+
+		/** 兼容ant-mobile的popup 和 shadcn/ui的浮窗共存嵌套场景 */
+		.adm-popup {
+			pointer-events: auto;
+		}
+
+		--adm-color-background: #fff;
+
+		--radius: 0.625rem;
+		--radius-xs: 0.125rem; /* 2px */
+		--radius-sm: calc(var(--radius) - 4px);
+		--radius-md: calc(var(--radius) - 2px);
+		--radius-lg: var(--radius);
+		--radius-xl: calc(var(--radius) + 4px);
+
+		--background: 1 0 0;
+		--background-rgb: 255 255 255;
+		--foreground: 0.145 0 0;
+		--foreground-rgb: 10 10 10;
+		--card: 1 0 0;
+		--card-rgb: 255 255 255;
+		--card-foreground: 0.145 0 0;
+		--card-foreground-rgb: 10 10 10;
+		--popover: 1 0 0;
+		--popover-rgb: 255 255 255;
+		--popover-foreground: 0.145 0 0;
+		--popover-foreground-rgb: 10 10 10;
+		--primary: 0.205 0 0;
+		--primary-rgb: 23 23 23;
+		--primary-foreground: 0.985 0 0;
+		--primary-foreground-rgb: 250 250 250;
+		--secondary: 0.97 0 0;
+		--secondary-rgb: 245 245 245;
+		--secondary-foreground: 0.205 0 0;
+		--secondary-foreground-rgb: 23 23 23;
+		--muted: 0.97 0 0;
+		--muted-rgb: 245 245 245;
+		--muted-foreground: 0.556 0 0;
+		--muted-foreground-rgb: 115 115 115;
+		--accent: 0.97 0 0;
+		--accent-rgb: 245 245 245;
+		--accent-foreground: 0.205 0 0;
+		--accent-foreground-rgb: 23 23 23;
+		--destructive: 0.577 0.245 27.325;
+		--destructive-rgb: 228 0 22;
+		--destructive-foreground: 0.985 0 0;
+		--destructive-foreground-rgb: 250 250 250;
+		--border: 0.922 0 0;
+		--border-rgb: 229 229 229;
+		--border-alpha: 1;
+		--input: 0.922 0 0;
+		--input-rgb: 229 229 229;
+		--input-alpha: 1;
+		--ring: 0.708 0 0;
+		--ring-rgb: 161 161 161;
+		--fill: 0.97 0 0;
+		--fill-rgb: 245 245 245;
+		--fill-secondary: 0.922 0 0;
+		--fill-secondary-rgb: 229 229 229;
+		--fill-secondary-alpha: 1;
+		--chart-1: 0.646 0.222 41.116;
+		--chart-1-rgb: 236 86 0;
+		--chart-2: 0.6 0.118 184.704;
+		--chart-2-rgb: 0 148 136;
+		--chart-3: 0.398 0.07 227.392;
+		--chart-3-rgb: 16 78 100;
+		--chart-4: 0.828 0.189 84.429;
+		--chart-4-rgb: 250 188 0;
+		--chart-5: 0.769 0.188 70.08;
+		--chart-5-rgb: 246 158 0;
+		--sidebar: 0.985 0 0;
+		--sidebar-rgb: 250 250 250;
+		--sidebar-foreground: 0.145 0 0;
+		--sidebar-foreground-rgb: 10 10 10;
+		--sidebar-primary: 0.205 0 0;
+		--sidebar-primary-rgb: 23 23 23;
+		--sidebar-primary-foreground: 0.985 0 0;
+		--sidebar-primary-foreground-rgb: 250 250 250;
+		--sidebar-accent: 0.97 0 0;
+		--sidebar-accent-rgb: 245 245 245;
+		--sidebar-accent-foreground: 0.205 0 0;
+		--sidebar-accent-foreground-rgb: 23 23 23;
+		--sidebar-border: 0.922 0 0;
+		--sidebar-border-rgb: 229 229 229;
+		--sidebar-border-alpha: 1;
+		--sidebar-ring: 0.708 0 0;
+		--sidebar-ring-rgb: 161 161 161;
+
+		/* Custom outline colors for mobile TabBar */
+		--custom-outline-10-dark-outline-20: rgba(163, 163, 163, 0.1);
+
+		/* Custom primary colors with opacity variants */
+		--custom-primary-10-dark-primary-20: rgba(37, 99, 235, 0.1);
+	}
+
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+		border-color: rgb(var(--border-rgb) / var(--border-alpha));
+	}
+
+	html,
+	body,
+	#root,
+	.magic-app {
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+		-webkit-font-smoothing: antialiased;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	/**
+	 * 移动端交互优化
+	 * 
+	 * touch-action: manipulation 的作用：
+	 * 1. 消除移动端 300ms 点击延迟（用于检测双击缩放的延迟）
+	 * 2. 禁用双击缩放，避免用户误触时页面缩放
+	 * 3. 保留单指平移和双指缩放功能
+	 * 4. 提升整体交互响应速度和用户体验
+	 * 
+	 * 应用范围：所有可交互元素（按钮、链接、输入框等）
+	 * 性能影响：无负面影响，桌面浏览器会自动忽略此属性
+	 */
+	button,
+	a,
+	input,
+	select,
+	textarea,
+	[role="button"],
+	[role="link"],
+	[tabindex]:not([tabindex="-1"]) {
+		touch-action: manipulation;
+	}
+
+	.dark {
+		--background: 0.145 0 0;
+		--background-rgb: 10 10 10;
+		--foreground: 0.985 0 0;
+		--foreground-rgb: 250 250 250;
+		--card: 0.205 0 0;
+		--card-rgb: 23 23 23;
+		--card-foreground: 0.985 0 0;
+		--card-foreground-rgb: 250 250 250;
+		--popover: 0.205 0 0;
+		--popover-rgb: 23 23 23;
+		--popover-foreground: 0.985 0 0;
+		--popover-foreground-rgb: 250 250 250;
+		--primary: 0.922 0 0;
+		--primary-rgb: 229 229 229;
+		--primary-foreground: 0.205 0 0;
+		--primary-foreground-rgb: 23 23 23;
+		--secondary: 0.269 0 0;
+		--secondary-rgb: 38 38 38;
+		--secondary-foreground: 0.985 0 0;
+		--secondary-foreground-rgb: 250 250 250;
+		--muted: 0.269 0 0;
+		--muted-rgb: 38 38 38;
+		--muted-foreground: 0.708 0 0;
+		--muted-foreground-rgb: 161 161 161;
+		--accent: 0.269 0 0;
+		--accent-rgb: 38 38 38;
+		--accent-foreground: 0.985 0 0;
+		--accent-foreground-rgb: 250 250 250;
+		--destructive: 0.704 0.191 22.216;
+		--destructive-rgb: 255 101 104;
+		--border: 1 0 0;
+		--border-rgb: 255 255 255;
+		--border-alpha: 0.1;
+		--input: 1 0 0;
+		--input-rgb: 255 255 255;
+		--input-alpha: 0.15;
+		--ring: 0.556 0 0;
+		--ring-rgb: 115 115 115;
+		--fill: 0.269 0 0;
+		--fill-rgb: 38 38 38;
+		--fill-secondary: 1 0 0;
+		--fill-secondary-rgb: 255 255 255;
+		--fill-secondary-alpha: 0.1;
+		--chart-1: 0.488 0.243 264.376;
+		--chart-1-rgb: 20 71 230;
+		--chart-2: 0.696 0.17 162.48;
+		--chart-2-rgb: 0 185 129;
+		--chart-3: 0.769 0.188 70.08;
+		--chart-3-rgb: 246 158 0;
+		--chart-4: 0.627 0.265 303.9;
+		--chart-4-rgb: 171 78 255;
+		--chart-5: 0.645 0.246 16.439;
+		--chart-5-rgb: 255 35 87;
+		--sidebar: 0.205 0 0;
+		--sidebar-rgb: 23 23 23;
+		--sidebar-foreground: 0.985 0 0;
+		--sidebar-foreground-rgb: 250 250 250;
+		--sidebar-primary: 0.488 0.243 264.376;
+		--sidebar-primary-rgb: 20 71 230;
+		--sidebar-primary-foreground: 0.985 0 0;
+		--sidebar-primary-foreground-rgb: 250 250 250;
+		--sidebar-accent: 0.269 0 0;
+		--sidebar-accent-rgb: 38 38 38;
+		--sidebar-accent-foreground: 0.985 0 0;
+		--sidebar-accent-foreground-rgb: 250 250 250;
+		--sidebar-border: 1 0 0;
+		--sidebar-border-rgb: 255 255 255;
+		--sidebar-border-alpha: 0.1;
+		--sidebar-ring: 0.556 0 0;
+		--sidebar-ring-rgb: 115 115 115;
+
+		/* Custom outline colors for mobile TabBar */
+		--custom-outline-10-dark-outline-20: rgba(163, 163, 163, 0.2);
+
+		/* Custom primary colors with opacity variants */
+		--custom-primary-10-dark-primary-20: rgba(37, 99, 235, 0.2);
+	}
+}
+
+.ant-popover-buttons {
+	display: flex;
+	justify-content: center;
+}
+
+.scrollbar-y-thin {
+	scrollbar-width: thin;
+	scrollbar-color: rgb(var(--border-rgb) / var(--border-alpha)) transparent;
+}
+
+.scrollbar-hide {
+	scrollbar-width: none;
+	scrollbar-color: transparent transparent;
+}
+
+.scrollbar-y-thin ::-webkit-scrollbar {
+	width: 4px;
+}
+
+.scrollbar-y-thin ::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.scrollbar-y-thin ::-webkit-scrollbar-thumb {
+	background-color: rgb(var(--border-rgb) / var(--border-alpha));
+	border-radius: 2px;
+}
+
+.scrollbar-y-thin ::-webkit-scrollbar-thumb:hover {
+	background-color: rgb(var(--muted-foreground-rgb));
+}
+
+.scrollbar-x-thin {
+	scrollbar-width: thin;
+	scrollbar-color: rgb(var(--border-rgb) / var(--border-alpha)) transparent;
+}
+
+.scrollbar-x-thin ::-webkit-scrollbar {
+	height: 4px;
+}
+
+.scrollbar-x-thin ::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.scrollbar-x-thin ::-webkit-scrollbar-thumb {
+	background-color: rgb(var(--border-rgb) / var(--border-alpha));
+	border-radius: 2px;
+}
+
+.scrollbar-x-thin ::-webkit-scrollbar-thumb:hover {
+	background-color: rgb(var(--muted-foreground-rgb));
+}
+
+.ant-modal-confirm-body > svg {
+	flex-shrink: 0;
+}
