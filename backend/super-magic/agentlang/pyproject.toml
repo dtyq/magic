@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentlang"
+version = "0.1.4"
+description = "Language-first AI Agent Framework - 以自然语言为核心构建 AI 智能体的框架"
+readme = "README.md"
+authors = [
+    {name = "SuperMagic Team", email = "dev@letsmagic.ai"}
+]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed"
+]
+keywords = ["agent", "llm", "ai", "framework"]
+dependencies = [
+    "pydantic>=2.0.0",
+    "tiktoken>=0.5.0",
+    "aiofiles>=0.8.0",
+    "openai>=1.0.0",
+    "PyYAML>=6.0",
+    "html5lib>=1.1",
+    "tinycss2>=1.2.1",
+    "beautifulsoup4>=4.11.1",
+    "loguru>=0.7.0",
+    "asyncio>=3.4.3",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+"Bug Reports" = "https://github.com/dtyq/agentlang/issues"
+"Source" = "https://github.com/dtyq/agentlang"
