@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+use HyperfTest\Tools\PHPUnit\AdapterCommand;
+use Symfony\Component\Console\Application;
+
+! defined('PHPUNIT_ADAPTOR_BASE_PATH') && define('PHPUNIT_ADAPTOR_BASE_PATH', dirname(__DIR__, 1));
+
+(function () {
+    $require = true;
+    if ($require) {
+        $possibleFiles = [
+            PHPUNIT_ADAPTOR_BASE_PATH . '/vender/composer/autoload.php',
+            PHPUNIT_ADAPTOR_BASE_PATH . '/vender/composer/autoload.php',
+            PHPUNIT_ADAPTOR_BASE_PATH . '/vendor/autoload.php',
+        ];
+        $file = null;
+        foreach ($possibleFiles as $possibleFile) {
+            if (file_exists($possibleFile)) {
+                $file = $possibleFile;
+                break;
+            }
+        }
+
+        if ($file === null) {
+            throw new RuntimeException('Unable to locate autoload.php file.');
+        }
+
+        require_once $file;
+    }
+})();
+
+$app = new Application();
+$app->add(new AdapterCommand());
+$app->run();

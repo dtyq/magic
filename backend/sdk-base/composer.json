@@ -1,0 +1,47 @@
+{
+    "name": "dtyq/sdk-base",
+    "description": "作为 SDK 的基础包，提供通用组件能力",
+    "license": "Apache License 2.0",
+    "authors": [
+        {
+            "name": "lihq1403",
+            "email": "lihqing1403@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-json": "*",
+        "psr/container": "*",
+        "psr/log": "*",
+        "psr/simple-cache": "*",
+        "psr/http-client": "*",
+        "adbario/php-dot-notation": "^3.3|^2.4"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "mockery/mockery": "^1.0",
+        "phpunit/phpunit": "^9.0",
+        "phpstan/phpstan": "^1.0",
+        "guzzlehttp/guzzle": "^6.0|^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Dtyq\\SdkBase\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Dtyq\\SdkBase\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "cs-fix": "php-cs-fixer fix $1",
+        "test": "./vendor/bin/phpunit",
+        "analyse": "phpstan analyse --memory-limit 1024M -l 0 ./src"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    }
+}
