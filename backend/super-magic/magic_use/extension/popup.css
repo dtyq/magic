@@ -1,0 +1,147 @@
+body {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  width: 380px; /* Slightly wider for better layout */
+  margin: 0;
+  padding: 10px;
+  background-color: #f4f7f6;
+}
+
+.container {
+  padding: 10px;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+h2 {
+  font-size: 16px;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.section {
+  margin-bottom: 15px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+label {
+  color: #555;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0 5px 0;
+  background: #4a6cf7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: center;
+  transition: background 0.3s;
+}
+
+.btn:hover {
+  background: #3a5ce5;
+}
+
+.btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.file-label {
+  display: inline-block; /* Allow inline display */
+  width: auto; /* Adjust width automatically */
+  padding: 8px 15px;
+  margin-top: 5px;
+  margin-bottom: 10px;
+  background-color: #6c757d;
+}
+
+.file-label:hover {
+  background-color: #5a6268;
+}
+
+textarea#import-area {
+  width: calc(100% - 16px); /* Adjust width accounting for padding */
+  height: 100px;
+  margin-top: 5px;
+  margin-bottom: 5px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.note {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  border-left: 3px solid #ffc107; /* Add a warning indicator */
+}
+
+#status-area {
+  margin-top: 15px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  display: none; /* Initially hidden */
+  text-align: center;
+}
+
+#status-area.success {
+  background: #e7f7e7;
+  color: #287328;
+  display: block;
+}
+
+#status-area.error {
+  background: #f7e7e7;
+  color: #732828;
+  display: block;
+}
+
+#status-area.warning {
+  background: #fff7e0;
+  color: #856404;
+  display: block;
+}
+
+.progress-bar-container {
+  margin-top: 10px;
+  height: 8px;
+  width: 100%;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  /* display: none; /* Controlled by JS */
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #4a6cf7;
+  width: 0%;
+  border-radius: 4px;
+  transition: width 0.3s ease-in-out;
+}
