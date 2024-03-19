@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件大小限制测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .file-info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+
+        .oversized {
+            background: #ffe6e6;
+            border-left: 4px solid #ff4d4f;
+        }
+
+        .valid {
+            background: #e6f7ff;
+            border-left: 4px solid #1890ff;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .primary {
+            background: #1890ff;
+            color: white;
+        }
+
+        .danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .success {
+            background: #52c41a;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📁 文件大小限制测试 (100MB)</h1>
+
+    <div class="test-section">
+        <h2>🧪 测试场景</h2>
+        <p>这个测试页面模拟了文件夹上传时的文件大小过滤逻辑：</p>
+        <ul>
+            <li>✅ 小于等于100MB的文件会被保留并上传</li>
+            <li>⚠️ 大于100MB的文件会被过滤掉，显示警告但不阻止上传</li>
+            <li>❌ 如果所有文件都超过100MB，则显示错误并阻止上传</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>📂 选择文件夹进行测试</h2>
+        <input type="file" id="folderInput" webkitdirectory multiple>
+        <button class="primary" onclick="testFileSize()">测试文件大小过滤</button>
+        <button class="danger" onclick="clearResults()">清除结果</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 测试结果</h2>
+        <div id="results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 创建测试文件</h2>
+        <p>你可以使用以下按钮创建不同大小的测试文件：</p>
+        <button class="success" onclick="createTestFile(50)">创建50MB文件</button>
+        <button class="success" onclick="createTestFile(100)">创建100MB文件</button>
+        <button class="danger" onclick="createTestFile(150)">创建150MB文件</button>
+        <button class="danger" onclick="createTestFile(200)">创建200MB文件</button>
+    </div>
+
+    <script>
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function testFileSize() {
+            const input = document.getElementById('folderInput');
+            const resultsDiv = document.getElementById('results');
+
+            if (!input.files || input.files.length === 0) {
+                resultsDiv.innerHTML = '<div class="file-info">❌ 请先选择一个文件夹</div>';
+                return;
+            }
+
+            const files = Array.from(input.files);
+            const oversizedFiles = files.filter(file => file.size > MAX_FILE_SIZE);
+            const validFiles = files.filter(file => file.size <= MAX_FILE_SIZE);
+
+            let html = `<h3>📁 文件夹分析结果</h3>`;
+            html += `<p><strong>总文件数：</strong> ${files.length}</p>`;
+            html += `<p><strong>有效文件：</strong> ${validFiles.length}</p>`;
+            html += `<p><strong>超大文件：</strong> ${oversizedFiles.length}</p>`;
+
+            if (oversizedFiles.length > 0) {
+                html += `<h4>⚠️ 被过滤的文件 (超过100MB)：</h4>`;
+                oversizedFiles.forEach(file => {
+                    html += `<div class="file-info oversized">
+                        📄 ${file.name} - ${formatFileSize(file.size)}
+                    </div>`;
+                });
+
+                if (validFiles.length > 0) {
+                    html += `<div style="margin: 20px 0; padding: 15px; background: #fff7e6; border: 1px solid #ffa940; border-radius: 4px;">
+                        ⚠️ <strong>警告：</strong> 已过滤 ${oversizedFiles.length} 个超过 100MB 限制的文件，将上传剩余 ${validFiles.length} 个有效文件
+                    </div>`;
+                } else {
+                    html += `<div style="margin: 20px 0; padding: 15px; background: #fff1f0; border: 1px solid #ff4d4f; border-radius: 4px;">
+                        ❌ <strong>错误：</strong> 所有文件都超过 100MB 大小限制，无法上传
+                    </div>`;
+                }
+            }
+
+            if (validFiles.length > 0) {
+                html += `<h4>✅ 将要上传的文件：</h4>`;
+                validFiles.forEach(file => {
+                    html += `<div class="file-info valid">
+                        📄 ${file.name} - ${formatFileSize(file.size)}
+                    </div>`;
+                });
+
+                if (oversizedFiles.length === 0) {
+                    html += `<div style="margin: 20px 0; padding: 15px; background: #f6ffed; border: 1px solid #52c41a; border-radius: 4px;">
+                        ✅ <strong>成功：</strong> 所有 ${validFiles.length} 个文件都符合大小要求，可以正常上传
+                    </div>`;
+                }
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('folderInput').value = '';
+        }
+
+        function createTestFile(sizeMB) {
+            // 创建指定大小的测试文件
+            const size = sizeMB * 1024 * 1024;
+            const data = new Uint8Array(size);
+
+            // 填充一些测试数据
+            for (let i = 0; i < Math.min(size, 1000); i++) {
+                data[i] = i % 256;
+            }
+
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `test-file-${sizeMB}MB.bin`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert(`已创建 ${sizeMB}MB 测试文件，请下载后放入文件夹中进行测试`);
+        }
+
+        // 页面加载完成后的提示
+        window.onload = function () {
+            console.log('📁 文件大小限制测试页面已加载');
+            console.log('🎯 测试步骤：');
+            console.log('1. 点击"创建测试文件"按钮创建不同大小的文件');
+            console.log('2. 将文件放入一个文件夹中');
+            console.log('3. 选择该文件夹进行测试');
+            console.log('4. 查看过滤结果');
+        };
+    </script>
+</body>
+
+</html>
