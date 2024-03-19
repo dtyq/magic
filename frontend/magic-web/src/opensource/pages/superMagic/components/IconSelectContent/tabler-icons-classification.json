@@ -1,0 +1,2747 @@
+{
+  "categories": [
+    {
+      "id": "symbols",
+      "name": "符号",
+      "nameEn": "Symbols",
+      "icon": "icon-star",
+      "icons": [
+        {
+          "icon": "icon-circle",
+          "name": "圆形",
+          "nameEn": "Circle"
+        },
+        {
+          "icon": "icon-square",
+          "name": "方形",
+          "nameEn": "Square"
+        },
+        {
+          "icon": "icon-triangle",
+          "name": "三角形",
+          "nameEn": "Triangle"
+        },
+        {
+          "icon": "icon-pentagon",
+          "name": "五边形",
+          "nameEn": "Pentagon"
+        },
+        {
+          "icon": "icon-hexagon",
+          "name": "六边形",
+          "nameEn": "Hexagon"
+        },
+        {
+          "icon": "icon-octagon",
+          "name": "八边形",
+          "nameEn": "Octagon"
+        },
+        {
+          "icon": "icon-diamond",
+          "name": "菱形",
+          "nameEn": "Diamond"
+        },
+        {
+          "icon": "icon-star",
+          "name": "星形",
+          "nameEn": "Star"
+        },
+        {
+          "icon": "icon-heart",
+          "name": "心形",
+          "nameEn": "Heart"
+        },
+        {
+          "icon": "icon-arrow-up",
+          "name": "向上箭头",
+          "nameEn": "Arrow Up"
+        },
+        {
+          "icon": "icon-arrow-down",
+          "name": "向下箭头",
+          "nameEn": "Arrow Down"
+        },
+        {
+          "icon": "icon-arrow-left",
+          "name": "向左箭头",
+          "nameEn": "Arrow Left"
+        },
+        {
+          "icon": "icon-arrow-right",
+          "name": "向右箭头",
+          "nameEn": "Arrow Right"
+        },
+        {
+          "icon": "icon-arrow-up-right",
+          "name": "右上箭头",
+          "nameEn": "Arrow Up Right"
+        },
+        {
+          "icon": "icon-arrow-down-right",
+          "name": "右下箭头",
+          "nameEn": "Arrow Down Right"
+        },
+        {
+          "icon": "icon-arrow-down-left",
+          "name": "左下箭头",
+          "nameEn": "Arrow Down Left"
+        },
+        {
+          "icon": "icon-arrow-up-left",
+          "name": "左上箭头",
+          "nameEn": "Arrow Up Left"
+        },
+        {
+          "icon": "icon-arrows-up-down",
+          "name": "上下箭头",
+          "nameEn": "Arrows Up Down"
+        },
+        {
+          "icon": "icon-arrows-left-right",
+          "name": "左右箭头",
+          "nameEn": "Arrows Left Right"
+        },
+        {
+          "icon": "icon-arrow-back",
+          "name": "返回箭头",
+          "nameEn": "Arrow Back"
+        },
+        {
+          "icon": "icon-arrow-forward",
+          "name": "前进箭头",
+          "nameEn": "Arrow Forward"
+        },
+        {
+          "icon": "icon-arrow-loop-left",
+          "name": "左循环箭头",
+          "nameEn": "Arrow Loop Left"
+        },
+        {
+          "icon": "icon-arrow-loop-right",
+          "name": "右循环箭头",
+          "nameEn": "Arrow Loop Right"
+        },
+        {
+          "icon": "icon-arrow-bounce",
+          "name": "弹跳箭头",
+          "nameEn": "Arrow Bounce"
+        },
+        {
+          "icon": "icon-arrow-curve-left",
+          "name": "左曲线箭头",
+          "nameEn": "Arrow Curve Left"
+        },
+        {
+          "icon": "icon-arrow-curve-right",
+          "name": "右曲线箭头",
+          "nameEn": "Arrow Curve Right"
+        },
+        {
+          "icon": "icon-check",
+          "name": "对勾",
+          "nameEn": "Check"
+        },
+        {
+          "icon": "icon-x",
+          "name": "叉号",
+          "nameEn": "X"
+        },
+        {
+          "icon": "icon-plus",
+          "name": "加号",
+          "nameEn": "Plus"
+        },
+        {
+          "icon": "icon-minus",
+          "name": "减号",
+          "nameEn": "Minus"
+        },
+        {
+          "icon": "icon-question-mark",
+          "name": "问号",
+          "nameEn": "Question Mark"
+        },
+        {
+          "icon": "icon-exclamation-mark",
+          "name": "感叹号",
+          "nameEn": "Exclamation Mark"
+        },
+        {
+          "icon": "icon-info-circle",
+          "name": "信息圆圈",
+          "nameEn": "Info Circle"
+        },
+        {
+          "icon": "icon-alert-circle",
+          "name": "警告圆圈",
+          "nameEn": "Alert Circle"
+        },
+        {
+          "icon": "icon-ban",
+          "name": "禁止",
+          "nameEn": "Ban"
+        },
+        {
+          "icon": "icon-badge",
+          "name": "徽章",
+          "nameEn": "Badge"
+        },
+        {
+          "icon": "icon-shield-check",
+          "name": "徽章对勾",
+          "nameEn": "Shield Check"
+        },
+        {
+          "icon": "icon-badge-off",
+          "name": "徽章关闭",
+          "nameEn": "Badge Off"
+        },
+        {
+          "icon": "icon-certificate",
+          "name": "证书",
+          "nameEn": "Certificate"
+        },
+        {
+          "icon": "icon-award",
+          "name": "奖项",
+          "nameEn": "Award"
+        },
+        {
+          "icon": "icon-bold",
+          "name": "粗体",
+          "nameEn": "Bold"
+        },
+        {
+          "icon": "icon-italic",
+          "name": "斜体",
+          "nameEn": "Italic"
+        },
+        {
+          "icon": "icon-underline",
+          "name": "下划线",
+          "nameEn": "Underline"
+        },
+        {
+          "icon": "icon-strikethrough",
+          "name": "删除线",
+          "nameEn": "Strikethrough"
+        },
+        {
+          "icon": "Icon-text-recognition",
+          "name": "文本",
+          "nameEn": "Text"
+        },
+        {
+          "icon": "icon-heading",
+          "name": "标题",
+          "nameEn": "Heading"
+        },
+        {
+          "icon": "icon-list",
+          "name": "列表",
+          "nameEn": "List"
+        },
+        {
+          "icon": "icon-list-numbers",
+          "name": "有序列表",
+          "nameEn": "List Numbers"
+        },
+        {
+          "icon": "icon-quote",
+          "name": "引用",
+          "nameEn": "Quote"
+        },
+        {
+          "icon": "icon-align-left",
+          "name": "左对齐",
+          "nameEn": "Align Left"
+        },
+        {
+          "icon": "icon-align-center",
+          "name": "居中对齐",
+          "nameEn": "Align Center"
+        },
+        {
+          "icon": "icon-align-right",
+          "name": "右对齐",
+          "nameEn": "Align Right"
+        },
+        {
+          "icon": "icon-align-justified",
+          "name": "两端对齐",
+          "nameEn": "Align Justified"
+        },
+        {
+          "icon": "icon-caret-up",
+          "name": "向上插入符",
+          "nameEn": "Caret Up"
+        },
+        {
+          "icon": "icon-caret-down",
+          "name": "向下插入符",
+          "nameEn": "Caret Down"
+        },
+        {
+          "icon": "icon-caret-left",
+          "name": "向左插入符",
+          "nameEn": "Caret Left"
+        },
+        {
+          "icon": "icon-caret-right",
+          "name": "向右插入符",
+          "nameEn": "Caret Right"
+        },
+        {
+          "icon": "icon-chevron-up",
+          "name": "向上 V 形",
+          "nameEn": "Chevron Up"
+        },
+        {
+          "icon": "icon-chevron-down",
+          "name": "向下 V 形",
+          "nameEn": "Chevron Down"
+        },
+        {
+          "icon": "icon-chevron-left",
+          "name": "向左 V 形",
+          "nameEn": "Chevron Left"
+        },
+        {
+          "icon": "icon-chevron-right",
+          "name": "向右 V 形",
+          "nameEn": "Chevron Right"
+        }
+      ]
+    },
+    {
+      "id": "technology",
+      "name": "科技",
+      "nameEn": "Technology",
+      "icon": "icon-device-desktop",
+      "icons": [
+        {
+          "icon": "icon-device-mobile",
+          "name": "手机",
+          "nameEn": "Device Mobile"
+        },
+        {
+          "icon": "icon-device-tablet",
+          "name": "平板电脑",
+          "nameEn": "Device Tablet"
+        },
+        {
+          "icon": "icon-device-desktop",
+          "name": "台式电脑",
+          "nameEn": "Device Desktop"
+        },
+        {
+          "icon": "icon-device-laptop",
+          "name": "笔记本电脑",
+          "nameEn": "Device Laptop"
+        },
+        {
+          "icon": "icon-device-tv",
+          "name": "电视",
+          "nameEn": "Device TV"
+        },
+        {
+          "icon": "icon-device-watch",
+          "name": "智能手表",
+          "nameEn": "Device Watch"
+        },
+        {
+          "icon": "icon-device-speaker",
+          "name": "扬声器",
+          "nameEn": "Device Speaker"
+        },
+        {
+          "icon": "icon-device-gamepad",
+          "name": "游戏手柄",
+          "nameEn": "Device Gamepad"
+        },
+        {
+          "icon": "icon-device-airpods",
+          "name": "耳机",
+          "nameEn": "Device Airpods"
+        },
+        {
+          "icon": "icon-device-floppy",
+          "name": "软盘",
+          "nameEn": "Device Floppy"
+        },
+        {
+          "icon": "icon-device-sd-card",
+          "name": "SD 卡",
+          "nameEn": "Device SD Card"
+        },
+        {
+          "icon": "icon-device-usb",
+          "name": "USB",
+          "nameEn": "Device USB"
+        },
+        {
+          "icon": "icon-apps",
+          "name": "应用网格",
+          "nameEn": "Apps"
+        },
+        {
+          "icon": "icon-app-window",
+          "name": "应用窗口",
+          "nameEn": "App Window"
+        },
+        {
+          "icon": "icon-brand-apple",
+          "name": "Apple",
+          "nameEn": "Brand Apple"
+        },
+        {
+          "icon": "icon-brand-android",
+          "name": "Android",
+          "nameEn": "Brand Android"
+        },
+        {
+          "icon": "icon-brand-windows",
+          "name": "Windows",
+          "nameEn": "Brand Windows"
+        },
+        {
+          "icon": "icon-brand-chrome",
+          "name": "Chrome",
+          "nameEn": "Brand Chrome"
+        },
+        {
+          "icon": "icon-brand-firefox",
+          "name": "Firefox",
+          "nameEn": "Brand Firefox"
+        },
+        {
+          "icon": "icon-brand-edge",
+          "name": "Edge",
+          "nameEn": "Brand Edge"
+        },
+        {
+          "icon": "icon-brand-safari",
+          "name": "Safari",
+          "nameEn": "Brand Safari"
+        },
+        {
+          "icon": "icon-database",
+          "name": "数据库",
+          "nameEn": "Database"
+        },
+        {
+          "icon": "icon-table",
+          "name": "表格",
+          "nameEn": "Table"
+        },
+        {
+          "icon": "icon-chart-line",
+          "name": "折线图",
+          "nameEn": "Chart Line"
+        },
+        {
+          "icon": "icon-chart-bar",
+          "name": "柱状图",
+          "nameEn": "Chart Bar"
+        },
+        {
+          "icon": "icon-chart-pie",
+          "name": "饼图",
+          "nameEn": "Chart Pie"
+        },
+        {
+          "icon": "icon-chart-area",
+          "name": "面积图",
+          "nameEn": "Chart Area"
+        },
+        {
+          "icon": "icon-chart-donut",
+          "name": "环形图",
+          "nameEn": "Chart Donut"
+        },
+        {
+          "icon": "icon-chart-candle",
+          "name": "K 线图",
+          "nameEn": "Chart Candle"
+        },
+        {
+          "icon": "icon-graph",
+          "name": "图表",
+          "nameEn": "Graph"
+        },
+        {
+          "icon": "icon-trending-up",
+          "name": "趋势上升",
+          "nameEn": "Trending Up"
+        },
+        {
+          "icon": "icon-trending-down",
+          "name": "趋势下降",
+          "nameEn": "Trending Down"
+        },
+        {
+          "icon": "icon-calculator",
+          "name": "计算器",
+          "nameEn": "Calculator"
+        },
+        {
+          "icon": "icon-abacus",
+          "name": "算盘",
+          "nameEn": "Abacus"
+        },
+        {
+          "icon": "icon-lock",
+          "name": "锁",
+          "nameEn": "Lock"
+        },
+        {
+          "icon": "icon-lock-open",
+          "name": "解锁",
+          "nameEn": "Lock Open"
+        },
+        {
+          "icon": "icon-shield",
+          "name": "盾牌",
+          "nameEn": "Shield"
+        },
+        {
+          "icon": "icon-shield-check",
+          "name": "盾牌对勾",
+          "nameEn": "Shield Check"
+        },
+        {
+          "icon": "icon-shield-lock",
+          "name": "盾牌锁",
+          "nameEn": "Shield Lock"
+        },
+        {
+          "icon": "icon-shield-off",
+          "name": "盾牌关闭",
+          "nameEn": "Shield Off"
+        },
+        {
+          "icon": "icon-key",
+          "name": "钥匙",
+          "nameEn": "Key"
+        },
+        {
+          "icon": "icon-fingerprint",
+          "name": "指纹",
+          "nameEn": "Fingerprint"
+        },
+        {
+          "icon": "icon-eye",
+          "name": "眼睛",
+          "nameEn": "Eye"
+        },
+        {
+          "icon": "icon-eye-off",
+          "name": "眼睛关闭",
+          "nameEn": "Eye Off"
+        },
+        {
+          "icon": "icon-password",
+          "name": "密码",
+          "nameEn": "Password"
+        },
+        {
+          "icon": "icon-mail",
+          "name": "邮件",
+          "nameEn": "Mail"
+        },
+        {
+          "icon": "icon-mail-opened",
+          "name": "已打开邮件",
+          "nameEn": "Mail Opened"
+        },
+        {
+          "icon": "icon-inbox",
+          "name": "收件箱",
+          "nameEn": "Inbox"
+        },
+        {
+          "icon": "icon-send",
+          "name": "发送",
+          "nameEn": "Send"
+        },
+        {
+          "icon": "icon-message",
+          "name": "消息",
+          "nameEn": "Message"
+        },
+        {
+          "icon": "icon-message-circle",
+          "name": "消息圆圈",
+          "nameEn": "Message Circle"
+        },
+        {
+          "icon": "icon-message-dots",
+          "name": "消息点",
+          "nameEn": "Message Dots"
+        },
+        {
+          "icon": "icon-phone",
+          "name": "电话",
+          "nameEn": "Phone"
+        },
+        {
+          "icon": "icon-phone-call",
+          "name": "电话呼叫",
+          "nameEn": "Phone Call"
+        },
+        {
+          "icon": "icon-phone-incoming",
+          "name": "来电",
+          "nameEn": "Phone Incoming"
+        },
+        {
+          "icon": "icon-phone-outgoing",
+          "name": "去电",
+          "nameEn": "Phone Outgoing"
+        },
+        {
+          "icon": "icon-video",
+          "name": "视频",
+          "nameEn": "Video"
+        },
+        {
+          "icon": "icon-video-off",
+          "name": "视频关闭",
+          "nameEn": "Video Off"
+        },
+        {
+          "icon": "icon-microphone",
+          "name": "麦克风",
+          "nameEn": "Microphone"
+        },
+        {
+          "icon": "icon-microphone-off",
+          "name": "麦克风关闭",
+          "nameEn": "Microphone Off"
+        },
+        {
+          "icon": "icon-file",
+          "name": "文件",
+          "nameEn": "File"
+        },
+        {
+          "icon": "icon-file-text",
+          "name": "文本文件",
+          "nameEn": "File Text"
+        },
+        {
+          "icon": "icon-file-code",
+          "name": "代码文件",
+          "nameEn": "File Code"
+        },
+        {
+          "icon": "icon-file-type-pdf",
+          "name": "PDF 文件",
+          "nameEn": "File Type PDF"
+        },
+        {
+          "icon": "icon-file-word",
+          "name": "Word 文件",
+          "nameEn": "File Word"
+        },
+        {
+          "icon": "icon-file-excel",
+          "name": "Excel 文件",
+          "nameEn": "File Excel"
+        },
+        {
+          "icon": "icon-file-type-ppt",
+          "name": "PPT 文件",
+          "nameEn": "File Type PPT"
+        },
+        {
+          "icon": "icon-file-type-jpg",
+          "name": "图片文件",
+          "nameEn": "File Type JPG"
+        },
+        {
+          "icon": "icon-file-zip",
+          "name": "压缩文件",
+          "nameEn": "File ZIP"
+        },
+        {
+          "icon": "icon-file-download",
+          "name": "下载文件",
+          "nameEn": "File Download"
+        },
+        {
+          "icon": "icon-file-upload",
+          "name": "上传文件",
+          "nameEn": "File Upload"
+        },
+        {
+          "icon": "icon-file-check",
+          "name": "文件对勾",
+          "nameEn": "File Check"
+        },
+        {
+          "icon": "icon-file-x",
+          "name": "文件叉号",
+          "nameEn": "File X"
+        },
+        {
+          "icon": "icon-file-plus",
+          "name": "添加文件",
+          "nameEn": "File Plus"
+        },
+        {
+          "icon": "icon-file-minus",
+          "name": "删除文件",
+          "nameEn": "File Minus"
+        },
+        {
+          "icon": "icon-file-search",
+          "name": "搜索文件",
+          "nameEn": "File Search"
+        },
+        {
+          "icon": "icon-file-off",
+          "name": "文件关闭",
+          "nameEn": "File Off"
+        },
+        {
+          "icon": "icon-file-symlink",
+          "name": "文件符号链接",
+          "nameEn": "File Symlink"
+        },
+        {
+          "icon": "icon-files",
+          "name": "多个文件",
+          "nameEn": "Files"
+        },
+        {
+          "icon": "icon-folder",
+          "name": "文件夹",
+          "nameEn": "Folder"
+        },
+        {
+          "icon": "icon-folder-open",
+          "name": "打开文件夹",
+          "nameEn": "Folder Open"
+        },
+        {
+          "icon": "icon-folder-off",
+          "name": "文件夹关闭",
+          "nameEn": "Folder Off"
+        },
+        {
+          "icon": "icon-folder-plus",
+          "name": "添加文件夹",
+          "nameEn": "Folder Plus"
+        },
+        {
+          "icon": "icon-folder-minus",
+          "name": "删除文件夹",
+          "nameEn": "Folder Minus"
+        },
+        {
+          "icon": "icon-folder-x",
+          "name": "文件夹叉号",
+          "nameEn": "Folder X"
+        },
+        {
+          "icon": "icon-folder-check",
+          "name": "文件夹对勾",
+          "nameEn": "Folder Check"
+        },
+        {
+          "icon": "icon-folder-search",
+          "name": "搜索文件夹",
+          "nameEn": "Folder Search"
+        },
+        {
+          "icon": "icon-player-play",
+          "name": "播放",
+          "nameEn": "Player Play"
+        },
+        {
+          "icon": "icon-player-pause",
+          "name": "暂停",
+          "nameEn": "Player Pause"
+        },
+        {
+          "icon": "icon-player-stop",
+          "name": "停止",
+          "nameEn": "Player Stop"
+        },
+        {
+          "icon": "icon-player-skip-forward",
+          "name": "快进",
+          "nameEn": "Player Skip Forward"
+        },
+        {
+          "icon": "icon-player-skip-back",
+          "name": "快退",
+          "nameEn": "Player Skip Back"
+        },
+        {
+          "icon": "icon-volume",
+          "name": "音量",
+          "nameEn": "Volume"
+        },
+        {
+          "icon": "icon-volume-2",
+          "name": "音量中等",
+          "nameEn": "Volume 2"
+        },
+        {
+          "icon": "icon-volume-3",
+          "name": "音量高",
+          "nameEn": "Volume 3"
+        },
+        {
+          "icon": "icon-volume-off",
+          "name": "静音",
+          "nameEn": "Volume Off"
+        },
+        {
+          "icon": "icon-camera",
+          "name": "相机",
+          "nameEn": "Camera"
+        },
+        {
+          "icon": "icon-camera-off",
+          "name": "相机关闭",
+          "nameEn": "Camera Off"
+        },
+        {
+          "icon": "icon-photo",
+          "name": "照片",
+          "nameEn": "Photo"
+        },
+        {
+          "icon": "icon-photo-off",
+          "name": "照片关闭",
+          "nameEn": "Photo Off"
+        },
+        {
+          "icon": "icon-cloud",
+          "name": "云",
+          "nameEn": "Cloud"
+        },
+        {
+          "icon": "icon-cloud-download",
+          "name": "云下载",
+          "nameEn": "Cloud Download"
+        },
+        {
+          "icon": "icon-cloud-upload",
+          "name": "云上传",
+          "nameEn": "Cloud Upload"
+        },
+        {
+          "icon": "icon-cloud-computing",
+          "name": "云计算",
+          "nameEn": "Cloud Computing"
+        },
+        {
+          "icon": "icon-cloud-off",
+          "name": "云关闭",
+          "nameEn": "Cloud Off"
+        },
+        {
+          "icon": "icon-keyboard",
+          "name": "键盘",
+          "nameEn": "Keyboard"
+        },
+        {
+          "icon": "icon-keyboard-off",
+          "name": "键盘关闭",
+          "nameEn": "Keyboard Off"
+        },
+        {
+          "icon": "icon-keyboard-hide",
+          "name": "隐藏键盘",
+          "nameEn": "Keyboard Hide"
+        },
+        {
+          "icon": "icon-wifi",
+          "name": "WiFi",
+          "nameEn": "WiFi"
+        },
+        {
+          "icon": "icon-wifi-off",
+          "name": "WiFi 关闭",
+          "nameEn": "WiFi Off"
+        },
+        {
+          "icon": "icon-bluetooth",
+          "name": "蓝牙",
+          "nameEn": "Bluetooth"
+        },
+        {
+          "icon": "icon-bluetooth-off",
+          "name": "蓝牙关闭",
+          "nameEn": "Bluetooth Off"
+        },
+        {
+          "icon": "icon-bluetooth-connected",
+          "name": "蓝牙已连接",
+          "nameEn": "Bluetooth Connected"
+        },
+        {
+          "icon": "icon-antenna-bars-5",
+          "name": "信号",
+          "nameEn": "Antenna Bars 5"
+        },
+        {
+          "icon": "icon-signal-g",
+          "name": "1G 信号",
+          "nameEn": "Signal G"
+        },
+        {
+          "icon": "icon-signal-2g",
+          "name": "2G 信号",
+          "nameEn": "Signal 2G"
+        },
+        {
+          "icon": "icon-signal-3g",
+          "name": "3G 信号",
+          "nameEn": "Signal 3G"
+        },
+        {
+          "icon": "icon-signal-4g",
+          "name": "4G 信号",
+          "nameEn": "Signal 4G"
+        },
+        {
+          "icon": "icon-signal-5g",
+          "name": "5G 信号",
+          "nameEn": "Signal 5G"
+        },
+        {
+          "icon": "icon-antenna",
+          "name": "天线",
+          "nameEn": "Antenna"
+        },
+        {
+          "icon": "icon-antenna-off",
+          "name": "天线关闭",
+          "nameEn": "Antenna Off"
+        },
+        {
+          "icon": "icon-router",
+          "name": "路由器",
+          "nameEn": "Router"
+        },
+        {
+          "icon": "icon-router-off",
+          "name": "路由器关闭",
+          "nameEn": "Router Off"
+        },
+        {
+          "icon": "icon-server",
+          "name": "服务器",
+          "nameEn": "Server"
+        },
+        {
+          "icon": "icon-server-2",
+          "name": "服务器 2",
+          "nameEn": "Server 2"
+        },
+        {
+          "icon": "icon-server-off",
+          "name": "服务器关闭",
+          "nameEn": "Server Off"
+        },
+        {
+          "icon": "icon-database-off",
+          "name": "数据库关闭",
+          "nameEn": "Database Off"
+        },
+        {
+          "icon": "icon-database-export",
+          "name": "数据库导出",
+          "nameEn": "Database Export"
+        },
+        {
+          "icon": "icon-database-import",
+          "name": "数据库导入",
+          "nameEn": "Database Import"
+        },
+        {
+          "icon": "icon-battery",
+          "name": "电池",
+          "nameEn": "Battery"
+        },
+        {
+          "icon": "icon-battery-1",
+          "name": "电池 1",
+          "nameEn": "Battery 1"
+        },
+        {
+          "icon": "icon-battery-2",
+          "name": "电池 2",
+          "nameEn": "Battery 2"
+        },
+        {
+          "icon": "icon-battery-3",
+          "name": "电池 3",
+          "nameEn": "Battery 3"
+        },
+        {
+          "icon": "icon-battery-4",
+          "name": "电池 4",
+          "nameEn": "Battery 4"
+        },
+        {
+          "icon": "icon-battery-charging",
+          "name": "电池充电",
+          "nameEn": "Battery Charging"
+        },
+        {
+          "icon": "icon-battery-off",
+          "name": "电池关闭",
+          "nameEn": "Battery Off"
+        },
+        {
+          "icon": "icon-power",
+          "name": "电源",
+          "nameEn": "Power"
+        },
+        {
+          "icon": "icon-plug",
+          "name": "插头",
+          "nameEn": "Plug"
+        },
+        {
+          "icon": "icon-plug-off",
+          "name": "插头关闭",
+          "nameEn": "Plug Off"
+        },
+        {
+          "icon": "icon-outlet",
+          "name": "插座",
+          "nameEn": "Outlet"
+        },
+        {
+          "icon": "icon-bolt",
+          "name": "闪电",
+          "nameEn": "Bolt"
+        },
+        {
+          "icon": "icon-bolt-off",
+          "name": "闪电关闭",
+          "nameEn": "Bolt Off"
+        }
+      ]
+    },
+    {
+      "id": "life",
+      "name": "生活",
+      "nameEn": "Life",
+      "icon": "icon-home",
+      "icons": [
+        {
+          "icon": "icon-home",
+          "name": "家",
+          "nameEn": "Home"
+        },
+        {
+          "icon": "icon-building",
+          "name": "建筑",
+          "nameEn": "Building"
+        },
+        {
+          "icon": "icon-building-skyscraper",
+          "name": "摩天大楼",
+          "nameEn": "Building Skyscraper"
+        },
+        {
+          "icon": "icon-building-store",
+          "name": "商店建筑",
+          "nameEn": "Building Store"
+        },
+        {
+          "icon": "icon-building-bank",
+          "name": "银行建筑",
+          "nameEn": "Building Bank"
+        },
+        {
+          "icon": "icon-building-hospital",
+          "name": "医院建筑",
+          "nameEn": "Building Hospital"
+        },
+        {
+          "icon": "icon-door",
+          "name": "门",
+          "nameEn": "Door"
+        },
+        {
+          "icon": "icon-door-off",
+          "name": "门关闭",
+          "nameEn": "Door Off"
+        },
+        {
+          "icon": "icon-window",
+          "name": "窗户",
+          "nameEn": "Window"
+        },
+        {
+          "icon": "icon-fence",
+          "name": "栅栏",
+          "nameEn": "Fence"
+        },
+        {
+          "icon": "icon-tree",
+          "name": "树",
+          "nameEn": "Tree"
+        },
+        {
+          "icon": "icon-flower",
+          "name": "花",
+          "nameEn": "Flower"
+        },
+        {
+          "icon": "icon-leaf",
+          "name": "叶子",
+          "nameEn": "Leaf"
+        },
+        {
+          "icon": "icon-mountain",
+          "name": "山",
+          "nameEn": "Mountain"
+        },
+        {
+          "icon": "icon-beach",
+          "name": "海滩",
+          "nameEn": "Beach"
+        },
+        {
+          "icon": "icon-building-lighthouse",
+          "name": "灯塔",
+          "nameEn": "Building Lighthouse"
+        },
+        {
+          "icon": "icon-shopping-cart",
+          "name": "购物车",
+          "nameEn": "Shopping Cart"
+        },
+        {
+          "icon": "icon-shopping-bag",
+          "name": "购物袋",
+          "nameEn": "Shopping Bag"
+        },
+        {
+          "icon": "icon-basket",
+          "name": "篮子",
+          "nameEn": "Basket"
+        },
+        {
+          "icon": "icon-credit-card",
+          "name": "信用卡",
+          "nameEn": "Credit Card"
+        },
+        {
+          "icon": "icon-credit-card-off",
+          "name": "信用卡关闭",
+          "nameEn": "Credit Card Off"
+        },
+        {
+          "icon": "icon-cash",
+          "name": "现金",
+          "nameEn": "Cash"
+        },
+        {
+          "icon": "icon-coin",
+          "name": "硬币",
+          "nameEn": "Coin"
+        },
+        {
+          "icon": "icon-coins",
+          "name": "多个硬币",
+          "nameEn": "Coins"
+        },
+        {
+          "icon": "icon-wallet",
+          "name": "钱包",
+          "nameEn": "Wallet"
+        },
+        {
+          "icon": "icon-receipt",
+          "name": "收据",
+          "nameEn": "Receipt"
+        },
+        {
+          "icon": "icon-receipt-off",
+          "name": "收据关闭",
+          "nameEn": "Receipt Off"
+        },
+        {
+          "icon": "icon-tag",
+          "name": "标签",
+          "nameEn": "Tag"
+        },
+        {
+          "icon": "icon-tags",
+          "name": "多个标签",
+          "nameEn": "Tags"
+        },
+        {
+          "icon": "icon-discount",
+          "name": "折扣",
+          "nameEn": "Discount"
+        },
+        {
+          "icon": "icon-percentage",
+          "name": "百分比",
+          "nameEn": "Percentage"
+        },
+        {
+          "icon": "icon-currency-dollar",
+          "name": "美元",
+          "nameEn": "Currency Dollar"
+        },
+        {
+          "icon": "icon-currency-euro",
+          "name": "欧元",
+          "nameEn": "Currency Euro"
+        },
+        {
+          "icon": "icon-currency-yen",
+          "name": "日元",
+          "nameEn": "Currency Yen"
+        },
+        {
+          "icon": "icon-currency-pound",
+          "name": "英镑",
+          "nameEn": "Currency Pound"
+        },
+        {
+          "icon": "icon-currency-bitcoin",
+          "name": "比特币",
+          "nameEn": "Currency Bitcoin"
+        },
+        {
+          "icon": "icon-car",
+          "name": "汽车",
+          "nameEn": "Car"
+        },
+        {
+          "icon": "icon-truck",
+          "name": "卡车",
+          "nameEn": "Truck"
+        },
+        {
+          "icon": "icon-bus",
+          "name": "公交车",
+          "nameEn": "Bus"
+        },
+        {
+          "icon": "icon-train",
+          "name": "火车",
+          "nameEn": "Train"
+        },
+        {
+          "icon": "icon-plane",
+          "name": "飞机",
+          "nameEn": "Plane"
+        },
+        {
+          "icon": "icon-helicopter",
+          "name": "直升机",
+          "nameEn": "Helicopter"
+        },
+        {
+          "icon": "icon-bike",
+          "name": "自行车",
+          "nameEn": "Bike"
+        },
+        {
+          "icon": "icon-motorbike",
+          "name": "摩托车",
+          "nameEn": "Motorbike"
+        },
+        {
+          "icon": "icon-scooter",
+          "name": "滑板车",
+          "nameEn": "Scooter"
+        },
+        {
+          "icon": "icon-ship",
+          "name": "轮船",
+          "nameEn": "Ship"
+        },
+        {
+          "icon": "icon-anchor",
+          "name": "锚",
+          "nameEn": "Anchor"
+        },
+        {
+          "icon": "icon-gas-station",
+          "name": "加油站",
+          "nameEn": "Gas Station"
+        },
+        {
+          "icon": "icon-gas-station-off",
+          "name": "加油站关闭",
+          "nameEn": "Gas Station Off"
+        },
+        {
+          "icon": "icon-parking",
+          "name": "停车场",
+          "nameEn": "Parking"
+        },
+        {
+          "icon": "icon-parking-off",
+          "name": "停车场关闭",
+          "nameEn": "Parking Off"
+        },
+        {
+          "icon": "icon-road",
+          "name": "道路",
+          "nameEn": "Road"
+        },
+        {
+          "icon": "icon-traffic-lights",
+          "name": "交通灯",
+          "nameEn": "Traffic Lights"
+        },
+        {
+          "icon": "icon-traffic-lights-off",
+          "name": "交通灯关闭",
+          "nameEn": "Traffic Lights Off"
+        },
+        {
+          "icon": "icon-charging-pile",
+          "name": "充电桩",
+          "nameEn": "Charging Pile"
+        },
+        {
+          "icon": "icon-map",
+          "name": "地图",
+          "nameEn": "Map"
+        },
+        {
+          "icon": "icon-map-2",
+          "name": "地图 2",
+          "nameEn": "Map 2"
+        },
+        {
+          "icon": "icon-map-pin",
+          "name": "地图标记",
+          "nameEn": "Map Pin"
+        },
+        {
+          "icon": "icon-map-pins",
+          "name": "多个地图标记",
+          "nameEn": "Map Pins"
+        },
+        {
+          "icon": "icon-navigation",
+          "name": "导航",
+          "nameEn": "Navigation"
+        },
+        {
+          "icon": "icon-compass",
+          "name": "指南针",
+          "nameEn": "Compass"
+        },
+        {
+          "icon": "icon-route",
+          "name": "路线",
+          "nameEn": "Route"
+        },
+        {
+          "icon": "icon-sign-left",
+          "name": "左转标志",
+          "nameEn": "Sign Left"
+        },
+        {
+          "icon": "icon-sign-right",
+          "name": "右转标志",
+          "nameEn": "Sign Right"
+        },
+        {
+          "icon": "icon-world",
+          "name": "世界",
+          "nameEn": "World"
+        },
+        {
+          "icon": "icon-world-off",
+          "name": "世界关闭",
+          "nameEn": "World Off"
+        },
+        {
+          "icon": "icon-globe",
+          "name": "地球仪",
+          "nameEn": "Globe"
+        },
+        {
+          "icon": "icon-flag",
+          "name": "旗帜",
+          "nameEn": "Flag"
+        },
+        {
+          "icon": "icon-flag-off",
+          "name": "旗帜关闭",
+          "nameEn": "Flag Off"
+        },
+        {
+          "icon": "icon-flag-2",
+          "name": "旗帜 2",
+          "nameEn": "Flag 2"
+        },
+        {
+          "icon": "icon-flag-3",
+          "name": "旗帜 3",
+          "nameEn": "Flag 3"
+        },
+        {
+          "icon": "icon-pennant",
+          "name": "三角旗",
+          "nameEn": "Pennant"
+        },
+        {
+          "icon": "icon-luggage",
+          "name": "行李",
+          "nameEn": "Luggage"
+        },
+        {
+          "icon": "icon-briefcase-2",
+          "name": "手提箱",
+          "nameEn": "Briefcase 2"
+        },
+        {
+          "icon": "icon-current-location",
+          "name": "当前位置",
+          "nameEn": "Current Location"
+        },
+        {
+          "icon": "icon-location",
+          "name": "位置",
+          "nameEn": "Location"
+        },
+        {
+          "icon": "icon-location-off",
+          "name": "位置关闭",
+          "nameEn": "Location Off"
+        },
+        {
+          "icon": "icon-location-filled",
+          "name": "位置填充",
+          "nameEn": "Location Filled"
+        },
+        {
+          "icon": "icon-pin",
+          "name": "图钉",
+          "nameEn": "Pin"
+        },
+        {
+          "icon": "icon-pin-filled",
+          "name": "图钉填充",
+          "nameEn": "Pin Filled"
+        },
+        {
+          "icon": "icon-user",
+          "name": "用户",
+          "nameEn": "User"
+        },
+        {
+          "icon": "icon-users",
+          "name": "用户组",
+          "nameEn": "Users"
+        },
+        {
+          "icon": "icon-user-circle",
+          "name": "用户圆圈",
+          "nameEn": "User Circle"
+        },
+        {
+          "icon": "icon-user-check",
+          "name": "用户对勾",
+          "nameEn": "User Check"
+        },
+        {
+          "icon": "icon-user-plus",
+          "name": "添加用户",
+          "nameEn": "User Plus"
+        },
+        {
+          "icon": "icon-user-minus",
+          "name": "删除用户",
+          "nameEn": "User Minus"
+        },
+        {
+          "icon": "icon-user-x",
+          "name": "用户叉号",
+          "nameEn": "User X"
+        },
+        {
+          "icon": "icon-user-off",
+          "name": "用户关闭",
+          "nameEn": "User Off"
+        },
+        {
+          "icon": "icon-users-group",
+          "name": "用户组",
+          "nameEn": "Users Group"
+        },
+        {
+          "icon": "icon-friends",
+          "name": "朋友",
+          "nameEn": "Friends"
+        },
+        {
+          "icon": "icon-id",
+          "name": "身份证",
+          "nameEn": "ID"
+        },
+        {
+          "icon": "icon-id-badge",
+          "name": "身份徽章",
+          "nameEn": "ID Badge"
+        },
+        {
+          "icon": "icon-man",
+          "name": "男性",
+          "nameEn": "Man"
+        },
+        {
+          "icon": "icon-woman",
+          "name": "女性",
+          "nameEn": "Woman"
+        },
+        {
+          "icon": "icon-old",
+          "name": "老人",
+          "nameEn": "Old"
+        },
+        {
+          "icon": "icon-sun",
+          "name": "太阳",
+          "nameEn": "Sun"
+        },
+        {
+          "icon": "icon-sun-off",
+          "name": "太阳关闭",
+          "nameEn": "Sun Off"
+        },
+        {
+          "icon": "icon-moon",
+          "name": "月亮",
+          "nameEn": "Moon"
+        },
+        {
+          "icon": "icon-cloud",
+          "name": "云",
+          "nameEn": "Cloud"
+        },
+        {
+          "icon": "icon-cloud-rain",
+          "name": "雨云",
+          "nameEn": "Cloud Rain"
+        },
+        {
+          "icon": "icon-cloud-snow",
+          "name": "雪云",
+          "nameEn": "Cloud Snow"
+        },
+        {
+          "icon": "icon-cloud-storm",
+          "name": "雷云",
+          "nameEn": "Cloud Storm"
+        },
+        {
+          "icon": "icon-cloud-fog",
+          "name": "雾云",
+          "nameEn": "Cloud Fog"
+        },
+        {
+          "icon": "icon-rainbow",
+          "name": "彩虹",
+          "nameEn": "Rainbow"
+        },
+        {
+          "icon": "icon-snowflake",
+          "name": "雪花",
+          "nameEn": "Snowflake"
+        },
+        {
+          "icon": "icon-umbrella",
+          "name": "雨伞",
+          "nameEn": "Umbrella"
+        },
+        {
+          "icon": "icon-wind",
+          "name": "风",
+          "nameEn": "Wind"
+        },
+        {
+          "icon": "icon-tornado",
+          "name": "龙卷风",
+          "nameEn": "Tornado"
+        },
+        {
+          "icon": "icon-temperature",
+          "name": "温度",
+          "nameEn": "Temperature"
+        },
+        {
+          "icon": "icon-temperature-celsius",
+          "name": "摄氏度",
+          "nameEn": "Temperature Celsius"
+        },
+        {
+          "icon": "icon-temperature-fahrenheit",
+          "name": "华氏度",
+          "nameEn": "Temperature Fahrenheit"
+        },
+        {
+          "icon": "icon-clock",
+          "name": "时钟",
+          "nameEn": "Clock"
+        },
+        {
+          "icon": "icon-clock-12",
+          "name": "12 小时制",
+          "nameEn": "Clock 12"
+        },
+        {
+          "icon": "icon-clock-24",
+          "name": "24 小时制",
+          "nameEn": "Clock 24"
+        },
+        {
+          "icon": "icon-calendar",
+          "name": "日历",
+          "nameEn": "Calendar"
+        },
+        {
+          "icon": "icon-calendar-event",
+          "name": "日历事件",
+          "nameEn": "Calendar Event"
+        },
+        {
+          "icon": "icon-calendar-check",
+          "name": "日历对勾",
+          "nameEn": "Calendar Check"
+        },
+        {
+          "icon": "icon-calendar-x",
+          "name": "日历叉号",
+          "nameEn": "Calendar X"
+        },
+        {
+          "icon": "icon-calendar-plus",
+          "name": "添加日历",
+          "nameEn": "Calendar Plus"
+        },
+        {
+          "icon": "icon-calendar-minus",
+          "name": "删除日历",
+          "nameEn": "Calendar Minus"
+        },
+        {
+          "icon": "icon-calendar-off",
+          "name": "日历关闭",
+          "nameEn": "Calendar Off"
+        },
+        {
+          "icon": "icon-calendar-time",
+          "name": "日历时间",
+          "nameEn": "Calendar Time"
+        },
+        {
+          "icon": "icon-calendar-stats",
+          "name": "日历统计",
+          "nameEn": "Calendar Stats"
+        },
+        {
+          "icon": "icon-calendar-due",
+          "name": "日历到期",
+          "nameEn": "Calendar Due"
+        },
+        {
+          "icon": "icon-hourglass",
+          "name": "沙漏",
+          "nameEn": "Hourglass"
+        },
+        {
+          "icon": "icon-hourglass-high",
+          "name": "沙漏高",
+          "nameEn": "Hourglass High"
+        },
+        {
+          "icon": "icon-hourglass-low",
+          "name": "沙漏低",
+          "nameEn": "Hourglass Low"
+        },
+        {
+          "icon": "icon-time-duration-10",
+          "name": "计时器",
+          "nameEn": "Time Duration"
+        },
+        {
+          "icon": "icon-time-duration-off",
+          "name": "计时器关闭",
+          "nameEn": "Time Duration Off"
+        },
+        {
+          "icon": "icon-device-watch",
+          "name": "手表",
+          "nameEn": "Device Watch"
+        },
+        {
+          "icon": "icon-stopwatch",
+          "name": "秒表",
+          "nameEn": "Stopwatch"
+        },
+        {
+          "icon": "icon-alarm",
+          "name": "闹钟",
+          "nameEn": "Alarm"
+        },
+        {
+          "icon": "icon-alarm-off",
+          "name": "闹钟关闭",
+          "nameEn": "Alarm Off"
+        },
+        {
+          "icon": "icon-tool",
+          "name": "工具",
+          "nameEn": "Tool"
+        },
+        {
+          "icon": "icon-hammer",
+          "name": "锤子",
+          "nameEn": "Hammer"
+        },
+        {
+          "icon": "icon-axe",
+          "name": "斧头",
+          "nameEn": "Axe"
+        },
+        {
+          "icon": "icon-scissors",
+          "name": "剪刀",
+          "nameEn": "Scissors"
+        },
+        {
+          "icon": "icon-cut",
+          "name": "剪切",
+          "nameEn": "Cut"
+        },
+        {
+          "icon": "icon-paint",
+          "name": "画笔",
+          "nameEn": "Paint"
+        },
+        {
+          "icon": "icon-brush",
+          "name": "刷子",
+          "nameEn": "Brush"
+        },
+        {
+          "icon": "icon-palette",
+          "name": "调色板",
+          "nameEn": "Palette"
+        },
+        {
+          "icon": "icon-ruler",
+          "name": "尺子",
+          "nameEn": "Ruler"
+        },
+        {
+          "icon": "icon-ruler-2",
+          "name": "尺子 2",
+          "nameEn": "Ruler 2"
+        },
+        {
+          "icon": "icon-magnet",
+          "name": "磁铁",
+          "nameEn": "Magnet"
+        },
+        {
+          "icon": "icon-book",
+          "name": "书",
+          "nameEn": "Book"
+        },
+        {
+          "icon": "icon-book-2",
+          "name": "书 2",
+          "nameEn": "Book 2"
+        },
+        {
+          "icon": "icon-book-off",
+          "name": "书关闭",
+          "nameEn": "Book Off"
+        },
+        {
+          "icon": "icon-library",
+          "name": "图书馆",
+          "nameEn": "Library"
+        },
+        {
+          "icon": "icon-school",
+          "name": "学校",
+          "nameEn": "School"
+        },
+        {
+          "icon": "icon-music",
+          "name": "音乐",
+          "nameEn": "Music"
+        },
+        {
+          "icon": "icon-music-off",
+          "name": "音乐关闭",
+          "nameEn": "Music Off"
+        },
+        {
+          "icon": "icon-headphones",
+          "name": "耳机",
+          "nameEn": "Headphones"
+        },
+        {
+          "icon": "icon-headphones-off",
+          "name": "耳机关闭",
+          "nameEn": "Headphones Off"
+        },
+        {
+          "icon": "icon-radio",
+          "name": "收音机",
+          "nameEn": "Radio"
+        },
+        {
+          "icon": "icon-speakerphone",
+          "name": "免提",
+          "nameEn": "Speakerphone"
+        },
+        {
+          "icon": "icon-bell",
+          "name": "铃铛",
+          "nameEn": "Bell"
+        },
+        {
+          "icon": "icon-bell-ringing",
+          "name": "响铃",
+          "nameEn": "Bell Ringing"
+        },
+        {
+          "icon": "icon-bell-off",
+          "name": "铃铛关闭",
+          "nameEn": "Bell Off"
+        },
+        {
+          "icon": "icon-bell-school",
+          "name": "学校铃铛",
+          "nameEn": "Bell School"
+        },
+        {
+          "icon": "icon-ball-basketball",
+          "name": "篮球",
+          "nameEn": "Ball Basketball"
+        },
+        {
+          "icon": "icon-ball-football",
+          "name": "足球",
+          "nameEn": "Ball Football"
+        },
+        {
+          "icon": "icon-ball-american-football",
+          "name": "美式足球",
+          "nameEn": "Ball American Football"
+        },
+        {
+          "icon": "icon-ball-tennis",
+          "name": "网球",
+          "nameEn": "Ball Tennis"
+        },
+        {
+          "icon": "icon-ball-volleyball",
+          "name": "排球",
+          "nameEn": "Ball Volleyball"
+        },
+        {
+          "icon": "icon-golf",
+          "name": "高尔夫",
+          "nameEn": "Golf"
+        },
+        {
+          "icon": "icon-swimming",
+          "name": "游泳",
+          "nameEn": "Swimming"
+        },
+        {
+          "icon": "icon-ice-skating",
+          "name": "滑雪",
+          "nameEn": "Ice Skating"
+        },
+        {
+          "icon": "icon-skateboarding",
+          "name": "滑板",
+          "nameEn": "Skateboarding"
+        },
+        {
+          "icon": "icon-tent",
+          "name": "露营",
+          "nameEn": "Tent"
+        },
+        {
+          "icon": "icon-trekking",
+          "name": "徒步",
+          "nameEn": "Trekking"
+        },
+        {
+          "icon": "icon-run",
+          "name": "跑步",
+          "nameEn": "Run"
+        },
+        {
+          "icon": "icon-walk",
+          "name": "步行",
+          "nameEn": "Walk"
+        }
+      ]
+    },
+    {
+      "id": "ui",
+      "name": "界面",
+      "nameEn": "UI",
+      "icon": "icon-layout",
+      "icons": [
+        {
+          "icon": "icon-layout",
+          "name": "布局",
+          "nameEn": "Layout"
+        },
+        {
+          "icon": "icon-layout-grid",
+          "name": "网格布局",
+          "nameEn": "Layout Grid"
+        },
+        {
+          "icon": "icon-layout-list",
+          "name": "列表布局",
+          "nameEn": "Layout List"
+        },
+        {
+          "icon": "icon-layout-columns",
+          "name": "列布局",
+          "nameEn": "Layout Columns"
+        },
+        {
+          "icon": "icon-layout-rows",
+          "name": "行布局",
+          "nameEn": "Layout Rows"
+        },
+        {
+          "icon": "icon-layout-2",
+          "name": "布局 2",
+          "nameEn": "Layout 2"
+        },
+        {
+          "icon": "icon-layout-dashboard",
+          "name": "仪表板布局",
+          "nameEn": "Layout Dashboard"
+        },
+        {
+          "icon": "icon-layout-sidebar",
+          "name": "侧边栏布局",
+          "nameEn": "Layout Sidebar"
+        },
+        {
+          "icon": "icon-layout-sidebar-right",
+          "name": "右侧边栏布局",
+          "nameEn": "Layout Sidebar Right"
+        },
+        {
+          "icon": "icon-layout-navbar",
+          "name": "导航栏布局",
+          "nameEn": "Layout Navbar"
+        },
+        {
+          "icon": "icon-layout-bottombar",
+          "name": "底部栏布局",
+          "nameEn": "Layout Bottombar"
+        },
+        {
+          "icon": "icon-grid-pattern",
+          "name": "网格图案",
+          "nameEn": "Grid Pattern"
+        },
+        {
+          "icon": "icon-columns",
+          "name": "列",
+          "nameEn": "Columns"
+        },
+        {
+          "icon": "icon-container",
+          "name": "容器",
+          "nameEn": "Container"
+        },
+        {
+          "icon": "icon-box",
+          "name": "盒子",
+          "nameEn": "Box"
+        },
+        {
+          "icon": "icon-cards",
+          "name": "卡片",
+          "nameEn": "Cards"
+        },
+        {
+          "icon": "icon-toggle-left",
+          "name": "切换左",
+          "nameEn": "Toggle Left"
+        },
+        {
+          "icon": "icon-toggle-right",
+          "name": "切换右",
+          "nameEn": "Toggle Right"
+        },
+        {
+          "icon": "icon-switch",
+          "name": "开关",
+          "nameEn": "Switch"
+        },
+        {
+          "icon": "icon-switch-2",
+          "name": "开关 2",
+          "nameEn": "Switch 2"
+        },
+        {
+          "icon": "icon-switch-3",
+          "name": "开关 3",
+          "nameEn": "Switch 3"
+        },
+        {
+          "icon": "icon-checkbox",
+          "name": "复选框",
+          "nameEn": "Checkbox"
+        },
+        {
+          "icon": "icon-radio",
+          "name": "单选框",
+          "nameEn": "Radio"
+        },
+        {
+          "icon": "icon-select",
+          "name": "选择框",
+          "nameEn": "Select"
+        },
+        {
+          "icon": "icon-adjustments-horizontal",
+          "name": "滑块",
+          "nameEn": "Adjustments Horizontal"
+        },
+        {
+          "icon": "icon-progress",
+          "name": "进度条",
+          "nameEn": "Progress"
+        },
+        {
+          "icon": "icon-progress-alert",
+          "name": "进度警告",
+          "nameEn": "Progress Alert"
+        },
+        {
+          "icon": "icon-progress-check",
+          "name": "进度完成",
+          "nameEn": "Progress Check"
+        },
+        {
+          "icon": "icon-progress-x",
+          "name": "进度失败",
+          "nameEn": "Progress X"
+        },
+        {
+          "icon": "icon-table",
+          "name": "表格",
+          "nameEn": "Table"
+        },
+        {
+          "icon": "icon-menu",
+          "name": "菜单",
+          "nameEn": "Menu"
+        },
+        {
+          "icon": "icon-menu-2",
+          "name": "菜单 2",
+          "nameEn": "Menu 2"
+        },
+        {
+          "icon": "icon-point",
+          "name": "点",
+          "nameEn": "Point"
+        },
+        {
+          "icon": "icon-dots-vertical",
+          "name": "垂直点",
+          "nameEn": "Dots Vertical"
+        },
+        {
+          "icon": "icon-dots",
+          "name": "水平点",
+          "nameEn": "Dots"
+        },
+        {
+          "icon": "icon-droplet",
+          "name": "水滴",
+          "nameEn": "Droplet"
+        },
+        {
+          "icon": "icon-color-picker",
+          "name": "颜色选择器",
+          "nameEn": "Color Picker"
+        },
+        {
+          "icon": "icon-alert-triangle",
+          "name": "警告三角形",
+          "nameEn": "Alert Triangle"
+        },
+        {
+          "icon": "icon-alert-circle",
+          "name": "警告圆圈",
+          "nameEn": "Alert Circle"
+        },
+        {
+          "icon": "icon-alert-octagon",
+          "name": "警告八边形",
+          "nameEn": "Alert Octagon"
+        },
+        {
+          "icon": "icon-alert-hexagon",
+          "name": "警告六边形",
+          "nameEn": "Alert Hexagon"
+        },
+        {
+          "icon": "icon-notification",
+          "name": "通知",
+          "nameEn": "Notification"
+        },
+        {
+          "icon": "icon-notification-off",
+          "name": "通知关闭",
+          "nameEn": "Notification Off"
+        }
+      ]
+    },
+    {
+      "id": "brand",
+      "name": "品牌",
+      "nameEn": "Brand",
+      "icon": "icon-brand-apple",
+      "icons": [
+        {
+          "icon": "icon-brand-apple",
+          "name": "Apple",
+          "nameEn": "Brand Apple"
+        },
+        {
+          "icon": "icon-brand-google",
+          "name": "Google",
+          "nameEn": "Brand Google"
+        },
+        {
+          "icon": "icon-brand-facebook",
+          "name": "Facebook",
+          "nameEn": "Brand Facebook"
+        },
+        {
+          "icon": "icon-brand-twitter",
+          "name": "Twitter",
+          "nameEn": "Brand Twitter"
+        },
+        {
+          "icon": "icon-brand-instagram",
+          "name": "Instagram",
+          "nameEn": "Brand Instagram"
+        },
+        {
+          "icon": "icon-brand-linkedin",
+          "name": "LinkedIn",
+          "nameEn": "Brand LinkedIn"
+        },
+        {
+          "icon": "icon-brand-github",
+          "name": "GitHub",
+          "nameEn": "Brand GitHub"
+        },
+        {
+          "icon": "icon-brand-gitlab",
+          "name": "GitLab",
+          "nameEn": "Brand GitLab"
+        },
+        {
+          "icon": "icon-brand-youtube",
+          "name": "YouTube",
+          "nameEn": "Brand YouTube"
+        },
+        {
+          "icon": "icon-brand-twitch",
+          "name": "Twitch",
+          "nameEn": "Brand Twitch"
+        },
+        {
+          "icon": "icon-brand-discord",
+          "name": "Discord",
+          "nameEn": "Brand Discord"
+        },
+        {
+          "icon": "icon-brand-telegram",
+          "name": "Telegram",
+          "nameEn": "Brand Telegram"
+        },
+        {
+          "icon": "icon-brand-whatsapp",
+          "name": "WhatsApp",
+          "nameEn": "Brand WhatsApp"
+        },
+        {
+          "icon": "icon-brand-wechat",
+          "name": "WeChat",
+          "nameEn": "Brand WeChat"
+        },
+        {
+          "icon": "icon-brand-qq",
+          "name": "QQ",
+          "nameEn": "Brand QQ"
+        },
+        {
+          "icon": "icon-brand-weibo",
+          "name": "Weibo",
+          "nameEn": "Brand Weibo"
+        },
+        {
+          "icon": "icon-brand-alipay",
+          "name": "Alipay",
+          "nameEn": "Brand Alipay"
+        },
+        {
+          "icon": "icon-brand-paypal",
+          "name": "PayPal",
+          "nameEn": "Brand PayPal"
+        },
+        {
+          "icon": "icon-brand-visa",
+          "name": "Visa",
+          "nameEn": "Brand Visa"
+        },
+        {
+          "icon": "icon-brand-mastercard",
+          "name": "Mastercard",
+          "nameEn": "Brand Mastercard"
+        },
+        {
+          "icon": "icon-brand-amazon",
+          "name": "Amazon",
+          "nameEn": "Brand Amazon"
+        },
+        {
+          "icon": "icon-brand-netflix",
+          "name": "Netflix",
+          "nameEn": "Brand Netflix"
+        },
+        {
+          "icon": "icon-brand-spotify",
+          "name": "Spotify",
+          "nameEn": "Brand Spotify"
+        },
+        {
+          "icon": "icon-brand-apple-arcade",
+          "name": "Apple Arcade",
+          "nameEn": "Brand Apple Arcade"
+        },
+        {
+          "icon": "icon-brand-xbox",
+          "name": "Xbox",
+          "nameEn": "Brand Xbox"
+        },
+        {
+          "icon": "icon-brand-steam",
+          "name": "Steam",
+          "nameEn": "Brand Steam"
+        },
+        {
+          "icon": "icon-brand-adobe",
+          "name": "Adobe",
+          "nameEn": "Brand Adobe"
+        },
+        {
+          "icon": "icon-brand-figma",
+          "name": "Figma",
+          "nameEn": "Brand Figma"
+        },
+        {
+          "icon": "icon-brand-sketch",
+          "name": "Sketch",
+          "nameEn": "Brand Sketch"
+        }
+      ]
+    },
+    {
+      "id": "miscellaneous",
+      "name": "其他",
+      "nameEn": "Miscellaneous",
+      "icon": "icon-settings",
+      "icons": [
+        {
+          "icon": "icon-settings",
+          "name": "设置",
+          "nameEn": "Settings"
+        },
+        {
+          "icon": "icon-settings-off",
+          "name": "设置关闭",
+          "nameEn": "Settings Off"
+        },
+        {
+          "icon": "icon-adjustments",
+          "name": "调整",
+          "nameEn": "Adjustments"
+        },
+        {
+          "icon": "icon-tools",
+          "name": "工具集",
+          "nameEn": "Tools"
+        },
+        {
+          "icon": "icon-help",
+          "name": "帮助",
+          "nameEn": "Help"
+        },
+        {
+          "icon": "icon-help-circle",
+          "name": "帮助圆圈",
+          "nameEn": "Help Circle"
+        },
+        {
+          "icon": "icon-bookmark",
+          "name": "书签",
+          "nameEn": "Bookmark"
+        },
+        {
+          "icon": "icon-bookmark-off",
+          "name": "书签关闭",
+          "nameEn": "Bookmark Off"
+        },
+        {
+          "icon": "icon-star",
+          "name": "星标",
+          "nameEn": "Star"
+        },
+        {
+          "icon": "icon-star-off",
+          "name": "星标关闭",
+          "nameEn": "Star Off"
+        },
+        {
+          "icon": "icon-heart",
+          "name": "心形",
+          "nameEn": "Heart"
+        },
+        {
+          "icon": "icon-heart-off",
+          "name": "心形关闭",
+          "nameEn": "Heart Off"
+        },
+        {
+          "icon": "icon-thumb-up",
+          "name": "点赞",
+          "nameEn": "Thumb Up"
+        },
+        {
+          "icon": "icon-thumb-down",
+          "name": "点踩",
+          "nameEn": "Thumb Down"
+        },
+        {
+          "icon": "icon-share",
+          "name": "分享",
+          "nameEn": "Share"
+        },
+        {
+          "icon": "icon-copy",
+          "name": "复制",
+          "nameEn": "Copy"
+        },
+        {
+          "icon": "icon-clipboard",
+          "name": "剪贴板",
+          "nameEn": "Clipboard"
+        },
+        {
+          "icon": "icon-download",
+          "name": "下载",
+          "nameEn": "Download"
+        },
+        {
+          "icon": "icon-upload",
+          "name": "上传",
+          "nameEn": "Upload"
+        },
+        {
+          "icon": "icon-search",
+          "name": "搜索",
+          "nameEn": "Search"
+        },
+        {
+          "icon": "icon-filter",
+          "name": "筛选",
+          "nameEn": "Filter"
+        },
+        {
+          "icon": "icon-arrows-sort",
+          "name": "排序",
+          "nameEn": "Arrows Sort"
+        },
+        {
+          "icon": "icon-refresh",
+          "name": "刷新",
+          "nameEn": "Refresh"
+        },
+        {
+          "icon": "icon-reload",
+          "name": "重新加载",
+          "nameEn": "Reload"
+        },
+        {
+          "icon": "icon-rotate",
+          "name": "旋转",
+          "nameEn": "Rotate"
+        },
+        {
+          "icon": "icon-zoom-in",
+          "name": "放大",
+          "nameEn": "Zoom In"
+        },
+        {
+          "icon": "icon-zoom-out",
+          "name": "缩小",
+          "nameEn": "Zoom Out"
+        },
+        {
+          "icon": "icon-maximize",
+          "name": "最大化",
+          "nameEn": "Maximize"
+        },
+        {
+          "icon": "icon-minimize",
+          "name": "最小化",
+          "nameEn": "Minimize"
+        },
+        {
+          "icon": "icon-arrows-maximize",
+          "name": "箭头最大化",
+          "nameEn": "Arrows Maximize"
+        },
+        {
+          "icon": "icon-arrows-minimize",
+          "name": "箭头最小化",
+          "nameEn": "Arrows Minimize"
+        },
+        {
+          "icon": "icon-resize",
+          "name": "调整大小",
+          "nameEn": "Resize"
+        },
+        {
+          "icon": "icon-drag-drop-2",
+          "name": "移动",
+          "nameEn": "Drag Drop 2"
+        },
+        {
+          "icon": "icon-drag-drop",
+          "name": "拖放",
+          "nameEn": "Drag Drop"
+        },
+        {
+          "icon": "icon-grip-vertical",
+          "name": "垂直抓取",
+          "nameEn": "Grip Vertical"
+        },
+        {
+          "icon": "icon-grip-horizontal",
+          "name": "水平抓取",
+          "nameEn": "Grip Horizontal"
+        },
+        {
+          "icon": "icon-hand-grab",
+          "name": "手抓取",
+          "nameEn": "Hand Grab"
+        },
+        {
+          "icon": "icon-hand-stop",
+          "name": "手停止",
+          "nameEn": "Hand Stop"
+        },
+        {
+          "icon": "icon-hand-click",
+          "name": "手点击",
+          "nameEn": "Hand Click"
+        },
+        {
+          "icon": "icon-pointer",
+          "name": "指针",
+          "nameEn": "Pointer"
+        },
+        {
+          "icon": "icon-hand-finger",
+          "name": "光标",
+          "nameEn": "Hand Finger"
+        },
+        {
+          "icon": "icon-cursor-text",
+          "name": "文本光标",
+          "nameEn": "Cursor Text"
+        },
+        {
+          "icon": "icon-focus",
+          "name": "焦点",
+          "nameEn": "Focus"
+        },
+        {
+          "icon": "icon-focus-2",
+          "name": "焦点 2",
+          "nameEn": "Focus 2"
+        },
+        {
+          "icon": "icon-focus-centered",
+          "name": "居中焦点",
+          "nameEn": "Focus Centered"
+        },
+        {
+          "icon": "icon-target",
+          "name": "目标",
+          "nameEn": "Target"
+        },
+        {
+          "icon": "icon-crosshair",
+          "name": "十字准星",
+          "nameEn": "Crosshair"
+        },
+        {
+          "icon": "icon-scan",
+          "name": "扫描",
+          "nameEn": "Scan"
+        },
+        {
+          "icon": "icon-qrcode",
+          "name": "二维码",
+          "nameEn": "QR Code"
+        },
+        {
+          "icon": "icon-barcode",
+          "name": "条形码",
+          "nameEn": "Barcode"
+        },
+        {
+          "icon": "icon-bolt",
+          "name": "闪光",
+          "nameEn": "Bolt"
+        },
+        {
+          "icon": "icon-bolt-off",
+          "name": "闪光关闭",
+          "nameEn": "Bolt Off"
+        },
+        {
+          "icon": "icon-bulb",
+          "name": "灯泡",
+          "nameEn": "Bulb"
+        },
+        {
+          "icon": "icon-bulb-off",
+          "name": "灯泡关闭",
+          "nameEn": "Bulb Off"
+        },
+        {
+          "icon": "icon-candle",
+          "name": "蜡烛",
+          "nameEn": "Candle"
+        },
+        {
+          "icon": "icon-lamp",
+          "name": "台灯",
+          "nameEn": "Lamp"
+        },
+        {
+          "icon": "icon-lamp-2",
+          "name": "台灯 2",
+          "nameEn": "Lamp 2"
+        },
+        {
+          "icon": "icon-flame",
+          "name": "火焰",
+          "nameEn": "Flame"
+        },
+        {
+          "icon": "icon-sparkles",
+          "name": "火花",
+          "nameEn": "Sparkles"
+        },
+        {
+          "icon": "icon-wand",
+          "name": "魔杖",
+          "nameEn": "Wand"
+        },
+        {
+          "icon": "icon-crystal-ball",
+          "name": "水晶球",
+          "nameEn": "Crystal Ball"
+        },
+        {
+          "icon": "icon-gift",
+          "name": "礼物",
+          "nameEn": "Gift"
+        },
+        {
+          "icon": "icon-gift-card",
+          "name": "礼品卡",
+          "nameEn": "Gift Card"
+        },
+        {
+          "icon": "icon-package",
+          "name": "包裹",
+          "nameEn": "Package"
+        },
+        {
+          "icon": "icon-box-multiple",
+          "name": "多个盒子",
+          "nameEn": "Box Multiple"
+        },
+        {
+          "icon": "icon-cube",
+          "name": "立方体",
+          "nameEn": "Cube"
+        },
+        {
+          "icon": "icon-cube-send",
+          "name": "发送立方体",
+          "nameEn": "Cube Send"
+        },
+        {
+          "icon": "icon-cube-unfolded",
+          "name": "展开立方体",
+          "nameEn": "Cube Unfolded"
+        },
+        {
+          "icon": "icon-puzzle",
+          "name": "拼图",
+          "nameEn": "Puzzle"
+        },
+        {
+          "icon": "icon-puzzle-2",
+          "name": "拼图 2",
+          "nameEn": "Puzzle 2"
+        },
+        {
+          "icon": "icon-dice",
+          "name": "骰子",
+          "nameEn": "Dice"
+        },
+        {
+          "icon": "icon-dice-1",
+          "name": "骰子 1",
+          "nameEn": "Dice 1"
+        },
+        {
+          "icon": "icon-dice-2",
+          "name": "骰子 2",
+          "nameEn": "Dice 2"
+        },
+        {
+          "icon": "icon-dice-3",
+          "name": "骰子 3",
+          "nameEn": "Dice 3"
+        },
+        {
+          "icon": "icon-dice-4",
+          "name": "骰子 4",
+          "nameEn": "Dice 4"
+        },
+        {
+          "icon": "icon-dice-5",
+          "name": "骰子 5",
+          "nameEn": "Dice 5"
+        },
+        {
+          "icon": "icon-dice-6",
+          "name": "骰子 6",
+          "nameEn": "Dice 6"
+        },
+        {
+          "icon": "icon-chess",
+          "name": "国际象棋",
+          "nameEn": "Chess"
+        },
+        {
+          "icon": "icon-chess-king",
+          "name": "国际象棋王",
+          "nameEn": "Chess King"
+        },
+        {
+          "icon": "icon-chess-queen",
+          "name": "国际象棋后",
+          "nameEn": "Chess Queen"
+        },
+        {
+          "icon": "icon-chess-rook",
+          "name": "国际象棋车",
+          "nameEn": "Chess Rook"
+        },
+        {
+          "icon": "icon-chess-bishop",
+          "name": "国际象棋象",
+          "nameEn": "Chess Bishop"
+        },
+        {
+          "icon": "icon-chess-knight",
+          "name": "国际象棋马",
+          "nameEn": "Chess Knight"
+        },
+        {
+          "icon": "icon-medal",
+          "name": "奖牌",
+          "nameEn": "Medal"
+        },
+        {
+          "icon": "icon-medal-2",
+          "name": "奖牌 2",
+          "nameEn": "Medal 2"
+        },
+        {
+          "icon": "icon-trophy",
+          "name": "奖杯",
+          "nameEn": "Trophy"
+        },
+        {
+          "icon": "icon-trophy-off",
+          "name": "奖杯关闭",
+          "nameEn": "Trophy Off"
+        },
+        {
+          "icon": "icon-crown",
+          "name": "皇冠",
+          "nameEn": "Crown"
+        },
+        {
+          "icon": "icon-flag",
+          "name": "横幅",
+          "nameEn": "Flag"
+        },
+        {
+          "icon": "icon-flag-2",
+          "name": "横幅 2",
+          "nameEn": "Flag 2"
+        },
+        {
+          "icon": "icon-flag-3",
+          "name": "横幅 3",
+          "nameEn": "Flag 3"
+        },
+        {
+          "icon": "icon-road-sign",
+          "name": "路标",
+          "nameEn": "Road Sign"
+        }
+      ]
+    }
+  ]
+}
