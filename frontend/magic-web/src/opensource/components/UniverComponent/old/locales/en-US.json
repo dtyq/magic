@@ -1,0 +1,25 @@
+{
+   "permission": {
+        "dialog": {
+            "editErr": "Not supported edit",
+            "alertContent": "Not supported edit",
+            "userEmpty": "Not supported edit",
+            "listEmpty": "Not supported edit",
+            "commonErr": "Not supported edit",
+            "pasteErr": "Not supported edit",
+            "setStyleErr": "Not supported edit",
+            "copyErr": "Not supported edit",
+            "workbookCopyErr": "Not supported edit",
+            "setRowColStyleErr": "Not supported edit",
+            "moveRowColErr": "Not supported edit",
+            "moveRangeErr": "Not supported edit",
+            "autoFillErr": "Not supported edit",
+            "filterErr": "Not supported edit",
+            "operatorSheetErr": "Not supported edit",
+            "insertOrDeleteMoveRangeErr": "Not supported edit",
+            "printErr": "Not supported edit",
+            "formulaErr": "Not supported edit",
+            "hyperLinkErr": "Not supported edit"
+        }
+   }
+}

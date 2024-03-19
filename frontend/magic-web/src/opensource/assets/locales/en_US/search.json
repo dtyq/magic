@@ -1,0 +1,89 @@
+{
+	"quickSearch": {
+		"label": {
+			"completed": "Completed",
+			"creator": "Creator",
+			"deadline": "Deadline",
+			"department": "Department",
+			"executor": "Executor",
+			"inProgress": "In Progress",
+			"lower": "Lower",
+			"member": "Member",
+			"ordinary": "Normal",
+			"priority": "Priority",
+			"urgent": "Urgent",
+			"veryUrgent": "Very Urgent"
+		},
+		"search": "Search",
+		"searchPlaceholder": "Please enter the search content",
+		"settings": {
+			"approvalStatus": "Approval Status",
+			"approve": {
+				"all": "All",
+				"approved": "Approved",
+				"disallow": "Disallowed",
+				"rejected": "Rejected",
+				"revoked": "Revoked",
+				"underApproval": "Under Approval"
+			},
+			"clickToSelect": "Click to Select",
+			"currentConversation": "Current Conversation",
+			"dateTime": "Date & Time",
+			"empty": "No search results yet",
+			"endTime": "End Time",
+			"filter": "Filter",
+			"historicalSearch": "Historical searches",
+			"includeMembers": "Include Members",
+			"initiator": "Initiator",
+			"loading": "loading",
+			"messageContains": "Message Contains",
+			"messageType": {
+				"all": "All",
+				"file": "File",
+				"link": "Link",
+				"media": "Images & Videos"
+			},
+			"predictiveSearch": "you may be looking for",
+			"startTime": "Start Time",
+			"time": {
+				"almostAMonth": "Last 30 Days",
+				"almostAWeek": "Last 7 Days",
+				"today": "Today",
+				"unrestrictedTime": "No Time Restriction"
+			}
+		},
+		"tabs": {
+			"application": "Application",
+			"approve": "Approval",
+			"assistant": "AI Assistant",
+			"chat": "Chat",
+			"cloudDrive": "Cloud Drive",
+			"contacts": "Contacts",
+			"department": "Department",
+			"groups": "Groups",
+			"integrate": "Integrate",
+			"knowledge": "Knowledge",
+			"schedule": "Schedule",
+			"tasks": "Tasks",
+			"todoList": "To-Do List"
+		}
+	},
+	"search": {
+		"aiSkills": "AI Skills",
+		"appOpen": "Open App",
+		"askAl": "AI Search",
+		"askAnswer": "Answer Questions",
+		"askMagic": "Ask Magic",
+		"askTranslate": "Translate",
+		"askWrite": "Help Me Write",
+		"comprehensiveSkills": "Comprehensive Skills",
+		"fileSearchLocal": "Search Local Files",
+		"inputVoice": "Voice Input",
+		"keyboardSpace": "Space",
+		"magicOpen": "Open Magic",
+		"magicOpenJourney": "Magic · Open the amazing search journey...",
+		"searchHistory": "Search History",
+		"searchMagic": "Search Magic",
+		"youMayWantToFind": "You May Want To Find"
+	}
+}

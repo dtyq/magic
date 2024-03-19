@@ -1,0 +1,114 @@
+{
+	"broadcastChannel": {
+		"account": {
+			"cancel": "Keep Current",
+			"confirm": "Switch Now",
+			"content": "Another tab has switched to a new account. This page needs to sync the switch to stay consistent. Switch now?",
+			"title": "Account Switch Detected"
+		},
+		"organization": {
+			"cancel": "Keep Current",
+			"confirm": "Switch Now",
+			"content": "Another tab has switched to a new organization. This page needs to sync the switch to stay consistent. Switch now?",
+			"title": "Organization Switch Detected"
+		}
+	},
+	"browser": {
+		"confirm": "Continue to use (there may be compatibility issues)",
+		"desc": "You are currently using {{name}} {{version}}. We recommend using the following browser for the best experience:",
+		"header": "Detected that you are using an older version of the browser",
+		"tip": "{{name}} or higher version",
+		"title": "Browser version too low",
+		"warning": "Using older browsers may cause certain features to malfunction or display abnormally"
+	},
+	"format": {
+		"NthOfweek": "Week ${week}",
+		"date": "M/D HH:mm",
+		"dateWithMonthWeek": "MM / DD / (ddd)",
+		"dateWithMonthWeekTime": "MM / DD / (ddd) HH:mm",
+		"dateWithYear": "YYYY year MM month DD HH:mm",
+		"dateWithYearAndWeek": "YYYY year MM month DD (ddd)",
+		"time": "HH:mm",
+		"weekDay": {
+			"1": "Monday",
+			"2": "Tuesday",
+			"3": "Wednesday",
+			"4": "Thursday",
+			"5": "Friday",
+			"6": "Saturday",
+			"7": "Sunday"
+		},
+		"yearAndMonth": "YYYY - MMM",
+		"yearAndMonthDay": "YYYY - MMM - DD",
+		"yearMounthAndDay": "YYYY year MM month DD day",
+		"yesterday": "yesterday"
+	},
+	"interface": {
+		"chat": {
+			"aggregate_ai_search_card": {
+				"searching": ""
+			},
+			"chatHistory": {
+				"filter": {},
+				"tab": {
+					"media": "Pictures and Videos"
+				}
+			},
+			"groupNotice": {},
+			"urgentModal": {
+				"sendType": {}
+			}
+		},
+		"common": {
+			"format": {}
+		},
+		"explore": {
+			"descriptionPanel": {}
+		},
+		"memberCard": {
+			"assistantIntroduction": "Assistant introduction"
+		}
+	},
+	"meta": {
+		"description": "",
+		"keywords": "",
+		"title": "Super Magic - Lighthouse Engine Next-Gen Enterprise AI Application Engine"
+	},
+	"platform": {
+		"name": ""
+	},
+	"routes": {
+		"admin": "Admin Console",
+		"adminAIControl": "Admin Console/Control Policies",
+		"adminAIDrawing": "Admin Console/AI Drawing Management",
+		"adminAIModel": "Admin Console/Large Model Management",
+		"agentList": "AI Assistant Management",
+		"application": "Applications",
+		"authCallback": "OAuth 2.0 Authorization",
+		"calendar": "Calendar",
+		"chat": "Instant Messaging",
+		"chatSettings": "Messaging Settings",
+		"contacts": "Contacts",
+		"contactsAssistantAi": "Contacts/AI Assistant",
+		"contactsMy": "Contacts/My Groups",
+		"contactsMyFriends": "Contacts/My Friends",
+		"contactsOrganization": "Contacts/Organization",
+		"default": "Super Magic - Lighthouse Engine Next-Gen Enterprise AI Application Engine",
+		"explore": "AI Assistant",
+		"global": "Super Magic",
+		"invite": "Invitation Code",
+		"login": "Login",
+		"magicApproval": "Approvals",
+		"magicApprovalAgent": "Approval Agent",
+		"magicApprovalCenter": "Approval Center",
+		"magicApprovalDelegate": "Smart Delegate",
+		"magicApprovalInitiate": "Initiate Approvals",
+		"magicApprovalList": "Approval List",
+		"magicApprovalSetting": "Approval Settings",
+		"mcp": "MCP Management",
+		"settings": "Settings",
+		"superDashboard": "$t(common:platform.name) Dashboard",
+		"vectorKnowledgeCreate": "Vector Knowledge Base Creation",
+		"workspace": "Workspace"
+	}
+}

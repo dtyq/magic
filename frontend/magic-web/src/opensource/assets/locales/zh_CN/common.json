@@ -1,0 +1,111 @@
+{
+	"broadcastChannel": {
+		"account": {
+			"cancel": "保持当前",
+			"confirm": "立即切换",
+			"content": "其他标签页已切换到新的账号，当前页面需要同步切换才能保持一致。是否立即切换？",
+			"title": "检测到账号切换"
+		},
+		"organization": {
+			"cancel": "保持当前",
+			"confirm": "立即切换",
+			"content": "其他标签页已切换到新的组织，当前页面需要同步切换才能保持一致。是否立即切换？",
+			"title": "检测到组织切换"
+		}
+	},
+	"browser": {
+		"confirm": "继续使用（可能存在兼容性问题）",
+		"desc": "您当前使用的是 {{name}} {{version}}，建议使用以下浏览器以获得最佳体验：",
+		"header": "检测到您正在使用较旧版本的浏览器",
+		"tip": "{{name}} 或更高版本",
+		"title": "浏览器版本过低",
+		"warning": "使用旧版浏览器可能导致某些功能无法正常工作或显示异常"
+	},
+	"format": {
+		"NthOfweek": "第${week}周",
+		"date": "M月D日 HH:mm",
+		"dateWithMonthWeek": "MM月DD日(ddd)",
+		"dateWithMonthWeekTime": "MM月DD日(ddd) HH:mm",
+		"dateWithYear": "YYYY年MM月DD日 HH:mm",
+		"dateWithYearAndWeek": "YYYY年MM月DD(ddd)",
+		"time": "HH:mm",
+		"weekDay": {
+			"1": "周一",
+			"2": "周二",
+			"3": "周三",
+			"4": "周四",
+			"5": "周五",
+			"6": "周六",
+			"7": "周日"
+		},
+		"yearAndMonth": "YYYY年MM月",
+		"yearAndMonthDay": "YYYY年MM月DD日",
+		"yearMounthAndDay": "YYYY年MM月DD日",
+		"yesterday": "昨天"
+	},
+	"interface": {
+		"chat": {
+			"aggregate_ai_search_card": {
+				"searching": ""
+			},
+			"chatHistory": {
+				"filter": {},
+				"tab": {
+					"media": "图片与视频"
+				}
+			},
+			"groupNotice": {},
+			"urgentModal": {
+				"sendType": {}
+			}
+		},
+		"explore": {
+			"descriptionPanel": {}
+		},
+		"memberCard": {
+			"assistantIntroduction": "助理介绍"
+		}
+	},
+	"meta": {
+		"description": "",
+		"keywords": "",
+		"title": "超级麦吉 - 灯塔引擎新一代企业级 AI 应用创新引擎"
+	},
+	"platform": {
+		"name": ""
+	},
+	"routes": {
+		"admin": "管理后台",
+		"adminAIControl": "管理后台/管控策略",
+		"adminAIDrawing": "管理后台/智能绘图管理",
+		"adminAIModel": "管理后台/大模型管理",
+		"agentList": "AI助理管理",
+		"application": "应用",
+		"authCallback": "OAuth 2.0 授权",
+		"calendar": "日程",
+		"chat": "即时通讯",
+		"chatSettings": "通讯设置",
+		"contacts": "通讯录",
+		"contactsAiAssistant": "通讯录/AI助理",
+		"contactsMyFriends": "通讯录/我的朋友",
+		"contactsMyGroups": "通讯录/我的群组",
+		"contactsOrganization": "通讯录/组织架构",
+		"default": "超级麦吉 - 灯塔引擎新一代企业级 AI 应用创新引擎",
+		"explore": "AI助理",
+		"global": "超级麦吉",
+		"invite": "邀请码填写",
+		"login": "登录",
+		"magicApproval": "审批",
+		"magicApprovalAgent": "审批代理",
+		"magicApprovalCenter": "审批中心",
+		"magicApprovalDelegate": "智能委托",
+		"magicApprovalInitiate": "发起审批",
+		"magicApprovalList": "审批列表",
+		"magicApprovalSetting": "审批设置",
+		"mcp": "MCP管理",
+		"settings": "设置",
+		"superDashboard": "$t(common:platform.name)看板",
+		"vectorKnowledgeCreate": "向量知识库创建",
+		"workspace": "工作台"
+	}
+}

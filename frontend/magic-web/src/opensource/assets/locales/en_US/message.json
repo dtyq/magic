@@ -1,0 +1,97 @@
+{
+	"DownloadFailed": "Download failed",
+	"FileNotFound": "File path does not exist",
+	"chat": {
+		"NoContent": "No content",
+		"NotSupport": "Not supported yet",
+		"aggregate_ai_search_card": {
+			"eventDescription": "",
+			"eventTime": ""
+		},
+		"inquiry": "Inquiring...",
+		"pleaseChooseFriendAndChat": "Please choose one of your friends and start a conversation!",
+		"pleaseEnterMessageContent": "Please enter message",
+		"recording_summary": {
+			"ai_result": "AI summary",
+			"doing_btn_text": "End recording summary",
+			"doing_tips": "Recording recognition in progress",
+			"end_tips": "Summarizing and understanding",
+			"error_tips": "There is an anomaly in the summary of the recording minutes",
+			"origin_content": "Original content",
+			"start_tips": "Waiting for recording connection",
+			"summarizing_btn_text": "Generating recording summary",
+			"summarizing_tips": "Summarizing and understanding",
+			"title": "Recording summary",
+			"username": "User"
+		},
+		"topic": {
+			"notExist": "The topic does not exist"
+		}
+	},
+	"copy": {
+		"success": "Copied successfully"
+	},
+	"drive": {
+		"modal": {
+			"creatingFolder": "Creating",
+			"duplicateFileSuccess": "Copy created successfully",
+			"moveToSuccess": "Moved successfully",
+			"moveToTrashSuccess": "Moved to recycle bin successfully",
+			"renameSuccess": "Rename successful",
+			"renameWarn": "New name is empty"
+		},
+		"table": {
+			"addToFavoriteSuccess": "Add to favorites successfully",
+			"copyLinkSuccess": "Copied successfully",
+			"downloadSuccess": "download successful",
+			"removeFromFavoriteSuccess": "Remove from favorites successfully"
+		}
+	},
+	"file": {
+		"maxSize": "The maximum size of a single file is {{maxSize}}MB",
+		"onlySupportUploadImage": "Only support uploading png/jpg/jpeg/gif/webp format images",
+		"uploadFail": "File upload failed, please try again"
+	},
+	"form": {
+		"passwordNotMatch": "The password you entered twice does not match, please re-enter it.",
+		"phoneRequired": "Please provide mobile phone number",
+		"stateCodeRequired": "Please enter 6-digit verification code",
+		"verificationCodeLengthRequired": "Verification code length is incorrect",
+		"verificationCodeRequired": "Verification code is empty"
+	},
+	"interface": {
+		"chat": {
+			"aggregate_ai_search_card": {
+				"relatedEvents": "Related events"
+			},
+			"chatHistory": {
+				"filter": {}
+			},
+			"floatButton": {
+				"cancelTopConversation": "",
+				"disableNoDisturbing": ""
+			},
+			"topic": {
+				"menu": {
+					"rename_topic": "Rename"
+				}
+			}
+		},
+		"drive": {
+			"modal": {
+				"creatingFolder": "Creating",
+				"renameWarn": "Please enter a new name"
+			}
+		},
+		"setting": {}
+	},
+	"login": {
+		"invalidCodeTip": "Invalid verification code: ${code}",
+		"phoneInvalid": "Mobile phone number format is incorrect"
+	},
+	"setting": {
+		"changePasswordSuccess": "Successfully modified",
+		"invalidPhone": "Invalid mobile number",
+		"samePhone": "The new mobile phone number is the same as the old mobile phone number"
+	}
+}

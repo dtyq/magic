@@ -1,0 +1,97 @@
+{
+	"DownloadFailed": "下载失败",
+	"FileNotFound": "文件路径不存在",
+	"chat": {
+		"NoContent": "无内容",
+		"NotSupport": "暂不支持",
+		"aggregate_ai_search_card": {
+			"eventDescription": "",
+			"eventTime": ""
+		},
+		"inquiry": "正在查询中...",
+		"pleaseChooseFriendAndChat": "请选择一位你的好友，并开始对话吧！",
+		"pleaseEnterMessageContent": "请输入消息",
+		"recording_summary": {
+			"ai_result": "智能总结",
+			"doing_btn_text": "结束录音纪要",
+			"doing_tips": "正在录音识别中",
+			"end_tips": "正在理解和总结",
+			"error_tips": "本次录音纪要总结出现异常",
+			"origin_content": "原文记录",
+			"start_tips": "等待录音连接",
+			"summarizing_btn_text": "录音纪要生成中",
+			"summarizing_tips": "正在理解和总结",
+			"title": "录音纪要",
+			"username": "用户"
+		},
+		"topic": {
+			"notExist": "话题不存在"
+		}
+	},
+	"copy": {
+		"success": "复制成功"
+	},
+	"drive": {
+		"modal": {
+			"creatingFolder": "创建中",
+			"duplicateFileSuccess": "创建副本成功",
+			"moveToSuccess": "移动成功",
+			"moveToTrashSuccess": "移入回收站成功",
+			"renameSuccess": "重命名成功",
+			"renameWarn": "新名称为空"
+		},
+		"table": {
+			"addToFavoriteSuccess": "收藏成功",
+			"copyLinkSuccess": "复制成功",
+			"downloadSuccess": "下载成功",
+			"removeFromFavoriteSuccess": "取消收藏成功"
+		}
+	},
+	"file": {
+		"maxSize": "单个文件上限为 {{maxSize}}MB",
+		"onlySupportUploadImage": "仅支持上传png/jpg/jpeg/gif/webp格式的图片",
+		"uploadFail": "文件上传失败，请重试"
+	},
+	"form": {
+		"passwordNotMatch": "两次输入密码不匹配，请重新输入",
+		"phoneRequired": "请提供手机号",
+		"stateCodeRequired": "请输入 6 位的数字验证码",
+		"verificationCodeLengthRequired": "验证码长度不正确",
+		"verificationCodeRequired": "验证码为空"
+	},
+	"interface": {
+		"chat": {
+			"aggregate_ai_search_card": {
+				"relatedEvents": "相关事件"
+			},
+			"chatHistory": {
+				"filter": {}
+			},
+			"floatButton": {
+				"cancelTopConversation": "",
+				"disableNoDisturbing": ""
+			},
+			"topic": {
+				"menu": {
+					"rename_topic": "重命名"
+				}
+			}
+		},
+		"drive": {
+			"modal": {
+				"creatingFolder": "创建中",
+				"renameWarn": "请输入新名称"
+			}
+		},
+		"setting": {}
+	},
+	"login": {
+		"invalidCodeTip": "无效的验证码：${code}",
+		"phoneInvalid": "手机号格式不正确"
+	},
+	"setting": {
+		"changePasswordSuccess": "修改成功",
+		"invalidPhone": "手机号码格式错误",
+		"samePhone": "新手机号与旧手机号重复"
+	}
+}

@@ -1,0 +1,89 @@
+{
+	"quickSearch": {
+		"label": {
+			"completed": "已完成",
+			"creator": "创建人",
+			"deadline": "截止时间",
+			"department": "部门",
+			"executor": "执行人",
+			"inProgress": "进行中",
+			"lower": "较低",
+			"member": "成员",
+			"ordinary": "普通",
+			"priority": "优先级",
+			"urgent": "紧急",
+			"veryUrgent": "非常紧急"
+		},
+		"search": "搜索",
+		"searchPlaceholder": "请输入搜索内容",
+		"settings": {
+			"approvalStatus": "审批状态",
+			"approve": {
+				"all": "全部",
+				"approved": "审批通过",
+				"disallow": "已驳回",
+				"rejected": "审批拒绝",
+				"revoked": "已撤销",
+				"underApproval": "审批中"
+			},
+			"clickToSelect": "点击选择",
+			"currentConversation": "所在会话",
+			"dateTime": "时间",
+			"empty": "暂无搜索结果",
+			"endTime": "截止时间",
+			"filter": "筛选",
+			"historicalSearch": "历史搜索",
+			"includeMembers": "包含成员",
+			"initiator": "发起人",
+			"loading": "加载中",
+			"messageContains": "消息包含",
+			"messageType": {
+				"all": "全部",
+				"file": "文件",
+				"link": "连接",
+				"media": "图片与视频"
+			},
+			"predictiveSearch": "你可能要找",
+			"startTime": "开始时间",
+			"time": {
+				"almostAMonth": "最近30天",
+				"almostAWeek": "最近7天",
+				"today": "今天",
+				"unrestrictedTime": "不限时间"
+			}
+		},
+		"tabs": {
+			"application": "应用",
+			"approve": "审批",
+			"assistant": "AI助理",
+			"chat": "聊天记录",
+			"cloudDrive": "云盘",
+			"contacts": "联系人",
+			"department": "部门",
+			"groups": "群组",
+			"integrate": "综合",
+			"knowledge": "知识库",
+			"schedule": "日程",
+			"tasks": "任务",
+			"todoList": "待办"
+		}
+	},
+	"search": {
+		"aiSkills": "AI 技能",
+		"appOpen": "打开应用",
+		"askAl": "AI 搜索",
+		"askAnswer": "解答疑惑",
+		"askMagic": "问问 Magic",
+		"askTranslate": "翻译",
+		"askWrite": "帮我写作",
+		"comprehensiveSkills": "综合技能",
+		"fileSearchLocal": "查找本地文件",
+		"inputVoice": "语音输入",
+		"keyboardSpace": "空格",
+		"magicOpen": "打开 Magic",
+		"magicOpenJourney": "Magic · 打开神奇的搜索之旅...",
+		"searchHistory": "搜索历史",
+		"searchMagic": "搜索 Magic",
+		"youMayWantToFind": "你可能想找"
+	}
+}

@@ -1,0 +1,25 @@
+{
+   "permission": {
+        "dialog": {
+            "editErr": "暂不支持编辑",
+            "alertContent": "暂不支持编辑",
+            "userEmpty": "暂不支持编辑",
+            "listEmpty": "暂不支持编辑",
+            "commonErr": "暂不支持编辑",
+            "pasteErr": "暂不支持编辑",
+            "setStyleErr": "暂不支持编辑",
+            "copyErr": "暂不支持编辑",
+            "workbookCopyErr": "暂不支持编辑",
+            "setRowColStyleErr": "暂不支持编辑",
+            "moveRowColErr": "暂不支持编辑",
+            "moveRangeErr": "暂不支持编辑",
+            "autoFillErr": "暂不支持编辑",
+            "filterErr": "暂不支持编辑",
+            "operatorSheetErr": "暂不支持编辑",
+            "insertOrDeleteMoveRangeErr": "暂不支持编辑",
+            "printErr": "暂不支持编辑",
+            "formulaErr": "暂不支持编辑",
+            "hyperLinkErr": "暂不支持编辑"
+        }
+   }
+}
