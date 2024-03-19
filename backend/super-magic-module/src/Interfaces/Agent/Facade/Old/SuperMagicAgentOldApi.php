@@ -1,0 +1,254 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic\Interfaces\Agent\Facade\Old;
+
+use App\Application\Flow\Service\MagicFlowAppService;
+use App\Application\Kernel\Enum\MagicOperationEnum;
+use App\Application\Kernel\Enum\MagicResourceEnum;
+use App\Domain\Flow\Entity\MagicFlowToolSetEntity;
+use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
+use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\Agent\Service\AdminSuperMagicAgentAppService;
+use Dtyq\SuperMagic\Application\Agent\Service\Old\SuperMagicAgentOldAppService;
+use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAiOptimizeAppService;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\BuiltinToolAssembler;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\BuiltinToolDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentAiOptimizeFormRequest;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentOrderFormRequest;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentQueryFormRequest;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentSaveFormRequest;
+use Hyperf\Di\Annotation\Inject;
+
+#[ApiResponse(version: 'low_code')]
+class SuperMagicAgentOldApi extends AbstractSuperMagicApi
+{
+    #[Inject]
+    protected SuperMagicAgentOldAppService $superMagicAgentAppService;
+
+    #[Inject]
+    protected SuperMagicAgentAiOptimizeAppService $superMagicAgentAiOptimizeAppService;
+
+    #[Inject]
+    protected MagicFlowAppService $magicFlowAppService;
+
+    #[Inject]
+    protected AdminSuperMagicAgentAppService $adminAgentAppService;
+
+    public function save(SuperMagicAgentSaveFormRequest $request)
+    {
+        $authorization = $this->getAuthorization();
+
+        $requestData = $request->validated();
+        $DTO = new SuperMagicAgentDTO($requestData);
+        $promptShadow = $request->input('prompt_shadow');
+        if ($promptShadow) {
+            $promptShadow = json_decode(ShadowCode::unShadow($promptShadow), true);
+            $DTO->setPrompt($promptShadow);
+        }
+
+        $DO = SuperMagicAgentAssembler::createDO($DTO);
+        $DO->setVisibilityConfig($this->request->input('visibility_config'));
+
+        $entity = $this->superMagicAgentAppService->save($authorization, $DO);
+        $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
+
+        return SuperMagicAgentAssembler::createDTO($entity, $users);
+    }
+
+    public function queries(SuperMagicAgentQueryFormRequest $request)
+    {
+        $authorization = $this->getAuthorization();
+
+        $requestData = $request->validated();
+        $query = new SuperMagicAgentQuery($requestData);
+        $page = $this->createPage();
+
+        $result = $this->superMagicAgentAppService->queries($authorization, $query, $page);
+
+        return SuperMagicAgentAssembler::createCategorizedListDTO(
+            frequent: $result['frequent'],
+            all: $result['all'],
+            total: $result['total']
+        );
+    }
+
+    public function show(string $code)
+    {
+        $authorization = $this->getAuthorization();
+        $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
+
+        $entity = $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema);
+
+        $withPromptString = (bool) $this->request->input('with_prompt_string', false);
+
+        $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
+
+        return SuperMagicAgentAssembler::createDTO($entity, $users, $withPromptString);
+    }
+
+    public function destroy(string $code)
+    {
+        $authorization = $this->getAuthorization();
+        $result = $this->superMagicAgentAppService->delete($authorization, $code);
+
+        return ['success' => $result];
+    }
+
+    public function enable(string $code)
+    {
+        $authorization = $this->getAuthorization();
+        $entity = $this->superMagicAgentAppService->enable($authorization, $code);
+
+        $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
+
+        return SuperMagicAgentAssembler::createDTO($entity, $users);
+    }
+
+    public function disable(string $code)
+    {
+        $authorization = $this->getAuthorization();
+        $entity = $this->superMagicAgentAppService->disable($authorization, $code);
+
+        $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
+
+        return SuperMagicAgentAssembler::createDTO($entity, $users);
+    }
+
+    /**
+     * 保存智能体排列顺序.
+     */
+    public function saveOrder(SuperMagicAgentOrderFormRequest $request)
+    {
+        $authorization = $this->getAuthorization();
+
+        $requestData = $request->validated();
+        $orderConfig = [
+            'frequent' => $requestData['frequent'] ?? [],
+            'all' => $requestData['all'],
+        ];
+
+        $this->superMagicAgentAppService->saveOrderConfig($authorization, $orderConfig);
+
+        return ['message' => 'Agent order saved successfully'];
+    }
+
+    /**
+     * 获取内置工具列表.
+     */
+    public function tools()
+    {
+        return BuiltinToolAssembler::createToolCategoryListDTO();
+    }
+
+    /**
+     * AI优化智能体.
+     */
+    public function aiOptimize(SuperMagicAgentAiOptimizeFormRequest $request)
+    {
+        $authorization = $this->getAuthorization();
+        $requestData = $request->validated();
+
+        // 创建优化类型枚举实例（FormRequest 验证确保有效性）
+        $optimizationType = SuperMagicAgentOptimizationType::fromString($requestData['optimization_type']);
+
+        // 使用 SuperMagicAgentAssembler 创建实体
+        $DTO = new SuperMagicAgentDTO($requestData['agent']);
+        $promptShadow = $request->input('agent.prompt_shadow');
+        if ($promptShadow) {
+            $promptShadow = json_decode(ShadowCode::unShadow($promptShadow), true);
+            $DTO->setPrompt($promptShadow);
+        }
+        $agentEntity = SuperMagicAgentAssembler::createDO($DTO);
+
+        // 只有在优化内容时才查询工具信息
+        $availableTools = [];
+        if ($optimizationType === SuperMagicAgentOptimizationType::OptimizeContent) {
+            // 当前用户可用的工具列表
+            $builtinTools = BuiltinToolAssembler::createToolListDTO();
+            $customToolSets = $this->magicFlowAppService->queryToolSets($authorization, false, false)['list'] ?? [];
+
+            // 合并内置工具和自定义工具为统一格式
+            $availableTools = $this->mergeAvailableTools($builtinTools, $customToolSets);
+        }
+
+        // 调用优化服务
+        $optimizedEntity = $this->superMagicAgentAiOptimizeAppService->optimizeAgent(
+            $authorization,
+            $optimizationType,
+            $agentEntity,
+            $availableTools
+        );
+
+        return [
+            'optimization_type' => $optimizationType->value,
+            'agent' => SuperMagicAgentAssembler::createDTO($optimizedEntity),
+        ];
+    }
+
+    /**
+     * 审核员工版本.
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT, MagicOperationEnum::EDIT)]
+    public function reviewAgentVersion(int $id): array
+    {
+        $authorization = $this->getAuthorization();
+
+        // 从请求创建DTO
+        $requestDTO = ReviewAgentVersionRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务层处理业务逻辑
+        $this->adminAgentAppService->reviewAgentVersion($authorization, $id, $requestDTO);
+
+        // 返回空数组
+        return [];
+    }
+
+    /**
+     * 合并内置工具和自定义工具为统一格式.
+     * @param array<BuiltinToolDTO> $builtinTools
+     * @param array<MagicFlowToolSetEntity> $customToolSets
+     */
+    private function mergeAvailableTools(array $builtinTools, array $customToolSets): array
+    {
+        $tools = [];
+
+        // 处理内置工具
+        foreach ($builtinTools as $tool) {
+            $toolCode = $tool->getCode();
+            $tools[$toolCode] = [
+                'code' => $toolCode,
+                'name' => $tool->getName(),
+                'description' => $tool->getDescription(),
+                'required' => $tool->isRequired(),
+                'type' => 'builtin',
+            ];
+        }
+
+        // 处理自定义工具
+        foreach ($customToolSets as $customToolSet) {
+            foreach ($customToolSet->getTools() as $tool) {
+                $tools[$tool['code']] = [
+                    'code' => $tool['code'],
+                    'name' => $tool['name'],
+                    'description' => $tool['description'],
+                    'required' => false,
+                    'type' => 'custom',
+                ];
+            }
+        }
+
+        return $tools;
+    }
+}
