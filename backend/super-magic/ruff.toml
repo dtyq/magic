@@ -1,0 +1,85 @@
+# 行长度设置
+line-length = 120
+
+# 目标 Python 版本
+target-version = "py39"
+
+[lint]
+# 选择要启用的规则
+select = [
+    "E",   # pycodestyle 错误
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "W",   # pycodestyle 警告
+    "RUF", # ruff 特定规则
+]
+
+# 忽略一些规则
+ignore = [
+    "RUF001",  # 允许使用中文逗号
+    "RUF002",  # 允许使用中文括号
+    "RUF003",  # 允许在注释中使用中文标点
+    "RUF012",  # 允许不使用 ClassVar 注解
+    "RUF013",  # 允许隐式 Optional
+    "RUF005",  # 允许使用 + 进行列表连接
+    "RUF006",  # 允许不存储 asyncio.create_task 的返回值
+    "E501",    # 允许长行
+    "F841",    # 允许未使用的变量
+    "N818",    # 允许异常类名不以 Error 结尾
+    "N805",    # 允许方法的第一个参数不命名为 self
+    "F811",    # 允许重复定义
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic method
+    "D106",    # Missing docstring in public nested class
+    "D107",    # Missing docstring in __init__
+    "D200",    # One-line docstring should fit on one line with quotes
+    "D202",    # No blank lines allowed after function docstring
+    "D203",    # 1 blank line required before class docstring
+    "D204",    # 1 blank line required after class docstring
+    "D205",    # 1 blank line required between summary line and description
+    "D209",    # Multi-line docstring closing quotes should be on a separate line
+    "D210",    # No whitespaces allowed surrounding docstring text
+    "D212",    # Multi-line docstring summary should start at the first line
+    "D213",    # Multi-line docstring summary should start at the second line
+    "D214",    # Section is over-indented
+    "D215",    # Section underline is over-indented
+    "D300",    # Use """triple double quotes"""
+    "D301",    # Use r""" if any backslashes in a docstring
+    "D400",    # First line should end with a period
+    "D401",    # First line should be in imperative mood
+    "D402",    # First line should not be the function's "signature"
+    "D403",    # First word of the first line should be properly capitalized
+    "D404",    # First word of the docstring should not be This
+    "D405",    # Section name should be properly capitalized
+    "D406",    # Section name should end with a newline
+    "D407",    # Missing dashed underline after section
+    "D408",    # Section underline should be in the line following the section's name
+    "D409",    # Section underline should match the length of its name
+    "D410",    # Missing blank line after section
+    "D411",    # Missing blank line before section
+    "D412",    # No blank lines allowed between a section header and its content
+    "D413",    # Missing blank line after last section
+    "D414",    # Section has no content
+    "D415",    # First line should end with a period, question mark, or exclamation point
+    "D416",    # Section name should end with a colon
+    "D417",    # Missing argument descriptions in the docstring
+    "W291",    # 允许行尾空格
+]
+
+[format]
+# 引号风格
+quote-style = "double"
+
+# 在行尾添加逗号
+skip-magic-trailing-comma = false
+
+# 缩进风格
+indent-style = "space"
+
+# 行尾风格
+line-ending = "auto"
