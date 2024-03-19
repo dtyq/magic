@@ -1,0 +1,159 @@
+.flowDesign {
+	flex: 1;
+	background-color: #fff;
+
+	.minMap {
+		bottom: 84px !important;
+		right: 36px !important;
+		margin: 0;
+		width: 200px;
+		height: 150px;
+		border-radius: 8px;
+
+		svg {
+			border-radius: 8px;
+		}
+	}
+
+	:global {
+		.react-flow__attribution {
+			display: none;
+		}
+
+		.react-flow__edge-path-selector:hover {
+			cursor: pointer;
+		}
+
+		.react-flow__edge-path-selector:hover+.react-flow__edge-path,
+		.react-flow__edge-path:hover {
+			stroke: #555;
+			cursor: pointer;
+		}
+
+		.react-flow__edge-path-selector {
+			fill: none;
+			stroke: transparent;
+		}
+
+
+	}
+
+
+	.controls {
+		display: flex;
+		align-items: center;
+		box-shadow: 0 0 1px 0 rgba(0, 0, 0, .3), 0 4px 14px 0 rgba(0, 0, 0, .1) !important;
+		border-radius: 12px;
+		padding: 8px 16px;
+		background-color: #fff;
+		margin: 36px;
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		gap: 20px;
+
+
+
+		.groupWrap {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			position: relative;
+
+			&:first-child {
+				.line {
+					display: none;
+				}
+			}
+
+			.line {
+				position: absolute;
+				width: 1px;
+				height: 20px;
+				overflow: visible;
+			}
+
+			.controlItem {
+				display: flex;
+				align-items: center;
+				padding: 2px;
+				cursor: pointer;
+				border-radius: 4px;
+				color: #1C1D23;
+
+
+				.scaleWrap {
+					width: 40px;
+					height: 16px;
+					border: none;
+					color: #000000;
+					font-size: 12px;
+					line-height: 16px;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					user-select: none;
+				}
+
+				&.lockItem {
+					background-color: #FFF8EB;
+
+					&:hover,
+					&:active {
+						background-color: #FFF8EB;
+					}
+				}
+
+				&.showMinMap {
+
+					background-color: #EEF3FD;
+
+					&:hover,
+					&:active {
+						background-color: #EEF3FD;
+					}
+				}
+
+				&.isNotIcon {
+					background-color: white;
+
+					&:hover,
+					&:active {
+						background-color: white;
+					}
+				}
+
+				&:hover {
+					background-color: rgba(46, 50, 56, 0.05);
+				}
+
+				&:active {
+					background-color: rgba(46, 46, 56, .12);
+				}
+
+				svg {
+					width: 20px;
+					height: 20px;
+				}
+			}
+
+
+
+			.undoLayoutItem {
+				rotate: 180deg;
+			}
+
+		}
+
+	}
+}
+
+
+.shortCutsBlock {
+    background-color: #16161A99;
+    padding: 2px 6px;
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+    border-radius: 4px;
+}

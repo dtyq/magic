@@ -1,0 +1,73 @@
+.subGroup {
+	background-color: #fff;
+	border-radius: 8px;
+	border: 1px solid #1C1D2314;
+	margin-bottom: 6px;
+
+	:global {
+		.magic-collapse {
+			.magic-collapse-item {
+				border: none;
+			}
+		}
+
+		.magic-collapse-header {
+			user-select: none;
+			margin: 0 !important;
+			padding: 8px !important;
+
+			&:hover {
+				background-color: transparent !important;
+			}
+		}
+
+		.magic-collapse-content-box {
+			padding: 0!important;
+		}
+
+		.magic-collapse-header-text {
+			display: flex;
+			align-items: center;
+		}
+		
+	}
+
+
+	.icon {
+		height: 24px;
+		width: 24px;
+		margin-right: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 3px;
+		color: #fff;
+
+		svg {
+			width: 18px;
+			height: 18px;
+		}
+	}
+
+	.title {
+		color: #1c1f23;
+		font-size: 14px;
+		font-weight: 400;
+		line-height: 20px;
+		max-width: 160px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		text-wrap: nowrap;
+	}
+
+	.help {
+		margin-left: 4px;
+		border-radius: 4px;
+		cursor: help;
+		padding: 2px;
+
+		&:hover {
+			background-color: #2E2F380D;
+		}
+	}
+}

@@ -1,0 +1,120 @@
+@--hover-background-color: rgba(46, 50, 56, 0.05);
+@--border-color: #1c1d2314;
+
+.flowHeader {
+	display: flex;
+	background: #fff;
+	border-bottom: 1px solid @--border-color;
+	justify-content: space-between;
+	padding: 16px 24px;
+	height: 72px;
+	align-items: center;
+
+	.right {
+		display: flex;
+		align-items: center;
+
+		button {
+			margin-left: 16px;
+			width: 100px;
+			height: 32px;
+			border-radius: 8px;
+		}
+
+		.copyBtn {
+			margin-left: 16px;
+			height: 32px;
+			border-radius: 8px;
+			width: 44px;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			padding: 0;
+
+			svg {
+				width: 20px;
+				height: 20px;
+			}
+		}
+	}
+
+	.left {
+		display: flex;
+		align-items: center;
+
+		.backIcon {
+			width: 32px;
+			height: 32px;
+			color: #333;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			border-radius: 4px;
+			cursor: pointer;
+
+			&:hover {
+				background-color: @--hover-background-color;
+			}
+
+			margin-right: 20px;
+			margin-left: 12px;
+			font-size: 18px;
+		}
+
+		.flowIcon {
+			border-radius: 6px;
+			height: 32px;
+			margin-right: 12px;
+			width: 32px;
+		}
+
+		.flowBaseInfo {
+			display: flex;
+			flex-direction: column;
+
+			.tags {
+				display: flex;
+				margin-bottom: 0;
+                align-items: center;
+				gap: 8px;
+
+				.tag {
+					background-color: #f0f0f5;
+					border-radius: 4px;
+					color: #1d1c2399;
+					padding: 2px 8px;
+					display: flex;
+					align-items: center;
+					max-width: 400px;
+                    gap: 2px;
+
+					.tagIcon {
+						font-size: 10px;
+						margin-right: 4px;
+						width: 14px;
+						height: 14px;
+
+						&.checked {
+							color: #28A32D;
+						}
+
+						&.warning {
+							color: #FF7D00;
+						}
+					}
+
+					.tagText {
+						font-size: 12px;
+						font-style: normal;
+						font-weight: 400;
+						letter-spacing: .12px;
+						line-height: 16px;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						text-wrap: nowrap;
+					}
+				}
+			}
+		}
+	}
+}

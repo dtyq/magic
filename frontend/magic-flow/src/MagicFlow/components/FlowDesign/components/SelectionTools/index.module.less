@@ -1,0 +1,54 @@
+.groupWrap {
+
+	display: flex;
+	align-items: center;
+	box-shadow: 0 0 1px 0 rgba(0, 0, 0, .3), 0 4px 14px 0 rgba(0, 0, 0, .1) !important;
+	border-radius: 12px;
+	padding: 8px 16px;
+	background-color: #fff;
+	margin: 36px;
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	gap: 20px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	position: relative;
+
+
+	.line {
+		width: 1px;
+		height: 20px;
+		overflow: visible;
+	}
+
+	.controlItem {
+		display: flex;
+		align-items: center;
+		padding: 2px;
+		cursor: pointer;
+		border-radius: 4px;
+		color: #1C1D23;
+		gap: 2px;
+
+		&:hover {
+			background-color: rgba(46, 50, 56, 0.05);
+		}
+
+		&:active {
+			background-color: rgba(46, 46, 56, .12);
+		}
+
+		svg {
+			width: 20px;
+			height: 20px;
+		}
+	}
+
+
+	.undoLayoutItem {
+		rotate: 180deg;
+	}
+
+}

@@ -1,0 +1,129 @@
+.materialItem {
+	background: #fff;
+	border-radius: 8px;
+	border: 1px solid #1C1D2314;
+	cursor: -webkit-grab;
+	cursor: grab;
+	font-size: 12px;
+	line-height: 16px;
+	overflow: hidden;
+	height: 40px;
+	margin-bottom: 6px;
+	padding: 8px;
+	user-select: none;
+	overflow: hidden;
+    
+
+	&:hover {
+		box-shadow: 0 8px 12px 0 rgba(29, 28, 35, .1);
+	}
+
+	.header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+
+		.left {
+			display: flex;
+			align-items: center;
+
+
+			.title {
+				color: #1c1f23;
+				font-size: 14px;
+				font-weight: 400;
+				line-height: 20px;
+				max-width: 160px;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				text-wrap: nowrap;
+			}
+		}
+
+		.plus {
+			color: #315CEC;
+			border-radius: 4px;
+			cursor: pointer;
+			height: 24px;
+			width: 24px;
+
+			svg {
+				height: 19px;
+				width: 19px;
+			}
+
+			&:hover {
+				background-color: #2E2F380D;
+			}
+		}
+
+		.help {
+			margin-left: 4px;
+			border-radius: 4px;
+			cursor: help;
+			padding: 2px;
+
+			&:hover {
+				background-color: #2E2F380D;
+			}
+		}
+	}
+
+	.desc {
+		color: rgba(28, 31, 35, .6);
+		margin-top: 10px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+
+		max-height: 36px;
+		font-size: 12px;
+		font-weight: 400;
+		line-height: 16px;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		line-clamp: 2;
+
+	}
+}
+
+
+
+.isHoverMenu {
+
+	&:hover {
+		background-color: rgb(249, 250, 251);
+	}
+}
+
+
+.inGroup {
+	margin: 8px;
+}
+
+
+.avatar {
+    display: flex;
+    width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    margin-right: 6px;
+}
+
+
+.icon {
+    height: 24px;
+    width: 24px;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    color: #fff;
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
+}

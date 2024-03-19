@@ -1,0 +1,39 @@
+.textEditable {
+
+    display: flex;
+    align-items: center;
+
+    .text {
+        color: #1d1c23;
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 600;
+        line-height: 30px;
+        margin-right: 6px;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-wrap: nowrap;
+        height: 30px;
+
+    }
+
+    input {
+        height: 30px;
+    }
+
+    .editIcon {
+        font-size: 12px;
+        padding: 2px;
+        border-radius: 3px;
+        cursor: pointer;
+
+        &:hover {
+            background-color: rgba(46, 50, 56, 0.05);
+        }
+
+        svg {
+            color: rgb(29, 28, 35);
+        }
+    }
+}

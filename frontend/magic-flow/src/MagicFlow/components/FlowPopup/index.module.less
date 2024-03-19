@@ -1,0 +1,65 @@
+@gap: 10px;
+
+.flowPopup {
+    background-color: #F9F9F9;
+    border-radius: 12px;
+	:global {
+		.magic-tabs {
+
+			.magic-tabs-nav {
+				padding: 0 @gap;
+				margin-bottom: @gap;
+
+			}
+
+			.magic-tabs-tab {
+				height: 40px;
+				padding: 0;
+				margin-left: 0 !important;
+				margin-right: 16px;
+			}
+
+			.magic-tabs-tab-active {
+				color: rgb(55 65 81);
+			}
+
+			.magic-tabs-content-holder {
+				padding-bottom: @gap;
+				max-height: 50vh;
+				overflow: auto;
+			}
+
+
+		}
+        .magic-flow-panel-material-list {
+            height: auto;
+            padding: 0 10px;
+        }
+	}
+
+
+	.nodeList {
+		.noContent {
+			padding: 0 @gap;
+		}
+
+		.nodeGroup {
+			margin-bottom: 4px;
+
+			.groupName {
+				padding: 0 @gap;
+				color: rgb(107 114 128);
+				font-weight: 500;
+				font-size: 12px;
+				margin-bottom: 4px;
+			}
+
+		}
+	}
+
+	.searchWrapper {
+		padding: @gap @gap 0 @gap;
+	}
+
+
+}

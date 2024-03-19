@@ -1,0 +1,43 @@
+.panelAgent {
+	overflow-y: auto;
+	padding: 0;
+	height: calc(100vh - 160px);
+	padding: 12px;
+
+    :global {
+        .magic-select {
+            margin-bottom: 10px;
+            line-height: 2;
+            .magic-select-selector {
+                width: 150px;
+                background-color: #2E2F380D !important;
+                border: none!important;
+                outline: none;
+                &:hover {
+                    border: none!important;
+                }
+            }
+            .magic-select-selection-item{
+                line-height: 34px;
+            }
+
+        }
+    }
+}
+
+.select {
+    :global {
+        .magic-select-item-option {
+            margin: 0 2px 2px 2px;
+            border-radius: 10px;
+            &:hover {
+                background-color: #2E2F380D!important;
+                color: #1C1D23CC!important;
+            }
+        }
+        .magic-select-item-option-selected {
+            background-color: #EEF3FD!important;
+            color: #1C1D23CC!important;
+        }
+    }
+}
