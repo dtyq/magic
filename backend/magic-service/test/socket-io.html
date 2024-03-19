@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<script src="https://cdn.bootcdn.net/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+<script>
+    var socket = io('ws://127.0.0.1:9502', { transports: ["websocket"], query: { token: '123456'} });
+    socket.on('connect', data => {
+        console.log(data)
+        //登录
+        socket.emit("login", '{"context":{"request_id":"777","timestamp":1712560525,"signature":""},"data":[]}', console.log);
+        // 聊天
+        socket.emit("chat", '{"context":{"request_id":"666","timestamp":1712560525,"signature":""},"data":{"message":{"type":"text","content":"你好世界"},"receive_type":"user","receive_id":"66"}}', console.log);
+        setInterval(function () {
+            const start = Date.now();
+            socket.emit("ping", () => {
+                const duration = Date.now() - start;
+                console.log(duration);
+            });
+        }, 1000);
+    });
+    socket.on('event', console.log);
+</script>
+</body>
+</html>

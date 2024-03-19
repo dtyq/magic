@@ -1,0 +1,67 @@
+{
+    "name": "dtyq/rule-engine-core",
+    "type": "library",
+    "license": "Apache License 2.0",
+    "keywords": [
+        "php",
+        "hyperf"
+    ],
+    "description": "",
+    "autoload": {
+        "psr-4": {
+            "Dtyq\\RuleEngineCore\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "HyperfTest\\": "tests"
+        }
+    },
+    "require": {
+        "php": ">=8.0",
+        "hyperf/di": "*",
+        "hyperf/framework": "*",
+        "dtyq/sandbox": "~0.1",
+        "twig/twig": "^3.4"
+    },
+    "require-dev": {
+        "hyperf/testing": "*",
+        "hyperf/config": "*",
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "mockery/mockery": "^1.0",
+        "phpstan/phpstan": "^1.0",
+        "phpunit/phpunit": ">=7.0",
+        "swoole/ide-helper": "^4.5",
+        "symfony/var-dumper":"*",
+        "hyperf/redis": "*",
+        "hyperf/cache": "*"
+    },
+    "suggest": {
+        "swow/swow": "Required to create swow components."
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "@php tests/phpunit-adaptor run",
+        "analyse": "phpstan analyse --memory-limit 1024M -l 0 ./src",
+        "cs-fix": "php-cs-fixer fix $1"
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Dtyq\\RuleEngineCore\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    },
+    "repositories": [
+        {
+            "type": "github",
+            "url": "https://github.com/dtyq/sandbox.git"
+        }
+    ]
+}

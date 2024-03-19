@@ -1,0 +1,88 @@
+# 测试相关依赖
+pytest==8.0.0
+pytest-asyncio==0.23.5
+
+# 核心工具和配置管理
+python-dotenv==1.0.1
+pyyaml~=6.0.2
+loguru~=0.7.3
+colorama~=0.4.6
+appdirs==1.4.4
+typer>=0.15.2
+
+# 数据处理与向量存储
+qdrant-client==1.9.2
+numpy==1.26.4
+pandas>=2.0.0
+datasets~=3.2.0
+matplotlib==3.8.0
+seaborn>=0.13.0
+
+# API和Web服务
+fastapi~=0.115.11
+uvicorn~=0.34.0
+aiohttp==3.9.3
+aiohttp-retry==2.9.1
+websockets==10.4
+unidiff~=0.7.5
+
+# 数据模型与验证
+pydantic~=2.10.4
+pydantic_core~=2.27.2
+
+# 网络请求与工具
+requests>=2.32.2
+requests-toolbelt>=1.0.0
+tenacity==8.2.3
+aiofiles~=24.1.0
+
+# AI与LLM相关
+openai~=1.58.1
+langchain~=0.3.20
+langchain-core~=0.3.45
+langchain_community~=0.3.19
+tiktoken>=0.6.0
+
+# 前端与界面相关
+html2text~=2024.2.26
+html5lib==1.1
+webencodings==0.5.1
+
+# 浏览器自动化
+playwright~=1.49.1
+# browsergym~=0.13.3
+# browser-use~=0.1.40
+
+# 文件处理依赖
+PyPDF2>=3.0.0
+pdf2image>=1.16.0
+openpyxl>=3.1.2
+python-pptx>=0.6.21
+python-docx>=1.0.0
+markitdown>=0.1.0
+
+# 文件监控
+watchdog>=3.0.0
+
+# 系统与环境
+psutil>=7.0.0
+readchar==4.2.1
+
+# 代码质量与开发工具
+ruff==0.11.2
+pre-commit==4.2.0
+
+# 存储与云服务
+redis==5.2.1
+tos==2.8.1
+
+# 其他工具
+gymnasium~=1.0.0
+pillow~=10.4.0
+yfinance==0.2.55
+
+# 语法检查工具
+pylint==3.3.6
+tinycss2==1.4.0
+pyright==1.1.398  # TypeScript 语法检查的附加支持
+PyExecJS>=1.5.1
