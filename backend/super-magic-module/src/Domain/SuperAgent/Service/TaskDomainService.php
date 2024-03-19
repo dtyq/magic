@@ -1,0 +1,670 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
+
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\Traits\HasLogger;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
+use RuntimeException;
+
+class TaskDomainService
+{
+    use HasLogger;
+
+    public function __construct(
+        protected ProjectRepositoryInterface $projectRepository,
+        protected TopicRepositoryInterface $topicRepository,
+        protected TaskRepositoryInterface $taskRepository,
+        protected TaskMessageRepositoryInterface $messageRepository,
+        protected TaskFileRepositoryInterface $taskFileRepository,
+        protected SandboxService $sandboxService,
+        protected SandboxAgentInterface $sandboxAgent,
+    ) {
+    }
+
+    /**
+     * Initialize a task for a topic.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param TopicEntity $topicEntity Topic entity
+     * @param TaskEntity $taskEntity Task entity
+     * @param string $topicMode Topic mode
+     * @return TaskEntity Task entity
+     * @throws RuntimeException If task repository or topic repository not injected
+     */
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity, string $topicMode = ''): TaskEntity
+    {
+        // Get current user ID
+        $userId = $dataIsolation->getCurrentUserId();
+        $currentTime = date('Y-m-d H:i:s');
+
+        // Get task mode from DTO, fallback to topic's task mode if empty
+        if ($topicMode === '') {
+            $topicMode = $topicEntity->getTopicMode();
+        }
+        // if project mode is empty and topic mode is data analysis, set project mode to data analysis
+        $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
+        if (empty($projectEntity->getProjectMode())) {
+            $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => $topicMode, 'updated_at' => $currentTime]);
+        }
+
+        // Set task start time
+        $taskEntity->setStartedAt($currentTime);
+
+        // Update running tasks in current topic to suspended before creating new task， 暂时去掉，等加上 task_type 类型
+        $this->taskRepository->updateTaskByCondition(
+            [
+                'topic_id' => $topicEntity->getId(),
+                'task_status' => TaskStatus::RUNNING->value,
+            ],
+            [
+                'task_status' => TaskStatus::Suspended->value,
+                'err_msg' => '新任务开始',
+                'finished_at' => $currentTime,
+                'updated_at' => $currentTime,
+            ]
+        );
+
+        // Create task
+        $taskEntity = $this->taskRepository->createTask($taskEntity);
+        // Update topic's current task ID and status
+        $topicEntity->setCurrentTaskId($taskEntity->getId());
+        $topicEntity->setCurrentTaskStatus(TaskStatus::RUNNING);
+        $topicEntity->setUpdatedAt($currentTime);
+        $topicEntity->setUpdatedUid($userId);
+        $topicEntity->setTaskMode($taskEntity->getTaskMode());
+        $conditions = [
+            'id' => $topicEntity->getId(),
+        ];
+        $data = [
+            'current_task_id' => $taskEntity->getId(),
+            'current_task_status' => TaskStatus::RUNNING->value,
+            'updated_uid' => $userId,
+            'updated_at' => $currentTime,
+        ];
+        if (empty($topicEntity->getTopicMode())) {
+            $topicEntity->setTopicMode($topicMode);
+            $data['topic_mode'] = $topicMode;
+        }
+        $this->topicRepository->updateTopicByCondition($conditions, $data);
+        return $taskEntity;
+    }
+
+    public function initDefaultTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, string $prompt = ''): TaskEntity
+    {
+        $data = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'workspace_id' => $topicEntity->getWorkspaceId(),
+            'project_id' => $topicEntity->getProjectId(),
+            'topic_id' => $topicEntity->getId(),
+            'task_id' => '', // Initially empty, this is agent's task id
+            'task_mode' => '',
+            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+            'prompt' => $prompt,
+            'task_status' => TaskStatus::WAITING->value,
+            'work_dir' => $topicEntity->getWorkDir() ?? '',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        $taskEntity = TaskEntity::fromArray($data);
+
+        return $this->taskRepository->createTask($taskEntity);
+    }
+
+    public function initPreWarmTask(DataIsolation $dataIsolation, TopicEntity $topicEntity)
+    {
+        $data = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'workspace_id' => $topicEntity->getWorkspaceId(),
+            'project_id' => $topicEntity->getProjectId(),
+            'topic_id' => $topicEntity->getId(),
+            'task_id' => '', // Initially empty, this is agent's task id
+            'task_mode' => '',
+            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+            'prompt' => 'Pre Warm Task',
+            'task_status' => TaskStatus::WAITING->value,
+            'work_dir' => $topicEntity->getWorkDir() ?? '',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        $taskEntity = TaskEntity::fromArray($data);
+
+        return $this->taskRepository->createTask($taskEntity);
+    }
+
+    /**
+     * Initialize or get ASR task for a topic.
+     * ASR 场景专用的任务初始化方法.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param TopicEntity $topicEntity Topic entity (avoid redundant query)
+     * @param string $projectId Project ID
+     * @return TaskEntity Task entity
+     */
+    public function initAsrTask(
+        DataIsolation $dataIsolation,
+        TopicEntity $topicEntity,
+        string $projectId
+    ): TaskEntity {
+        // Check if topic has current task
+        $currentTaskId = $topicEntity->getCurrentTaskId();
+        if ($currentTaskId !== null && $currentTaskId > 0) {
+            $taskEntity = $this->taskRepository->getTaskById($currentTaskId);
+            if ($taskEntity) {
+                $this->logger->info('[TaskDomain][ASR] Reusing existing task from topic', [
+                    'topic_id' => $topicEntity->getId(),
+                    'current_task_id' => $currentTaskId,
+                    'project_id' => $projectId,
+                ]);
+                return $taskEntity;
+            }
+        }
+
+        // Create new ASR task
+        $this->logger->info('[TaskDomain][ASR] Creating new ASR task', [
+            'topic_id' => $topicEntity->getId(),
+            'project_id' => $projectId,
+        ]);
+
+        $userId = $dataIsolation->getCurrentUserId();
+        $currentTime = date('Y-m-d H:i:s');
+
+        $taskData = [
+            'user_id' => $userId,
+            'workspace_id' => $topicEntity->getWorkspaceId(),
+            'project_id' => $topicEntity->getProjectId(),
+            'topic_id' => $topicEntity->getId(),
+            'task_id' => '', // Auto-generated by database
+            'task_mode' => $topicEntity->getTaskMode() ?: 'general',
+            'sandbox_id' => $topicEntity->getSandboxId() ?: '',
+            'prompt' => 'ASR Recording Task', // ASR task identifier
+            'task_status' => TaskStatus::WAITING->value,
+            'work_dir' => $topicEntity->getWorkDir() ?? '',
+            'created_at' => $currentTime,
+            'updated_at' => $currentTime,
+        ];
+
+        $taskEntity = TaskEntity::fromArray($taskData);
+
+        // Create task and update topic
+        $createdTask = $this->taskRepository->createTask($taskEntity);
+
+        $this->logger->info('[TaskDomain][ASR] ASR task created successfully', [
+            'topic_id' => $topicEntity->getId(),
+            'task_id' => $createdTask->getId(),
+            'project_id' => $projectId,
+        ]);
+
+        return $createdTask;
+    }
+
+    /**
+     * Create task and update topic's current task ID and status.
+     *
+     * @param TaskEntity $taskEntity Task entity
+     * @return TaskEntity Created task entity
+     */
+    public function createTask(TaskEntity $taskEntity): TaskEntity
+    {
+        // Create task
+        $task = $this->taskRepository->createTask($taskEntity);
+
+        // Update topic's current task ID and status
+        $topic = $this->topicRepository->getTopicById($task->getTopicId());
+        if ($topic) {
+            $topic->setCurrentTaskId($task->getId());
+            $topic->setCurrentTaskStatus(TaskStatus::WAITING);
+            $this->topicRepository->updateTopic($topic);
+        }
+
+        return $task;
+    }
+
+    public function updateTaskStatus(TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
+    {
+        // Find task
+        $taskEntity = $this->taskRepository->getTaskById($id);
+        if (! $taskEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
+        }
+
+        // Update task status
+        $taskEntity->setTaskStatus($status->value);
+        $taskEntity->setSandboxId($sandboxId);
+        $taskEntity->setTaskId($taskId);
+        $taskEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        // If error message is provided and status is ERROR, set error message
+        if ($status === TaskStatus::ERROR && $errMsg !== null) {
+            if (mb_strlen($errMsg, 'UTF-8') > 500) {
+                $errMsg = mb_substr($errMsg, 0, 497, 'UTF-8') . '...';
+            }
+            $taskEntity->setErrMsg($errMsg);
+        }
+
+        // Set task finish time when task is finished or error
+        if ($status->isFinal()) {
+            $taskEntity->setFinishedAt(date('Y-m-d H:i:s'));
+        }
+
+        $this->taskRepository->updateTask($taskEntity);
+        return true;
+    }
+
+    public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'sandbox_id' => $sandboxId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->taskRepository->updateTaskByCondition($conditions, $data);
+    }
+
+    /**
+     * Delete task.
+     *
+     * @param int $taskId Task ID
+     * @return bool Whether deletion was successful
+     */
+    public function deleteTask(int $taskId): bool
+    {
+        // Check if task exists
+        $task = $this->taskRepository->getTaskById($taskId);
+        if (! $task) {
+            return false;
+        }
+
+        // Check if task is running
+        if ($task->getStatus() === TaskStatus::RUNNING) {
+            return false;
+        }
+
+        // Delete task
+        return $this->taskRepository->deleteTask($taskId);
+    }
+
+    /**
+     * Record task message.
+     */
+    public function recordTaskMessage(TaskMessageEntity $taskMessageEntity): TaskMessageEntity
+    {
+        $this->messageRepository->save($taskMessageEntity);
+        return $taskMessageEntity;
+    }
+
+    /**
+     * Get task entity by id.
+     */
+    public function getTaskById(int $id): ?TaskEntity
+    {
+        return $this->taskRepository->getTaskById($id);
+    }
+
+    public function getTaskFile(int $fileId): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->getById($fileId);
+    }
+
+    /**
+     * Update task file.
+     */
+    public function updateTaskFile(TaskFileEntity $taskFileEntity): TaskFileEntity
+    {
+        // 验证TaskFileEntity是否存在
+        $existingTaskFile = $this->taskFileRepository->getById($taskFileEntity->getFileId());
+        if (! $existingTaskFile) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'Task file not found');
+        }
+        return $this->taskFileRepository->updateById($taskFileEntity);
+    }
+
+    /**
+     * Get task file by file key and task ID.
+     */
+    public function getTaskFileByFileKey(string $fileKey, int $topicId): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->getByFileKey($fileKey);
+    }
+
+    /**
+     * insert or update task file entity by file key.
+     */
+    public function saveTaskFileByFileKey(
+        DataIsolation $dataIsolation,
+        string $fileKey,
+        array $fileData,
+        int $projectId,
+        int $topicId,
+        int $taskId,
+        string $fileType = FileType::PROCESS->value,
+        bool $isUpdate = false,
+        string $storageType = StorageType::WORKSPACE->value,
+        int $source = TaskFileSource::AGENT->value,
+        ?int $parentId = null,
+    ): TaskFileEntity {
+        // First, check if the file already exists
+        $taskFileEntity = $this->getTaskFileByFileKey($fileKey, $topicId);
+
+        // If exists and no need to update, return directly
+        if ($taskFileEntity && ! $isUpdate) {
+            return $taskFileEntity;
+        }
+
+        // If exists, update and return
+        if ($taskFileEntity) {
+            $taskFileEntity->setFileKey($fileKey);
+            $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $taskFileEntity->setTopicId($topicId);
+            $taskFileEntity->setTaskId($taskId);
+            $taskFileEntity->setFileType($fileType);
+            $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
+            $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
+            $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
+            // Check and set whether it's a hidden file
+            $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+            if ($parentId !== null) {
+                $taskFileEntity->setParentId($parentId);
+            }
+
+            return $this->taskFileRepository->updateById($taskFileEntity);
+            // return $taskFileEntity;
+        }
+
+        // If not exists, create new entity
+        $taskFileEntity = new TaskFileEntity();
+        $fileId = ! empty($fileData['file_id']) ? (int) $fileData['file_id'] : IdGenerator::getSnowId();
+        $taskFileEntity->setFileId($fileId);
+        $taskFileEntity->setFileKey($fileKey);
+
+        // Always get task entity to obtain project_id and user_id if needed
+        $taskEntity = $this->taskRepository->getTaskById($taskId);
+
+        // Process user ID: Priority use user ID from DataIsolation, if null use from task
+        $userId = $dataIsolation->getCurrentUserId();
+        if (empty($userId) && $taskEntity) {
+            $userId = $taskEntity->getUserId();
+        }
+
+        $taskFileEntity->setUserId($userId ?? 'system');
+        $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $taskFileEntity->setTopicId($topicId);
+        $taskFileEntity->setTaskId($taskId);
+        $taskFileEntity->setProjectId($projectId);
+        $taskFileEntity->setFileType($fileType);
+        $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
+        $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
+        $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
+        // Check and set whether it's a hidden file
+        $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+        // Set storage type, default to workspace
+        $taskFileEntity->setStorageType($storageType);
+        $taskFileEntity->setSource($source);
+
+        // Set parent_id if provided
+        if ($parentId !== null) {
+            $taskFileEntity->setParentId($parentId);
+        }
+
+        // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity
+        $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);
+        return $result ?: $taskFileEntity;
+    }
+
+    /**
+     * Get message list by topic ID.
+     *
+     * @param int $topicId Topic ID
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param bool $shouldPage Whether to page
+     * @param string $sortDirection Sort direction, supports asc and desc
+     * @param bool $showInUi Whether to display only UI visible messages, default true
+     * @return array Return message list and total
+     */
+    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array
+    {
+        return $this->messageRepository->findByTopicId($topicId, $page, $pageSize, $shouldPage, $sortDirection, $showInUi);
+    }
+
+    /**
+     * Get topic attachment list.
+     *
+     * @param int $topicId Topic ID
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param array $fileType File type filter
+     * @param string $storageType Storage type
+     * @return array Attachment list and total
+     */
+    public function getTaskAttachmentsByTopicId(int $topicId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = 'workspace'): array
+    {
+        // Call TaskFileRepository to get file list
+        return $this->taskFileRepository->getByTopicId($topicId, $page, $pageSize, $fileType, $storageType);
+        // Directly return entity object list, let application layer handle URL acquisition
+    }
+
+    /**
+     * 获取项目下的任务附件列表.
+     *
+     * @param int $projectId Project ID
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param array $fileType File type filter
+     * @param string $storageType Storage type filter
+     * @param null|string $updatedAfter Updated after timestamp filter
+     * @return array Attachment list and total
+     */
+    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array
+    {
+        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType, $storageType, $updatedAfter);
+    }
+
+    public function getTaskBySandboxId(string $sandboxId): ?TaskEntity
+    {
+        return $this->taskRepository->getTaskBySandboxId($sandboxId);
+    }
+
+    public function handleInterruptInstruction(DataIsolation $dataIsolation, TaskEntity $taskEntity): bool
+    {
+        // Check if sandbox ID is empty
+        if (empty($taskEntity->getSandboxId())) {
+            return false;
+        }
+
+        // Check if container exists through sandbox ID
+        // Check if sandbox exists
+        $result = $this->sandboxService->checkSandboxExists($taskEntity->getSandboxId());
+        // If sandbox exists and status is running, return directly
+        if ($result->getCode() === SandboxResult::Normal
+            && $result->getSandboxData()->getStatus() === 'running') {
+            // Sandbox status is running, need to connect to sandbox, process
+            $config = new WebSocketConfig();
+            $sandboxId = $taskEntity->getSandboxId();
+            $wsUrl = $this->sandboxService->getWebsocketUrl($sandboxId);
+
+            // Print connection parameters
+            $this->logger->info(sprintf(
+                'WebSocket connection parameters, URL: %s, Maximum connection time: %d seconds',
+                $wsUrl,
+                $config->getConnectTimeout()
+            ));
+
+            // Create WebSocket session
+            $session = new WebSocketSession(
+                $config,
+                $this->logger,
+                $wsUrl,
+                $taskEntity->getTaskId()
+            );
+
+            // Establish connection
+            $session->connect();
+            $message = (new MessageBuilderDomainService())->buildInterruptMessage($taskEntity->getUserId(), $taskEntity->getId());
+            $session->send($message);
+            // Wait for response
+            $message = $session->receive(60);
+            if ($message === null) {
+                throw new RuntimeException('Waiting for agent response timeout');
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Lightweight update task status method, only modify task status.
+     *
+     * @param int $id Task ID
+     * @param TaskStatus $status Task status
+     * @param null|string $errMsg Error message, only meaningful when status is ERROR
+     * @return bool Whether update was successful
+     */
+    public function updateTaskStatusByTaskId(int $id, TaskStatus $status, ?string $errMsg = null): bool
+    {
+        // Get task entity to check if finished_at needs to be set
+        $taskEntity = $this->taskRepository->getTaskById($id);
+        if ($taskEntity && ($status === TaskStatus::FINISHED || $status === TaskStatus::ERROR) && $taskEntity->getFinishedAt() === null) {
+            $taskEntity->setTaskStatus($status->value);
+            $taskEntity->setFinishedAt(date('Y-m-d H:i:s'));
+            if ($status === TaskStatus::ERROR && $errMsg !== null) {
+                $taskEntity->setErrMsg($errMsg);
+            }
+            $this->taskRepository->updateTask($taskEntity);
+            return true;
+        }
+
+        if ($status === TaskStatus::ERROR && $errMsg !== null) {
+            return $this->taskRepository->updateTaskStatusAndErrMsgByTaskId($id, $status, $errMsg);
+        }
+        return $this->taskRepository->updateTaskStatusByTaskId($id, $status);
+    }
+
+    public function getTaskNumByTopicId(int $topicId): int
+    {
+        return $this->taskRepository->getTaskCountByTopicId($topicId);
+    }
+
+    public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity
+    {
+        return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
+    }
+
+    /**
+     * Batch get task counts by topic IDs.
+     *
+     * @param array $topicIds Array of topic IDs
+     * @return array Array with structure [topic_id => task_count]
+     */
+    public function batchGetTaskNumsByTopicIds(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($topicIds as $topicId) {
+            $result[$topicId] = $this->taskRepository->getTaskCountByTopicId($topicId);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Batch get user first messages by topic IDs.
+     *
+     * @param array $topicIds Array of topic IDs
+     * @return array Array with structure [topic_id => TaskMessageEntity|null]
+     */
+    public function batchGetUserFirstMessagesByTopicIds(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $result = [];
+        // Note: This needs user_id which is not available here
+        // We'll need to get this info from the calling service
+        foreach ($topicIds as $topicId) {
+            $result[$topicId] = null; // Will be filled by calling service if needed
+        }
+
+        return $result;
+    }
+
+    /**
+     * Update task status by sandbox IDs.
+     * Only updates tasks that are in active status (waiting or running) to prevent
+     * accidentally updating already completed or error tasks.
+     */
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus, ?string $errMsg = null): int
+    {
+        $finishedTime = null;
+        if ($taskStatus->isFinal()) {
+            $finishedTime = date('Y-m-d H:i:s');
+        }
+        // Only update tasks with active statuses (waiting or running)
+        $activeStatuses = [TaskStatus::WAITING->value, TaskStatus::RUNNING->value];
+        return $this->taskRepository->updateTaskStatusBySandboxIds($sandboxIds, $taskStatus->value, $errMsg, $finishedTime, $activeStatuses);
+    }
+
+    public function executeScriptTask(ScriptTaskEntity $scriptTaskEntity): void
+    {
+        $scriptTaskRequest = ScriptTaskRequest::create($scriptTaskEntity->getTaskId(), $scriptTaskEntity->getArguments(), $scriptTaskEntity->getScriptName());
+        $this->sandboxAgent->executeScriptTask($scriptTaskEntity->getSandboxId(), $scriptTaskRequest);
+    }
+
+    /**
+     * Check if file is hidden file.
+     *
+     * @param string $fileKey File path
+     * @return bool Whether it's a hidden file: true-yes, false-no
+     */
+    private function isHiddenFile(string $fileKey): bool
+    {
+        // Remove leading slash, uniform processing
+        $fileKey = ltrim($fileKey, '/');
+
+        // Split path into parts
+        $pathParts = explode('/', $fileKey);
+
+        // Check if each path part starts with .
+        foreach ($pathParts as $part) {
+            if (! empty($part) && str_starts_with($part, '.')) {
+                return true; // It's a hidden file
+            }
+        }
+
+        return false; // It's not a hidden file
+    }
+}
