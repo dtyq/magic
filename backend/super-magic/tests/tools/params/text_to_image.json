@@ -1,0 +1,12 @@
+{
+    "tool_name": "text_to_image",
+    "params": {
+        "prompt": "一只可爱的小狗在草地上奔跑",
+        "width": 1024,
+        "height": 1024,
+        "image_count": 1,
+        "image_name": "running-dog",
+        "output_path": "test_generate_image",
+        "override": false
+    }
+}
