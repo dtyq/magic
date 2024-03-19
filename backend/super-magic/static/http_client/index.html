@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP API 客户端</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>HTTP API 客户端</h1>
+
+        <!-- 连接配置 -->
+        <div class="connection-panel">
+            <div class="form-group">
+                <label for="serverUrl">服务器地址:</label>
+                <input type="text" id="serverUrl" value="http://127.0.0.1:8002">
+            </div>
+            <div class="usage-hint">
+                <small>输入服务器地址后，直接上传配置文件并发送初始化消息即可开始使用</small>
+            </div>
+            <div class="connection-buttons">
+                <button id="subscribeBtn" class="btn secondary">建立消息订阅</button>
+                <button id="sendInitBtn" class="btn secondary">发送初始化消息</button>
+            </div>
+        </div>
+
+        <!-- 配置内容输入区域 -->
+        <div class="config-panel">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="uploadConfig">初始化配置</button>
+            </div>
+            <div class="tab-content">
+                <div id="uploadConfig" class="tab-pane active">
+                    <div id="currentFileName" class="file-name-display"></div>
+                    <textarea id="uploadConfigContent" class="config-textarea" readonly
+                        placeholder="请上传配置文件，不提供默认配置。"></textarea>
+                    <div class="form-group file-upload-group">
+                        <label for="configFile">上传配置文件:</label>
+                        <input type="file" id="configFile" accept=".json">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 消息交互区域 -->
+        <div class="chat-container">
+            <!-- 消息显示区域 -->
+            <div id="messagesContainer" class="messages-container">
+                <div class="message-list" id="messageList"></div>
+            </div>
+
+            <!-- 消息输入区域 -->
+            <div class="message-input-panel">
+                <textarea id="messageInput" placeholder="请输入消息..."></textarea>
+
+                <!-- Agent模式选择 -->
+                <div class="mode-switch">
+                    <label>Agent模式:</label>
+                    <select id="agentModeSelect" class="agent-mode-select">
+                        <option value="magic">Magic模式 (默认)</option>
+                        <option value="general">General模式 (通用)</option>
+                        <option value="ppt">PPT模式 (制作演示文稿)</option>
+                        <option value="data_analysis">数据分析模式</option>
+                        <option value="summary">总结模式</option>
+                    </select>
+                </div>
+
+                <!-- Model ID 配置 -->
+                <div class="model-config">
+                    <label for="modelIdInput">Model ID:</label>
+                    <input type="text" id="modelIdInput" class="model-id-input"
+                        placeholder="例如: gpt-4, claude-3-sonnet 等">
+                    <small>指定使用的AI模型，留空则使用默认模型</small>
+                </div>
+
+                <div class="button-group">
+                    <button id="historyBtn" class="btn secondary">历史消息</button>
+                    <button id="loadExampleBtn" class="btn secondary">加载示例文本</button>
+                    <button id="sendBtn" class="btn primary">发送消息</button>
+                    <button id="continueBtn" class="btn secondary">继续</button>
+                    <button id="followUpBtn" class="btn secondary">发送追问</button>
+                    <button id="interruptBtn" class="btn danger">中断任务</button>
+                </div>
+
+                <!-- 历史消息下拉框 -->
+                <div id="messageHistoryDropdown" class="history-dropdown">
+                    <!-- 历史消息项将通过JavaScript动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/client.js"></script>
+</body>
+
+</html>

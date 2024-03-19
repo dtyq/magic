@@ -1,0 +1,836 @@
+/* 全局样式 */
+:root {
+    --wechat-green: #07C160;
+    /* 微信特有的绿色 */
+    --wechat-light-green: #95ec9c;
+    /* 微信浅绿色 */
+    --wechat-background: #f5f5f5;
+    /* 微信背景色 */
+    --wechat-panel-bg: #ffffff;
+    /* 微信面板背景 */
+    --wechat-text-dark: #333333;
+    /* 微信主要文字颜色 */
+    --wechat-text-gray: #999999;
+    /* 微信次要文字颜色 */
+    --wechat-border: #e6e6e6;
+    /* 微信边框颜色 */
+    --wechat-highlight: #07C160;
+    /* 微信高亮色 */
+    --wechat-danger: #fa5151;
+    /* 微信危险色 */
+    --wechat-warning: #fa9d3b;
+    /* 微信警告色 */
+    --chat-blue: #4c8bf5;
+    /* 聊天模式蓝色 */
+    --plan-green: #34a853;
+    /* 计划模式绿色 */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    line-height: 1.6;
+    color: var(--wechat-text-dark);
+    background-color: var(--wechat-background);
+    padding: 15px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: var(--wechat-panel-bg);
+    border-radius: 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    padding: 15px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--wechat-text-dark);
+    font-size: 18px;
+    font-weight: 500;
+}
+
+/* 连接配置面板 */
+.connection-panel {
+    background-color: var(--wechat-panel-bg);
+    padding: 12px;
+    border-radius: 3px;
+    margin-bottom: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    border: 1px solid var(--wechat-border);
+}
+
+.form-group {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    align-items: center;
+}
+
+label {
+    margin-right: 10px;
+    margin-bottom: 0;
+    font-weight: normal;
+    font-size: 14px;
+    color: var(--wechat-text-dark);
+    white-space: nowrap;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+    border-color: var(--wechat-green);
+    outline: none;
+}
+
+/* Agent模式选择器样式 */
+.agent-mode-select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    font-size: 14px;
+    background-color: white;
+    color: var(--wechat-text-dark);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.agent-mode-select:focus {
+    border-color: var(--wechat-green);
+    outline: none;
+}
+
+.agent-mode-select:hover {
+    border-color: var(--wechat-green);
+}
+
+.btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: normal;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.primary {
+    background-color: var(--wechat-green);
+    color: white;
+}
+
+.secondary {
+    background-color: #f2f2f2;
+    color: var(--wechat-text-dark);
+}
+
+.danger {
+    background-color: var(--wechat-danger);
+    color: white;
+}
+
+.warning {
+    background-color: var(--wechat-warning);
+    color: white;
+}
+
+.primary:hover {
+    background-color: #06ae56;
+}
+
+.secondary:hover {
+    background-color: #e6e6e6;
+}
+
+.danger:hover {
+    background-color: #e64848;
+}
+
+.warning:hover {
+    background-color: #e8932f;
+}
+
+.warning.active {
+    background-color: #e8932f;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.status {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: normal;
+    background-color: #f2f2f2;
+    color: var(--wechat-text-gray);
+}
+
+.status.connected {
+    background-color: var(--wechat-green);
+    color: white;
+}
+
+.status.connecting {
+    background-color: var(--wechat-warning);
+    color: white;
+}
+
+.status.error {
+    background-color: var(--wechat-danger);
+    color: white;
+}
+
+.status.ready {
+    background-color: var(--wechat-highlight);
+    color: white;
+}
+
+/* 连接面板样式 */
+.connection-panel {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.connection-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.connection-buttons .btn {
+    flex: 1;
+    min-width: 120px;
+    white-space: nowrap;
+    padding: 8px 12px;
+}
+
+/* 配置内容面板 */
+.config-panel {
+    background-color: var(--wechat-panel-bg);
+    padding: 12px;
+    border-radius: 3px;
+    margin-bottom: 15px;
+    border: 1px solid var(--wechat-border);
+}
+
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--wechat-border);
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    padding: 8px 15px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: normal;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: var(--wechat-text-gray);
+}
+
+.tab-btn.active {
+    border-bottom: 2px solid var(--wechat-green);
+    color: var(--wechat-green);
+}
+
+.tab-content {
+    margin-bottom: 15px;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+.config-textarea {
+    width: 100%;
+    height: 180px;
+    padding: 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    resize: vertical;
+    font-family: monospace;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.config-textarea:focus {
+    border-color: var(--wechat-green);
+    outline: none;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+/* 消息区域 */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 60vh;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: var(--wechat-background);
+}
+
+.message-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    padding: 10px;
+    max-width: 80%;
+    word-break: break-word;
+}
+
+.message.client {
+    align-self: flex-end;
+    background-color: var(--wechat-green);
+    color: white;
+    border-radius: 8px 0 8px 8px;
+    /* 微信气泡特有的形状 */
+}
+
+.message.server {
+    align-self: flex-start;
+    background-color: white;
+    color: var(--wechat-text-dark);
+    border-radius: 0 8px 8px 8px;
+    /* 微信气泡特有的形状 */
+    border: 1px solid var(--wechat-border);
+}
+
+.message.system {
+    align-self: center;
+    background-color: rgba(0, 0, 0, 0.03);
+    color: var(--wechat-text-gray);
+    font-style: normal;
+    font-size: 12px;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 10px;
+}
+
+.message-header {
+    font-size: 11px;
+    margin-bottom: 3px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.message.server .message-header {
+    color: var(--wechat-text-gray);
+}
+
+.message-content {
+    white-space: pre-wrap;
+}
+
+/* 消息输入区域 */
+.message-input-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    background-color: #f9f9f9;
+    border-top: 1px solid var(--wechat-border);
+    position: relative;
+}
+
+textarea {
+    width: 100%;
+    height: 80px;
+    padding: 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    resize: none;
+    margin-bottom: 10px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+textarea:focus {
+    border-color: var(--wechat-green);
+    outline: none;
+}
+
+.button-group {
+    display: flex;
+    gap: 8px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .connection-panel {
+        flex-direction: column;
+    }
+
+    .form-group {
+        width: 100%;
+    }
+
+    .button-group {
+        flex-direction: column;
+    }
+
+    .container {
+        padding: 10px;
+    }
+
+    body {
+        padding: 10px;
+    }
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.checkbox {
+    margin-right: 8px;
+}
+
+.file-upload-group {
+    margin-top: 10px;
+}
+
+/* 文件名显示样式 */
+.file-name-display {
+    margin-bottom: 8px;
+    padding: 5px 8px;
+    background-color: rgba(7, 193, 96, 0.1);
+    border: 1px solid rgba(7, 193, 96, 0.2);
+    border-radius: 3px;
+    font-weight: normal;
+    color: var(--wechat-green);
+    font-size: 13px;
+}
+
+/* 历史消息下拉框 */
+.history-dropdown {
+    position: fixed;
+    /* 改为fixed定位，确保可见 */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* 居中显示 */
+    width: 400px;
+    max-height: 500px;
+    overflow-y: auto;
+    background-color: var(--wechat-panel-bg);
+    border: 2px solid var(--wechat-green);
+    /* 保持绿色边框 */
+    border-radius: 5px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    /* 确保最高层级 */
+    display: none;
+}
+
+.history-dropdown.show {
+    display: block;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+/* 历史消息项 */
+.history-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--wechat-border);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--wechat-text-dark);
+    transition: background-color 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.history-item:hover {
+    background-color: #f0f0f0;
+}
+
+.history-item.empty {
+    color: var(--wechat-text-gray);
+    cursor: default;
+    text-align: center;
+    padding: 20px;
+    display: block;
+    /* 覆盖flex布局，因为空记录不需要显示删除按钮 */
+}
+
+/* 历史消息文本样式 */
+.message-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 历史消息按钮容器 */
+.history-btn-container {
+    display: flex;
+    align-items: center;
+}
+
+/* 删除按钮样式 */
+.delete-btn {
+    background-color: transparent;
+    color: var(--wechat-text-gray);
+    border: none;
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    border-radius: 50%;
+    cursor: pointer;
+    margin-left: 8px;
+    padding: 0;
+    transition: all 0.2s;
+    visibility: hidden;
+    /* 默认隐藏，鼠标悬停时显示 */
+}
+
+/* 编辑按钮样式 */
+.edit-btn {
+    background-color: transparent;
+    color: var(--wechat-text-gray);
+    border: none;
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    border-radius: 50%;
+    cursor: pointer;
+    margin-left: 4px;
+    padding: 0;
+    transition: all 0.2s;
+    visibility: hidden;
+    /* 默认隐藏，鼠标悬停时显示 */
+}
+
+/* 鼠标悬停在历史项上时显示按钮 */
+.history-item:hover .delete-btn,
+.history-item:hover .edit-btn {
+    visibility: visible;
+}
+
+/* 鼠标悬停在删除按钮上时的样式 */
+.delete-btn:hover {
+    background-color: var(--wechat-danger);
+    color: white;
+}
+
+/* 鼠标悬停在编辑按钮上时的样式 */
+.edit-btn:hover {
+    background-color: var(--wechat-green);
+    color: white;
+}
+
+/* 历史消息编辑框样式 */
+.edit-history-input {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid var(--wechat-green);
+    border-radius: 3px;
+    font-size: 14px;
+    margin-bottom: 6px;
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* 编辑按钮容器 */
+.edit-btn-container {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.history-controls {
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    /* 改为居中对齐，因为只有一个按钮 */
+    border-bottom: 1px solid var(--wechat-border);
+    background-color: #f9f9f9;
+}
+
+.btn.small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* 历史记录标题 */
+.history-title {
+    padding: 15px;
+    text-align: center;
+    font-weight: bold;
+    border-bottom: 1px solid var(--wechat-border);
+    background-color: #f6f6f6;
+}
+
+/* 确认对话框背景遮罩 */
+.confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+/* 确认对话框 */
+.confirm-dialog {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    max-width: 300px;
+    width: 100%;
+}
+
+/* 确认对话框消息文本 */
+.confirm-message {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* 确认对话框按钮容器 */
+.confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* 模式切换开关样式 */
+.mode-switch {
+    display: flex;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.mode-switch label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.toggle-container {
+    display: inline-flex;
+    background-color: #f0f0f0;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    width: 150px;
+    height: 28px;
+    position: relative;
+}
+
+.toggle-option {
+    flex: 1;
+    text-align: center;
+    padding: 5px 0;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+    transition: color 0.3s;
+    font-weight: bold;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-option.active {
+    color: white;
+}
+
+.toggle-slider {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    background-color: var(--wechat-green);
+    border-radius: 3px;
+    transition: transform 0.3s ease;
+}
+
+.toggle-container.plan-active .toggle-slider {
+    transform: translateX(0);
+}
+
+.toggle-container:not(.plan-active) .toggle-slider {
+    transform: translateX(100%);
+}
+
+/* 模式切换开关样式 */
+.mode-switch {
+    display: flex;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.mode-switch label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.toggle-container {
+    display: inline-flex;
+    background-color: #f0f0f0;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    width: 150px;
+    height: 28px;
+    position: relative;
+}
+
+.toggle-option {
+    flex: 1;
+    text-align: center;
+    padding: 5px 0;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+    transition: color 0.3s;
+    font-weight: bold;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-option.active {
+    color: white;
+}
+
+.toggle-slider {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    background-color: var(--wechat-green);
+    border-radius: 3px;
+    transition: transform 0.3s ease;
+}
+
+.toggle-container.plan-active .toggle-slider {
+    transform: translateX(0);
+}
+
+.toggle-container:not(.plan-active) .toggle-slider {
+    transform: translateX(100%);
+}
+
+.usage-hint {
+    width: 100%;
+    margin: 5px 0;
+}
+
+.usage-hint small {
+    color: var(--wechat-text-gray);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+input[type="file"] {
+    display: block;
+    width: 100%;
+    padding: 6px 0;
+    margin-top: 5px;
+    font-size: 13px;
+}
+
+/* 用户回复配置区域 */
+.user-reply-config {
+    background-color: #fff7e6;
+    border: 1px solid var(--wechat-warning);
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.user-reply-config .form-group {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.user-reply-config label {
+    margin-bottom: 5px;
+    color: var(--wechat-text-dark);
+    font-weight: 500;
+}
+
+.user-reply-config input[type="text"] {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.user-reply-config small {
+    color: var(--wechat-text-gray);
+    font-size: 12px;
+    margin-left: 0;
+}
