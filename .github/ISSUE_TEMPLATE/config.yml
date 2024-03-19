@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation
+    url: https://docs.letsmagic.cn/en
+    about: Check our documentation for usage guides and API references
+  - name: 🌐 Official Website
+    url: https://www.letsmagic.ai
+    about: Visit our official website for more information
+  - name: 📧 Enterprise Support
+    url: mailto:bd@dtyq.com?subject=[GitHub]Enterprise%20Support%20Inquiry
+    about: Contact us for enterprise support and licensing 
