@@ -1,0 +1,635 @@
+"""
+AWS S3 upload implementation with multipart upload support for files > 5MB.
+"""
+
+import asyncio
+import io
+import time
+from typing import BinaryIO, Dict, Optional
+
+import aiohttp
+from loguru import logger
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
+
+from .base import AbstractStorage, BaseFileProcessor, with_refreshed_credentials
+from .exceptions import (
+    DownloadException,
+    DownloadExceptionCode,
+    InitException,
+    InitExceptionCode,
+    UploadException,
+    UploadExceptionCode,
+)
+from .types import BaseStorageCredentials, FileContent, Options, PlatformType, StorageResponse, S3Credentials
+
+
+class S3Uploader(AbstractStorage, BaseFileProcessor):
+    """AWS S3 uploader implementation with multipart upload support."""
+
+    # 文件大小阈值，超过此大小使用分片上传
+    MULTIPART_THRESHOLD = 5 * 1024 * 1024  # 5MB，AWS S3推荐值
+
+    # 分片大小配置
+    PART_SIZE = 5 * 1024 * 1024  # 5MB，AWS S3推荐的默认分片大小
+    MAX_PART_SIZE = 5 * 1024 * 1024 * 1024  # 5GB
+    MIN_PART_SIZE = 5 * 1024 * 1024  # 5MB，AWS S3最小分片要求
+
+    # 超时配置
+    CONNECT_TIMEOUT = 120  # 连接超时120秒
+    READ_TIMEOUT = 300  # 读取超时300秒
+
+    # 重试配置
+    MAX_RETRIES = 3
+    RETRY_DELAY = 1  # 初始重试延迟1秒，指数退避
+
+    def set_credentials(self, credentials: BaseStorageCredentials):
+        """设置存储凭证"""
+        if not isinstance(credentials, S3Credentials):
+            if isinstance(credentials, dict):
+                try:
+                    credentials = S3Credentials(**credentials)
+                except Exception as e:
+                    raise ValueError(f"无效的凭证格式: {e}")
+            else:
+                raise ValueError(f"期望S3Credentials类型，得到{type(credentials)}")
+        self.credentials = credentials
+
+    def _should_refresh_credentials_impl(self) -> bool:
+        """检查是否应该刷新凭证的特定逻辑"""
+        if not self.credentials:
+            return True
+
+        if not isinstance(self.credentials, S3Credentials):
+            return True
+
+        credentials: S3Credentials = self.credentials
+        if credentials.expires is None:
+            return False
+
+        # 提前300秒刷新
+        return time.time() > credentials.expires - 300
+
+    async def _refresh_credentials_impl(self):
+        """执行刷新凭证操作"""
+        logger.info("开始获取AWS S3 STS Token")
+
+        if not self.sts_refresh_config:
+            logger.error("STS refresh config is not available")
+            return
+
+        json_data = {}
+        if self.metadata:
+            json_data["metadata"] = self.metadata
+
+        timeout = aiohttp.ClientTimeout(
+            total=self.READ_TIMEOUT,
+            connect=self.CONNECT_TIMEOUT
+        )
+
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.request(
+                method=self.sts_refresh_config.method,
+                url=self.sts_refresh_config.url,
+                headers=self._get_sts_refresh_headers(),
+                json=json_data
+            ) as response:
+                response.raise_for_status()
+                response_body = await response.json()
+
+                actual_credential_data_wrapper = response_body.get("data", {})
+                if not actual_credential_data_wrapper:
+                    logger.error("STS refresh response missing 'data' field or 'data' field is empty.")
+                    return
+
+                try:
+                    # 直接使用 actual_credential_data_wrapper，Pydantic模型内部的验证器会处理
+                    self.credentials = S3Credentials(**actual_credential_data_wrapper)
+                    logger.info("AWS S3 STS Token获取成功 (通过Pydantic模型转换)")
+                except Exception as e:
+                    logger.error(f"解析刷新后的STS凭证失败: {e}\nInput data from STS: {actual_credential_data_wrapper}")
+                    raise
+
+    def _calculate_part_size(self, file_size: int) -> int:
+        """计算分片大小"""
+        # 确保分片数量不超过10000个（AWS S3限制）
+        max_parts = 10000
+
+        # 计算最小分片大小以保证分片数量不超过限制
+        min_part_size_for_limit = (file_size + max_parts - 1) // max_parts
+
+        # 在用户设置的分片大小和计算出的最小分片大小之间取较大值
+        part_size = max(self.PART_SIZE, min_part_size_for_limit)
+
+        # 确保分片大小不超过最大限制
+        part_size = min(part_size, self.MAX_PART_SIZE)
+
+        # 确保分片大小不小于最小限制
+        part_size = max(part_size, self.MIN_PART_SIZE)
+
+        return part_size
+
+    def _get_s3_client(self):
+        """获取S3客户端"""
+        if not self.credentials:
+            raise ValueError("未设置凭证")
+
+        if not isinstance(self.credentials, S3Credentials):
+            raise ValueError("凭证类型错误")
+
+        credentials: S3Credentials = self.credentials
+        tc = credentials.temporary_credential
+        creds = tc.credentials
+
+        # 创建S3客户端
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=tc.endpoint,
+            aws_access_key_id=creds.access_key_id,
+            aws_secret_access_key=creds.secret_access_key,
+            aws_session_token=creds.session_token,
+            region_name=tc.region,
+            config=Config(
+                s3={"addressing_style": "path"},
+                signature_version='s3v4',
+                connect_timeout=self.CONNECT_TIMEOUT,
+                read_timeout=self.READ_TIMEOUT,
+                retries={'max_attempts': self.MAX_RETRIES}
+            )
+        )
+
+        return s3_client
+
+    async def _simple_upload(self, file_obj, key: str, file_size: int, bucket_name: str):
+        """简单上传，适用于小文件"""
+        logger.info(f"使用简单上传方式，文件大小: {file_size} bytes")
+
+        s3_client = self._get_s3_client()
+
+        try:
+            # 使用异步方式执行上传操作
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: s3_client.put_object(
+                    Bucket=bucket_name,
+                    Key=key,
+                    Body=file_obj
+                )
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"简单上传失败: {e}")
+            raise
+
+    async def _multipart_upload(self, file_obj, key: str, file_size: int, bucket_name: str):
+        """分片上传，适用于大文件"""
+        logger.info(f"使用分片上传方式，文件大小: {file_size} bytes")
+
+        s3_client = self._get_s3_client()
+
+        # 计算分片大小
+        part_size = self._calculate_part_size(file_size)
+        logger.info(f"计算出的分片大小: {part_size} bytes")
+
+        # 初始化分片上传
+        loop = asyncio.get_event_loop()
+        multipart_upload = await loop.run_in_executor(
+            None,
+            lambda: s3_client.create_multipart_upload(
+                Bucket=bucket_name,
+                Key=key
+            )
+        )
+
+        upload_id = multipart_upload['UploadId']
+        if not upload_id:
+            raise UploadException(UploadExceptionCode.NETWORK_ERROR, "初始化分片上传失败：未获取到upload_id")
+
+        logger.info(f"初始化分片上传成功，upload_id: {upload_id}")
+
+        parts = []
+        part_number = 1
+        offset = 0
+
+        try:
+            while offset < file_size:
+                # 计算当前分片的大小
+                part_size_current = min(part_size, file_size - offset)
+
+                # 读取分片数据
+                file_obj.seek(offset)
+                part_data = file_obj.read(part_size_current)
+
+                # 上传分片，带重试机制
+                retry_count = 0
+                while retry_count < self.MAX_RETRIES:
+                    try:
+                        logger.info(f"上传分片 {part_number}, 偏移量: {offset}, 大小: {part_size_current}")
+
+                        part_result = await loop.run_in_executor(
+                            None,
+                            lambda: s3_client.upload_part(
+                                Bucket=bucket_name,
+                                Key=key,
+                                UploadId=upload_id,
+                                PartNumber=part_number,
+                                Body=part_data
+                            )
+                        )
+
+                        # 收集分片信息
+                        parts.append({
+                            'ETag': part_result['ETag'],
+                            'PartNumber': part_number
+                        })
+                        logger.info(f"分片 {part_number} 上传成功，ETag: {part_result['ETag']}")
+                        break
+
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count >= self.MAX_RETRIES:
+                            logger.error(f"分片 {part_number} 上传失败，已重试 {self.MAX_RETRIES} 次: {e}")
+                            raise
+
+                        wait_time = self.RETRY_DELAY * (2 ** (retry_count - 1))  # 指数退避
+                        logger.warning(f"分片 {part_number} 上传失败，{wait_time}秒后重试 (第{retry_count}次): {e}")
+                        await asyncio.sleep(wait_time)
+
+                offset += part_size_current
+                part_number += 1
+
+            # 完成分片上传
+            logger.info(f"所有分片上传完成，开始合并，总共 {len(parts)} 个分片")
+
+            result = await loop.run_in_executor(
+                None,
+                lambda: s3_client.complete_multipart_upload(
+                    Bucket=bucket_name,
+                    Key=key,
+                    UploadId=upload_id,
+                    MultipartUpload={'Parts': parts}
+                )
+            )
+
+            logger.info(f"分片上传合并完成，ETag: {result['ETag']}")
+            return result
+
+        except Exception as e:
+            # 如果上传过程中出现错误，取消分片上传
+            logger.error(f"分片上传过程中发生错误: {e}")
+            try:
+                await loop.run_in_executor(
+                    None,
+                    lambda: s3_client.abort_multipart_upload(
+                        Bucket=bucket_name,
+                        Key=key,
+                        UploadId=upload_id
+                    )
+                )
+                logger.info(f"已取消分片上传，upload_id: {upload_id}")
+            except Exception as abort_error:
+                logger.warning(f"取消分片上传失败: {abort_error}")
+
+            raise
+
+    @with_refreshed_credentials
+    async def upload(
+        self,
+        file: FileContent,
+        key: str,
+        options: Optional[Options] = None
+    ) -> StorageResponse:
+        """
+        异步使用boto3上传文件到AWS S3。
+        对于大于5MB的文件自动使用分片上传。
+
+        Args:
+            file: 文件对象，文件路径或文件内容
+            key: 文件名/路径
+            options: 可选配置，包括headers和progress回调
+
+        Returns:
+            StorageResponse: 标准化的响应对象
+
+        Raises:
+            InitException: 如果必要参数缺失或文件过大
+            UploadException: 如果上传失败（凭证过期或网络问题）
+            ValueError: 如果文件类型不支持或凭证类型错误或未设置元数据
+        """
+        if options is None:
+            options = {}
+
+        # 处理文件
+        try:
+            file_obj, file_size = self.process_file(file)
+
+            # 文件大小限制检查（AWS S3单个对象最大5TB）
+            if file_size > 5 * 1024 * 1024 * 1024 * 1024:  # 5TB
+                if isinstance(file, str):
+                    file_obj.close()
+                raise InitException(
+                    InitExceptionCode.FILE_TOO_LARGE,
+                    "s3",
+                    file_name=key
+                )
+
+            # 获取凭证信息
+            if not isinstance(self.credentials, S3Credentials):
+                raise ValueError("凭证类型错误")
+
+            credentials: S3Credentials = self.credentials
+            tc = credentials.temporary_credential
+
+            try:
+                # 根据文件大小选择上传方式
+                if file_size > self.MULTIPART_THRESHOLD:
+                    result = await self._multipart_upload(file_obj, key, file_size, tc.bucket)
+                else:
+                    result = await self._simple_upload(file_obj, key, file_size, tc.bucket)
+
+                # 关闭文件（如果是我们打开的）
+                if isinstance(file, str):
+                    file_obj.close()
+
+                # 获取响应头
+                headers = {}
+                if isinstance(result, dict) and 'ResponseMetadata' in result:
+                    headers = result.get('ResponseMetadata', {}).get('HTTPHeaders', {})
+
+                # 返回标准响应
+                return StorageResponse(
+                    key=key,
+                    platform=PlatformType.minio,
+                    headers=headers,
+                    url=None
+                )
+
+            except Exception as e:
+                logger.error(f"S3 error during async upload: {e}")
+                if isinstance(file, str):
+                    file_obj.close()
+                raise UploadException(UploadExceptionCode.NETWORK_ERROR, str(e))
+
+        except Exception as e:
+            # 确保文件被关闭
+            if 'file_obj' in locals() and isinstance(file, str):
+                try:
+                    file_obj.close()
+                except:
+                    pass
+
+            if not isinstance(e, (InitException, UploadException)):
+                logger.error(f"Unexpected error during async upload: {e}")
+                raise UploadException(UploadExceptionCode.NETWORK_ERROR, str(e))
+            raise
+
+    @with_refreshed_credentials
+    async def download(
+        self,
+        key: str,
+        options: Optional[Options] = None
+    ) -> BinaryIO:
+        """
+        异步从AWS S3下载文件。
+
+        Args:
+            key: 文件名/路径
+            options: 可选配置
+
+        Returns:
+            BinaryIO: 文件内容的二进制流
+
+        Raises:
+            DownloadException: 如果下载失败
+            ValueError: 如果凭证类型不正确或未设置元数据
+        """
+        if options is None:
+            options = {}
+
+        try:
+            # 获取凭证信息
+            if not isinstance(self.credentials, S3Credentials):
+                raise ValueError("凭证类型错误")
+
+            credentials: S3Credentials = self.credentials
+            tc = credentials.temporary_credential
+
+            # 创建S3客户端
+            s3_client = self._get_s3_client()
+
+            try:
+                # 异步获取对象
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: s3_client.get_object(
+                        Bucket=tc.bucket,
+                        Key=key
+                    )
+                )
+
+                # 读取内容到内存
+                content = result['Body'].read()
+                # 创建内存流
+                if isinstance(content, bytes):
+                    file_stream = io.BytesIO(content)
+                else:
+                    file_stream = io.BytesIO(content.encode('utf-8') if content else b'')
+                return file_stream
+
+            except ClientError as e:
+                logger.error(f"Error during async download: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+
+        except Exception as e:
+            if not isinstance(e, DownloadException):
+                logger.error(f"Unexpected error during async download: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+            raise
+
+    @with_refreshed_credentials
+    async def exists(
+        self,
+        key: str,
+        options: Optional[Options] = None
+    ) -> bool:
+        """
+        异步检查存储平台上是否存在指定的文件。
+
+        Args:
+            key: 文件名/路径
+            options: 可选配置
+
+        Returns:
+            bool: 如果文件存在则为True，否则为False
+
+        Raises:
+            InitException: 如果初始化参数缺失
+            ValueError: 如果凭证类型错误或未设置元数据
+        """
+        if not self.credentials:
+            raise ValueError("未设置凭证")
+
+        if not isinstance(self.credentials, S3Credentials):
+            raise ValueError("凭证类型错误")
+
+        credentials: S3Credentials = self.credentials
+
+        if options is None:
+            options = {}
+
+        try:
+            # 获取凭证信息
+            tc = credentials.temporary_credential
+
+            # 创建S3客户端
+            s3_client = self._get_s3_client()
+
+            try:
+                # 异步检查对象是否存在
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None,
+                    lambda: s3_client.head_object(
+                        Bucket=tc.bucket,
+                        Key=key
+                    )
+                )
+                return True
+            except ClientError as e:
+                # 对象不存在，或者发生了其他错误
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code == '404':
+                    return False
+                logger.error(f"Error during head_object for key '{key}': {error_code} - {e}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error checking file existence: {e}")
+            return False
+
+    @with_refreshed_credentials
+    async def generate_presigned_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        options: Optional[Options] = None
+    ) -> str:
+        """
+        生成预签名URL，用于直接访问文件。
+
+        Args:
+            key: 文件名/路径
+            expires_in: URL过期时间（秒），默认1小时
+            options: 可选配置
+
+        Returns:
+            str: 预签名URL
+
+        Raises:
+            ValueError: 如果凭证类型错误或未设置元数据
+        """
+        if not self.credentials:
+            raise ValueError("未设置凭证")
+
+        if not isinstance(self.credentials, S3Credentials):
+            raise ValueError("凭证类型错误")
+
+        credentials: S3Credentials = self.credentials
+
+        if options is None:
+            options = {}
+
+        try:
+            # 获取凭证信息
+            tc = credentials.temporary_credential
+
+            # 创建S3客户端
+            s3_client = self._get_s3_client()
+
+            try:
+                # 异步生成预签名URL
+                loop = asyncio.get_event_loop()
+                presigned_url = await loop.run_in_executor(
+                    None,
+                    lambda: s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={
+                            'Bucket': tc.bucket,
+                            'Key': key
+                        },
+                        ExpiresIn=expires_in
+                    )
+                )
+
+                logger.info(f"Generated presigned URL for {key}, expires in {expires_in} seconds")
+                return presigned_url
+
+            except Exception as e:
+                logger.error(f"Error generating presigned URL: {e}")
+                raise
+
+        except Exception as e:
+            logger.error(f"Unexpected error generating presigned URL: {e}")
+            raise
+
+    async def get_download_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        options: Optional[Options] = None
+    ) -> str:
+        """
+        通过STS token获取指定文件的临时下载链接 - AWS S3实现。
+
+        AWS S3使用预签名URL机制提供安全的文件下载访问。
+        该方法会自动处理STS凭证刷新，确保生成的下载链接有效。
+
+        Args:
+            key: 文件名/路径，例如 'folder/filename.txt'
+            expires_in: URL过期时间（秒），默认1小时（3600秒）
+                       AWS S3支持的最大有效期为7天
+            options: 可选配置参数，可包含：
+                    - headers: HTTP请求头
+                    - params: 额外的查询参数
+
+        Returns:
+            str: 临时下载链接URL，可直接用于GET请求下载文件
+
+        Raises:
+            InitException: 如果STS凭证未设置或已过期
+            ValueError: 如果文件key格式无效或凭证类型错误
+            UploadException: 如果网络请求失败或服务端返回错误
+
+        Example:
+            ```python
+            # 获取文件下载链接
+            download_url = await s3_storage.get_download_url(
+                key="documents/report.pdf",
+                expires_in=1800  # 30分钟有效期
+            )
+
+            # 使用curl下载文件
+            # curl -O "download_url"
+            ```
+        """
+        logger.info(f"开始获取AWS S3文件下载链接: {key}")
+
+        try:
+            # 调用现有的预签名URL生成方法
+            download_url = await self.generate_presigned_url(
+                key=key,
+                expires_in=expires_in,
+                options=options
+            )
+
+            logger.info(f"成功生成AWS S3下载链接: {key}, 有效期: {expires_in}秒")
+            return download_url
+
+        except Exception as e:
+            logger.error(f"生成AWS S3下载链接失败: {key}, 错误: {e}")
+            raise
