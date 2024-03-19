@@ -1,0 +1,293 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
+
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TransferAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteProjectsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveProjectsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TransferProjectsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
+use Hyperf\HttpServer\Contract\RequestInterface;
+use Throwable;
+
+/**
+ * Project API.
+ */
+#[ApiResponse('low_code')]
+class ProjectApi extends AbstractApi
+{
+    public function __construct(
+        protected RequestInterface $request,
+        private readonly ProjectAppService $projectAppService,
+        private readonly ProjectMemberAppService $projectMemberAppService,
+        private readonly TransferAppService $transferAppService,
+    ) {
+        parent::__construct($request);
+    }
+
+    /**
+     * Create project.
+     */
+    public function store(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = CreateProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->createOrReuseProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Update project.
+     */
+    public function update(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = UpdateProjectRequestDTO::fromRequest($this->request);
+        $requestDTO->id = $id;
+
+        return $this->projectAppService->updateProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Delete project.
+     */
+    public function destroy(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $this->projectAppService->deleteProject($requestContext, (int) $id);
+
+        return ['id' => $id];
+    }
+
+    /**
+     * Batch delete projects.
+     */
+    public function batchDelete(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Validate and create DTO
+        $requestDTO = BatchDeleteProjectsRequestDTO::fromRequest($this->request);
+
+        // Execute batch delete
+        $responseDTO = $this->projectAppService->batchDeleteProjects($requestContext, $requestDTO);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * Pin project.
+     */
+    public function pin(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization and context data
+        $userAuthorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($userAuthorization);
+        $requestContext->setUserId($userAuthorization->getId());
+        $requestContext->setOrganizationCode($userAuthorization->getOrganizationCode());
+
+        // 1. 转换为RequestDTO并自动验证
+        $requestDTO = UpdateProjectPinRequestDTO::fromRequest($this->request);
+
+        // 2. 委托给Application层处理
+        $this->projectMemberAppService->updateProjectPin($requestContext, (int) $id, $requestDTO);
+
+        return [];
+    }
+
+    /**
+     * Get project detail.
+     */
+    public function show(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $userAuthorization = $this->getAuthorization();
+        $userId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        $project = $this->projectAppService->getProjectInfo($requestContext, (int) $id);
+
+        $hasProjectMember = $this->projectAppService->hasProjectMember($project->getId());
+
+        $userRole = $this->projectAppService->getProjectRoleByUserId($project->getId(), $userId, $organizationCode);
+
+        $projectDTO = ProjectItemDTO::fromEntity($project, null, null, $hasProjectMember);
+
+        return array_merge($projectDTO->toArray(), ['user_role' => $userRole]);
+    }
+
+    /**
+     * Get project list.
+     */
+    public function index(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetProjectListRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->getProjectList($requestContext, $requestDTO);
+    }
+
+    /**
+     * Get project topics.
+     */
+    public function getTopics(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取分页参数
+        $page = (int) $this->request->input('page', 1);
+        $pageSize = (int) $this->request->input('page_size', 10);
+
+        return $this->projectAppService->getProjectTopics($requestContext, (int) $id, $page, $pageSize);
+    }
+
+    public function checkFileListUpdate(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $dataIsolation = DataIsolation::create(
+            $requestContext->getUserAuthorization()->getOrganizationCode(),
+            $requestContext->getUserAuthorization()->getId()
+        );
+
+        return $this->projectAppService->checkFileListUpdate($requestContext, (int) $id, $dataIsolation);
+    }
+
+    /**
+     * Get project attachments.
+     */
+    public function getProjectAttachments(RequestContext $requestContext): array
+    {
+        // 使用 fromRequest 方法从请求中创建 DTO，这样可以从路由参数中获取 project_id
+        $dto = GetProjectAttachmentsRequestDTO::fromRequest($this->request);
+        // 临时解决用户使用上限问题
+        $dto->setPageSize(10000);
+        if (! empty($dto->getToken())) {
+            // 走令牌校验的逻辑
+            return $this->projectAppService->getProjectAttachmentsByAccessToken($dto);
+        }
+
+        // 登录用户使用的场景
+        $requestContext->setUserAuthorization($this->checkAndGetAuthorization());
+        return $this->projectAppService->getProjectAttachments($requestContext, $dto);
+    }
+
+    public function getCloudFiles(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->projectAppService->getCloudFiles($requestContext, (int) $id);
+    }
+
+    /**
+     * Fork project.
+     * @throws Throwable
+     */
+    public function fork(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = ForkProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->forkProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Check fork project status.
+     */
+    public function forkStatus(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->projectAppService->checkForkProjectStatus($requestContext, (int) $id);
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = MoveProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->moveProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Batch move projects to target workspace.
+     */
+    public function batchMoveProjects(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = BatchMoveProjectsRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->batchMoveProjects($requestContext, $requestDTO);
+    }
+
+    /**
+     * Get participated projects.
+     */
+    public function getParticipatedProjects(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetParticipatedProjectsRequestDTO::fromRequest($this->request);
+
+        return $this->projectMemberAppService->getParticipatedProjects($requestContext, $requestDTO);
+    }
+
+    /**
+     * Transfer projects to another user.
+     *
+     * Batch transfer ownership of multiple projects to a specified user.
+     * Original owner can optionally retain access with reduced permissions.
+     */
+    public function transferProjects(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = TransferProjectsRequestDTO::fromRequest($this->request);
+
+        return $this->transferAppService->transferProjects($requestContext, $requestDTO);
+    }
+}
