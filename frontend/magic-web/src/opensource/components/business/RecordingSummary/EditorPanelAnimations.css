@@ -1,0 +1,91 @@
+/* Recording Summary Editor Panel - Component Animations */
+
+/* Waveform shimmer effect */
+.recording-waveform-shimmer::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		rgba(169, 191, 247, 0.2),
+		rgba(49, 92, 236, 0.1),
+		transparent
+	);
+	animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Waveform center glow effect */
+.recording-waveform-glow::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 95%;
+	height: 80%;
+	background: radial-gradient(
+		ellipse at center,
+		rgba(49, 92, 236, 0.03) 0%,
+		transparent 70%
+	);
+	border-radius: 100px;
+	animation: centerGlow 2s ease-in-out infinite alternate;
+}
+
+/* Container pulse animation */
+.recording-container-pulse {
+	animation: containerPulse 4s ease-in-out infinite;
+}
+
+/* Progress indicator pulse */
+.recording-progress-pulse {
+	animation: waveformPulse 2s ease-in-out infinite;
+}
+
+/* Keyframe definitions */
+@keyframes shimmer {
+	0% {
+		left: -100%;
+	}
+	100% {
+		left: 100%;
+	}
+}
+
+@keyframes containerPulse {
+	0%,
+	100% {
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+			0 2px 8px rgba(169, 191, 247, 0.1), 0 4px 20px rgba(49, 92, 236, 0.05);
+	}
+	50% {
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+			0 2px 12px rgba(169, 191, 247, 0.15), 0 6px 24px rgba(49, 92, 236, 0.08);
+	}
+}
+
+@keyframes centerGlow {
+	0% {
+		opacity: 0.3;
+	}
+	100% {
+		opacity: 0.6;
+	}
+}
+
+@keyframes waveformPulse {
+	0%,
+	100% {
+		opacity: 0.6;
+		transform: translate(-50%, -50%) scaleX(0.8);
+	}
+	50% {
+		opacity: 1;
+		transform: translate(-50%, -50%) scaleX(1);
+	}
+}
+
