@@ -1,0 +1,18 @@
+name: Build and push sandbox-gateway image
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'backend/sandbox-gateway/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and push sandbox-gateway image
+    uses: ./.github/workflows/image-build.yml
+    with:
+      imageName: sandbox-gateway
