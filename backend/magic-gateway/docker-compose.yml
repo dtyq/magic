@@ -1,0 +1,38 @@
+services:
+  # API网关服务 - Go 版本
+  magic-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-gateway-${ENV:-dev}
+    ports:
+      - "${MAGIC_GATEWAY_PORT}:${MAGIC_GATEWAY_PORT}"
+    volumes:
+      - ./config/${ENV:-dev}/.env:/app/.env
+    restart: unless-stopped
+    networks:
+      - magic-sandbox-network
+    # depends_on:
+    #   - magic-redis
+
+  # Redis服务
+  magic-redis:
+    image: public.ecr.aws/docker/library/redis:alpine
+    container_name: api-gateway-redis
+    volumes:
+      - ./redis_data:/data
+    restart: unless-stopped
+    networks:
+      - magic-sandbox-network
+    command: redis-server --appendonly yes
+    labels:
+      - "com.docker.compose.skip.create=true"
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  magic-sandbox-network:
+    external: true
+    driver: bridge
