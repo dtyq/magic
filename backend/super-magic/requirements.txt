@@ -1,0 +1,138 @@
+# 测试相关依赖
+pytest==8.0.0
+pytest-asyncio==0.23.5
+
+# 核心工具和配置管理
+python-dotenv==1.0.1
+pyyaml~=6.0.2
+loguru~=0.7.3
+typer>=0.15.2
+backoff>=2.2.1  # 重试机制库
+json_repair>=0.47.7  # JSON 修复和解析库
+
+# CLI 工具依赖
+click>=8.0.0  # CLI 框架
+rich>=12.0.0  # 终端美化和表格输出
+
+# 数据处理
+numpy>=1.26.4  # Python 3.12 使用 1.26.4，Python 3.13 使用 >=2.1.0
+pandas>=2.2.0  # 更新到支持 Python 3.12 的版本
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# 企业微信 AI Bot 接入
+wecom-aibot-sdk>=1.0.2
+python-socks>=2.8.1  # wecom-aibot-sdk 通过代理连接企微 WS 所需
+
+# 钉钉 AI Bot 接入
+dingtalk-stream>=0.24.3  # 钉钉 Stream 模式 SDK（含 aiohttp）
+
+# 飞书 AI Bot 接入
+lark-oapi>=1.5.3  # 飞书 OpenAPI SDK（含 WebSocket、CardKit 支持）
+
+# API和Web服务
+fastapi~=0.115.11
+uvicorn~=0.34.0
+aiohttp==3.13.2
+websockets>=16.0  # wecom-aibot-sdk requires >=13.0
+
+# 数据模型与验证
+pydantic~=2.10.4
+pydantic_core~=2.27.2
+
+# 网络请求与工具
+requests>=2.32.2
+httpx>=0.27.0  # Async HTTP client for audio_understanding tool and SDK
+tenacity==8.2.3
+aiofiles~=24.1.0
+aiohttp_retry>=2.9.1  # aiohttp 重试功能库
+
+# AI与LLM相关
+openai~=1.58.1
+tiktoken>=0.6.0
+mcp==1.9.4
+
+# 前端与界面相关
+html2text~=2024.2.26  # Word 文档插件和企业模块的网页内容转换
+html5lib==1.1
+
+# 浏览器自动化
+playwright==1.57.0
+beautifulsoup4==4.13.4
+
+# 文件处理依赖
+markitdown>=0.1.0  # 文档转换插件框架
+PyMuPDF==1.26.3  # markitdown PDF 插件和转换工具，提供 fitz 模块。注意：不要安装其他 fitz 包以避免冲突
+PyPDF2>=3.0.0  # PDF 解析器
+python-docx>=1.0.0  # Word 文档解析器
+mammoth>=1.8.0  # markitdown Word 文档插件，高质量转换
+openpyxl>=3.1.2  # Excel 解析器
+python-pptx>=0.6.21  # PowerPoint 解析器
+
+# Excel 文件读取库
+xlrd>=2.0.1
+
+# 文件监控
+watchdog>=3.0.0
+
+# 系统与环境
+psutil>=7.0.0
+
+# 代码质量与开发工具
+ruff==0.11.2
+jsbeautifier>=1.15.0  # JavaScript 代码格式化工具
+
+# 存储与云服务
+redis==5.2.1
+tos>=2.8.1  # 放宽版本限制
+oss2==2.19.1
+boto3>=1.26.0  # AWS S3 客户端库
+
+# 其他工具
+pillow~=10.4.0
+pillow-heif==0.22.0  # AVIF、HEIF、HEIC 格式支持
+volcengine>=1.0.190  # 更新到支持较新pytz版本的版本
+mutagen>=1.47.0  # 音频元数据读取库，用于获取音频时长
+
+# 视频处理工具（video agent）
+yt-dlp>=2025.11.12  # YouTube 视频下载，用于 video agent
+moviepy>=1.0.3  # 视频处理库
+
+# 音视频处理依赖
+# 注意：除了 Python 包外，还需要安装系统级的 ffmpeg 工具
+# - macOS: brew install ffmpeg
+# - Ubuntu/Debian: sudo apt-get install ffmpeg
+# - Windows: choco install ffmpeg 或从官网下载
+# 用于：convert_video_to_audio, split_audio 工具
+
+# 语法检查工具
+pylint==3.3.6
+tinycss2==1.4.0
+pyright==1.1.398  # TypeScript 语法检查的附加支持
+PyExecJS>=1.5.1
+
+# 时区处理
+pytz>=2022.5  # 添加pytz依赖以确保与yfinance兼容
+pytest-cov==6.1.1
+
+# PDF and HTML Processing
+markdown~=3.8.2
+filelock  # 转换任务管理器文件锁功能
+
+python-socketio~=5.13.0
+
+# 监控相关依赖 - 统一使用兼容版本
+opentelemetry-api>=1.27.0
+opentelemetry-sdk>=1.27.0
+opentelemetry-instrumentation==0.59b0
+opentelemetry-semantic-conventions==0.59b0
+opentelemetry-distro==0.59b0
+opentelemetry-exporter-otlp>=1.27.0
+opentelemetry-instrumentation-logging==0.59b0
+opentelemetry-instrumentation-fastapi==0.59b0
+opentelemetry-instrumentation-asgi==0.59b0
+opentelemetry-instrumentation-aiohttp-client==0.59b0
+opentelemetry-instrumentation-requests==0.59b0
+opentelemetry-instrumentation-httpx==0.59b0
+opentelemetry-instrumentation-openai>=0.48.0
+opentelemetry-util-http==0.59b0

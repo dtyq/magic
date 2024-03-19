@@ -1,0 +1,2 @@
+scikit-learn>=1.6.1
+prophet>=1.1.6

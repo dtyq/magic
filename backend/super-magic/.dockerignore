@@ -1,0 +1,94 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# 测试相关
+tests/
+test/
+agentlang/tests/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# 日志和数据库
+logs/
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+*.db
+*.sqlite
+
+# IDE 相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.cursor/
+
+# Docker 相关
+docker-compose*
+.dockerignore
+Dockerfile
+Dockerfile.pyinstaller
+
+# 临时文件和调试
+tmp/
+temp/
+output/
+.output/
+debug/
+
+# 其他不需要的文件
+plan.md
+trigger_ci.txt
+.chat_history/
+.workspace/
+
+# 环境变量
+.env
+.envs/
+.envs/.env.local
+.envs/.env.development
+.envs/.env.production
