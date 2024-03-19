@@ -1,0 +1,334 @@
+{
+	"editor": {
+		"characterCount": {
+			"exceeded": "字符超限：{{count}}",
+			"limit": "字符限制：{{current}} / {{max}}",
+			"remaining": "剩余字符：{{count}}"
+		},
+		"mathEditor": {
+			"error": {
+				"empty": "LaTeX 代码不能为空",
+				"invalid": "LaTeX 语法错误"
+			},
+			"examples": {
+				"fraction": "分数",
+				"greek": "希腊字母",
+				"integral": "积分",
+				"matrix": "矩阵",
+				"squareroot": "平方根",
+				"subscript": "下标",
+				"sum": "求和",
+				"superscript": "上标"
+			},
+			"label": {
+				"examples": "快捷示例（点击使用）:",
+				"latexCode": "LaTeX 代码:",
+				"preview": "预览:"
+			},
+			"placeholder": {
+				"block": "输入数学公式块的 LaTeX 代码...",
+				"empty": "输入 LaTeX 代码以查看预览",
+				"inline": "输入行内数学公式的 LaTeX 代码...",
+				"invalid": "语法错误"
+			},
+			"title": {
+				"block": "编辑数学公式块",
+				"inline": "编辑行内数学公式"
+			}
+		},
+		"placeholder": {
+			"default": "开始输入...",
+			"empty": "在这里写点什么...",
+			"typeSlash": "输入 '/' 显示命令菜单"
+		},
+		"slashMenu": {
+			"emptyPlaceholder": "未找到匹配的命令",
+			"groups": {
+				"advanced": "高级",
+				"basic": "基础",
+				"formatting": "格式",
+				"list": "列表",
+				"media": "媒体",
+				"other": "其他"
+			},
+			"items": {
+				"bulletList": {
+					"subtext": "创建简单的项目符号列表",
+					"title": "无序列表"
+				},
+				"codeBlock": {
+					"subtext": "用于显示代码",
+					"title": "代码块"
+				},
+				"divider": {
+					"subtext": "视觉分割线",
+					"title": "分割线"
+				},
+				"heading1": {
+					"subtext": "大号标题",
+					"title": "标题 1"
+				},
+				"heading2": {
+					"subtext": "中号标题",
+					"title": "标题 2"
+				},
+				"heading3": {
+					"subtext": "小号标题",
+					"title": "标题 3"
+				},
+				"heading4": {
+					"subtext": "更小号标题",
+					"title": "标题 4"
+				},
+				"heading5": {
+					"subtext": "最小标题",
+					"title": "标题 5"
+				},
+				"heading6": {
+					"subtext": "极小标题",
+					"title": "标题 6"
+				},
+				"image": {
+					"subtext": "上传或嵌入图片",
+					"title": "图片"
+				},
+				"orderedList": {
+					"subtext": "创建带数字的列表",
+					"title": "有序列表"
+				},
+				"projectImage": {
+					"subtext": "上传图片到项目",
+					"title": "图片"
+				},
+				"quote": {
+					"subtext": "用于引用或重要文本",
+					"title": "引用块"
+				},
+				"storageImage": {
+					"subtext": "上传图片到本地存储",
+					"title": "本地存储图片"
+				},
+				"table": {
+					"subtext": "创建表格",
+					"title": "表格"
+				},
+				"text": {
+					"subtext": "普通文本段落",
+					"title": "文本"
+				},
+				"todoList": {
+					"subtext": "带复选框的任务列表",
+					"title": "待办列表"
+				}
+			},
+			"keyboard": {
+				"enterToSelect": "按 Enter 选择",
+				"escapeToCancel": "Esc 取消",
+				"upDownToNavigate": "↑↓ 导航"
+			},
+			"searchPlaceholder": "搜索命令..."
+		}
+	},
+	"imageStorage": {
+		"actions": {
+			"delete": "删除图片",
+			"retry": "重试"
+		},
+		"errors": {
+			"fileTooLarge": "图片大小不能超过 {{maxSize}}MB",
+			"loadFailed": "图片加载失败",
+			"saveFailed": "图片保存失败",
+			"storageUnavailable": "图片存储不可用，可能是因为私密浏览模式"
+		},
+		"placeholder": {
+			"error": "加载失败",
+			"loading": "加载中..."
+		}
+	},
+	"projectImage": {
+		"actions": {
+			"delete": "删除图片",
+			"retry": "请重试"
+		},
+		"alignment": {
+			"center": "居中",
+			"left": "左对齐",
+			"right": "右对齐"
+		},
+		"dropdown": {
+			"link": {
+				"button": "嵌入图片",
+				"error": {
+					"invalidUrl": "请输入有效的 http 或 https 链接"
+				},
+				"hint": "适用于网络上的支持公开访问的任何图片",
+				"placeholder": "请输入图片链接"
+			},
+			"project": {
+				"empty": "暂无图片",
+				"hint": "同时支持从左侧「项目文件」中直接拖拽图片到文档中",
+				"loading": "加载中..."
+			},
+			"tabs": {
+				"link": "嵌入链接",
+				"project": "项目图片",
+				"upload": "上传图片"
+			},
+			"upload": {
+				"dropFile": "释放以上传文件",
+				"hint": "上传的图片文件最大 5MB，支持 jpg/jpeg/png/gif/webp/svg/bmp/ico",
+				"selectFile": "选择本地文件"
+			}
+		},
+		"errors": {
+			"fileTooLarge": "文件大小超过 {{maxSize}}MB",
+			"invalidFile": "不支持的图片格式",
+			"loadFailed": "图片加载失败",
+			"networkError": "网络连接失败",
+			"pathNotFound": "图片路径不存在",
+			"projectIdRequired": "需要项目 ID 才能上传图片",
+			"storageUnavailable": "存储服务不可用",
+			"unsupportedFileType": "暂不支持此类型文件",
+			"uploadCancelled": "上传已取消",
+			"uploadFailed": "图片上传失败"
+		},
+		"load": {
+			"errorTitle": "图片加载失败"
+		},
+		"objectFit": {
+			"contain": "适应",
+			"cover": "铺满",
+			"fill": "拉伸"
+		},
+		"placeholder": {
+			"error": "图片加载失败",
+			"loading": "图片加载中..."
+		},
+		"upload": {
+			"errorTitle": "图片上传失败",
+			"success": "图片上传成功",
+			"title": "图片上传失败",
+			"uploading": "图片上传中...",
+			"uploadingProgress": "图片上传中 {{progress}}%"
+		},
+		"url": {
+			"ariaLabel": "图片链接输入框",
+			"cancel": "取消",
+			"confirm": "确认",
+			"edit": "更改图片链接",
+			"placeholder": "请输入图片链接"
+		}
+	},
+	"toolbar": {
+		"blockquote": {
+			"ariaLabel": "切换引用块",
+			"tooltip": "引用块"
+		},
+		"codeBlock": {
+			"ariaLabel": "切换代码块",
+			"tooltip": "代码块"
+		},
+		"colorHighlight": {
+			"ariaLabel": "设置文本高亮颜色",
+			"colors": {
+				"blue": "蓝色背景",
+				"brown": "棕色背景",
+				"default": "默认背景",
+				"gray": "灰色背景",
+				"green": "绿色背景",
+				"orange": "橙色背景",
+				"pink": "粉色背景",
+				"purple": "紫色背景",
+				"red": "红色背景",
+				"yellow": "黄色背景"
+			},
+			"removeHighlight": "移除高亮",
+			"tooltip": "高亮"
+		},
+		"copyMarkdown": {
+			"ariaLabel": "复制编辑器内容为 Markdown 格式",
+			"failed": "复制失败",
+			"success": "已复制 Markdown 源码",
+			"tooltip": "复制 Markdown"
+		},
+		"dragHandle": {
+			"ariaLabel": "拖动以重新排序",
+			"delete": "删除",
+			"title": "拖动以重新排序"
+		},
+		"heading": {
+			"ariaLabel": "设置文本为标题",
+			"level": {
+				"1": "标题 1",
+				"2": "标题 2",
+				"3": "标题 3",
+				"4": "标题 4",
+				"5": "标题 5",
+				"6": "标题 6"
+			},
+			"tooltip": "标题"
+		},
+		"history": {
+			"redo": "重做",
+			"undo": "撤销"
+		},
+		"horizontalRule": {
+			"ariaLabel": "插入分割线",
+			"tooltip": "分割线"
+		},
+		"image": {
+			"ariaLabel": "插入图片",
+			"tooltip": "图片",
+			"upload": "上传图片"
+		},
+		"link": {
+			"apply": "应用链接",
+			"ariaLabel": "插入或编辑链接",
+			"openInNewWindow": "在新窗口打开",
+			"placeholder": "粘贴链接...",
+			"remove": "移除链接",
+			"titlePlaceholder": "链接标题（可选）",
+			"tooltip": "链接"
+		},
+		"list": {
+			"ariaLabel": "列表选项",
+			"bulletList": "无序列表",
+			"orderedList": "有序列表",
+			"taskList": "任务列表",
+			"tooltip": "列表"
+		},
+		"mark": {
+			"bold": "粗体",
+			"code": "代码",
+			"italic": "斜体",
+			"strike": "删除线",
+			"subscript": "下标",
+			"superscript": "上标",
+			"underline": "下划线"
+		},
+		"projectImage": {
+			"ariaLabel": "插入图片",
+			"tooltip": "图片",
+			"upload": "上传到项目"
+		},
+		"storageImage": {
+			"ariaLabel": "插入图片",
+			"tooltip": "图片",
+			"upload": "上传到本地存储"
+		},
+		"tableMenu": {
+			"addColumnAfter": "在右侧插入列",
+			"addColumnBefore": "在左侧插入列",
+			"addRowAfter": "在下方插入行",
+			"addRowBefore": "在上方插入行",
+			"deleteColumn": "删除列",
+			"deleteRow": "删除行"
+		},
+		"textAlign": {
+			"center": "居中对齐",
+			"justify": "两端对齐",
+			"left": "左对齐",
+			"right": "右对齐"
+		}
+	}
+}

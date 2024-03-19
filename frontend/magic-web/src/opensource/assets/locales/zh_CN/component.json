@@ -1,0 +1,188 @@
+{
+	"freePointsReward": {
+		"description": "奖励的积分在今日内有效，明天登录还能领取新的积分哦！",
+		"pointsCredited": "积分到账",
+		"title": "每日登录奖励",
+		"useNow": "马上去使用"
+	},
+	"magicDatePicker": {
+		"selectDate": "选择日期"
+	},
+	"magicDocxRender": {
+		"actions": {
+			"download": "下载文件",
+			"fullscreen": "全屏显示",
+			"reload": "重新加载"
+		},
+		"dropdown": {
+			"download": "下载",
+			"fullscreen": "全屏",
+			"navigation": "导航",
+			"nextSection": "下一节",
+			"prevSection": "上一节",
+			"reload": "重新加载",
+			"zoomIn": "放大",
+			"zoomOut": "缩小",
+			"zoomScale": "缩放:"
+		},
+		"error": {
+			"failedToLoad": "加载 DOCX 文件失败",
+			"networkError": "网络错误",
+			"renderError": "渲染错误",
+			"unknown": "未知错误"
+		},
+		"navigation": {
+			"nextSection": "下一节",
+			"prevSection": "上一节",
+			"sectionInfo": "第 {{current}} 节 / 共 {{total}} 节",
+			"sectionInput": "节码输入"
+		},
+		"status": {
+			"downloadUnavailable": "无法下载该文档",
+			"fileTooLarge": "文件过大，最大支持 50MB",
+			"invalidFileType": "文件格式不正确，仅支持 .docx 文件",
+			"loadFailed": "加载失败，请重试",
+			"loading": "正在加载 DOCX 文件...",
+			"loadingProgress": "加载进度",
+			"noFile": "请选择要预览的 DOCX 文件",
+			"retry": "重试",
+			"sectionLoadFailed": "章节加载失败"
+		},
+		"toolbar": {
+			"download": "下载",
+			"fullscreen": "全屏 (F11)",
+			"moreActions": "更多操作",
+			"nextSection": "下一节 (→)",
+			"prevSection": "上一节 (←)",
+			"reload": "重新加载",
+			"zoomIn": "放大 (+)",
+			"zoomOut": "缩小 (-)"
+		},
+		"zoom": {
+			"scaleInput": "缩放输入",
+			"zoomIn": "放大",
+			"zoomOut": "缩小",
+			"zoomScale": "缩放比例"
+		}
+	},
+	"magicPdfRender": {
+		"dropdown": {
+			"download": "下载",
+			"fullscreen": "全屏",
+			"pageNav": "页面:",
+			"reload": "重新加载",
+			"rotateLeft": "逆时针旋转",
+			"rotateRight": "顺时针旋转",
+			"zoom": "缩放:",
+			"zoomIn": "放大",
+			"zoomOut": "缩小"
+		},
+		"pageInfo": {
+			"currentPage": "第 {{current}} 页",
+			"pageNumber": "页码",
+			"scale": "缩放",
+			"totalPages": "共 {{total}} 页"
+		},
+		"placeholders": {
+			"pageNumber": "页面 {{number}}",
+			"scrollToLoad": "滚动到此处加载"
+		},
+		"status": {
+			"downloadUnavailable": "无法下载该文档",
+			"loadFailed": "加载失败，请重试",
+			"loading": "正在加载...",
+			"loadingProgress": "加载进度",
+			"noFile": "请选择要预览的 PDF 文件",
+			"pageLoadFailed": "页面加载失败",
+			"retry": "重试"
+		},
+		"toolbar": {
+			"download": "下载",
+			"fullscreen": "全屏 (F11)",
+			"moreActions": "更多操作",
+			"nextPage": "下一页 (→)",
+			"prevPage": "上一页 (←)",
+			"reload": "重新加载",
+			"rotateLeft": "逆时针旋转",
+			"rotateRight": "顺时针旋转",
+			"zoomIn": "放大 (+)",
+			"zoomOut": "缩小 (-)"
+		}
+	},
+	"magicTimePicker": {
+		"selectTime": "选择时间"
+	},
+	"mcpInitTool": {
+		"countUnit": "个",
+		"initFailed": "初始化失败",
+		"initSuccess": "初始化成功"
+	},
+	"mcpTool": {
+		"parameters": "参数",
+		"result": "结果"
+	},
+	"voiceInput": {
+		"button": {
+			"back": "取消",
+			"cancel": "取消",
+			"convertToText": "转文字",
+			"pressToSpeak": "按住说话",
+			"sendText": "发送文字",
+			"sendVoice": "发送原语音"
+		},
+		"error": {
+			"microphoneAccessFailed": "获取麦克风权限失败",
+			"microphoneNotFound": "未找到麦克风设备",
+			"microphoneNotReadable": "麦克风设备被占用或无法访问",
+			"microphoneNotSupported": "当前浏览器不支持录音功能",
+			"microphoneOverconstrained": "麦克风设备不支持所需的音频格式",
+			"microphonePermissionDenied": "麦克风权限被拒绝，请在设置中允许麦克风权限",
+			"microphoneSecurityError": "需要在HTTPS环境下使用录音功能"
+		},
+		"permission": {
+			"instructions": {
+				"app": {
+					"android": "设置 → 应用权限 → 麦克风 → Magic → 允许",
+					"default": "请在手机设置中找到应用权限管理，允许Magic应用访问麦克风",
+					"ios": "设置 → 隐私与安全性 → 麦克风 → Magic → 允许"
+				},
+				"browser": {
+					"chrome": "点击地址栏左侧的锁形图标 → 选择\"站点设置\" → 允许麦克风权限",
+					"default": "请在浏览器设置中找到隐私或权限设置，然后允许此网站访问麦克风",
+					"edge": "点击地址栏左侧的锁形图标 → 选择\"权限\" → 允许麦克风权限",
+					"firefox": "点击地址栏左侧的盾牌或锁形图标 → 选择\"权限\" → 允许麦克风权限",
+					"safari": "Safari菜单 → 偏好设置 → 网站 → 麦克风 → 选择此网站并允许访问"
+				}
+			},
+			"modal": {
+				"app": {
+					"cancelText": "取消",
+					"content": "该功能需要访问您的麦克风。请在手机设置中允许应用访问麦克风权限。",
+					"manualInstruction": "请在手机设置中允许Magic应用访问麦克风权限，然后重试。",
+					"okText": "打开设置",
+					"title": "需要麦克风权限"
+				},
+				"browser": {
+					"cancelText": "取消",
+					"content": "该功能需要访问您的麦克风。请按照以下步骤在浏览器设置中允许麦克风权限：",
+					"manualInstruction": "设置完成后，请刷新页面重试。",
+					"okText": "我知道了",
+					"title": "需要麦克风权限"
+				}
+			}
+		},
+		"placeholder": {
+			"textInput": "输入文字消息..."
+		},
+		"status": {
+			"releaseToCancel": "松开取消发送",
+			"releaseToSend": "松开发送"
+		},
+		"tooltip": {
+			"default": "语音输入",
+			"error": "语音服务异常",
+			"idle": "开启语音输入",
+			"recording": "停止语音输入"
+		}
+	}
+}

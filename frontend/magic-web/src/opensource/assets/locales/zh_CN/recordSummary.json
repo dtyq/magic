@@ -1,0 +1,30 @@
+{
+	"audioSource": {
+		"both": {
+			"desc": "同时录制麦克风和系统音频",
+			"label": "混合音频"
+		},
+		"errors": {
+			"initializationFailed": "切换失败：录音器初始化失败，请重试",
+			"invalidState": "切换失败：当前状态不允许切换音频源",
+			"notSupported": "切换失败：当前浏览器不支持该音频源",
+			"permissionDenied": "切换失败：用户拒绝了麦克风或屏幕共享权限",
+			"resumePermissionDenied": "需要重新授权系统音频权限才能继续录音",
+			"streamCaptureFailed": "切换失败：无法捕获音频流，请检查设备连接",
+			"unknown": "音频源切换失败，请重试"
+		},
+		"fallback": "音频源已自动切换至{{source}}",
+		"microphone": {
+			"desc": "仅录制麦克风音频",
+			"label": "麦克风"
+		},
+		"switchFailed": "音频源切换失败，请重试",
+		"switchFailedButRecovered": "音频源切换失败，已保留上一次选择，录制继续进行",
+		"switchSuccess": "音频源切换成功",
+		"switching": "正在切换音频源...",
+		"system": {
+			"desc": "仅录制系统音频（通过屏幕共享）",
+			"label": "系统音频"
+		}
+	}
+}

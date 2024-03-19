@@ -1,0 +1,349 @@
+{
+	"common": {
+		"cancel": "取消",
+		"close": "关闭",
+		"confirm": "确认",
+		"delete": "删除",
+		"edit": "编辑",
+		"ok": "确定",
+		"save": "保存"
+	},
+	"dropOverlay": {
+		"loading": "加载中",
+		"releaseToAddToCanvas": "松开以添加至画布",
+		"releaseToUpload": "松开以上传文件",
+		"releaseToUploadImage": "松开以上传图片"
+	},
+	"elementTools": {
+		"elementAlign": {
+			"bottom": "底部对齐",
+			"horizontalCenter": "水平居中",
+			"left": "左对齐",
+			"right": "右对齐",
+			"top": "顶部对齐",
+			"verticalCenter": "垂直居中"
+		},
+		"elementDistribute": {
+			"autoLayout": "自动排列",
+			"horizontalSpacing": "水平间距",
+			"verticalSpacing": "垂直间距"
+		},
+		"fillColor": {
+			"title": "填充"
+		},
+		"fontFamily": {
+			"placeholder": "字体"
+		},
+		"fontStyle": {
+			"placeholder": "字重"
+		},
+		"imageConvertHight": {
+			"title": "高清放大"
+		},
+		"shapeStyle": {
+			"advanced": "高级",
+			"cornerRadius": "圆角",
+			"innerRadiusRatio": "内凹比例",
+			"opacity": "透明度",
+			"sides": "边数"
+		},
+		"strokeColor": {
+			"title": "描边"
+		},
+		"textAdvanced": {
+			"list": {
+				"bullet": "无序列表",
+				"none": "无",
+				"ordered": "有序列表"
+			},
+			"textCase": {
+				"lower": "小写",
+				"none": "无",
+				"sensitive": "大小写敏感",
+				"upper": "大写"
+			},
+			"textDecoration": {
+				"none": "无",
+				"strikethrough": "中划线",
+				"underline": "下划线"
+			},
+			"textWidth": {
+				"auto": "自动宽度",
+				"fixed": "固定宽度"
+			}
+		},
+		"textAlign": {
+			"center": "居中对齐",
+			"left": "左对齐",
+			"right": "右对齐"
+		}
+	},
+	"ellipse": {
+		"defaultName": "椭圆"
+	},
+	"frame": {
+		"defaultName": "画框"
+	},
+	"group": {
+		"defaultName": "分组"
+	},
+	"image": {
+		"defaultName": "图片生成器",
+		"empty": "请发送生成图像的指令",
+		"errorPrefix": "图像生成失败, ",
+		"errorRetry": "点击重试",
+		"generateFailed": "图片生成失败",
+		"generating": "正在生成中...",
+		"generatorName": "图片生成器",
+		"loadError": "图片加载失败",
+		"loading": "正在加载中...",
+		"nameSuffix": {
+			"failed": "(失败)",
+			"generating": "(生成中)",
+			"loading": "(加载中)",
+			"uploading": "(上传中)"
+		},
+		"nameWithIndex": "Image {{index}}",
+		"uploadFailed": "图片上传失败",
+		"uploading": "正在上传中..."
+	},
+	"imageEditor": {
+		"currentImage": "(当前图片)",
+		"custom": "自定义",
+		"editPlaceholder": "请输入您的编辑需求",
+		"maxReferenceImagesReached": "最多只能上传 {{maxReferenceImages}} 张参考图",
+		"originalImage": "原图",
+		"placeholder": "请输入您的创作需求",
+		"referenceImage": "参考图",
+		"size": "尺寸"
+	},
+	"layers": {
+		"collapse": "收起",
+		"empty": {
+			"description": "让智能体帮你轻松生成各种创意图像!",
+			"title": "画布内容为空"
+		},
+		"title": "图层"
+	},
+	"menu": {
+		"addFrame": "添加画框",
+		"addToCurrentConversation": "添加至当前对话",
+		"addToNewConversation": "添加至新话题",
+		"copy": "复制",
+		"copyPng": "复制为 PNG",
+		"copySuccess": "复制成功",
+		"delete": "删除",
+		"downloadFile": "下载文件",
+		"downloadImage": "下载图片",
+		"downloadImageNoWatermark": "下载无水印图片",
+		"hide": "隐藏",
+		"lock": "锁定",
+		"moveDown": "下移一层",
+		"moveToBottom": "移至底部",
+		"moveToTop": "移至顶部",
+		"moveUp": "上移一层",
+		"paste": "粘贴",
+		"removeFrame": "取消画框",
+		"show": "显示",
+		"unlock": "解锁"
+	},
+	"messageHistory": {
+		"model": "模型",
+		"noPrompt": "暂无提示词",
+		"prompt": "提示词",
+		"referenceImage": "参考图",
+		"size": "尺寸",
+		"title": "生成记录"
+	},
+	"rectangle": {
+		"defaultName": "矩形"
+	},
+	"shortcuts": {
+		"align": {
+			"bottom": {
+				"description": "底部对齐选中元素",
+				"name": "底部对齐"
+			},
+			"horizontalCenter": {
+				"description": "水平居中选中元素",
+				"name": "水平居中"
+			},
+			"left": {
+				"description": "左对齐选中元素",
+				"name": "左对齐"
+			},
+			"right": {
+				"description": "右对齐选中元素",
+				"name": "右对齐"
+			},
+			"top": {
+				"description": "顶部对齐选中元素",
+				"name": "顶部对齐"
+			},
+			"verticalCenter": {
+				"description": "垂直居中选中元素",
+				"name": "垂直居中"
+			}
+		},
+		"distribute": {
+			"autoLayout": {
+				"description": "自动排列选中元素",
+				"name": "自动排列"
+			},
+			"horizontalSpacing": {
+				"description": "水平均匀分布选中元素",
+				"name": "水平分布"
+			},
+			"verticalSpacing": {
+				"description": "垂直均匀分布选中元素",
+				"name": "垂直分布"
+			}
+		},
+		"edit": {
+			"copy": {
+				"description": "复制选中元素",
+				"name": "复制"
+			},
+			"delete": {
+				"description": "删除选中元素",
+				"name": "删除"
+			},
+			"deleteBackspace": {
+				"description": "删除选中元素",
+				"name": "删除（Backspace）"
+			},
+			"paste": {
+				"description": "粘贴元素",
+				"name": "粘贴"
+			},
+			"redo": {
+				"description": "重做上一步操作",
+				"name": "重做"
+			},
+			"undo": {
+				"description": "撤销上一步操作",
+				"name": "撤销"
+			}
+		},
+		"element": {
+			"toggleLock": {
+				"description": "切换选中元素的锁定状态",
+				"name": "切换锁定"
+			},
+			"toggleVisible": {
+				"description": "切换选中元素的可见性",
+				"name": "切换可见性"
+			}
+		},
+		"frame": {
+			"create": {
+				"description": "为选中元素创建画框",
+				"name": "创建画框"
+			},
+			"remove": {
+				"description": "取消选中画框",
+				"name": "取消画框"
+			}
+		},
+		"layer": {
+			"moveDown": {
+				"description": "将选中元素下移一层",
+				"name": "下移一层"
+			},
+			"moveToBottom": {
+				"description": "将选中元素移至底部",
+				"name": "移至底部"
+			},
+			"moveToTop": {
+				"description": "将选中元素移至顶部",
+				"name": "移至顶部"
+			},
+			"moveUp": {
+				"description": "将选中元素上移一层",
+				"name": "上移一层"
+			}
+		},
+		"selection": {
+			"selectAll": {
+				"description": "选择所有元素",
+				"name": "全选"
+			}
+		},
+		"tool": {
+			"frame": {
+				"description": "临时切换到画框工具",
+				"name": "画框工具"
+			},
+			"imageGenerator": {
+				"description": "临时切换到图片生成工具",
+				"name": "图片生成工具"
+			},
+			"marker": {
+				"description": "临时切换到标记工具",
+				"name": "标记工具"
+			},
+			"pan": {
+				"description": "临时切换到平移工具",
+				"name": "平移工具"
+			},
+			"panSpace": {
+				"description": "按住空格临时平移画布",
+				"name": "平移工具（空格）"
+			},
+			"selection": {
+				"description": "切换到选择工具",
+				"name": "选择工具"
+			},
+			"text": {
+				"description": "临时切换到文本工具",
+				"name": "文本工具"
+			}
+		},
+		"view": {
+			"zoomFit": {
+				"description": "适配屏幕",
+				"name": "适配屏幕"
+			},
+			"zoomIn": {
+				"description": "放大画布",
+				"name": "放大"
+			},
+			"zoomOut": {
+				"description": "缩小画布",
+				"name": "缩小"
+			},
+			"zoomToActualSize": {
+				"description": "缩放至100%",
+				"name": "缩放至实际大小"
+			}
+		}
+	},
+	"sizeSelect": {
+		"custom": "自定义",
+		"selectSize": "选择尺寸"
+	},
+	"star": {
+		"defaultName": "星形"
+	},
+	"text": {
+		"defaultName": "文本"
+	},
+	"tools": {
+		"frame": "画框",
+		"hand": "抓手工具",
+		"imageGenerator": "图像生成",
+		"marker": "标记",
+		"selection": "选择工具",
+		"space": "空格",
+		"text": "文本"
+	},
+	"triangle": {
+		"defaultName": "三角形"
+	},
+	"zoom": {
+		"fitToScreen": "适配屏幕",
+		"zoomIn": "放大",
+		"zoomOut": "缩小",
+		"zoomTo": "缩放至{{percent}}%"
+	}
+}

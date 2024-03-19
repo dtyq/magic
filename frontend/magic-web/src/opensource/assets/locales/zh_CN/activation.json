@@ -1,0 +1,97 @@
+{
+	"common": {
+		"error": "操作失败，请重试",
+		"loading": "处理中..."
+	},
+	"errors": {
+		"accountActivated": "提示",
+		"accountActivatedContent": "该成员已被激活",
+		"missingParameters": "缺少必要参数",
+		"ok": "返回首页",
+		"returnHome": "返回首页"
+	},
+	"profile": {
+		"button": {
+			"submit": "确认提交"
+		},
+		"company": {
+			"license": {
+				"label": "企业证照",
+				"numberPlaceholder": "输入信用代码",
+				"numberRequired": "请输入证照号码",
+				"typeRequired": "请选择证照类型",
+				"types": {
+					"businessLicense": "营业执照",
+					"creditCode": "信用代码",
+					"organizationCode": "组织机构代码"
+				}
+			},
+			"name": {
+				"label": "企业名称",
+				"placeholder": "输入企业全称",
+				"required": "请输入企业名称"
+			},
+			"type": {
+				"label": "企业类型",
+				"options": {
+					"manufacturing": "制造业",
+					"other": "其他",
+					"service": "服务业",
+					"technology": "科技企业",
+					"trade": "贸易企业"
+				},
+				"placeholder": "选择企业类型",
+				"required": "请选择企业类型"
+			}
+		},
+		"contact": {
+			"name": {
+				"label": "企业联系人",
+				"labelIndividual": "联系人",
+				"placeholder": "输入联系人姓名",
+				"required": "请输入联系人姓名"
+			},
+			"phone": {
+				"invalid": "请输入有效的手机号码",
+				"label": "联系电话",
+				"placeholder": "输入联系人电话",
+				"required": "请输入联系电话"
+			}
+		},
+		"title": "完善资料",
+		"type": {
+			"company": "企业伙伴",
+			"individual": "个人伙伴",
+			"label": "类型"
+		}
+	},
+	"setPassword": {
+		"button": {
+			"confirm": "确认",
+			"skip": "跳过，暂不设置密码"
+		},
+		"description": "为确保您的账户安全，建议完善登录密码，密码不可少于 8 个字符",
+		"form": {
+			"label": "密码",
+			"placeholder": "请输入不少于 8 位的登录密码, 且包含字母与数字",
+			"validation": {
+				"combinationError": "请包含字母与数字 / 字母与特殊字符 / 数字与特殊字符",
+				"lengthError": "密码长度需不少于 8 位"
+			}
+		},
+		"title": "设置密码"
+	},
+	"verification": {
+		"button": {
+			"activate": "激活",
+			"cancel": "取消激活"
+		},
+		"codeInvalid": "验证码错误，请重新输入",
+		"greeting": "，你好！",
+		"instruction": "请使用以下手机号获取验证码并加入企业",
+		"invitation": {
+			"member": "正在邀请您加入",
+			"partner": "正在邀请您成为合作伙伴"
+		}
+	}
+}

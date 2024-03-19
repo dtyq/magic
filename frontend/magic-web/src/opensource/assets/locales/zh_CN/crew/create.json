@@ -1,0 +1,445 @@
+{
+	"back": "返回",
+	"backToMyCrew": "返回我的 Crew",
+	"card": {
+		"addSkills": "添加技能",
+		"cancel": "取消",
+		"description": "描述",
+		"enterDescription": "点击输入描述",
+		"enterName": "点击输入名称",
+		"enterRole": "点击输入角色",
+		"generating": {
+			"asciiDescription": "描述",
+			"asciiIdentity": "身份",
+			"asciiPromptFallback": "正在根据当前对话生成提示词...",
+			"asciiSkills": "技能",
+			"asciiStatus": "正在匹配技能并锁定身份编辑",
+			"asciiTitle": "数字员工配置",
+			"defaultRole": "数字员工成员",
+			"logFields": {
+				"description": "描述",
+				"name": "名称",
+				"prompt": "提示词",
+				"role": "角色",
+				"skills": "技能"
+			},
+			"logs": {
+				"allocatingVirtualResources": "分配虚拟资源...",
+				"analyzingInputConstraints": "分析输入约束...",
+				"calibratingPersonalityMatrix": "校准人格矩阵...",
+				"compilingIdentityTraits": "编译身份特征...",
+				"establishingCognitivePathways": "建立认知路径...",
+				"finalizingSystemCheck": "完成系统自检...",
+				"generatingBehavioralModel": "生成行为模型...",
+				"initializingNeuralNetworks": "初始化神经网络...",
+				"loadingKnowledgeBase": "加载知识库...",
+				"lockingField": "锁定{{field}}编辑入口...",
+				"matchingSkill": "匹配技能插件：{{skill}}...",
+				"persistingCrewMemory": "写入员工记忆上下文...",
+				"reconcilingPersona": "对齐人格与任务边界...",
+				"refiningResponseTone": "微调回复语气与表达风格...",
+				"scoringCandidate": "候选配置评分：{{score}}/100...",
+				"syncingContextMemory": "同步上下文记忆...",
+				"verifyingSecurityProtocols": "校验安全协议..."
+			},
+			"subtitle": "正在从技能库匹配核心技能插件...",
+			"title": "创建中..."
+		},
+		"localizeDialog": {
+			"tabDescription": "描述",
+			"tabName": "名称",
+			"tabRole": "角色",
+			"title": "本地化：身份"
+		},
+		"prompt": "提示词",
+		"reset": "重置",
+		"save": "保存",
+		"skills": "技能"
+	},
+	"errors": {
+		"createSceneFailed": "创建 Playbook 失败，请先保存 Crew",
+		"crewCodeRequired": "请先保存 Crew",
+		"deleteSceneFailed": "删除 Playbook 失败",
+		"loadAgentFailed": "加载 Agent 失败",
+		"loadScenesFailed": "加载 Playbook 失败",
+		"reorderScenesFailed": "重排 Playbook 失败",
+		"saveCrewFailed": "保存 Crew 失败",
+		"saveSkillsFailed": "保存技能失败",
+		"toggleSceneFailed": "切换 Playbook 失败",
+		"updateSceneFailed": "更新 Playbook 失败"
+	},
+	"knowledgeBase": {
+		"create": "创建知识库",
+		"emptyDescription": "关联专业知识，让智能体回复更准确、更专业。",
+		"emptyTitle": "未关联知识库"
+	},
+	"noDescription": "暂无员工描述信息",
+	"noSkills": "暂无员工技能",
+	"playbook": {
+		"actions": {
+			"delete": "删除",
+			"disable": "停用",
+			"edit": "编辑",
+			"enable": "启用"
+		},
+		"batchDelete": "删除 ({{count}})",
+		"batchDeleteConfirm": {
+			"description": "确认删除所选 {{count}} 个场景吗？此操作无法撤销。",
+			"title": "确认删除"
+		},
+		"cancelSelection": "取消",
+		"create": "创建",
+		"creating": "创建中…",
+		"edit": {
+			"backToList": "场景预设",
+			"basicInfo": {
+				"color": "颜色",
+				"colorPicker": {
+					"title": "选择颜色"
+				},
+				"description": "描述",
+				"descriptionPlaceholder": "粘贴 URL 获取即时摘要。",
+				"enable": "启用",
+				"icon": "图标",
+				"iconPicker": {
+					"noResults": "未找到图标",
+					"searchPlaceholder": "搜索图标…"
+				},
+				"localeDialog": {
+					"cancel": "取消",
+					"confirm": "确认",
+					"defaultLabel": "内容",
+					"fallbackHint": "未填写的语言会自动回退到原文（默认）内容。",
+					"localeLabels": {
+						"en_US": "English",
+						"zh_CN": "简体中文"
+					},
+					"original": "原文（默认）",
+					"title": "本地化：{{label}}",
+					"usingDefault": "使用默认值：{{value}}"
+				},
+				"name": "标题",
+				"namePlaceholder": "输入标题",
+				"otherLanguages": "其他语言",
+				"reset": "重置",
+				"save": "保存",
+				"title": "基本信息"
+			},
+			"createPlaybook": "创建场景",
+			"enable": "启用",
+			"filter": {
+				"all": "全部",
+				"create": "创建",
+				"reset": "重置",
+				"search": "搜索",
+				"selectAll": "全选"
+			},
+			"inspiration": {
+				"actions": {
+					"delete": "删除",
+					"edit": "编辑"
+				},
+				"badges": {
+					"textList": "文本列表"
+				},
+				"batchDelete": "删除 ({{count}})",
+				"batchDeleteConfirm": {
+					"description": "确认删除所选 {{count}} 个灵感示例吗？此操作无法撤销。",
+					"title": "确认删除"
+				},
+				"cancelSelection": "取消",
+				"config": {
+					"cancel": "取消",
+					"confirm": "确认",
+					"panelTitle": "标题",
+					"panelTitlePlaceholder": "输入标题",
+					"theme": "主题",
+					"themeOptions": {
+						"capsule": "胶囊",
+						"grid": "卡片",
+						"textList": "文本列表",
+						"text_list": "文本列表",
+						"waterfall": "瀑布流"
+					},
+					"title": "编辑配置"
+				},
+				"createGroup": "创建分组",
+				"defaultGroup": "默认",
+				"deleteGroupConfirm": {
+					"description": "确认删除该分组及其所有灵感示例吗？此操作无法撤销。",
+					"title": "确认删除分组"
+				},
+				"deleteItemConfirm": {
+					"description": "确认删除该灵感示例吗？",
+					"title": "确认删除"
+				},
+				"empty": {
+					"create": "新建",
+					"description": "通过填写灵感示例，为用户提供清晰的命令参考，降低使用门槛。",
+					"title": "帮助用户探索"
+				},
+				"group": {
+					"cancel": "取消",
+					"confirm": "确认",
+					"icon": "图标",
+					"name": "标题",
+					"namePlaceholder": "输入标题",
+					"titleCreate": "创建分组",
+					"titleEdit": "编辑分组"
+				},
+				"item": {
+					"cancel": "取消",
+					"confirm": "确认",
+					"coverImage": "封面图",
+					"group": "分组",
+					"noCoverAvailable": "暂无封面",
+					"prompt": "提示词",
+					"promptPlaceholder": "输入提示词内容",
+					"title": "标题",
+					"titleCreate": "创建",
+					"titleEdit": "编辑",
+					"titlePlaceholder": "输入标题",
+					"upload": "上传",
+					"uploadFail": "封面上传失败，请重试",
+					"uploadSuccess": "封面上传成功"
+				},
+				"title": "灵感探索"
+			},
+			"nav": {
+				"basicInfo": "基本信息",
+				"inspiration": "灵感探索",
+				"presets": "预设",
+				"quickStart": "快速启动"
+			},
+			"presets": {
+				"actions": {
+					"delete": "删除",
+					"disable": "停用",
+					"edit": "编辑",
+					"enable": "启用"
+				},
+				"badges": {
+					"dropdown": "下拉",
+					"theme": "主题"
+				},
+				"batchDelete": "删除 ({{count}})",
+				"batchDeleteConfirm": {
+					"description": "确认删除所选 {{count}} 个预设吗？此操作无法撤销。",
+					"title": "确认删除"
+				},
+				"cancelSelection": "取消",
+				"config": {
+					"cancel": "取消",
+					"confirm": "确认",
+					"theme": "主题",
+					"themeOptions": {
+						"capsule": "胶囊",
+						"dropdown": "下拉",
+						"grid": "卡片",
+						"textList": "文本列表",
+						"waterfall": "瀑布流"
+					},
+					"title": "编辑配置"
+				},
+				"deleteItemConfirm": {
+					"description": "确认删除该预设吗？",
+					"title": "确认删除"
+				},
+				"empty": {
+					"create": "新建",
+					"description": "定义常用配置，确保生成结果符合预期。",
+					"title": "暂无预设指令"
+				},
+				"form": {
+					"actions": "操作",
+					"addOption": "添加选项",
+					"cancel": "取消",
+					"confirm": "确认",
+					"displayName": "显示名称",
+					"errorNameRequired": "名称不能为空",
+					"errorOptionRequired": "至少需要添加一个选项",
+					"insertPresetValue": "插入预设值",
+					"name": "名称",
+					"namePlaceholder": "输入名称，如：尺寸、风格",
+					"noOption": "未配置选项",
+					"optionLabel": "选项 {{number}}",
+					"optional": "可选项",
+					"presetContent": "预设内容",
+					"presetContentPlaceholder": "输入将追加到用户消息的指令（通过预设值）",
+					"presetValue": "预设值",
+					"preview": "预览",
+					"setAsDefault": "设为默认",
+					"titleCreate": "创建",
+					"titleEdit": "编辑"
+				},
+				"gallery": {
+					"configured": "Gallery Options: 已配置",
+					"dialog": {
+						"add": "添加",
+						"cancel": "取消",
+						"confirm": "确认",
+						"defaultValue": "默认值",
+						"defaultValuePlaceholder": "选择默认选项",
+						"name": "名称",
+						"namePlaceholder": "输入名称",
+						"noDefault": "无默认值",
+						"presetContent": "预设内容",
+						"presetContentPlaceholder": "输入将追加到用户消息的指令（通过预设值）",
+						"title": "Gallery Options"
+					},
+					"edit": "编辑",
+					"item": {
+						"cancel": "取消",
+						"confirm": "确认",
+						"coverImage": "封面图",
+						"description": "描述",
+						"descriptionPlaceholder": "输入描述",
+						"errorCoverRequired": "封面图不能为空",
+						"errorTitleRequired": "标题不能为空",
+						"errorValueRequired": "预设值不能为空",
+						"noCover": "暂无封面",
+						"subText": "附文本",
+						"subTextPlaceholder": "输入附文本",
+						"title": "标题",
+						"titleCreate": "创建",
+						"titleEdit": "编辑",
+						"titlePlaceholder": "输入标题",
+						"upload": "上传",
+						"uploadFail": "封面上传失败，请重试",
+						"uploadSuccess": "封面上传成功",
+						"value": "预设值",
+						"valuePlaceholder": "输入预设值"
+					}
+				},
+				"title": "预设",
+				"updatedAt": "更新于 {{date}}"
+			},
+			"quickStart": {
+				"action": {
+					"noAction": "无操作"
+				},
+				"batchDelete": "删除 ({{count}})",
+				"batchDeleteConfirm": {
+					"description": "确认删除所选 {{count}} 个快速启动吗？此操作无法撤销。",
+					"title": "确认删除"
+				},
+				"cancelSelection": "取消",
+				"config": {
+					"cancel": "取消",
+					"confirm": "确认",
+					"panelTitle": "标题",
+					"panelTitlePlaceholder": "输入标题",
+					"title": "编辑配置"
+				},
+				"deleteItemConfirm": {
+					"description": "确认删除该快速启动吗？",
+					"title": "确认删除"
+				},
+				"empty": {
+					"create": "新建",
+					"description": "配置高频操作，通过预设命令实现一键执行。",
+					"title": "暂未定义快速启动"
+				},
+				"form": {
+					"cancel": "取消",
+					"clickAction": "点击行为",
+					"clickActions": {
+						"aiEnhancement": "AI 增强",
+						"fillContent": "填充内容",
+						"focusInput": "聚焦输入",
+						"noAction": "无操作",
+						"openUrl": "打开链接",
+						"uploadFile": "上传文件"
+					},
+					"confirm": "确认",
+					"description": "描述",
+					"descriptionPlaceholder": "输入简短描述",
+					"executionMethod": "执行方式",
+					"executionMethods": {
+						"insertToInput": "插入输入框",
+						"sendImmediately": "立即发送"
+					},
+					"icon": "图标",
+					"iconEmpty": "暂无图标",
+					"iconSize": "128*128px",
+					"presetContent": "预设内容",
+					"presetContentPlaceholder": "输入预设内容，用户点击时将自动填入输入框",
+					"title": "标题",
+					"titleCreate": "创建",
+					"titleEdit": "编辑",
+					"titlePlaceholder": "输入标题",
+					"upload": "上传",
+					"uploadFail": "图标上传失败，请重试",
+					"uploadSuccess": "图标上传成功",
+					"url": "链接",
+					"urlPlaceholder": "输入链接地址"
+				},
+				"title": "快速启动",
+				"updatedAt": "更新于 {{date}}"
+			},
+			"saveFailed": "保存失败，请重试",
+			"saveSuccess": "保存成功"
+		},
+		"filter": {
+			"all": "全部",
+			"disabled": "已停用",
+			"enabled": "已启用"
+		},
+		"loading": "加载中...",
+		"noData": "暂无数据",
+		"noPresets": "暂无预设",
+		"reset": "重置",
+		"retry": "重试",
+		"searchPlaceholder": "搜索",
+		"selectAll": "全选",
+		"title": "场景预设",
+		"untitled": "未命名",
+		"untitledDescription": "暂无描述",
+		"updatedAt": "更新于 {{date}}"
+	},
+	"scenarioPresets": "场景预设",
+	"skills": {
+		"addFromLibrary": "从技能库添加",
+		"addFromLibraryDesc": "直接在技能库中添加技能",
+		"aiSearch": "AI 搜索",
+		"aiSearchPlaceholder": "输入关键词或描述您需要的技能",
+		"builtinTitle": "内置技能 ({{count}})",
+		"create": "创建技能",
+		"emptyDescription": "从技能库添加您的第一个 AI 技能，或创建一个新技能",
+		"emptyTitle": "暂无技能",
+		"importSkill": "导入技能",
+		"importSkillDesc": "上传 .Skill、.Zip 或文件夹",
+		"install": "安装",
+		"library": "技能库",
+		"mySkills": "我的技能",
+		"remove": "移除",
+		"title": "技能",
+		"uninstall": "卸载"
+	},
+	"status": {
+		"builtIn": "内置 ({{count}})",
+		"configured": "已配置",
+		"notConfigured": "未配置",
+		"skillCount": "{{count}} 个技能",
+		"unpublished": "未发布"
+	},
+	"steps": {
+		"identity": "身份",
+		"knowledgeBase": "知识库",
+		"publishing": "发布",
+		"runAndDebug": "运行与调试",
+		"skills": "技能",
+		"step": "步骤 {{number}}"
+	},
+	"topic": {
+		"emptySubtitle": "描述他们的工作，我们来处理其余的。",
+		"emptyTitle": "创建您的数字员工",
+		"helpAction": "让它帮您设计数字员工的个性。",
+		"helpText": "不知道如何设置？",
+		"inputHint": "Enter 发送；Shift + Enter 换行",
+		"inputPlaceholder": "这个成员应该做什么？例如，一个可以每周撰写报告的市场分析师...",
+		"untitledTopic": "未命名话题 {{index}}"
+	},
+	"untitledCrew": "未命名员工",
+	"untitledTopic": "未命名话题"
+}

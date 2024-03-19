@@ -1,0 +1,19 @@
+{
+	"actionDrawer": {
+		"cancel": "取消",
+		"close": "关闭",
+		"confirm": "确定",
+		"reset": "重置"
+	},
+	"dialog": {
+		"close": "关闭对话框"
+	},
+	"drawer": {
+		"close": "关闭抽屉"
+	},
+	"select": {
+		"clear": "清空选择",
+		"empty": "暂无选项",
+		"placeholder": "请选择"
+	}
+}

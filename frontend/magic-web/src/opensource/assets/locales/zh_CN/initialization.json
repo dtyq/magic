@@ -1,0 +1,103 @@
+{
+	"actions": {
+		"finish": "完成初始化",
+		"next": "下一步",
+		"previous": "上一步",
+		"submitting": "提交中..."
+	},
+	"errors": {
+		"submitFailed": "初始化失败，请重试"
+	},
+	"step1": {
+		"adminPassword": "管理员密码",
+		"adminPasswordPlaceholder": "至少8位，包含字母和数字",
+		"adminPhone": "管理员手机号",
+		"adminPhonePlaceholder": "请输入11位手机号",
+		"agentDescription": "Agent 描述",
+		"agentDescriptionPlaceholder": "简要描述此 Agent 的功能和用途...",
+		"agentLogo": "Agent Logo",
+		"agentName": "Agent 名称",
+		"agentNamePlaceholder": "例如：智能客服助手",
+		"confirmPassword": "确认密码",
+		"confirmPasswordPlaceholder": "再次输入密码",
+		"logoUploadFormat": "支持 JPG、PNG 格式，建议尺寸 200x200",
+		"logoUploadHint": "点击上传或拖拽图片到此处",
+		"subtitle": "设置您的 Agent 信息和管理员账号",
+		"title": "初始化管理账号"
+	},
+	"step2": {
+		"apiUrlHint": "API 服务的完整地址",
+		"awsAccessKey": "AWS Access Key",
+		"awsRegion": "AWS Region",
+		"awsRegionPlaceholder": "例如：us-east-1",
+		"awsSecretKey": "AWS Secret Key",
+		"azureApiVersion": "Azure API Version",
+		"azureApiVersionHint": "Azure 的 API版本，遵循 YYYY-MM-DD 格式",
+		"azureApiVersionPlaceholder": "例如：2024-02-15",
+		"deploymentName": "部署名称",
+		"deploymentNameHint": "模型部署的标识名称（Azure OpenAI 必填）",
+		"deploymentNamePlaceholder": "例如：gpt-4-turbo",
+		"errors": {
+			"missingConfig": "请先填写 API URL 和 API Key"
+		},
+		"provider": "选择服务商",
+		"providers": {
+			"AWSBedrock": "Amazon Bedrock",
+			"DashScope": "阿里云(百炼)",
+			"DeepSeek": "DeepSeek",
+			"Gemini": "Google (AI Studio)",
+			"MicrosoftAzure": "Microsoft Azure",
+			"OpenAI": "自定义提供商",
+			"OpenRouter": "OpenRouter",
+			"Volcengine": "火山引擎"
+		},
+		"subtitle": "选择并配置您的 AI 模型服务提供商",
+		"testConnection": "测试连接",
+		"testError": "连接测试失败，请检查网络或配置",
+		"testFailed": "连接失败，请检查配置信息",
+		"testSuccess": "连接成功",
+		"title": "配置 AI 服务商"
+	},
+	"step3": {
+		"infoDescription": "您可以根据实际需求选择一个或多个数字员工。初始化完成后，您还可以在系统设置中随时调整配置。",
+		"infoTitle": "提示",
+		"selectWorkers": "选择数字员工",
+		"subtitle": "为您的系统配置所需的 AI 数字员工",
+		"title": "选择数字员工",
+		"workers": {
+			"data_analysis": {
+				"description": "专业数据处理专家，提供数据清洗、统计分析、可视化和洞察报告",
+				"name": "数据分析员工",
+				"tags": ["数据清洗", "统计分析", "图表生成", "趋势预测"]
+			},
+			"design": {
+				"description": "创意设计助手，协助UI/UX设计、图像生成和视觉方案制作",
+				"name": "设计员工",
+				"tags": ["UI设计", "图像生成", "配色方案", "品牌设计"]
+			},
+			"general": {
+				"description": "多功能AI助手，擅长日常对话、问答咨询和通用任务处理",
+				"name": "通用员工",
+				"tags": ["对话交互", "信息查询", "任务协助"]
+			},
+			"ppt": {
+				"description": "演示文稿专家，快速生成结构化PPT、美化排版和内容优化",
+				"name": "幻灯片员工",
+				"tags": ["PPT制作", "内容排版", "模板应用", "视觉美化"]
+			},
+			"summary": {
+				"description": "会议记录专家，自动提取关键信息、生成会议纪要和行动项清单",
+				"name": "会议纪要员工",
+				"tags": ["会议记录", "要点提取", "纪要生成", "任务跟踪"]
+			}
+		}
+	},
+	"steps": {
+		"step1": "管理账号",
+		"step2": "服务商配置",
+		"step3": "数字员工"
+	},
+	"subtitle": "让我们花几分钟时间完成初始化设置",
+	"title": "MagiCrew",
+	"welcomeTo": "欢迎使用"
+}

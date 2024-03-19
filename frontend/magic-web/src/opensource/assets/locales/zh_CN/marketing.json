@@ -1,0 +1,98 @@
+{
+	"qwenCodePlusActivity": {
+		"banner": {
+			"alt": "通义千问编程加强版限时免费活动",
+			"freeButton": "免费使用"
+		},
+		"modelTag": {
+			"limitedTimeFree": "限时免费"
+		}
+	},
+	"shareIncentives": {
+		"actions": {
+			"copied": "已复制",
+			"copy": "复制",
+			"submitCase": "提交案例",
+			"submitting": "提交中..."
+		},
+		"copied": "已复制",
+		"copyFailed": "复制失败",
+		"entrance": {
+			"freePoints": "免费领积分",
+			"inviteFriends": "邀请好友领积分",
+			"inviteFriendsMaxEarn": "邀请好友最高可领",
+			"inviteNow": "立即邀请"
+		},
+		"footer": "本次活动最终解释权归$t(common:platform.name) ( {{domain}} ) 所有",
+		"inviteCodeLinkTemplate": "在这个 AI 重塑一切的时代，我邀请你也成为超级麦吉 (Super Magic) 的先行者——不只是用户，更是这场智能革命的见证者与推动者。\n邀请码（打开链接即可注册）：{{value}}",
+		"messages": {
+			"caseSubmitPlaceholder": "案例提交功能即将上线，敬请期待！",
+			"copyFailed": "复制失败，请手动复制链接",
+			"copySuccess": "邀请链接已复制到剪贴板"
+		},
+		"rules": {
+			"activityRules": "活动规则",
+			"description": {
+				"case": "创建话题分享链接并提交官方审核，审核采纳的案例将按评级发放 {{min}}-{{max}} 积分（评级越高积分越高），每个链接限提交 1 次，提交数量不限。",
+				"invite": "当通过您的邀请链接注册的新用户数量达到指定条件时，您可点击下方按钮直接领取对应积分奖励。若您邀请的新用户首次开通付费套餐，您将在其套餐月度周期结束后，获得额外的积分奖励（额外奖励积分将自动发放）。"
+			},
+			"inviteReward": "邀请奖励规则",
+			"items": {
+				"inviteLink": "邀请用户注册时，必须通过专属的链接进行注册",
+				"maxCasePost": "",
+				"maxCasePrev": "每个用户参与本活动最高可获得",
+				"maxInviteCount": "每人限量 {{count}} 个邀请码",
+				"maxRegistrationPost": "",
+				"maxRegistrationPrev": "每个用户参与本次活动最高可获得",
+				"registrationPost": "",
+				"registrationPrev": "每邀请 1 个新用户注册，发放奖励积分",
+				"subscriptionMid": "",
+				"subscriptionPost": "",
+				"subscriptionPrev": "邀请的用户开通付费套餐，在其套餐每个月度周期结束后，发放奖励积分"
+			},
+			"warning": "每天最多邀请 5 个新用户"
+		},
+		"sections": {
+			"caseRecommendation": "案例推荐领 {{points}} 积分",
+			"inviteUsers": "邀请新用户领积分"
+		},
+		"stats": {
+			"earnedPoints": "已发放积分",
+			"inviteCount": "邀请数量"
+		},
+		"subtitle": {
+			"maxReward": "最高领",
+			"points": "积分"
+		},
+		"table": {
+			"invitationCode": "邀请码",
+			"inviter": "邀请人",
+			"usageTime": "使用时间"
+		},
+		"title": "分享激励计划",
+		"wonderfulCaseModal": {
+			"disclaimer": "本次活动最终解释权归$t(common:platform.name) ( {{domain}} ) 所有",
+			"replayLinkLabel": "您的回放链接",
+			"replayLinkPlaceholder": "请提供您的希望官方采纳的案例链接，粘贴任务话题的分享回放链接",
+			"required": "*",
+			"rulesContent": "创建话题分享链接并提交官方审核，审核采纳的案例将按评级发放 1000-20000 积分（评级越高积分越高），每个链接限提交 1 次，提交数量不限。",
+			"rulesTitle": "活动规则",
+			"submitButton": "提交案例",
+			"submitFailed": "案例提交失败",
+			"submitSuccess": "案例提交成功",
+			"taskDescriptionLabel": "您的任务为您解决了什么？",
+			"taskDescriptionPlaceholder": "可以详细描述您的这个任务解决了您的什么事项、问题等，详细的描述可让我们更清晰地了解到任务的质量及对任务进行评级。",
+			"title": "提交精彩案例",
+			"validation": {
+				"invalidDomain": "请输入有效的回放链接地址",
+				"invalidUrl": "请输入有效的链接地址",
+				"replayLinkRequired": "请输入回放链接"
+			}
+		}
+	},
+	"unlimitedPlanActivity": {
+		"banner": {
+			"alt": "解锁无限量使用高级 AI 模型"
+		}
+	}
+}

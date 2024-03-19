@@ -1,0 +1,41 @@
+{
+	"analyzeData": {
+		"placeholder": "描述你想创建的网站。\n按 Enter 发送；Shift + Enter 换行"
+	},
+	"chatInput": {
+		"helpText": "按 Enter 发送；Shift + Enter 换行",
+		"mobilePlaceholder": "点击输入任务需求",
+		"model": "模型",
+		"placeholder": "输入你的请求或上传文件，Super Magic 会帮你处理。"
+	},
+	"crewSelectModal": {
+		"empty": {
+			"my": "暂无我的数字员工",
+			"official": "暂无官方数字员工"
+		},
+		"tab": {
+			"my": "我的",
+			"official": "官方"
+		},
+		"title": "选择你的数字员工"
+	},
+	"pluginTips": {
+		"connectTools": "连接你的工具"
+	},
+	"promotionalBanner": {
+		"upgradeMessage": "升级享受一整年无限制的高级 AI 服务。"
+	},
+	"selectedSkillBadge": {
+		"closeAriaLabel": "关闭",
+		"inUse": "使用中"
+	},
+	"sloganContainer": {
+		"subtitle": "你的团队已就绪",
+		"title": "今天谁来帮你？"
+	},
+	"videoInputEditor": {
+		"or": "或",
+		"placeholder": "视频链接，例如 https://www.youtube.com/watch?v=by5fLWz9h4",
+		"upload": "上传"
+	}
+}

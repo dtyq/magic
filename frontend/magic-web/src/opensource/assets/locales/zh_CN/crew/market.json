@@ -1,0 +1,172 @@
+{
+	"aiSearch": "AI 搜索",
+	"aiSearchPlaceholder": "输入关键词或描述您的需求，获取所需的数字员工",
+	"back": "返回",
+	"categories": {
+		"adminOps": "行政运营",
+		"allCrew": "全部",
+		"creativeContent": "创意内容",
+		"dataInsights": "数据洞察",
+		"legalCompliance": "法律合规",
+		"marketingGrowth": "营销增长",
+		"salesBusiness": "销售商务",
+		"starCrew": "明星员工",
+		"techDev": "技术开发"
+	},
+	"createCrew": "创建员工",
+	"details": "详情",
+	"dismiss": "解雇",
+	"editSkill": {
+		"buttons": {
+			"cancel": "取消",
+			"confirm": "保存"
+		},
+		"done": "技能更新成功！",
+		"errors": {
+			"fetchFailed": "加载技能详情失败，请稍后重试。",
+			"saveFailed": "保存技能失败，请稍后重试。"
+		},
+		"title": "编辑技能"
+	},
+	"hire": "雇用",
+	"importSkill": {
+		"buttons": {
+			"back": "上一步",
+			"cancel": "取消",
+			"confirm": "确认",
+			"next": "下一步"
+		},
+		"done": "技能导入成功！",
+		"errors": {
+			"archiveFailed": "文件夹打包失败，请稍后重试。",
+			"emptyFolder": "文件夹为空，无法导入技能。",
+			"importFailed": "技能导入失败，请稍后重试。",
+			"parseFailed": "技能文件解析失败，请检查文件格式。",
+			"singleItemOnly": "一次只能拖拽一个文件或文件夹。"
+		},
+		"fileUpload": {
+			"browseEntry": "浏览文件/文件夹",
+			"browseFiles": "浏览文件",
+			"browseFolder": "浏览文件夹",
+			"browseHint": "或点击浏览文件/文件夹（一次最多导入 1 项）",
+			"dragDrop": "拖拽文件或文件夹到此处"
+		},
+		"identity": {
+			"description": "描述",
+			"icon": "图标",
+			"skillName": "技能名称",
+			"upload": "上传"
+		},
+		"processing": "正在分析技能文件...",
+		"steps": {
+			"completeInfo": "完善信息",
+			"skillFile": "选择文件"
+		},
+		"title": "导入技能"
+	},
+	"localizeIdentity": {
+		"cancel": "取消",
+		"confirm": "确认",
+		"english": "英语",
+		"fallbackHint": "留空的语言将自动回退到原始（默认）内容。",
+		"originalDefault": "原始（默认）",
+		"simplifiedChinese": "简体中文",
+		"tabs": {
+			"description": "描述",
+			"name": "名称",
+			"role": "职责"
+		},
+		"title": "本地化：身份信息",
+		"usingDefault": "使用默认"
+	},
+	"myCrew": "我的员工",
+	"myCrewPage": {
+		"dismissConfirm": {
+			"confirm": "确认解雇",
+			"description": "解雇后该员工将从您的员工列表中移除，相关数据将无法恢复。确定要解雇「{{name}}」吗？",
+			"title": "确认解雇"
+		},
+		"edit": "编辑",
+		"empty": "暂无员工，快来创建你的第一个员工吧。",
+		"subtitle": "管理您的专属数字员工。",
+		"title": "我的员工"
+	},
+	"mySkills": {
+		"delete": "删除",
+		"edit": "编辑",
+		"subscribe": "订阅",
+		"subtitle": "您的专属专业技能集合。",
+		"title": "我的技能",
+		"topUp": "购买套餐",
+		"update": "更新",
+		"updatedAt": "更新于 {{date}}"
+	},
+	"noMoreData": "没有更多数据。",
+	"noResults": "暂无结果。",
+	"skillEditPage": {
+		"actions": {
+			"publish": "发布",
+			"settings": "设置",
+			"unpublishedChanges": "未发布变更"
+		},
+		"conversation": {
+			"placeholder": "描述一个技能开始构建，例如“创建一个数据分析技能”",
+			"subtitle": "只需一句话，将你的想法转化为可执行的专业技能。",
+			"title": "Chat to Build Great Skills"
+		},
+		"files": {
+			"multiSelect": "多选文件",
+			"newFile": "新建文件",
+			"newFolder": "新建文件夹",
+			"refresh": "刷新文件",
+			"search": "搜索文件",
+			"title": "文件",
+			"upload": "上传文件"
+		},
+		"mock": {
+			"assetsFolder": "assets",
+			"projectName": "heartwarming-content-creator",
+			"referencesFolder": "references",
+			"skillFileName": "Skill.md",
+			"skillName": "暖心内容创作助手",
+			"topicTitle": "未命名话题 1"
+		}
+	},
+	"skillsLibrary": {
+		"addToMySkills": "添加到我的技能",
+		"aiSearchPlaceholder": "输入关键词或描述您需要的技能",
+		"createMenu": {
+			"createViaChat": "通过对话创建",
+			"createViaChatDesc": "通过对话构建强大的技能",
+			"importFromGithub": "从 GitHub 导入",
+			"importFromGithubDesc": "直接从公开的 GitHub 仓库导入技能",
+			"importSkill": "导入技能",
+			"importSkillDesc": "上传 .Skill、.Zip 或文件夹"
+		},
+		"createSkill": "创建技能",
+		"mySkills": "我的技能",
+		"noMoreData": "没有更多数据。",
+		"official": "官方",
+		"removeFromMySkills": "从我的技能中移除",
+		"subtitle": "探索新能力，为你的数字员工装备技能。",
+		"title": "技能库",
+		"upgrade": "升级"
+	},
+	"subtitle": "发现并雇用你的专属数字员工。",
+	"tabs": {
+		"crewMarket": "员工市场",
+		"skillsLibrary": "技能库"
+	},
+	"title": "员工市场",
+	"updateSkill": {
+		"cancel": "取消",
+		"continue": "继续",
+		"description": "导入的技能（名称：{{name}}）已存在。是否用新版本更新？",
+		"done": "技能更新成功！",
+		"errors": {
+			"parseFailed": "技能文件解析失败，请检查文件格式。",
+			"updateFailed": "更新技能失败，请稍后重试。"
+		},
+		"title": "更新技能"
+	}
+}

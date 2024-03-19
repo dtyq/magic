@@ -1,0 +1,126 @@
+{
+	"account": {
+		"create": "添加已有账户"
+	},
+	"afterSecondsCan": "{{seconds}} 秒后可重新发送",
+	"agree": "同意并继续",
+	"agreementText": "我已阅读并同意",
+	"and": "和",
+	"appleLogin": "苹果登录",
+	"appleLoginDescription": "当前 Apple Id 尚未绑定账号",
+	"appleLoginLoading": "正在获取 Apple 登录信息，请稍候...",
+	"appleLoginTip": "如果页面无反应，请尝试返回上一步重新登录",
+	"authorizeCode": {
+		"label": "私有部署识别码",
+		"placeholder": "请输入私有部署识别码"
+	},
+	"autoRegisterTip": "未注册用户通过验证后将自动创建账号",
+	"button": {
+		"cancel": "取消",
+		"confirm": "确认"
+	},
+	"copyright": "Copyright © 2023 广东灯塔引擎科技有限公司 All Rights Reserved.",
+	"device": {
+		"app": "客户端",
+		"dingTalk": "钉钉",
+		"unknown": "未知"
+	},
+	"dingTalkLogin": "钉钉登录",
+	"dingTalkTip": "请使用钉钉扫描二维码登录",
+	"email": {
+		"label": "邮箱",
+		"placeholder": "请填写邮箱",
+		"required": "请填写正确邮箱",
+		"verificationCodeDesc": "请输入发送至 {{email}} 的 {{count}} 位验证码，有效期 {{minutes}} 分钟",
+		"verificationCodeLengthRequired": "验证码格式不正确",
+		"verificationCodeRequired": "请填写验证码",
+		"verificationCodeSendSuccess": "验证码发送成功",
+		"verificationCodeTitle": "请输入邮箱验证码",
+		"verificationFailed": "验证失败",
+		"verificationSuccess": "验证成功"
+	},
+	"emailLogin": "邮箱登录",
+	"enterVerificationCode": "输入手机验证码",
+	"findPassword": "找回密码",
+	"googleLogin": "谷歌登录",
+	"hi": "👋 嗨，我的朋友",
+	"invalidCode": "无效的验证码",
+	"invite": {
+		"cancel": "留在中国站",
+		"codeUsed": {
+			"cancel": "取消",
+			"content": "该邀请码已被使用，是否继续登录？",
+			"continueLogin": "继续",
+			"title": "提示"
+		},
+		"confirm": "立即前往国际站",
+		"content": "检测到您使用的邀请码为超级麦吉国际站专用邀请码，即将为你自动跳转至国际站…"
+	},
+	"larkLogin": "飞书登录",
+	"larkRedirectLogin": "飞书跳转",
+	"larkTip": "请使用飞书扫描二维码登录。",
+	"login": "登录",
+	"loginPrivateDeployment": "私有部署",
+	"loginPublicDeployment": "SaaS版",
+	"magicOrganizationSyncStep": {
+		"pleaseBindExistingAccount": "请绑定已有账号"
+	},
+	"nextStep": "下一步",
+	"otherLoginType": "或者使用以下方式登录",
+	"password": {
+		"hide": "隐藏密码",
+		"label": "密码",
+		"placeholder": "请输入密码",
+		"show": "显示密码"
+	},
+	"passwordLogin": "密码登录",
+	"phone": {
+		"invalid": "手机号码格式错误",
+		"label": "手机号码",
+		"placeholder": "请输入手机号码"
+	},
+	"pleaseSendToEnd": "请输入发送至 {{phone}} 的 {{count}} 位验证码，有效期 {{minutes}} 分钟。",
+	"prevStep": "返回上一步",
+	"privacyPolicy": "隐私政策",
+	"privateConfig": "私有化配置",
+	"reSendVerificationCode": "重新发送验证码",
+	"readAndAgree": "使用即代表您同意我们的",
+	"refresh": "刷新",
+	"registration": {
+		"closed": "未开放注册"
+	},
+	"sendVerificationCode": "发送验证码",
+	"serviceAgreement": "用户协议",
+	"verification": {
+		"codeInput": "验证码输入框",
+		"codeInvalid": "验证码错误，请重新输入"
+	},
+	"verificationCodeLogin": "手机登录",
+	"versionSwitch": {
+		"aria": {
+			"china": "切换到中国版",
+			"international": "切换到国际版"
+		},
+		"china": "中国版",
+		"international": "国际版"
+	},
+	"wechatAppLogin": "微信登录",
+	"wechatAppLoginConfigError": "缺少登录配置",
+	"wechatOfficialAccount": {
+		"agreePolicy": "请先同意用户协议",
+		"autoLogin": "关注微信公众号自动登录",
+		"backToPrevious": "返回上一步，使用手机号码登录",
+		"bindPhone": "绑定手机号码",
+		"bindPhoneDescription": "请绑定您的手机号码，未注册的手机号码将自动注册并绑定",
+		"bindPhoneTitle": "当前微信尚未绑定账号",
+		"cancelRegister": "我再考虑，取消注册",
+		"codeInvalid": "验证码错误",
+		"phoneAlreadyBound": "该手机号已被注册",
+		"qrCodeAlt": "微信扫码登录",
+		"qrCodeExpired": "二维码未扫或者过期",
+		"title": "微信安全登录"
+	},
+	"wechatOfficialAccountLogin": "微信登录",
+	"welcome": "欢迎使用$t(common:platform.name)",
+	"welcomeLogin": "企微登录"
+}

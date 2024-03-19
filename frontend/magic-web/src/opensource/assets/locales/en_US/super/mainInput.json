@@ -1,0 +1,41 @@
+{
+	"analyzeData": {
+		"placeholder": "Describe the website you want to create.\nPress Enter to send ; Shift + Enter for a new line"
+	},
+	"chatInput": {
+		"helpText": "Press Enter to send ; Shift + Enter for a new line",
+		"mobilePlaceholder": "Click to input task requirements",
+		"model": "Model",
+		"placeholder": "Type your request or upload a file, and Super Magic will take care of it."
+	},
+	"crewSelectModal": {
+		"empty": {
+			"my": "No crews in My Crew yet",
+			"official": "No official crews available"
+		},
+		"tab": {
+			"my": "My Crew",
+			"official": "Official"
+		},
+		"title": "Select Your Crew"
+	},
+	"pluginTips": {
+		"connectTools": "Connect your tools"
+	},
+	"promotionalBanner": {
+		"upgradeMessage": "Upgrade for a year of unlimited Premium AI."
+	},
+	"selectedSkillBadge": {
+		"closeAriaLabel": "Close",
+		"inUse": "In Use"
+	},
+	"sloganContainer": {
+		"subtitle": "Your crew is ready",
+		"title": "Who is helping you today?"
+	},
+	"videoInputEditor": {
+		"or": "OR",
+		"placeholder": "Video link, e.g. https://www.youtube.com/watch?v=by5fLWz9h4",
+		"upload": "Upload"
+	}
+}

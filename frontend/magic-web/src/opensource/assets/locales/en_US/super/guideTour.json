@@ -1,0 +1,66 @@
+{
+	"agent": {
+		"chatMode": "Chat Mode",
+		"chatModeDescription": "Use this when you just want a quick search, a sentence translated, or a casual chat. In this mode, my responses are the fastest, making it ideal for light and instant communication.",
+		"dataAnalysis": "Data Analysis",
+		"dataAnalysisDescription": "Give me your data, and I can perform in-depth analysis and generate various data visualizations for you.",
+		"description": "To help you work more efficiently, I have several built-in operating modes:",
+		"generalMode": "General Mode",
+		"generalModeDescription": "Hand me multi-step, complex tasks like writing plans, reports, or code. I will utilize the right tools to handle it for you from start to finish.",
+		"sildeMode": "Slide Mode",
+		"sildeModeDescription": "Provide me with a topic or an outline, and I can quickly create a well-structured and beautifully formatted presentation for you.",
+		"summaryMode": "Audio Summary",
+		"summaryModeDescription": "You can start recording anytime by clicking the button, or simply drop an existing audio file to me. Let me transcribe and organize it into a clear summary for you.",
+		"title": "🤖 Multiple Intelligent Agents at Your Service"
+	},
+	"atButton": {
+		"description": "With just an @ symbol, instantly connect to any resource within your project! @ a file to analyze it directly, @ an agent for collaborative work, @ a plugin to extend capabilities, and @ a tool for efficient execution. Make all resources serve your task.",
+		"title": "@ Instantly Call Anything with a Single Key"
+	},
+	"html": {
+		"aiOptimization": {
+			"description": "I've already prepared a few one-click optimization options for you. Just choose any one, and I'll generate the corresponding command for you in the chatbox.",
+			"title": "✨ Need some help to quickly optimize this file?"
+		},
+		"export": {
+			"description": "Effortlessly use your results anywhere. Choose to download the source file or directly export to common PDF and PPTX formats, ready for presentation, sharing, or archiving without any manual conversion.",
+			"title": "📥 Seamlessly Continue Your Next Steps"
+		},
+		"manualEdit": {
+			"description": "If you'd rather make changes yourself, you can always open the source file for the finest manual adjustments. After all, the final say is in your hands.",
+			"title": "🎨 Manual Editing, for Full Control Over the Details"
+		}
+	},
+	"mcp": {
+		"description": "Expand my capabilities with a rich library of plugins! Get started quickly with officially curated plugins, or create your own custom plugins for personalized functionality, truly making me your professional intelligent agent.",
+		"title": "🔌 Powerful Plugin Ecosystem (MCP)"
+	},
+	"modelSelector": {
+		"description": "Access a selection of industry-leading large models, each with its unique strengths! Choose the most suitable AI large model for your specific task to have professionals handle professional problems, achieving the best results.",
+		"title": "🧠 Top AI Large Models at Your Fingertips"
+	},
+	"multiThread": {
+		"description": "Start multiple conversation threads within the same project, with each thread focused on a different task. Want to work on copywriting and data analysis at the same time? No problem! Handle multiple topics in parallel and double your efficiency.",
+		"title": "💬 Multi-Threaded Conversations, Parallel Processing"
+	},
+	"projectFile": {
+		"description": "A clear directory structure gives every file its place, enabling quick access and smart management to keep your project materials perfectly organized. Boost your work efficiency instantly.",
+		"title": "📂 Project Files, Clear at a Glance"
+	},
+	"superMagic": {
+		"description": "Whether it's daily questions or complex tasks, just tell me what you want to do, and I'll provide you with professional solutions. Try it now!",
+		"title": "👋 Hi, I'm $t(common:platform.name)!"
+	},
+	"uploadFile": {
+		"description": "Multiple ways, just as you like! Click to select local files, drag and drop them directly into the chatbox, or even copy and paste.",
+		"title": "📁 Upload Files with Ease"
+	},
+	"voiceInput": {
+		"description": "Don't want to type? Try clicking the [🎤] button to speak. It's super convenient for meetings or capturing inspiration",
+		"title": "🎤 Go Hands-Free, Just Speak"
+	},
+	"workspace": {
+		"description": "Each workspace is like a separate office, dedicated to handling a specific category of related work. This keeps different types of projects perfectly organized and free from clutter.",
+		"title": "📁 Create Your Own Dedicated Workspace"
+	}
+}

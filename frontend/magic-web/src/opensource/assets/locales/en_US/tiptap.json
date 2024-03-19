@@ -1,0 +1,334 @@
+{
+	"editor": {
+		"characterCount": {
+			"exceeded": "Character limit exceeded: {{count}}",
+			"limit": "Character limit: {{current}} / {{max}}",
+			"remaining": "Characters remaining: {{count}}"
+		},
+		"mathEditor": {
+			"error": {
+				"empty": "LaTeX code cannot be empty",
+				"invalid": "Invalid LaTeX syntax"
+			},
+			"examples": {
+				"fraction": "Fraction",
+				"greek": "Greek letters",
+				"integral": "Integral",
+				"matrix": "Matrix",
+				"squareroot": "Square root",
+				"subscript": "Subscript",
+				"sum": "Sum",
+				"superscript": "Superscript"
+			},
+			"label": {
+				"examples": "Quick Examples (click to use):",
+				"latexCode": "LaTeX Code:",
+				"preview": "Preview:"
+			},
+			"placeholder": {
+				"block": "Enter LaTeX code for block math...",
+				"empty": "Enter LaTeX code to see preview",
+				"inline": "Enter LaTeX code for inline math...",
+				"invalid": "Invalid syntax"
+			},
+			"title": {
+				"block": "Edit Block Math",
+				"inline": "Edit Inline Math"
+			}
+		},
+		"placeholder": {
+			"default": "Start typing...",
+			"empty": "Write something here...",
+			"typeSlash": "Type '/' for command menu"
+		},
+		"slashMenu": {
+			"emptyPlaceholder": "No matching commands found",
+			"groups": {
+				"advanced": "Advanced",
+				"basic": "Basic",
+				"formatting": "Formatting",
+				"list": "Lists",
+				"media": "Media",
+				"other": "Other"
+			},
+			"items": {
+				"bulletList": {
+					"subtext": "Create a simple bulleted list",
+					"title": "Bullet List"
+				},
+				"codeBlock": {
+					"subtext": "Capture code snippet",
+					"title": "Code Block"
+				},
+				"divider": {
+					"subtext": "Visually divide blocks",
+					"title": "Divider"
+				},
+				"heading1": {
+					"subtext": "Large heading",
+					"title": "Heading 1"
+				},
+				"heading2": {
+					"subtext": "Medium heading",
+					"title": "Heading 2"
+				},
+				"heading3": {
+					"subtext": "Small heading",
+					"title": "Heading 3"
+				},
+				"heading4": {
+					"subtext": "Smaller heading",
+					"title": "Heading 4"
+				},
+				"heading5": {
+					"subtext": "Tiny heading",
+					"title": "Heading 5"
+				},
+				"heading6": {
+					"subtext": "Smallest heading",
+					"title": "Heading 6"
+				},
+				"image": {
+					"subtext": "Upload or embed image",
+					"title": "Image"
+				},
+				"orderedList": {
+					"subtext": "Create a list with numbering",
+					"title": "Numbered List"
+				},
+				"projectImage": {
+					"subtext": "Upload image to project",
+					"title": "Image"
+				},
+				"quote": {
+					"subtext": "Capture a quote or callout",
+					"title": "Quote"
+				},
+				"storageImage": {
+					"subtext": "Upload image to local storage",
+					"title": "Storage Image"
+				},
+				"table": {
+					"subtext": "Create table",
+					"title": "Table"
+				},
+				"text": {
+					"subtext": "Plain text paragraph",
+					"title": "Text"
+				},
+				"todoList": {
+					"subtext": "Track tasks with checkboxes",
+					"title": "To-do List"
+				}
+			},
+			"keyboard": {
+				"enterToSelect": "Press Enter to select",
+				"escapeToCancel": "Esc to cancel",
+				"upDownToNavigate": "↑↓ to navigate"
+			},
+			"searchPlaceholder": "Search commands..."
+		}
+	},
+	"imageStorage": {
+		"actions": {
+			"delete": "Delete image",
+			"retry": "Retry"
+		},
+		"errors": {
+			"fileTooLarge": "Image size cannot exceed {{maxSize}}MB",
+			"loadFailed": "Image loading failed",
+			"saveFailed": "Image save failed",
+			"storageUnavailable": "Image storage unavailable, possibly due to private browsing mode"
+		},
+		"placeholder": {
+			"error": "Load failed",
+			"loading": "Loading..."
+		}
+	},
+	"projectImage": {
+		"actions": {
+			"delete": "Delete image",
+			"retry": "Retry"
+		},
+		"alignment": {
+			"center": "Align center",
+			"left": "Align left",
+			"right": "Align right"
+		},
+		"dropdown": {
+			"link": {
+				"button": "Embed Image",
+				"error": {
+					"invalidUrl": "Please enter a valid http or https URL"
+				},
+				"hint": "Supports any publicly accessible image on the web",
+				"placeholder": "Enter image URL"
+			},
+			"project": {
+				"empty": "No images",
+				"hint": "You can also drag images from the left 'Project Files' panel",
+				"loading": "Loading..."
+			},
+			"tabs": {
+				"link": "Embed Link",
+				"project": "Project Images",
+				"upload": "Upload Image"
+			},
+			"upload": {
+				"dropFile": "Release to Upload File",
+				"hint": "Maximum file size 5MB, supports jpg/jpeg/png/gif/webp/svg/bmp/ico",
+				"selectFile": "Select Local File"
+			}
+		},
+		"errors": {
+			"fileTooLarge": "File size exceeds {{maxSize}}MB",
+			"invalidFile": "Unsupported image format",
+			"loadFailed": "Failed to load image",
+			"networkError": "Network connection failed",
+			"pathNotFound": "Image path not found",
+			"projectIdRequired": "Project ID is required to upload images",
+			"storageUnavailable": "Storage service unavailable",
+			"unsupportedFileType": "This file type is not supported",
+			"uploadCancelled": "Upload cancelled",
+			"uploadFailed": "Image upload failed"
+		},
+		"load": {
+			"errorTitle": "Load Failed"
+		},
+		"objectFit": {
+			"contain": "Contain",
+			"cover": "Cover",
+			"fill": "Fill"
+		},
+		"placeholder": {
+			"error": "Failed to load image",
+			"loading": "Loading image..."
+		},
+		"upload": {
+			"errorTitle": "Upload Failed",
+			"success": "Image uploaded successfully",
+			"title": "Upload Failed",
+			"uploading": "Uploading image...",
+			"uploadingProgress": "Uploading {{progress}}%"
+		},
+		"url": {
+			"ariaLabel": "Image URL input",
+			"cancel": "Cancel",
+			"confirm": "Confirm",
+			"edit": "Change image URL",
+			"placeholder": "Enter image URL"
+		}
+	},
+	"toolbar": {
+		"blockquote": {
+			"ariaLabel": "Toggle blockquote",
+			"tooltip": "Blockquote"
+		},
+		"codeBlock": {
+			"ariaLabel": "Toggle code block",
+			"tooltip": "Code Block"
+		},
+		"colorHighlight": {
+			"ariaLabel": "Set text highlight color",
+			"colors": {
+				"blue": "Blue background",
+				"brown": "Brown background",
+				"default": "Default background",
+				"gray": "Gray background",
+				"green": "Green background",
+				"orange": "Orange background",
+				"pink": "Pink background",
+				"purple": "Purple background",
+				"red": "Red background",
+				"yellow": "Yellow background"
+			},
+			"removeHighlight": "Remove highlight",
+			"tooltip": "Highlight"
+		},
+		"copyMarkdown": {
+			"ariaLabel": "Copy editor content as Markdown",
+			"failed": "Copy failed",
+			"success": "Markdown copied to clipboard",
+			"tooltip": "Copy Markdown"
+		},
+		"dragHandle": {
+			"ariaLabel": "Drag to reorder",
+			"delete": "Delete",
+			"title": "Drag to reorder"
+		},
+		"heading": {
+			"ariaLabel": "Format text as heading",
+			"level": {
+				"1": "Heading 1",
+				"2": "Heading 2",
+				"3": "Heading 3",
+				"4": "Heading 4",
+				"5": "Heading 5",
+				"6": "Heading 6"
+			},
+			"tooltip": "Heading"
+		},
+		"history": {
+			"redo": "Redo",
+			"undo": "Undo"
+		},
+		"horizontalRule": {
+			"ariaLabel": "Insert horizontal rule",
+			"tooltip": "Divider"
+		},
+		"image": {
+			"ariaLabel": "Insert image",
+			"tooltip": "Image",
+			"upload": "Upload Image"
+		},
+		"link": {
+			"apply": "Apply link",
+			"ariaLabel": "Insert or edit link",
+			"openInNewWindow": "Open in new window",
+			"placeholder": "Paste a link...",
+			"remove": "Remove link",
+			"titlePlaceholder": "Link title (optional)",
+			"tooltip": "Link"
+		},
+		"list": {
+			"ariaLabel": "List options",
+			"bulletList": "Bullet List",
+			"orderedList": "Numbered List",
+			"taskList": "Task List",
+			"tooltip": "List"
+		},
+		"mark": {
+			"bold": "Bold",
+			"code": "Code",
+			"italic": "Italic",
+			"strike": "Strikethrough",
+			"subscript": "Subscript",
+			"superscript": "Superscript",
+			"underline": "Underline"
+		},
+		"projectImage": {
+			"ariaLabel": "Insert image",
+			"tooltip": "Image",
+			"upload": "Upload to Project"
+		},
+		"storageImage": {
+			"ariaLabel": "Insert storage image",
+			"tooltip": "Storage Image",
+			"upload": "Upload to Local Storage"
+		},
+		"tableMenu": {
+			"addColumnAfter": "Insert column right",
+			"addColumnBefore": "Insert column left",
+			"addRowAfter": "Insert row below",
+			"addRowBefore": "Insert row above",
+			"deleteColumn": "Delete column",
+			"deleteRow": "Delete row"
+		},
+		"textAlign": {
+			"center": "Align Center",
+			"justify": "Justify",
+			"left": "Align Left",
+			"right": "Align Right"
+		}
+	}
+}

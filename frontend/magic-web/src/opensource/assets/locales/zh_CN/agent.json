@@ -1,0 +1,203 @@
+{
+	"common": {
+		"auth": {
+			"cancel": "取消",
+			"confirm": "确定",
+			"confirmToDelete": "确认要删除此 Api Key 吗?",
+			"confirmToReset": "确认要重置此 Api Key 吗?",
+			"copyCurl": "复制 Secret",
+			"copySuccess": "复制 SSE 地址成功",
+			"create": "添加新授权",
+			"createTitle": "添加授权",
+			"createToSuccess": "修改成功",
+			"deleteKey": "删除 Key",
+			"deleteSuccess": "删除成功",
+			"desc": "可创建 应用授权 或 API Key 对 MCP 插件 进行调用",
+			"editKey": "编辑 Key",
+			"editTitle": "修改授权",
+			"editToSuccess": "修改成功",
+			"lastUsed": "最近使用",
+			"name": "接入方名称",
+			"operate": "操作",
+			"resetKey": "重置 Key",
+			"resetSuccess": "重置成功",
+			"secret": "Secret",
+			"status": "状态",
+			"title": "接入授权"
+		},
+		"settings": {
+			"contact": "联系我们",
+			"func": "功能",
+			"mcp": "MCP 插件",
+			"tasks": "定时任务",
+			"title": "配置",
+			"usage": "使用偏好"
+		},
+		"tool": {
+			"addTool": "新增工具",
+			"addToolFailed": "工具添加失败",
+			"addToolSuccess": "工具添加成功",
+			"cancel": "取消",
+			"card": {
+				"add": "添加",
+				"added": "已添加",
+				"createAt": "发布于",
+				"groupTitle": "包含 {{count}} 个工具",
+				"noQuote": "未被引用",
+				"toolsCount": "{{count}} 个工具"
+			},
+			"confirm": "确认",
+			"createTitle": "添加工具",
+			"desc": "描述",
+			"editTitle": "修改工具",
+			"form": {
+				"addAndNext": "添加并下一步",
+				"cancel": "取消",
+				"create": "创建",
+				"createAndAddTool": "创建并添加工具",
+				"desc": "工具描述",
+				"descPlaceholder": "请输出工具描述",
+				"justAdd": "仅添加",
+				"justCreate": "仅创建",
+				"name": "工具名称",
+				"namePlaceholder": "请填写工具名称",
+				"required": "必填",
+				"save": "保存"
+			},
+			"import": "导入工具",
+			"importExistingTools": "导入已有工具",
+			"importTools": "导入工具",
+			"importToolsCount": "导入工具 ({{count}})",
+			"menu": {
+				"onlyShowOfficial": "仅展示官方工具",
+				"popular": "最受欢迎",
+				"search": "搜索",
+				"sort": "排序:"
+			},
+			"name": "名称",
+			"panel": {
+				"customMcpDesc": "可通过 JSON 导入或配置方式添加外部 MCP",
+				"customMcpTitle": "自定义 MCP",
+				"emptyState": "暂未导入/添加工具",
+				"importExistingToolsDesc": "可导入已有或新增工具",
+				"importExistingToolsTitle": "导入已有工具",
+				"importViaJson": "通过 JSON 导入",
+				"jsonValidationFailed": "JSON 格式校验不通过",
+				"jsonValidationPassed": "JSON 格式校验通过"
+			}
+		}
+	},
+	"mcp": {
+		"button": {
+			"create": "添加 MCP",
+			"text": "插件",
+			"title": "已加载的插件"
+		},
+		"card": {
+			"creatAt": "创建于",
+			"creator": "创建人:",
+			"deleteTool": "删除工具",
+			"desc": "暂无描述",
+			"editTool": "编辑工具",
+			"noQuote": "未被引用",
+			"quoteAgent": "{{count}} 个助理引用",
+			"status": "启用状态",
+			"toolsCount": "包含 {{count}} 个工具"
+		},
+		"editor": {
+			"cancel": "取消",
+			"confirm": "保存",
+			"error": "格式化错误",
+			"formatError": "格式错误",
+			"title": "配置自定义 MCP 插件"
+		},
+		"form": {
+			"args": "Args",
+			"argsPlaceholder": "请输入 Args，如 -y @modelcontextprotocol/server-sequential-thinking",
+			"auth": "账号授权",
+			"authMethod": "授权方式",
+			"authToFail": "需进行账号授权，点击授权",
+			"authToSuccess": "已完成账号授权，点击取消",
+			"cancel": "取消",
+			"command": "Command",
+			"commandPlaceholder": "请输入 Command，如 npx",
+			"confirm": "添加",
+			"custom": "自定义 MCP 插件",
+			"delete": "删除",
+			"desc": "描述",
+			"env": "Env",
+			"headers": "请求头",
+			"import": "导入",
+			"importTool": "导入已有工具",
+			"map": "自定义参数",
+			"mapPlaceholder": "输入自定义参数",
+			"name": "MCP 插件 名称",
+			"noAuth": "无需授权",
+			"options": {
+				"http": "Streamable HTTP",
+				"sse": "SSE",
+				"stdio": "STDIO"
+			},
+			"params": "参数名",
+			"paramsPlaceholder": "请输出参数名",
+			"paramsRequired": "缺少参数名",
+			"paramsToCreate": "添加参数",
+			"required": "请填写 {{name}}",
+			"save": "保存",
+			"type": "MCP 插件 类型",
+			"uploadFail": "文件上传失败，请重试",
+			"url": "MCP 插件 服务地址(SSE Url)",
+			"value": "参数值",
+			"valuePlaceholder": "输入参数值",
+			"valueRequired": "缺少参数值"
+		},
+		"page": {
+			"contextMenu": {
+				"delete": "删除 MCP 插件",
+				"edit": "修改 MCP 插件 信息"
+			},
+			"create": "创建 MCP 插件",
+			"delete": {
+				"cancel": "取消",
+				"confirm": "删除",
+				"content": "将删除 {{name}} 服务",
+				"fail": "删除失败",
+				"success": "删除成功",
+				"title": "确认删除?"
+			},
+			"search": {
+				"input": "搜索"
+			},
+			"switch": {
+				"disable": "{{name}} 已禁用",
+				"enable": "{{name}} 已开启"
+			},
+			"title": "MCP 插件",
+			"update": {
+				"confirm": "更新",
+				"content": "当前版本为 {{version}}，最新版本为 {{latestVersion}}",
+				"success": "更新成功",
+				"title": "确定更新 {{name}} 版本?"
+			}
+		},
+		"panel": {
+			"auth": "接入授权",
+			"create": "添加",
+			"createTitle": "创建 MCP 插件",
+			"custom": "自定义插件",
+			"desc": "使用模型上下文协议 (MCP 插件) 扩展$t(common:platform.name)的能力",
+			"editTitle": "修改 MCP 插件",
+			"empty": "暂无插件",
+			"noAuth": "无需授权",
+			"official": "官方插件",
+			"openForm": "创建 MCP 插件",
+			"required": "请输入 {{name}}",
+			"searchPlaceholder": "搜索 MCP 插件",
+			"settings": "配置",
+			"status": "查询 MCP 插件 状态",
+			"title": "MCP 插件",
+			"tool": "载入工具",
+			"url": "修改 MCP 插件 信息"
+		}
+	}
+}
