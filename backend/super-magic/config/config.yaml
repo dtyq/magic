@@ -1,0 +1,882 @@
+# =====================================================
+# Super Magic 配置文件
+# =====================================================
+# 重要安全提示:
+# 1. 敏感的模型ID（如 ep-xxxxxxxxxx 格式的ID）应该只在 .env 文件中定义
+# 2. 配置文件中应该使用人类可读的默认值（如 doubao-pro-32k）
+# 3. 真实的模型ID应该通过环境变量在运行时注入
+# 4. 此文件会被提交到Git，不要在此文件中暴露任何敏感信息
+# =====================================================
+
+browser:
+  headless: ${BROWSER_HEADLESS:-false}
+  cookies_file: ${BROWSER_COOKIES_FILE:-.browser/cookies.json}
+  storage_state_template_url: ${BROWSER_STORAGE_STATE_TEMPLATE_URL:-None}
+
+  # ========== 浏览器服务端模式配置 ==========
+  # 是否使用服务端模式（连接远程浏览器服务器）
+  # 注意：如果不配置此项，系统会根据环境自动选择：
+  #   - dev 环境（sandbox.app_env=dev 或 APP_ENV=dev）：自动使用本地模式（use_server_mode=false）
+  #   - 非 dev 环境：自动使用服务端模式（use_server_mode=true）
+  # 如果明确配置此项，则使用配置的值，不进行自动选择
+  # 环境变量: BROWSER_USE_SERVER_MODE
+  # use_server_mode: ${BROWSER_USE_SERVER_MODE:-None}  # 注释掉，让系统根据环境自动选择
+
+  # 浏览器服务端 WebSocket URL
+  # 仅在 use_server_mode=true 时生效
+  # 示例: ws://127.0.0.1:3000 (本地服务端)
+  # 示例: ws://browser-server.example.com:3000 (远程服务端)
+  # 环境变量: BROWSER_SERVER_URL
+  browser_server_url: ${BROWSER_SERVER_URL:-ws://127.0.0.1:3000}
+
+  # 服务端健康检查超时时间（秒）
+  # 默认: 60
+  # 环境变量: BROWSER_SERVER_HEALTH_CHECK_TIMEOUT
+  server_health_check_timeout: ${BROWSER_SERVER_HEALTH_CHECK_TIMEOUT:-60}
+
+  # 服务端健康检查重试间隔（秒）
+  # 默认: 1.0
+  # 环境变量: BROWSER_SERVER_HEALTH_CHECK_INTERVAL
+  server_health_check_interval: ${BROWSER_SERVER_HEALTH_CHECK_INTERVAL:-1.0}
+
+  # 服务端连接超时时间（毫秒）
+  # 默认: 30000 (30秒)
+  # 环境变量: BROWSER_SERVER_CONNECT_TIMEOUT
+  server_connect_timeout: ${BROWSER_SERVER_CONNECT_TIMEOUT:-30000}
+  # ========== 服务端模式配置结束 ==========
+
+# LLM API 通用配置
+llm:
+  api_timeout: ${LLM_API_TIMEOUT:-600}
+  api_max_retries: ${LLM_API_MAX_RETRIES:-3}
+  # 自定义API请求头配置 - 所有请求头都从环境变量读取
+  custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
+
+# 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
+# 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)
+active_agent_mode: ${ACTIVE_AGENT_MODE:-apex} # 默认为 'apex' 至强模式
+
+# Agent 模式定义
+agent_modes:
+  # apex - 至强模式：全部使用高性能模型
+  apex:
+    model_aliases:
+      main_llm: claude-3.7-cache
+      coder_llm: claude-3.7-cache
+      writer_llm: claude-3.7-cache
+      browser_llm: gpt-4.1
+      worker_llm: gpt-4.1
+
+  # efficient - 高性价比模式：部分次要角色使用更经济的模型
+  efficient:
+    model_aliases:
+      main_llm: gpt-4.1 # 主控使用性价比
+      coder_llm: claude-3.7-cache # 编码保持高性能
+      writer_llm: qwen-max # 写作使用经济型
+      browser_llm: qwen-max # 浏览器使用经济型
+      worker_llm: qwen-max # 部署使用经济型
+
+  # flash - 极速模式：优先考虑响应速度，使用最快的模型
+  flash:
+    model_aliases:
+      main_llm: deepseek-chat # 主控使用高速模型
+      coder_llm: deepseek-chat # 编码使用高速模型
+      writer_llm: deepseek-chat # 写作使用高速模型
+      browser_llm: deepseek-chat # 浏览器使用高速模型
+      worker_llm: deepseek-chat # 部署使用高速模型
+
+agent:
+  # Allow LLM to call multiple tools in a single response
+  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-false}
+  # Execute multiple tool calls in parallel vs sequential (only applies when multi_tool_calls is enabled)
+  enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
+  # Timeout for parallel tool execution in seconds (None = no timeout)
+  parallel_tool_calls_timeout: ${AGENT_PARALLEL_TOOL_CALLS_TIMEOUT:-None}
+  # Model used for safety checking and content filtering
+  safety_checker_model_id: ${AGENT_SAFETY_MODEL_ID:-gpt-4.1}
+
+# 图片生成服务配置
+image_generator:
+  text_to_image_platform: ${TEXT_TO_IMAGE_PLATFORM}
+  text_to_image_api_base_url: ${TEXT_TO_IMAGE_API_BASE_URL}
+  text_to_image_access_key: ${TEXT_TO_IMAGE_ACCESS_KEY}
+  text_to_image_secret_key: ${TEXT_TO_IMAGE_SECRET_KEY}
+  image_to_image_model: ${IMAGE_TO_IMAGE_MODEL:-doubao-seedream-4-0-250828}
+  text_to_image_model: ${TEXT_TO_IMAGE_MODEL:-doubao-seedream-4-0-250828}
+
+# 模型别名映射
+# 允许在 .agent 文件中使用别名，实际模型可通过环境变量指定
+# 例如，WRITER_LLM 环境变量可以覆盖 writer_llm 的默认值
+model_aliases:
+  main_llm: ${MAIN_LLM:-claude-3.7-cache} # 主控 Agent (super-magic, magic) 使用
+  coder_llm: ${CODER_LLM:-claude-3.7-cache} # 编程组 Agent (coder, data-analyst) 使用
+  writer_llm: ${WRITER_LLM:-claude-3.7-cache} # 写作组 Agent (writer, slide) 使用
+  browser_llm: ${BROWSER_LLM:-claude-3.7-cache} # 浏览器 Agent (web-browser) 使用
+  worker_llm: ${WORKER_LLM:-claude-3.7-cache} # 部署 Agent (deployer) 使用
+
+# 模型配置
+models:
+  # LLM模型
+  claude-3.7:
+    api_key: "${CLAUDE_API_KEY}"
+    api_base_url: "${CLAUDE_API_BASE_URL:-https://api.anthropic.com/v1}"
+    name: "${CLAUDE_MODEL:-claude-3-7-sonnet}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 200000
+    temperature: 0.7
+    pricing:
+      input_price: 0.003
+      output_price: 0.015
+      cache_write_price: 0.00375
+      cache_hit_price: 0.0003
+      currency: "USD"
+
+  claude-3.7-cache:
+    api_key: "${CLAUDE_CACHE_API_KEY}"
+    api_base_url: "${CLAUDE_CACHE_API_BASE_URL:-https://api.anthropic.com/v1}"
+    name: "${CLAUDE_CACHE_MODEL:-claude-3-7-sonnet}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 200000
+    temperature: 0.7
+    pricing:
+      input_price: 0.003
+      output_price: 0.015
+      cache_write_price: 0.00375
+      cache_hit_price: 0.0003
+      currency: "USD"
+
+  deepseek-chat:
+    api_key: "${DEEPSEEK_API_KEY}"
+    api_base_url: "${DEEPSEEK_API_BASE_URL:-https://api.deepseek.com/v1}"
+    name: "${DEEPSEEK_MODEL:-deepseek-chat}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16000
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      cache_write_price: 0.0005
+      currency: "CNY"
+
+  deepseek-reasoner:
+    api_key: "${DEEPSEEK_API_KEY}"
+    api_base_url: "${DEEPSEEK_API_BASE_URL:-https://api.deepseek.com/v1}"
+    name: "${DEEPSEEK_REASONER_MODEL:-deepseek-reasoner}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16000
+    max_context_tokens: 96000
+    temperature: 0.7
+    pricing:
+      input_price: 0.004
+      output_price: 0.016
+      cache_write_price: 0.0008
+      cache_hit_price: 0.000017
+      currency: "CNY"
+
+  # 小米 MIMO 大模型配置
+  mimo-v2-flash:
+    api_key: "${MIMO_API_KEY}"
+    api_base_url: "${MIMO_API_BASE_URL:-https://api.xiaomimimo.com/v1}"
+    name: "${MIMO_V2_FLASH_MODEL:-mimo-v2-flash}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.0
+      output_price: 0.0
+      currency: "CNY"
+
+  deepseek-v3.2:
+    api_key: "${DEEPSEEK_API_KEY}"
+    api_base_url: "${DEEPSEEK_API_BASE_URL:-https://api.deepseek.com/v1}"
+    name: "deepseek-v3.2"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16000
+    max_context_tokens: 64000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      cache_write_price: 0.0005
+      currency: "CNY"
+
+  gpt-4o:
+    api_key: "${OPENAI_API_KEY}"
+    api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${OPENAI_MODEL:-gpt-4o}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 32000
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0025
+      output_price: 0.01
+      cache_write_price: 0.00125
+      currency: "USD"
+
+  gpt-4.1:
+    api_key: "${OPENAI_API_KEY}"
+    api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${OPENAI_4_1_MODEL:-gpt-4.1}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 32000
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      cache_write_price: 0.0005
+      currency: "USD"
+
+  gpt-4.1-mini:
+    api_key: "${OPENAI_API_KEY}"
+    api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${OPENAI_4_1_MINI_MODEL:-gpt-4.1-mini}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 32000
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0004
+      output_price: 0.0016
+      cache_write_price: 0.0001
+      currency: "USD"
+
+  gpt-4.1-nano:
+    api_key: "${OPENAI_API_KEY}"
+    api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${OPENAI_4_1_NANO_MODEL:-gpt-4.1-nano}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 32000
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0001
+      output_price: 0.0004
+      cache_write_price: 0.000025
+      currency: "USD"
+
+  o4-mini:
+    api_key: "${OPENAI_API_KEY}"
+    api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${OPENAI_O4_MINI_MODEL:-o4-mini}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 32000
+    max_context_tokens: 128000
+    temperature: 1.0
+    pricing:
+      input_price: 0.0001
+      output_price: 0.0004
+      cache_write_price: 0.000025
+      currency: "USD"
+
+  # 豆包大模型配置
+  doubao-seed-1.6:
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_SEED_1_6_MODEL:-doubao-seed-1.6}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0008
+      output_price: 0.02
+      cache_write_price: 0.00017
+      cache_hit_price: 0.0016
+      currency: "CNY"
+
+  doubao-seed-1.6-thinking:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_SEED_1_6_THINKING_MODEL:-doubao-seed-1.6-thinking}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0008
+      output_price: 0.08
+      cache_write_price: 0.00017
+      cache_hit_price: 0.0016
+      currency: "CNY"
+
+  doubao-seed-1.6-flash:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_SEED_1_6_FLASH_MODEL:-doubao-seed-1.6-flash}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.00015
+      output_price: 0.015
+      cache_write_price: 0.00017
+      cache_hit_price: 0.0003
+      currency: "CNY"
+
+  doubao-1.5-vision-pro-32k:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_1_5_VISION_PRO_32K_MODEL:-doubao-1.5-vision-pro-32k}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.001
+      output_price: 0.002
+      currency: "CNY"
+
+  doubao-seed-1.6-vision:
+    api_key: "${MAGIC_API_KEY}"
+    api_base_url: "${MAGIC_API_BASE_URL}"
+    name: "doubao-seed-1.6-vision"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.001
+      output_price: 0.002
+      currency: "CNY"
+
+  doubao-1.5-pro-32k:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_1_5_PRO_32K_MODEL:-doubao-1.5-pro-32k}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.001
+      output_price: 0.002
+      currency: "CNY"
+
+  doubao-1.5-pro-256k:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_1_5_PRO_256K_MODEL:-doubao-1.5-pro-256k}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 12288
+    max_context_tokens: 256000
+    temperature: 0.7
+    pricing:
+      input_price: 0.001
+      output_price: 0.002
+      currency: "CNY"
+
+  doubao-1.5-thinking-pro:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_1_5_THINKING_PRO_MODEL:-doubao-1.5-thinking-pro}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16000
+    max_context_tokens: 32000
+    pricing:
+      input_price: 0.004
+      output_price: 0.016
+      currency: "CNY"
+
+  doubao-1.5-thinking-vision-pro:
+    api_key: "${DOUBAO_API_KEY}"
+    api_base_url: "${DOUBAO_API_BASE_URL}"
+    name: "${DOUBAO_1_5_THINKING_VISION_PRO_MODEL:-doubao-1.5-thinking-vision-pro}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16000
+    max_context_tokens: 32000
+    pricing:
+      input_price: 0.003
+      output_price: 0.009
+      currency: "CNY"
+
+  # 通义千问大模型配置
+  qwen-max:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN_MODEL:-qwen-max}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.0024
+      output_price: 0.0096
+      currency: "CNY"
+
+  qwen3-coder-plus:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN3_CODER_PLUS_MODEL:-qwen3-coder-plus}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 65536 # 最大输出 65,536 tokens
+    max_context_tokens: 1048576 # 上下文长度 1M tokens
+    temperature: 0.7
+    support_thinking: false # 该模型不支持思考模式
+    pricing:
+      # 32K-128K区间人民币定价
+      input_price: 0.002
+      output_price: 0.008
+      currency: "CNY"
+
+  qwen-plus:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN_PLUS_MODEL:-qwen-plus}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 129024
+    temperature: 0.7
+    pricing:
+      input_price: 0.0008
+      output_price: 0.002
+      currency: "CNY"
+
+  qwen-long:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN_LONG_MODEL:-qwen-long}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 30000
+    max_context_tokens: 10000000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0005
+      output_price: 0.002
+      currency: "CNY"
+
+  qwen-turbo:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN_TURBO_MODEL:-qwen-turbo}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 1000000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0003
+      output_price: 0.0006
+      currency: "CNY"
+
+  qwq-plus:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWQ_PLUS_MODEL:-qwq-plus}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.0016
+      output_price: 0.004
+      currency: "CNY"
+
+  qwen-flash:
+    api_key: "${MAGIC_API_KEY}"
+    api_base_url: "${MAGIC_API_BASE_URL}"
+    name: "qwen-flash"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 1000000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0003
+      output_price: 0.0006
+      currency: "CNY"
+
+  gemini-2.0-flash:
+    api_key: "${GEMINI_API_KEY}"
+    api_base_url: "${GEMINI_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "gemini-2.0-flash"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 4096
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0001
+      output_price: 0.0004
+      currency: "USD"
+
+  gemini-2.5-pro:
+    api_key: "${GEMINI_API_KEY}"
+    api_base_url: "${GEMINI_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "gemini-2.5-pro-preview-03-25"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.00125
+      output_price: 0.01
+      currency: "USD"
+
+  gemini-2.5-pro-exp:
+    api_key: "${GEMINI_API_KEY}"
+    api_base_url: "${GEMINI_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "gemini-2.5-pro-exp-03-25"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.00125
+      output_price: 0.01
+      currency: "USD"
+
+  glm-z1-air:
+    api_key: "${GLM_API_KEY}"
+    api_base_url: "${GLM_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "glm-z1-air"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 4096
+    max_context_tokens: 16000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0005
+      output_price: 0.002
+      currency: "CNY"
+
+  glm-z1-airx:
+    api_key: "${GLM_API_KEY}"
+    api_base_url: "${GLM_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "glm-z1-airx"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 32000
+    temperature: 0.7
+    pricing:
+      input_price: 0.001
+      output_price: 0.004
+      currency: "CNY"
+
+  glm-z1-flash:
+    api_key: "${GLM_API_KEY}"
+    api_base_url: "${GLM_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "glm-z1-flash"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 4096
+    max_context_tokens: 16000
+    temperature: 0.7
+    pricing:
+      input_price: 0.0002
+      output_price: 0.0008
+      currency: "CNY"
+
+  glm-4-plus:
+    api_key: "${GLM_API_KEY}"
+    api_base_url: "${GLM_API_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}"
+    name: "glm-4-plus"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 8192
+    max_context_tokens: 128000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      currency: "CNY"
+
+  # Embedding模型
+  magic-embedding:
+    api_key: "${MAGIC_API_KEY}"
+    api_base_url: "${MAGIC_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${MAGIC_EMBEDDING_MODEL:-text-embedding-3-large}"
+    type: "embedding"
+    provider: "openai"
+    max_output_tokens: 8192
+    temperature: 0.0
+    pricing:
+      input_price: 0.00013
+      currency: "USD"
+
+  openai-embedding:
+    api_key: "${OPENAI_API_KEY}"
+    api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"
+    name: "${OPENAI_EMBEDDING_MODEL:-text-embedding-3-large}"
+    type: "embedding"
+    provider: "openai"
+    max_output_tokens: 8192
+    temperature: 0.0
+    pricing:
+      input_price: 0.00013
+      currency: "USD"
+
+  azure-embedding:
+    api_key: "${AZURE_OPENAI_EMBEDDING_API_KEY}"
+    api_base_url: "${AZURE_OPENAI_EMBEDDING_ENDPOINT}"
+    name: "${AZURE_OPENAI_EMBEDDING_MODEL:-text-embedding-3-large}"
+    deployment: "${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}"
+    api_version: "${AZURE_OPENAI_EMBEDDING_API_VERSION:-2023-05-15}"
+    region: "${AZURE_OPENAI_EMBEDDING_REGION:-eastus}"
+    type: "embedding"
+    provider: "openai"
+    max_output_tokens: 8192
+    temperature: 0.0
+    pricing:
+      input_price: 0.00013
+      currency: "USD"
+
+  # 默认价格配置，用作后备
+  default:
+    pricing:
+      input_price: 0.001
+      output_price: 0.002
+      currency: "USD"
+
+bing:
+  search_api_key: "${BING_SUBSCRIPTION_KEY}"
+  search_endpoint: "${BING_SUBSCRIPTION_ENDPOINT:-https://api.bing.microsoft.com/v7.0}"
+
+# Tavily 搜索 API 配置
+tavily:
+  api_key: "${TAVILY_API_KEY}"
+  api_endpoint: "${TAVILY_API_ENDPOINT:-https://api.tavily.com}"
+  search_endpoint: "${TAVILY_SEARCH_ENDPOINT:-/search}"
+
+# Metaso 搜索 API 配置
+metaso:
+  api_key: "${METASO_API_KEY}"
+  api_endpoint: "${METASO_API_ENDPOINT:-https://metaso.cn}"
+  search_endpoint: "${METASO_SEARCH_ENDPOINT:-/api/v1/search}"
+
+# SerpApi 配置（用于 Google 搜索）
+serpapi:
+  api_key: "${SERPAPI_API_KEY}"
+  api_endpoint: "${SERPAPI_API_ENDPOINT:-https://serpapi.com}"
+
+# Magic 图片搜索服务配置
+magic_image_search:
+  api_key: "${MAGIC_IMAGE_SEARCH_API_KEY}"
+  api_endpoint: "${MAGIC_IMAGE_SEARCH_ENDPOINT}"
+
+# 搜索引擎选择
+web_search:
+  # 默认搜索引擎: bing, tavily, magic 或 metaso
+  default_engine: "${WEB_SEARCH_DEFAULT_ENGINE:-magic}"
+
+# 图片搜索引擎选择
+image_search:
+  # 默认图片搜索引擎: bing, serpapi 或 magic
+  default_engine: "${IMAGE_SEARCH_DEFAULT_ENGINE:-magic}"
+
+token_service:
+  address: "${TOKEN_SERVICE_ADDRESS}"
+  redis_uri: "${REDIS_URI}"
+  app_id: "${APP_ID}"
+  app_secret: "${APP_SECRET}"
+
+# 存储服务配置
+storage:
+  # 火山引擎TOS配置
+  tos:
+    host: "${TOS_HOST}"
+    policy: "${TOS_POLICY}"
+    algorithm: "${TOS_ALGORITHM}"
+    date: "${TOS_DATE}"
+    credential: "${TOS_CREDENTIAL}"
+    signature: "${TOS_SIGNATURE}"
+    dir: "${TOS_DIR}"
+    content_type: "${TOS_CONTENT_TYPE}"
+
+sandbox:
+  id: "${SANDBOX_ID:-}"
+  app_env: "${APP_ENV:-dev}"
+  magic_authorization: "${MAGIC_AUTHORIZATION}"
+  fetch_workspace: "${FETCH_WORKSPACE:-True}"
+  agent_idle_timeout: "${AGENT_IDLE_TIMEOUT:-1200}"
+  idle_monitor_interval: "${IDLE_MONITOR_INTERVAL:-60}"
+  # 是否将 init_client_message 中的 authorization 转发为额外的 USER-Authorization header
+  # true: API Key 使用 config.yaml 的 api_key，额外添加 USER-Authorization header（值为 authorization）
+  # false: 标准 LLM 认证流程，只使用 config.yaml 的 api_key，不转发 USER-Authorization header
+  forward_user_authorization: "${FORWARD_USER_AUTHORIZATION:-true}"
+
+# 火山引擎语音配置
+asr:
+  app_id: "${ASR_VKE_APP_ID}"
+  token: "${ASR_VKE_TOKEN}"
+  cluster: "${ASR_VKE_CLUSTER}"
+  secret_key: "${ASR_VKE_SECRET_KEY}"
+
+# Magic-Space 配置
+magic_space:
+  api_key: "${MAGIC_SPACE_API_KEY}"
+  api_base_url: "${MAGIC_SPACE_API_BASE_URL}"
+
+# PDF 理解服务配置
+pdf_understanding:
+  api_key: "${PDF_UNDERSTANDING_API_KEY}"
+  api_url: "${PDF_UNDERSTANDING_API_URL}"
+
+# 语音理解服务配置
+audio_understanding:
+  api_key: "${VOICE_UNDERSTANDING_API_KEY}"
+  api_base_url: "${VOICE_UNDERSTANDING_API_BASE_URL}"
+
+# Checkpoint管理配置
+checkpoint:
+  # 最大保留的checkpoint数量
+  max_count: ${CHECKPOINT_MAX_COUNT:-10}
+
+  # 是否启用自动清理功能
+  auto_cleanup: ${CHECKPOINT_AUTO_CLEANUP:-true}
+
+# =====================================================
+# AI Ability Configuration (AI能力配置)
+# =====================================================
+# AI能力配置管理各种AI能力（如视觉理解、信息精炼等）使用的模型和参数
+# 支持环境变量占位符: ${ENV_VAR:-default_value}
+# 配置优先级: dynamic_config.yaml > config.yaml > 环境变量 > 代码默认值
+# =====================================================
+ai_abilities:
+  # Visual Understanding Ability (视觉理解能力)
+  # Used for image analysis and visual content understanding
+  visual_understanding:
+    model_id: "${VISUAL_UNDERSTANDING_MODEL_ID:-doubao-seed-1.6-vision}"
+    timeout: 120
+    max_images: 10
+    enabled: true
+
+  # Summarize Ability (信息精炼能力)
+  # Used for text summarization and information extraction
+  summarize:
+    model_id: "${SUMMARIZE_MODEL_ID:-qwen-flash}"
+    default_target_length: 500
+    enabled: true
+
+  # Smart Filename Ability (智能文件名生成能力)
+  # Used for generating smart filenames from webpage titles
+  smart_filename:
+    model_id: "${SMART_FILENAME_MODEL_ID:-deepseek-chat}"
+    timeout: 60
+    enabled: true
+
+  # Purify Ability (内容净化能力)
+  # Used for content purification and cleaning
+  purify:
+    model_id: "${PURIFY_MODEL_ID:-deepseek-chat}"
+    max_tokens: 24000
+    enabled: true
+
+  # Deep Write Ability (深度写作能力)
+  # Used for deep content writing with references
+  deep_write:
+    model_id: "${DEEP_WRITE_MODEL_ID:-deepseek-reasoner}"
+    temperature: 0.7
+    min_reference_files: 3
+    enabled: true
+
+  # Analysis Audio Ability (音频分析能力)
+  # Used for analyzing audio project content
+  analysis_audio:
+    model_id: "${ANALYSIS_AUDIO_MODEL_ID:-qwen3.5-flash}"
+    enabled: true
+
+  # Analysis Slide Ability (网页/幻灯片分析能力)
+  # Used for analyzing webpage/slide content
+  analysis_slide:
+    model_id: "${ANALYSIS_SLIDE_MODEL_ID:-deepseek-chat}"
+    timeout: 60
+    enabled: true
+
+  # Compact Ability (上下文压缩能力)
+  # 压缩触发时临时切换到此模型，压缩完成后恢复原模型
+  # 不配置 model_id（或设为空）时，沿用主 Agent 当前模型，行为与之前一致
+  compact:
+    model_id: "${COMPACT_MODEL_ID:-}"
+
+# =====================================================
+# Web Scraping 网页爬取配置
+# =====================================================
+web_scraping:
+  # 是否启用 SearchAPI 作为降级方案 (当无头浏览器遇到反爬虫时使用)
+  enable_search_api_fallback: ${WEB_SCRAPING_ENABLE_API_FALLBACK:-true}
+
+  # SearchAPI 配置 (第三方网页爬取服务)
+  search_api:
+    # API Token (必须通过环境变量 MAGIC_API_KEY 设置, 走magic-service代理)
+    token: ${MAGIC_API_KEY}
+    # 爬取模式: quality (质量优先) 或 speed (速度优先)
+    mode: ${SEARCH_API_MODE:-quality}
+    # 请求超时时间(秒)
+    timeout: ${SEARCH_API_TIMEOUT:-30}
+
+  # 内容验证配置 (用于检测反爬虫/无效内容)
+  content_validation:
+    # 是否启用反爬虫关键词检测
+    enable_anti_crawler_detection: ${WEB_SCRAPING_ENABLE_ANTI_CRAWLER_DETECTION:-true}
+    # 最小有效内容长度 (字符)
+    min_content_length: ${WEB_SCRAPING_MIN_CONTENT_LENGTH:-50}
+    # 最小有效文本长度 (去除HTML后, 字符)
+    min_text_length: ${WEB_SCRAPING_MIN_TEXT_LENGTH:-100}
