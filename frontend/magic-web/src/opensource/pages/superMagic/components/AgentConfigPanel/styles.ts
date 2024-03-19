@@ -1,0 +1,156 @@
+import { createStyles } from "antd-style"
+
+export const useStyles = createStyles(({ token, prefixCls, css }) => ({
+	container: {
+		display: "flex",
+		flexDirection: "column",
+		padding: "40px 80px 0 80px",
+		background: token.colorBgContainer,
+		borderRadius: 8,
+		gap: 20,
+	},
+	changeIconContainer: {
+		width: 144,
+		height: 70,
+		display: "flex",
+		justifyContent: "center",
+		cursor: "pointer",
+		alignItems: "center",
+		gap: "10px",
+		padding: "8px",
+		border: `1px solid ${token.colorBorder}`,
+		borderRadius: "12px",
+	},
+	iconWrapper: {
+		width: 50,
+		height: 50,
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		borderRadius: 20,
+	},
+	nameInput: {
+		fontFamily: "PingFang SC",
+		fontWeight: 600,
+		fontSize: "28px",
+		lineHeight: "40px",
+		maring: 0,
+		padding: 0,
+		color: token.magicColorUsages.text[0],
+	},
+	descriptionInput: {
+		fontFamily: "PingFang SC",
+		fontWeight: 400,
+		fontSize: "14px",
+		lineHeight: "20px",
+		letterSpacing: "0px",
+		maring: 0,
+		padding: 0,
+		color: token.magicColorUsages.text[1],
+	},
+	avatarWrapper: {
+		position: "relative",
+		cursor: "pointer",
+		"&:hover .avatar-overlay": {
+			opacity: 1,
+		},
+	},
+	changeIconText: {
+		fontSize: "14px",
+		fontWeight: 600,
+		color: token.colorTextSecondary,
+	},
+	avatarOverlay: {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+		background: "rgba(0, 0, 0, 0.5)",
+		borderRadius: "50%",
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		opacity: 0,
+		transition: "opacity 0.2s",
+		color: "white",
+	},
+	label: {
+		display: "block",
+		marginBottom: 10,
+		fontWeight: 500,
+		color: token.colorText,
+	},
+	toolsSection: {
+		borderBottom: `1px solid ${token.colorBorder}`,
+		paddingBottom: 20,
+	},
+	toolsHeader: {
+		marginBottom: 0,
+	},
+	toolsList: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: 10,
+	},
+	toolItem: {
+		height: "20px",
+		width: "fit-content",
+		display: "flex",
+		alignItems: "center",
+		padding: "2px 6px 2px 3px",
+		background: token.colorFillAlter,
+		border: `1px solid ${token.colorBorder}`,
+		borderRadius: 4,
+		fontSize: 12,
+		fontWeight: 400,
+		color: token.magicColorUsages.text[1],
+		gap: 3,
+		cursor: "pointer",
+	},
+	toolIcon: {
+		width: 14,
+		height: 14,
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		fontSize: 12,
+	},
+	toolRemoveBtn: {
+		color: token.colorTextTertiary,
+		fontSize: 12,
+		cursor: "pointer",
+		"&:hover": {
+			color: token.colorError,
+		},
+	},
+	addToolButton: {
+		height: "20px",
+		border: `1px solid ${token.colorBorder}`,
+		color: token.magicColorUsages.text[2],
+		padding: "2px 6px",
+		fontSize: "12px",
+		gap: "3px",
+		cursor: "pointer",
+		display: "flex",
+		justifyContent: "center",
+		borderRadius: "4px",
+	},
+	emptyToolsText: {
+		color: token.colorTextTertiary,
+		fontSize: 14,
+		padding: "16px 0",
+	},
+	selectedToolIcon: {
+		width: 10,
+		height: 10,
+		color: "linear-gradient(95.14deg, #33D6C0 0%, #5083FB 25%, #336DF4 50%, #4752E6 75%, #8D55ED 100%)",
+	},
+	popover: css`
+		.${prefixCls}-popover-inner {
+			padding: 0;
+			border-radius: 12px;
+			width: 600px;
+		}
+	`,
+}))
