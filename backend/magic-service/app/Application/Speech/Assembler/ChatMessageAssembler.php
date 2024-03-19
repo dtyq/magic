@@ -1,0 +1,195 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Application\Speech\Assembler;
+
+use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
+use App\Application\Speech\DTO\Response\AsrFileDataDTO;
+use App\Domain\Chat\DTO\Request\ChatRequest;
+use App\Infrastructure\Util\Context\CoContext;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\Codec\Json;
+use Hyperf\Contract\TranslatorInterface;
+
+/**
+ * 聊天消息装配器
+ * 负责构建ASR总结相关的聊天消息.
+ */
+readonly class ChatMessageAssembler
+{
+    public function __construct(
+    ) {
+    }
+
+    /**
+     * 构建聊天请求对象用于总结任务
+     *
+     * @param ProcessSummaryTaskDTO $dto 处理总结任务DTO
+     * @param AsrFileDataDTO $audioFileData 音频文件数据
+     * @param null|AsrFileDataDTO $noteFileData 笔记文件数据，可选
+     * @param null|AsrFileDataDTO $markerFileData 标记文件数据，可选
+     * @return ChatRequest 聊天请求对象
+     */
+    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, AsrFileDataDTO $audioFileData, ?AsrFileDataDTO $noteFileData = null, ?AsrFileDataDTO $markerFileData = null): ChatRequest
+    {
+        // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale(CoContext::getLanguage());
+        // 构建消息内容
+        $messageContent = $this->buildMessageContent($dto->modelId, $audioFileData, $noteFileData, $markerFileData);
+
+        // 构建聊天请求数据
+        $chatRequestData = [
+            'context' => [
+                'language' => $translator->getLocale(),
+            ],
+            'data' => [
+                'conversation_id' => $dto->conversationId,
+                'message' => [
+                    'type' => 'rich_text',
+                    'app_message_id' => (string) IdGenerator::getSnowId(),
+                    'send_time' => time() * 1000,
+                    'topic_id' => $dto->chatTopicId,
+                    'rich_text' => $messageContent,
+                ],
+            ],
+        ];
+        return new ChatRequest($chatRequestData);
+    }
+
+    /**
+     * 构建rich_text消息内容.
+     *
+     * @param string $modelId 模型ID
+     * @param AsrFileDataDTO $fileData 文件数据
+     * @param null|AsrFileDataDTO $noteData 笔记文件数据，可选
+     * @param null|AsrFileDataDTO $markerData 标记文件数据，可选（隐藏，暂不在消息中显示）
+     * @return array 消息内容数组
+     */
+    public function buildMessageContent(string $modelId, AsrFileDataDTO $fileData, ?AsrFileDataDTO $noteData = null, ?AsrFileDataDTO $markerData = null): array
+    {
+        // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale(CoContext::getLanguage());
+        // 构建消息内容
+        // 注意：markerData 参数接收但暂不在消息中显示（标记文件对用户隐藏）
+        if ($noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath)) {
+            // 有笔记时的消息内容：同时提到录音文件和笔记文件
+
+            $messageContent = [
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.summary_prefix_with_note'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $fileData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.summary_middle_with_note'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $noteData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.summary_suffix_with_note'),
+                ],
+            ];
+        } else {
+            // 无笔记时的消息内容：只提到录音文件
+            $messageContent = [
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.summary_prefix'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $fileData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.summary_suffix'),
+                ],
+            ];
+        }
+
+        return [
+            'content' => Json::encode([
+                'type' => 'doc',
+                'content' => [
+                    [
+                        'type' => 'paragraph',
+                        'attrs' => ['suggestion' => ''],
+                        'content' => $messageContent,
+                    ],
+                ],
+            ]),
+            'instructs' => [
+                ['value' => 'plan'],
+            ],
+            'attachments' => [],
+            'extra' => [
+                'super_agent' => [
+                    'mentions' => $noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath) ? [
+                        [
+                            'type' => 'mention',
+                            'attrs' => [
+                                'type' => 'project_file',
+                                'data' => $fileData->toArray(),
+                            ],
+                        ],
+                        [
+                            'type' => 'mention',
+                            'attrs' => [
+                                'type' => 'project_file',
+                                'data' => $noteData->toArray(),
+                            ],
+                        ],
+                    ] : [
+                        [
+                            'type' => 'mention',
+                            'attrs' => [
+                                'type' => 'project_file',
+                                'data' => $fileData->toArray(),
+                            ],
+                        ],
+                    ],
+                    'input_mode' => 'plan',
+                    'chat_mode' => 'normal',
+                    'topic_pattern' => 'summary',
+                    'model' => [
+                        'model_id' => $modelId,
+                    ],
+                    'dynamic_params' => [
+                        'summary_task' => true,
+                    ],
+                ],
+            ],
+        ];
+    }
+}

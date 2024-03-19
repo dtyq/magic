@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Application\Speech\DTO;
+
+use App\Domain\Asr\ValueObject\AsrDirectoryRoleEnum;
+
+/**
+ * 录音目录信息 DTO.
+ */
+readonly class AsrRecordingDirectoryDTO
+{
+    public function __construct(
+        public string $directoryPath,
+        public int $directoryId,
+        public bool $hidden,
+        public AsrDirectoryRoleEnum $role
+    ) {
+    }
+
+    /**
+     * 转换为数组.
+     */
+    public function toArray(): array
+    {
+        return [
+            'directory_path' => $this->directoryPath,
+            'directory_id' => $this->directoryId,
+            'hidden' => $this->hidden,
+            'type' => $this->role->getLegacyTypeValue(),
+        ];
+    }
+}

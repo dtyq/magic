@@ -1,0 +1,116 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Application\Speech\Service;
+
+use App\Application\Kernel\Factory\VolcengineStandardClientFactory;
+use App\Domain\ModelGateway\Entity\AccessTokenEntity;
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
+use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
+use App\ErrorCode\MagicApiErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\Volcengine\DTO\SpeechRecognitionResultDTO;
+use App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition\VolcengineStandardClient;
+use DateTime;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+
+class SpeechToTextStandardAppService
+{
+    protected LoggerInterface $logger;
+
+    public function __construct(
+        protected readonly AccessTokenDomainService $accessTokenDomainService,
+        protected readonly VolcengineStandardClientFactory $volcengineStandardClientFactory,
+    ) {
+        $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(self::class);
+    }
+
+    public function submitTask(SpeechSubmitDTO $submitDTO): array
+    {
+        $volcengineClient = $this->createVolcengineClient();
+
+        $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
+        //        $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
+        return $volcengineClient->submitTask($submitDTO);
+    }
+
+    public function submitLargeModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
+    {
+        $volcengineClient = $this->createVolcengineClient();
+
+        $this->logger->info('Starting to submit large model speech recognition task', [
+            'audio_url' => $submitDTO->getAudio()->getUrl(),
+            'ips' => $submitDTO->getIps(),
+        ]);
+
+        $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
+
+        /*$originalUrl = $submitDTO->getAudio()->getUrl();
+        $safeUrl = SSRFUtil::getSafeUrl($originalUrl, replaceIp: false);
+        $submitDTO->getAudio()->setUrl($safeUrl);*/
+
+        $this->logger->info('Calling Volcengine BigModel speech recognition API');
+        $result = $volcengineClient->submitBigModelTask($submitDTO);
+
+        $this->logger->info('Large model speech recognition task submitted successfully', [
+            'task_id' => $result['task_id'] ?? null,
+        ]);
+
+        return $result;
+    }
+
+    public function queryResult(SpeechQueryDTO $queryDTO): array
+    {
+        $volcengineClient = $this->createVolcengineClient();
+
+        $this->validateAccessToken($queryDTO->getAccessToken(), $queryDTO->getIps());
+        return $volcengineClient->queryResult($queryDTO);
+    }
+
+    /**
+     * 查询大模型语音识别结果.
+     */
+    public function queryLargeModelResult(SpeechQueryDTO $speechQueryDTO): SpeechRecognitionResultDTO
+    {
+        $volcengineClient = $this->createVolcengineClient();
+
+        $this->validateAccessToken($speechQueryDTO->getAccessToken(), []);
+        return $volcengineClient->queryBigModelResult($speechQueryDTO->getTaskId());
+    }
+
+    public function submitFlashTask(FlashSpeechSubmitDTO $submitDTO): array
+    {
+        $volcengineClient = $this->createVolcengineClient();
+
+        $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
+        //        $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
+        return $volcengineClient->submitFlashTask($submitDTO)->getResponseData();
+    }
+
+    private function createVolcengineClient(): VolcengineStandardClient
+    {
+        return $this->volcengineStandardClientFactory->createVolcengineClient();
+    }
+
+    private function validateAccessToken(string $accessToken, array $clientIps): AccessTokenEntity
+    {
+        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
+        if (! $accessTokenEntity) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
+        }
+
+        $accessTokenEntity->checkIps($clientIps);
+        $accessTokenEntity->checkExpiredTime(new DateTime());
+
+        return $accessTokenEntity;
+    }
+}

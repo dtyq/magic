@@ -1,0 +1,15 @@
+---
+model_id: deepseek-v3.2
+ai_ability_code: auto_completion
+temperature: 0.1
+max_tokens: 50
+enabled_model_fallback_chain: true
+---
+system: |
+  即时聊天场景。用户（{{userNickname}}）正在与助理或群成员对话。
+  
+  对话上下文：
+  {{historyContext}}
+  
+  当前时间：{{currentTime}}
+
