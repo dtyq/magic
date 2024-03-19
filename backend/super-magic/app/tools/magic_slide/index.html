@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Super Magic Slides</title>
+
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+
+  <!-- Project Configuration -->
+  <script>
+    // Simple configuration loader - wait for config before app initialization
+    window.slideApp = {
+      config: null,
+      isConfigLoaded: false,
+      init: null // Will be set by main app
+    };
+
+    // Global config storage variable
+    window.magicProjectConfig = null;
+
+    // Config callback - called by magic.project.js
+    window.magicProjectConfigure = function(config) {
+      console.log('Config loaded:', config);
+      window.slideApp.config = config;
+      window.slideApp.isConfigLoaded = true;
+
+      // Initialize app if it's ready
+      if (window.slideApp.init) {
+        window.slideApp.init();
+        window.slideApp.init = null;
+      } else if (window.slideApp.reload) {
+        window.slideApp.reload();
+      }
+    };
+
+    // Load config file
+    const script = document.createElement('script');
+    script.src = './magic.project.js';
+    script.onerror = function() {
+      console.warn('Config file not found, using empty config');
+      window.magicProjectConfigure({ slides: [] });
+    };
+    document.head.appendChild(script);
+  </script>
+
+  <style>
+    /* Slide Container Styles */
+    .slide-container {
+      overflow: hidden;
+      background-color: #111827;
+      margin: 0 auto;
+      max-width: 100vw;
+      max-height: 100vh;
+      position: relative;
+    }
+
+    /* Slide Frame Styles */
+    .slide-frame {
+      transform-origin: center center;
+      border: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+    }
+
+    /* Animation Styles */
+    .slide-transition {
+      /* Remove transition for instant switching */
+      /* transition: opacity 0.5s cubic-bezier(0.4, 0.0, 0.2, 1); */
+      transition: none;
+    }
+
+    .slide-frame {
+      transform-origin: center center;
+      border: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      /* Default state for frames */
+      opacity: 0;
+      pointer-events: none;
+      z-index: 0;
+      display: none; /* Hidden by default to save resources */
+    }
+
+    .slide-frame.active {
+      opacity: 1;
+      pointer-events: auto;
+      z-index: 10;
+      display: block;
+    }
+
+    .slide-frame.preloaded {
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+      display: block; /* Keep in DOM and rendering, just invisible */
+    }
+
+    /* Glass Effect Styles */
+    .glass {
+      backdrop-filter: blur(20px);
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .glass-dark {
+      backdrop-filter: blur(20px);
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Scrollbar Styles */
+    ::-webkit-scrollbar {
+      width: 180px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+    }
+
+    /* Responsive Control Bar */
+    .control-bar-inner {
+      gap: 4px;
+    }
+
+    @media (min-width: 640px) {
+      .control-bar-inner {
+        gap: 12px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      #control-bar {
+        bottom: 8px;
+      }
+
+      #control-bar > div {
+        max-width: calc(100vw - 16px);
+        overflow: hidden;
+      }
+
+      .text-xs {
+        font-size: 0.6rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hidden.xs\:block {
+        display: none !important;
+      }
+    }
+
+    @media (min-width: 481px) {
+      .hidden.xs\:block {
+        display: block !important;
+      }
+    }
+
+    /* Ultra Small Screen Adjustments */
+    @media (max-width: 320px) {
+      .control-bar-inner {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+        gap: 2px !important;
+      }
+
+      #control-bar button {
+        padding: 3px !important;
+      }
+
+      #control-bar svg {
+        width: 10px !important;
+        height: 10px !important;
+      }
+
+      #control-bar .glass {
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+        font-size: 0.45rem !important;
+      }
+
+      #control-bar .w-px {
+        height: 10px !important;
+        width: 0.5px !important;
+      }
+    }
+
+    /* Reset focus styles */
+    button:focus,
+    input:focus {
+      outline: none;
+    }
+
+    /* Interactive Element Styles */
+    #control-bar button {
+      /* Remove blue highlight on mobile */
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Navigation Panel */
+    #nav-panel {
+      position: absolute;
+      bottom: 72px;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      width: 260px;
+      padding: 16px 20px;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    #nav-panel.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* TOC Sidebar */
+    #toc-sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 10px 0 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    #toc-sidebar.visible {
+      transform: translateX(0);
+    }
+
+    .toc-item {
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      color: #9ca3af;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toc-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #f3f4f6;
+    }
+
+    .toc-item.active {
+      background: rgba(59, 130, 246, 0.1);
+      color: #60a5fa;
+      border-left-color: #3b82f6;
+    }
+
+    .toc-item .index {
+      font-family: monospace;
+      font-size: 0.75rem;
+      opacity: 0.5;
+      min-width: 20px;
+    }
+
+    /* Scrollbar for sidebar */
+    #toc-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    #toc-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    #toc-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    .nav-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #3b82f6;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.1s;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+    }
+
+    .nav-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+
+    /* Custom page input styling */
+    #nav-input {
+      font-variant-numeric: tabular-nums;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #nav-input::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Make counter clickable */
+    #slide-counter-btn {
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+
+    #slide-counter-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.05);
+    }
+
+    #slide-counter-btn:active {
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+
+<body class="h-full bg-gray-900 text-white font-sans overflow-hidden" style="touch-action: manipulation;">
+  <!-- Main Container -->
+  <div class="relative h-full flex items-center justify-center">
+
+    <!-- Slide Container -->
+    <div class="slide-container relative">
+      <!-- Loading Overlay -->
+      <div id="loading-overlay" class="absolute inset-0 bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-300">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p class="text-gray-400">Loading presentation...</p>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="absolute top-0 left-0 w-full h-1 bg-gray-800 z-40">
+        <div id="progress-bar" class="h-full bg-gradient-to-r from-blue-500 to-purple-600 progress-bar" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- TOC Sidebar -->
+    <div id="toc-sidebar">
+      <div class="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+        <h3 class="font-bold text-lg text-white tracking-tight">Contents</h3>
+        <button id="close-toc" class="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="toc-list" class="flex-1 overflow-y-auto py-2">
+        <!-- JS will populate this -->
+      </div>
+    </div>
+
+    <!-- TOC Overlay (Click to close) -->
+    <div id="toc-overlay" class="fixed inset-0 bg-black/50 z-50 hidden transition-opacity duration-300 opacity-0"></div>
+
+    <!-- Navigation Panel -->
+    <div id="nav-panel">
+      <!-- Page Input -->
+      <div class="flex items-center justify-center gap-3">
+        <div class="relative flex-1 max-w-[140px]">
+          <input type="text"
+                 id="nav-input"
+                 class="w-full px-4 py-2 bg-white/5 border-2 border-white/20 rounded-lg text-white text-center text-lg font-bold focus:border-blue-500 focus:bg-white/10 transition-all outline-none"
+                 placeholder="1"
+                 inputmode="numeric"
+                 pattern="[0-9]*">
+          <div class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
+            / <span id="nav-total">1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slider -->
+      <div class="px-1">
+        <input type="range" id="nav-slider" class="nav-slider" min="1" max="1" step="1">
+      </div>
+    </div>
+
+    <!-- Control Bar -->
+    <div id="control-bar" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 transition-transform duration-300 z-[60] max-w-[95vw]">
+      <div class="glass-dark rounded-xl px-2 sm:px-4 py-2 flex items-center shadow-2xl control-bar-inner">
+
+        <!-- TOC Button -->
+        <button id="toc-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+                title="Table of Contents">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+
+        <!-- Separator -->
+        <div class="w-px h-4 sm:h-6 bg-white/20 flex-shrink-0"></div>
+
+        <!-- Home Button (First Slide) -->
+        <button id="home-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+                title="First slide (Home)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+          </svg>
+        </button>
+
+        <!-- Previous Button -->
+        <button id="prev-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+                title="Previous slide (←)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+
+        <!-- Slide Counter -->
+        <div id="slide-counter-btn" class="glass rounded-md px-1.5 sm:px-3 py-1 text-xs font-medium text-center flex-shrink-0 whitespace-nowrap min-w-0" title="Click to jump to slide">
+          <span id="current-slide">1</span>
+          <span class="mx-0.5">/</span>
+          <span id="total-slides">1</span>
+        </div>
+
+        <!-- Next Button -->
+        <button id="next-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+                title="Next slide (→)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+
+        <!-- End Button (Last Slide) -->
+        <button id="end-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+                title="Last slide (End)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 5l7 7-7 7M17 5v14"/>
+          </svg>
+        </button>
+
+        <!-- Separator -->
+        <div class="w-px h-4 sm:h-6 bg-white/20 flex-shrink-0"></div>
+
+        <!-- Refresh Button -->
+        <button id="refresh-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+                title="Refresh slides and config (R)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+
+        <!-- Fullscreen Button -->
+        <button id="fullscreen-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0 hidden xs:block"
+                title="Toggle fullscreen (F11)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+          </svg>
+        </button>
+
+        <!-- Help Button -->
+        <button id="help-btn"
+                class="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0 hidden xs:block"
+                title="Keyboard shortcuts (?)">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+      <div class="glass-dark rounded-2xl p-8 max-w-md w-full max-h-[80vh] overflow-auto">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-xl font-bold">Keyboard Shortcuts</h3>
+          <button id="close-help" class="p-2 rounded-lg hover:bg-white/10">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Shortcuts List -->
+        <div class="space-y-3 text-sm">
+          <div class="flex justify-between">
+            <span class="text-gray-300">Next slide</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">→ / Space / PgDn</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-300">Previous slide</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">← / Shift+Space / PgUp</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-300">First slide</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">Home</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-300">Last slide</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">End</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-300">Fullscreen</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">F11</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-300">Refresh</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">R</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-300">Help</span>
+            <span class="font-mono bg-white/10 px-2 py-1 rounded">?</span>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="mt-6 pt-4 border-t border-white/20 text-xs text-gray-400">
+          <p>🎯 Fixed 16:9 Aspect Ratio</p>
+          <p>📐 Predictable Proportional Scaling</p>
+          <p>🎮 Presentation Remote Supported</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tip -->
+    <div id="nav-tip" class="fixed top-8 left-1/2 transform -translate-x-1/2 opacity-0 transition-opacity duration-300 z-50 pointer-events-none">
+      <div class="glass-dark rounded-2xl px-6 py-3 flex items-center space-x-3 shadow-2xl">
+        <div id="tip-icon" class="w-5 h-5"></div>
+        <span id="tip-text" class="text-white font-medium"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simple and clean slide presentation app
+    (function() {
+      'use strict';
+
+      // Application state - keep it simple
+      const state = {
+        slides: [],
+        currentIndex: 0,
+        isReady: false,
+        slidePaths: []
+      };
+
+      // Configuration
+      const CONFIG = {
+        PRELOAD_COUNT: 5 // Preload window size (prev/next)
+      };
+
+      // DOM elements - cache once
+      const dom = {
+        slideContainer: document.querySelector('.slide-container'),
+        loadingOverlay: document.getElementById('loading-overlay'),
+        progressBar: document.getElementById('progress-bar'),
+        currentSlideSpan: document.getElementById('current-slide'),
+        totalSlidesSpan: document.getElementById('total-slides'),
+        prevBtn: document.getElementById('prev-btn'),
+        nextBtn: document.getElementById('next-btn'),
+        homeBtn: document.getElementById('home-btn'),
+        refreshBtn: document.getElementById('refresh-btn'),
+        fullscreenBtn: document.getElementById('fullscreen-btn'),
+        helpBtn: document.getElementById('help-btn'),
+        helpModal: document.getElementById('help-modal'),
+        closeHelpBtn: document.getElementById('close-help'),
+        navTip: document.getElementById('nav-tip'),
+        tipIcon: document.getElementById('tip-icon'),
+        tipText: document.getElementById('tip-text'),
+        // Navigation Panel
+        navPanel: document.getElementById('nav-panel'),
+        slideCounterBtn: document.getElementById('slide-counter-btn'),
+        navInput: document.getElementById('nav-input'),
+        navTotal: document.getElementById('nav-total'),
+        navSlider: document.getElementById('nav-slider'),
+        endBtn: document.getElementById('end-btn'),
+        // TOC
+        tocBtn: document.getElementById('toc-btn'),
+        tocSidebar: document.getElementById('toc-sidebar'),
+        tocList: document.getElementById('toc-list'),
+        closeTocBtn: document.getElementById('close-toc'),
+        tocOverlay: document.getElementById('toc-overlay')
+      };
+
+      // Simple utility functions
+      function hideLoading() {
+        dom.loadingOverlay.style.opacity = '0';
+        dom.loadingOverlay.style.pointerEvents = 'none';
+      }
+
+      function showLoading() {
+        dom.loadingOverlay.style.opacity = '1';
+        dom.loadingOverlay.style.pointerEvents = 'auto';
+      }
+
+      function updateUI() {
+        // Update counter
+        dom.currentSlideSpan.textContent = state.currentIndex + 1;
+        dom.totalSlidesSpan.textContent = state.slidePaths.length;
+
+        // Update progress bar
+        const progress = state.slidePaths.length > 0
+          ? ((state.currentIndex + 1) / state.slidePaths.length) * 100
+          : 0;
+        dom.progressBar.style.width = `${progress}%`;
+
+        // Update navigation buttons
+        dom.prevBtn.disabled = state.currentIndex === 0;
+        dom.nextBtn.disabled = state.currentIndex >= state.slidePaths.length - 1;
+
+        // Update nav panel controls (always sync, even when hidden, to ensure correct state when reopened)
+        // 始终同步导航面板控件状态，即使隐藏时也更新，确保重新打开时状态正确
+        if (dom.navPanel) {
+          const current = state.currentIndex + 1;
+          const total = state.slidePaths.length;
+          dom.navInput.value = current;
+          dom.navSlider.value = current;
+          dom.navSlider.max = total;
+          dom.navTotal.textContent = total;
+        }
+
+                         // Update page title
+        const currentSlide = state.slides[state.currentIndex];
+        const projectName = window.slideApp.config?.name || 'Presentation';
+        if (currentSlide?.title) {
+          document.title = `${currentSlide.title} - ${projectName} - Super Magic Slides`;
+        } else {
+          document.title = `Slide ${state.currentIndex + 1} - ${projectName} - Super Magic Slides`;
+        }
+      }
+
+             function updateLayout() {
+         // Get dimensions from current slide or use default
+         const currentSlide = state.slides[state.currentIndex];
+         const slideDimensions = currentSlide?.dimensions || { width: 1920, height: 1080 };
+         const { width: slideWidth, height: slideHeight } = slideDimensions;
+
+         // Calculate responsive layout
+         const viewportWidth = window.innerWidth;
+         const viewportHeight = window.innerHeight;
+         const scale = Math.min(
+           (viewportWidth * 0.98) / slideWidth,
+           (viewportHeight * 0.98) / slideHeight
+         );
+
+         // Apply container dimensions
+         const containerWidth = slideWidth * scale;
+         const containerHeight = slideHeight * scale;
+         dom.slideContainer.style.width = `${containerWidth}px`;
+         dom.slideContainer.style.height = `${containerHeight}px`;
+
+         // Apply scaling to all slide iframes
+         state.slides.forEach(slide => {
+           const iframe = slide.iframe;
+           iframe.style.width = `${slideWidth}px`;
+           iframe.style.height = `${slideHeight}px`;
+           iframe.style.transform = `translate(-50%, -50%) scale(${scale})`;
+         });
+       }
+
+      function createSlideIframe(slidePath, index) {
+        const iframe = document.createElement('iframe');
+        iframe.className = 'slide-frame slide-transition';
+        // Note: src is not set here anymore to prevent eager loading
+
+        // Handle iframe load/error
+        iframe.addEventListener('load', () => onSlideLoad(index));
+        iframe.addEventListener('error', () => onSlideLoad(index));
+
+        return iframe;
+      }
+
+      function updateSlideVisibility() {
+        const current = state.currentIndex;
+        const total = state.slides.length;
+        const windowSize = CONFIG.PRELOAD_COUNT;
+
+        state.slides.forEach((slide, index) => {
+          const iframe = slide.iframe;
+          const dist = index - current;
+
+          // Check if inside preload window
+          const isInsideWindow = Math.abs(dist) <= windowSize;
+
+          if (index === current) {
+            // Current Slide
+            if (!iframe.classList.contains('active')) {
+              iframe.classList.remove('preloaded');
+              iframe.classList.add('active');
+              // Ensure display block is applied before opacity transition
+              iframe.style.display = 'block';
+            }
+
+            // Resume media if it was system-paused
+            try {
+              if (iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'resumeMedia' }, '*');
+              }
+            } catch (e) {
+              // Ignore errors
+            }
+
+            // Load if not loaded
+            loadSlideIframe(index);
+          } else {
+            // Not current (either Preloaded or Outside)
+
+            // CRITICAL: Pause media if it was playing
+            // Use try-catch because contentWindow might not be accessible or ready
+            try {
+              if (iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'pauseMedia' }, '*');
+              }
+            } catch (e) {
+              // Ignore errors (e.g. cross-origin restriction if applicable)
+            }
+
+            if (isInsideWindow) {
+              // Preloaded Slide
+              if (!iframe.classList.contains('preloaded')) {
+                iframe.classList.remove('active');
+                iframe.classList.add('preloaded');
+                iframe.style.display = 'block';
+              }
+              // Load if not loaded
+              loadSlideIframe(index);
+            } else {
+              // Outside Window
+              iframe.classList.remove('active', 'preloaded');
+              iframe.style.display = 'none';
+            }
+          }
+        });
+      }
+
+      function loadSlideIframe(index) {
+        if (index < 0 || index >= state.slides.length) return;
+
+        const slide = state.slides[index];
+        // If already loaded or loading, skip
+        if (slide.loaded || slide.isLoading) return;
+
+        // Mark as loading to prevent duplicate requests
+        slide.isLoading = true;
+
+        // Set src to trigger load
+        if (!slide.iframe.src) {
+           slide.iframe.src = slide.path;
+        }
+      }
+
+      function onSlideLoad(index) {
+        if (!state.slides[index]) return;
+
+        state.slides[index].loaded = true;
+        state.slides[index].isLoading = false;
+
+        // If this is the current slide, hide loading and update layout
+        if (!state.isReady && index === state.currentIndex) {
+          state.isReady = true;
+          hideLoading();
+          updateLayout();
+        }
+      }
+
+      function showSlide(index) {
+        if (index < 0 || index >= state.slidePaths.length) return;
+
+        state.currentIndex = index;
+
+        // Update visibility and load required slides
+        updateSlideVisibility();
+
+        // Update URL and UI
+        const url = new URL(window.location);
+        url.searchParams.set('slide', index + 1);
+        window.history.replaceState({ slide: index }, '', url);
+
+        updateLayout();
+        updateUI();
+        updateTOCActiveState();
+      }
+
+      function nextSlide() {
+        if (state.currentIndex < state.slidePaths.length - 1) {
+          showSlide(state.currentIndex + 1);
+        } else {
+          showNavTip('Already at last page');
+        }
+      }
+
+      function prevSlide() {
+        if (state.currentIndex > 0) {
+          showSlide(state.currentIndex - 1);
+        } else {
+          showNavTip('Already at first page');
+        }
+      }
+
+      function showNavTip(message) {
+        dom.tipIcon.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-5 h-5 text-blue-400">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>`;
+        dom.tipText.textContent = message;
+        dom.navTip.style.opacity = '1';
+
+        setTimeout(() => {
+          dom.navTip.style.opacity = '0';
+        }, 1000);
+      }
+
+      function toggleFullscreen() {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen();
+        }
+      }
+
+      function refreshApp() {
+        showLoading();
+        // Remove old config script
+        const oldScript = document.querySelector('script[src^="./magic.project.js"]');
+        if (oldScript) oldScript.remove();
+
+        // Load new config file with cache busting
+        const script = document.createElement('script');
+        script.src = './magic.project.js?t=' + Date.now();
+        script.onerror = function() {
+          console.warn('Config reload failed');
+          hideLoading();
+          showNavTip('Failed to reload config');
+        };
+        document.head.appendChild(script);
+      }
+
+      function toggleHelpModal(show) {
+        dom.helpModal.classList.toggle('hidden', !show);
+        dom.helpModal.classList.toggle('flex', show);
+      }
+
+      function toggleNavPanel(show) {
+        if (typeof show === 'undefined') {
+          show = !dom.navPanel.classList.contains('visible');
+        }
+
+        dom.navPanel.classList.toggle('visible', show);
+
+        if (show) {
+          // 强制同步导航面板状态（双重保险，确保滑块位置正确）
+          // Force sync nav panel state (double insurance to ensure slider position is correct)
+          const current = state.currentIndex + 1;
+          const total = state.slidePaths.length;
+
+          // 先重置为边界值，再设置目标值，强制浏览器重新渲染滑块位置
+          // Reset to boundary value first, then set target value to force browser to re-render slider position
+          dom.navSlider.value = 1;
+          dom.navSlider.max = total;
+
+          // 使用 requestAnimationFrame 确保渲染更新
+          // Use requestAnimationFrame to ensure render update
+          requestAnimationFrame(() => {
+            dom.navInput.value = current;
+            dom.navSlider.value = current;
+            dom.navTotal.textContent = total;
+
+            // 聚焦输入框并选中内容，用户可以直接输入
+            // Focus input and select content so user can type directly
+            setTimeout(() => {
+              dom.navInput.focus();
+              dom.navInput.select();
+            }, 50);
+          });
+        }
+      }
+
+      function toggleTOC(show) {
+        if (typeof show === 'undefined') {
+          show = !dom.tocSidebar.classList.contains('visible');
+        }
+
+        dom.tocSidebar.classList.toggle('visible', show);
+
+        if (show) {
+          dom.tocOverlay.classList.remove('hidden');
+          // Trigger reflow for transition
+          dom.tocOverlay.offsetHeight;
+          dom.tocOverlay.classList.remove('opacity-0');
+
+          // Scroll to active item
+          const activeItem = dom.tocList.querySelector('.toc-item.active');
+          if (activeItem) {
+            setTimeout(() => {
+              activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 300);
+          }
+        } else {
+          dom.tocOverlay.classList.add('opacity-0');
+          setTimeout(() => {
+            if (!dom.tocSidebar.classList.contains('visible')) {
+              dom.tocOverlay.classList.add('hidden');
+            }
+          }, 300);
+        }
+      }
+
+      function renderTOC() {
+        if (!state.slidePaths.length) return;
+
+        dom.tocList.innerHTML = state.slidePaths.map((path, index) => {
+          // Clean title: remove path prefix and .html extension
+          let title = path.split('/').pop().replace('.html', '');
+          // URL decode just in case
+          try { title = decodeURIComponent(title); } catch(e) {}
+
+          const isActive = index === state.currentIndex ? 'active' : '';
+
+          return `
+            <div class="toc-item ${isActive}" onclick="window.slideApp.jumpTo(${index})">
+              <span class="index">${index + 1}</span>
+              <span class="truncate">${title}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Expose jump function globally for onclick handlers
+      window.slideApp.jumpTo = function(index) {
+        showSlide(index);
+        toggleTOC(false);
+      };
+
+      function updateTOCActiveState() {
+        // Update active class in TOC
+        const items = dom.tocList.querySelectorAll('.toc-item');
+        items.forEach((item, index) => {
+          if (index === state.currentIndex) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      }
+
+      function handleKeyDown(eventOrData) {
+        // ========================================================================
+        // CRITICAL: Unified keyboard event handler for iframe communication
+        // ========================================================================
+        // This function handles TWO types of input:
+        // 1. Real KeyboardEvent objects (from parent window direct keyboard input)
+        // 2. Plain data objects (forwarded from iframe via postMessage)
+        //
+        // WHY THIS DESIGN IS NECESSARY:
+        // - Iframe slides use slide-bridge.js to forward keyboard events via postMessage
+        // - postMessage can only send serializable data, NOT real Event objects
+        // - So iframe sends: {key: 'ArrowLeft', shiftKey: false}
+        // - But parent window gets real events: KeyboardEvent {key: 'ArrowLeft', ...}
+        //
+        // PREVIOUS BUG:
+        // - Code tried to call data.preventDefault() on forwarded data objects
+        // - This caused "TypeError: data.preventDefault is not a function"
+        // - Result: iframe keyboard navigation completely broken
+        //
+        // DO NOT SPLIT THIS FUNCTION - it would reintroduce the bug!
+        // ========================================================================
+
+        const isRealEvent = eventOrData && typeof eventOrData.preventDefault === 'function';
+        const key = eventOrData.key;
+        const shiftKey = eventOrData.shiftKey;
+
+        // Handle TOC
+        if (dom.tocSidebar.classList.contains('visible')) {
+          if (key === 'Escape') {
+            toggleTOC(false);
+            return;
+          }
+        }
+
+        // Handle help modal
+        if (dom.helpModal.classList.contains('flex')) {
+          if (key === 'Escape') {
+            toggleHelpModal(false);
+          }
+          return;
+        }
+
+        // Handle nav panel
+        if (dom.navPanel.classList.contains('visible')) {
+          if (key === 'Escape') {
+            toggleNavPanel(false);
+            return;
+          }
+          if (key === 'Enter') {
+             // Let input handler handle it, or handle here if focus is not on input
+             // But usually enter on input triggers change/keydown
+          }
+        }
+
+        // Prevent default for navigation keys (only for real events)
+        if (isRealEvent) {
+          const navKeys = [
+            'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+            ' ', 'Home', 'End',
+            'PageUp', 'PageDown'  // 翻页笔按键 / Presentation remote keys
+          ];
+          if (navKeys.includes(key)) {
+            eventOrData.preventDefault();
+          }
+        }
+
+        // Handle navigation
+        switch (key) {
+          case 'ArrowLeft':
+          case 'ArrowUp':
+          case 'PageUp':      // 翻页笔上一页 / Presentation remote previous
+          case 'p':           // 部分翻页笔 / Some remotes
+          case 'P':
+          case 'b':           // Back（部分翻页笔）/ Back (some remotes)
+          case 'B':
+            prevSlide();
+            break;
+          case 'ArrowRight':
+          case 'ArrowDown':
+          case 'PageDown':    // 翻页笔下一页 / Presentation remote next
+          case 'n':           // Next（部分翻页笔）/ Next (some remotes)
+          case 'N':
+            nextSlide();
+            break;
+          case ' ':
+            shiftKey ? prevSlide() : nextSlide();
+            break;
+          case 'Home':
+            showSlide(0);
+            break;
+          case 'End':
+            showSlide(state.slidePaths.length - 1);
+            break;
+          case '?':
+            toggleHelpModal(true);
+            break;
+          case 'F11':
+            toggleFullscreen();
+            break;
+          case 'r':
+          case 'R':
+            refreshApp();
+            break;
+          case 'Escape':
+            if (document.fullscreenElement) {
+              document.exitFullscreen();
+            }
+            break;
+        }
+      }
+
+      function setupEventListeners() {
+        // Button events
+        dom.prevBtn.addEventListener('click', prevSlide);
+        dom.nextBtn.addEventListener('click', nextSlide);
+        dom.homeBtn.addEventListener('click', () => showSlide(0));
+        dom.endBtn.addEventListener('click', () => showSlide(state.slidePaths.length - 1));
+        dom.refreshBtn.addEventListener('click', refreshApp);
+        dom.fullscreenBtn.addEventListener('click', toggleFullscreen);
+        dom.helpBtn.addEventListener('click', () => toggleHelpModal(true));
+        dom.closeHelpBtn.addEventListener('click', () => toggleHelpModal(false));
+
+        // TOC Events
+        dom.tocBtn.addEventListener('click', () => toggleTOC());
+        dom.closeTocBtn.addEventListener('click', () => toggleTOC(false));
+        dom.tocOverlay.addEventListener('click', () => toggleTOC(false));
+
+        // ========================================================================
+        // Navigation Panel Events
+        // ========================================================================
+        dom.slideCounterBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleNavPanel();
+        });
+
+        // Close panel when clicking outside
+        document.addEventListener('click', (e) => {
+          if (dom.navPanel && dom.navPanel.classList.contains('visible') &&
+              !dom.navPanel.contains(e.target) &&
+              !dom.slideCounterBtn.contains(e.target)) {
+            toggleNavPanel(false);
+          }
+        });
+
+        // Slider interactions
+        dom.navSlider.addEventListener('input', (e) => {
+          dom.navInput.value = e.target.value;
+        });
+
+        dom.navSlider.addEventListener('change', (e) => {
+          const page = parseInt(e.target.value, 10);
+          showSlide(page - 1);
+        });
+
+        // Input interactions - 只允许数字输入
+        // Input interactions - only allow numeric input
+        dom.navInput.addEventListener('input', (e) => {
+          // 只保留数字
+          // Keep only digits
+          e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        });
+
+        dom.navInput.addEventListener('change', () => {
+          let page = parseInt(dom.navInput.value, 10);
+          if (isNaN(page) || page < 1) {
+            dom.navInput.value = state.currentIndex + 1;
+            return;
+          }
+          page = Math.max(1, Math.min(page, state.slidePaths.length));
+          showSlide(page - 1);
+          toggleNavPanel(false);
+        });
+
+        dom.navInput.addEventListener('keydown', (e) => {
+          e.stopPropagation(); // Prevent global shortcuts
+          if (e.key === 'Enter') {
+            dom.navInput.blur(); // Trigger change event
+          } else if (e.key === 'Escape') {
+            toggleNavPanel(false);
+          }
+        });
+
+        // Modal click outside to close
+        dom.helpModal.addEventListener('click', (e) => {
+          if (e.target === dom.helpModal) {
+            toggleHelpModal(false);
+          }
+        });
+
+        // System events
+        window.addEventListener('resize', updateLayout);
+
+        // 键盘事件监听：使用捕获阶段以便在 Windows 上更早捕获事件
+        // Keyboard event listener: use capture phase to catch events earlier on Windows
+        // 注意：只使用一个监听器避免重复触发
+        // Note: Use only one listener to avoid duplicate triggers
+        document.addEventListener('keydown', handleKeyDown, true);
+
+        // Fullscreen change
+        document.addEventListener('fullscreenchange', () => {
+          dom.fullscreenBtn.title = document.fullscreenElement
+            ? 'Exit fullscreen (F11)'
+            : 'Toggle fullscreen (F11)';
+        });
+
+        // Browser navigation
+        window.addEventListener('popstate', (e) => {
+          if (e.state && typeof e.state.slide === 'number') {
+            showSlide(e.state.slide);
+          }
+        });
+
+        // Touch navigation for mobile
+        let touchStartX = 0;
+        document.addEventListener('touchstart', (e) => {
+          touchStartX = e.touches[0].clientX;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+          const touchEndX = e.changedTouches[0].clientX;
+          const deltaX = touchStartX - touchEndX;
+
+          if (Math.abs(deltaX) > 50) {
+            deltaX > 0 ? nextSlide() : prevSlide();
+          }
+        }, { passive: true });
+
+         // ========================================================================
+         // CRITICAL: Iframe Communication Handler
+         // ========================================================================
+         // Handle messages from iframe slides via postMessage API
+         // IMPORTANT: This is the bridge between iframe slides and parent presentation
+         //
+         // Message Types:
+         // - 'keydown': Keyboard events forwarded from iframe (slide-bridge.js)
+         // - 'titleUpdate': Slide title changes
+         // - 'dimensionsUpdate': Slide dimension changes for responsive layout
+         // ========================================================================
+         window.addEventListener('message', (event) => {
+           // 安全检查：确保消息来自我们的 iframe
+           // Security check: ensure message is from our iframe
+           const sourceSlide = state.slides.find(s => s.iframe.contentWindow === event.source);
+           if (!sourceSlide) return;
+
+           const { type, ...data } = event.data;
+
+           switch (type) {
+             case 'keydown':
+               // CRITICAL: Forward keyboard events from iframe to unified handler
+               // Data format: {key: string, shiftKey: boolean} - NOT a real Event object
+               // See handleKeyDown() function comments for detailed explanation
+               handleKeyDown(data);
+               break;
+
+             case 'titleUpdate':
+               // Update slide title and page title if it's current slide
+               sourceSlide.title = data.title;
+               if (sourceSlide === state.slides[state.currentIndex]) {
+                 const projectName = window.slideApp.config?.name || 'Presentation';
+                 document.title = `${data.title} - ${projectName} - Super Magic Slides`;
+               }
+               break;
+
+             case 'dimensionsUpdate':
+               // Update slide dimensions for responsive layout
+               console.log(`Slide dimensions updated: ${data.width}x${data.height}`);
+               sourceSlide.dimensions = { width: data.width, height: data.height };
+
+               // Update layout if it's the current slide
+               if (sourceSlide === state.slides[state.currentIndex]) {
+                 updateLayout();
+               }
+               break;
+           }
+         }, false); // 使用冒泡阶段 / Use bubbling phase
+      }
+
+      function loadSlides() {
+        // Reset ready state for reloading
+        state.isReady = false;
+
+        // Clear any existing slides
+        state.slides = [];
+        // Enhanced cleanup to prevent memory leaks
+        dom.slideContainer.querySelectorAll('iframe').forEach(iframe => {
+          try {
+            // Detach from DOM logic first to help GC
+            iframe.src = 'about:blank';
+          } catch (e) {
+            // Ignore errors during cleanup
+          }
+          iframe.remove();
+        });
+
+        // Get slide paths from config
+        state.slidePaths = window.slideApp.config?.slides || [];
+
+        // Update TOC with new slides
+        renderTOC();
+
+        if (state.slidePaths.length === 0) {
+          hideLoading();
+          console.warn('No slides configured');
+          return;
+        }
+
+        console.log(`Loading ${state.slidePaths.length} slides:`, state.slidePaths);
+
+        // Create slide iframes
+        state.slidePaths.forEach((slidePath, index) => {
+          const iframe = createSlideIframe(slidePath, index);
+          dom.slideContainer.appendChild(iframe);
+
+          state.slides[index] = {
+            iframe,
+            path: slidePath,
+            loaded: false,
+            isLoading: false,
+            title: null
+          };
+        });
+
+        // Show initial slide
+        const urlParams = new URLSearchParams(window.location.search);
+        const slideParam = parseInt(urlParams.get('slide'), 10) - 1;
+        const initialIndex = (slideParam >= 0 && slideParam < state.slidePaths.length) ? slideParam : 0;
+
+        // Ensure initial slide is loaded immediately
+        // loadSlideIframe(initialIndex); // handled by updateSlideVisibility
+
+        // Preload neighbors for initial slide
+        // preloadNeighbors(initialIndex); // handled by updateSlideVisibility
+
+        updateLayout();
+        showSlide(initialIndex);
+      }
+
+      // Main initialization function
+      function initApp() {
+        console.log('Initializing slide app...');
+
+        // Setup event listeners
+        setupEventListeners();
+
+        // Load slides from config
+        loadSlides();
+
+        // Initial TOC render
+        renderTOC();
+
+        // Expose reload function for external updates
+        window.slideApp.reload = function() {
+          loadSlides();
+        };
+      }
+
+      // Wait for DOM and config to be ready
+      function waitForReady() {
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', waitForReady);
+          return;
+        }
+
+        if (window.slideApp.isConfigLoaded) {
+          initApp();
+        } else {
+          // Set the init function to be called when config loads
+          window.slideApp.init = initApp;
+        }
+      }
+
+      // Start the application
+      waitForReady();
+    })();
+  </script>
+</body>
+</html>
