@@ -1,0 +1,97 @@
+{
+	"common": {
+		"error": "Operation failed, please try again",
+		"loading": "Processing..."
+	},
+	"errors": {
+		"accountActivated": "Tips",
+		"accountActivatedContent": "Account activated, please return to home",
+		"missingParameters": "Missing required parameters",
+		"ok": "OK",
+		"returnHome": "Return to Home"
+	},
+	"profile": {
+		"button": {
+			"submit": "Confirm Submit"
+		},
+		"company": {
+			"license": {
+				"label": "Business License",
+				"numberPlaceholder": "Enter credit code",
+				"numberRequired": "Please enter license number",
+				"typeRequired": "Please select license type",
+				"types": {
+					"businessLicense": "Business License",
+					"creditCode": "Credit Code",
+					"organizationCode": "Organization Code"
+				}
+			},
+			"name": {
+				"label": "Company Name",
+				"placeholder": "Enter full company name",
+				"required": "Please enter company name"
+			},
+			"type": {
+				"label": "Company Type",
+				"options": {
+					"manufacturing": "Manufacturing",
+					"other": "Other",
+					"service": "Service Industry",
+					"technology": "Technology Company",
+					"trade": "Trading Company"
+				},
+				"placeholder": "Select company type",
+				"required": "Please select company type"
+			}
+		},
+		"contact": {
+			"name": {
+				"label": "Company Contact",
+				"labelIndividual": "Contact Person",
+				"placeholder": "Enter contact name",
+				"required": "Please enter contact name"
+			},
+			"phone": {
+				"invalid": "Please enter a valid phone number",
+				"label": "Contact Phone",
+				"placeholder": "Enter contact phone",
+				"required": "Please enter contact phone"
+			}
+		},
+		"title": "Complete Profile",
+		"type": {
+			"company": "Enterprise Partner",
+			"individual": "Individual Partner",
+			"label": "Type"
+		}
+	},
+	"setPassword": {
+		"button": {
+			"confirm": "Confirm",
+			"skip": "Skip, don't set password for now"
+		},
+		"description": "To ensure your account security, we recommend setting a login password with at least 8 characters",
+		"form": {
+			"label": "Password",
+			"placeholder": "Please enter a password with at least 8 characters, containing letters and numbers",
+			"validation": {
+				"combinationError": "Please include letters and numbers / letters and special characters / numbers and special characters",
+				"lengthError": "Password must be at least 8 characters long"
+			}
+		},
+		"title": "Set Password"
+	},
+	"verification": {
+		"button": {
+			"activate": "Activate",
+			"cancel": "Cancel Activation"
+		},
+		"codeInvalid": "Verification code error, please re-enter",
+		"greeting": ", hello!",
+		"instruction": "Please use the following phone number to get verification code and join the organization",
+		"invitation": {
+			"member": " is inviting you to join",
+			"partner": " is inviting you to become a partner"
+		}
+	}
+}

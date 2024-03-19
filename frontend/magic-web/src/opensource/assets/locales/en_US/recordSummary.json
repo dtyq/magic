@@ -1,0 +1,30 @@
+{
+	"audioSource": {
+		"both": {
+			"desc": "Record both microphone and system audio",
+			"label": "Mixed Audio"
+		},
+		"errors": {
+			"initializationFailed": "Switch failed: Recorder initialization failed, please retry",
+			"invalidState": "Switch failed: Current state does not allow switching audio source",
+			"notSupported": "Switch failed: Current browser does not support this audio source",
+			"permissionDenied": "Switch failed: User denied microphone or screen share permission",
+			"resumePermissionDenied": "System audio permission is required to continue recording",
+			"streamCaptureFailed": "Switch failed: Unable to capture audio stream, please check device connection",
+			"unknown": "Failed to switch audio source, please try again"
+		},
+		"fallback": "Audio source automatically switched to {{source}}",
+		"microphone": {
+			"desc": "Record microphone audio only",
+			"label": "Microphone"
+		},
+		"switchFailed": "Failed to switch audio source, please try again",
+		"switchFailedButRecovered": "Failed to switch audio source, but previous source was kept and recording continues",
+		"switchSuccess": "Audio source switched successfully",
+		"switching": "Switching audio source...",
+		"system": {
+			"desc": "Record system audio only (via screen share)",
+			"label": "System Audio"
+		}
+	}
+}

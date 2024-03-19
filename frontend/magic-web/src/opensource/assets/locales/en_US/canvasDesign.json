@@ -1,0 +1,349 @@
+{
+	"common": {
+		"cancel": "Cancel",
+		"close": "Close",
+		"confirm": "Confirm",
+		"delete": "Delete",
+		"edit": "Edit",
+		"ok": "OK",
+		"save": "Save"
+	},
+	"dropOverlay": {
+		"loading": "Loading",
+		"releaseToAddToCanvas": "Release to add to canvas",
+		"releaseToUpload": "Release to upload file",
+		"releaseToUploadImage": "Release to upload image"
+	},
+	"elementTools": {
+		"elementAlign": {
+			"bottom": "Bottom",
+			"horizontalCenter": "Center",
+			"left": "Left",
+			"right": "Right",
+			"top": "Top",
+			"verticalCenter": "Middle"
+		},
+		"elementDistribute": {
+			"autoLayout": "Auto Layout",
+			"horizontalSpacing": "Horizontal Spacing",
+			"verticalSpacing": "Vertical Spacing"
+		},
+		"fillColor": {
+			"title": "Fill"
+		},
+		"fontFamily": {
+			"placeholder": "Font"
+		},
+		"fontStyle": {
+			"placeholder": "Font Weight"
+		},
+		"imageConvertHight": {
+			"title": "High Definition Upscale"
+		},
+		"shapeStyle": {
+			"advanced": "Advanced",
+			"cornerRadius": "Corner Radius",
+			"innerRadiusRatio": "Inner Radius Ratio",
+			"opacity": "Opacity",
+			"sides": "Sides"
+		},
+		"strokeColor": {
+			"title": "Stroke"
+		},
+		"textAdvanced": {
+			"list": {
+				"bullet": "Bullet List",
+				"none": "None",
+				"ordered": "Ordered List"
+			},
+			"textCase": {
+				"lower": "Lowercase",
+				"none": "None",
+				"sensitive": "Case Sensitive",
+				"upper": "Uppercase"
+			},
+			"textDecoration": {
+				"none": "None",
+				"strikethrough": "Strikethrough",
+				"underline": "Underline"
+			},
+			"textWidth": {
+				"auto": "Auto Width",
+				"fixed": "Fixed Width"
+			}
+		},
+		"textAlign": {
+			"center": "Center",
+			"left": "Left",
+			"right": "Right"
+		}
+	},
+	"ellipse": {
+		"defaultName": "Ellipse"
+	},
+	"frame": {
+		"defaultName": "Frame"
+	},
+	"group": {
+		"defaultName": "Group"
+	},
+	"image": {
+		"defaultName": "Image Generator",
+		"empty": "Please send an instruction to generate an image",
+		"errorPrefix": "Image generation failed, ",
+		"errorRetry": "Click to retry",
+		"generateFailed": "Image generation failed",
+		"generating": "Generating...",
+		"generatorName": "Image Generator",
+		"loadError": "Failed to load image",
+		"loading": "Loading...",
+		"nameSuffix": {
+			"failed": "(Failed)",
+			"generating": "(Generating)",
+			"loading": "(Loading)",
+			"uploading": "(Uploading)"
+		},
+		"nameWithIndex": "Image {{index}}",
+		"uploadFailed": "Image upload failed",
+		"uploading": "Uploading..."
+	},
+	"imageEditor": {
+		"currentImage": "(Current Image)",
+		"custom": "Custom",
+		"editPlaceholder": "Please enter your edit requirements",
+		"maxReferenceImagesReached": "Maximum {{maxReferenceImages}} reference images allowed",
+		"originalImage": "Original Image",
+		"placeholder": "Please enter your creative requirements",
+		"referenceImage": "Reference Image",
+		"size": "Size"
+	},
+	"layers": {
+		"collapse": "Collapse",
+		"empty": {
+			"description": "Let AI help you easily generate various creative images!",
+			"title": "Canvas is empty"
+		},
+		"title": "Layers"
+	},
+	"menu": {
+		"addFrame": "Add Frame",
+		"addToCurrentConversation": "Add to Current Conversation",
+		"addToNewConversation": "Add to New Topic",
+		"copy": "Copy",
+		"copyPng": "Copy as PNG",
+		"copySuccess": "Copy successful",
+		"delete": "Delete",
+		"downloadFile": "Download File",
+		"downloadImage": "Download Image",
+		"downloadImageNoWatermark": "Download Image (No Watermark)",
+		"hide": "Hide",
+		"lock": "Lock",
+		"moveDown": "Move Down",
+		"moveToBottom": "Move to Bottom",
+		"moveToTop": "Move to Top",
+		"moveUp": "Move Up",
+		"paste": "Paste",
+		"removeFrame": "Remove Frame",
+		"show": "Show",
+		"unlock": "Unlock"
+	},
+	"messageHistory": {
+		"model": "Model",
+		"noPrompt": "No prompt",
+		"prompt": "Prompt",
+		"referenceImage": "Reference Image",
+		"size": "Size",
+		"title": "Generation History"
+	},
+	"rectangle": {
+		"defaultName": "Rectangle"
+	},
+	"shortcuts": {
+		"align": {
+			"bottom": {
+				"description": "Align selected elements to bottom",
+				"name": "Align Bottom"
+			},
+			"horizontalCenter": {
+				"description": "Align selected elements to center horizontally",
+				"name": "Align Center"
+			},
+			"left": {
+				"description": "Align selected elements to left",
+				"name": "Align Left"
+			},
+			"right": {
+				"description": "Align selected elements to right",
+				"name": "Align Right"
+			},
+			"top": {
+				"description": "Align selected elements to top",
+				"name": "Align Top"
+			},
+			"verticalCenter": {
+				"description": "Align selected elements to center vertically",
+				"name": "Align Middle"
+			}
+		},
+		"distribute": {
+			"autoLayout": {
+				"description": "Auto arrange selected elements",
+				"name": "Auto Layout"
+			},
+			"horizontalSpacing": {
+				"description": "Distribute selected elements evenly horizontally",
+				"name": "Distribute Horizontally"
+			},
+			"verticalSpacing": {
+				"description": "Distribute selected elements evenly vertically",
+				"name": "Distribute Vertically"
+			}
+		},
+		"edit": {
+			"copy": {
+				"description": "Copy selected element",
+				"name": "Copy"
+			},
+			"delete": {
+				"description": "Delete selected element",
+				"name": "Delete"
+			},
+			"deleteBackspace": {
+				"description": "Delete selected element",
+				"name": "Delete (Backspace)"
+			},
+			"paste": {
+				"description": "Paste element",
+				"name": "Paste"
+			},
+			"redo": {
+				"description": "Redo last action",
+				"name": "Redo"
+			},
+			"undo": {
+				"description": "Undo last action",
+				"name": "Undo"
+			}
+		},
+		"element": {
+			"toggleLock": {
+				"description": "Toggle lock state of selected element",
+				"name": "Toggle Lock"
+			},
+			"toggleVisible": {
+				"description": "Toggle visibility of selected element",
+				"name": "Toggle Visibility"
+			}
+		},
+		"frame": {
+			"create": {
+				"description": "Create frame for selected element",
+				"name": "Create Frame"
+			},
+			"remove": {
+				"description": "Remove selected frame",
+				"name": "Remove Frame"
+			}
+		},
+		"layer": {
+			"moveDown": {
+				"description": "Move selected element down one layer",
+				"name": "Move Down"
+			},
+			"moveToBottom": {
+				"description": "Move selected element to bottom",
+				"name": "Move to Bottom"
+			},
+			"moveToTop": {
+				"description": "Move selected element to top",
+				"name": "Move to Top"
+			},
+			"moveUp": {
+				"description": "Move selected element up one layer",
+				"name": "Move Up"
+			}
+		},
+		"selection": {
+			"selectAll": {
+				"description": "Select all elements",
+				"name": "Select All"
+			}
+		},
+		"tool": {
+			"frame": {
+				"description": "Temporarily switch to frame tool",
+				"name": "Frame Tool"
+			},
+			"imageGenerator": {
+				"description": "Temporarily switch to image generator tool",
+				"name": "Image Generator Tool"
+			},
+			"marker": {
+				"description": "Temporarily switch to marker tool",
+				"name": "Marker Tool"
+			},
+			"pan": {
+				"description": "Temporarily switch to pan tool",
+				"name": "Pan Tool"
+			},
+			"panSpace": {
+				"description": "Hold Space to temporarily pan canvas",
+				"name": "Pan Tool (Space)"
+			},
+			"selection": {
+				"description": "Switch to selection tool",
+				"name": "Selection Tool"
+			},
+			"text": {
+				"description": "Temporarily switch to text tool",
+				"name": "Text Tool"
+			}
+		},
+		"view": {
+			"zoomFit": {
+				"description": "Fit to screen",
+				"name": "Fit to Screen"
+			},
+			"zoomIn": {
+				"description": "Zoom in canvas",
+				"name": "Zoom In"
+			},
+			"zoomOut": {
+				"description": "Zoom out canvas",
+				"name": "Zoom Out"
+			},
+			"zoomToActualSize": {
+				"description": "Zoom to 100%",
+				"name": "Zoom to Actual Size"
+			}
+		}
+	},
+	"sizeSelect": {
+		"custom": "Custom",
+		"selectSize": "Select Size"
+	},
+	"star": {
+		"defaultName": "Star"
+	},
+	"text": {
+		"defaultName": "Text"
+	},
+	"tools": {
+		"frame": "Frame",
+		"hand": "Hand Tool",
+		"imageGenerator": "Image Generator",
+		"marker": "Marker",
+		"selection": "Selection Tool",
+		"space": "Space",
+		"text": "Text"
+	},
+	"triangle": {
+		"defaultName": "Triangle"
+	},
+	"zoom": {
+		"fitToScreen": "Fit to Screen",
+		"zoomIn": "Zoom In",
+		"zoomOut": "Zoom Out",
+		"zoomTo": "Zoom to {{percent}}%"
+	}
+}

@@ -1,0 +1,118 @@
+{
+	"actions": {
+		"finish": "Complete Initialization",
+		"next": "Next",
+		"previous": "Previous",
+		"submitting": "Submitting..."
+	},
+	"errors": {
+		"submitFailed": "Initialization failed, please try again"
+	},
+	"step1": {
+		"adminPassword": "Admin Password",
+		"adminPasswordPlaceholder": "At least 8 characters, including letters and numbers",
+		"adminPhone": "Admin Phone",
+		"adminPhonePlaceholder": "Please enter 11-digit phone number",
+		"agentDescription": "Agent Description",
+		"agentDescriptionPlaceholder": "Briefly describe the functionality and purpose of this Agent...",
+		"agentLogo": "Agent Logo",
+		"agentName": "Agent Name",
+		"agentNamePlaceholder": "e.g., Smart Customer Service Assistant",
+		"confirmPassword": "Confirm Password",
+		"confirmPasswordPlaceholder": "Enter password again",
+		"logoUploadFormat": "Supports JPG, PNG format, recommended size 200x200",
+		"logoUploadHint": "Click to upload or drag and drop image here",
+		"subtitle": "Set up your Agent information and administrator account",
+		"title": "Initialize Admin Account"
+	},
+	"step2": {
+		"apiUrlHint": "Complete address of the API service",
+		"awsAccessKey": "AWS Access Key",
+		"awsRegion": "AWS Region",
+		"awsRegionPlaceholder": "e.g., us-east-1",
+		"awsSecretKey": "AWS Secret Key",
+		"azureApiVersion": "Azure API Version",
+		"azureApiVersionHint": "Azure API version following YYYY-MM-DD format",
+		"azureApiVersionPlaceholder": "e.g., 2024-02-15",
+		"deploymentName": "Deployment Name",
+		"deploymentNameHint": "Model deployment identifier (required for Azure OpenAI)",
+		"deploymentNamePlaceholder": "e.g., gpt-4-turbo",
+		"errors": {
+			"missingConfig": "Please fill in API URL and API Key first"
+		},
+		"provider": "Select Provider",
+		"providers": {
+			"AWSBedrock": "Amazon Bedrock",
+			"DashScope": "Aliyun (Bailian)",
+			"DeepSeek": "DeepSeek",
+			"Gemini": "Google (AI Studio)",
+			"MicrosoftAzure": "Microsoft Azure",
+			"OpenAI": "Custom Provider",
+			"OpenRouter": "OpenRouter",
+			"Volcengine": "Volcengine"
+		},
+		"subtitle": "Select and configure your AI model service provider",
+		"testConnection": "Test Connection",
+		"testError": "Connection test failed, please check network or configuration",
+		"testFailed": "Connection failed, please check configuration",
+		"testSuccess": "Connection successful",
+		"title": "Configure AI Provider"
+	},
+	"step3": {
+		"infoDescription": "You can select one or more digital workers based on your actual needs. After initialization, you can adjust the configuration in system settings at any time.",
+		"infoTitle": "Tip",
+		"selectWorkers": "Select Digital Workers",
+		"subtitle": "Configure the required AI digital workers for your system",
+		"title": "Select Digital Workers",
+		"workers": {
+			"data_analysis": {
+				"description": "Professional data processing expert for data cleaning, statistical analysis, visualization, and insights",
+				"name": "Data Analysis Worker",
+				"tags": [
+					"Data Cleaning",
+					"Statistical Analysis",
+					"Chart Generation",
+					"Trend Prediction"
+				]
+			},
+			"design": {
+				"description": "Creative design assistant for UI/UX design, image generation, and visual solutions",
+				"name": "Design Worker",
+				"tags": ["UI Design", "Image Generation", "Color Schemes", "Brand Design"]
+			},
+			"general": {
+				"description": "Versatile AI assistant for daily conversations, inquiries, and general task handling",
+				"name": "General Worker",
+				"tags": ["Conversation", "Information Query", "Task Assistance"]
+			},
+			"ppt": {
+				"description": "Presentation expert for generating structured PPTs, beautifying layouts, and content optimization",
+				"name": "Presentation Worker",
+				"tags": [
+					"PPT Creation",
+					"Content Layout",
+					"Template Application",
+					"Visual Enhancement"
+				]
+			},
+			"summary": {
+				"description": "Meeting recording expert for extracting key information, generating minutes, and action item lists",
+				"name": "Meeting Minutes Worker",
+				"tags": [
+					"Meeting Recording",
+					"Key Point Extraction",
+					"Minutes Generation",
+					"Task Tracking"
+				]
+			}
+		}
+	},
+	"steps": {
+		"step1": "Admin Account",
+		"step2": "Provider Config",
+		"step3": "Digital Workers"
+	},
+	"subtitle": "Let's take a few minutes to complete the initialization setup",
+	"title": "MagiCrew",
+	"welcomeTo": "Welcome to"
+}

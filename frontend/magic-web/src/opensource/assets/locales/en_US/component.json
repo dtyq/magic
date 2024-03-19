@@ -1,0 +1,188 @@
+{
+	"freePointsReward": {
+		"description": "Today's reward points expire at midnight. Come back tomorrow for more!",
+		"pointsCredited": "Points Credited",
+		"title": "Login Reward",
+		"useNow": "Use Now"
+	},
+	"magicDatePicker": {
+		"selectDate": "Select date"
+	},
+	"magicDocxRender": {
+		"actions": {
+			"download": "Download File",
+			"fullscreen": "Toggle Fullscreen",
+			"reload": "Reload"
+		},
+		"dropdown": {
+			"download": "Download",
+			"fullscreen": "Fullscreen",
+			"navigation": "Navigation",
+			"nextSection": "Next Section",
+			"prevSection": "Previous Section",
+			"reload": "Reload",
+			"zoomIn": "Zoom In",
+			"zoomOut": "Zoom Out",
+			"zoomScale": "Zoom:"
+		},
+		"error": {
+			"failedToLoad": "Failed to load DOCX file",
+			"networkError": "Network Error",
+			"renderError": "Render Error",
+			"unknown": "Unknown Error"
+		},
+		"navigation": {
+			"nextSection": "Next Section",
+			"prevSection": "Previous Section",
+			"sectionInfo": "Section {{current}} of {{total}}",
+			"sectionInput": "Section Number"
+		},
+		"status": {
+			"downloadUnavailable": "Unable to download this document",
+			"fileTooLarge": "File too large. Maximum size is 50MB.",
+			"invalidFileType": "Invalid file type. Only .docx files are supported.",
+			"loadFailed": "Failed to load, please try again",
+			"loading": "Loading DOCX file...",
+			"loadingProgress": "Loading Progress",
+			"noFile": "Please select a DOCX file to preview",
+			"retry": "Retry",
+			"sectionLoadFailed": "Section failed to load"
+		},
+		"toolbar": {
+			"download": "Download",
+			"fullscreen": "Fullscreen (F11)",
+			"moreActions": "More Actions",
+			"nextSection": "Next Section (→)",
+			"prevSection": "Previous Section (←)",
+			"reload": "Reload",
+			"zoomIn": "Zoom In (+)",
+			"zoomOut": "Zoom Out (-)"
+		},
+		"zoom": {
+			"scaleInput": "Scale Input",
+			"zoomIn": "Zoom In",
+			"zoomOut": "Zoom Out",
+			"zoomScale": "Zoom Scale"
+		}
+	},
+	"magicPdfRender": {
+		"dropdown": {
+			"download": "Download",
+			"fullscreen": "Fullscreen",
+			"pageNav": "Page:",
+			"reload": "Reload",
+			"rotateLeft": "Rotate Left",
+			"rotateRight": "Rotate Right",
+			"zoom": "Zoom:",
+			"zoomIn": "Zoom In",
+			"zoomOut": "Zoom Out"
+		},
+		"pageInfo": {
+			"currentPage": "Page {{current}}",
+			"pageNumber": "Page",
+			"scale": "Scale",
+			"totalPages": "of {{total}}"
+		},
+		"placeholders": {
+			"pageNumber": "Page {{number}}",
+			"scrollToLoad": "Scroll here to load"
+		},
+		"status": {
+			"downloadUnavailable": "Unable to download this document",
+			"loadFailed": "Failed to load, please try again",
+			"loading": "Loading...",
+			"loadingProgress": "Loading Progress",
+			"noFile": "Please select a PDF file to preview",
+			"pageLoadFailed": "Page failed to load",
+			"retry": "Retry"
+		},
+		"toolbar": {
+			"download": "Download",
+			"fullscreen": "Fullscreen (F11)",
+			"moreActions": "More Actions",
+			"nextPage": "Next Page (→)",
+			"prevPage": "Previous Page (←)",
+			"reload": "Reload",
+			"rotateLeft": "Rotate Left",
+			"rotateRight": "Rotate Right",
+			"zoomIn": "Zoom In (+)",
+			"zoomOut": "Zoom Out (-)"
+		}
+	},
+	"magicTimePicker": {
+		"selectTime": "Select time"
+	},
+	"mcpInitTool": {
+		"countUnit": "items",
+		"initFailed": "Initialization Failed",
+		"initSuccess": "Initialization Success"
+	},
+	"mcpTool": {
+		"parameters": "Parameters",
+		"result": "Result"
+	},
+	"voiceInput": {
+		"button": {
+			"back": "Back",
+			"cancel": "Cancel",
+			"convertToText": "Convert to text",
+			"pressToSpeak": "Press and hold to speak",
+			"sendText": "Send text",
+			"sendVoice": "Send original voice"
+		},
+		"error": {
+			"microphoneAccessFailed": "Failed to access microphone",
+			"microphoneNotFound": "Microphone device not found",
+			"microphoneNotReadable": "Microphone device is occupied or cannot be accessed",
+			"microphoneNotSupported": "Current browser does not support recording functionality",
+			"microphoneOverconstrained": "Microphone device does not support the required audio format",
+			"microphonePermissionDenied": "Microphone permission denied. Please allow microphone access in settings.",
+			"microphoneSecurityError": "Recording requires HTTPS environment"
+		},
+		"permission": {
+			"instructions": {
+				"app": {
+					"android": "Settings → App Permissions → Microphone → Magic → Allow",
+					"default": "Please find app permission management in phone settings and allow Magic app to access microphone",
+					"ios": "Settings → Privacy & Security → Microphone → Magic → Allow"
+				},
+				"browser": {
+					"chrome": "Click the lock icon on the left side of the address bar → Select \"Site Settings\" → Allow microphone permission",
+					"default": "Please find privacy or permission settings in your browser settings and allow this site to access the microphone",
+					"edge": "Click the lock icon on the left side of the address bar → Select \"Permissions\" → Allow microphone permission",
+					"firefox": "Click the shield or lock icon on the left side of the address bar → Select \"Permissions\" → Allow microphone permission",
+					"safari": "Safari Menu → Preferences → Websites → Microphone → Select this site and allow access"
+				}
+			},
+			"modal": {
+				"app": {
+					"cancelText": "Cancel",
+					"content": "This feature requires access to your microphone. Please allow microphone permission in phone settings.",
+					"manualInstruction": "Please allow Magic app to access microphone in phone settings and try again.",
+					"okText": "Open Settings",
+					"title": "Microphone Permission Required"
+				},
+				"browser": {
+					"cancelText": "Cancel",
+					"content": "This feature requires access to your microphone. Please follow these steps to allow microphone permission in browser settings:",
+					"manualInstruction": "After completing the settings, please refresh the page and try again.",
+					"okText": "Got it",
+					"title": "Microphone Permission Required"
+				}
+			}
+		},
+		"placeholder": {
+			"textInput": "Type your message..."
+		},
+		"status": {
+			"releaseToCancel": "Release to cancel sending",
+			"releaseToSend": "Release to send"
+		},
+		"tooltip": {
+			"default": "Voice input",
+			"error": "Voice service error",
+			"idle": "Start voice input",
+			"recording": "Stop voice input"
+		}
+	}
+}

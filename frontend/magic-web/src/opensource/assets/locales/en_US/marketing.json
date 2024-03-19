@@ -1,0 +1,98 @@
+{
+	"qwenCodePlusActivity": {
+		"banner": {
+			"alt": "Qwen Coder Plus Limited Time Free Activity",
+			"freeButton": "Free To Use"
+		},
+		"modelTag": {
+			"limitedTimeFree": "Limited-Time Free"
+		}
+	},
+	"shareIncentives": {
+		"actions": {
+			"copied": "Copied",
+			"copy": "Copy",
+			"submitCase": "Submit Case",
+			"submitting": "Submitting..."
+		},
+		"copied": "Copied",
+		"copyFailed": "Copy failed",
+		"entrance": {
+			"freePoints": "Free Points",
+			"inviteFriends": "Invite Friends",
+			"inviteFriendsMaxEarn": "Invite friends to earn up to",
+			"inviteNow": "Invite Now"
+		},
+		"footer": "The final interpretation of this activity belongs to $t(common:platform.name) ({{domain}})",
+		"inviteCodeLinkTemplate": "In this era where AI is reshaping everything, I invite you to become a pioneer of Super Magic too—not just a user, but a witness and driver of this intelligent revolution.\nInvitation code (register by opening the link): {{value}}",
+		"messages": {
+			"caseSubmitPlaceholder": "Case submission feature coming soon, stay tuned!",
+			"copyFailed": "Copy failed, please copy the link manually",
+			"copySuccess": "Invitation link copied to clipboard"
+		},
+		"rules": {
+			"activityRules": "Activity Rules",
+			"description": {
+				"case": "After completing the task topic, create a sharing link and submit the link to the official review through the entrance below. For cases that pass the review and are adopted, {{min}} to {{max}} points will be awarded based on the rating (the higher the rating, the more points). Each case link can only be submitted once, and there is no limit to the number of cases each person can submit.",
+				"invite": "When the number of new users registered through your invitation link meets the specified criteria, you can directly claim the corresponding point rewards by clicking the button below. If the new users you invite activate a paid package for the first time, you will receive additional point rewards after the end of their monthly package cycle (the additional reward points will be automatically issued)."
+			},
+			"inviteReward": "Invitation Reward Rules",
+			"items": {
+				"inviteLink": "When inviting users to register, they must do so through an exclusive link.",
+				"maxCasePost": "points for participating in this event.",
+				"maxCasePrev": "Each user can obtain a maximum of ",
+				"maxInviteCount": "Each user can obtain a maximum of {{count}} invitation codes",
+				"maxRegistrationPost": "points for participating in this event.",
+				"maxRegistrationPrev": "Each user can obtain a maximum of ",
+				"registrationPost": "points as a reward.",
+				"registrationPrev": "For each new user registered through your invitation, you will be awarded",
+				"subscriptionMid": "points will be issued",
+				"subscriptionPost": "after the end of their monthly package cycle.",
+				"subscriptionPrev": "When the invited user activates a paid package for the first time, a reward of"
+			},
+			"warning": "You can invite up to 5 new users per day."
+		},
+		"sections": {
+			"caseRecommendation": "Get {{points}} Points For Recommending Cases",
+			"inviteUsers": "Invite New Users To Get Points"
+		},
+		"stats": {
+			"earnedPoints": "Claimed",
+			"inviteCount": "Invitation Quantity"
+		},
+		"subtitle": {
+			"maxReward": "Get",
+			"points": "Points for free"
+		},
+		"table": {
+			"invitationCode": "Invitation Code",
+			"inviter": "Username",
+			"usageTime": "Activation Time"
+		},
+		"title": "\"SHARING\" PROGRAM",
+		"wonderfulCaseModal": {
+			"disclaimer": "The final interpretation right of this event belongs to $t(common:platform.name) ({{domain}})",
+			"replayLinkLabel": "Your playback link",
+			"replayLinkPlaceholder": "Please provide the case link you hope the official will adopt and paste the sharing playback link of the task topic.",
+			"required": "*",
+			"rulesContent": "After creating a sharing link for the completed task topic, submit the link to the official review through the form below. Approved and adopted cases will be awarded 1,000 to 20,000 points based on their rating. Each case link can only be submitted once, and there is no limit to the number of cases each person can submit.",
+			"rulesTitle": "Activity Rules",
+			"submitButton": "Submit Cases",
+			"submitFailed": "Case submission failed",
+			"submitSuccess": "Case submitted successfully",
+			"taskDescriptionLabel": "What problem did your task solve for you?",
+			"taskDescriptionPlaceholder": "You can elaborate on what specific matters or problems this task has solved for you. A detailed description will enable us to have a clearer understanding of the task's quality and facilitate its rating.",
+			"title": "Submit your wonderful cases",
+			"validation": {
+				"invalidDomain": "Please enter a valid replay link address",
+				"invalidUrl": "Please enter a valid link address",
+				"replayLinkRequired": "Please enter the playback link"
+			}
+		}
+	},
+	"unlimitedPlanActivity": {
+		"banner": {
+			"alt": "Unlock Unlimited Use of Advanced AI Models"
+		}
+	}
+}

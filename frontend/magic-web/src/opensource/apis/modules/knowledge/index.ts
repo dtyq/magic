@@ -1,0 +1,1 @@
+export { generateKnowledgeApi } from "./knowledge"

@@ -1,0 +1,172 @@
+{
+	"aiSearch": "AI Search",
+	"aiSearchPlaceholder": "Enter keywords or describe your needs to get the digital employee you want",
+	"back": "Back",
+	"categories": {
+		"adminOps": "Admin & Ops",
+		"allCrew": "All Crew",
+		"creativeContent": "Creative & Content",
+		"dataInsights": "Data Insights",
+		"legalCompliance": "Legal & Compliance",
+		"marketingGrowth": "Marketing & Growth",
+		"salesBusiness": "Sales & Business",
+		"starCrew": "Star Crew",
+		"techDev": "Tech & Dev"
+	},
+	"createCrew": "Create Crew",
+	"details": "Details",
+	"dismiss": "Dismiss",
+	"editSkill": {
+		"buttons": {
+			"cancel": "Cancel",
+			"confirm": "Save"
+		},
+		"done": "Skill updated successfully!",
+		"errors": {
+			"fetchFailed": "Failed to load skill details. Please try again.",
+			"saveFailed": "Failed to save skill. Please try again."
+		},
+		"title": "Edit Skill"
+	},
+	"hire": "Hire",
+	"importSkill": {
+		"buttons": {
+			"back": "Back",
+			"cancel": "Cancel",
+			"confirm": "Confirm",
+			"next": "Next"
+		},
+		"done": "Skill imported successfully!",
+		"errors": {
+			"archiveFailed": "Failed to archive the folder. Please try again later.",
+			"emptyFolder": "The folder is empty and cannot be imported.",
+			"importFailed": "Skill import failed. Please try again later.",
+			"parseFailed": "Failed to parse skill file. Please check the file format.",
+			"singleItemOnly": "Only one file or folder can be dropped at a time."
+		},
+		"fileUpload": {
+			"browseEntry": "Browse file/folder",
+			"browseFiles": "Browse files",
+			"browseFolder": "Browse folder",
+			"browseHint": "Or click to browse a file or folder (import 1 item at a time)",
+			"dragDrop": "Drag & drop a file or folder here"
+		},
+		"identity": {
+			"description": "Description",
+			"icon": "Icon",
+			"skillName": "Skill Name",
+			"upload": "Upload"
+		},
+		"processing": "Analyzing skill file...",
+		"steps": {
+			"completeInfo": "Complete Skill Information",
+			"skillFile": "Select Skill File"
+		},
+		"title": "Import Skill"
+	},
+	"localizeIdentity": {
+		"cancel": "Cancel",
+		"confirm": "Confirm",
+		"english": "English",
+		"fallbackHint": "Languages left empty will automatically fallback to the Original (Default) content.",
+		"originalDefault": "Original (Default)",
+		"simplifiedChinese": "Simplified Chinese",
+		"tabs": {
+			"description": "Description",
+			"name": "Name",
+			"role": "Role"
+		},
+		"title": "Localize: Identity",
+		"usingDefault": "Using default"
+	},
+	"myCrew": "My Crew",
+	"myCrewPage": {
+		"dismissConfirm": {
+			"confirm": "Confirm Dismiss",
+			"description": "After dismissal, this crew will be removed from your list and associated data cannot be recovered. Are you sure you want to dismiss \"{{name}}\"?",
+			"title": "Confirm Dismiss"
+		},
+		"edit": "Edit",
+		"empty": "No crew yet. Create your first Crew now.",
+		"subtitle": "Manage your own digital crew.",
+		"title": "My Crew"
+	},
+	"mySkills": {
+		"delete": "Delete",
+		"edit": "Edit",
+		"subscribe": "Subscribe",
+		"subtitle": "Your personalized collection of specialized professional expertise.",
+		"title": "My Skills",
+		"topUp": "Top Up",
+		"update": "Update",
+		"updatedAt": "Updated on {{date}}"
+	},
+	"noMoreData": "No more data.",
+	"noResults": "No results found.",
+	"skillEditPage": {
+		"actions": {
+			"publish": "Publish",
+			"settings": "Setting",
+			"unpublishedChanges": "Unpublished Changes"
+		},
+		"conversation": {
+			"placeholder": "Describe a skill to start building, e.g. \"Create a data analysis skill\"",
+			"subtitle": "Transform your ideas into executable professional skills with just a single sentence.",
+			"title": "Chat to Build Great Skills"
+		},
+		"files": {
+			"multiSelect": "Select files",
+			"newFile": "New file",
+			"newFolder": "New folder",
+			"refresh": "Refresh files",
+			"search": "Search files",
+			"title": "Files",
+			"upload": "Upload files"
+		},
+		"mock": {
+			"assetsFolder": "assets",
+			"projectName": "heartwarming-content-creator",
+			"referencesFolder": "references",
+			"skillFileName": "Skill.md",
+			"skillName": "Heartwarming Content Creator",
+			"topicTitle": "Untitled Topic 1"
+		}
+	},
+	"skillsLibrary": {
+		"addToMySkills": "Add to My Skills",
+		"aiSearchPlaceholder": "Enter keywords or describe the skills you need",
+		"createMenu": {
+			"createViaChat": "Create via Chat",
+			"createViaChatDesc": "Build amazing skills through conversation",
+			"importFromGithub": "Import from Github",
+			"importFromGithubDesc": "Import skills directly from public GitHub repositories",
+			"importSkill": "Import Skill",
+			"importSkillDesc": "Upload .Skill, .Zip or folder"
+		},
+		"createSkill": "Create Skill",
+		"mySkills": "My Skills",
+		"noMoreData": "No more data.",
+		"official": "Official",
+		"removeFromMySkills": "Remove from My Skills",
+		"subtitle": "Discover new capabilities and equip your digital crew.",
+		"title": "Skills Library",
+		"upgrade": "Upgrade"
+	},
+	"subtitle": "Discover and hire your exclusive digital crew.",
+	"tabs": {
+		"crewMarket": "Crew Market",
+		"skillsLibrary": "Skills Library"
+	},
+	"title": "Crew Market",
+	"updateSkill": {
+		"cancel": "Cancel",
+		"continue": "Continue",
+		"description": "The imported Skill (name: {{name}}) already exists. Would you like to update it with the new version?",
+		"done": "Skill updated successfully!",
+		"errors": {
+			"parseFailed": "Failed to parse skill file. Please check the file format.",
+			"updateFailed": "Failed to update skill. Please try again later."
+		},
+		"title": "Update Skill"
+	}
+}

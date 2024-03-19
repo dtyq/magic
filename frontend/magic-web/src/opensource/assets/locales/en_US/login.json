@@ -1,0 +1,127 @@
+{
+	"account": {
+		"create": "Add account"
+	},
+	"afterSecondsCan": "You can resend after {{seconds}} seconds.",
+	"agree": "Agree and Continue",
+	"agreementText": "I have read and agreed to the",
+	"and": "and",
+	"appleLogin": "Apple Login",
+	"appleLoginDescription": "The current Apple Id has not been bound to an account",
+	"appleLoginLoading": "Getting Apple login information, please wait...",
+	"appleLoginTip": "If the page does not respond, please try to return to the previous step and log in again",
+	"authorizeCode": {
+		"label": "Private deployment identification code",
+		"placeholder": "Enter the private deployment identification code"
+	},
+	"autoRegisterTip": "Unregistered users will have their accounts automatically created after verification.",
+	"button": {
+		"cancel": "Cancel",
+		"confirm": "Confirm"
+	},
+	"copyright": "Copyright © 2023 Guangdong Lighthouse Engine Technology Co., Ltd. All Rights Reserved.",
+	"device": {
+		"app": "client",
+		"dingTalk": "DingTalk",
+		"unknown": "unknown"
+	},
+	"dingTalkLogin": "DingTalk",
+	"dingTalkTip": "Please use DingTalk to scan the QR code for login.",
+	"email": {
+		"label": "Email",
+		"placeholder": "Please enter your email",
+		"required": "Please enter a valid email",
+		"verificationCodeDesc": "Please enter the {{count}}-digit verification code sent to {{email}}. The valid code is for {{minutes}} minutes .",
+		"verificationCodeLengthRequired": "Invalid verification code format",
+		"verificationCodeRequired": "Please enter the verification code",
+		"verificationCodeSendSuccess": "Verification code sent successfully",
+		"verificationCodeTitle": "Enter Email Verification Code",
+		"verificationFailed": "Verification failed",
+		"verificationSuccess": "Verification successful"
+	},
+	"emailLogin": "Email",
+	"enterVerificationCode": "Enter phone number verification code",
+	"findPassword": "Retrieve password",
+	"googleLogin": "Google Login",
+	"hi": "👋 Hi, my friend",
+	"invalidCode": "Invalid verification code",
+	"invite": {
+		"cancel": "Stay on China Site",
+		"codeUsed": {
+			"cancel": "Cancel",
+			"content": "This invitation code has already been used. Would you like to continue?",
+			"continueLogin": "Continue",
+			"title": "Notice"
+		},
+		"confirm": "Go to International Site",
+		"content": "Your invitation code is for the Super Magic International site. You will be automatically redirected to the international site..."
+	},
+	"larkLogin": "FeiShu",
+	"larkRedirectLogin": "FeiShu Redirect",
+	"larkTip": "Please use Lark to scan the QR code for login.。",
+	"login": "Log in",
+	"loginPrivateDeployment": "Private Service",
+	"loginPublicDeployment": "SaaS",
+	"magicOrganizationSyncStep": {
+		"pleaseBindExistingAccount": "Please bind an existing account"
+	},
+	"nextStep": "Next",
+	"otherLoginType": "OR",
+	"password": {
+		"hide": "Hide password",
+		"label": "Password",
+		"placeholder": "Please enter password",
+		"show": "Show password"
+	},
+	"passwordLogin": "Password",
+	"phone": {
+		"invalid": "The phone number format is incorrect.",
+		"label": "Phone Number",
+		"placeholder": "Please enter your phone number."
+	},
+	"pleaseSendTo": "Please enter and send to",
+	"pleaseSendToEnd": "Please enter the {{count}}-digit verification code sent to {{phone}}, valid for {{minutes}} minutes.",
+	"prevStep": "Return to previous step",
+	"privacyPolicy": "Privacy Policy",
+	"privateConfig": "Private Configuration",
+	"reSendVerificationCode": "Resend verification code",
+	"readAndAgree": "By signing up, you agree to our",
+	"refresh": "Refresh",
+	"registration": {
+		"closed": "Registration is not currently available"
+	},
+	"sendVerificationCode": "Send verification code",
+	"serviceAgreement": "User Agreement",
+	"verification": {
+		"codeInput": "Verification code input",
+		"codeInvalid": "Verification code error, please re-enter"
+	},
+	"verificationCodeLogin": "Phone",
+	"versionSwitch": {
+		"aria": {
+			"china": "Switch to China version",
+			"international": "Switch to International version"
+		},
+		"china": "China",
+		"international": "International"
+	},
+	"wechatAppLogin": "WeChat login",
+	"wechatAppLoginConfigError": "Missing WeChat App login configuration",
+	"wechatOfficialAccount": {
+		"agreePolicy": "Please agree to the user agreement",
+		"autoLogin": "Follow the WeChat official account to log in automatically.",
+		"backToPrevious": "Return to the previous step",
+		"bindPhone": "Bind Phone Number",
+		"bindPhoneDescription": "Please bind your mobile number. Unregistered mobile numbers will be automatically registered and bound.",
+		"bindPhoneTitle": "The current WeChat is not yet linked to an account.",
+		"cancelRegister": "I will reconsider and cancel the registration.",
+		"codeInvalid": "Invalid verification code",
+		"phoneAlreadyBound": "The phone number has already been bound",
+		"qrCodeAlt": "WeChat QR code login",
+		"qrCodeExpired": "QR code not scanned or expired",
+		"title": "WeChat Secure Login"
+	},
+	"wechatOfficialAccountLogin": "WeChat",
+	"welcome": "Welcome to $t(common:platform.name)",
+	"welcomeLogin": "WeCom"
+}

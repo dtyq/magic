@@ -1,0 +1,445 @@
+{
+	"back": "Back",
+	"backToMyCrew": "Back to My Crew",
+	"card": {
+		"addSkills": "Add Skills",
+		"cancel": "Cancel",
+		"description": "Description",
+		"enterDescription": "Tap to Enter Description",
+		"enterName": "Tap to Enter Name",
+		"enterRole": "Tap to Enter Role",
+		"generating": {
+			"asciiDescription": "DESCRIPTION",
+			"asciiIdentity": "IDENTITY",
+			"asciiPromptFallback": "Generating prompt from live conversation...",
+			"asciiSkills": "SKILLS",
+			"asciiStatus": "Matching skills and locking profile editing",
+			"asciiTitle": "DIGITAL CREW CONFIGURATION",
+			"defaultRole": "Digital Crew Member",
+			"logFields": {
+				"description": "description",
+				"name": "name",
+				"prompt": "prompt",
+				"role": "role",
+				"skills": "skills"
+			},
+			"logs": {
+				"allocatingVirtualResources": "Allocating virtual resources...",
+				"analyzingInputConstraints": "Analyzing input constraints...",
+				"calibratingPersonalityMatrix": "Calibrating personality matrix...",
+				"compilingIdentityTraits": "Compiling identity traits...",
+				"establishingCognitivePathways": "Establishing cognitive pathways...",
+				"finalizingSystemCheck": "Finalizing system check...",
+				"generatingBehavioralModel": "Generating behavioral model...",
+				"initializingNeuralNetworks": "Initializing neural networks...",
+				"loadingKnowledgeBase": "Loading knowledge base...",
+				"lockingField": "Locking {{field}} editing entry...",
+				"matchingSkill": "Matching skill plugin: {{skill}}...",
+				"persistingCrewMemory": "Persisting crew memory context...",
+				"reconcilingPersona": "Reconciling persona and task boundaries...",
+				"refiningResponseTone": "Refining response tone and style...",
+				"scoringCandidate": "Candidate configuration score: {{score}}/100...",
+				"syncingContextMemory": "Syncing context memory...",
+				"verifyingSecurityProtocols": "Verifying security protocols..."
+			},
+			"subtitle": "Matching core skill plugins from Skills Library...",
+			"title": "Creating..."
+		},
+		"localizeDialog": {
+			"tabDescription": "Description",
+			"tabName": "Name",
+			"tabRole": "Role",
+			"title": "Localize: Identity"
+		},
+		"prompt": "Prompt",
+		"reset": "Reset",
+		"save": "Save",
+		"skills": "Skills"
+	},
+	"errors": {
+		"createSceneFailed": "Failed to create playbook. Save crew first.",
+		"crewCodeRequired": "Please save the crew first",
+		"deleteSceneFailed": "Failed to delete playbook",
+		"loadAgentFailed": "Failed to load agent",
+		"loadScenesFailed": "Failed to load playbooks",
+		"reorderScenesFailed": "Failed to reorder playbooks",
+		"saveCrewFailed": "Failed to save crew",
+		"saveSkillsFailed": "Failed to save skills",
+		"toggleSceneFailed": "Failed to toggle playbook",
+		"updateSceneFailed": "Failed to update playbook"
+	},
+	"knowledgeBase": {
+		"create": "Create Knowledge Base",
+		"emptyDescription": "Link professional knowledge to make your agent's responses more accurate and professional.",
+		"emptyTitle": "No Knowledge Base Linked"
+	},
+	"noDescription": "No description available",
+	"noSkills": "No skills available",
+	"playbook": {
+		"actions": {
+			"delete": "Delete",
+			"disable": "Disabled",
+			"edit": "Edit",
+			"enable": "Enable"
+		},
+		"batchDelete": "Delete ({{count}})",
+		"batchDeleteConfirm": {
+			"description": "Delete {{count}} selected scene(s)? This action cannot be undone.",
+			"title": "Confirm Delete"
+		},
+		"cancelSelection": "Cancel",
+		"create": "Create",
+		"creating": "Creating…",
+		"edit": {
+			"backToList": "Playbooks",
+			"basicInfo": {
+				"color": "Color",
+				"colorPicker": {
+					"title": "Select Color"
+				},
+				"description": "Description",
+				"descriptionPlaceholder": "Paste a URL for an instant summary.",
+				"enable": "Enable",
+				"icon": "Icon",
+				"iconPicker": {
+					"noResults": "No icons found",
+					"searchPlaceholder": "Search icons…"
+				},
+				"localeDialog": {
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"defaultLabel": "Content",
+					"fallbackHint": "Languages left empty will fallback to Original (Default).",
+					"localeLabels": {
+						"en_US": "English",
+						"zh_CN": "Simplified Chinese"
+					},
+					"original": "Original (Default)",
+					"title": "Localize: {{label}}",
+					"usingDefault": "Using default: {{value}}"
+				},
+				"name": "Title",
+				"namePlaceholder": "Enter title",
+				"otherLanguages": "Other Languages",
+				"reset": "Reset",
+				"save": "Save",
+				"title": "Basic Information"
+			},
+			"createPlaybook": "Create Playbook",
+			"enable": "Enable",
+			"filter": {
+				"all": "All",
+				"create": "Create",
+				"reset": "Reset",
+				"search": "Search",
+				"selectAll": "Select All"
+			},
+			"inspiration": {
+				"actions": {
+					"delete": "Delete",
+					"edit": "Edit"
+				},
+				"badges": {
+					"textList": "Text List"
+				},
+				"batchDelete": "Delete ({{count}})",
+				"batchDeleteConfirm": {
+					"description": "Delete the selected {{count}} inspiration item(s)? This action cannot be undone.",
+					"title": "Confirm Delete"
+				},
+				"cancelSelection": "Cancel",
+				"config": {
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"panelTitle": "Title",
+					"panelTitlePlaceholder": "Enter title",
+					"theme": "Theme",
+					"themeOptions": {
+						"capsule": "Capsule",
+						"grid": "Card",
+						"textList": "Text List",
+						"text_list": "Text List",
+						"waterfall": "Waterfall"
+					},
+					"title": "Edit Configuration"
+				},
+				"createGroup": "Create Group",
+				"defaultGroup": "Default",
+				"deleteGroupConfirm": {
+					"description": "Delete this group and all its inspiration items? This action cannot be undone.",
+					"title": "Confirm Delete Group"
+				},
+				"deleteItemConfirm": {
+					"description": "Delete this inspiration item?",
+					"title": "Confirm Delete"
+				},
+				"empty": {
+					"create": "Create new",
+					"description": "Provide users with clear command references by filling in inspiration examples, lowering the barrier to entry.",
+					"title": "Help Users Explore"
+				},
+				"group": {
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"icon": "Icon",
+					"name": "Title",
+					"namePlaceholder": "Enter title",
+					"titleCreate": "Create Group",
+					"titleEdit": "Edit Group"
+				},
+				"item": {
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"coverImage": "Cover Image",
+					"group": "Group",
+					"noCoverAvailable": "No Cover Available",
+					"prompt": "Prompt",
+					"promptPlaceholder": "Enter prompt content",
+					"title": "Title",
+					"titleCreate": "Create",
+					"titleEdit": "Edit",
+					"titlePlaceholder": "Enter title",
+					"upload": "Upload",
+					"uploadFail": "Cover upload failed, please retry",
+					"uploadSuccess": "Cover uploaded successfully"
+				},
+				"title": "Inspiration Exploration"
+			},
+			"nav": {
+				"basicInfo": "Basic Information",
+				"inspiration": "Inspiration Exploration",
+				"presets": "Presets",
+				"quickStart": "Quick Start"
+			},
+			"presets": {
+				"actions": {
+					"delete": "Delete",
+					"disable": "Disabled",
+					"edit": "Edit",
+					"enable": "Enable"
+				},
+				"badges": {
+					"dropdown": "Dropdown",
+					"theme": "Theme"
+				},
+				"batchDelete": "Delete ({{count}})",
+				"batchDeleteConfirm": {
+					"description": "Delete the selected {{count}} preset(s)? This action cannot be undone.",
+					"title": "Confirm Delete"
+				},
+				"cancelSelection": "Cancel",
+				"config": {
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"theme": "Theme",
+					"themeOptions": {
+						"capsule": "Capsule",
+						"dropdown": "Dropdown",
+						"grid": "Card",
+						"textList": "Text List",
+						"waterfall": "Waterfall"
+					},
+					"title": "Edit Configuration"
+				},
+				"deleteItemConfirm": {
+					"description": "Delete this preset?",
+					"title": "Confirm Delete"
+				},
+				"empty": {
+					"create": "Create new",
+					"description": "Define commonly used configurations to ensure generated results meet expectations.",
+					"title": "No preset instructions available"
+				},
+				"form": {
+					"actions": "Actions",
+					"addOption": "Add Option",
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"displayName": "Display Name",
+					"errorNameRequired": "Name is required",
+					"errorOptionRequired": "At least one option is required",
+					"insertPresetValue": "Insert Preset Value",
+					"name": "Name",
+					"namePlaceholder": "Enter name, e.g., Size、Scale",
+					"noOption": "No Option Configured",
+					"optionLabel": "Option {{number}}",
+					"optional": "Optional",
+					"presetContent": "Preset Content",
+					"presetContentPlaceholder": "Enter instruction to be appended to user messages (via Preset Value)",
+					"presetValue": "Preset Value",
+					"preview": "Preview",
+					"setAsDefault": "Set as Default",
+					"titleCreate": "Create",
+					"titleEdit": "Edit"
+				},
+				"gallery": {
+					"configured": "Gallery Options: Configured",
+					"dialog": {
+						"add": "Add",
+						"cancel": "Cancel",
+						"confirm": "Confirm",
+						"defaultValue": "Default",
+						"defaultValuePlaceholder": "Select default option",
+						"name": "Name",
+						"namePlaceholder": "Enter name",
+						"noDefault": "No default",
+						"presetContent": "Preset Content",
+						"presetContentPlaceholder": "Enter instruction to be appended to user messages (via Preset Value)",
+						"title": "Gallery Options"
+					},
+					"edit": "Edit",
+					"item": {
+						"cancel": "Cancel",
+						"confirm": "Confirm",
+						"coverImage": "Cover Image",
+						"description": "Description",
+						"descriptionPlaceholder": "Enter description",
+						"errorCoverRequired": "Cover image is required",
+						"errorTitleRequired": "Title is required",
+						"errorValueRequired": "Preset value is required",
+						"noCover": "No cover available",
+						"subText": "Sub Text",
+						"subTextPlaceholder": "Enter sub text",
+						"title": "Title",
+						"titleCreate": "Create",
+						"titleEdit": "Edit",
+						"titlePlaceholder": "Enter title",
+						"upload": "Upload",
+						"uploadFail": "Cover upload failed, please retry",
+						"uploadSuccess": "Cover uploaded successfully",
+						"value": "Preset Value",
+						"valuePlaceholder": "Enter preset value"
+					}
+				},
+				"title": "Presets",
+				"updatedAt": "Updated on {{date}}"
+			},
+			"quickStart": {
+				"action": {
+					"noAction": "No Action"
+				},
+				"batchDelete": "Delete ({{count}})",
+				"batchDeleteConfirm": {
+					"description": "Delete the selected {{count}} quick start item(s)? This action cannot be undone.",
+					"title": "Confirm Delete"
+				},
+				"cancelSelection": "Cancel",
+				"config": {
+					"cancel": "Cancel",
+					"confirm": "Confirm",
+					"panelTitle": "Title",
+					"panelTitlePlaceholder": "Enter title",
+					"title": "Edit Configuration"
+				},
+				"deleteItemConfirm": {
+					"description": "Delete this quick start item?",
+					"title": "Confirm Delete"
+				},
+				"empty": {
+					"create": "Create new",
+					"description": "Configure high-frequency actions to achieve one-tap execution with preset commands.",
+					"title": "No Quick Starts Defined"
+				},
+				"form": {
+					"cancel": "Cancel",
+					"clickAction": "Click Action",
+					"clickActions": {
+						"aiEnhancement": "AI Enhancement",
+						"fillContent": "Fill Content",
+						"focusInput": "Focus Input",
+						"noAction": "No Action",
+						"openUrl": "Open URL",
+						"uploadFile": "Upload File"
+					},
+					"confirm": "Confirm",
+					"description": "Description",
+					"descriptionPlaceholder": "Enter a brief description",
+					"executionMethod": "Execution Method",
+					"executionMethods": {
+						"insertToInput": "Insert to Input",
+						"sendImmediately": "Send immediately"
+					},
+					"icon": "Icon",
+					"iconEmpty": "No Icon Available",
+					"iconSize": "128*128px",
+					"presetContent": "Preset Content",
+					"presetContentPlaceholder": "Enter preset content that will populate the input field when users click",
+					"title": "Title",
+					"titleCreate": "Create",
+					"titleEdit": "Edit",
+					"titlePlaceholder": "Enter title",
+					"upload": "Upload",
+					"uploadFail": "Icon upload failed, please retry",
+					"uploadSuccess": "Icon uploaded successfully",
+					"url": "URL",
+					"urlPlaceholder": "Enter URL"
+				},
+				"title": "Quick Start",
+				"updatedAt": "Updated on {{date}}"
+			},
+			"saveFailed": "Save failed, please try again",
+			"saveSuccess": "Saved successfully"
+		},
+		"filter": {
+			"all": "All",
+			"disabled": "Disabled",
+			"enabled": "Enabled"
+		},
+		"loading": "Loading...",
+		"noData": "No more data.",
+		"noPresets": "No Presets Available",
+		"reset": "Reset",
+		"retry": "Retry",
+		"searchPlaceholder": "Search",
+		"selectAll": "Select All",
+		"title": "Playbook",
+		"untitled": "Untitled",
+		"untitledDescription": "No description",
+		"updatedAt": "Updated on {{date}}"
+	},
+	"scenarioPresets": "Playbooks",
+	"skills": {
+		"addFromLibrary": "Add from Skills Library",
+		"addFromLibraryDesc": "Add skills directly in Skills Library",
+		"aiSearch": "AI Search",
+		"aiSearchPlaceholder": "Enter keywords or describe the skills you need",
+		"builtinTitle": "Built-in Skills ({{count}})",
+		"create": "Create Skill",
+		"emptyDescription": "Add Your First AI Skill from the Library or Create One",
+		"emptyTitle": "No Skills Yet",
+		"importSkill": "Import Skill",
+		"importSkillDesc": "Upload .Skill, .Zip or folder",
+		"install": "Install",
+		"library": "Skills Library",
+		"mySkills": "My Skills",
+		"remove": "Remove",
+		"title": "Skills",
+		"uninstall": "Uninstall"
+	},
+	"status": {
+		"builtIn": "Built-in ({{count}})",
+		"configured": "Configured",
+		"notConfigured": "Not Configured",
+		"skillCount": "{{count}} Skills",
+		"unpublished": "Unpublished"
+	},
+	"steps": {
+		"identity": "Identity",
+		"knowledgeBase": "Knowledge Base",
+		"publishing": "Publishing",
+		"runAndDebug": "Run and Debug",
+		"skills": "Skills",
+		"step": "Step {{number}}"
+	},
+	"topic": {
+		"emptySubtitle": "Describe their job, we'll handle the rest.",
+		"emptyTitle": "Create Your Digital Crew",
+		"helpAction": "Let it help you craft your digital employee's personality.",
+		"helpText": "Not sure how to set it up?",
+		"inputHint": "Enter to send ; Shift + Enter for new line",
+		"inputPlaceholder": "What should this member do? E.g., A marketing analyst who can write weekly reports...",
+		"untitledTopic": "Untitled Topic {{index}}"
+	},
+	"untitledCrew": "Untitled Crew",
+	"untitledTopic": "Untitled Topic"
+}

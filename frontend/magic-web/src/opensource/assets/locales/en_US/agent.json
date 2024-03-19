@@ -1,0 +1,203 @@
+{
+	"common": {
+		"auth": {
+			"cancel": "Cancel",
+			"confirm": "Confirm",
+			"confirmToDelete": "Are you sure you want to delete this API Key?",
+			"confirmToReset": "Are you sure you want to reset this API Key?",
+			"copyCurl": "Copy Secret",
+			"copySuccess": "SSE URL copied successfully",
+			"create": "Add New Authorization",
+			"createTitle": "Add Authorization",
+			"createToSuccess": "Created successfully",
+			"deleteKey": "Delete Key",
+			"deleteSuccess": "Deleted successfully",
+			"desc": "Create Application Authorization or API Key for MCP Plugin calls",
+			"editKey": "Edit Key",
+			"editTitle": "Edit Authorization",
+			"editToSuccess": "Modified successfully",
+			"lastUsed": "Last Used",
+			"name": "Client Name",
+			"operate": "Actions",
+			"resetKey": "Reset Key",
+			"resetSuccess": "Reset successfully",
+			"secret": "Secret",
+			"status": "Status",
+			"title": "Authorization Access"
+		},
+		"settings": {
+			"contact": "Contact Us",
+			"func": "Functions",
+			"mcp": "MCP Plugin",
+			"tasks": "Scheduled Tasks",
+			"title": "Settings",
+			"usage": "Usage Preferences"
+		},
+		"tool": {
+			"addTool": "Add Tool",
+			"addToolFailed": "Failed to add tool",
+			"addToolSuccess": "Tool added successfully",
+			"cancel": "Cancel",
+			"card": {
+				"add": "Add",
+				"added": "Added",
+				"createAt": "Published on",
+				"groupTitle": "Contains {{count}} tools",
+				"noQuote": "Not referenced",
+				"toolsCount": "{{count}} tools"
+			},
+			"confirm": "Confirm",
+			"createTitle": "Add Tool",
+			"desc": "Description",
+			"editTitle": "Edit Tool",
+			"form": {
+				"addAndNext": "Add and Next Step",
+				"cancel": "Cancel",
+				"create": "Create",
+				"createAndAddTool": "Create and Add Tool",
+				"desc": "Tool Description",
+				"descPlaceholder": "Please enter tool description",
+				"justAdd": "Just Add",
+				"justCreate": "Just Create",
+				"name": "Tool Name",
+				"namePlaceholder": "Please enter tool name",
+				"required": "Required",
+				"save": "Save"
+			},
+			"import": "Import Tool",
+			"importExistingTools": "Import Existing Tools",
+			"importTools": "Import Tool",
+			"importToolsCount": "Import Tools ({{count}})",
+			"menu": {
+				"onlyShowOfficial": "Show Official Tools Only",
+				"popular": "Most Popular",
+				"search": "Search",
+				"sort": "Sort:"
+			},
+			"name": "Name",
+			"panel": {
+				"customMcpDesc": "Add external MCP via JSON import or configuration",
+				"customMcpTitle": "Custom MCP",
+				"emptyState": "No tools imported/added yet",
+				"importExistingToolsDesc": "Import existing or create new tools",
+				"importExistingToolsTitle": "Import Existing Tools",
+				"importViaJson": "Import via JSON",
+				"jsonValidationFailed": "JSON validation failed",
+				"jsonValidationPassed": "JSON validation passed"
+			}
+		}
+	},
+	"mcp": {
+		"button": {
+			"create": "Add MCP Plugin",
+			"text": "Plugin",
+			"title": "Configure MCP Plugin"
+		},
+		"card": {
+			"creatAt": "Created at",
+			"creator": "Creator:",
+			"deleteTool": "Delete Tool",
+			"desc": "No description available",
+			"editTool": "Edit Tool",
+			"noQuote": "Not referenced",
+			"quoteAgent": "Referenced by {{count}} assistants",
+			"status": "Enable Status",
+			"toolsCount": "Contains {{count}} tools"
+		},
+		"editor": {
+			"cancel": "Cancel",
+			"confirm": "Save",
+			"error": "Formatting error",
+			"formatError": "Format Error",
+			"title": "Configure Custom MCP Plugin"
+		},
+		"form": {
+			"args": "Arguments",
+			"argsPlaceholder": "Please enter arguments, e.g., -y @modelcontextprotocol/server-sequential-thinking",
+			"auth": "Account Authorization",
+			"authMethod": "Authorization Method",
+			"authToFail": "Account authorization required, click Authorize",
+			"authToSuccess": "Account authorization completed, click Cancel",
+			"cancel": "Cancel",
+			"command": "Command",
+			"commandPlaceholder": "Please enter command, e.g., npx",
+			"confirm": "Add",
+			"custom": "Custom MCP Plugin",
+			"delete": "Delete",
+			"desc": "Description",
+			"env": "Environment Variables",
+			"headers": "Request Headers",
+			"import": "Import",
+			"importTool": "Import Existing Tool",
+			"map": "Custom Parameters",
+			"mapPlaceholder": "Enter custom parameters",
+			"name": "MCP Plugin Name",
+			"noAuth": "No authorization required",
+			"options": {
+				"http": "Streamable HTTP",
+				"sse": "SSE",
+				"stdio": "STDIO"
+			},
+			"params": "Parameter Name",
+			"paramsPlaceholder": "Please enter parameter name",
+			"paramsRequired": "Parameter name is required",
+			"paramsToCreate": "Add Parameter",
+			"required": "Please fill in {{name}}",
+			"save": "Save",
+			"type": "MCP Plugin Type",
+			"uploadFail": "File upload failed, please try again",
+			"url": "Edit MCP Plugin Info",
+			"value": "Parameter Value",
+			"valuePlaceholder": "Enter parameter value",
+			"valueRequired": "Parameter value is required"
+		},
+		"page": {
+			"contextMenu": {
+				"delete": "Delete MCP Plugin Service",
+				"edit": "Edit MCP Plugin Info"
+			},
+			"create": "Create MCP Plugin Service",
+			"delete": {
+				"cancel": "Cancel",
+				"confirm": "Delete",
+				"content": "This will delete {{name}} service",
+				"fail": "Failed to delete",
+				"success": "Deleted successfully",
+				"title": "Confirm Delete?"
+			},
+			"search": {
+				"input": "Search"
+			},
+			"switch": {
+				"disable": "{{name}} disabled",
+				"enable": "{{name}} enabled"
+			},
+			"title": "MCP Plugin",
+			"update": {
+				"confirm": "Update",
+				"content": "Current version is {{version}}, latest version is {{latestVersion}}",
+				"success": "Updated successfully",
+				"title": "Confirm update {{name}} version?"
+			}
+		},
+		"panel": {
+			"auth": "Authorization Access",
+			"create": "Add",
+			"createTitle": "Create MCP Plugin Service",
+			"custom": "Custom Plugin",
+			"desc": "Extend $t(common:platform.name) capabilities using Model Context Protocol (MCP Plugin)",
+			"editTitle": "Edit MCP Plugin Service",
+			"empty": "No Plugins Available",
+			"noAuth": "No authorization required",
+			"official": "Official Plugin",
+			"openForm": "Create MCP Plugin",
+			"required": "Please enter {{name}}",
+			"searchPlaceholder": "Search MCP Plugin",
+			"settings": "Settings",
+			"status": "Query MCP Plugin Status",
+			"title": "MCP Plugin",
+			"tool": "Load Tools",
+			"url": "Modify MCP Plugin Service URL"
+		}
+	}
+}

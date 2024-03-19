@@ -1,0 +1,19 @@
+{
+	"actionDrawer": {
+		"cancel": "Cancel",
+		"close": "Close",
+		"confirm": "Confirm",
+		"reset": "Reset"
+	},
+	"dialog": {
+		"close": "Close dialog"
+	},
+	"drawer": {
+		"close": "Close drawer"
+	},
+	"select": {
+		"clear": "Clear selection",
+		"empty": "No options",
+		"placeholder": "Please select"
+	}
+}
