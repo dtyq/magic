@@ -1,0 +1,1050 @@
+{
+    "list_dir.error": {
+        "zh_CN": "查看目录 {{dir_path}} 时出错",
+        "en_US": "Error listing directory {{dir_path}}"
+    },
+    "list_dir.display": {
+        "zh_CN": "根目录",
+        "en_US": "Root Directory"
+    },
+    "read_file.multiple_success": {
+        "zh_CN": "已读取 {{main_file}} 等{{count}}个文件",
+        "en_US": "Successfully read {{main_file}} and {{count}} other files"
+    },
+    "read_file.multiple_title": {
+        "zh_CN": "{{main_file}} 等{{count}}个文件",
+        "en_US": "{{main_file}} and {{count}} other files"
+    },
+    "read_file.single_success": {
+        "zh_CN": "已读取 {{file_name}}",
+        "en_US": "Successfully read {{file_name}}"
+    },
+    "read_file.summary": {
+        "zh_CN": "共读取 {{total}} 个文件，成功: {{success}}，失败: {{failed}}{{truncation}}",
+        "en_US": "Read {{total}} files, success: {{success}}, failed: {{failed}}{{truncation}}"
+    },
+    "read_file.error": {
+        "zh_CN": "读取文件 {{file_path}} 时出错",
+        "en_US": "Error reading file {{file_path}}"
+    },
+    "read_file.error_conversion_failed": {
+        "zh_CN": "文件 {{file_name}} 转换失败",
+        "en_US": "Failed to convert file {{file_name}}"
+    },
+    "read_file.error_detail": {
+        "zh_CN": "读取失败",
+        "en_US": "Read failed"
+    },
+    "read_file.error_is_directory": {
+        "zh_CN": "{{file_name}} 是一个文件夹，无法读取",
+        "en_US": "{{file_name}} is a directory, cannot read as file"
+    },
+    "read_file.error_no_file": {
+        "zh_CN": "找不到文件",
+        "en_US": "Couldn't find file"
+    },
+    "read_file.error_unexpected": {
+        "zh_CN": "读取文件 {{file_name}} 遇到问题",
+        "en_US": "Ran into an issue while reading file {{file_name}}"
+    },
+    "read_file.failed": {
+        "zh_CN": "读取文件失败",
+        "en_US": "Failed to read file"
+    },
+    "read_file.multiple_failed": {
+        "zh_CN": "读取 {{main_file}} 等{{count}}个文件失败",
+        "en_US": "Failed to read {{main_file}} and {{count}} other files"
+    },
+    "read_file.single_failed": {
+        "zh_CN": "读取 {{file_name}} 失败",
+        "en_US": "Failed to read {{file_name}}"
+    },
+    "read_file.error_file_not_exist": {
+        "zh_CN": "找不到文件 {{file_name}}",
+        "en_US": "Couldn't find file {{file_name}}"
+    },
+    "read_file.not_found": {
+        "zh_CN": "文件 {{file_path}} 不存在",
+        "en_US": "File {{file_path}} not found"
+    },
+    "read_file.unknown_file": {
+        "zh_CN": "未知文件",
+        "en_US": "Unknown file"
+    },
+    "read_file.conversion_strategy_balanced": {
+        "zh_CN": "平衡模式",
+        "en_US": "Balanced"
+    },
+    "read_file.conversion_strategy_performance": {
+        "zh_CN": "性能优先",
+        "en_US": "Performance"
+    },
+    "read_file.conversion_strategy_quality": {
+        "zh_CN": "质量优先",
+        "en_US": "Quality"
+    },
+    "read_file.converted": {
+        "zh_CN": "已转换",
+        "en_US": "Converted"
+    },
+    "read_file.converted_and_read": {
+        "zh_CN": "转换并读取",
+        "en_US": "Converted & Read"
+    },
+    "read_file.converted_and_read_with_strategy": {
+        "zh_CN": "已使用 {{strategy}} 转换并读取",
+        "en_US": "Converted & Read ({{strategy}})"
+    },
+    "read_file.converted_with_strategy": {
+        "zh_CN": "已使用 {{strategy}} 转换",
+        "en_US": "Converted ({{strategy}})"
+    },
+    "read_file.default_file_label": {
+        "zh_CN": "文件",
+        "en_US": "File"
+    },
+    "write_file.error": {
+        "zh_CN": "写入文件 {{file_path}} 时出错",
+        "en_US": "Error writing file {{file_path}}"
+    },
+    "edit_file.error": {
+        "zh_CN": "编辑文件 {{file_path}} 时出错",
+        "en_US": "Error editing file {{file_path}}"
+    },
+    "edit_file.error_conflict_detected": {
+        "zh_CN": "多个编辑操作有冲突",
+        "en_US": "Multiple edits are conflicting"
+    },
+    "edit_file.error_file_modified": {
+        "zh_CN": "文件内容已变化，需要重新获取",
+        "en_US": "File content has changed, need to refresh"
+    },
+    "edit_file.error_match_failed": {
+        "zh_CN": "没有找到要修改的内容",
+        "en_US": "Couldn't find the content to modify"
+    },
+    "edit_file.error_no_file": {
+        "zh_CN": "编辑文件时出错",
+        "en_US": "Error editing file"
+    },
+    "edit_file.error_replacements_mismatch": {
+        "zh_CN": "找到的内容数量不符合预期",
+        "en_US": "Found unexpected number of matches"
+    },
+    "edit_file.error_unexpected": {
+        "zh_CN": "编辑遇到问题",
+        "en_US": "Ran into an issue while editing"
+    },
+    "edit_file.error_validation_failed": {
+        "zh_CN": "编辑参数有问题",
+        "en_US": "Something wrong with edit parameters"
+    },
+    "edit_file.error_file_not_exist": {
+        "zh_CN": "抱歉，找不到这个文件",
+        "en_US": "Sorry, couldn't find this file"
+    },
+    "convert_to_markdown.process_error": {
+        "zh_CN": " (转换过程中遇到问题)",
+        "en_US": " (error occurred during conversion)"
+    },
+    "shell_exec.error": {
+        "zh_CN": "Shell命令执行失败: {{error}}",
+        "en_US": "Shell command execution failed: {{error}}"
+    },
+    "run_python_snippet.error": {
+        "zh_CN": "Python代码片段执行失败: {{error}}",
+        "en_US": "Python snippet execution failed: {{error}}"
+    },
+    "web_search.completed": {
+        "zh_CN": "网络搜索完成",
+        "en_US": "Web search completed"
+    },
+    "web_search.error": {
+        "zh_CN": "网络搜索时出错: {{error}}",
+        "en_US": "Error during web search: {{error}}"
+    },
+    "web_search.more_items": {
+        "zh_CN": "等",
+        "en_US": ", etc."
+    },
+    "web_search.requirement": {
+        "zh_CN": "搜索内容：{{requirement}}",
+        "en_US": "Searched for: {{requirement}}"
+    },
+    "web_search.requirements": {
+        "zh_CN": "搜索内容：{{requirements}}",
+        "en_US": "Searched for: {{requirements}}"
+    },
+    "read_webpages_as_markdown.count_remark": {
+        "zh_CN": "共{{count}}个网页",
+        "en_US": "Total {{count}} webpages"
+    },
+    "read_webpages_as_markdown.batch_read_failed": {
+        "zh_CN": "批量读取{{count}}个网页失败",
+        "en_US": "Failed to batch read {{count}} webpages"
+    },
+    "read_webpages_as_markdown.read_error": {
+        "zh_CN": "网页读取失败: {{error}}",
+        "en_US": "Webpage reading failed: {{error}}"
+    },
+    "read_webpages_as_markdown.read_failed": {
+        "zh_CN": "读取多个网页失败",
+        "en_US": "Failed to read multiple webpages"
+    },
+    "visual_understanding_webpage.success": {
+        "zh_CN": "已完成图片理解",
+        "en_US": "Image understanding completed"
+    },
+    "visual_understanding_webpage.error": {
+        "zh_CN": "网页视觉分析失败: {{error}}",
+        "en_US": "Webpage visual analysis failed: {{error}}"
+    },
+    "visual_understanding_webpage.analysis_webpage": {
+        "zh_CN": "分析了 {{target}}",
+        "en_US": "Analyzed {{target}}"
+    },
+    "download_from_url.completed": {
+        "zh_CN": "下载完成",
+        "en_US": "Download completed"
+    },
+    "download_from_url.success": {
+        "zh_CN": "下载成功",
+        "en_US": "Download successful"
+    },
+    "download_from_url.error": {
+        "zh_CN": "下载失败: {{error}}",
+        "en_US": "Download failed: {{error}}"
+    },
+    "download_from_url.unknown_file": {
+        "zh_CN": "未知文件",
+        "en_US": "Unknown file"
+    },
+    "download_from_urls.partial_success": {
+        "zh_CN": "下载完成：{{success}}个成功，{{failed}}个失败",
+        "en_US": "Download completed: {{success}} succeeded, {{failed}} failed"
+    },
+    "download_from_urls.success_count": {
+        "zh_CN": "成功下载{{count}}个文件",
+        "en_US": "Successfully downloaded {{count}} files"
+    },
+    "download_from_urls.batch_error": {
+        "zh_CN": "批量下载资源失败: {{error}}",
+        "en_US": "Batch download resources failed: {{error}}"
+    },
+    "download_from_urls.failed_count": {
+        "zh_CN": "下载失败：{{count}}个文件",
+        "en_US": "Download failed: {{count}} files"
+    },
+    "get_youtube_video_info.success": {
+        "zh_CN": "获取视频信息成功 - {{title}}",
+        "en_US": "Video info retrieved successfully - {{title}}"
+    },
+    "get_youtube_video_info.error": {
+        "zh_CN": "获取视频信息失败",
+        "en_US": "Failed to retrieve video info"
+    },
+    "download_youtube_video_media.success": {
+        "zh_CN": "媒体已下载（YouTube）",
+        "en_US": "Media downloaded (YouTube)"
+    },
+    "download_youtube_video_media.error": {
+        "zh_CN": "媒体下载失败",
+        "en_US": "Media download failed"
+    },
+    "convert_video_to_audio.success": {
+        "zh_CN": "已转换为 {{format}} 格式",
+        "en_US": "Converted to {{format}} format"
+    },
+    "convert_video_to_audio.error": {
+        "zh_CN": "转换失败",
+        "en_US": "Conversion failed"
+    },
+    "split_audio.success": {
+        "zh_CN": "已拆分为 {{count}} 个音频文件",
+        "en_US": "Split into {{count}} audio files"
+    },
+    "split_audio.error": {
+        "zh_CN": "拆分失败",
+        "en_US": "Split failed"
+    },
+    "audio_understanding.processing_audio_file": {
+        "zh_CN": "处理音频文件成功：{{file_name}}",
+        "en_US": "Processing audio file successful: {{file_name}}"
+    },
+    "audio_understanding.transcription_progress": {
+        "zh_CN": "音频理解进行中... 已耗时: {{elapsed_seconds}}秒, 进度: {{percentage}}%",
+        "en_US": "Audio understanding in progress... Elapsed: {{elapsed_seconds}}s, Progress: {{percentage}}%"
+    },
+    "audio_understanding.task_success_no_audio_info": {
+        "zh_CN": "转译错误：任务成功但未返回音频信息",
+        "en_US": "Transcription error: Task successful but no audio info returned"
+    },
+    "audio_understanding.transcription_completed": {
+        "zh_CN": "音频理解完成",
+        "en_US": "Audio understanding completed"
+    },
+    "audio_understanding.transcription_success": {
+        "zh_CN": "转译成功，转译内容已存放在转译文件中，路径为：{{content}}",
+        "en_US": "Transcription successful, transcription content has been saved to the transcription file, path: {{content}}"
+    },
+    "audio_understanding.transcription_preview": {
+        "zh_CN": "音频理解完成 {{preview}}",
+        "en_US": "Audio understanding completed {{preview}}"
+    },
+    "audio_understanding.extract_text_error": {
+        "zh_CN": "转译错误：无法提取转录文本 - {{error}}",
+        "en_US": "Transcription error: Unable to extract transcribed text - {{error}}"
+    },
+    "audio_understanding.internal_server_error": {
+        "zh_CN": "转译错误：服务内部处理错误 - {{status_code}}: {{status_message}}",
+        "en_US": "Transcription error: Internal server error - {{status_code}}: {{status_message}}"
+    },
+    "audio_understanding.invalid_parameters": {
+        "zh_CN": "转译错误：请求参数无效 - {{status_message}}",
+        "en_US": "Transcription error: Invalid request parameters - {{status_message}}"
+    },
+    "audio_understanding.project_config_create_failed": {
+        "zh_CN": "配置文件创建失败，将尝试解决...",
+        "en_US": "Config creation failed, attempting to resolve..."
+    },
+    "audio_understanding.query_exception": {
+        "zh_CN": "转译错误：查询任务结果时发生异常 - {{error}}",
+        "en_US": "Transcription error: Exception occurred while querying task result - {{error}}"
+    },
+    "audio_understanding.query_request_failed": {
+        "zh_CN": "转译错误：查询任务结果请求失败 - {{error}}",
+        "en_US": "Transcription error: Query task result request failed - {{error}}"
+    },
+    "audio_understanding.task_timeout": {
+        "zh_CN": "转译错误：音频理解任务超时（{{timeout}}秒）",
+        "en_US": "Transcription error: Audio understanding task timeout ({{timeout}} seconds)"
+    },
+    "audio_understanding.transcription_error": {
+        "zh_CN": "转译错误：音频理解处理失败, 回复用户可能是服务器繁忙, 稍后再试, 或者让用户新建一个话题重新转译试试, 错误信息: {{error}}",
+        "en_US": "Transcription error: Audio understanding processing failed, reply user may be server busy, please try again later, or let the user create a new topic to try again, error: {{error}}"
+    },
+    "audio_understanding.file_not_found": {
+        "zh_CN": "音频文件 {{file_path}} 不存在",
+        "en_US": "Audio file {{file_path}} not found"
+    },
+    "audio_understanding.format_not_supported": {
+        "zh_CN": "不支持的音频文件格式: {{format}}",
+        "en_US": "Unsupported audio file format: {{format}}"
+    },
+    "audio_understanding.project_folder_not_exists": {
+        "zh_CN": "需要创建项目文件夹，正在处理...",
+        "en_US": "Folder creation needed, processing..."
+    },
+    "audio_understanding.project_path_not_directory": {
+        "zh_CN": "路径有误，将尝试解决...",
+        "en_US": "Path error, attempting to resolve..."
+    },
+    "audio_understanding.unknown_file": {
+        "zh_CN": "未知音频文件",
+        "en_US": "Unknown audio file"
+    },
+    "audio_understanding.unknown_status_code": {
+        "zh_CN": "转译错误：未知的状态码 - {{status_code}}: {{status_message}}",
+        "en_US": "Transcription error: Unknown status code - {{status_code}}: {{status_message}}"
+    },
+    "audio_understanding.transcription_progress_message": {
+        "zh_CN": "{{percentage}}%",
+        "en_US": "{{percentage}}%"
+    },
+    "audio_understanding.no_split_needed": {
+        "zh_CN": "无需拆分",
+        "en_US": "No split needed"
+    },
+    "summarize.success": {
+        "zh_CN": "内容总结成功",
+        "en_US": "Content summarization successful"
+    },
+    "summarize.success_general": {
+        "zh_CN": "已完成摘要生成",
+        "en_US": "Summary generation completed"
+    },
+    "summarize.error": {
+        "zh_CN": "内容总结失败: {{error}}",
+        "en_US": "Content summarization failed: {{error}}"
+    },
+    "purify.success": {
+        "zh_CN": "内容清理成功",
+        "en_US": "Content purification successful"
+    },
+    "purify.success_general": {
+        "zh_CN": "已完成文件净化",
+        "en_US": "File purification completed"
+    },
+    "purify.success_with_file": {
+        "zh_CN": "已完成对 '{{file_name}}' 的净化",
+        "en_US": "Purification of '{{file_name}}' completed"
+    },
+    "purify.error": {
+        "zh_CN": "内容清理失败: {{error}}",
+        "en_US": "Content purification failed: {{error}}"
+    },
+    "purify.failed": {
+        "zh_CN": "净化 '{{file_name}}' 失败",
+        "en_US": "Failed to purify '{{file_name}}'"
+    },
+    "purify.attempted": {
+        "zh_CN": "已尝试净化 '{{file_name}}'",
+        "en_US": "Attempted to purify '{{file_name}}'"
+    },
+    "purify.no_need": {
+        "zh_CN": "文件 '{{file_name}}' 无需净化",
+        "en_US": "File '{{file_name}}' does not need purification"
+    },
+    "image_search.error": {
+        "zh_CN": "图像搜索失败: {{error}}",
+        "en_US": "Image search failed: {{error}}"
+    },
+    "visual_understanding.completed": {
+        "zh_CN": "已理解图片: {{image_name}}",
+        "en_US": "Image understanding completed: {{image_name}}"
+    },
+    "visual_understanding.multiple": {
+        "zh_CN": "多图片视觉理解 ({{count}}张)",
+        "en_US": "Multiple image visual understanding ({{count}} images)"
+    },
+    "visual_understanding.multiple_images": {
+        "zh_CN": "已理解 {{count}} 张图片",
+        "en_US": "Understood {{count}} images"
+    },
+    "visual_understanding.single": {
+        "zh_CN": "图片视觉理解: {{image_name}}",
+        "en_US": "Image visual understanding: {{image_name}}"
+    },
+    "visual_understanding.title": {
+        "zh_CN": "图片视觉理解",
+        "en_US": "Image visual understanding"
+    },
+    "visual_understanding.error": {
+        "zh_CN": "视觉理解失败: {{error}}",
+        "en_US": "Visual understanding failed: {{error}}"
+    },
+    "visual_understanding.result_file": {
+        "zh_CN": "视觉理解结果.md",
+        "en_US": "visual_understanding_result.md"
+    },
+    "generate_image.processing": {
+        "zh_CN": "图片生成",
+        "en_US": "Image generation"
+    },
+    "generate_image.multiple": {
+        "zh_CN": "共{{count}}张图片",
+        "en_US": "{{count}} images generated"
+    },
+    "generate_image.success": {
+        "zh_CN": "图像生成成功",
+        "en_US": "Image generation successful"
+    },
+    "generate_image.success_with_files": {
+        "zh_CN": "成功生成{{count}}张图片，文件名：{{file_names}}",
+        "en_US": "Successfully generated {{count}} images, file names: {{file_names}}"
+    },
+    "generate_image.error": {
+        "zh_CN": "图像生成失败: {{error}}",
+        "en_US": "Image generation failed: {{error}}"
+    },
+    "generate_image.failed": {
+        "zh_CN": "生成失败",
+        "en_US": "Generation failed"
+    },
+    "generate_image.file_names": {
+        "zh_CN": "文件名：{{file_names}}",
+        "en_US": "File names: {{file_names}}"
+    },
+    "generate_image.no_images": {
+        "zh_CN": "未生成任何图片",
+        "en_US": "No images generated"
+    },
+    "generate_image.saved_to": {
+        "zh_CN": "保存到: {{paths}}",
+        "en_US": "Saved to: {{paths}}"
+    },
+    "edit_image.multiple": {
+        "zh_CN": "共{{count}}张图片",
+        "en_US": "{{count}} images edited"
+    },
+    "edit_image.success": {
+        "zh_CN": "图像编辑成功",
+        "en_US": "Image editing successful"
+    },
+    "edit_image.success_with_files": {
+        "zh_CN": "成功编辑{{count}}张图片，文件名：{{file_names}}",
+        "en_US": "Successfully edited {{count}} images, file names: {{file_names}}"
+    },
+    "edit_image.error": {
+        "zh_CN": "图像编辑失败: {{error}}",
+        "en_US": "Image edit failed: {{error}}"
+    },
+    "edit_image.failed": {
+        "zh_CN": "编辑失败",
+        "en_US": "Edit failed"
+    },
+    "edit_image.file_names": {
+        "zh_CN": "文件名：{{file_names}}",
+        "en_US": "File names: {{file_names}}"
+    },
+    "edit_image.no_images": {
+        "zh_CN": "未编辑任何图片",
+        "en_US": "No images edited"
+    },
+    "edit_image.saved_to": {
+        "zh_CN": "保存到: {{paths}}",
+        "en_US": "Saved to: {{paths}}"
+    },
+    "create_slide_project.success": {
+        "zh_CN": "项目 {{project_name}} 创建成功（{{slide_count}}页）",
+        "en_US": "Project {{project_name}} created successfully ({{slide_count}} pages)"
+    },
+    "create_slide_project.exception": {
+        "zh_CN": "创建异常，请重试",
+        "en_US": "Creation exception, please retry"
+    },
+    "create_slide_project.empty_project": {
+        "zh_CN": "空项目",
+        "en_US": "empty project"
+    },
+    "create_slide.rewrite_success_with_file": {
+        "zh_CN": "重写 {{file_name}} 成功",
+        "en_US": "Successfully rewrote {{file_name}}"
+    },
+    "create_slide.success": {
+        "zh_CN": "幻灯片创建成功",
+        "en_US": "Slide creation successful"
+    },
+    "create_slide.success_with_file": {
+        "zh_CN": "创建 {{file_name}} 成功",
+        "en_US": "Successfully created {{file_name}}"
+    },
+    "create_slide.exception": {
+        "zh_CN": "创建异常，重新尝试",
+        "en_US": "Creation exception, retry"
+    },
+    "analysis_slide_webpage.remark": {
+        "zh_CN": "分析了 {{target}} 这张幻灯片并生成了AI修复建议",
+        "en_US": "Analyzed slide {{target}} and generated AI repair suggestions"
+    },
+    "analysis_slide_webpage.error": {
+        "zh_CN": "幻灯片分析失败: {{error}}",
+        "en_US": "Slide analysis failed: {{error}}"
+    },
+    "setup_audio_project.success": {
+        "zh_CN": "音频项目 {{title}} 搭建完成（时长：{{duration}}）",
+        "en_US": "Audio project {{title}} setup complete (duration: {{duration}})"
+    },
+    "setup_audio_project.exception": {
+        "zh_CN": "音频项目搭建异常，请重试",
+        "en_US": "Audio project setup failed, please retry"
+    },
+    "analyze_audio_project.success": {
+        "zh_CN": "音频项目分析完成",
+        "en_US": "Audio project analysis complete"
+    },
+    "analyze_audio_project.error": {
+        "zh_CN": "分析不成功，将尝试解决...",
+        "en_US": "Analysis unsuccessful, attempting to resolve..."
+    },
+    "setup_video_project.success": {
+        "zh_CN": "视频项目 {{title}} 搭建完成（时长：{{duration}}）",
+        "en_US": "Video project {{title}} setup complete (duration: {{duration}})"
+    },
+    "setup_video_project.exception": {
+        "zh_CN": "视频项目搭建异常，请重试",
+        "en_US": "Video project setup failed, please retry"
+    },
+    "analyze_video_project.success": {
+        "zh_CN": "视频项目分析完成",
+        "en_US": "Video project analysis complete"
+    },
+    "analyze_video_project.error": {
+        "zh_CN": "视频项目分析失败",
+        "en_US": "Video project analysis failed"
+    },
+    "create_dashboard_project.success": {
+        "zh_CN": "{{project_name}}",
+        "en_US": "{{project_name}}"
+    },
+    "create_dashboard_project.error": {
+        "zh_CN": "数据看板创建失败: {{error}}",
+        "en_US": "Dashboard project creation failed: {{error}}"
+    },
+    "validate_dashboard.success": {
+        "zh_CN": "{{project_path}}",
+        "en_US": "{{project_path}}"
+    },
+    "validate_dashboard.error": {
+        "zh_CN": "数据看板验证失败: {{error}}",
+        "en_US": "Dashboard validation failed: {{error}}"
+    },
+    "update_dashboard_template.success": {
+        "zh_CN": "{{project_name}}",
+        "en_US": "{{project_name}}"
+    },
+    "update_dashboard_template.error": {
+        "zh_CN": "数据看板模板更新失败: {{error}}",
+        "en_US": "Dashboard template update failed: {{error}}"
+    },
+    "backup_dashboard_template.success": {
+        "zh_CN": "{{project_name}}",
+        "en_US": "{{project_name}}"
+    },
+    "backup_dashboard_template.error": {
+        "zh_CN": "数据看板模板备份失败: {{error}}",
+        "en_US": "Dashboard template backup failed: {{error}}"
+    },
+    "dashboard_cards.project_not_exist": {
+        "zh_CN": "项目不存在: {{project_path}}",
+        "en_US": "Project does not exist: {{project_path}}"
+    },
+    "dashboard_cards.data_js_not_exist": {
+        "zh_CN": "项目 {{project_path}} 中不存在 data.js 文件",
+        "en_US": "data.js file does not exist in project {{project_path}}"
+    },
+    "dashboard_cards.parse_error": {
+        "zh_CN": "解析卡片失败: {{error}}",
+        "en_US": "Failed to parse cards: {{error}}"
+    },
+    "dashboard_cards.operation_rollback": {
+        "zh_CN": "操作失败并已回滚: {{error}}",
+        "en_US": "Operation failed and rolled back: {{error}}"
+    },
+    "dashboard_cards.validation_rollback": {
+        "zh_CN": "验证失败，已回滚更改: {{error}}",
+        "en_US": "Validation failed, changes rolled back: {{error}}"
+    },
+    "dashboard_cards.id_not_found": {
+        "zh_CN": "卡片ID不存在: {{card_id}}",
+        "en_US": "Card ID not found: {{card_id}}"
+    },
+    "query_dashboard_cards.success": {
+        "zh_CN": "成功查询 {{count}} 个卡片",
+        "en_US": "Successfully queried {{count}} card(s)"
+    },
+    "query_dashboard_cards.error": {
+        "zh_CN": "查询卡片失败: {{error}}",
+        "en_US": "Failed to query cards: {{error}}"
+    },
+    "create_dashboard_cards.success": {
+        "zh_CN": "成功创建 {{count}} 个卡片",
+        "en_US": "Successfully created {{count}} card(s)"
+    },
+    "create_dashboard_cards.skipped": {
+        "zh_CN": "以下卡片因验证失败未成功添加（该卡片不存在，请修正后使用 create_dashboard_cards 重新创建）: {{failed_list}}",
+        "en_US": "The following card(s) were not added due to validation failure (the card does not exist, please fix and use create_dashboard_cards to create): {{failed_list}}"
+    },
+    "create_dashboard_cards.layout_required": {
+        "zh_CN": "当 auto_layout=False 时，卡片 '{{card_id}}' 必须提供 layout 参数",
+        "en_US": "When auto_layout=False, card '{{card_id}}' must provide layout parameter"
+    },
+    "create_dashboard_cards.layout_adjustment": {
+        "zh_CN": "布局调整: 卡片 '{{new_card_id}}' 向下推移了 {{affected_count}} 个卡片",
+        "en_US": "Layout adjustment: Card '{{new_card_id}}' pushed down {{affected_count}} card(s)"
+    },
+    "create_dashboard_cards.error": {
+        "zh_CN": "创建卡片失败: {{error}}",
+        "en_US": "Failed to create cards: {{error}}"
+    },
+    "update_dashboard_cards.id_not_found": {
+        "zh_CN": "卡片ID不存在: {{card_id}}",
+        "en_US": "Card ID not found: {{card_id}}"
+    },
+    "update_dashboard_cards.success": {
+        "zh_CN": "成功更新 {{count}} 个卡片",
+        "en_US": "Successfully updated {{count}} card(s)"
+    },
+    "update_dashboard_cards.skipped": {
+        "zh_CN": "以下卡片未成功更新（卡片ID不存在或验证失败，请修正后重试）: {{failed_list}}",
+        "en_US": "The following card(s) were not updated (card ID not found or validation failed, please fix and retry): {{failed_list}}"
+    },
+    "update_dashboard_cards.error": {
+        "zh_CN": "更新卡片失败: {{error}}",
+        "en_US": "Failed to update cards: {{error}}"
+    },
+    "delete_dashboard_cards.cannot_delete_all": {
+        "zh_CN": "不能删除所有卡片，至少需要保留一个卡片",
+        "en_US": "Cannot delete all cards. At least one card must remain."
+    },
+    "delete_dashboard_cards.success": {
+        "zh_CN": "成功删除 {{count}} 个卡片，剩余 {{remaining}} 个卡片",
+        "en_US": "Successfully deleted {{count}} card(s), {{remaining}} card(s) remaining"
+    },
+    "delete_dashboard_cards.error": {
+        "zh_CN": "删除卡片失败: {{error}}",
+        "en_US": "Failed to delete cards: {{error}}"
+    },
+    "download_dashboard_maps.success": {
+        "zh_CN": "项目 {{project_path}} 地图下载完成：新下载 {{downloaded_count}} 个，跳过 {{skipped_count}} 个（已存在）",
+        "en_US": "Project {{project_path}} map download completed: {{downloaded_count}} new, {{skipped_count}} skipped (already exists)"
+    },
+    "download_dashboard_maps.error": {
+        "zh_CN": "下载地图失败: {{error}}",
+        "en_US": "Map download failed: {{error}}"
+    },
+    "create_design_project.success": {
+        "zh_CN": "项目 {{project_name}} 创建成功",
+        "en_US": "Project {{project_name}} created successfully"
+    },
+    "create_design_project.exception": {
+        "zh_CN": "创建异常，请重试",
+        "en_US": "Creation exception, please retry"
+    },
+    "query_canvas_overview.success": {
+        "zh_CN": "画布概览查询完成",
+        "en_US": "Canvas overview query completed"
+    },
+    "query_canvas_overview.exception": {
+        "zh_CN": "查询画布概览异常，请重试",
+        "en_US": "Query canvas overview failed, please try again"
+    },
+    "create_canvas_element.success": {
+        "zh_CN": "元素 {{element_name}} ({{element_type}}) 创建成功",
+        "en_US": "Element {{element_name}} ({{element_type}}) created successfully"
+    },
+    "create_canvas_element.exception": {
+        "zh_CN": "创建元素异常，请重试",
+        "en_US": "Element creation exception, please retry"
+    },
+    "update_canvas_element.success": {
+        "zh_CN": "元素 {{element_display}} 更新成功",
+        "en_US": "Element {{element_display}} updated successfully"
+    },
+    "update_canvas_element.exception": {
+        "zh_CN": "更新元素异常，请重试",
+        "en_US": "Element update exception, please retry"
+    },
+    "reorder_canvas_elements.success": {
+        "zh_CN": "元素 {{element_display}} 图层调整成功 ({{action}})",
+        "en_US": "Element {{element_display}} layer reordered successfully ({{action}})"
+    },
+    "reorder_canvas_elements.exception": {
+        "zh_CN": "调整图层异常，请重试",
+        "en_US": "Layer reorder exception, please retry"
+    },
+    "query_canvas_element.success": {
+        "zh_CN": "元素 {{element_id}} 详情查询完成",
+        "en_US": "Element {{element_id}} query completed"
+    },
+    "query_canvas_element.exception": {
+        "zh_CN": "查询元素详情异常，请重试",
+        "en_US": "Query element failed, please try again"
+    },
+    "delete_canvas_element.success": {
+        "zh_CN": "元素删除成功",
+        "en_US": "Element(s) deleted successfully"
+    },
+    "delete_canvas_element.exception": {
+        "zh_CN": "删除元素异常，请重试",
+        "en_US": "Element deletion exception, please retry"
+    },
+    "batch_create_canvas_elements.success": {
+        "zh_CN": "成功创建 {{count}} 个画布元素",
+        "en_US": "Successfully created {{count}} canvas elements"
+    },
+    "batch_update_canvas_elements.success": {
+        "zh_CN": "成功更新 {{count}} 个画布元素",
+        "en_US": "Successfully updated {{count}} canvas elements"
+    },
+    "search_images_to_canvas.success_multiple": {
+        "zh_CN": "成功搜索 {{succeeded_count}} 张图片并添加到画布",
+        "en_US": "Successfully searched {{succeeded_count}} images and added to canvas"
+    },
+    "search_images_to_canvas.success_single": {
+        "zh_CN": "成功搜索图片并添加到画布",
+        "en_US": "Successfully searched images and added to canvas"
+    },
+    "generate_images_to_canvas.success_multiple": {
+        "zh_CN": "成功生成 {{image_count}} 张图片 '{{name}}' 并添加到画布",
+        "en_US": "Successfully generated {{image_count}} images '{{name}}' and added to canvas"
+    },
+    "generate_images_to_canvas.success_single": {
+        "zh_CN": "成功生成图片 '{{name}}' 并添加到画布",
+        "en_US": "Successfully generated image '{{name}}' and added to canvas"
+    },
+    "thinking.start_deep_thinking": {
+        "zh_CN": "开始深入思考问题：{{problem}}",
+        "en_US": "Starting deep thinking on problem: {{problem}}"
+    },
+    "thinking.error": {
+        "zh_CN": "思考过程出错: {{error}}",
+        "en_US": "Thinking process error: {{error}}"
+    },
+    "thinking.unknown_problem": {
+        "zh_CN": "未知问题",
+        "en_US": "Unknown problem"
+    },
+    "reflection.success": {
+        "zh_CN": "反思分析成功",
+        "en_US": "Reflection analysis successful"
+    },
+    "reflection.error": {
+        "zh_CN": "反思分析失败: {{error}}",
+        "en_US": "Reflection analysis failed: {{error}}"
+    },
+    "deep_write.success": {
+        "zh_CN": "深度写作成功",
+        "en_US": "Deep writing successful"
+    },
+    "deep_write.error": {
+        "zh_CN": "深度写作失败: {{error}}",
+        "en_US": "Deep writing failed: {{error}}"
+    },
+    "deep_write.question": {
+        "zh_CN": "深度写作问题: {{question}}",
+        "en_US": "Deep writing question: {{question}}"
+    },
+    "call_agent.start": {
+        "zh_CN": "调用智能体: {{agent_name}}",
+        "en_US": "Calling agent: {{agent_name}}"
+    },
+    "call_agent.error": {
+        "zh_CN": "代理调用失败: {{error}}",
+        "en_US": "Agent call failed: {{error}}"
+    },
+    "call_agent.unknown_agent": {
+        "zh_CN": "未知智能体",
+        "en_US": "Unknown agent"
+    },
+    "compact_chat_history.remark": {
+        "zh_CN": "当前对话内容过长，{{agent_name}}将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响{{agent_name}}的工作效率，建议在处理新的事务时新建话题",
+        "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency. It's recommended to start a new topic when handling new tasks."
+    },
+    "skills_read.success": {
+        "zh_CN": "技能学习成功",
+        "en_US": "Skill learned"
+    },
+    "skills_read.success_multiple": {
+        "zh_CN": "已学习 {{skill_name}} 等 {{count}} 个技能",
+        "en_US": "Learned {{skill_name}} and {{count}} other Skills"
+    },
+    "skills_read.success_single": {
+        "zh_CN": "已学习技能 {{skill_name}}",
+        "en_US": "Learned Skill {{skill_name}}"
+    },
+    "skills_read.error": {
+        "zh_CN": "技能学习失败",
+        "en_US": "Failed to learn Skill"
+    },
+    "skills_read.error_with_name": {
+        "zh_CN": "学习技能 {{skill_name}} 失败",
+        "en_US": "Failed to learn Skill {{skill_name}}"
+    },
+    "skill_read_references.success": {
+        "zh_CN": "深入学习技能成功",
+        "en_US": "Skill references explored"
+    },
+    "skill_read_references.success_multiple": {
+        "zh_CN": "已深入学习 {{skill_name}} 等 {{count}} 份技能参考文档",
+        "en_US": "Explored {{skill_name}} and {{count}} other Skill references"
+    },
+    "skill_read_references.success_single": {
+        "zh_CN": "已深入学习 {{skill_name}} 技能参考文档",
+        "en_US": "Explored {{skill_name}} Skill references"
+    },
+    "skill_read_references.error": {
+        "zh_CN": "深入学习技能失败",
+        "en_US": "Failed to explore Skill references"
+    },
+    "skill_read_references.error_with_name": {
+        "zh_CN": "深入学习 {{skill_name}} 技能参考文档失败",
+        "en_US": "Failed to explore {{skill_name}} Skill references"
+    },
+    "create_memory.success": {
+        "zh_CN": "{{preview}}",
+        "en_US": "{{preview}}"
+    },
+    "create_memory.error": {
+        "zh_CN": "创建长期记忆时遇到错误",
+        "en_US": "Error creating long-term memory"
+    },
+    "update_memory.success": {
+        "zh_CN": "{{preview}}",
+        "en_US": "{{preview}}"
+    },
+    "update_memory.error": {
+        "zh_CN": "更新长期记忆时遇到错误",
+        "en_US": "Error updating long-term memory"
+    },
+    "delete_memory.success": {
+        "zh_CN": "{{preview}}",
+        "en_US": "{{preview}}"
+    },
+    "delete_memory.error": {
+        "zh_CN": "删除长期记忆时遇到错误",
+        "en_US": "Error deleting long-term memory"
+    },
+    "browser.unknown_operation": {
+        "zh_CN": "操作浏览器",
+        "en_US": "Use Browser"
+    },
+    "browser.click": {
+        "zh_CN": "点击元素",
+        "en_US": "Click element"
+    },
+    "browser.find_interactive_element_visually": {
+        "zh_CN": "查找可交互元素",
+        "en_US": "Find interactive elements"
+    },
+    "browser.get_interactive_elements": {
+        "zh_CN": "查找可交互元素",
+        "en_US": "Find interactive elements"
+    },
+    "browser.goto": {
+        "zh_CN": "打开网页",
+        "en_US": "Open webpage"
+    },
+    "browser.goto_and_read": {
+        "zh_CN": "打开网页并阅读网页内容",
+        "en_US": "Open webpage and read content"
+    },
+    "browser.input_text": {
+        "zh_CN": "输入内容",
+        "en_US": "Input text"
+    },
+    "browser.read_as_markdown": {
+        "zh_CN": "阅读网页内容",
+        "en_US": "Read webpage content"
+    },
+    "browser.scroll_to": {
+        "zh_CN": "滚动屏幕",
+        "en_US": "Scroll screen"
+    },
+    "browser.visual_query": {
+        "zh_CN": "阅读网页内容",
+        "en_US": "Read webpage content"
+    },
+    "design.error_download_failed": {
+        "zh_CN": "图片下载失败",
+        "en_US": "Image download failed"
+    },
+    "design.error_duplicate_id": {
+        "zh_CN": "元素ID已存在",
+        "en_US": "Element ID already exists"
+    },
+    "design.error_file_modified": {
+        "zh_CN": "画布文件已变化，需要重新查询",
+        "en_US": "Canvas file has changed, need to re-query"
+    },
+    "design.error_invalid_element_type": {
+        "zh_CN": "不支持的元素类型",
+        "en_US": "Unsupported element type"
+    },
+    "design.error_invalid_property": {
+        "zh_CN": "元素属性设置有误",
+        "en_US": "Invalid element property"
+    },
+    "design.error_search_no_results": {
+        "zh_CN": "没有搜索到图片",
+        "en_US": "No images found from search"
+    },
+    "design.error_unexpected": {
+        "zh_CN": "操作遇到问题",
+        "en_US": "Operation encountered an issue"
+    },
+    "design.error_element_not_found": {
+        "zh_CN": "找不到指定的画布元素",
+        "en_US": "Canvas element not found"
+    },
+    "design.error_image_file_not_found": {
+        "zh_CN": "找不到图片文件",
+        "en_US": "Image file not found"
+    },
+    "design.error_magic_project_js_not_found": {
+        "zh_CN": "项目配置文件缺失",
+        "en_US": "Project configuration file missing"
+    },
+    "design.error_project_not_found": {
+        "zh_CN": "找不到设计项目",
+        "en_US": "Design project not found"
+    },
+    "tool.success": {
+        "zh_CN": "操作成功完成",
+        "en_US": "Operation completed successfully"
+    },
+    "tool.call_failed_remark": {
+        "zh_CN": "工具调用失败",
+        "en_US": "Tool call failed"
+    },
+    "tool.error": {
+        "zh_CN": "操作失败: {{error}}",
+        "en_US": "Operation failed: {{error}}"
+    },
+    "tool.execution_exception": {
+        "zh_CN": "执行工具 '{{tool_name}}' 时发生异常: {{error}}",
+        "en_US": "Exception occurred while executing tool '{{tool_name}}': {{error}}"
+    },
+    "tool.ai_retry_suffix": {
+        "zh_CN": "，AI 将尝试解决",
+        "en_US": ", AI will attempt to resolve this"
+    },
+    "tool.execution_interrupted": {
+        "zh_CN": "由于处理过程中出现意外错误 ({{error}})，工具调用被中断，请重新检查工具调用的参数是否正确。",
+        "en_US": "Tool execution was interrupted due to an unexpected error ({{error}}). Please check if the tool call parameters are correct."
+    },
+    "task.completed": {
+        "zh_CN": "任务完成",
+        "en_US": "Task completed"
+    },
+    "task_vm_init.start": {
+        "zh_CN": "虚拟机正在初始化",
+        "en_US": "Virtual machine is initializing"
+    },
+    "task_vm_init.success": {
+        "zh_CN": "虚拟机初始化完成",
+        "en_US": "Virtual machine initialization completed"
+    },
+    "task_vm_init.failed": {
+        "zh_CN": "虚拟机初始化失败",
+        "en_US": "Virtual machine initialization failed"
+    },
+    "mcp_init.start": {
+        "zh_CN": "MCP 初始化开始: {{content}}",
+        "en_US": "MCP initialization started: {{content}}"
+    },
+    "mcp_init.success": {
+        "zh_CN": "MCP 初始化结果: {{content}}",
+        "en_US": "MCP initialization result: {{content}}"
+    },
+    "mcp_init.error": {
+        "zh_CN": "MCP 初始化错误: {{error}}",
+        "en_US": "MCP initialization error: {{error}}"
+    },
+    "mcp_server.success": {
+        "zh_CN": "成功：{{servers}}",
+        "en_US": "Success: {{servers}}"
+    },
+    "mcp_server.failed": {
+        "zh_CN": "失败：{{servers}}",
+        "en_US": "Failed: {{servers}}"
+    },
+    "search.error": {
+        "zh_CN": "搜索时出错: {{error}}",
+        "en_US": "Error during search: {{error}}"
+    },
+    "search.no_results": {
+        "zh_CN": "未找到匹配的结果",
+        "en_US": "No matching results found"
+    },
+    "unknown.message": {
+        "zh_CN": "未知",
+        "en_US": "Unknown"
+    },
+    "delete_file.error": {
+        "zh_CN": "删除文件 {{file_path}} 时出错",
+        "en_US": "Error deleting file {{file_path}}"
+    },
+    "video.project_config_create_failed": {
+        "zh_CN": "配置文件创建失败，将尝试解决...",
+        "en_US": "Config creation failed, attempting to resolve..."
+    },
+    "video.project_folder_not_exists": {
+        "zh_CN": "需要创建项目文件夹，正在处理...",
+        "en_US": "Folder creation needed, processing..."
+    },
+    "video.project_path_not_directory": {
+        "zh_CN": "路径有误，将尝试解决...",
+        "en_US": "Path error, attempting to resolve..."
+    }
+}

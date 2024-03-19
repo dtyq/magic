@@ -1,0 +1,310 @@
+{
+    "list_dir": {
+        "zh_CN": "查看目录",
+        "en_US": "List directory"
+    },
+    "file_search": {
+        "zh_CN": "搜索文件",
+        "en_US": "Search files"
+    },
+    "grep_search": {
+        "zh_CN": "内容搜索",
+        "en_US": "Content search"
+    },
+    "read_file": {
+        "zh_CN": "读取文件",
+        "en_US": "Read file"
+    },
+    "read_files": {
+        "zh_CN": "读取文件",
+        "en_US": "Read file"
+    },
+    "write_file": {
+        "zh_CN": "写入文件",
+        "en_US": "Write file"
+    },
+    "append_to_file": {
+        "zh_CN": "更新文件",
+        "en_US": "Append file"
+    },
+    "edit_file": {
+        "zh_CN": "编辑文件",
+        "en_US": "Edit file"
+    },
+    "edit_file_range": {
+        "zh_CN": "编辑文件",
+        "en_US": "Edit file"
+    },
+    "multi_edit_file": {
+        "zh_CN": "编辑文件",
+        "en_US": "Edit file"
+    },
+    "multi_edit_file_range": {
+        "zh_CN": "编辑文件",
+        "en_US": "Edit file"
+    },
+    "delete_files": {
+        "zh_CN": "删除文件",
+        "en_US": "Delete file"
+    },
+    "convert_pdf": {
+        "zh_CN": "转换PDF",
+        "en_US": "Convert PDF"
+    },
+    "convert_to_markdown": {
+        "zh_CN": "转换文档",
+        "en_US": "Convert document"
+    },
+    "download_from_markdown": {
+        "zh_CN": "下载资源",
+        "en_US": "Download resources"
+    },
+    "shell_exec": {
+        "zh_CN": "执行命令",
+        "en_US": "Execute Shell command"
+    },
+    "run_python_snippet": {
+        "zh_CN": "执行Python代码片段",
+        "en_US": "Execute Python snippet"
+    },
+    "execute_python": {
+        "zh_CN": "执行Python代码",
+        "en_US": "Execute Python code"
+    },
+    "web_search": {
+        "zh_CN": "互联网搜索",
+        "en_US": "Web search"
+    },
+    "use_browser": {
+        "zh_CN": "使用浏览器",
+        "en_US": "Use browser"
+    },
+    "read_webpages_as_markdown": {
+        "zh_CN": "深度阅读多个网页内容",
+        "en_US": "Webpages deep read"
+    },
+    "visual_understanding_webpage": {
+        "zh_CN": "视觉分析",
+        "en_US": "Visual analysis"
+    },
+    "download_from_url": {
+        "zh_CN": "下载资源",
+        "en_US": "Download resource"
+    },
+    "download_from_urls": {
+        "zh_CN": "下载资源",
+        "en_US": "Download resource"
+    },
+    "get_youtube_video_info": {
+        "zh_CN": "获取视频信息",
+        "en_US": "Get video info"
+    },
+    "download_youtube_video_media": {
+        "zh_CN": "下载视频媒体",
+        "en_US": "Download video media"
+    },
+    "convert_video_to_audio": {
+        "zh_CN": "视频转音频",
+        "en_US": "Convert video to audio"
+    },
+    "split_audio": {
+        "zh_CN": "拆分音频",
+        "en_US": "Split audio"
+    },
+    "audio_understanding": {
+        "zh_CN": "音频理解",
+        "en_US": "Audio understanding"
+    },
+    "understand_audio": {
+        "zh_CN": "音频理解",
+        "en_US": "Audio understanding"
+    },
+    "summarize": {
+        "zh_CN": "内容总结",
+        "en_US": "Summarize content"
+    },
+    "purify": {
+        "zh_CN": "内容净化",
+        "en_US": "Purify content"
+    },
+    "image_search": {
+        "zh_CN": "搜索图像",
+        "en_US": "Search image"
+    },
+    "visual_understanding": {
+        "zh_CN": "视觉理解",
+        "en_US": "Visual understanding"
+    },
+    "generate_image": {
+        "zh_CN": "生成图像",
+        "en_US": "Generate image"
+    },
+    "edit_image": {
+        "zh_CN": "编辑图像",
+        "en_US": "Edit image"
+    },
+    "image_edit": {
+        "zh_CN": "编辑图像",
+        "en_US": "Edit image"
+    },
+    "create_slide_project": {
+        "zh_CN": "创建幻灯片项目",
+        "en_US": "Create slide project"
+    },
+    "create_slide": {
+        "zh_CN": "创建幻灯片",
+        "en_US": "Create slide"
+    },
+    "analysis_slide_webpage": {
+        "zh_CN": "幻灯片分析",
+        "en_US": "Slide analysis"
+    },
+    "setup_audio_project": {
+        "zh_CN": "搭建音频项目",
+        "en_US": "Setup audio project"
+    },
+    "analyze_audio_project": {
+        "zh_CN": "分析音频项目",
+        "en_US": "Analyze audio project"
+    },
+    "setup_video_project": {
+        "zh_CN": "搭建视频项目",
+        "en_US": "Setup video project"
+    },
+    "analyze_video_project": {
+        "zh_CN": "分析视频项目",
+        "en_US": "Analyze video project"
+    },
+    "create_dashboard_project": {
+        "zh_CN": "创建数据看板",
+        "en_US": "Create dashboard"
+    },
+    "validate_dashboard": {
+        "zh_CN": "验证数据看板",
+        "en_US": "Validate dashboard"
+    },
+    "update_dashboard_template": {
+        "zh_CN": "更新数据看板模板",
+        "en_US": "Update dashboard template"
+    },
+    "backup_dashboard_template": {
+        "zh_CN": "备份数据看板模板",
+        "en_US": "Backup dashboard template"
+    },
+    "query_dashboard_cards": {
+        "zh_CN": "查询卡片",
+        "en_US": "Query cards"
+    },
+    "create_dashboard_cards": {
+        "zh_CN": "创建卡片",
+        "en_US": "Create cards"
+    },
+    "update_dashboard_cards": {
+        "zh_CN": "更新卡片",
+        "en_US": "Update cards"
+    },
+    "delete_dashboard_cards": {
+        "zh_CN": "删除卡片",
+        "en_US": "Delete cards"
+    },
+    "download_dashboard_maps": {
+        "zh_CN": "手动下载地图",
+        "en_US": "Download maps manually"
+    },
+    "create_design_project": {
+        "zh_CN": "创建设计项目",
+        "en_US": "Create design project"
+    },
+    "query_canvas_overview": {
+        "zh_CN": "查询画布概览",
+        "en_US": "Query canvas overview"
+    },
+    "create_canvas_element": {
+        "zh_CN": "创建画布元素",
+        "en_US": "Create canvas element"
+    },
+    "update_canvas_element": {
+        "zh_CN": "更新画布元素",
+        "en_US": "Update canvas element"
+    },
+    "reorder_canvas_elements": {
+        "zh_CN": "调整图层顺序",
+        "en_US": "Reorder canvas elements"
+    },
+    "query_canvas_element": {
+        "zh_CN": "查询元素详情",
+        "en_US": "Query canvas element"
+    },
+    "delete_canvas_element": {
+        "zh_CN": "删除画布元素",
+        "en_US": "Delete canvas element"
+    },
+    "batch_create_canvas_elements": {
+        "zh_CN": "批量创建元素",
+        "en_US": "Batch create elements"
+    },
+    "batch_update_canvas_elements": {
+        "zh_CN": "批量更新元素",
+        "en_US": "Batch update elements"
+    },
+    "search_images_to_canvas": {
+        "zh_CN": "创建画布元素",
+        "en_US": "Create canvas element"
+    },
+    "generate_images_to_canvas": {
+        "zh_CN": "生成图片",
+        "en_US": "Generate images"
+    },
+    "thinking": {
+        "zh_CN": "深度思考",
+        "en_US": "Thinking process"
+    },
+    "reflection": {
+        "zh_CN": "深度反思",
+        "en_US": "Reflection summary"
+    },
+    "deep_write": {
+        "zh_CN": "深度写作",
+        "en_US": "Deep write"
+    },
+    "call_agent": {
+        "zh_CN": "调用代理",
+        "en_US": "Call agent"
+    },
+    "compact_chat_history": {
+        "zh_CN": "整理对话内容",
+        "en_US": "Compact chat history"
+    },
+    "skills_read": {
+        "zh_CN": "学习技能",
+        "en_US": "Learn Skill"
+    },
+    "skill_read_references": {
+        "zh_CN": "深入学习技能",
+        "en_US": "Deep dive into Skill"
+    },
+    "todo_create": {
+        "zh_CN": "创建任务列表",
+        "en_US": "Create task list"
+    },
+    "todo_update": {
+        "zh_CN": "更新任务列表",
+        "en_US": "Update task list"
+    },
+    "todo_read": {
+        "zh_CN": "查看任务列表",
+        "en_US": "View task list"
+    },
+    "create_memory": {
+        "zh_CN": "创建记忆",
+        "en_US": "Create memory"
+    },
+    "update_memory": {
+        "zh_CN": "更新记忆",
+        "en_US": "Update memory"
+    },
+    "delete_memory": {
+        "zh_CN": "删除记忆",
+        "en_US": "Delete memory"
+    }
+}
