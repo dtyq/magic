@@ -1,0 +1,31 @@
+.select-trigger {
+	width: 64px !important;
+	height: 32px !important;
+}
+
+.select-option-item {
+	padding: 0 !important;
+}
+
+.select-option-item > span:first-child {
+	display: none;
+}
+
+.select-option-item-content {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	height: 32px;
+	padding: 0 var(--spacing-2, 8px);
+}
+
+.icon {
+	color: var(--base-muted-foreground, #737373);
+}
+
+.label {
+	overflow: hidden;
+	color: var(--base-popover-foreground, #0a0a0a);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

@@ -1,0 +1,77 @@
+/* 自定义调色盘 */
+.color-picker-popover {
+	width: 360px !important;
+	padding: var(--spacing-3-5, 14px) !important;
+	background: var(--base-popover, #fff) !important;
+	border: var(--border-width-border, 1px) solid var(--base-border, #e5e5e5) !important;
+	border-radius: var(--border-radius-rounded-md, 8px) !important;
+	box-shadow: var(--shadow-md-1-offset-x, 0) var(--shadow-md-1-offset-y, 4px)
+			var(--shadow-md-1-blur-radius, 6px) var(--shadow-md-1-spread-radius, -1px)
+			var(--shadow-md-1-color, rgb(0 0 0 / 10%)),
+		var(--shadow-md-2-offset-x, 0) var(--shadow-md-2-offset-y, 2px)
+			var(--shadow-md-2-blur-radius, 4px) var(--shadow-md-2-spread-radius, -2px)
+			var(--shadow-md-2-color, rgb(0 0 0 / 10%)) !important;
+}
+
+.color-picker {
+	display: flex;
+	flex-direction: column;
+	background: var(--base-popover, #fff);
+}
+
+.color-picker-title {
+	display: -webkit-box;
+	align-self: stretch;
+	overflow: hidden;
+	color: var(--base-foreground, #0a0a0a);
+	font-weight: var(--font-weight-semibold, 600);
+	font-size: var(--text-sm-font-size, 14px);
+	font-family: var(--font-font-sans, Geist);
+	font-style: normal;
+	line-height: var(--text-sm-line-height, 20px);
+	text-overflow: ellipsis;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 1;
+}
+
+.color-picker-selection {
+	width: 100%;
+	height: 304px;
+}
+
+.color-picker-selection > div {
+	border-radius: var(--border-radius-rounded-md, 8px) !important;
+}
+
+.color-picker-gap {
+	gap: var(--spacing-2, 8px) !important;
+}
+
+.transparent-button {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	overflow: hidden;
+	color: var(--base-muted-foreground, #737373);
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	cursor: pointer;
+	transition: border-color 0.2s ease;
+	user-select: none;
+}
+
+.transparent-button:hover {
+	background: var(--base-accent, #f5f5f5);
+}
+
+.transparent-button img {
+	pointer-events: none;
+}
+
+.transparent-button-active {
+	border: 2px solid var(--base-primary, #171717);
+}

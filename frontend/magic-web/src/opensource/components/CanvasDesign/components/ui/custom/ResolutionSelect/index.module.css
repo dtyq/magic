@@ -1,0 +1,72 @@
+.select-trigger {
+	display: flex;
+	gap: var(--spacing-1, 4px) !important;
+	align-items: center;
+	justify-content: center;
+	height: var(--height-h-6, 24px) !important;
+	padding: var(--spacing-1, 4px) var(--spacing-1-5, 6px) !important;
+	font-size: var(--text-xs-font-size, 12px) !important;
+	background: var(--base-secondary, #f5f5f5) !important;
+	border: none !important;
+	border-radius: var(--border-radius-rounded-md, 8px) !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.select-trigger > svg:last-child {
+	display: none;
+}
+
+.select-trigger-text {
+	overflow: visible !important;
+	white-space: nowrap !important;
+}
+
+.select-content-name {
+	margin-bottom: var(--spacing-1, 4px);
+	padding: 0 4px;
+	color: var(--base-foreground, #0a0a0a);
+	font-weight: var(--font-weight-semibold, 600);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.select-option-item {
+	padding: var(--spacing-2, 8px) var(--spacing-2-5, 10px) !important;
+}
+
+.select-option-item-with-value {
+	padding-right: 40px !important;
+}
+
+.select-option-item > span:first-child {
+	right: 10px !important;
+	left: unset !important;
+}
+
+.select-option-item > span:last-child {
+	width: 100%;
+}
+
+/* SizeSelect 专用的样式：参考 ImageEditorControls 中比例选择的样式 */
+.size-option-item-content {
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.size-option-item-content > .label {
+	flex: 1;
+	font-weight: var(--font-weight-medium, 500);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.size-option-item-content > .size {
+	color: var(--base-muted-foreground, #737373);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.select-content {
+	z-index: 2 !important;
+}

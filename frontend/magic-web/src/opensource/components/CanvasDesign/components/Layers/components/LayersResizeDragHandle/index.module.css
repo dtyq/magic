@@ -1,0 +1,37 @@
+.layers-resize-drag-handle-container {
+	position: absolute;
+	top: 8px;
+	bottom: 8px;
+	z-index: 3;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 4px;
+	transform: translateX(50%);
+	opacity: 0;
+	user-select: none;
+}
+
+.layers-resize-drag-handle-container.visible {
+	opacity: 1;
+	transition: all 0.15s ease-in-out;
+}
+
+.layers-resize-drag-handle {
+	display: flex;
+	gap: 2px;
+	align-items: center;
+	justify-content: space-between;
+	cursor: col-resize;
+}
+
+.layers-resize-drag-handle-line {
+	width: 1.6px;
+	height: 20px;
+	background: var(--base-muted-foreground, #737373);
+	border-radius: var(--border-radius-rounded-xs, 2px);
+}
+
+.layers-resize-drag-handle-container.resizing {
+	transition: none;
+}

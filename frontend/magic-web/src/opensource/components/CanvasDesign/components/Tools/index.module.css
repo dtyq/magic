@@ -1,0 +1,50 @@
+/* Tools - 最上层 z-index: 3 */
+.tools {
+	position: absolute;
+	top: 50%;
+	left: 8px;
+	z-index: 3;
+	display: inline-flex;
+	flex-direction: column;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	padding: var(--spacing-1, 4px);
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-full, 9999px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+	transform: translateY(-50%);
+}
+
+.tool-item {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-9, 36px);
+	height: var(--height-h-9, 36px);
+	border-radius: 50%;
+}
+
+.divider {
+	width: 24px;
+	height: 1px;
+	background: var(--base-border, #e5e5e5);
+}
+
+.tooltip-label {
+	color: var(--base-primary-foreground, #fafafa);
+}
+
+.tooltip-shortcut {
+	color: var(--base-muted-foreground, #737373);
+}
+
+.popover-content {
+	display: flex;
+	flex-direction: row;
+	gap: var(--spacing-1, 4px);
+}

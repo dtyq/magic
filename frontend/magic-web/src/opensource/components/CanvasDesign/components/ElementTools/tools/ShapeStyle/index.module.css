@@ -1,0 +1,79 @@
+.trigger-button {
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+	padding: var(--spacing-0, 0) var(--spacing-1-5, 6px);
+	color: var(--base-foreground, #030712);
+	background: var(--tailwind-colors-base-transparent, rgb(255 255 255 / 0%));
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}
+
+.button-text {
+	color: var(--base-foreground, #0a0a0a);
+	font-size: var(--text-xs-font-size, 12px);
+}
+
+.popover-content {
+	width: auto !important;
+}
+
+.shape-style {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-2, 8px);
+	width: 400px;
+}
+
+.config-item {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+}
+
+.label {
+	width: 120px;
+}
+
+.slider-wrapper {
+	flex: 1;
+	min-width: 0;
+}
+
+.slider {
+	width: 100%;
+}
+
+.input-group {
+	position: relative;
+	display: flex;
+	align-items: center;
+	width: 60px;
+}
+
+.input {
+	width: 100%;
+	height: 32px !important;
+	padding: var(--spacing-1, 4px) 24px var(--spacing-1, 4px) var(--spacing-2, 8px) !important;
+	text-align: left;
+}
+
+/* 隐藏 Chrome, Safari, Edge, Opera 的数字输入框箭头 */
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button {
+	margin: 0;
+	appearance: none;
+}
+
+/* 隐藏 Firefox 的数字输入框箭头 */
+.input[type="number"] {
+	appearance: textfield;
+}
+
+.suffix {
+	position: absolute;
+	right: var(--spacing-2, 8px);
+	color: var(--base-muted-foreground, #737373);
+	pointer-events: none;
+}

@@ -1,0 +1,127 @@
+.stroke-color {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-8, 32px);
+	height: var(--height-h-8, 32px);
+	padding: 2px;
+	cursor: pointer;
+}
+
+.stroke-color-content {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+	padding: 1px;
+	border: 1px solid transparent;
+	border-radius: var(--border-radius-rounded-md, 8px);
+}
+
+.color-background {
+	position: relative;
+	width: 24px;
+	height: 24px;
+	overflow: hidden;
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}
+
+.stroke-color.active .stroke-color-content {
+	border-color: var(--base-primary, #171717);
+}
+
+.stroke-border {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 3px;
+	height: 141.42%; /* √2 ≈ 1.4142，确保对角线铺满 */
+	transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.stroke-controls {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+}
+
+.stroke-width-input {
+	position: relative;
+	display: flex;
+	flex: 1;
+	align-items: center;
+}
+
+.stroke-width-input .prefix-icon {
+	position: absolute;
+	left: var(--spacing-3, 12px);
+	z-index: 1;
+	color: var(--base-muted-foreground, #737373);
+	cursor: ew-resize;
+	transition: color 0.15s ease;
+	user-select: none;
+	pointer-events: auto;
+}
+
+.stroke-width-input .prefix-icon:hover {
+	color: var(--base-foreground, #0a0a0a);
+}
+
+.stroke-width-input .prefix-icon:active {
+	color: var(--base-primary, #171717);
+}
+
+.stroke-width-input .input {
+	flex: 1;
+	padding-right: 32px;
+	padding-left: 34px;
+	color: var(--base-foreground, #0a0a0a);
+	font-weight: var(--font-weight-normal, 400);
+	font-size: var(--text-sm-font-size, 14px);
+	font-family: var(--font-font-sans, Geist);
+	font-style: normal;
+	text-align: center;
+}
+
+/* 隐藏 Chrome, Safari, Edge, Opera 的数字输入框箭头 */
+.stroke-width-input .input::-webkit-outer-spin-button,
+.stroke-width-input .input::-webkit-inner-spin-button {
+	margin: 0;
+	appearance: none;
+}
+
+/* 隐藏 Firefox 的数字输入框箭头 */
+.stroke-width-input .input[type="number"] {
+	appearance: textfield;
+}
+
+.stroke-width-input .unit {
+	position: absolute;
+	right: var(--spacing-3, 12px);
+	display: -webkit-box;
+	overflow: hidden;
+	color: var(--base-muted-foreground, #737373);
+	font-weight: var(--font-weight-normal, 400);
+	font-size: var(--text-sm-font-size, 14px);
+	font-family: var(--font-font-sans, Geist);
+	font-style: normal;
+	line-height: var(--text-sm-line-height, 20px);
+	text-overflow: ellipsis;
+	pointer-events: none;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 1;
+}
+
+.select {
+	flex: 1;
+	font-size: 12px;
+}
+
+.drag-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 9999;
+	cursor: ew-resize;
+	user-select: none;
+}

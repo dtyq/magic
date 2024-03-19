@@ -1,0 +1,17 @@
+.vip-tag {
+	display: inline-flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 14px;
+	padding: var(--spacing-0-5, 2px) var(--spacing-1-5, 6px);
+	color: var(--tailwind-colors-base-white, #fff);
+	font-weight: var(--font-weight-medium, 500);
+	font-size: 10px;
+	text-align: center;
+	background: linear-gradient(97deg, #261f46 29.12%, #241ad6 74.21%, #a517fd 100%);
+	border: var(--border-width-border, 1px) solid
+		var(--tailwind-colors-base-transparent, rgb(255 255 255 / 0%));
+	border-radius: var(--border-radius-rounded-full, 9999px);
+}

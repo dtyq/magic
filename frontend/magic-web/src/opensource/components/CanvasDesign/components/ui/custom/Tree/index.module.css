@@ -1,0 +1,131 @@
+.tree {
+	width: 100%;
+	height: 100%;
+	padding: 0 var(--spacing-2, 8px);
+	overflow: hidden auto;
+	user-select: none;
+}
+
+.tree-node-item {
+	width: 100%;
+}
+
+.tree-node-content {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	height: 32px;
+	margin-bottom: var(--spacing-0-5, 2px);
+	padding: 0 var(--spacing-2, 8px);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	cursor: pointer;
+	transition: background-color 0.15s;
+}
+
+/* 只有当没有 hover 到按钮或标记了 no-hover 的元素时才显示 hover 效果 */
+.tree-node-content:not(.tree-node-content--selected):hover:not(
+		:has(.tree-node-toggle:hover),
+		:has(.no-hover:hover)
+	) {
+	background: var(--tailwind-colors-gray-100, #f3f4f6);
+}
+
+.tree-node-content:not(.tree-node-content--selected):active:not(
+		:has(.tree-node-toggle:active),
+		:has(.no-active:active)
+	) {
+	background: var(--tailwind-colors-gray-200, #e5e7eb);
+}
+
+/* 当禁用 active 样式时 */
+.disable-active:active {
+	background: transparent !important;
+}
+
+.tree-node-content--selected.disable-active:active {
+	background: var(--tailwind-colors-blue-50, #eff6ff) !important;
+}
+
+.tree-node-content--selected {
+	background: var(--tailwind-colors-blue-50, #eff6ff);
+}
+
+.tree-node-content--hovered {
+	background: var(--tailwind-colors-gray-100, #f3f4f6);
+}
+
+.tree-node-toggle,
+.tree-node-toggle-placeholder {
+	width: 16px;
+	height: 16px;
+}
+
+.tree-node-toggle {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--border-radius-rounded-md, 4px);
+	cursor: pointer;
+}
+
+.tree-node-toggle-icon {
+	color: var(--base-foreground, #030712);
+	transition: transform 0.2s;
+}
+
+.tree-node-toggle--expanded {
+	transform: rotate(90deg);
+}
+
+.tree-node-toggle-placeholder {
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.tree-node-label {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	height: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.tree-node-children {
+	display: grid;
+	grid-template-rows: 0fr;
+	width: 100%;
+	transition: grid-template-rows 0.2s ease-out;
+}
+
+.tree-node-children--expanded {
+	grid-template-rows: 1fr;
+}
+
+.tree-node-children-inner {
+	overflow: hidden;
+}
+
+/* 标记为 no-hover 的元素，用于防止 hover 冒泡 */
+.no-hover {
+	/* 这个类本身不需要样式，只是用于 CSS 选择器 */
+}
+
+/* 标记为 no-active 的元素，用于防止 active 冒泡 */
+.no-active {
+	/* 这个类本身不需要样式，只是用于 CSS 选择器 */
+}
+
+/* 标记为 show-on-hover 的元素，只在 hover 时显示 */
+.show-on-hover {
+	/* opacity: 0; */
+	display: none;
+	transition: opacity 0.15s;
+}
+
+.tree-node-content:hover .show-on-hover {
+	/* opacity: 1; */
+	display: block;
+}

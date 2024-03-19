@@ -1,0 +1,83 @@
+.size {
+	display: inline-flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+}
+
+.input-wrapper {
+	position: relative;
+	width: 86px;
+}
+
+.input-wrapper.readonly {
+	width: 72px;
+}
+
+.label {
+	position: absolute;
+	top: 50%;
+	left: var(--spacing-3, 12px);
+	display: -webkit-box;
+	overflow: hidden;
+	color: var(--base-muted-foreground, #6b7280);
+	font-weight: var(--font-weight-normal, 400);
+	font-size: var(--text-sm-font-size, 14px);
+	font-family: var(--font-font-sans, Geist);
+	font-style: normal;
+	line-height: var(--text-sm-line-height, 20px);
+	text-overflow: ellipsis;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 1;
+	transform: translateY(-50%);
+}
+
+.input {
+	width: 100%;
+	height: 32px !important;
+	padding-right: var(--spacing-3, 12px) !important;
+	padding-left: 32px !important;
+}
+
+/* 隐藏 Chrome, Safari, Edge, Opera 的数字输入框箭头 */
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button {
+	margin: 0;
+	appearance: none;
+}
+
+/* 隐藏 Firefox 的数字输入框箭头 */
+.input[type="number"] {
+	appearance: textfield;
+}
+
+/* 禁用状态的文字颜色和边框颜色 */
+.input:disabled {
+	color: var(--base-muted-foreground, #737373);
+	border-color: var(--base-input, #e5e5e5);
+}
+
+/* 禁用状态的 label 文字颜色 */
+.label.disabled {
+	color: var(--base-muted-foreground, #737373);
+}
+
+/* readonly 模式下输入框无 border */
+.input.readonly {
+	padding-right: 4px !important;
+	background: transparent !important;
+	border: none !important;
+}
+
+.link {
+	width: var(--width-w-6, 24px);
+	height: var(--height-h-6, 24px);
+	color: var(--base-foreground, #030712);
+	font-size: var(--text-sm-font-size, 14px);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+}
+
+.link:hover {
+	background-color: var(--base-accent, #f3f4f6);
+}

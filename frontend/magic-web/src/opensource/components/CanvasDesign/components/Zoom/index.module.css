@@ -1,0 +1,98 @@
+/* Zoom - 最上层 z-index: 3 */
+.zoom {
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	z-index: 3;
+	display: flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	padding: var(--spacing-1, 4px);
+	background: var(--base-popover, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-full, 9999px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+}
+
+.zoom-in,
+.zoom-out {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-6, 24px);
+	height: var(--height-h-6, 24px);
+	border-radius: 50%;
+}
+
+.zoom-value {
+	width: 33px;
+	color: var(--base-foreground, #0a0a0a);
+	font-weight: var(--font-weight-medium, 500);
+	font-size: var(--text-xs-font-size, 12px);
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.shortcut {
+	display: flex;
+	gap: var(--spacing-0-5, 2px);
+	align-items: center;
+	height: 20px;
+}
+
+.key {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-width: 24px;
+	height: 24px;
+	padding: var(--spacing-0-5, 2px) var(--spacing-1, 4px);
+	background: var(--base-muted, #f5f5f5);
+	border-radius: var(--rounded-4, 4px);
+}
+
+.select-item-content {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: space-between;
+}
+
+/* Select Trigger - 隐藏默认样式 */
+.select-trigger {
+	width: auto !important;
+	height: auto !important;
+	padding: 0 !important;
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+.select-trigger:focus {
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.select-trigger[data-state="open"],
+.select-trigger:hover {
+	background: transparent !important;
+}
+
+/* 隐藏下拉箭头 */
+.select-trigger svg {
+	display: none !important;
+}
+
+.select-item {
+	padding: var(--spacing-2, 8px) var(--spacing-3, 12px) !important;
+}
+
+.select-item > span:last-child {
+	width: 100%;
+}

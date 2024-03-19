@@ -1,0 +1,101 @@
+/* UniverComponentNew 样式文件 */
+.univer-new-wrapper {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.univer-new-loading {
+	flex: 1;
+	min-height: 500px;
+	overflow: hidden;
+}
+
+.univer-new-container {
+	position: relative;
+	flex: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+}
+
+.univer-new-error-container {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	text-align: center;
+}
+
+.univer-new-error {
+	padding: 20px;
+	color: #ff4d4f;
+	text-align: center;
+	background-color: #fff2f0;
+	border: 1px solid #ffccc7;
+	border-radius: 4px;
+}
+
+.univer-new-error h3 {
+	margin-bottom: 10px;
+	color: #333;
+}
+
+.univer-new-error p {
+	margin: 0;
+	font-size: 14px;
+}
+
+/* Univer 库生成的样式修复 */
+.univer-workbench-container-header > section {
+	display: none;
+}
+
+.univer-workbench {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.univer-workbench-container {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.univer-workbench-container-main {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+}
+
+.univer-workbench-container-content {
+	position: relative;
+	flex: 1;
+	overflow: hidden;
+}
+
+.univer-render-canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+/* 修复 Univer 组件的基础样式 */
+.univer-new-wrapper .univer-new-container > div {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+/* 隐藏新增 sheet 按钮 */
+.univer-new-container .univer-sheet-bar button:first-child,
+.univer-new-container div[class*="univer-flex univer-items-center"] > button:first-child {
+	display: none !important;
+}

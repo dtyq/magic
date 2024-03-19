@@ -1,0 +1,22 @@
+/* Layers Button - 最上层 z-index: 3 */
+.layers-button-container {
+	position: absolute;
+	bottom: 8px;
+	left: 8px;
+	z-index: 3;
+}
+
+.layers-button {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-8, 32px);
+	height: var(--height-h-8, 32px);
+	background: var(--custom-background-dark-input-30, #fff);
+	border: var(--border-width-border, 1px) solid var(--base-input, #e5e7eb);
+	border-radius: var(--border-radius-rounded-full, 9999px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+}

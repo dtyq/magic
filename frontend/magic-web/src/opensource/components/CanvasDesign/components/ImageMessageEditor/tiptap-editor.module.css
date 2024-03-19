@@ -1,0 +1,117 @@
+/* Tiptap 编辑器样式 - 从 superMagic MessageEditor 迁移 */
+
+/* ProseMirror 基础样式 */
+.tiptapEditor :global(.ProseMirror) {
+	height: 100%;
+	min-height: 64px;
+	margin: 0;
+	padding: 0;
+	color: inherit;
+	font-weight: 400;
+	font-family: inherit;
+	font-style: normal;
+	word-wrap: break-word;
+	word-break: break-word;
+	background: transparent;
+	border: none;
+	outline: none;
+	/* stylelint-disable property-no-vendor-prefix */
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-ms-user-select: text;
+	-webkit-touch-callout: default;
+	/* stylelint-enable property-no-vendor-prefix */
+	user-select: text;
+}
+
+/* ProseMirror 焦点状态 */
+.tiptapEditor :global(.ProseMirror:focus) {
+	outline: none;
+}
+
+/* ProseMirror 段落样式 */
+.tiptapEditor :global(.ProseMirror p) {
+	margin: 0;
+	padding: 0;
+	line-height: 1.8 !important;
+	word-break: break-all;
+}
+
+/* ProseMirror 占位符样式 */
+.tiptapEditor :global(.ProseMirror .is-editor-empty:first-child::before) {
+	float: left;
+	height: 0;
+	color: #737373;
+	content: attr(data-placeholder);
+	pointer-events: none;
+}
+
+/* magic-mention 样式 - 使用 inline 避免遮挡光标 */
+.tiptapEditor :global(.ProseMirror .magic-mention) {
+	display: inline;
+	margin: 0 2px;
+	padding: 1px 4px;
+	overflow: hidden;
+
+	/* color: rgb(59 130 246); */
+	font-weight: 400;
+	font-size: 12px;
+	font-style: normal;
+	line-height: 20px;
+	text-overflow: ellipsis;
+	vertical-align: top;
+	background: rgb(219 234 254);
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+/* 内置 @ 扩展（imageFileMention） */
+.tiptapEditor :global(.ProseMirror .canvas-image-file-mention) {
+	display: inline;
+	margin: 0 2px;
+	padding: 2px 6px;
+	font-size: 13px;
+	white-space: nowrap;
+	vertical-align: top;
+	background: var(--base-hover, #f0f0f0);
+	border-radius: 4px;
+}
+
+/* 恢复自动补全提醒样式 */
+.tiptapEditor :global(.ProseMirror p[data-suggestion]) {
+	position: relative;
+	overflow: visible;
+}
+
+.tiptapEditor :global(.ProseMirror p[data-suggestion]::after) {
+	display: inline-block;
+	height: 0;
+	color: #9ca3af;
+	content: attr(data-suggestion);
+	pointer-events: none;
+}
+
+/* ProseMirror 选中文本样式 */
+.tiptapEditor :global(.ProseMirror::selection) {
+	background: rgb(59 130 246 / 25%);
+}
+
+.tiptapEditor :global(.ProseMirror *::selection) {
+	background: rgb(59 130 246 / 25%);
+}
+
+/* Ensure proper selection styles for mention components */
+.tiptapEditor :global(.ProseMirror .magic-mention::selection) {
+	color: inherit;
+	background: rgb(59 130 246 / 30%);
+}
+
+/* 文本选择相关样式 - 确保移动端可以正常选择文本 */
+.tiptapEditor {
+	/* stylelint-disable property-no-vendor-prefix */
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-ms-user-select: text;
+	/* stylelint-enable property-no-vendor-prefix */
+	user-select: text;
+}

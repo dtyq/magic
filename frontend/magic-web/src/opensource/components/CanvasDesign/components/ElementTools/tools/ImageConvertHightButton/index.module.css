@@ -1,0 +1,16 @@
+.image-convert-hight-button {
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+	padding: var(--spacing-0, 0) var(--spacing-1-5, 6px);
+	color: var(--base-foreground, #030712);
+	background: var(--tailwind-colors-base-transparent, rgb(255 255 255 / 0%));
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}
+
+.button-text {
+	line-height: 32px;
+	vertical-align: middle;
+}
