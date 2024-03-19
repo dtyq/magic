@@ -1,0 +1,101 @@
+{
+	"name": "@dtyq/magic-flow",
+	"version": "0.0.11",
+	"description": "An expression component that allows you to set user-defined content, block content, and function blocks",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/dtyq/magic-flow"
+	},
+	"license": "Apache License 2.0",
+	"type": "module",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "father build",
+		"build:watch": "father dev & tsc --declaration --emitDeclarationOnly --outDir dist --watch",
+		"dev": "dumi dev",
+		"docs:build": "dumi build",
+		"doctor": "father doctor",
+		"lint": "eslint src --ext .ts,.tsx --config .eslintrc.js && npm run lint:css",
+		"lint:css": "stylelint \"{src,test}/**/*.{css,less}\"",
+		"lint:fix": "eslint src --ext .ts,.tsx --config .eslintrc.js --fix && prettier --write \"src/**/*.{ts,tsx,css,less}\"",
+		"prepare": "dumi setup",
+		"prepublishOnly": "npm run build",
+		"release": "npm run build && npm run semantic-release",
+		"semantic-release": "semantic-release",
+		"start": "npm run dev"
+	},
+	"lint-staged": {
+		"*.{md,json}": [
+			"prettier --write --no-error-on-unmatched-pattern"
+		],
+		"*.{css,less}": [
+			"stylelint --fix",
+			"prettier --write"
+		],
+		"*.{js,jsx}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{ts,tsx}": [
+			"eslint --fix",
+			"prettier --parser=typescript --write"
+		]
+	},
+	"dependencies": {
+		"@ant-design/cssinjs": "^1.23.0",
+		"@ant-design/icons": "^5.6.1",
+		"@douyinfe/semi-icons": "^2.39.0",
+		"@iconify/react": "^4.1.1",
+		"@monaco-editor/react": "^4.4.6",
+		"@tabler/icons-react": "^3.2.0",
+		"ahooks": "^3.7.8",
+		"antd": "^5.24.4",
+		"axios": "^1.7.9",
+		"clsx": "^2.1.1",
+		"dagre": "^0.8.5",
+		"dayjs": "^1.11.13",
+		"i18next": "^23.11.4",
+		"i18next-browser-languagedetector": "^7.2.1",
+		"i18next-resources-to-backend": "^1.2.1",
+		"immer": "^10.1.1",
+		"lodash": "^4.17.21",
+        "mobx": "^6.8.0",
+        "mobx-react": "^7.6.0",
+		"nanoid": "^5.1.5",
+		"react": "^17.0.2",
+		"react-dom": "^17.0.2",
+		"react-error-boundary": "^5.0.0",
+		"react-i18next": "^14.1.1",
+		"react-router": "~5.2.0",
+		"react-router-config": "~5.1.1",
+		"react-router-dom": "~5.2.0",
+		"reactflow": "^11.10.4",
+		"rtl-detect": "^1.1.2",
+		"snowflake-id": "^1.1.0",
+		"styled-components": "^5.3.11",
+		"swr": "^2.2.5",
+		"zustand": "^4.5.2",
+		"antd-style": "^3.6.2"
+	},
+	"devDependencies": {
+		"@dtyq/eslint-config": "~0.0.10",
+		"@types/dagre": "^0.7.52",
+		"@types/lodash": "^4.14.186",
+		"@types/react": "^17.0.2",
+		"@types/react-dom": "^17.0.2",
+		"@types/react-router": "^5.1.20",
+		"@types/react-router-dom": "^5.3.3",
+		"@types/rtl-detect": "^1.0.3",
+		"@types/styled-components": "^5.1.26",
+		"@umijs/lint": "^4.0.0",
+		"dumi": "^2.2.13",
+		"father": "^4.1.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

@@ -1,0 +1,33 @@
+.magic-names-item {
+	display: flex;
+	border-radius: 4px;
+    border: 1px solid rgba(0,0,0,.05);
+	align-items: center;
+	cursor: pointer;
+	justify-content: space-between;
+    margin-left: 8px;
+	max-width: calc(100% - 20px);
+	overflow: hidden;
+
+	&:hover {
+		background-color: #f9f9ff;
+	}
+
+	.left {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		border-radius: 25px;
+		padding: 3px 10px;
+		max-width: calc(100%);
+
+	}
+
+	.iconX {
+		cursor: pointer;
+
+		&:hover {
+			opacity: 0.8;
+		}
+	}
+}

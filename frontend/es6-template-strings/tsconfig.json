@@ -1,0 +1,28 @@
+{
+	"references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.test.json" }],
+	"compilerOptions": {
+		"rootDir": ".",
+		"baseUrl": ".",
+		"moduleResolution": "node",
+		"target": "es2015",
+		"module": "es2020",
+		"lib": ["es2015", "es2016", "es2017", "es2020", "dom", "scripthost"],
+		"strict": true,
+		"allowJs": false,
+		"sourceMap": true,
+		"declaration": true,
+		"experimentalDecorators": true,
+		"allowSyntheticDefaultImports": true,
+		"emitDecoratorMetadata": true,
+		"declarationDir": "dist/types",
+		"outDir": "dist/lib",
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"typeRoots": ["./types"]
+	},
+	"include": ["src/**/*", "types/**/*"],
+	"exclude": ["dist"]
+}

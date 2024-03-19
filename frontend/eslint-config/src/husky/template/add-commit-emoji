@@ -1,0 +1,24 @@
+# add emoji to your commit
+filepath="$1"
+tmp_file=$(mktemp /tmp/emoji-commitzen.XXXX)
+
+replacements=(
+    's/^feat/✨ feat/'
+    's/^fix/🐛 fix/'
+    's/^docs/📚 docs/'
+    's/^style/💎 style/'
+    's/^refactor/📦 refactor/'
+    's/^perf/🚀 perf/'
+    's/^test/🚨 test/'
+    's/^build/🛠 build/'
+    's/^ci/⚙️ ci/'
+    's/^chore/♻️ chore/'
+    's/^revert/🗑 revert/'
+    's/^config/🔧 config/'
+)
+
+sed_command=$(printf "%s;" "${replacements[@]}")
+cat $filepath | sed "$sed_command" > $tmp_file
+mv $tmp_file $filepath
+
+# your custom logic

@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"composite": true,
+		"skipLibCheck": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"allowSyntheticDefaultImports": true
+	},
+	"include": [
+		"tsup.config.ts",
+		"jest.config.js",
+		"babel.config.cjs",
+		".eslintrc.cjs",
+		".prettierrc.cjs"
+	]
+}

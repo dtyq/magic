@@ -1,0 +1,142 @@
+.magic-multiple-options {
+	left: 0;
+	background-color: #ffffff;
+	padding: 0 2px 0 0;
+	border-radius: 5px;
+	z-index: 1;
+	color: #1c1d23;
+    width: 100%!important;
+
+	.ul {
+		margin-bottom: 0;
+		padding-left: 0;
+	}
+
+	.container {
+		margin-bottom: 10px;
+		max-height: 160px;
+		padding-left: 0;
+		overflow-y: auto;
+		margin-top: 5px;
+
+		&::-webkit-scrollbar {
+			width: 1px;
+		}
+	}
+
+	.magic-input {
+		border-radius: 0 !important;
+	}
+
+	.icon {
+		padding: 0 5px;
+		margin-left: 5px;
+	}
+
+	.previous-step-dropdown {
+		display: block;
+		color: #333333;
+		font-size: 14px;
+		margin-top: 10px;
+		padding: 10px 0 10px 10px;
+		border-top: 1px solid #dee0e3;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		cursor: pointer;
+		white-space: nowrap;
+
+		.anticon {
+			font-size: 18px;
+		}
+	}
+
+	.search {
+		padding: 6px;
+	}
+
+	.color {
+		width: 14px;
+		height: 14px;
+		margin-left: 4px;
+		margin-right: 4px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		cursor: pointer;
+		position: relative;
+
+		&:hover {
+			transform: scale(1.1);
+		}
+
+		&::before {
+			content: "";
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+		}
+
+		&::after {
+			content: " ";
+			width: 10px;
+			height: 10px;
+			border-radius: 50%;
+			background: transparent;
+			border: 1px solid #ffffff;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+	}
+
+	.text {
+		display: flex;
+		border-radius: 10px;
+		padding: 0px;
+		height: 20px;
+		line-height: 20px;
+		align-items: center;
+		flex: 1 1;
+		width: auto;
+		min-width: 0;
+		max-width: min-content;
+		user-select: none;
+		margin: 0 5px;
+
+		.text-content {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			word-break: break-all;
+			line-height: 20px;
+			text-align: center;
+
+			&.white {
+				color: #ffffff;
+			}
+		}
+	}
+
+	.bb1 {
+		border-bottom: 1px solid #e8eaed;
+
+		.magic-input-affix-wrapper {
+			padding: 0 11px;
+		}
+	}
+
+	.empty {
+		padding: 8px 5px;
+		text-align: center;
+		color: #1c1d2359;
+	}
+
+	.add {
+		margin-left: 5px;
+		font-weight: bold;
+	}
+}

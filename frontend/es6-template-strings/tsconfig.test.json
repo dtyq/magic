@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"rootDir": ".",
+		"baseUrl": ".",
+		"types": ["jest", "node"],
+		"moduleResolution": "node",
+		"target": "es5",
+		"module": "esnext",
+		"lib": ["es2015", "es2016", "es2017", "dom"],
+		"strict": true,
+		"allowJs": false,
+		"sourceMap": true,
+		"declaration": true,
+		"experimentalDecorators": true,
+		"allowSyntheticDefaultImports": true,
+		"emitDecoratorMetadata": true,
+		"declarationDir": "dist/types",
+		"outDir": "dist/lib",
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"composite": true,
+		"typeRoots": ["./types"]
+	},
+	"include": ["tests/**/*"]
+}
