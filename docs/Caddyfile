@@ -1,0 +1,92 @@
+http://:80 {
+    # 通用配置
+    encode {
+        zstd
+        gzip
+    }
+
+    # 不缓存这个matcher匹配的东西
+    @no-cache {
+        path /
+        path */
+        path_regexp .*\.html$
+        path */service-worker.js
+    }
+
+    @stylesheet {
+        path /assets/*.css
+    }
+
+    @javascript {
+        path /assets/*.js
+        path /scripts/*.js
+    }
+
+    header @stylesheet {
+        Cache-Control "public, max-age=31536000"
+    }
+
+    header @javascript {
+        Cache-Control "public, max-age=31536000"
+    }
+
+    header @no-cache {
+        Cache-Control "no-cache, no-store, must-revalidate"
+        Pragma "no-cache"
+        # 只能用http时间格式，见https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expires
+        Expires "Thu, 01 Jan 1970 00:00:01 GMT"
+    }
+
+    # 一些通用头
+    header {
+        # Accept-Encoding
+        Vary "Accept-Encoding"
+        # CORS
+        Access-Control-Allow-Origin "*"
+        Access-Control-Allow-Headers "GET, HEAD, PUT, PATCH, POST, DELETE, OPTIONS"
+        defer
+    }
+
+    # 404就rewrite到index
+    handle_errors 400 401 403 404 500 501 502 503 504 {
+        file_server {
+            root ./dist
+        }
+        rewrite /index.html
+    }
+
+    # 日志
+    log {
+        output stderr
+        format json
+    }
+
+    # heartbeat
+    route /heartbeat {
+        header Content-Type application/json
+        respond `{"data": 200}`
+    }
+
+    # 静态文件服务
+    route {
+        file_server {
+            root ./dist
+            index index.html
+            # 找不到则继续
+            pass_thru
+        }
+        # 不缓存
+        header {
+            Cache-Control "no-cache, no-store, must-revalidate"
+            Pragma "no-cache"
+            # 只能用http时间格式，见https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expires
+            Expires "Thu, 01 Jan 1970 00:00:01 GMT"
+        }
+        # 兼容SPA的router - 任何路由都200并返回index
+        rewrite /index.html
+        file_server {
+            root ./dist
+            index index.html
+        }
+    }
+}

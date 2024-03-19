@@ -1,0 +1,28 @@
+.VPSidebarItem.is-active>.item>.link {
+    background-color: rgba(82, 179, 94, 0.1);
+    color: var(--vp-c-brand-1);
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: -6px -10px;
+    transition: all 0.3s ease;
+}
+
+.VPSidebarItem.is-active>.item>.link:hover {
+    background-color: rgba(82, 179, 94, 0.2);
+}
+
+.VPNavBarMenuLink.active {
+    background-color: rgba(82, 179, 94, 0.1);
+    color: var(--vp-c-brand-1);
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: -6px -10px;
+}
+
+/* 子菜单项的高亮样式 */
+.VPSidebarItem.level-1.is-active>.item>.link {
+    border-left: 2px solid var(--vp-c-brand-1);
+    padding-left: 8px;
+}
