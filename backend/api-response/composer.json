@@ -1,0 +1,31 @@
+{
+    "name": "dtyq/api-response",
+    "type": "library",
+    "license": "Apache License 2.0",
+    "autoload": {
+        "psr-4": {
+            "Dtyq\\ApiResponse\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.0",
+        "hyperf/di": "*"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "*"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Dtyq\\ApiResponse\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    }
+}

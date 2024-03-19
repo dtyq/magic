@@ -1,0 +1,73 @@
+{
+    "name": "dtyq/cloudfile",
+    "description": "Package description here.",
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "lihq1403",
+            "email": "lihaiqing1994@163.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "league/flysystem": "^2.0",
+        "dtyq/sdk-base": "~0.1",
+        "guzzlehttp/guzzle": "^6.3|^7.0",
+        "ext-json": "*",
+        "ext-fileinfo": "*",
+        "ext-curl": "*",
+        "alibabacloud/sts": "^1.8",
+        "aliyuncs/oss-sdk-php": "^2.7",
+        "xxtime/flysystem-aliyun-oss": "^1.6",
+        "volcengine/ve-tos-php-sdk": "^2.1",
+        "volcengine/volc-sdk-php": "^1.0",
+        "league/flysystem-aws-s3-v3": "^3.0",
+        "aws/aws-sdk-php": "^3.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "mockery/mockery": "^1.4",
+        "phpunit/phpunit": "^9.5",
+        "phpstan/phpstan": "^1.0"
+    },
+    "suggest": {
+        "hyperf/logger": "Required to use the Hyperf.",
+        "hyperf/di": "Required to use the Hyperf.",
+        "hyperf/config": "Required to use the Hyperf.",
+        "hyperf/cache": "Required to use the Hyperf.",
+        "alibabacloud/sts": "^1.8",
+        "aliyuncs/oss-sdk-php": "^2.7",
+        "xxtime/flysystem-aliyun-oss": "^1.6",
+        "volcengine/ve-tos-php-sdk": "^2.1",
+        "volcengine/volc-sdk-php": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Dtyq\\CloudFile\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Dtyq\\CloudFile\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "cs-fix": "php-cs-fixer fix $1",
+        "test": "./vendor/bin/phpunit",
+        "analyse": "phpstan analyse --memory-limit 1024M -c phpstan.neon"
+    },
+    "repositories": [
+        {
+            "type": "github",
+            "url": "https://github.com/dtyq/sdk-base.git"
+        }
+    ],
+    "extra": {
+        "hyperf": {
+            "config": "Dtyq\\CloudFile\\Hyperf\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    }
+}

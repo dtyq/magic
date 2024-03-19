@@ -1,0 +1,62 @@
+{
+    "name": "dtyq/easy-dingtalk",
+    "description": "Package description here.",
+    "license": "Apache License 2.0",
+    "authors": [
+        {
+            "name": "lihq1403",
+            "email": "lihqing1403@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "dtyq/sdk-base": "~0.1",
+        "guzzlehttp/guzzle": "^6.0|^7.0",
+        "ext-openssl": "*",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "mockery/mockery": "^1.4.4",
+        "phpstan/phpstan": "^1.0",
+        "phpunit/phpunit": "^9.5"
+    },
+    "suggest": {
+        "hyperf/logger": "Required to use the Hyperf Connector SDK.",
+        "hyperf/di": "Required to use the Hyperf Connector SDK.",
+        "hyperf/config": "Required to use the Hyperf Connector SDK.",
+        "hyperf/cache": "Required to use the Hyperf Connector SDK."
+    },
+    "autoload": {
+        "psr-4": {
+            "Dtyq\\EasyDingTalk\\": "src"
+        },
+        "files": [
+            "src/Kernel/Utils/Functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Dtyq\\EasyDingTalk\\Test\\": "tests/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "github",
+            "url": "https://github.com/dtyq/sdk-base.git"
+        }
+    ],
+    "scripts": {
+        "cs-fix": "php-cs-fixer fix $1",
+        "test": "./vendor/bin/phpunit",
+        "analyse": "phpstan analyse --memory-limit 1024M -c phpstan.neon"
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Dtyq\\EasyDingTalk\\Hyperf\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    }
+}

@@ -1,0 +1,20 @@
+#!/bin/bash
+set -eo pipefail
+
+export PORT=9000
+
+sed -i 's#http://deb.debian.org#https://mirrors.163.com#g' /etc/apt/sources.list
+apt update
+apt install bubblewrap -y
+
+curl -sS https://getcomposer.org/installer | php
+mv composer.phar /usr/local/bin/composer
+composer config -g repo.packagist composer https://mirrors.aliyun.com/composer
+composer install -o
+#composer create-project dtyq/code-runner-bwrap
+
+
+ln -sf "$(which python3)" /usr/local/bin/python
+# TODO: 读取环境变量安装 Python 依赖包 
+
+php bin/server.php
