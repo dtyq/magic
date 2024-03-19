@@ -1,0 +1,21 @@
+// Global Application Variables (Non-TipTap)
+// Keep this file minimal - only truly global variables
+
+:root {
+  /****************** 
+  Global Font Rendering (if needed globally)
+  ******************/
+  // NOTE: Consider if these should really be global
+  // or scoped to specific components
+  
+  // Uncomment only if needed globally:
+  // overflow-wrap: break-word;
+  // text-size-adjust: none;
+  // text-rendering: optimizeLegibility;
+  // -webkit-font-smoothing: antialiased;
+  // -moz-osx-font-smoothing: grayscale;
+}
+
+// If you need any global box-sizing or transitions,
+// they should be in your main index.css, not here
+

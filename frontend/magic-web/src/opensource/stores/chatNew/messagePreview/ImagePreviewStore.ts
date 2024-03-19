@@ -1,0 +1,74 @@
+import { makeAutoObservable } from "mobx"
+import MessageStore from "@/opensource/stores/chatNew/message"
+import type { FullMessage } from "@/opensource/types/chat/message"
+import type { ConversationMessage } from "@/opensource/types/chat/conversation_message"
+import type { ImagePreviewInfo } from "@/opensource/types/chat/preview"
+import { SeqResponse } from "@/opensource/types/request"
+import { IMAGE_EXTENSIONS } from "@/opensource/constants/file"
+
+class MessageImagePreviewStore {
+	/**
+	 * 预览信息
+	 */
+	previewInfo: ImagePreviewInfo | undefined = undefined
+
+	/**
+	 * 预览窗口是否打开
+	 */
+	open: boolean = false
+
+	/**
+	 * 消息
+	 */
+	message: FullMessage<ConversationMessage> | SeqResponse<ConversationMessage> | undefined
+
+	constructor() {
+		makeAutoObservable(this, {}, { autoBind: true })
+	}
+
+	/**
+	 * 设置预览信息
+	 * @param info 预览信息
+	 */
+	setPreviewInfo(info: ImagePreviewInfo) {
+		this.previewInfo = { ...info }
+		if (info.messageId) {
+			this.message = MessageStore.getMessage(info.messageId)
+		} else {
+			this.message = undefined
+		}
+		this.setOpen(true)
+	}
+
+	/**
+	 * 交换高清图
+	 * @param info 高清图信息
+	 */
+	exchangeHDImage(info: ImagePreviewInfo) {
+		const newInfo = { ...this.previewInfo, ...info }
+		this.setPreviewInfo(newInfo)
+	}
+
+	/**
+	 * 清除预览信息
+	 */
+	clearPreviewInfo() {
+		this.previewInfo = undefined
+		this.setOpen(false)
+	}
+
+	/**
+	 * 设置预览窗口是否打开
+	 * @param open 是否打开
+	 */
+	setOpen(open: boolean) {
+		this.open = open
+	}
+
+	canPreview(ext?: string) {
+		if (!ext) return false
+		return IMAGE_EXTENSIONS.includes(ext)
+	}
+}
+
+export default new MessageImagePreviewStore()

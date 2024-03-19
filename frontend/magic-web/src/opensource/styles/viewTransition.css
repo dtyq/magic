@@ -1,0 +1,408 @@
+/**
+ * View Transition API 样式定义
+ * 
+ * 这些样式定义了各种 View Transition 动画效果
+ * 使用 CSS 自定义属性来允许运行时配置
+ */
+
+/* ===== 基础变量定义 ===== */
+:root {
+  --view-transition-duration: 300ms;
+  --view-transition-easing: ease-in-out;
+  --view-transition-fade-duration: 300ms;
+  --view-transition-slide-duration: 300ms;
+  --view-transition-scale-duration: 250ms;
+  --view-transition-flip-duration: 400ms;
+}
+
+/* ===== 基础 View Transition 样式 ===== */
+::view-transition-group(root) {
+  animation-duration: var(--view-transition-duration);
+  animation-timing-function: var(--view-transition-easing);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--view-transition-duration);
+  animation-timing-function: var(--view-transition-easing);
+}
+
+/* 确保滑动过渡覆盖默认的根过渡 */
+::view-transition-group(slide-left-transition),
+::view-transition-group(slide-right-transition),
+::view-transition-group(slide-up-transition),
+::view-transition-group(slide-down-transition) {
+  animation-duration: var(--view-transition-slide-duration, 300ms);
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== 淡入淡出过渡 ===== */
+.view-transition-fade {
+  view-transition-name: fade-transition;
+}
+
+::view-transition-old(fade-transition) {
+  animation: fade-out var(--view-transition-fade-duration, 300ms) ease-in-out forwards;
+}
+
+::view-transition-new(fade-transition) {
+  animation: fade-in var(--view-transition-fade-duration, 300ms) ease-in-out forwards;
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== 滑动过渡 - 左滑 ===== */
+.view-transition-slide-left {
+  view-transition-name: slide-left-transition;
+}
+
+/* 页面导航时的左滑动画 - 直接覆盖根元素 */
+html.view-transition-slide-left ::view-transition-old(root) {
+  animation: slide-out-left var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+html.view-transition-slide-left ::view-transition-new(root) {
+  animation: slide-in-left var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+/* 组件内滑动动画 */
+::view-transition-old(slide-left-transition) {
+  animation: slide-out-left var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+::view-transition-new(slide-left-transition) {
+  animation: slide-in-left var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slide-out-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ===== 滑动过渡 - 右滑 ===== */
+.view-transition-slide-right {
+  view-transition-name: slide-right-transition;
+}
+
+/* 页面导航时的右滑动画 - 直接覆盖根元素 */
+html.view-transition-slide-right ::view-transition-old(root) {
+  animation: slide-out-right var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+html.view-transition-slide-right ::view-transition-new(root) {
+  animation: slide-in-right var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+/* 组件内滑动动画 */
+::view-transition-old(slide-right-transition) {
+  animation: slide-out-right var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+::view-transition-new(slide-right-transition) {
+  animation: slide-in-right var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ===== 滑动过渡 - 上滑 ===== */
+.view-transition-slide-up {
+  view-transition-name: slide-up-transition;
+}
+
+::view-transition-old(slide-up-transition) {
+  animation: slide-out-up var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+::view-transition-new(slide-up-transition) {
+  animation: slide-in-up var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slide-out-up {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ===== 滑动过渡 - 下滑 ===== */
+.view-transition-slide-down {
+  view-transition-name: slide-down-transition;
+}
+
+::view-transition-old(slide-down-transition) {
+  animation: slide-out-down var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+::view-transition-new(slide-down-transition) {
+  animation: slide-in-down var(--view-transition-slide-duration, 300ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slide-out-down {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ===== 缩放过渡 ===== */
+.view-transition-scale {
+  view-transition-name: scale-transition;
+}
+
+::view-transition-old(scale-transition) {
+  animation: scale-out var(--view-transition-scale-duration, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+::view-transition-new(scale-transition) {
+  animation: scale-in var(--view-transition-scale-duration, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes scale-out {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===== 翻转过渡 ===== */
+.view-transition-flip {
+  view-transition-name: flip-transition;
+}
+
+::view-transition-old(flip-transition) {
+  animation: flip-out var(--view-transition-flip-duration, 400ms) cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+::view-transition-new(flip-transition) {
+  animation: flip-in var(--view-transition-flip-duration, 400ms) cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes flip-out {
+  from {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: rotateY(-90deg);
+    opacity: 0.5;
+  }
+  to {
+    transform: rotateY(-90deg);
+    opacity: 0;
+  }
+}
+
+@keyframes flip-in {
+  from {
+    transform: rotateY(90deg);
+    opacity: 0;
+  }
+  50% {
+    transform: rotateY(90deg);
+    opacity: 0.5;
+  }
+  to {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+/* ===== 自定义过渡样式 ===== */
+.view-transition-custom {
+  view-transition-name: custom-transition;
+}
+
+/* 用户可以自定义这些样式 */
+::view-transition-old(custom-transition) {
+  animation: custom-out var(--view-transition-duration) var(--view-transition-easing) forwards;
+}
+
+::view-transition-new(custom-transition) {
+  animation: custom-in var(--view-transition-duration) var(--view-transition-easing) forwards;
+}
+
+/* 默认的自定义动画（用户可以覆盖） */
+@keyframes custom-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes custom-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== 减少动画偏好支持 ===== */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --view-transition-duration: 0ms;
+    --view-transition-fade-duration: 0ms;
+    --view-transition-slide-duration: 0ms;
+    --view-transition-scale-duration: 0ms;
+    --view-transition-flip-duration: 0ms;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0ms !important;
+  }
+}
+
+/* ===== 移动设备优化 ===== */
+@media (max-width: 768px) {
+  :root {
+    /* 移动设备上可以稍微加快动画速度 */
+    --view-transition-duration: 250ms;
+    --view-transition-fade-duration: 250ms;
+    --view-transition-slide-duration: 250ms;
+    --view-transition-scale-duration: 200ms;
+    --view-transition-flip-duration: 350ms;
+  }
+}
+
+/* ===== 高性能设备的增强动画 ===== */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  :root {
+    /* 桌面设备可以使用稍慢的动画获得更好的视觉效果 */
+    --view-transition-duration: 350ms;
+    --view-transition-fade-duration: 350ms;
+    --view-transition-slide-duration: 350ms;
+    --view-transition-scale-duration: 300ms;
+    --view-transition-flip-duration: 450ms;
+  }
+}
+
+/* ===== 调试模式样式 ===== */
+[data-view-transition-debug] ::view-transition-group(*) {
+  outline: 2px solid red;
+}
+
+[data-view-transition-debug] ::view-transition-old(*) {
+  outline: 2px solid blue;
+}
+
+[data-view-transition-debug] ::view-transition-new(*) {
+  outline: 2px solid green;
+}
+
+/* ===== 工具类 ===== */
+.view-transition-none {
+  view-transition-name: none !important;
+}
+
+.view-transition-auto {
+  view-transition-name: auto;
+}
+
+/* 为特定元素禁用 view transition */
+.no-view-transition,
+.no-view-transition * {
+  view-transition-name: none !important;
+} 
