@@ -1,0 +1,120 @@
+import { createStyles } from "antd-style"
+
+export const useStyles = createStyles(({ token }) => {
+	return {
+		container: {
+			display: "flex",
+			flexDirection: "column",
+			gap: 10,
+			width: "100%",
+			height: "100%",
+			overflowY: "auto",
+			padding: "0 10px",
+			paddingTop: "10px",
+		},
+		sectionTitle: {
+			fontSize: token.magicFontUsages.response.text14px,
+			fontWeight: 600,
+			lineHeight: "20px",
+			color: "rgba(28, 29, 35, 0.8)",
+			margin: 0,
+		},
+		groupContainer: {
+			display: "flex",
+			flexDirection: "column",
+			gap: 4,
+			width: "100%",
+		},
+		groupTitle: {
+			fontSize: token.magicFontUsages.response.text12px,
+			fontWeight: 400,
+			lineHeight: "16px",
+			color: "rgba(28, 29, 35, 0.6)",
+			margin: 0,
+		},
+		itemsContainer: {
+			display: "flex",
+			flexDirection: "column",
+			gap: 6,
+			width: "100%",
+		},
+		topicItem: {
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "space-between",
+			padding: "12px 8px 12px 8px",
+			borderRadius: 8,
+			border: `1px solid ${token.colorBorderSecondary}`,
+			backgroundColor: "#fff",
+			cursor: "pointer",
+			transition: "all 0.2s ease",
+			"&:hover": {
+				backgroundColor: "rgba(28, 29, 35, 0.02)",
+			},
+			"&:active": {
+				backgroundColor: "rgba(28, 29, 35, 0.04)",
+			},
+		},
+		leftContent: {
+			display: "flex",
+			alignItems: "center",
+			gap: 4,
+			flex: 1,
+			minWidth: 0,
+		},
+		iconContainer: {
+			width: 18,
+			height: 18,
+			flexShrink: 0,
+		},
+		avatarCircle: {
+			width: 18,
+			height: 18,
+			borderRadius: "50%",
+		},
+		modeTag: {
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			padding: "3px 8px",
+			borderRadius: 4,
+			width: 20,
+			height: 20,
+			flexShrink: 0,
+		},
+		modeIcon: {
+			width: 16,
+			height: 16,
+		},
+		topicTitle: {
+			fontSize: token.magicFontUsages.response.text14px,
+			fontWeight: 400,
+			lineHeight: "20px",
+			color: "rgba(28, 29, 35, 0.8)",
+			overflow: "hidden",
+			textOverflow: "ellipsis",
+			whiteSpace: "nowrap",
+			flex: 1,
+			minWidth: 0,
+		},
+		rightActions: {
+			display: "flex",
+			alignItems: "center",
+			gap: 14,
+			flexShrink: 0,
+		},
+		actionButton: {
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			width: 18,
+			height: 18,
+			cursor: "pointer",
+			color: "rgba(28, 29, 35, 0.6)",
+			transition: "color 0.2s ease",
+			"&:hover": {
+				color: "rgba(28, 29, 35, 0.8)",
+			},
+		},
+	}
+})

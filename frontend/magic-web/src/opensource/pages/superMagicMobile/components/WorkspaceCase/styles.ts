@@ -1,0 +1,112 @@
+import { createStyles } from "antd-style"
+
+export const useStyles = createStyles(({ token }) => {
+	return {
+		container: {
+			display: "flex",
+			flexDirection: "column",
+			alignItems: "center",
+			gap: 16,
+			position: "relative",
+		},
+		list: {
+			width: "100%",
+			padding: "0 20px",
+			display: "flex",
+			justifyContent: "center",
+			gap: 16,
+			overflow: "auto hidden",
+		},
+		caseTypeItem: {
+			borderRadius: 1000,
+			border: `1px solid ${token.magicColorUsages.border}`,
+			backgroundColor: "white",
+			padding: "4px 12px",
+			fontSize: token.magicFontUsages.response.text12px,
+			fontWeight: 400,
+			lineHeight: "16px",
+			color: token.magicColorUsages.text[1],
+			cursor: "pointer",
+			"&:hover": {
+				color: token.magicColorUsages.text[0],
+			},
+		},
+		caseTypeItemActive: {
+			background: "linear-gradient(128.37deg, #3F8FFF 5.59%, #EF2FDF 95.08%)",
+			border: "none",
+			color: "white",
+		},
+		case: {
+			width: "100%",
+			display: "grid",
+			gridTemplateColumns: "repeat(1, 1fr)",
+			gap: "6px",
+		},
+		caseItem: {
+			width: "100%",
+			height: "162px",
+			borderRadius: "8px",
+			padding: "14px 14px 0 14px",
+			overflow: "hidden",
+			transition: "transform 0.15s linear, outline 0.15s linear",
+			cursor: "pointer",
+			backgroundColor: "white",
+			position: "relative",
+			display: "flex",
+			flexDirection: "column",
+			gap: 10,
+			border: `1px solid ${token.magicColorUsages.border}`,
+
+			"&::after": {
+				content: '""',
+				position: "absolute",
+				left: 0,
+				right: 0,
+				bottom: 0,
+				height: "50%",
+				background: "linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 100%)",
+				pointerEvents: "none",
+				borderRadius: "0 0 8px 8px",
+			},
+
+			"&:hover": {
+				outline: `1px solid ${token.colorPrimary}`,
+				transform: "translateY(-6px)",
+			},
+			"&:active": {
+				transform: "scale(0.98)",
+			},
+		},
+		caseItemTitle: {
+			overflow: "hidden",
+			textOverflow: "ellipsis",
+			whiteSpace: "nowrap",
+			fontSize: token.magicFontUsages.response.text12px,
+			fontWeight: 600,
+			lineHeight: "16px",
+			color: token.magicColorUsages.text[1],
+		},
+		caseItemSubTitle: {
+			fontSize: token.magicFontUsages.response.text10px,
+			fontWeight: 400,
+			lineHeight: "13px",
+			color: token.magicColorUsages.text[2],
+			display: "-webkit-box",
+			WebkitLineClamp: 2,
+			WebkitBoxOrient: "vertical",
+			overflow: "hidden",
+			textOverflow: "ellipsis",
+		},
+		caseItemImage: {
+			flex: 1,
+			width: "90%",
+			height: "auto",
+			alignSelf: "center",
+			borderRadius: "4px",
+			boxShadow: "0px 4px 14px 0px rgba(0, 0, 0, 0.10), 0px 0px 1px 0px rgba(0, 0, 0, 0.30)",
+			overflow: "hidden",
+			objectFit: "cover",
+			objectPosition: "top",
+		},
+	}
+})
