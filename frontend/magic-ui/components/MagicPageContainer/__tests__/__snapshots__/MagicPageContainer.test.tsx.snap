@@ -1,0 +1,361 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicPageContainer > 快照测试 > 基础页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card acss-1t0i3xo css-dev-only-do-not-override-yotw4n css-var-r1"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r1 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r1 magic-flex-align-center"
+              style="gap: 8px;"
+            >
+              页面标题
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicPageContainer > 快照测试 > 带操作按钮页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card acss-1t0i3xo css-dev-only-do-not-override-yotw4n css-var-r4"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r4 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r4 magic-flex-align-center"
+              style="gap: 8px;"
+            >
+              页面标题
+            </div>
+          </div>
+        </div>
+        <div
+          class="magic-card-extra"
+        >
+          <button>
+            操作按钮
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicPageContainer > 快照测试 > 带标签页页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card magic-card-contain-tabs acss-1t0i3xo css-dev-only-do-not-override-yotw4n css-var-r5"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r5 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r5 magic-flex-align-center"
+              style="gap: 8px;"
+            >
+              页面标题
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="magic-tabs magic-tabs-top magic-tabs-large magic-card-head-tabs css-dev-only-do-not-override-yotw4n css-var-r5 magic-tabs-css-var"
+      >
+        <div
+          aria-orientation="horizontal"
+          class="magic-tabs-nav"
+          role="tablist"
+        >
+          <div
+            class="magic-tabs-nav-wrap"
+          >
+            <div
+              class="magic-tabs-nav-list"
+              style="transform: translate(0px, 0px);"
+            >
+              <div
+                class="magic-tabs-tab magic-tabs-tab-active"
+                data-node-key="tab1"
+              >
+                <div
+                  aria-controls="rc-tabs-test-panel-tab1"
+                  aria-selected="true"
+                  class="magic-tabs-tab-btn"
+                  id="rc-tabs-test-tab-tab1"
+                  role="tab"
+                  tabindex="0"
+                >
+                  标签1
+                </div>
+              </div>
+              <div
+                class="magic-tabs-tab"
+                data-node-key="tab2"
+              >
+                <div
+                  aria-controls="rc-tabs-test-panel-tab2"
+                  aria-selected="false"
+                  class="magic-tabs-tab-btn"
+                  id="rc-tabs-test-tab-tab2"
+                  role="tab"
+                  tabindex="-1"
+                >
+                  标签2
+                </div>
+              </div>
+              <div
+                class="magic-tabs-ink-bar magic-tabs-ink-bar-animated"
+              />
+            </div>
+          </div>
+          <div
+            class="magic-tabs-nav-operations magic-tabs-nav-operations-hidden"
+          >
+            <button
+              aria-controls="rc-tabs-test-more-popup"
+              aria-expanded="false"
+              aria-haspopup="listbox"
+              class="magic-tabs-nav-more"
+              id="rc-tabs-test-more"
+              style="visibility: hidden; order: 1;"
+              type="button"
+            >
+              <span
+                aria-label="ellipsis"
+                class="anticon anticon-ellipsis"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="ellipsis"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M176 511a56 56 0 10112 0 56 56 0 10-112 0zm280 0a56 56 0 10112 0 56 56 0 10-112 0zm280 0a56 56 0 10112 0 56 56 0 10-112 0z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div
+          class="magic-tabs-content-holder"
+        >
+          <div
+            class="magic-tabs-content magic-tabs-content-top"
+          >
+            <div
+              aria-hidden="false"
+              aria-labelledby="rc-tabs-test-tab-tab1"
+              class="magic-tabs-tabpane magic-tabs-tabpane-active"
+              id="rc-tabs-test-panel-tab1"
+              role="tabpanel"
+              tabindex="0"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicPageContainer > 快照测试 > 带类名页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card acss-1t0i3xo custom-page css-dev-only-do-not-override-yotw4n css-var-r2"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r2 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r2 magic-flex-align-center"
+              style="gap: 8px;"
+            >
+              页面标题
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicPageContainer > 快照测试 > 带自定义属性页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card acss-1t0i3xo css-dev-only-do-not-override-yotw4n css-var-r3"
+    data-testid="page-container"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r3 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r3 magic-flex-align-center"
+              style="gap: 8px;"
+            >
+              页面标题
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicPageContainer > 快照测试 > 带自定义样式页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card acss-1t0i3xo css-dev-only-do-not-override-yotw4n css-var-r7"
+    style="background-color: rgb(240, 240, 240);"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r7 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r7 magic-flex-align-center"
+              style="gap: 8px;"
+            >
+              页面标题
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicPageContainer > 快照测试 > 无标题页面容器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-card acss-1t0i3xo css-dev-only-do-not-override-yotw4n css-var-r8"
+  >
+    <div
+      class="magic-card-head acss-3n96tu"
+    >
+      <div
+        class="magic-card-head-wrapper"
+      >
+        <div
+          class="magic-card-head-title"
+        >
+          <div
+            class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r8 magic-flex-align-center magic-flex-justify-space-between"
+          >
+            <div
+              class="magic-flex css-dev-only-do-not-override-yotw4n css-var-r8 magic-flex-align-center"
+              style="gap: 8px;"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-card-body acss-jnieq4"
+    >
+      页面内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
