@@ -1,0 +1,663 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Domain\Provider\Entity;
+
+use App\Domain\Provider\DTO\Item\ModelConfigItem;
+use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\DisabledByType;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
+use App\Domain\Provider\Entity\ValueObject\Status;
+use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
+use DateTime;
+use Hyperf\Codec\Json;
+
+use function Hyperf\Translation\__;
+
+class ProviderModelEntity extends AbstractEntity
+{
+    protected ?int $id = null;
+
+    protected int $serviceProviderConfigId;
+
+    protected string $name = '';
+
+    protected string $modelVersion = '';
+
+    protected ?Category $category = null;
+
+    protected string $modelId = '';
+
+    protected ?ModelType $modelType = null;
+
+    protected ?ModelConfigItem $config = null;
+
+    protected ?string $description = '';
+
+    protected int $sort = 0;
+
+    protected string $icon = '';
+
+    protected ?DateTime $createdAt = null;
+
+    protected ?DateTime $updatedAt = null;
+
+    protected ?DateTime $deletedAt = null;
+
+    protected string $organizationCode = '';
+
+    protected Status $status;
+
+    protected ?DisabledByType $disabledBy = null;
+
+    protected array $translate = [];
+
+    protected int $modelParentId = 0;
+
+    protected array $visibleOrganizations = [];
+
+    protected array $visibleApplications = [];
+
+    protected ?int $loadBalancingWeight = null;
+
+    protected array $visiblePackages = [];
+
+    protected bool $isOffice = false;
+
+    protected int $superMagicDisplayState = 0;
+
+    protected ProviderModelType $type = ProviderModelType::ATOM;
+
+    protected ?array $aggregateConfig = null;
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function setId(null|int|string $id): self
+    {
+        if (is_numeric($id)) {
+            $this->id = (int) $id;
+        } else {
+            $this->id = null;
+        }
+
+        return $this;
+    }
+
+    public function getServiceProviderConfigId(): int
+    {
+        return $this->serviceProviderConfigId;
+    }
+
+    public function setServiceProviderConfigId(null|int|string $serviceProviderConfigId): self
+    {
+        if (is_numeric($serviceProviderConfigId)) {
+            $this->serviceProviderConfigId = (int) $serviceProviderConfigId;
+        } else {
+            $this->serviceProviderConfigId = 0;
+        }
+        return $this;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(null|int|string $name): self
+    {
+        if ($name === null) {
+            $this->name = '';
+        } else {
+            $this->name = (string) $name;
+        }
+        return $this;
+    }
+
+    public function getModelVersion(): string
+    {
+        return $this->modelVersion;
+    }
+
+    public function setModelVersion(null|int|string $modelVersion): self
+    {
+        if ($modelVersion === null) {
+            $this->modelVersion = '';
+        } else {
+            $this->modelVersion = (string) $modelVersion;
+        }
+        return $this;
+    }
+
+    public function getCategory(): Category
+    {
+        return $this->category;
+    }
+
+    public function setCategory(null|Category|int|string $category): self
+    {
+        if ($category === null || $category === '') {
+            $this->category = Category::LLM;
+        } elseif ($category instanceof Category) {
+            $this->category = $category;
+        } else {
+            $this->category = $category ? Category::tryFrom((string) $category) ?? null : null;
+        }
+        return $this;
+    }
+
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(null|int|string $modelId): self
+    {
+        if ($modelId === null) {
+            $this->modelId = '';
+        } else {
+            $this->modelId = (string) $modelId;
+        }
+        return $this;
+    }
+
+    public function getModelType(): ModelType
+    {
+        return $this->modelType;
+    }
+
+    public function setModelType(null|int|ModelType|string $modelType): self
+    {
+        if ($modelType === null || $modelType === '') {
+            $this->modelType = ModelType::LLM;
+        } elseif ($modelType instanceof ModelType) {
+            $this->modelType = $modelType;
+        } else {
+            $this->modelType = ModelType::tryFrom((int) $modelType) ?? null;
+        }
+        return $this;
+    }
+
+    public function getConfig(): ?ModelConfigItem
+    {
+        return $this->config ?? null;
+    }
+
+    public function setConfig(null|array|ModelConfigItem|string $config): self
+    {
+        if ($config instanceof ModelConfigItem) {
+            $this->config = $config;
+        } elseif (is_string($config) && json_validate($config)) {
+            $decoded = Json::decode($config);
+            $this->config = new ModelConfigItem(is_array($decoded) ? $decoded : []);
+        } elseif (is_array($config)) {
+            $this->config = new ModelConfigItem($config);
+        } else {
+            $this->config = null;
+        }
+        return $this;
+    }
+
+    public function getDescription(): string
+    {
+        return $this->description;
+    }
+
+    public function setDescription(null|int|string $description): self
+    {
+        if ($description === null) {
+            $this->description = '';
+        } else {
+            $this->description = (string) $description;
+        }
+        return $this;
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(null|int|string $sort): self
+    {
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
+        }
+        return $this;
+    }
+
+    public function getIcon(): string
+    {
+        return $this->icon;
+    }
+
+    public function setIcon(null|int|string $icon): self
+    {
+        if ($icon === null) {
+            $this->icon = '';
+        } else {
+            $this->icon = (string) $icon;
+        }
+        return $this;
+    }
+
+    public function getCreatedAt(): ?DateTime
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(null|DateTime|string $createdAt): self
+    {
+        if ($createdAt === null) {
+            $this->createdAt = null;
+        } else {
+            $this->createdAt = $createdAt instanceof DateTime ? $createdAt : new DateTime($createdAt);
+        }
+        return $this;
+    }
+
+    public function getUpdatedAt(): ?DateTime
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(null|DateTime|string $updatedAt): self
+    {
+        if ($updatedAt === null) {
+            $this->updatedAt = null;
+        } else {
+            $this->updatedAt = $updatedAt instanceof DateTime ? $updatedAt : new DateTime($updatedAt);
+        }
+        return $this;
+    }
+
+    public function getDeletedAt(): ?DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(null|DateTime|string $deletedAt): self
+    {
+        if ($deletedAt === null) {
+            $this->deletedAt = null;
+        } else {
+            $this->deletedAt = $deletedAt instanceof DateTime ? $deletedAt : new DateTime($deletedAt);
+        }
+        return $this;
+    }
+
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
+    }
+
+    public function setOrganizationCode(null|int|string $organizationCode): self
+    {
+        if ($organizationCode === null) {
+            $this->organizationCode = '';
+        } else {
+            $this->organizationCode = (string) $organizationCode;
+        }
+        return $this;
+    }
+
+    public function getStatus(): ?Status
+    {
+        return $this->status ?? null;
+    }
+
+    public function setStatus(null|int|Status|string $status): self
+    {
+        if ($status === null || $status === '') {
+            $this->status = Status::Disabled;
+        } elseif ($status instanceof Status) {
+            $this->status = $status;
+        } else {
+            $this->status = Status::from((int) $status);
+        }
+        return $this;
+    }
+
+    public function getDisabledBy(): ?DisabledByType
+    {
+        return $this->disabledBy;
+    }
+
+    public function setDisabledBy(null|DisabledByType|int|string $disabledBy): self
+    {
+        if ($disabledBy === null || $disabledBy === '') {
+            $this->disabledBy = null;
+        } elseif ($disabledBy instanceof DisabledByType) {
+            $this->disabledBy = $disabledBy;
+        } else {
+            $this->disabledBy = DisabledByType::from((string) $disabledBy);
+        }
+
+        return $this;
+    }
+
+    public function getTranslate(): array
+    {
+        return $this->translate;
+    }
+
+    public function setTranslate(null|array|string $translate): self
+    {
+        if ($translate === null) {
+            $this->translate = [];
+        } elseif (is_string($translate)) {
+            $decoded = Json::decode($translate);
+            $this->translate = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->translate = $translate;
+        }
+        return $this;
+    }
+
+    public function getModelParentId(): int
+    {
+        return $this->modelParentId;
+    }
+
+    public function setModelParentId(null|int|string $modelParentId): self
+    {
+        if (is_numeric($modelParentId)) {
+            $this->modelParentId = (int) $modelParentId;
+        } else {
+            $this->modelParentId = 0;
+        }
+        return $this;
+    }
+
+    public function getVisibleOrganizations(): array
+    {
+        return $this->visibleOrganizations;
+    }
+
+    public function setVisibleOrganizations(null|array|string $visibleOrganizations): self
+    {
+        if ($visibleOrganizations === null) {
+            $this->visibleOrganizations = [];
+        } elseif (is_string($visibleOrganizations)) {
+            $decoded = Json::decode($visibleOrganizations);
+            $this->visibleOrganizations = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->visibleOrganizations = $visibleOrganizations;
+        }
+        return $this;
+    }
+
+    public function getVisibleApplications(): array
+    {
+        return $this->visibleApplications;
+    }
+
+    public function setVisibleApplications(null|array|string $visibleApplications): self
+    {
+        if ($visibleApplications === null) {
+            $this->visibleApplications = [];
+        } elseif (is_string($visibleApplications)) {
+            $decoded = Json::decode($visibleApplications);
+            $this->visibleApplications = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->visibleApplications = $visibleApplications;
+        }
+        return $this;
+    }
+
+    public function getVisiblePackages(): array
+    {
+        return $this->visiblePackages;
+    }
+
+    public function setVisiblePackages(null|array|string $visiblePackages): self
+    {
+        if ($visiblePackages === null) {
+            $this->visiblePackages = [];
+        } elseif (is_string($visiblePackages)) {
+            $decoded = Json::decode($visiblePackages);
+            $this->visiblePackages = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->visiblePackages = $visiblePackages;
+        }
+        return $this;
+    }
+
+    public function getIsOffice(): bool
+    {
+        return $this->isOffice;
+    }
+
+    public function isOffice(): bool
+    {
+        return $this->isOffice;
+    }
+
+    public function setIsOffice(null|bool|int|string $isOffice): self
+    {
+        if ($isOffice === null) {
+            $this->isOffice = false;
+        } elseif (is_string($isOffice)) {
+            $this->isOffice = in_array(strtolower($isOffice), ['true', '1', 'yes', 'on']);
+        } else {
+            $this->isOffice = (bool) $isOffice;
+        }
+        return $this;
+    }
+
+    public function isSuperMagicDisplayState(): int
+    {
+        return $this->superMagicDisplayState;
+    }
+
+    public function setSuperMagicDisplayState(null|int|string $superMagicDisplayState): void
+    {
+        if ($superMagicDisplayState === null) {
+            $this->superMagicDisplayState = 0;
+        } else {
+            $this->superMagicDisplayState = (int) $superMagicDisplayState;
+        }
+    }
+
+    public function getType(): ProviderModelType
+    {
+        return $this->type;
+    }
+
+    public function setType(null|ProviderModelType|string $type): self
+    {
+        if ($type === null || $type === '') {
+            $this->type = ProviderModelType::ATOM;
+        } elseif ($type instanceof ProviderModelType) {
+            $this->type = $type;
+        } else {
+            $this->type = ProviderModelType::from((string) $type);
+        }
+        return $this;
+    }
+
+    public function getAggregateConfig(): ?array
+    {
+        return $this->aggregateConfig;
+    }
+
+    public function setAggregateConfig(null|array|string $aggregateConfig): self
+    {
+        if ($aggregateConfig === null) {
+            $this->aggregateConfig = null;
+        } elseif (is_string($aggregateConfig)) {
+            $decoded = Json::decode($aggregateConfig);
+            $this->aggregateConfig = is_array($decoded) ? $decoded : null;
+        } else {
+            $this->aggregateConfig = $aggregateConfig;
+        }
+        return $this;
+    }
+
+    /**
+     * 判断是否为动态模型.
+     */
+    public function isDynamicModel(): bool
+    {
+        return $this->type->isDynamic();
+    }
+
+    /**
+     * 获取子模型ID列表.
+     */
+    public function getSubModelIds(): array
+    {
+        if (! $this->isDynamicModel() || ! $this->aggregateConfig) {
+            return [];
+        }
+        return $this->aggregateConfig['models'] ?? [];
+    }
+
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(null|int|string $loadBalancingWeight): self
+    {
+        if ($loadBalancingWeight === null) {
+            $this->loadBalancingWeight = null;
+        } else {
+            $this->loadBalancingWeight = (int) $loadBalancingWeight;
+        }
+        return $this;
+    }
+
+    public function valid(): void
+    {
+        if (empty($this->modelVersion)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.model_version_required'));
+        }
+
+        if (empty($this->modelId)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.model_id_required'));
+        }
+
+        if (! empty($this->name) && strlen($this->name) > 50) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.name_max_length'));
+        }
+
+        if (empty($this->name)) {
+            $this->name = $this->getModelVersion();
+        }
+
+        if (empty($this->organizationCode)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter);
+        }
+
+        if (! $this->config) {
+            $this->config = new ModelConfigItem();
+        }
+    }
+
+    public function i18n(string $languages): void
+    {
+        if (! empty($this->translate['name'][$languages])) {
+            $this->name = $this->translate['name'][$languages];
+        }
+    }
+
+    /**
+     * 获取本地化的模型名称.
+     */
+    public function getLocalizedName(string $locale): string
+    {
+        if (! empty($this->translate['name'][$locale] ?? '')) {
+            return $this->translate['name'][$locale];
+        }
+        if (! empty($this->translate['name']['zh_CN'] ?? '')) {
+            return $this->translate['name']['zh_CN'];
+        }
+        if (! empty($this->translate['name']['en_US'] ?? '')) {
+            return $this->translate['name']['en_US'];
+        }
+        return $this->name;
+    }
+
+    /**
+     * 获取本地化的模型描述.
+     */
+    public function getLocalizedDescription(string $locale): string
+    {
+        if (! empty($this->translate['description'][$locale] ?? '')) {
+            return $this->translate['description'][$locale];
+        }
+        if (! empty($this->translate['description']['zh_CN'] ?? '')) {
+            return $this->translate['description']['zh_CN'];
+        }
+        if (! empty($this->translate['description']['en_US'] ?? '')) {
+            return $this->translate['description']['en_US'];
+        }
+        return $this->description;
+    }
+
+    /**
+     * 处理前端提交的模型ID，用于保存到数据库.
+     * 非官方模型：模型ID = 组织编码 + "_" + 前端提交的modelid
+     * 官方模型：直接使用前端提交的modelid.
+     *
+     * @param string $frontendModelId 前端提交的模型ID
+     * @return string 处理后的模型ID
+     */
+    public function processModelIdForSave(string $frontendModelId): string
+    {
+        // 非官方模型：拼接组织编码
+        $organizationCode = $this->getOrganizationCode();
+        if (empty($organizationCode)) {
+            return $frontendModelId;
+        }
+
+        // 直接返回前端提交的modelId
+        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+            return $frontendModelId;
+        }
+
+        return $organizationCode . '_' . $frontendModelId;
+    }
+
+    /**
+     * 获取用于显示的模型ID（过滤掉组织编码前缀）.
+     *
+     * @return string 用于显示的模型ID
+     */
+    public function getDisplayModelId(): string
+    {
+        $modelId = $this->getModelId();
+
+        // 过滤掉组织编码前缀
+        $organizationCode = $this->getOrganizationCode();
+        if (empty($organizationCode)) {
+            return $modelId;
+        }
+
+        // 直接返回
+        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+            return $modelId;
+        }
+
+        $prefix = $organizationCode . '_';
+        // 如果modelId以组织编码前缀开头，则去掉前缀
+        if (str_starts_with($modelId, $prefix)) {
+            return substr($modelId, strlen($prefix));
+        }
+
+        return $modelId;
+    }
+}
