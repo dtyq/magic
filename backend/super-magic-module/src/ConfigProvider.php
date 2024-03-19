@@ -1,0 +1,256 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic;
+
+use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
+use App\Domain\Chat\Event\Agent\AgentExecuteInterface;
+use Dtyq\SuperMagic\Application\Share\Adapter\SingleFileShareableResource;
+use Dtyq\SuperMagic\Application\Share\Adapter\TopicShareableResource;
+use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
+use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\CustomAiAbilitySubscriber;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\ImageModelVersionListAddDynamicConfigSubscriber;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\ProjectOperatorLogSubscriber;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageScheduleAppService;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentCategoryRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentCategoryRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentMarketRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentPlaybookRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentSkillRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentVersionRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
+use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionItemRepositoryInterface;
+use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\FileCollection\Repository\Persistence\FileCollectionItemRepository;
+use Dtyq\SuperMagic\Domain\FileCollection\Repository\Persistence\FileCollectionRepository;
+use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareAccessLogRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareCopyLogRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareAccessLogRepository;
+use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareCopyLogRepository;
+use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareAccessLogDomainService;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareCopyLogDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillCategoryRepository;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillMarketRepository;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillRepository;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillVersionRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioMarkerRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleLogRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectOperationLogRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TransferLogRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\AudioMarkerRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\AudioProjectRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleLogRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectForkRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberSettingRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectOperationLogRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileVersionRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TransferLogRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
+use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
+use Dtyq\SuperMagic\Listener\AddRouteListener;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+
+class ConfigProvider
+{
+    public function __invoke(): array
+    {
+        define('SUPER_MAGIC_MODULE_PATH', BASE_PATH . '/vendor/dtyq/super-magic-module');
+
+        $publishConfigs = [];
+
+        // 遍历 publish/route 文件夹下的所有文件
+        $routeDir = __DIR__ . '/../publish/route/';
+        if (is_dir($routeDir)) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($routeDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isFile()) {
+                    $relativePath = $file->getSubPath() . '/' . $file->getFilename();
+                    $publishConfigs[] = [
+                        'id' => 'route_' . str_replace('/', '_', $relativePath),
+                        'description' => 'Route file: ' . $relativePath,
+                        'source' => $file->getPathname(),
+                        'destination' => BASE_PATH . '/config/' . $relativePath,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'dependencies_priority' => [
+                // 助理执行事件
+                AgentExecuteInterface::class => SuperAgentMessageSubscriberV2::class,
+                SuperAgentMessageInterface::class => SuperAgentMessage::class,
+            ],
+            'dependencies' => [
+                // 添加接口到实现类的映射
+                TaskFileRepositoryInterface::class => TaskFileRepository::class,
+                TaskFileVersionRepositoryInterface::class => TaskFileVersionRepository::class,
+                TopicRepositoryInterface::class => TopicRepository::class,
+                TaskRepositoryInterface::class => TaskRepository::class,
+                WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
+                TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
+                ProjectRepositoryInterface::class => ProjectRepository::class,
+                ProjectOperationLogRepositoryInterface::class => ProjectOperationLogRepository::class,
+                ProjectOperationLogDomainService::class => ProjectOperationLogDomainService::class,
+                SandboxInterface::class => SandboxService::class,
+                ProjectMemberRepositoryInterface::class => ProjectMemberRepository::class,
+                ProjectMemberSettingRepositoryInterface::class => ProjectMemberSettingRepository::class,
+                // 添加SandboxOS相关服务的依赖注入
+                SandboxGatewayInterface::class => SandboxGatewayService::class,
+                SandboxAgentInterface::class => SandboxAgentService::class,
+                FileConverterInterface::class => FileConverterService::class,
+                AsrRecorderInterface::class => AsrRecorderService::class,
+                AgentAppService::class => AgentAppService::class,
+                // 添加FileProcessAppService的依赖注入
+                FileProcessAppService::class => FileProcessAppService::class,
+                // 添加HandleAgentMessageAppService的依赖注入
+                HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
+                // 添加MessageQueueAppService的依赖注入
+                MessageQueueAppService::class => MessageQueueAppService::class,
+                // 添加MessageScheduleAppService的依赖注入
+                MessageScheduleAppService::class => MessageScheduleAppService::class,
+                // 添加分享相关服务
+                ShareableResourceFactory::class => ShareableResourceFactory::class,
+                TopicShareableResource::class => TopicShareableResource::class,
+                SingleFileShareableResource::class => SingleFileShareableResource::class,
+                ResourceShareRepositoryInterface::class => ResourceShareRepository::class,
+                ResourceShareAccessLogRepositoryInterface::class => ResourceShareAccessLogRepository::class,
+                ResourceShareAccessLogDomainService::class => ResourceShareAccessLogDomainService::class,
+                ResourceShareCopyLogRepositoryInterface::class => ResourceShareCopyLogRepository::class,
+                ResourceShareCopyLogDomainService::class => ResourceShareCopyLogDomainService::class,
+                ResourceShareAppService::class => ResourceShareAppService::class,
+                TokenUsageRecordRepositoryInterface::class => TokenUsageRecordRepository::class,
+                WorkspaceVersionRepositoryInterface::class => WorkspaceVersionRepository::class,
+                ProjectForkRepositoryInterface::class => ProjectForkRepository::class,
+                MessageQueueRepositoryInterface::class => MessageQueueRepository::class,
+                MessageScheduleLogRepositoryInterface::class => MessageScheduleLogRepository::class,
+                MessageScheduleRepositoryInterface::class => MessageScheduleRepository::class,
+
+                // file-collection
+                FileCollectionRepositoryInterface::class => FileCollectionRepository::class,
+                FileCollectionItemRepositoryInterface::class => FileCollectionItemRepository::class,
+
+                // agent 管理
+                SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
+                TaskFileVersionDomainService::class => TaskFileVersionDomainService::class,
+                MessageScheduleDomainService::class => MessageScheduleDomainService::class,
+                AgentPlaybookRepositoryInterface::class => AgentPlaybookRepository::class,
+                AgentMarketRepositoryInterface::class => AgentMarketRepository::class,
+                AgentVersionRepositoryInterface::class => AgentVersionRepository::class,
+                AgentCategoryRepositoryInterface::class => AgentCategoryRepository::class,
+                AgentSkillRepositoryInterface::class => AgentSkillRepository::class,
+
+                // transfer 转让
+                TransferLogRepositoryInterface::class => TransferLogRepository::class,
+
+                // audio marker 音频标记
+                AudioMarkerRepositoryInterface::class => AudioMarkerRepository::class,
+                AudioProjectRepositoryInterface::class => AudioProjectRepository::class,
+
+                // Skill 相关 Repository
+                SkillRepositoryInterface::class => SkillRepository::class,
+                SkillVersionRepositoryInterface::class => SkillVersionRepository::class,
+                SkillMarketRepositoryInterface::class => SkillMarketRepository::class,
+                SkillCategoryRepositoryInterface::class => SkillCategoryRepository::class,
+            ],
+            'listeners' => [
+                AddRouteListener::class,
+                ProjectOperatorLogSubscriber::class,
+                CustomAiAbilitySubscriber::class => 2,
+                ImageModelVersionListAddDynamicConfigSubscriber::class,
+            ],
+            'error_message' => [
+                'error_code_mapper' => [
+                    SuperAgentErrorCode::class => [51000, 51299],
+                    ShareErrorCode::class => [51300, 51400],
+                    SkillErrorCode::class => [51239, 51338],
+                ],
+            ],
+            'commands' => [],
+            'annotations' => [
+                'scan' => [
+                    'paths' => [
+                        __DIR__,
+                    ],
+                ],
+            ],
+            'publish' => $publishConfigs,
+        ];
+    }
+
+    public function getRoutes(): array
+    {
+        return [
+            'routes' => [
+                'path' => __DIR__ . '/../publish/route',
+            ],
+        ];
+    }
+}
