@@ -1,0 +1,66 @@
+.LLMLabel {
+    display: flex;
+    align-items: center;
+
+    padding-left: 8px;
+
+    .img {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+    }
+
+    .title {
+        line-height: 20px;
+        color: #1C1D23;
+        font-size: 14px;
+        margin-left: 6px;
+    }
+
+    .tagList {
+        margin-left: 4px;
+        display: flex;
+        align-items: center;
+        list-style-type: none;
+        gap: 4px;
+        margin: 0;
+        margin-left: 4px;
+
+        .tagItem {
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid #1C1D2314;
+            color: #1C1D2359;
+            font-size: 12px;
+            line-height: 16px;
+            min-width: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            svg {
+                height: 14px;
+                width: 14px;
+            }
+
+            &.iconItem {
+                padding: 0 5px;
+            }
+
+            &.textItem {
+                padding: 0 7px;
+            }
+        }
+    }
+
+    .checked {
+        position: absolute;
+        right: 7px;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #315CEC;
+    }
+}

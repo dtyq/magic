@@ -1,0 +1,148 @@
+.branchNodeWrapper {
+	height: auto;
+	padding: 12px;
+	background: #fff;
+	border: 1px solid rgba(28, 31, 35, .08);
+	border-radius: 12px;
+	box-shadow: 0 2px 4px 0 rgba(0, 0, 0, .1);
+	min-width: 900px;
+
+	.debuggerId {
+		font-size: 20px;
+		font-weight: 600;
+	}
+
+	.header {
+		padding: 12px;
+		border-radius: 12px;
+		margin: 12px;
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+
+		.left {
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-start;
+			align-items: flex-start;
+
+			.desc {
+				color: #1C1D2399;
+				font-size: 12px;
+				line-height: 16px;
+				margin-top: 6px;
+			}
+
+			:global {
+				.magic-dropdown-trigger {
+					display: flex;
+					align-items: center;
+					cursor: pointer;
+				}
+			}
+
+			.icon {
+				margin-right: 6px;
+				width: 16px;
+				height: 16px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 3px;
+				color: #fff;
+			}
+
+			.label {
+				font-family: SF Pro Display, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Helvetica Neue, Helvetica, Arial, sans-serif;
+				font-size: 14px;
+				line-height: 22px;
+			}
+		}
+
+		.right {
+			.iconMore {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 3px;
+				cursor: pointer;
+				padding: 4px;
+
+				&:hover {
+					background-color: rgba(46, 50, 56, 0.05);
+				}
+
+			}
+		}
+	}
+
+	.handle {
+		background-color: #4d53e8;
+		transform-origin: center;
+		width: 10px;
+		height: 10px;
+
+		display: flex;
+		align-items: center;
+		justify-content: center;
+
+	}
+
+	.rightHandle {
+
+		.addIcon {
+			transition: all .2s linear 0s;
+			color: #fff;
+			font-size: 0;
+			cursor: crosshair;
+			opacity: 0;
+			pointer-events: none;
+		}
+	}
+
+
+	&:hover {
+		box-shadow: 0 0 1px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .1);
+
+		.handle {
+			background: #4d53e8;
+			width: 12px;
+			height: 12px;
+		}
+
+		.rightHandle {
+			right: -6px;
+		}
+
+		.leftHandle {
+			left: -6px;
+		}
+
+		.isTarget {
+			width: 100%;
+			height: 100%;
+			border-radius: 0;
+			transition: all 0s;
+			background-color: transparent;
+		}
+	}
+}
+
+.isSelected {
+	outline: 2px solid #4d53e8;
+	box-shadow: 0 0 1px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .1);
+
+	.handle {
+		background: #4d53e8;
+		width: 14px;
+		height: 14px;
+	}
+
+	.rightHandle {
+		right: -7px;
+	}
+
+	.leftHandle {
+		left: -7px;
+	}
+}

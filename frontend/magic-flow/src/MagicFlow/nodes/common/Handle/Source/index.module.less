@@ -1,0 +1,59 @@
+.handle {
+
+    background-color: white !important;
+    border-color: #315CEC !important;
+    border-width: 2px;
+    transition: all .2s linear 0s;
+    transform-origin: center;
+    border-radius: 50%;
+    height: 12px;
+    width: 12px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &.isTarget {
+        transition: none !important;
+        width: 100% !important;
+        height: 100% !important;
+        border-radius: 0 !important;
+        background-color: transparent !important;
+        border-color: transparent !important;
+    }
+
+
+
+    .addIcon {
+        transition: all .2s linear 0s;
+        color: #315CEC;
+        font-size: 0;
+        cursor: crosshair;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+
+    &:hover {
+        border-width: 4px;
+    }
+}
+
+
+.isSelected {
+
+    border-width: 3px !important;
+    width: 14px;
+    height: 14px;
+    right: -7px;
+
+
+}
+
+.popup {
+    :global {
+        .magic-popover-inner-content {
+            padding: 0;
+        }
+    }
+}

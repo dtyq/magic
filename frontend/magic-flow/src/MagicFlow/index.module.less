@@ -1,0 +1,74 @@
+.magicFlow {
+	background-color: #fff;
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	height: 100%;
+	width: 100%;
+	position: relative;
+
+	ul {
+		padding-left: 0;
+	}
+
+	.content {
+		display: flex;
+		flex: 1;
+
+		.leftPanel {}
+
+		.designPanel {
+			flex: 1
+		}
+	}
+	
+}
+
+
+.batchLoadingIndicator {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    z-index: 1000;
+    pointer-events: none; // 避免阻止鼠标事件
+    animation: fadeInOut 1.5s infinite alternate;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    
+    &::before {
+        content: '';
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid white;
+        border-top-color: transparent;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: spin 1s linear infinite;
+        vertical-align: -1px;
+    }
+}
+
+@keyframes fadeInOut {
+	from {
+		opacity: 0.75;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
+}
