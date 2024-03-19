@@ -1,0 +1,283 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
+
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+
+/**
+ * 项目成员仓储接口.
+ *
+ * 提供项目成员数据的持久化操作
+ */
+interface ProjectMemberRepositoryInterface
+{
+    /**
+     * 批量插入项目成员.
+     *
+     * @param ProjectMemberEntity[] $projectMemberEntities 项目成员实体数组
+     */
+    public function insert(array $projectMemberEntities): void;
+
+    /**
+     * 根据项目ID删除所有成员.
+     *
+     * @param int $projectId 项目ID
+     * @param array $roles 角色
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectId(int $projectId, array $roles = []): int;
+
+    /**
+     * 根据ID数组批量删除成员.
+     *
+     * @param array $ids 成员ID数组
+     * @return int 删除的记录数
+     */
+    public function deleteByIds(array $ids): int;
+
+    /**
+     * 删除指定项目和用户的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndUser(int $projectId, string $userId): int;
+
+    /**
+     * 删除指定项目和目标的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $targetType 目标类型
+     * @param string $targetId 目标ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndTarget(int $projectId, string $targetType, string $targetId): int;
+
+    /**
+     * 检查项目和用户的成员关系是否存在.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return bool 存在返回true，否则返回false
+     */
+    public function existsByProjectAndUser(int $projectId, string $userId): bool;
+
+    /**
+     * 检查项目和部门列表的成员关系是否存在.
+     *
+     * @param int $projectId 项目ID
+     * @param array $departmentIds 部门ID数组
+     * @return bool 存在返回true，否则返回false
+     */
+    public function existsByProjectAndDepartments(int $projectId, array $departmentIds): bool;
+
+    /**
+     * 根据项目ID获取所有项目成员.
+     *
+     * @param int $projectId 项目ID
+     * @param array $roles 角色
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function findByProjectId(int $projectId, array $roles = []): array;
+
+    /**
+     * 根据用户和部门获取项目ID列表及总数.
+     *
+     * @param string $userId 用户ID
+     * @param array $departmentIds 部门ID数组
+     * @param null|string $name 项目名称模糊搜索关键词
+     * @param null|string $sortField 排序字段：updated_at,created_at,last_active_at
+     * @param array $organizationCodes 组织编码列表（用于过滤）
+     * @return array ['total' => int, 'list' => array]
+     */
+    public function getProjectIdsByUserAndDepartments(
+        string $userId,
+        array $departmentIds = [],
+        ?string $name = null,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = [],
+        ?string $joinMethod = null,
+        array $organizationCodes = []
+    ): array;
+
+    /**
+     * 批量获取项目成员总数.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array [project_id => total_count]
+     */
+    public function getProjectMembersCounts(array $projectIds): array;
+
+    /**
+     * 批量获取项目前N个成员预览.
+     *
+     * @param array $projectIds 项目ID数组
+     * @param int $limit 限制数量，默认4个
+     * @return array [project_id => [['target_type' => '', 'target_id' => ''], ...]]
+     */
+    public function getProjectMembersPreview(array $projectIds, int $limit = 4): array;
+
+    /**
+     * 获取用户创建的且有成员的项目ID列表及总数.
+     *
+     * @return array ['total' => int, 'list' => array]
+     */
+    public function getSharedProjectIdsByUser(
+        string $userId,
+        string $organizationCode,
+        ?string $name = null,
+        int $page = 1,
+        int $pageSize = 10,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array;
+
+    /**
+     * 获取协作项目的创建者用户ID列表.
+     *
+     * @param string $userId 当前用户ID
+     * @param array $departmentIds 用户所在部门ID数组
+     * @param string $organizationCode 组织代码
+     * @return array 创建者用户ID数组
+     */
+    public function getCollaborationProjectCreatorIds(
+        string $userId,
+        array $departmentIds,
+        string $organizationCode
+    ): array;
+
+    /**
+     * 获取用户参与的项目列表（支持协作项目筛选和工作区绑定筛选）.
+     *
+     * @param string $userId 用户ID
+     * @param int $workspaceId 工作区ID
+     * @param bool $showCollaboration 是否显示协作项目
+     * @param null|string $projectName 项目名称模糊搜索
+     * @param int $page 页码
+     * @param int $pageSize 每页大小
+     * @param string $sortField 排序字段
+     * @param string $sortDirection 排序方向
+     * @param null|array $organizationCodes 组织编码
+     * @return array ['total' => int, 'list' => array]
+     */
+    public function getParticipatedProjects(
+        string $userId,
+        ?int $workspaceId,
+        bool $showCollaboration = true,
+        ?string $projectName = null,
+        int $page = 1,
+        int $pageSize = 10,
+        string $sortField = 'last_active_at',
+        string $sortDirection = 'desc',
+        ?array $organizationCodes = null
+    ): array;
+
+    /**
+     * 根据项目ID和用户ID获取项目成员信息.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return null|ProjectMemberEntity 项目成员实体
+     */
+    public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity;
+
+    /**
+     * 根据项目ID和成员ID数组获取成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByIds(int $projectId, array $memberIds): array;
+
+    /**
+     * 根据项目ID和部门ID数组获取项目成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $departmentIds 部门ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array;
+
+    /**
+     * 批量更新成员权限（新格式：target_type + target_id）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $roleUpdates [['target_type' => '', 'target_id' => '', 'role' => ''], ...]
+     * @return int 更新的记录数
+     */
+    public function batchUpdateRole(int $projectId, array $roleUpdates): int;
+
+    /**
+     * 批量删除成员（软删除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return int 删除的记录数
+     */
+    public function deleteMembersByIds(int $projectId, array $memberIds): int;
+
+    /**
+     * 通过协作者目标ID获取项目Id列表（排除OWNER角色）.
+     *
+     * @param array $targetIds 目标ID数组（用户ID或部门ID）
+     * @return array 项目Ids
+     */
+    public function getProjectIdsByCollaboratorTargets(array $targetIds, array $roles): array;
+
+    /**
+     * 批量获取用户在项目中的成员记录.
+     *
+     * @param array $projectIds 项目ID数组
+     * @param array $targetIds 目标ID数组（用户ID和部门ID）
+     * @return ProjectMemberEntity[] 成员实体数组
+     */
+    public function getProjectMembersByTargetIds(array $projectIds, array $targetIds): array;
+
+    /**
+     * Batch get member status for a user across multiple projects.
+     *
+     * @param array $projectIds Project ID array
+     * @param string $userId User ID
+     * @return array [projectId => ProjectMemberEntity|null, ...]
+     */
+    public function getMembersByProjectsAndUser(array $projectIds, string $userId): array;
+
+    /**
+     * Batch update role for a user across multiple projects.
+     *
+     * @param array $projectIds Project ID array
+     * @param string $userId User ID
+     * @param string $role New role value
+     * @return int Updated record count
+     */
+    public function batchUpdateRoleForMultipleProjects(array $projectIds, string $userId, string $role): int;
+
+    /**
+     * Batch delete member relationships for a user across multiple projects.
+     *
+     * @param array $projectIds Project ID array
+     * @param string $userId User ID
+     * @return int Deleted record count
+     */
+    public function batchDeleteByProjectsAndUser(array $projectIds, string $userId): int;
+
+    /**
+     * Get project IDs that have effective collaborators.
+     *
+     * Effective collaborators are ACTIVE members in MANAGE/EDITOR/VIEWER roles
+     * (OWNER excluded).
+     *
+     * @param array $projectIds Project ID array
+     * @return array Project IDs with effective collaborators
+     */
+    public function getProjectIdsWithEffectiveCollaborators(array $projectIds): array;
+}
