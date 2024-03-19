@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+    - name: Request a feature
+      url: https://github.com/ueberdosis/tiptap-php/issues/new?category=enhancement
+      about: Share ideas for new features
+    - name: Report a bug
+      url: https://github.com/ueberdosis/tiptap-php/issues/new
+      about: Report a reproducable bug

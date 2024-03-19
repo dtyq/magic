@@ -1,0 +1,9 @@
+{
+  "name": "tiptap-php",
+  "private": true,
+  "description": "This package.json has all Node dependencies for the local development of the package.",
+  "homepage": "https://github.com/dtyq/tiptap",
+  "devDependencies": {
+    "shiki": "^1.0.0"
+  }
+}

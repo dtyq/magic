@@ -1,0 +1,60 @@
+{
+    "name": "dtyq/tiptap",
+    "description": "A PHP package to work with Tiptap output",
+    "keywords": [
+        "ueberdosis",
+        "tiptap",
+        "prosemirror"
+    ],
+    "homepage": "https://github.com/dtyq/tiptap",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Hans Pagel",
+            "email": "humans@tiptap.dev",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^7.4|^8.0",
+        "scrivo/highlight.php": "^9.18",
+        "spatie/shiki-php": "^2.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.5",
+        "pestphp/pest": "^1.21",
+        "phpunit/phpunit": "^9.5",
+        "vimeo/psalm": "^4.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Tiptap\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tiptap\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "psalm": "vendor/bin/psalm",
+        "psalm-watch": "nodemon --exec './vendor/bin/psalm || exit 1' --ext php",
+        "test": "./vendor/bin/pest",
+        "test-watch": "nodemon --exec './vendor/bin/pest || exit 1' --ext php",
+        "test-coverage": "./vendor/bin/pest --coverage-html coverage",
+        "format": "vendor/bin/php-cs-fixer fix --allow-risky=yes --config=.php_cs.dist.php"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

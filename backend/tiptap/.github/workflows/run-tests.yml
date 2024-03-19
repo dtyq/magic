@@ -1,0 +1,67 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - next
+      - release/*
+  pull_request:
+    branches:
+      - main
+      - develop
+      - next
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        php: [7.4, 8.0, 8.1]
+        stability: [prefer-lowest, prefer-stable]
+        node-version: [16]
+
+    name: P${{ matrix.php }} - ${{ matrix.stability }} - ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv, imagick, fileinfo
+          coverage: none
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2.5.1
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Load cached dependencies
+        uses: actions/cache@v2
+        id: cache
+        with:
+          path: |
+            **/node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install dependencies
+        id: install-dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm install
+
+      - name: Setup problem matchers
+        run: |
+          echo "::add-matcher::${{ runner.tool_cache }}/php.json"
+          echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
+
+      - name: Install dependencies
+        run: composer update --${{ matrix.stability }} --prefer-dist --no-interaction
+
+      - name: Execute tests
+        run: vendor/bin/pest
