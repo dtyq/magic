@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="WEB_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/backend" isTestSource="false" packagePrefix="Dtyq" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/async-event/tests" isTestSource="true" packagePrefix="HyperfTest" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/easy-dingtalk/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/magic-service" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/magic-service/app/Infrastructure/Core/ClassMap" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/magic-service/app/Infrastructure/Core/ClassMap" isTestSource="false" packagePrefix="Hyperf" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/magic-service/test" isTestSource="true" packagePrefix="HyperfTest" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/magic-service/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/rule-engine-core/tests" isTestSource="true" packagePrefix="HyperfTest" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/sandbox/src" isTestSource="false" packagePrefix="PHPSandbox" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/sandbox/tests" isTestSource="true" packagePrefix="test" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/sandbox/tests" isTestSource="true" packagePrefix="HyperfTest" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/tiptap/src" isTestSource="false" packagePrefix="Tiptap" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
