@@ -1,0 +1,11 @@
+/dist/*
+.local
+/node_modules/**
+.helm/**
+.gitlab-ci.yml
+Dockerfile
+
+**/*.svg
+**/*.sh
+
+/public/*

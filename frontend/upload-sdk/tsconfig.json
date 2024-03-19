@@ -1,0 +1,30 @@
+{
+	"references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.test.json" }],
+	"compilerOptions": {
+		"rootDir": ".",
+		"baseUrl": ".",
+		"moduleResolution": "node",
+		"target": "ES2020",
+		"module": "ES2022",
+		"lib": ["ES2020", "ES2021", "ES2022", "DOM", "DOM.Iterable"],
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+		"allowJs": false,
+		"sourceMap": true,
+		"declaration": true,
+		"experimentalDecorators": true,
+		"allowSyntheticDefaultImports": true,
+		"emitDecoratorMetadata": true,
+		"declarationDir": "dist/types",
+		"outDir": "dist/lib",
+		"typeRoots": ["./types", "node_modules/@types"],
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true
+	},
+	"include": ["src/**/*", "types/**/*"],
+	"exclude": ["node_modules", "dist"]
+}
