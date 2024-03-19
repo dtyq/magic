@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
+use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
+use Dtyq\SuperMagic\Interfaces\Skill\Facade\Admin\AdminSkillApi;
+use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillApi;
+use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillMarketApi;
+use Hyperf\HttpServer\Router\Router;
+
+Router::addGroup('/api/v1', static function () {
+    // 市场技能库路由组
+    Router::addGroup('/skill-market', static function () {
+        // 获取市场技能库列表
+        Router::post('/queries', [SkillMarketApi::class, 'queries']);
+    });
+
+    Router::addGroup('/skills', static function () {
+        // 获取用户技能列表
+        Router::post('/queries', [SkillApi::class, 'queries']);
+
+        // 从技能市场添加技能
+        Router::post('/from-store', [SkillApi::class, 'addSkillFromStore']);
+
+        // 技能导入第一阶段：上传文件并解析
+        Router::post('/import/parse/file', [SkillApi::class, 'parseFileImport']);
+
+        // 技能导入第二阶段：确认信息正式落库
+        Router::post('/import', [SkillApi::class, 'importSkill']);
+
+        // 获取用户技能详情
+        Router::get('/{code}', [SkillApi::class, 'getSkillDetail']);
+
+        // 删除用户技能（支持所有来源类型）
+        Router::delete('/{code}', [SkillApi::class, 'deleteSkill']);
+
+        // 更新技能基本信息（仅允许更新非商店来源的技能）
+        Router::put('/{code}/info', [SkillApi::class, 'updateSkillInfo']);
+
+        // 发布技能到商店（创建待审核版本）
+        Router::post('/{code}/publish', [SkillApi::class, 'publishSkill']);
+
+        // 下架技能版本
+        Router::put('/{code}/offline', [SkillApi::class, 'offlineSkill']);
+
+        // 升级商店技能到当前版本
+        Router::put('/{code}/upgrade', [SkillApi::class, 'upgradeSkill']);
+
+        // 批量获取技能 file_key 及下载 URL（仅返回当前用户自己的技能）
+        Router::post('/file-urls', [SkillApi::class, 'getSkillFileUrls']);
+    });
+
+    // Admin 路由组
+    Router::addGroup('/admin/skills', static function () {
+        Router::put('/versions/{id}/review', [AdminSkillApi::class, 'reviewSkillVersion']);
+    });
+}, ['middleware' => [RequestContextMiddleware::class, UserAuthMiddleware::class]]);
