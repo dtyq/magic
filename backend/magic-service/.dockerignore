@@ -1,0 +1,60 @@
+# Git
+.git
+.github
+
+# IDE
+.idea
+.vscode
+*.sublime-project
+*.sublime-workspace
+
+# 依赖目录
+vendor/
+node_modules/
+
+# 日志文件
+*.log
+logs/
+storage/logs/
+
+# 环境配置文件
+.env
+.env.*
+.env.example
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+.DS_Store
+
+# 测试文件
+tests/
+phpunit.xml
+.phpunit.result.cache
+volumes/
+# 文档
+docs/
+*.md
+!README.md
+
+# 其他
+docker/
+docker-compose*
+Dockerfile*
+.dockerignore
+
+# 开发工具
+composer.phar
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# 缓存文件
+.cache/
+.phpunit.cache/
+
+# 新增的代码块
+runtime/
+test/
+*.bak 
