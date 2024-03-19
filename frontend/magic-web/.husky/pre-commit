@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Check for hardcoded tokens
+echo "🔍 Checking for hardcoded tokens..."
+node scripts/git-hooks/check-hardcoded-tokens.cjs
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+# Run lint-staged for code formatting
+NODE_OPTIONS="--max-old-space-size=8192" npx lint-staged

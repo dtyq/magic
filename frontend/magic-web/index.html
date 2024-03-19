@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" type="image/svg+xml" href="" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover"
+		/>
+		<meta name="google" content="notranslate" />
+		<meta name="color-scheme" content="light" />
+		<title>超级麦吉 (Super Magic) - 灯塔引擎新一代企业级 AI 应用创新引擎</title>
+		<!-- Meta -->
+		<!-- CDN Resources -->
+		<script defer src="/config.js"></script>
+		<script>
+			var url = new URL(window.location.href)
+			var searchParams = url.searchParams
+			// 防止重定向页面后，debug状态丢失
+			if (searchParams.get("debug") === "true") {
+				sessionStorage.setItem("debug", "true")
+			}
+			if (searchParams.get("debug") === "true" || sessionStorage.getItem("debug")) {
+				// 动态加载 vconsole.min.js
+				const script = document.createElement("script")
+				script.src = "/vconsole.min.js"
+				script.onload = function () {
+					new VConsole()
+				}
+				script.onerror = function () {
+					console.error("加载VConsole失败")
+				}
+				document.head.appendChild(script)
+			}
+		</script>
+	</head>
+
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/opensource/main.tsx"></script>
+		<script>
+			// Load TSIcon sprite async to avoid blocking render
+			;(function loadTsIcon() {
+				const script = document.createElement("script")
+				script.src = "/icons_12224_357.933fa41cd89163c9985c27baa8f99a43.js"
+				script.async = true
+				script.crossOrigin = "anonymous"
+				script.onerror = function () {
+					console.error("Failed to load TSIcon assets")
+				}
+				document.body.appendChild(script)
+			})()
+		</script>
+	</body>
+</html>

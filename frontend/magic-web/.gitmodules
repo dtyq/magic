@@ -1,0 +1,4 @@
+[submodule "public/packages"]
+	path = public/packages
+	url = https://git.dtyq.com/magic/magic-web-packages
+    branch = main

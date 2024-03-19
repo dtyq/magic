@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-cn">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Magic Web DeepWiki</title>
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+		<meta name="description" content="Magic Web 内部版本前端架构Wiki" />
+		<meta
+			name="viewport"
+			content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+		/>
+		<link rel="icon" href="favicon.svg" />
+		<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify/lib/themes/vue.css" />
+		<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.css" />
+		<script>
+			window.tailwind = window.tailwind || {}
+			window.tailwind.config = {
+				corePlugins: {
+					preflight: false,
+				},
+			}
+		</script>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			/* Custom tweaks */
+			:root {
+				--theme-color: #1890ff;
+			}
+
+			body.mermaid-lightbox-open {
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="app">正在加载...</div>
+		<!-- Mermaid -->
+		<script src="//cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+		<script>
+			var mermaidLightbox = null
+			var mermaidLightboxContent = null
+
+			function ensureMermaidLightbox() {
+				if (mermaidLightbox) return
+
+				mermaidLightbox = document.createElement("div")
+				mermaidLightbox.className =
+					"fixed inset-0 z-[9999] hidden items-center justify-center bg-slate-950/25 p-4"
+				mermaidLightbox.innerHTML =
+					'<div class="flex h-[calc(100vh-32px)] w-[min(1600px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl bg-white shadow-xl">' +
+					'<div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">' +
+					'<div class="text-sm font-medium text-slate-700">Mermaid 图表</div>' +
+					'<button type="button" class="rounded-md bg-slate-100 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-200">关闭</button>' +
+					"</div>" +
+					'<div class="flex-1 overflow-auto bg-white p-4"></div>' +
+					"</div>"
+
+				mermaidLightboxContent = mermaidLightbox.querySelector(".flex-1")
+
+				mermaidLightbox.addEventListener("click", function (event) {
+					if (event.target === mermaidLightbox) closeMermaidLightbox()
+				})
+
+				mermaidLightbox
+					.querySelector("button")
+					.addEventListener("click", closeMermaidLightbox)
+
+				document.addEventListener("keydown", function (event) {
+					if (event.key === "Escape") closeMermaidLightbox()
+				})
+
+				document.body.appendChild(mermaidLightbox)
+			}
+
+			function openMermaidLightbox(svg) {
+				if (!svg) return
+
+				ensureMermaidLightbox()
+				mermaidLightboxContent.innerHTML = ""
+				var clonedSvg = svg.cloneNode(true)
+				clonedSvg.classList.add("mx-auto", "block", "h-auto", "max-w-none")
+				mermaidLightboxContent.appendChild(clonedSvg)
+				mermaidLightbox.classList.remove("hidden")
+				mermaidLightbox.classList.add("flex")
+				document.body.classList.add("mermaid-lightbox-open")
+			}
+
+			function closeMermaidLightbox() {
+				if (!mermaidLightbox) return
+
+				mermaidLightbox.classList.remove("flex")
+				mermaidLightbox.classList.add("hidden")
+				document.body.classList.remove("mermaid-lightbox-open")
+				mermaidLightboxContent.innerHTML = ""
+			}
+
+			function enhanceMermaidDiagrams() {
+				var mermaidContainers = document.querySelectorAll(".mermaid")
+
+				mermaidContainers.forEach(function (container) {
+					if (container.dataset.enhanced === "true") return
+
+					var svg = container.querySelector("svg")
+					if (!svg) return
+
+					container.dataset.enhanced = "true"
+					container.classList.add("group", "relative", "my-6")
+
+					var button = document.createElement("button")
+					button.type = "button"
+					button.className =
+						"pointer-events-none absolute right-2 top-2 z-10 rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-medium leading-none text-slate-600 opacity-0 shadow-sm transition duration-150 group-hover:pointer-events-auto group-hover:opacity-100 focus:pointer-events-auto focus:opacity-100 hover:bg-white"
+					button.setAttribute("aria-label", "全屏查看图表")
+					button.textContent = "全屏"
+					button.addEventListener("click", function (event) {
+						event.preventDefault()
+						event.stopPropagation()
+						openMermaidLightbox(svg)
+					})
+
+					container.appendChild(button)
+				})
+			}
+
+			mermaid.initialize({ startOnLoad: false })
+
+			window.$docsify = {
+				name: "🪄 Magic Web",
+				repo: "",
+				loadSidebar: true, // Will load _sidebar.md automatically
+				alias: {
+					"/.*/_sidebar.md": "/_sidebar.md",
+					".*/_sidebar.md": "/_sidebar.md",
+				},
+				subMaxLevel: 3,
+				auto2top: true,
+				search: "auto", // default search
+				markdown: {
+					renderer: {
+						code: function (code, lang) {
+							if (lang === "mermaid") {
+								return '<div class="mermaid">' + code + "</div>"
+							}
+							return this.origin.code.apply(this, arguments)
+						},
+					},
+				},
+				plugins: [
+					function (hook, vm) {
+						hook.doneEach(function () {
+							var mermaidNodes = document.querySelectorAll(".mermaid")
+							if (!window.mermaid || mermaidNodes.length === 0) return
+
+							try {
+								Promise.resolve(mermaid.run({ nodes: mermaidNodes }))
+									.then(function () {
+										enhanceMermaidDiagrams()
+									})
+									.catch(function (error) {
+										console.error("Mermaid render error:", error)
+									})
+							} catch (error) {
+								console.error("Mermaid render error:", error)
+							}
+						})
+					},
+				],
+			}
+		</script>
+		<!-- Docsify v4 -->
+		<script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+		<!-- Search Plugin -->
+		<script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+		<!-- Zoom image -->
+		<script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+		<!-- Markdown extensions limit -->
+		<script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
+		<script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-tsx.min.js"></script>
+	</body>
+</html>

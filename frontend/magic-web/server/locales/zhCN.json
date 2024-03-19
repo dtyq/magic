@@ -1,0 +1,31 @@
+{
+	"site": {
+		"title": "{{title}} - {{platformTitle}}",
+		"keywords": "{{keywords}}, {{platformKeywords}}",
+		"description": "{{description}} - {{platformDescription}}",
+		"author": "{{platformTitle}}"
+	},
+	"superMagic": {
+		"collaborationProject": "协作项目",
+		"project": "项目"
+	},
+	"approval": {
+		"title": "审批"
+	},
+	"login": {
+		"title": "登录"
+	},
+	"drive": {
+		"personal": "个人云盘",
+		"mine": "我创建的",
+		"recent": "常用",
+		"shared": "企业云盘",
+		"folder": "文件夹",
+		"sharedForm": "共享表单"
+	},
+	"file": {
+		"docs": "云文档",
+		"pivotTable": "多维表格",
+		"document": "文档"
+	}
+}

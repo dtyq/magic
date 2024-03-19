@@ -1,0 +1,24 @@
+{
+	"name": "server",
+	"version": "1.0.0",
+	"description": "",
+	"keywords": [],
+	"license": "ISC",
+	"author": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"dependencies": {
+		"connect-history-api-fallback": "^2.0.0",
+		"cors": "^2.8.5",
+		"dotenv": "^16.4.5",
+		"express": "~5.1.0",
+		"i18n": "^0.15.2",
+		"lz-string": "^1.5.0",
+		"morgan": "^1.10.0",
+		"node-bunyan": "^3.0.1",
+		"path-to-regexp": "^8.3.0",
+		"ramda": "^0.29.1"
+	}
+}

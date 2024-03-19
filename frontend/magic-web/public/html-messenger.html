@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HTML Messenger</title>
+  <script>
+    // 定义事件处理函数，方便重用
+    function setupMessageListener() {
+      window.addEventListener("message", handleMessage);
+    }
+
+    function handleMessage(event) {
+      try {
+        if (event.data && event.data.type === "setContent") {
+          
+          // 收到内容后，使用document.write写入
+          document.open();
+          document.write(event.data.content);
+          document.close();
+          
+          // 重新绑定消息监听器
+          setupMessageListener();
+          
+          // 绑定点击事件
+          setupClickListener();
+          
+          // 设置键盘事件监听器
+          setupKeyboardListener();
+          
+          
+          // 重新设置DOM加载完成的监听器
+          setupDOMLoadListeners();
+          
+          // 通知父窗口内容已加载
+          window.parent.postMessage({ type: "contentLoaded" }, "*");
+        } else if (event.data && event.data.type === "editModeChange") {
+          // 处理编辑模式变化
+          isEditMode = event.data.isEditMode;
+          console.log("编辑模式变化:", event.data.isEditMode);
+          console.log("当前编辑模式状态:", event.data.isEditMode ? "编辑模式" : "预览模式");
+          
+          // 如果退出编辑模式，发送退出消息给编辑系统
+          if (!event.data.isEditMode && window.slideSelector) {
+            window.slideSelector.setEditMode(false);
+          }
+        } else if (event.data && event.data.type === "injectEditScript") {
+          // 动态注入编辑脚本
+          console.log("注入编辑脚本");
+          try {
+            const script = document.createElement('script');
+            script.setAttribute("data-injected", "true");
+            script.textContent = event.data.scriptContent;
+            document.head.appendChild(script);
+            
+            // 延迟一点时间确保脚本加载完成后再启用编辑模式
+            setTimeout(() => {
+              if (window.slideSelector) {
+                window.slideSelector.setEditMode(true);
+                isEditMode = true;
+                console.log("编辑模式已启用");
+              }
+            }, 100);
+          } catch (error) {
+            console.error("注入编辑脚本失败:", error);
+          }
+        }
+      } catch (error) {
+        console.error("处理消息时出错:", error);
+      }
+    }
+
+    // 设置点击事件监听器
+    function setupClickListener() {
+      document.addEventListener("click", function(event) {
+        try {
+          // 通知父窗口发生了点击事件
+          window.parent.postMessage({ 
+            type: "documentClicked",
+            target: event.target.tagName,
+            x: event.clientX,
+            y: event.clientY
+          }, "*");
+        } catch (error) {
+          console.error("发送点击事件消息时出错:", error);
+        }
+      });
+    }
+
+    // 全局变量来跟踪编辑模式状态
+    let isEditMode = false;
+
+    // 设置键盘事件监听器
+    function setupKeyboardListener() {
+      document.addEventListener("keydown", function(event) {
+        try {
+          // 如果在编辑模式，不处理PPT翻页相关的键盘事件，允许正常冒泡和默认行为
+          if (isEditMode) {
+            return;
+          }
+          
+          // 监听方向键和空格键，通知父窗口进行PPT翻页
+          const key = event.key;
+          let direction = null;
+          
+          switch (key) {
+            case "ArrowLeft":
+            case "ArrowUp":
+              direction = "prev";
+              break;
+            case "ArrowRight":
+            case "ArrowDown":
+            case " ": // 空格键
+              direction = "next";
+              break;
+            case "Home":
+              direction = "first";
+              break;
+            case "End":
+              direction = "last";
+              break;
+            case "F11":
+              direction = "fullscreen";
+              break;
+            case "Escape":
+              direction = "escape";
+              break;
+          }
+          
+          if (direction) {
+            event.preventDefault();
+            window.parent.postMessage({ 
+              type: "keyboardEvent",
+              direction: direction,
+              originalKey: key
+            }, "*");
+          }
+        } catch (error) {
+          console.error("发送键盘事件消息时出错:", error);
+        }
+      });
+    }
+
+
+    // 设置DOM加载监听器
+    function setupDOMLoadListeners() {
+      // 检查DOM是否已经准备就绪
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function() {
+          window.parent.postMessage({ type: "domReady" }, "*");
+          // 等待下一帧确保渲染完成
+          waitForRenderComplete();
+        });
+      } else {
+        // DOM已经准备好了，立即通知
+        window.parent.postMessage({ type: "domReady" }, "*");
+        waitForRenderComplete();
+      }
+      
+      // 检查页面是否完全加载
+      if (document.readyState === "complete") {
+        window.parent.postMessage({ type: "pageFullyLoaded" }, "*");
+      } else {
+        window.addEventListener("load", function() {
+          window.parent.postMessage({ type: "pageFullyLoaded" }, "*");
+        });
+      }
+    }
+
+    // 等待渲染完成
+    function waitForRenderComplete() {
+      // 使用requestAnimationFrame确保浏览器完成了一帧渲染
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 通知父窗口渲染已完成
+          window.parent.postMessage({ type: "renderComplete" }, "*");
+        });
+      });
+    }
+
+    // 初始设置消息监听器
+    setupMessageListener();
+    
+    // 初始设置键盘监听器
+    setupKeyboardListener();
+    
+    
+    // 页面加载完成后通知父窗口
+    window.addEventListener("DOMContentLoaded", function() {
+      try {
+        // 通知父窗口iframe已准备好接收内容
+        window.parent.postMessage({ type: "iframeReady" }, "*");
+      } catch (error) {
+        console.error("发送iframeReady消息时出错:", error);
+      }
+    });
+
+    // 页面完全加载完成后通知父窗口
+    window.addEventListener("load", function() {
+      try {
+        // 通知父窗口页面已完全加载（包括图片、样式表等）
+        window.parent.postMessage({ type: "pageLoaded" }, "*");
+      } catch (error) {
+        console.error("发送pageLoaded消息时出错:", error);
+      }
+    });
+  </script>
+  <style>
+    html,body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .loading {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div>加载中...</div>
+  </div>
+</body>
+</html> 

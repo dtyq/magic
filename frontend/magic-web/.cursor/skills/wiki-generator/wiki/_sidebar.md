@@ -1,0 +1,29 @@
+<!-- 必须作为根节点导航被所有子模块注册 -->
+
+- 🏠 [首页总览](README.md)
+- 🗺️ [应用功能模块概览](Modules.md)
+- 🧠 核心架构
+    - [前端架构设计](Architecture.md)
+    - [开源版与商业版隔离架构](DualEditionArchitecture.md)
+- 📦 业务线模块解析
+    - SuperMagic 超级工作站
+        - [总览与架构](SuperMagic/Overview.md)
+        - HTML 安全渲染引擎
+            - [引擎设计与渲染总览](SuperMagic/HTML/Overview.md)
+            - [HTML 编辑器自顶向下学习路径](SuperMagic/HTML/HTMLEditorTopDownGuide.md)
+            - [HTML 模块地图（逐模块职责）](SuperMagic/HTML/ModuleMap.md)
+            - [核心渲染与通信设计 (IframeRenderer)](SuperMagic/HTML/IframeRenderer.md)
+            - [预处理与拦截器模块 (HtmlProcessor)](SuperMagic/HTML/HtmlProcessor.md)
+            - [Iframe Bridge 深度解析](SuperMagic/HTML/IframeBridgeDeepDive.md)
+            - [Iframe Runtime 深度解析](SuperMagic/HTML/IframeRuntimeDeepDive.md)
+            - [SelectionOverlay 深度解析](SuperMagic/HTML/SelectionOverlayDeepDive.md)
+            - [StylePanel 深度解析](SuperMagic/HTML/StylePanelDeepDive.md)
+            - [模块贡献者分析 (Contributors)](SuperMagic/HTML/Contributors.md)
+    - 审批流 (MagicApproval)
+        - [总览与架构](MagicApproval/Overview.md)
+    - 工作流与智能体 (FlowAndAgent)
+        - [总览与架构](FlowAndAgent/Overview.md)
+    - 通讯录与聊天组件
+        - [总览与架构](ChatAndContacts/Overview.md)
+- 🛠️ 基础设施
+    - [独立子工程 (Packages)](Packages.md)

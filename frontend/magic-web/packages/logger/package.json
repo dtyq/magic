@@ -1,0 +1,66 @@
+{
+	"name": "@dtyq/logger",
+	"version": "1.0.0",
+	"description": "Unified logging and tracing solution for Aliyun ARMS and Volcengine APMPlus",
+	"keywords": [
+		"logger",
+		"tracking",
+		"apm",
+		"aliyun",
+		"volcengine",
+		"arms",
+		"apmplus"
+	],
+	"type": "module",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs",
+			"types": "./dist/index.d.ts"
+		},
+		"./plugins": {
+			"import": "./dist/plugins/index.js",
+			"require": "./dist/plugins/index.cjs",
+			"types": "./dist/plugins/index.d.ts"
+		}
+	},
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "vite build && tsc --emitDeclarationOnly",
+		"dev": "vite",
+		"lint": "eslint src --ext .ts,.tsx",
+		"prepublishOnly": "pnpm run build && pnpm run test",
+		"test": "vitest",
+		"test:coverage": "vitest --coverage",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@typescript-eslint/eslint-plugin": "^6.0.0",
+		"@typescript-eslint/parser": "^6.0.0",
+		"eslint": "^8.0.0",
+		"typescript": "^5.0.0",
+		"vite": "^5.0.0",
+		"vite-plugin-dts": "^3.0.0",
+		"vitest": "^1.0.0"
+	},
+	"peerDependencies": {
+		"@apmplus/web": "^1.0.0",
+		"@arms/rum-browser": "^1.0.0"
+	},
+	"peerDependenciesMeta": {
+		"@apmplus/web": {
+			"optional": true
+		},
+		"@arms/rum-browser": {
+			"optional": true
+		}
+	}
+}

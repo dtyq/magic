@@ -1,0 +1,31 @@
+{
+	"site": {
+		"title": "{{title}} - {{platformTitle}}",
+		"keywords": "{{keywords}}, {{platformKeywords}}",
+		"description": "{{description}} - {{platformDescription}}",
+		"author": "{{platformTitle}}"
+	},
+	"superMagic": {
+		"collaborationProject": "Collaboration Project",
+		"project": "Project"
+	},
+	"approval": {
+		"title": "Approval"
+	},
+	"login": {
+		"title": "Login"
+	},
+	"drive": {
+		"personal": "Personal Cloud Drive",
+		"mine": "Created by Me",
+		"recent": "Frequently Used",
+		"shared": "Enterprise Cloud Drive",
+		"folder": "Folder",
+		"sharedForm": "Shared Form"
+	},
+	"file": {
+		"docs": "Cloud Document",
+		"pivotTable": "Pivot Table",
+		"document": "Document"
+	}
+}

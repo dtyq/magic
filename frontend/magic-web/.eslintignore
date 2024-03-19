@@ -1,0 +1,82 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Generated files
+*.obfuscated.ts
+*.obfuscated.js
+
+# Configuration files
+*.config.js
+*.config.cjs
+commitlint.config.cjs
+vite.config.ts
+vitest.config.ts
+tsconfig*.json
+
+# Scripts
+scripts/
+
+# Public assets
+public/
+
+# Server directory
+server/
+
+# Test coverage
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Temporary files
+.tmp/
+temp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Package manager
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# PWA files
+sw.js
+registerSW.js
+
+# HTML files in root
+*.html
+
+# Plugins directory
+plugins/
+
+# Types directory (if it contains only declaration files)
+types/
+
+# Specific files that should be ignored
+src/vite-env.d.ts
