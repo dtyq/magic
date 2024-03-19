@@ -1,0 +1,152 @@
+{
+    "name": "magic/magic-service",
+    "type": "project",
+    "keywords": [
+        "php",
+        "swow",
+        "framework",
+        "hyperf",
+        "microservice",
+        "middleware"
+    ],
+    "description": "magic service",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "ext-bcmath": "*",
+        "ext-curl": "*",
+        "ext-fileinfo": "*",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "ext-redis": "*",
+        "ext-xlswriter": "*",
+        "ext-zend-opcache": "*",
+        "ext-zlib": "*",
+        "96qbhy/hyperf-auth": "^3.1",
+        "doctrine/dbal": "^3.9",
+        "dragonmantank/cron-expression": "^3.3",
+        "dtyq/api-response": "~0.1",
+        "dtyq/async-event": "~0.1",
+        "dtyq/cloudfile": "~0.1",
+        "dtyq/easy-dingtalk": "~0.1",
+        "dtyq/flow-expr-engine": "~0.1",
+        "dtyq/php-mcp": "0.1.*",
+        "dtyq/rule-engine-core": "~0.1",
+        "dtyq/sdk-base": "~0.1",
+        "dtyq/super-magic-module": "^v0.0",
+        "dtyq/task-scheduler": "~0.1",
+        "dtyq/tiptap": "~0.1",
+        "facile-it/php-openid-client": "^0.3.5",
+        "firebase/php-jwt": "^7.0",
+        "giggsey/libphonenumber-for-php": "8.13.29",
+        "google/protobuf": "^4.28",
+        "hyperf/amqp": "^3.1",
+        "hyperf/cache": "^3.1",
+        "hyperf/constants": "~3.1",
+        "hyperf/crontab": "~3.1.0",
+        "hyperf/database": "~3.1.0",
+        "hyperf/db-connection": "~3.1.0",
+        "hyperf/engine-swow": "^2.12",
+        "hyperf/guzzle": "~3.1.0",
+        "hyperf/http-message": "~3.1.0",
+        "hyperf/logger": "~3.1.0",
+        "hyperf/migration-generator": "~3.1.0",
+        "hyperf/odin": "~v0.2.1",
+        "hyperf/phar": "~3.1.0",
+        "hyperf/process": "~3.1.0",
+        "hyperf/qdrant-client": "~0.0.0",
+        "hyperf/rate-limit": "^3.1",
+        "hyperf/redis": "~3.1.0",
+        "hyperf/retry": "^3.1",
+        "hyperf/snowflake": "~3.1.0",
+        "hyperf/socketio-server": "^3.1",
+        "hyperf/translation": "~3.1.0",
+        "hyperf/validation": "^3.1",
+        "hyperf/websocket-client": "^3.1",
+        "hyperf/websocket-server": "~3.1.0",
+        "hyperf/laminas-mime": "^3.0",
+        "james-heinrich/getid3": "^1.9",
+        "jetbrains/phpstorm-attributes": "~1.2",
+        "limingxinleo/feishu": "^4.2",
+        "monolog/monolog": "^3.0",
+        "overtrue/chinese-calendar": "^1.0",
+        "phpoffice/phpspreadsheet": "^2.0",
+        "phpoffice/phpword": "^1.0",
+        "spomky-labs/aes-key-wrap": "^7.0",
+        "swow/swow": "^v1.6.3-alpha.1",
+        "symfony/css-selector": "^7.1",
+        "symfony/dom-crawler": "^7.1",
+        "symfony/mime": "^7.1",
+        "volcengine/volc-sdk-php": "^1.0",
+        "w7corp/easywechat": "^6.17",
+        "wyndow/fuzzywuzzy": "^0.6.0",
+        "hyperf/tracer": "^3.1"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "v3.86.0",
+        "hyperf/devtool": "~3.1.0",
+        "hyperf/testing": "~3.1.0",
+        "hyperf/watcher": "^3.1",
+        "mockery/mockery": "^1.0",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^10.5",
+        "roave/security-advisories": "dev-latest",
+        "viest/php-ext-xlswriter-ide-helper": "^1.3"
+    },
+    "suggest": {
+        "ext-json": "Required to use JSON.",
+        "ext-pdo_mysql": "Required to use MySQL Client."
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        },
+        "files": [
+            "app/Infrastructure/Util/Functions/functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "HyperfTest\\": "test/"
+        },
+        "files": [
+            "app/Infrastructure/Util/Functions/functions.php"
+        ]
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "extra": [],
+    "scripts": {
+        "post-root-package-install": [
+            "php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "post-autoload-dump": [
+            "php -r \"if(PHP_OS_FAMILY === 'Windows') shell_exec('del /f /s /q runtime\\container && rmdir runtime\\container'); else shell_exec('rm -rf runtime/container');\" "
+        ],
+        "fix": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/php-cs-fixer fix $1"
+        ],
+        "analyse": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/phpstan analyse --memory-limit 1G -c phpstan.neon ./app ./config"
+        ],
+        "test-library-with-pcov": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -dopcache.enable_cli=0 -dextension=pcov -dpcov.enabled=1 -dpcov.directory=. -dpcov.exclude=\"~vendor~\" -d memory_limit=512M ./vendor/bin/phpunit -c phpunit.xml --colors=always"
+        ],
+        "start": "php bin/hyperf.php start",
+        "test": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/phpunit -c phpunit.xml --colors=always",
+        "rector": "rector process --clear-cache",
+        "php-accessor": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/php-accessor generate"
+    },
+    "repositories": [
+    ]
+}
