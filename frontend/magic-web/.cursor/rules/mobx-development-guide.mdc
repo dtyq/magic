@@ -1,0 +1,338 @@
+---
+description: MobX state management best practices, store patterns, and React integration. Apply when creating/editing MobX stores, using observer, runInAction, or implementing state management with MobX.
+globs:
+  - "**/stores/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+@rule MobX 开发指南
+@description MobX 状态管理最佳实践与代码示例
+@priority medium
+@category development
+
+# MobX 开发指南
+
+## 基本概念
+
+MobX 是一个简单、可扩展的状态管理库，遵循以下核心原则：
+
+1. **Observable State**: 可观察状态，定义应用中的数据模型
+2. **Computed Values**: 计算值，根据状态派生的值
+3. **Reactions**: 响应，当状态变化时自动执行的副作用
+4. **Actions**: 动作，修改状态的方法
+
+## Store 设计模式
+
+在本项目中，我们采用基于类的 MobX Store 模式：
+
+```typescript
+// src/stores/todo-store.ts
+import { makeAutoObservable, runInAction } from "mobx"
+
+export interface Todo {
+	id: string
+	content: string
+	completed: boolean
+}
+
+export class TodoStore {
+	todos: Todo[] = []
+	filter: "all" | "active" | "completed" = "all"
+	loading = false
+	error: string | null = null
+
+	constructor() {
+		// 自动将所有属性和方法转为 observable/action
+		makeAutoObservable(this)
+	}
+
+	// 计算属性
+	get filteredTodos() {
+		switch (this.filter) {
+			case "active":
+				return this.todos.filter((todo) => !todo.completed)
+			case "completed":
+				return this.todos.filter((todo) => todo.completed)
+			default:
+				return this.todos
+		}
+	}
+
+	get completedCount() {
+		return this.todos.filter((todo) => todo.completed).length
+	}
+
+	get activeCount() {
+		return this.todos.length - this.completedCount
+	}
+
+	// 动作方法
+	addTodo = (content: string) => {
+		this.todos.push({
+			id: Date.now().toString(),
+			content,
+			completed: false,
+		})
+	}
+
+	toggleTodo = (id: string) => {
+		const todo = this.todos.find((todo) => todo.id === id)
+		if (todo) {
+			todo.completed = !todo.completed
+		}
+	}
+
+	removeTodo = (id: string) => {
+		this.todos = this.todos.filter((todo) => todo.id !== id)
+	}
+
+	setFilter = (filter: "all" | "active" | "completed") => {
+		this.filter = filter
+	}
+
+	clearCompleted = () => {
+		this.todos = this.todos.filter((todo) => !todo.completed)
+	}
+
+	// 异步动作示例
+	fetchTodos = async () => {
+		this.loading = true
+		this.error = null
+
+		try {
+			const response = await fetch("/api/todos")
+			const data = await response.json()
+
+			// 异步操作后使用 runInAction 包装状态更新
+			runInAction(() => {
+				this.todos = data
+				this.loading = false
+			})
+		} catch (error) {
+			runInAction(() => {
+				this.error = error instanceof Error ? error.message : "加载失败"
+				this.loading = false
+			})
+		}
+	}
+}
+```
+
+## Store 实例化与使用
+
+创建一个根 Store 来管理所有子 Store：
+
+```typescript
+// src/stores/root-store.ts
+import { TodoStore } from "./todo-store"
+import { UserStore } from "./user-store"
+
+export class RootStore {
+	todoStore: TodoStore
+	userStore: UserStore
+
+	constructor() {
+		this.todoStore = new TodoStore()
+		this.userStore = new UserStore()
+	}
+}
+
+// 创建单例实例
+export const rootStore = new RootStore()
+```
+
+## React 集成
+
+使用 MobX React 集成方案：
+
+```typescript
+// src/components/TodoList.tsx
+import { observer } from "mobx-react-lite"
+import { useStore } from "../hooks/use-store"
+import { createStyle } from "antd-style"
+
+const useStyles = createStyle(({ token }) => ({
+	container: {
+		padding: token.padding,
+		backgroundColor: token.colorBgContainer,
+		borderRadius: token.borderRadius,
+	},
+	item: {
+		padding: token.paddingSM,
+		borderBottom: `1px solid ${token.colorBorderSecondary}`,
+		display: "flex",
+		alignItems: "center",
+	},
+	completed: {
+		textDecoration: "line-through",
+		color: token.colorTextDisabled,
+	},
+}))
+
+export const TodoList = observer(() => {
+	const { todoStore } = useStore()
+	const styles = useStyles()
+
+	if (todoStore.loading) {
+		return <div>加载中...</div>
+	}
+
+	if (todoStore.error) {
+		return <div>错误: {todoStore.error}</div>
+	}
+
+	return (
+		<div className={styles.container}>
+			<div>
+				<span>剩余: {todoStore.activeCount}</span>
+				<button onClick={() => todoStore.setFilter("all")}>全部</button>
+				<button onClick={() => todoStore.setFilter("active")}>未完成</button>
+				<button onClick={() => todoStore.setFilter("completed")}>已完成</button>
+				<button onClick={todoStore.clearCompleted}>清除已完成</button>
+			</div>
+
+			<ul>
+				{todoStore.filteredTodos.map((todo) => (
+					<li
+						key={todo.id}
+						className={`${styles.item} ${todo.completed ? styles.completed : ""}`}
+					>
+						<input
+							type="checkbox"
+							checked={todo.completed}
+							onChange={() => todoStore.toggleTodo(todo.id)}
+						/>
+						<span>{todo.content}</span>
+						<button onClick={() => todoStore.removeTodo(todo.id)}>删除</button>
+					</li>
+				))}
+			</ul>
+
+			<form
+				onSubmit={(e) => {
+					e.preventDefault()
+					const input = e.currentTarget.elements.namedItem("content") as HTMLInputElement
+					todoStore.addTodo(input.value)
+					input.value = ""
+				}}
+			>
+				<input name="content" placeholder="添加新任务..." />
+				<button type="submit">添加</button>
+			</form>
+		</div>
+	)
+})
+```
+
+## Store 注入
+
+使用 React Context 提供 Store：
+
+```typescript
+// src/hooks/use-store.tsx
+import { createContext, useContext, ReactNode } from "react"
+import { rootStore, RootStore } from "../stores/root-store"
+
+const StoreContext = createContext<RootStore | undefined>(undefined)
+
+export const StoreProvider = ({ children }: { children: ReactNode }) => {
+	return <StoreContext.Provider value={rootStore}>{children}</StoreContext.Provider>
+}
+
+export const useStore = () => {
+	const store = useContext(StoreContext)
+	if (!store) {
+		throw new Error("useStore must be used within StoreProvider")
+	}
+	return store
+}
+```
+
+## 最佳实践
+
+1. **使用 `makeAutoObservable`** 简化 observable/action 定义
+
+2. **组件使用 `observer` 包装**
+
+    ```tsx
+    import { observer } from "mobx-react-lite"
+
+    export const MyComponent = observer(() => {
+    	// 组件实现...
+    })
+    ```
+
+    **重要：使用 `observer` 时不需要再使用 `React.memo`**
+
+    - `observer` 已经提供了响应式更新和性能优化机制
+    - `observer` 会自动追踪组件中使用的 observable 值，只在相关值变化时重新渲染
+    - 同时使用 `memo` 和 `observer` 是多余的，可能导致不必要的复杂性
+
+    ```tsx
+    // ✅ 正确：只使用 observer
+    import { observer } from "mobx-react-lite"
+
+    const MyComponent = observer(() => {
+    	const store = useStore()
+    	return <div>{store.data}</div>
+    })
+
+    // ❌ 错误：同时使用 memo 和 observer
+    import { memo } from "react"
+    import { observer } from "mobx-react-lite"
+
+    const MyComponent = memo(
+    	observer(() => {
+    		const store = useStore()
+    		return <div>{store.data}</div>
+    	}),
+    )
+    ```
+
+3. **异步操作使用 `runInAction`**
+
+    ```typescript
+    fetchData = async () => {
+    	this.loading = true
+    	try {
+    		const data = await api.getData()
+    		runInAction(() => {
+    			this.data = data
+    			this.loading = false
+    		})
+    	} catch (error) {
+    		runInAction(() => {
+    			this.error = error
+    			this.loading = false
+    		})
+    	}
+    }
+    ```
+
+4. **模块化 Store 设计**
+
+    - 根据功能划分 Store
+    - 使用根 Store 组合各个子 Store
+    - 避免 Store 间直接依赖，使用 Store 引用实现跨 Store 通信
+
+5. **性能优化**
+
+    - 避免过大的 observable 对象
+    - 使用 computed 值缓存派生状态
+    - 组件粒度合理，避免大型组件 observer
+
+6. **调试工具集成**
+
+    ```typescript
+    import { configure } from "mobx"
+
+    // 开发环境启用严格模式
+    if (process.env.NODE_ENV === "development") {
+    	configure({
+    		enforceActions: "always", // 强制使用 action 更新状态
+    		computedRequiresReaction: true, // 优化计算值
+    		reactionRequiresObservable: true, // 优化反应
+    		observableRequiresReaction: true, // 优化可观察值
+    	})
+    }
+    ```

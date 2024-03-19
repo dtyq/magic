@@ -1,0 +1,25 @@
+{
+	"plugins": [
+		"antd-style",
+		[
+			"babel-plugin-import",
+			{
+				"libraryName": "@tabler/icons-react",
+				"libraryDirectory": "dist/esm/icons",
+				"camel2DashComponentName": false
+			},
+			"tabler"
+		]
+	],
+	"presets": [
+    [
+      "@babel/preset-env",
+      {
+        "targets": {
+          "chrome": "49",
+          "ios": "10"
+        }
+      }
+    ]
+  ]
+}

@@ -1,0 +1,210 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+@rule 商业版本与开源版本代码管理规范
+@description 商业版与开源版本的代码组织方式、管理规范与协作指南
+@priority high
+@category development
+
+# 商业版本与开源版本代码管理规范
+
+## 目录结构概述
+
+项目包含商业版本和开源版本代码，采用以下目录结构划分：
+
+```
+src/
+├── opensource/           # 开源版本代码目录
+│   ├── routes/           # 开源版本路由
+│   ├── apis/             # 开源版本API
+│   ├── components/       # 开源版本组件
+│   └── ...               # 其他开源模块
+├── premium/              # 商业版本特有功能
+├── routes/               # 商业版本路由
+├── components/           # 共享/商业版组件
+├── apis/                 # API接口定义
+└── ...                   # 其他共享模块
+```
+
+## 开源与商业版本区分
+
+### 当前开源模块
+
+目前开源的功能模块包括：
+1. **chat** - 聊天模块
+2. **flow** - 流程模块
+3. **contacts** - 通讯录模块
+
+未来计划开源的模块：
+- **admin** - 管理端
+
+### 代码组织原则
+
+1. **开源代码放置**
+   - 所有开源代码必须放在 `src/opensource/` 目录下
+   - 路由定义在 `src/opensource/routes/routes.tsx`
+   - 组件定义在 `src/opensource/components/`
+
+2. **商业版代码放置**
+   - 商业版特有功能放在 `src/premium/` 目录下
+   - 商业版路由定义在 `src/routes/routes.tsx`
+   - 可共享的基础组件放在 `src/components/`
+
+## 代码管理策略
+
+### 功能分支管理
+
+1. **开源功能开发**
+   - 开发分支命名：`feature/opensource-[功能名]`
+   - 代码应完全自包含，不依赖商业版代码
+   - 测试应确保在纯开源环境下可运行
+
+2. **商业功能开发**
+   - 开发分支命名：`feature/premium-[功能名]`
+   - 可以依赖和引用开源代码
+   - 需要明确区分商业特有功能
+
+### 版本同步策略
+
+1. **开源到商业版同步**
+   - 开源功能完成后，需同步到商业版分支
+   - 确保不破坏商业版现有功能
+
+2. **商业版增强**
+   - 商业版可以增强开源功能，但增强代码必须在 `src/premium/` 下
+   - 增强不应修改开源代码，应通过扩展方式实现
+
+## 代码注入与扩展机制
+
+### 商业功能注入方式
+
+1. **单例动态注入**
+   ```typescript
+   // src/premium/chat/index.ts
+   import { ChatService } from '@/opensource/chat/service';
+   
+   // 增强开源版聊天服务
+   export class PremiumChatService extends ChatService {
+     // 商业版增强功能
+     premiumFeature() {
+       // 实现商业版特有功能
+     }
+   }
+   
+   // 替换单例
+   ChatService.getInstance = () => new PremiumChatService();
+   ```
+
+2. **组件Props注入**
+   ```typescript
+   // src/premium/components/enhanced-chat.tsx
+   import { Chat } from '@/opensource/components/chat';
+   
+   export const EnhancedChat = (props) => {
+     // 增强props
+     const enhancedProps = {
+       ...props,
+       premiumFeatures: {
+         enableAI: true,
+         customTheme: true,
+         // 其他商业特性
+       }
+     };
+     
+     return <Chat {...enhancedProps} />;
+   };
+   ```
+
+3. **路由重写**
+   - 商业版可以使用不同路由配置，加载增强版组件
+   - 开源版使用基础组件和功能
+
+### 条件渲染
+
+使用环境变量或特性标志控制功能开关：
+
+```typescript
+import { isCommercial } from '@/opensource/utils/env';
+
+const MyComponent = () => {
+  return (
+    <div>
+      <CommonFeature />
+      
+      {isCommercial() && (
+        <PremiumFeature />
+      )}
+    </div>
+  );
+};
+```
+
+## 开发最佳实践
+
+1. **模块化设计**
+   - 功能应设计为可插拔的模块
+   - 使用依赖注入和服务定位器模式降低耦合
+
+2. **清晰的API界面**
+   - 开源模块应提供清晰的API界面
+   - 商业模块通过API接口而非直接修改来扩展功能
+
+3. **版本标识**
+   - 使用注释或专用标记标识代码属于哪个版本
+   ```typescript
+   // @version: opensource
+   export function openSourceFeature() {
+     // 开源功能实现
+   }
+   
+   // @version: premium
+   export function premiumFeature() {
+     // 商业功能实现
+   }
+   ```
+
+4. **测试策略**
+   - 为开源功能编写专门的测试用例
+   - 为商业功能编写额外的测试用例
+   - 确保两个版本都通过相应的测试套件
+
+## 协作流程
+
+1. **功能规划**
+   - 明确功能是开源还是商业版独占
+   - 为跨版本功能设计清晰的扩展点
+
+2. **代码审查**
+   - 审查代码是否放在正确的目录
+   - 检查版本依赖是否适当
+   - 确保商业代码不会意外泄露到开源版本
+
+3. **合并流程**
+   - 开源功能先合并到开源分支
+   - 商业功能合并到商业分支
+   - 定期同步开源代码到商业版本
+
+## 常见问题与解决方案
+
+1. **问题**: 如何确保开源代码不依赖商业代码？
+   **解决方案**: 在CI中设置专门的开源构建，确保不引用商业代码也能正常构建。
+
+2. **问题**: 如何在不修改开源代码的情况下扩展功能？
+   **解决方案**: 使用策略模式、装饰器模式或插件系统，允许商业版本注册扩展点。
+
+3. **问题**: 如何处理配置差异？
+   **解决方案**: 使用配置文件覆盖机制，商业版可以覆盖开源版默认配置。
+
+## 版本发布流程
+
+1. **开源版本发布**
+   - 从主仓库分离开源代码
+   - 运行开源测试套件
+   - 生成开源版本构建
+
+2. **商业版本发布**
+   - 合并最新开源代码
+   - 确保商业功能正常工作
+   - 生成商业版本构建

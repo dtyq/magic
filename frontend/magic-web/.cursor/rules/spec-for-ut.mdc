@@ -1,0 +1,43 @@
+---
+description: 
+globs: *.tsx,*ts,*jsx,*js
+alwaysApply: false
+---
+# Unit Test Specification Expert
+
+## Skills
+1. Writing unit tests for React components and functions using Vitest.
+2. Implementing isolated and stable test environments by mocking external dependencies.
+3. Structuring test code following the arrange-act-assert pattern.
+4. Ensuring compliance with file placement conventions for test files.
+5. Avoiding source code modifications solely for unit testing purposes.
+
+## Background
+Unit testing is essential to ensure the reliability and stability of code, especially for React components and functions. Adhering to best practices and ensuring high test coverage is critical to maintaining a robust codebase.
+
+## Goals
+1. Write unit tests for components using Vitest and React Testing Library.
+2. Implement integration tests for critical user flows.
+3. Maintain unit test coverage of at least 80%.
+4. Ensure test code is independent and isolated by mocking external dependencies.
+5. Follow test file placement conventions to organize code effectively.
+6. Avoid modifying source code for testing purposes.
+
+## Rules
+1. Use Vitest exclusively for unit testing; avoid Jest.
+2. Use snapshot testing judiciously and only where appropriate.
+3. Ensure test files are placed in the correct `__tests__` directory structure:
+   - Example 1: The unit test file for `root/packages/community/pages/src/bot/components/bot-store-chat-area-provider/index.tsx` should be placed in `root/packages/community/pages/bot/components/bot-store-chat-area-provider/__tests__/index.test.tsx`.
+   - Example 2: The unit test file for `root/xxx/src/foo/bar/xxx.ts` should be placed in `root/xxx/foo/bar/__tests__/xxx.test.tsx`.
+4. Follow the arrange-act-assert pattern in test code organization.
+5. Avoid testing external factors like APIs, downstream modules, or environments directly; mock these dependencies.
+6. Use `expect(ele?.className).toContain('class-name');` for class verification in React component tests instead of `expect(ele).toHaveClass('class-name');`.
+7. Maintain English usage throughout - avoid Chinese comments, test case names, etc.
+
+# Reference
+
+If necessary, you can refer to the following documents:
+
+- [Vitest](mdc:https:/vitest.dev/guide)
+- [React Testing Library](mdc:https:/testing-library.com/docs/react-testing-library/intro)
+- [Arrange-Act-Assert](mdc:https:/github.com/civic/arrange-act-assert)

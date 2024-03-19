@@ -1,0 +1,467 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Antd Design System Rules
+
+## ⚠️ 维护模式说明
+
+**本规范适用于现有使用 Ant Design + antd-style 的组件维护。**
+
+- **仅用于**：维护和修复现有组件的 bug、小幅优化
+- **不用于**：新组件开发（请参考 [shadcn-tailwind-guide.mdc]）
+- **状态**：维护模式（frozen），不新增使用此技术栈的组件
+- **迁移**：不主动迁移现有组件，保持稳定性
+
+如果你正在开发新组件或新页面，请使用 **shadcn/ui + Tailwind CSS** 技术栈。
+
+---
+
+## 概述
+
+本规则定义了在项目中使用 Antd 设计系统的标准规范，包括 Flex 组件使用、颜色变量使用和 MagicIcon 包装等最佳实践。
+
+## 核心原则
+
+1. **一致性**：确保整个项目中设计系统的一致使用
+2. **主题支持**：所有组件必须支持深色/浅色主题切换
+3. **可维护性**：避免硬编码值，使用系统提供的 token 变量
+4. **性能优化**：合理使用组件，避免不必要的重渲染
+
+## Flex Component Usage Rules
+
+### 强制使用 Flex 组件
+- **ALWAYS use antd Flex component instead of CSS flexbox for layout**
+- Replace `display: flex` CSS with `<Flex>` component
+- Remove corresponding CSS flex properties when using Flex component
+
+### Flex 属性映射
+```tsx
+// CSS Flexbox -> Flex Component Props
+display: flex                    -> <Flex>
+flex-direction: column          -> <Flex vertical>
+align-items: center             -> <Flex align="center">
+justify-content: space-between  -> <Flex justify="space-between">
+gap: 16px                       -> <Flex gap={16}>
+flex-wrap: wrap                 -> <Flex wrap>
+```
+
+### 支持的属性值
+- `align`: start, center, end, stretch, baseline
+- `justify`: start, center, end, space-between, space-around, space-evenly
+- `gap`: number (px) or string
+- `vertical`: boolean (替代 flex-direction: column)
+- `wrap`: boolean or "wrap" or "nowrap" or "wrap-reverse"
+
+### 重构示例
+```tsx
+// ❌ Before - CSS Flexbox
+<div className={styles.container}>
+  <div className={styles.header}>
+    <span>Title</span>
+    <button>Action</button>
+  </div>
+  <div className={styles.content}>Content</div>
+</div>
+
+// CSS
+const styles = {
+  container: css`
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  `,
+  header: css`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+  `,
+}
+
+// ✅ After - Flex Component
+<Flex vertical gap={16} className={styles.container}>
+  <Flex align="center" justify="space-between" className={styles.header}>
+    <span>Title</span>
+    <button>Action</button>
+  </Flex>
+  <div className={styles.content}>Content</div>
+</Flex>
+
+// CSS (simplified)
+const styles = {
+  container: css`
+    /* other non-flex styles */
+  `,
+  header: css`
+    padding: 12px;
+    /* flex properties removed */
+  `,
+}
+```
+
+## Color Token Usage Rules
+
+### 禁止硬编码颜色
+- **NEVER use hardcoded colors** (hex, rgb, rgba values)
+- **ALWAYS use token color variables** from theme system
+
+### magicColorScales 使用规范
+用于语义化颜色，支持 0-9 级别：
+```tsx
+// 灰度色阶
+token.magicColorScales.grey[0]    // 最浅灰色
+token.magicColorScales.grey[9]    // 最深灰色
+
+// 品牌色阶
+token.magicColorScales.brand[0]   // 最浅品牌色
+token.magicColorScales.brand[5]   // 标准品牌色
+token.magicColorScales.brand[9]   // 最深品牌色
+
+// 功能色阶
+token.magicColorScales.red[0-9]     // 错误/危险色
+token.magicColorScales.orange[0-9]  // 警告色
+token.magicColorScales.green[0-9]   // 成功色
+```
+
+### magicColorUsages 使用规范
+用于特定用途的颜色：
+```tsx
+// 文本颜色 (0=主要文本, 3=次要文本)
+token.magicColorUsages.text[0]    // 主要文本
+token.magicColorUsages.text[1]    // 次要文本
+token.magicColorUsages.text[2]    // 辅助文本
+token.magicColorUsages.text[3]    // 禁用文本
+
+// 背景颜色
+token.magicColorUsages.bg[0]      // 主背景
+token.magicColorUsages.bg[1]      // 次背景
+token.magicColorUsages.white      // 白色背景
+
+// 边框和填充
+token.magicColorUsages.border     // 边框色
+token.magicColorUsages.fill[0]    // 填充色（浅）
+token.magicColorUsages.fill[1]    // 填充色（深）
+
+// 状态颜色
+token.magicColorUsages.primary.*     // 主要状态
+token.magicColorUsages.success.*     // 成功状态
+token.magicColorUsages.warning.*     // 警告状态
+token.magicColorUsages.danger.*      // 危险状态
+```
+
+### 深色模式支持
+```tsx
+// 使用 isDarkMode 条件判断
+export const useStyles = createStyles(({ token, css, isDarkMode }) => ({
+  text: css`
+    color: ${isDarkMode 
+      ? token.magicColorScales.grey[4] 
+      : token.magicColorUsages.text[0]
+    };
+  `,
+  background: css`
+    background: ${isDarkMode 
+      ? token.magicColorScales.grey[9] 
+      : token.magicColorUsages.white
+    };
+  `,
+}))
+```
+
+### 颜色使用示例
+```tsx
+// ❌ Before - 硬编码颜色
+const styles = {
+  container: css`
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    color: #333333;
+  `,
+  button: css`
+    background: #1890ff;
+    color: white;
+    &:hover {
+      background: #40a9ff;
+    }
+  `,
+}
+
+// ✅ After - Token 变量
+const styles = createStyles(({ token, css, isDarkMode }) => ({
+  container: css`
+    background: ${isDarkMode 
+      ? token.magicColorScales.grey[9] 
+      : token.magicColorUsages.white
+    };
+    border: 1px solid ${token.magicColorUsages.border};
+    color: ${isDarkMode 
+      ? token.magicColorScales.grey[4] 
+      : token.magicColorUsages.text[0]
+    };
+  `,
+  button: css`
+    background: ${token.magicColorScales.brand[5]};
+    color: ${token.magicColorUsages.white};
+    &:hover {
+      background: ${token.magicColorScales.brand[4]};
+    }
+  `,
+}))
+```
+
+## MagicIcon Usage Rules
+
+### 强制使用 MagicIcon 包装
+- **ALWAYS wrap @tabler/icons-react icons with MagicIcon component**
+- Import: `import MagicIcon from "@/opensource/components/base/MagicIcon"`
+
+### 基本使用方式
+```tsx
+// ❌ Before - 直接使用 Tabler Icons
+import { IconChevronRight, IconSettings } from "@tabler/icons-react"
+
+<IconChevronRight size={16} stroke={1.5} color="#333" />
+<IconSettings size={20} stroke={1.5} opacity={0.8} />
+
+// ✅ After - 使用 MagicIcon 包装
+import MagicIcon from "@/opensource/components/base/MagicIcon"
+import { IconChevronRight, IconSettings } from "@tabler/icons-react"
+
+<MagicIcon component={IconChevronRight} size={16} />
+<MagicIcon component={IconSettings} size={20} />
+```
+
+### MagicIcon 自动处理的属性
+- **stroke**: 自动设置为 1.5
+- **color**: 根据主题自动适配
+- **opacity**: 移除，由主题控制
+
+### 保留的属性
+- **size**: 图标尺寸，根据设计需求设置
+- **className**: 自定义样式类
+- **其他 IconProps**: 如 onClick 等事件处理
+
+### 颜色覆盖
+```tsx
+// 特殊情况下可以覆盖颜色
+<MagicIcon 
+  component={IconLogout} 
+  size={16} 
+  color={token.magicColorScales.red[5]} 
+/>
+
+// 但更推荐通过 CSS 类控制
+<MagicIcon 
+  component={IconLogout} 
+  size={16} 
+  className={styles.logoutIcon} 
+/>
+
+// CSS
+logoutIcon: css`
+  color: ${token.magicColorScales.red[5]};
+`
+```
+
+## Component Architecture Rules
+
+### 组件结构优化
+```tsx
+// ✅ 推荐的组件结构
+import { observer } from "mobx-react-lite"
+import { Flex } from "antd"
+import MagicIcon from "@/opensource/components/base/MagicIcon"
+
+// Types
+import type { ComponentProps } from "./types"
+
+// Styles  
+import { useStyles } from "./styles"
+
+// Icons
+import { IconChevronRight } from "@tabler/icons-react"
+
+const Component = observer(({ prop1, prop2 }: ComponentProps) => {
+  const { styles } = useStyles()
+  
+  return (
+    <Flex vertical gap={16} className={styles.container}>
+      <Flex align="center" justify="space-between">
+        <span>Title</span>
+        <MagicIcon component={IconChevronRight} size={16} />
+      </Flex>
+    </Flex>
+  )
+})
+
+export default Component
+```
+
+### 导入顺序规范
+```tsx
+// 1. React 和核心库
+import { observer } from "mobx-react-lite"
+import { Flex } from "antd"
+
+// 2. 内部组件
+import MagicIcon from "@/opensource/components/base/MagicIcon"
+
+// 3. 类型定义
+import type { ComponentProps } from "./types"
+
+// 4. 样式和工具
+import { useStyles } from "./styles"
+
+// 5. 图标
+import { IconChevronRight } from "@tabler/icons-react"
+```
+
+## Style Organization Rules
+
+### antd-style 使用规范
+```tsx
+import { createStyles } from "antd-style"
+
+export const useStyles = createStyles(({ token, css, isDarkMode }) => {
+  // 基础样式
+  const baseContainer = css`
+    padding: 16px;
+    border-radius: 8px;
+  `
+  
+  return {
+    // 主要样式
+    container: css`
+      ${baseContainer}
+      background: ${isDarkMode 
+        ? token.magicColorScales.grey[9] 
+        : token.magicColorUsages.white
+      };
+    `,
+    
+    // 移除 flex 相关样式（由 Flex 组件处理）
+    // ❌ 不要这样写
+    // flexContainer: css`
+    //   display: flex;
+    //   align-items: center;
+    // `,
+    
+    // ✅ 只保留非 flex 样式
+    header: css`
+      padding: 12px;
+      border-bottom: 1px solid ${token.magicColorUsages.border};
+    `,
+  }
+})
+```
+
+## Migration Checklist
+
+### 重构现有组件时的检查清单
+- [ ] **Flex 组件迁移**
+  - [ ] 识别所有使用 CSS flexbox 的元素
+  - [ ] 替换为 Flex 组件
+  - [ ] 移除 CSS 中的 flex 相关属性
+  - [ ] 测试布局是否正常
+
+- [ ] **颜色变量迁移**
+  - [ ] 查找所有硬编码颜色值
+  - [ ] 替换为对应的 token 变量
+  - [ ] 添加深色模式支持
+  - [ ] 测试主题切换效果
+
+- [ ] **图标迁移**
+  - [ ] 查找所有直接使用的 Tabler Icons
+  - [ ] 用 MagicIcon 包装
+  - [ ] 移除硬编码的 stroke、color、opacity
+  - [ ] 保留必要的 size 属性
+
+- [ ] **样式清理**
+  - [ ] 移除冗余的 CSS 属性
+  - [ ] 整理样式文件结构
+  - [ ] 确保样式命名规范
+
+- [ ] **测试验证**
+  - [ ] 组件在浅色主题下正常显示
+  - [ ] 组件在深色主题下正常显示
+  - [ ] 响应式布局正常工作
+  - [ ] 交互功能正常
+
+## Best Practices
+
+### 性能优化
+```tsx
+// ✅ 合理使用 observer
+const Component = observer(() => {
+  // 组件逻辑
+})
+
+// ✅ 避免不必要的 memo（MagicIcon 已优化）
+// ❌ 不需要这样做
+// const MemoizedIcon = memo(() => <MagicIcon component={Icon} />)
+```
+
+### 可访问性
+```tsx
+// ✅ 为图标添加语义化描述
+<MagicIcon 
+  component={IconClose} 
+  size={16}
+  aria-label="关闭"
+/>
+
+// ✅ 合理使用 Flex 的语义化属性
+<Flex 
+  role="navigation"
+  aria-label="主导航"
+  align="center"
+  gap={16}
+>
+  {/* 导航项 */}
+</Flex>
+```
+
+### 错误处理
+```tsx
+// ✅ 处理 token 可能不存在的情况
+const styles = createStyles(({ token, css, isDarkMode }) => ({
+  text: css`
+    color: ${isDarkMode 
+      ? token.magicColorScales?.grey?.[4] || '#666'
+      : token.magicColorUsages?.text?.[0] || '#333'
+    };
+  `,
+}))
+```
+
+## 常见问题和解决方案
+
+### Q: 什么时候可以不使用 Flex 组件？
+A: 以下情况可以考虑不使用：
+- 单纯的块级元素，不需要 flex 布局
+- 使用 Grid 布局更合适的场景
+- 第三方组件内部的布局
+
+### Q: 如何处理复杂的颜色需求？
+A: 
+1. 优先使用现有的 token 变量
+2. 如果没有合适的变量，考虑扩展 token 系统
+3. 特殊情况下可以使用计算颜色，但要确保主题兼容
+
+### Q: MagicIcon 不支持某些 Tabler Icons 属性怎么办？
+A: 
+1. 检查是否真的需要该属性
+2. 考虑通过 CSS 类实现
+3. 如果确实需要，可以扩展 MagicIcon 组件
+
+## 示例项目
+
+参考 `src/opensource/layouts/BaseLayoutMobile/components/GlobalSidebar/` 目录下的实现，这是一个完整的按照本规范重构的组件示例。
+
+## 更新日志
+
+- 2024-01: 初始版本，定义基础规范
+- 2024-01: 添加 GlobalSidebar 重构示例
+- 2024-01: 完善错误处理和最佳实践指南

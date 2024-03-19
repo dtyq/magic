@@ -1,0 +1,760 @@
+---
+description: 
+globs: **/*.{ts,tsx,js,jsx}
+alwaysApply: false
+---
+@rule Testing and Code Quality Guide
+@description 完整的测试规范和代码质量检测指南
+@priority critical
+@category testing
+
+# 测试和代码质量指南
+
+## 概述
+
+本指南涵盖前端代码质量检测、单元测试规范和最佳实践，确保代码的可靠性、可维护性和高质量。
+
+## 技术栈
+
+- **React** - UI 框架
+- **TypeScript** - 类型系统
+- **Vitest** - 测试框架（必须使用，避免 Jest）
+- **React Testing Library** - 组件测试工具
+
+---
+
+## 一、代码质量规范
+
+### 1.1 代码规范检测
+
+#### 组件命名规范
+- **组件**: PascalCase（如 `UserProfile`、`TodoList`）
+- **函数/方法**: camelCase（如 `handleClick`、`fetchData`）
+- **常量**: UPPER_SNAKE_CASE（如 `API_URL`、`MAX_COUNT`）
+
+```typescript
+// ✅ Good
+function UserProfile() { }
+const handleClick = () => { }
+const MAX_RETRY_COUNT = 3
+
+// ❌ Bad
+function userProfile() { }  // 组件应该 PascalCase
+const HandleClick = () => { }  // 函数应该 camelCase
+```
+
+#### 状态管理规范
+- 禁止直接修改 state/props
+- 使用不可变数据更新模式
+
+```typescript
+// ✅ Good
+setUsers([...users, newUser])
+setUser({ ...user, name: 'New Name' })
+
+// ❌ Bad
+users.push(newUser)  // 直接修改 state
+user.name = 'New Name'  // 直接修改对象
+```
+
+#### Hooks 使用规范
+- 避免在条件语句中使用 Hooks
+- 始终在组件顶层调用 Hooks
+
+```typescript
+// ✅ Good
+function Component({ condition }: Props) {
+  const [data, setData] = useState(null)
+  
+  useEffect(() => {
+    if (condition) {
+      fetchData()
+    }
+  }, [condition])
+}
+
+// ❌ Bad
+function Component({ condition }: Props) {
+  if (condition) {
+    const [data, setData] = useState(null)  // 条件语句中的 Hook
+  }
+}
+```
+
+#### 异步操作规范
+- 必须有错误处理边界
+- 适当处理 loading 和 error 状态
+
+```typescript
+// ✅ Good
+async function fetchData() {
+  try {
+    setLoading(true)
+    const res = await api.getData()
+    setData(res.data)
+    setError(null)
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Unknown error')
+  } finally {
+    setLoading(false)
+  }
+}
+
+// ❌ Bad
+async function fetchData() {
+  const res = await api.getData()  // 没有错误处理
+  setData(res.data)
+}
+```
+
+#### 副作用管理
+- 清理计时器和事件监听
+- 取消未完成的请求
+
+```typescript
+// ✅ Good
+useEffect(() => {
+  const timer = setInterval(() => { }, 1000)
+  return () => clearInterval(timer)  // 清理定时器
+}, [])
+
+useEffect(() => {
+  const controller = new AbortController()
+  
+  fetch(url, { signal: controller.signal })
+    .then(res => res.json())
+    .then(data => setData(data))
+  
+  return () => controller.abort()  // 取消请求
+}, [url])
+
+// ❌ Bad
+useEffect(() => {
+  setInterval(() => { }, 1000)  // 没有清理
+}, [])
+```
+
+### 1.2 重构建议引擎
+
+#### 组件复杂度检测
+- 文件行数 > 300 行时考虑拆分
+- 依赖项 > 15 个时考虑重构
+
+```typescript
+// 🟡 Warning: 组件过大，考虑拆分
+function LargeComponent() {
+  // ... 超过 300 行代码
+  // 建议拆分为多个子组件
+}
+
+// ✅ Good: 拆分后的组件
+function Header() { }
+function Content() { }
+function Footer() { }
+
+function MainComponent() {
+  return (
+    <>
+      <Header />
+      <Content />
+      <Footer />
+    </>
+  )
+}
+```
+
+#### 重复逻辑识别
+- 相似度 > 80% 的 UI 逻辑应提取为共享组件
+- 重复的业务逻辑应提取为自定义 Hook
+
+```typescript
+// ❌ Bad: 重复逻辑
+function UserCard1() {
+  const [data, setData] = useState(null)
+  useEffect(() => {
+    fetch('/api/user1').then(r => r.json()).then(setData)
+  }, [])
+  return <div>{data?.name}</div>
+}
+
+function UserCard2() {
+  const [data, setData] = useState(null)
+  useEffect(() => {
+    fetch('/api/user2').then(r => r.json()).then(setData)
+  }, [])
+  return <div>{data?.name}</div>
+}
+
+// ✅ Good: 提取共享逻辑
+function useUserData(userId: string) {
+  const [data, setData] = useState(null)
+  useEffect(() => {
+    fetch(`/api/user/${userId}`).then(r => r.json()).then(setData)
+  }, [userId])
+  return data
+}
+
+function UserCard({ userId }: Props) {
+  const data = useUserData(userId)
+  return <div>{data?.name}</div>
+}
+```
+
+#### 代码异味标记
+- 多重嵌套（> 3 层）
+- 过长参数列表（> 5 个）
+- 过长函数（> 50 行）
+
+```typescript
+// ❌ Bad: 多重嵌套
+if (condition1) {
+  if (condition2) {
+    if (condition3) {
+      if (condition4) {
+        // 深层嵌套
+      }
+    }
+  }
+}
+
+// ✅ Good: 使用 early return
+if (!condition1) return
+if (!condition2) return
+if (!condition3) return
+if (!condition4) return
+// 扁平化逻辑
+```
+
+#### 性能优化点识别
+- 识别 memoization 机会
+- 检测不必要的重新渲染
+
+```typescript
+// 🟡 Optimization opportunity
+function Component({ data }: Props) {
+  // 每次渲染都会重新计算
+  const expensiveValue = computeExpensiveValue(data)
+  
+  return <div>{expensiveValue}</div>
+}
+
+// ✅ Optimized
+function Component({ data }: Props) {
+  const expensiveValue = useMemo(
+    () => computeExpensiveValue(data),
+    [data]
+  )
+  
+  return <div>{expensiveValue}</div>
+}
+```
+
+---
+
+## 二、单元测试规范
+
+### 2.1 测试文件组织
+
+#### 文件放置规范
+测试文件必须放在 `__tests__` 目录中，与源文件同级：
+
+```
+Component/
+├── index.tsx
+├── types.ts
+├── hooks/
+│   └── useComponentLogic.ts
+└── __tests__/
+    ├── index.test.tsx
+    ├── types.test.ts
+    └── hooks/
+        └── useComponentLogic.test.ts
+```
+
+**示例**：
+- 源文件：`src/components/UserProfile/index.tsx`
+- 测试文件：`src/components/UserProfile/__tests__/index.test.tsx`
+
+#### 测试文件命名
+- 组件测试：`ComponentName.test.tsx`
+- Hook 测试：`useHookName.test.ts`
+- 工具函数测试：`utilName.test.ts`
+
+### 2.2 测试结构模式
+
+#### AAA 模式（Arrange-Act-Assert）
+
+```typescript
+describe('UserProfile', () => {
+  it('displays user name correctly', () => {
+    // Arrange - 准备测试数据
+    const user = { id: '1', name: 'John Doe' }
+    
+    // Act - 执行操作
+    render(<UserProfile user={user} />)
+    
+    // Assert - 验证结果
+    expect(screen.getByText('John Doe')).toBeInTheDocument()
+  })
+})
+```
+
+#### 测试组织结构
+
+```typescript
+describe('ComponentName', () => {
+  // 基础渲染测试
+  describe('rendering', () => {
+    it('renders without crashing', () => { })
+    it('displays initial state correctly', () => { })
+  })
+  
+  // 交互测试
+  describe('interactions', () => {
+    it('handles click events', () => { })
+    it('updates state on input change', () => { })
+  })
+  
+  // 边界情况测试
+  describe('edge cases', () => {
+    it('handles empty data', () => { })
+    it('handles null props', () => { })
+  })
+  
+  // 错误处理测试
+  describe('error handling', () => {
+    it('displays error message on API failure', () => { })
+  })
+})
+```
+
+### 2.3 Mock 外部依赖
+
+#### API 请求 Mock
+
+```typescript
+import { vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import UserProfile from '../index'
+import * as api from '@/opensource/apis/user'
+
+vi.mock('@/opensource/apis/user')
+
+describe('UserProfile', () => {
+  it('fetches and displays user data', async () => {
+    // Mock API 响应
+    vi.mocked(api.getUser).mockResolvedValue({
+      id: '1',
+      name: 'John Doe'
+    })
+    
+    render(<UserProfile userId="1" />)
+    
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument()
+    })
+  })
+  
+  it('handles API errors', async () => {
+    vi.mocked(api.getUser).mockRejectedValue(new Error('API Error'))
+    
+    render(<UserProfile userId="1" />)
+    
+    await waitFor(() => {
+      expect(screen.getByText(/error/i)).toBeInTheDocument()
+    })
+  })
+})
+```
+
+#### 时间相关 Mock
+
+```typescript
+import { vi } from 'vitest'
+
+describe('Timer component', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+  
+  it('updates after 1 second', () => {
+    render(<Timer />)
+    
+    vi.advanceTimersByTime(1000)
+    
+    expect(screen.getByText('1')).toBeInTheDocument()
+  })
+})
+```
+
+### 2.4 React Testing Library 最佳实践
+
+#### 查询优先级
+
+```typescript
+// ✅ Good: 项目内优先使用稳定 data-testid
+screen.getByTestId('submit-button')
+screen.getByTestId('username-input')
+screen.getByTestId('welcome-text')
+
+// ⚠️ Acceptable: 语义化查询作为补充
+screen.getByRole('button', { name: /submit/i })
+screen.getByLabelText('Username')
+screen.getByText('Welcome')
+
+// ❌ Bad: 避免使用
+container.querySelector('.submit-button')
+```
+
+#### data-testid 生成规范（项目内标准）
+
+- 命名格式：`<domain>-<module>-<element>-<action>`
+- 统一使用小写 kebab-case
+- `domain/module` 取业务语义，不取 UI 文案
+- `element/action` 推荐后缀：`trigger`、`content`、`button`、`input`、`option`、`item`、`row`、`loading`、`empty`、`error`
+- 单实例元素必须唯一
+- 列表元素允许重复，但需要提供稳定的行容器定位能力
+- 允许动态后缀时仅使用稳定业务 key（如 `id/code`），禁止数组 index、随机数、时间戳
+- 禁止在 `data-testid` 中包含敏感信息（手机号、邮箱、token）
+
+```typescript
+// ✅ Good
+data-testid="user-menus-organization-switch-trigger"
+data-testid="user-menus-organization-list-content"
+data-testid={`organization-row-${organizationId}`}
+
+// ❌ Bad
+data-testid={`row-${index}`}
+data-testid={`item-${Date.now()}`}
+data-testid={`user-${userEmail}`}
+```
+
+#### 关键场景覆盖清单
+
+新增或重构 UI 时，至少覆盖以下可交互/可断言节点：
+
+1. 表单：容器、输入框、提交/取消按钮、校验错误提示
+2. 列表/表格：列表容器、行容器、行内主操作按钮
+3. 下拉/菜单：触发器、弹层内容、菜单项
+4. 弹窗/抽屉：触发器、弹层容器、确认/关闭按钮
+5. 切换类组件：tabs/switch/segmented 的 trigger 与 active 内容区
+6. 异步状态：`loading`、`empty`、`error` 节点
+
+#### 精准定位实践（避免误选）
+
+```typescript
+import { screen, within } from '@testing-library/react'
+
+// 先定位行容器，再在局部范围找操作按钮
+const row = screen.getByTestId(`organization-row-${organizationId}`)
+const editButton = within(row).getByTestId('organization-row-edit-button')
+
+// 弹层场景先点 trigger，再断言 content
+await user.click(screen.getByTestId('organization-switch-trigger'))
+expect(screen.getByTestId('organization-list-content')).toBeInTheDocument()
+```
+
+#### 异步测试
+
+```typescript
+import { render, screen, waitFor } from '@testing-library/react'
+
+it('loads data asynchronously', async () => {
+  render(<AsyncComponent />)
+  
+  // ✅ Good: 等待元素出现
+  const element = await screen.findByText('Loaded Data')
+  expect(element).toBeInTheDocument()
+  
+  // ✅ Good: 等待条件满足
+  await waitFor(() => {
+    expect(screen.getByText('Loaded Data')).toBeInTheDocument()
+  })
+})
+```
+
+#### 用户交互模拟
+
+```typescript
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+
+it('handles user input', async () => {
+  const user = userEvent.setup()
+  render(<LoginForm />)
+  
+  // 输入文本
+  await user.type(screen.getByLabelText('Username'), 'john')
+  
+  // 点击按钮
+  await user.click(screen.getByRole('button', { name: /submit/i }))
+  
+  // 验证结果
+  expect(screen.getByText('Welcome john')).toBeInTheDocument()
+})
+```
+
+### 2.5 类名验证规范
+
+```typescript
+// ✅ Good: 使用 toContain
+const element = screen.getByRole('button')
+expect(element?.className).toContain('primary-button')
+
+// ❌ Bad: 避免使用 toHaveClass（可能不稳定）
+expect(element).toHaveClass('primary-button')
+```
+
+### 2.6 测试覆盖率要求
+
+#### 覆盖率目标
+- **核心组件**: ≥ 80%
+- **工具函数**: ≥ 90%
+- **业务逻辑**: ≥ 85%
+
+#### 运行覆盖率检查
+
+```bash
+# 运行测试并生成覆盖率报告
+pnpm coverage
+
+# 查看覆盖率报告
+open coverage/index.html
+```
+
+### 2.7 测试用例有效性
+
+每个测试应包含：
+1. **正常情况**: 功能正常工作的场景
+2. **异常情况**: 错误处理和边界情况
+3. **边界用例**: 极限值、空值、null、undefined 等
+
+```typescript
+describe('divide function', () => {
+  // 正常情况
+  it('divides two numbers correctly', () => {
+    expect(divide(10, 2)).toBe(5)
+  })
+  
+  // 异常情况
+  it('throws error when dividing by zero', () => {
+    expect(() => divide(10, 0)).toThrow('Division by zero')
+  })
+  
+  // 边界用例
+  it('handles negative numbers', () => {
+    expect(divide(-10, 2)).toBe(-5)
+  })
+  
+  it('handles decimal numbers', () => {
+    expect(divide(10, 3)).toBeCloseTo(3.333, 2)
+  })
+})
+```
+
+### 2.8 快照测试规范
+
+#### 谨慎使用快照测试
+- 仅用于稳定的 UI 组件
+- 避免对经常变化的组件使用
+- 每次更新快照时都要仔细审查
+
+```typescript
+import { render } from '@testing-library/react'
+
+it('matches snapshot', () => {
+  const { container } = render(<Button>Click me</Button>)
+  expect(container.firstChild).toMatchSnapshot()
+})
+```
+
+#### 快照更新
+- UI 组件变更后必须更新快照
+- 使用 `pnpm test -- -u` 更新快照
+- 提交前检查快照变更是否符合预期
+
+---
+
+## 三、完整测试示例
+
+### 3.1 组件测试示例
+
+```typescript
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { vi } from 'vitest'
+import UserProfile from '../index'
+import * as api from '@/opensource/apis/user'
+
+vi.mock('@/opensource/apis/user')
+
+describe('UserProfile', () => {
+  const mockUser = {
+    id: '1',
+    name: 'John Doe',
+    email: 'john@example.com'
+  }
+  
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+  
+  describe('rendering', () => {
+    it('renders loading state initially', () => {
+      render(<UserProfile userId="1" />)
+      expect(screen.getByText(/loading/i)).toBeInTheDocument()
+    })
+    
+    it('renders user data after loading', async () => {
+      vi.mocked(api.getUser).mockResolvedValue(mockUser)
+      
+      render(<UserProfile userId="1" />)
+      
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument()
+        expect(screen.getByText('john@example.com')).toBeInTheDocument()
+      })
+    })
+  })
+  
+  describe('interactions', () => {
+    it('calls onEdit when edit button is clicked', async () => {
+      const onEdit = vi.fn()
+      vi.mocked(api.getUser).mockResolvedValue(mockUser)
+      
+      const user = userEvent.setup()
+      render(<UserProfile userId="1" onEdit={onEdit} />)
+      
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument()
+      })
+      
+      await user.click(screen.getByRole('button', { name: /edit/i }))
+      
+      expect(onEdit).toHaveBeenCalledWith(mockUser)
+    })
+  })
+  
+  describe('error handling', () => {
+    it('displays error message on API failure', async () => {
+      vi.mocked(api.getUser).mockRejectedValue(new Error('Failed to load'))
+      
+      render(<UserProfile userId="1" />)
+      
+      await waitFor(() => {
+        expect(screen.getByText(/failed to load/i)).toBeInTheDocument()
+      })
+    })
+  })
+  
+  describe('edge cases', () => {
+    it('handles missing user data', async () => {
+      vi.mocked(api.getUser).mockResolvedValue(null)
+      
+      render(<UserProfile userId="1" />)
+      
+      await waitFor(() => {
+        expect(screen.getByText(/user not found/i)).toBeInTheDocument()
+      })
+    })
+  })
+})
+```
+
+### 3.2 Hook 测试示例
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
+import { useUserData } from '../useUserData'
+import * as api from '@/opensource/apis/user'
+
+vi.mock('@/opensource/apis/user')
+
+describe('useUserData', () => {
+  it('fetches user data on mount', async () => {
+    const mockUser = { id: '1', name: 'John' }
+    vi.mocked(api.getUser).mockResolvedValue(mockUser)
+    
+    const { result } = renderHook(() => useUserData('1'))
+    
+    expect(result.current.loading).toBe(true)
+    
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+      expect(result.current.data).toEqual(mockUser)
+    })
+  })
+  
+  it('handles errors', async () => {
+    vi.mocked(api.getUser).mockRejectedValue(new Error('API Error'))
+    
+    const { result } = renderHook(() => useUserData('1'))
+    
+    await waitFor(() => {
+      expect(result.current.error).toBeTruthy()
+      expect(result.current.data).toBeNull()
+    })
+  })
+})
+```
+
+---
+
+## 四、测试命令
+
+```bash
+# 运行所有测试
+pnpm test
+
+# 监听模式运行测试
+pnpm test:watch
+
+# 运行单个测试文件
+pnpm test path/to/test.test.ts
+
+# 生成覆盖率报告
+pnpm coverage
+
+# CI 模式运行测试
+pnpm test:ci
+```
+
+---
+
+## 五、注意事项
+
+### ✅ 必须遵守
+1. 使用 Vitest，不使用 Jest
+2. 测试文件放在 `__tests__` 目录
+3. 遵循 AAA 模式组织测试
+4. Mock 外部依赖（API、环境等）
+5. 项目内采用 data-testid-first 查询策略（语义化查询作为补充）
+6. 测试注释和命名使用英文
+7. 保持测试独立和隔离
+8. 不为测试而修改源代码
+
+### ❌ 避免
+1. 测试实现细节而非行为
+2. 过度使用快照测试
+3. 测试第三方库的功能
+4. 在测试中使用硬编码的延迟
+5. 创建相互依赖的测试
+6. 忽略测试失败
+
+---
+
+## 六、参考资源
+
+- [Vitest 官方文档](https://vitest.dev/guide)
+- [React Testing Library 文档](https://testing-library.com/docs/react-testing-library/intro)
+- [Arrange-Act-Assert 模式](https://github.com/civic/arrange-act-assert)
+- 项目内参考：`src/components/base/` 下的组件测试
+
+---
+
+**记住**: 好的测试不仅能捕获 bug，还能作为代码的活文档！

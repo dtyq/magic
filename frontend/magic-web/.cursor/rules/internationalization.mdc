@@ -1,0 +1,574 @@
+# Internationalization (i18n) Rules
+
+## 国际化基本规范
+
+### 1. 文件结构
+国际化文件按功能模块组织：
+
+```
+src/opensource/assets/locales/
+├── zh_CN/                 # 中文
+│   ├── common.json       # 通用文本
+│   ├── component.json    # 基础组件文本
+│   ├── interface.json    # 界面文本
+│   ├── message.json      # 消息文本
+│   ├── marketing.json    # 营销相关文本
+│   └── ...
+├── en_US/                # 英文
+│   ├── common.json
+│   ├── component.json
+│   ├── interface.json
+│   ├── message.json
+│   ├── marketing.json
+│   └── ...
+└── create.ts             # i18n 配置
+```
+
+### 2. 命名空间规范
+
+#### 按功能分类
+- `common`: 通用文本（按钮、标签等）
+- `component`: 基础组件相关文本（如PDF渲染器等可复用组件）
+- `interface`: 界面相关文本
+- `message`: 消息提示文本
+- `flow`: 流程相关文本
+- `marketing`: 营销推广相关文本（激励计划、推荐奖励、促销活动等）
+
+#### 组件文本结构
+```json
+{
+  "componentName": {
+    "title": "标题",
+    "subtitle": {
+      "maxReward": "最高领",
+      "points": "积分"
+    },
+    "actions": {
+      "copy": "复制",
+      "submit": "提交",
+      "cancel": "取消"
+    },
+    "messages": {
+      "success": "操作成功",
+      "error": "操作失败"
+    }
+  }
+}
+```
+
+#### 营销相关文本结构
+```json
+{
+  "shareIncentives": {
+    "title": "分享激励计划",
+    "rules": {
+      "description": {
+        "invite": "邀请规则描述",
+        "case": "案例提交规则描述"
+      }
+    },
+    "actions": {
+      "copy": "复制",
+      "submit": "提交"
+    }
+  },
+  "referralProgram": {
+    "title": "推荐计划",
+    // 未来推荐相关功能
+  },
+  "promotions": {
+    "title": "促销活动",
+    // 未来促销相关功能
+  }
+}
+```
+
+### 3. 组件中使用国际化
+
+#### 基本用法
+```tsx
+import { useTranslation } from "react-i18next"
+
+function Component() {
+  const { t } = useTranslation("component")  // 基础组件使用 component
+  
+  return (
+    <div>
+      <h1>{t("componentName.title")}</h1>
+      <p>{t("componentName.description")}</p>
+    </div>
+  )
+}
+```
+
+#### 营销组件用法
+```tsx
+import { useTranslation } from "react-i18next"
+
+function MarketingComponent() {
+  const { t } = useTranslation("marketing")  // 营销组件使用 marketing
+  
+  return (
+    <div>
+      <h1>{t("shareIncentives.title")}</h1>
+      <p>{t("shareIncentives.rules.description.invite")}</p>
+    </div>
+  )
+}
+```
+
+#### 带参数的翻译
+```tsx
+// JSON 文件
+{
+  "welcome": "欢迎 {{name}}，您有 {{count}} 条消息"
+}
+
+// 组件中使用
+const message = t("welcome", { name: "张三", count: 5 })
+```
+
+#### 复数形式
+```tsx
+// JSON 文件
+{
+  "item": "{{count}} 个项目",
+  "item_plural": "{{count}} 个项目"
+}
+
+// 组件中使用
+const text = t("item", { count: items.length })
+```
+
+### 4. 命名空间选择指南
+
+#### component 命名空间
+适用于**基础可复用组件**：
+- PDF 渲染器
+- 图片预览器
+- 日期选择器
+- 表格组件
+- 等通用 UI 组件
+
+#### marketing 命名空间
+适用于**营销推广功能**：
+- 分享激励计划
+- 推荐奖励系统
+- 会员等级系统
+- 促销活动页面
+- 优惠券系统
+- 积分商城
+
+#### interface 命名空间
+适用于**界面框架文本**：
+- 导航菜单
+- 页面标题
+- 面包屑导航
+- 侧边栏
+- 页脚信息
+
+#### 其他业务命名空间
+- `flow`: 工作流相关
+- `chat`: 聊天功能相关
+- `approval`: 审批功能相关
+- `login`: 登录注册相关
+
+### 5. 文本编写规范
+
+#### 中文规范
+- **简洁明了**：避免冗长的描述
+- **语义准确**：确保表达意思清晰
+- **保持一致**：同类操作使用相同词汇
+- **符合习惯**：使用用户熟悉的表达方式
+
+```json
+{
+  "good": {
+    "copy": "复制",
+    "submit": "提交",
+    "loading": "加载中..."
+  },
+  "bad": {
+    "copy": "拷贝到剪贴板",
+    "submit": "提交表单数据",
+    "loading": "正在努力加载中，请稍等..."
+  }
+}
+```
+
+#### 英文规范
+- **语法正确**：确保语法和拼写正确
+- **简洁专业**：使用简洁的专业术语
+- **大小写一致**：按照 UI 规范使用大小写
+- **语境适当**：根据使用场景选择合适的词汇
+
+```json
+{
+  "good": {
+    "copy": "Copy",
+    "submit": "Submit",
+    "loading": "Loading..."
+  },
+  "bad": {
+    "copy": "Copy to Clipboard",
+    "submit": "Submit Form Data",
+    "loading": "Loading, please wait..."
+  }
+}
+```
+
+### 6. 按钮和操作文本
+
+#### 常用按钮文本
+```json
+{
+  "actions": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "add": "添加",
+    "remove": "移除",
+    "copy": "复制",
+    "share": "分享",
+    "download": "下载",
+    "upload": "上传",
+    "refresh": "刷新",
+    "retry": "重试",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "finish": "完成",
+    "close": "关闭"
+  }
+}
+```
+
+#### 状态文本
+```json
+{
+  "status": {
+    "loading": "加载中...",
+    "submitting": "提交中...",
+    "processing": "处理中...",
+    "success": "成功",
+    "failed": "失败",
+    "completed": "已完成",
+    "pending": "待处理",
+    "approved": "已通过",
+    "rejected": "已拒绝"
+  }
+}
+```
+
+### 7. 消息提示文本
+
+#### 成功消息
+```json
+{
+  "messages": {
+    "success": {
+      "saved": "保存成功",
+      "deleted": "删除成功",
+      "copied": "复制成功",
+      "submitted": "提交成功",
+      "uploaded": "上传成功"
+    }
+  }
+}
+```
+
+#### 错误消息
+```json
+{
+  "messages": {
+    "error": {
+      "networkError": "网络错误，请重试",
+      "serverError": "服务器错误",
+      "validationError": "输入信息有误",
+      "permissionDenied": "权限不足",
+      "fileTooBig": "文件大小超出限制"
+    }
+  }
+}
+```
+
+### 8. 表单文本
+
+#### 标签和占位符
+```json
+{
+  "form": {
+    "labels": {
+      "name": "姓名",
+      "email": "邮箱",
+      "phone": "手机号",
+      "password": "密码",
+      "confirmPassword": "确认密码"
+    },
+    "placeholders": {
+      "enterName": "请输入姓名",
+      "enterEmail": "请输入邮箱地址",
+      "enterPhone": "请输入手机号",
+      "selectOption": "请选择选项"
+    },
+    "validation": {
+      "required": "此字段为必填项",
+      "invalidEmail": "邮箱格式不正确",
+      "passwordTooShort": "密码长度不能少于6位",
+      "passwordMismatch": "两次输入的密码不一致"
+    }
+  }
+}
+```
+
+### 9. 时间和数字格式化
+
+#### 相对时间
+```json
+{
+  "time": {
+    "now": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前",
+    "weeksAgo": "{{count}} 周前",
+    "monthsAgo": "{{count}} 个月前",
+    "yearsAgo": "{{count}} 年前"
+  }
+}
+```
+
+#### 数字单位
+```json
+{
+  "units": {
+    "bytes": "字节",
+    "kb": "KB",
+    "mb": "MB",
+    "gb": "GB",
+    "items": "项",
+    "users": "用户",
+    "points": "积分"
+  }
+}
+```
+
+### 10. 国际化最佳实践
+
+#### 1. 避免硬编码文本
+```tsx
+// ❌ 错误：硬编码文本
+<button>提交</button>
+
+// ✅ 正确：使用国际化
+<button>{t("actions.submit")}</button>
+```
+
+#### 2. 提取所有用户可见文本
+```tsx
+// ❌ 错误：部分文本未国际化
+<div>
+  <h1>{t("title")}</h1>
+  <p>这是一段描述文本</p>
+</div>
+
+// ✅ 正确：所有文本都国际化
+<div>
+  <h1>{t("title")}</h1>
+  <p>{t("description")}</p>
+</div>
+```
+
+#### 3. 使用语义化的键名
+```json
+// ❌ 错误：键名不清晰
+{
+  "btn1": "确认",
+  "text1": "请输入内容"
+}
+
+// ✅ 正确：语义化键名
+{
+  "actions.confirm": "确认",
+  "placeholders.enterContent": "请输入内容"
+}
+```
+
+#### 4. 保持键名结构一致
+```json
+{
+  "componentName": {
+    "title": "标题",
+    "actions": {
+      "submit": "提交",
+      "cancel": "取消"
+    },
+    "messages": {
+      "success": "成功",
+      "error": "失败"
+    }
+  }
+}
+```
+
+### 11. 开发工作流
+
+#### 1. 新增组件时
+1. 确定合适的命名空间（component/marketing/interface等）
+2. 创建组件文本结构
+3. 在中英文文件中添加对应翻译
+4. 在组件中使用 `useTranslation`
+5. 测试不同语言下的显示效果
+
+#### 2. 文本更新时
+1. 同时更新中英文文件
+2. 检查所有使用该文本的地方
+3. 验证新文本在不同语言下的长度和显示效果
+
+#### 3. 代码审查检查项
+- [ ] 所有用户可见文本都已国际化
+- [ ] 选择了正确的命名空间
+- [ ] 中英文文件内容保持同步
+- [ ] 键名语义化且结构一致
+- [ ] 参数化翻译使用正确
+- [ ] 文本长度在不同语言下都能正常显示
+
+### 12. 工具和辅助
+
+#### VS Code 插件推荐
+- **i18n Ally**: 国际化文件管理和预览
+- **Auto Rename Tag**: 自动重命名标签
+- **Bracket Pair Colorizer**: 括号配对高亮
+
+#### 检查脚本
+```bash
+# 检查未翻译的文本
+npm run i18n:check
+
+# 提取新的翻译键
+npm run i18n:extract
+
+# 验证翻译文件格式
+npm run i18n:validate
+```
+
+### 13. 常见问题和解决方案
+
+#### 问题1：文本过长导致布局问题
+**解决方案**：
+- 使用省略号处理长文本
+- 设计时考虑不同语言的文本长度差异
+- 使用响应式布局
+
+#### 问题2：翻译上下文不清楚
+**解决方案**：
+- 为翻译人员提供上下文说明
+- 使用描述性的键名
+- 提供界面截图或说明
+
+#### 问题3：动态内容的翻译
+**解决方案**：
+- 使用参数化翻译
+- 对于复杂的动态内容，使用翻译函数
+- 考虑复数形式的处理
+
+---
+
+## 快速参考卡片
+
+### 🚀 快速开始
+
+```typescript
+// 1. 导入 hook
+import { useTranslation } from "react-i18next"
+
+// 2. 在组件中使用
+const Component = () => {
+  const { t } = useTranslation("interface")
+  return <div>{t("key.path")}</div>
+}
+```
+
+### 🎯 常用翻译键速查
+
+```typescript
+// 通用按钮
+t("button.save")        // 保存
+t("button.cancel")      // 取消  
+t("button.confirm")     // 确认
+t("button.delete")      // 删除
+t("sider.logout")       // 退出登录
+
+// 状态文本
+t("spin.loading")       // 加载中...
+t("button.send")        // 发送
+t("button.edit")        // 编辑
+```
+
+### ✅ 检查清单
+
+- [ ] 导入 `useTranslation("interface")`
+- [ ] 替换所有硬编码文本为 `t("key")`
+- [ ] 在中文语言包添加翻译
+- [ ] 在英文语言包添加对应翻译
+- [ ] 确保翻译键结构一致
+- [ ] 测试语言切换功能
+
+### ❌ 常见错误
+
+```typescript
+// ❌ 硬编码文本
+<button>保存</button>
+
+// ❌ 在渲染循环中调用
+{items.map(item => <div>{useTranslation().t("key")}</div>)}
+
+// ❌ 翻译键不一致
+// zh_CN: "button.save"
+// en_US: "btn.save"  // 错误！
+```
+
+### ✅ 正确做法
+
+```typescript
+// ✅ 使用翻译键
+const { t } = useTranslation("interface")
+<button>{t("button.save")}</button>
+
+// ✅ 在组件顶层获取翻译
+const Component = () => {
+  const { t } = useTranslation("interface")
+  const items = useMemo(() => [
+    { label: t("menu.home"), key: "home" }
+  ], [t])
+}
+
+// ✅ 翻译键保持一致
+// zh_CN: "button.save": "保存"
+// en_US: "button.save": "Save"
+```
+
+### 🔧 实用工具
+
+```typescript
+// 数字本地化
+const formattedNumber = number.toLocaleString()
+
+// 日期本地化  
+const formattedDate = date.toLocaleDateString()
+
+// 缺失翻译检测
+const text = t("key", { defaultValue: "Missing translation" })
+```
+
+### 📚 参考案例
+
+查看 `GlobalSidebar` 组件的完整国际化实现：
+- 位置：`src/opensource/layouts/BaseLayoutMobile/components/GlobalSidebar/`
+- 翻译键：`sider.globalSidebar.*`
+
+---
+
+**记住**: 任何用户可见的文本都必须使用翻译键！ 

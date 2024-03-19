@@ -1,0 +1,804 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+@rule 前端安全规范
+@description 前端应用安全防护的完整指南和最佳实践
+@priority critical
+@category security
+
+# 前端安全规范
+
+## 核心安全原则
+
+1. **最小权限原则**: 用户只能访问必需的资源
+2. **深度防御**: 多层安全防护机制
+3. **输入验证**: 永远不信任用户输入
+4. **安全编码**: 从设计阶段就考虑安全
+5. **持续监控**: 实时监控安全威胁
+
+## XSS (跨站脚本) 防护
+
+### 1. 输入验证和过滤
+
+```typescript
+// utils/input-sanitizer.ts
+import DOMPurify from "dompurify"
+
+class InputSanitizer {
+	// HTML 内容清理
+	static sanitizeHTML(input: string): string {
+		return DOMPurify.sanitize(input, {
+			ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "a"],
+			ALLOWED_ATTR: ["href", "target"],
+			ALLOW_DATA_ATTR: false,
+		})
+	}
+
+	// 纯文本清理
+	static sanitizeText(input: string): string {
+		return input.replace(/[<>\"'&]/g, (match) => {
+			const escapeMap: Record<string, string> = {
+				"<": "&lt;",
+				">": "&gt;",
+				'"': "&quot;",
+				"'": "&#x27;",
+				"&": "&amp;",
+			}
+			return escapeMap[match]
+		})
+	}
+
+	// URL 验证
+	static isValidURL(url: string): boolean {
+		try {
+			const parsedURL = new URL(url)
+			// 只允许 http 和 https 协议
+			return ["http:", "https:"].includes(parsedURL.protocol)
+		} catch {
+			return false
+		}
+	}
+
+	// 防止 JavaScript 伪协议
+	static sanitizeURL(url: string): string {
+		if (!this.isValidURL(url)) {
+			return "#"
+		}
+
+		// 移除潜在的危险协议
+		const dangerousProtocols = ["javascript:", "data:", "vbscript:"]
+		const lowerURL = url.toLowerCase()
+
+		for (const protocol of dangerousProtocols) {
+			if (lowerURL.startsWith(protocol)) {
+				return "#"
+			}
+		}
+
+		return url
+	}
+}
+
+export { InputSanitizer }
+```
+
+### 2. 安全的组件渲染
+
+```typescript
+// components/SafeHTML.tsx
+import { useMemo } from 'react'
+import { InputSanitizer } from '@/opensource/utils/input-sanitizer'
+
+interface SafeHTMLProps {
+  content: string
+  className?: string
+}
+
+const SafeHTML = ({ content, className }: SafeHTMLProps) => {
+  const sanitizedContent = useMemo(() => {
+    return InputSanitizer.sanitizeHTML(content)
+  }, [content])
+
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{ __html: sanitizedContent }}
+    />
+  )
+}
+
+// 安全的链接组件
+interface SafeLinkProps {
+  href: string
+  children: React.ReactNode
+  className?: string
+}
+
+const SafeLink = ({ href, children, className }: SafeLinkProps) => {
+  const safeHref = useMemo(() => {
+    return InputSanitizer.sanitizeURL(href)
+  }, [href])
+
+  return (
+    <a
+      href={safeHref}
+      className={className}
+      target="_blank"
+      rel="noopener noreferrer" // 防止 window.opener 攻击
+    >
+      {children}
+    </a>
+  )
+}
+
+export { SafeHTML, SafeLink }
+```
+
+### 3. CSP (内容安全策略) 配置
+
+```typescript
+// 在 HTML 头部设置 CSP
+const cspConfig = {
+	"default-src": "'self'",
+	"script-src": "'self' 'unsafe-inline' https://trusted-cdn.com",
+	"style-src": "'self' 'unsafe-inline'",
+	"img-src": "'self' data: https:",
+	"font-src": "'self' https://fonts.googleapis.com",
+	"connect-src": "'self' https://api.example.com",
+	"frame-ancestors": "'none'",
+	"base-uri": "'self'",
+	"form-action": "'self'",
+}
+
+// 生成 CSP 头部
+const generateCSP = (config: Record<string, string>): string => {
+	return Object.entries(config)
+		.map(([key, value]) => `${key} ${value}`)
+		.join("; ")
+}
+```
+
+## CSRF (跨站请求伪造) 防护
+
+### 1. CSRF Token 实现
+
+```typescript
+// utils/csrf-protection.ts
+class CSRFProtection {
+	private static readonly TOKEN_KEY = "csrf_token"
+	private static readonly HEADER_NAME = "X-CSRF-Token"
+
+	// 生成 CSRF Token
+	static generateToken(): string {
+		const array = new Uint8Array(32)
+		crypto.getRandomValues(array)
+		return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("")
+	}
+
+	// 设置 CSRF Token
+	static setToken(token: string): void {
+		sessionStorage.setItem(this.TOKEN_KEY, token)
+	}
+
+	// 获取 CSRF Token
+	static getToken(): string | null {
+		return sessionStorage.getItem(this.TOKEN_KEY)
+	}
+
+	// 验证请求来源
+	static validateOrigin(origin: string, allowedOrigins: string[]): boolean {
+		return allowedOrigins.includes(origin)
+	}
+
+	// 添加 CSRF Token 到请求头
+	static addTokenToRequest(config: any): any {
+		const token = this.getToken()
+		if (token) {
+			config.headers[this.HEADER_NAME] = token
+		}
+		return config
+	}
+}
+
+// 在 API 客户端中使用
+const apiClient = axios.create({
+	baseURL: "/api",
+})
+
+apiClient.interceptors.request.use((config) => {
+	// 添加 CSRF Token
+	return CSRFProtection.addTokenToRequest(config)
+})
+```
+
+### 2. SameSite Cookie 配置
+
+```typescript
+// 设置安全的 Cookie
+const setCookie = (
+	name: string,
+	value: string,
+	options: {
+		httpOnly?: boolean
+		secure?: boolean
+		sameSite?: "strict" | "lax" | "none"
+		maxAge?: number
+	} = {},
+) => {
+	const {
+		httpOnly = true,
+		secure = true, // 生产环境必须为 true
+		sameSite = "strict",
+		maxAge = 86400, // 24小时
+	} = options
+
+	document.cookie = [
+		`${name}=${value}`,
+		`Max-Age=${maxAge}`,
+		`SameSite=${sameSite}`,
+		secure ? "Secure" : "",
+		httpOnly ? "HttpOnly" : "",
+	]
+		.filter(Boolean)
+		.join("; ")
+}
+```
+
+## 敏感数据处理
+
+### 1. 数据加密
+
+```typescript
+// utils/encryption.ts
+class DataEncryption {
+	private static readonly ALGORITHM = "AES-GCM"
+	private static readonly KEY_LENGTH = 256
+
+	// 生成加密密钥
+	static async generateKey(): Promise<CryptoKey> {
+		return await crypto.subtle.generateKey(
+			{
+				name: this.ALGORITHM,
+				length: this.KEY_LENGTH,
+			},
+			true,
+			["encrypt", "decrypt"],
+		)
+	}
+
+	// 加密数据
+	static async encrypt(
+		data: string,
+		key: CryptoKey,
+	): Promise<{
+		encrypted: ArrayBuffer
+		iv: Uint8Array
+	}> {
+		const encoder = new TextEncoder()
+		const iv = crypto.getRandomValues(new Uint8Array(12))
+
+		const encrypted = await crypto.subtle.encrypt(
+			{
+				name: this.ALGORITHM,
+				iv: iv,
+			},
+			key,
+			encoder.encode(data),
+		)
+
+		return { encrypted, iv }
+	}
+
+	// 解密数据
+	static async decrypt(
+		encryptedData: ArrayBuffer,
+		key: CryptoKey,
+		iv: Uint8Array,
+	): Promise<string> {
+		const decrypted = await crypto.subtle.decrypt(
+			{
+				name: this.ALGORITHM,
+				iv: iv,
+			},
+			key,
+			encryptedData,
+		)
+
+		const decoder = new TextDecoder()
+		return decoder.decode(decrypted)
+	}
+}
+```
+
+### 2. 敏感数据存储
+
+```typescript
+// utils/secure-storage.ts
+class SecureStorage {
+	private static readonly ENCRYPTION_KEY = "app_encryption_key"
+
+	// 安全存储敏感数据
+	static async setSecureItem(key: string, value: string): Promise<void> {
+		try {
+			const encryptionKey = await this.getOrCreateKey()
+			const { encrypted, iv } = await DataEncryption.encrypt(value, encryptionKey)
+
+			const storageData = {
+				data: Array.from(new Uint8Array(encrypted)),
+				iv: Array.from(iv),
+				timestamp: Date.now(),
+			}
+
+			sessionStorage.setItem(key, JSON.stringify(storageData))
+		} catch (error) {
+			console.error("Failed to store secure item:", error)
+			throw new Error("Storage encryption failed")
+		}
+	}
+
+	// 获取安全存储的数据
+	static async getSecureItem(key: string): Promise<string | null> {
+		try {
+			const storedData = sessionStorage.getItem(key)
+			if (!storedData) return null
+
+			const { data, iv, timestamp } = JSON.parse(storedData)
+
+			// 检查数据是否过期（24小时）
+			if (Date.now() - timestamp > 24 * 60 * 60 * 1000) {
+				this.removeSecureItem(key)
+				return null
+			}
+
+			const encryptionKey = await this.getOrCreateKey()
+			const encryptedArray = new Uint8Array(data)
+			const ivArray = new Uint8Array(iv)
+
+			return await DataEncryption.decrypt(encryptedArray.buffer, encryptionKey, ivArray)
+		} catch (error) {
+			console.error("Failed to retrieve secure item:", error)
+			return null
+		}
+	}
+
+	// 删除安全存储的数据
+	static removeSecureItem(key: string): void {
+		sessionStorage.removeItem(key)
+	}
+
+	// 获取或创建加密密钥
+	private static async getOrCreateKey(): Promise<CryptoKey> {
+		// 在实际应用中，密钥应该从安全的地方获取
+		// 这里仅作示例
+		return await DataEncryption.generateKey()
+	}
+}
+```
+
+## 权限控制
+
+### 1. 基于角色的访问控制 (RBAC)
+
+```typescript
+// types/auth.ts
+interface User {
+	id: string
+	username: string
+	roles: Role[]
+	permissions: Permission[]
+}
+
+interface Role {
+	id: string
+	name: string
+	permissions: Permission[]
+}
+
+interface Permission {
+	id: string
+	resource: string
+	action: string
+}
+
+// utils/permission-manager.ts
+class PermissionManager {
+	private static user: User | null = null
+
+	static setUser(user: User): void {
+		this.user = user
+	}
+
+	static getUser(): User | null {
+		return this.user
+	}
+
+	// 检查用户是否有特定权限
+	static hasPermission(resource: string, action: string): boolean {
+		if (!this.user) return false
+
+		// 检查直接权限
+		const hasDirectPermission = this.user.permissions.some(
+			(permission) => permission.resource === resource && permission.action === action,
+		)
+
+		if (hasDirectPermission) return true
+
+		// 检查角色权限
+		const hasRolePermission = this.user.roles.some((role) =>
+			role.permissions.some(
+				(permission) => permission.resource === resource && permission.action === action,
+			),
+		)
+
+		return hasRolePermission
+	}
+
+	// 检查用户是否有特定角色
+	static hasRole(roleName: string): boolean {
+		if (!this.user) return false
+		return this.user.roles.some((role) => role.name === roleName)
+	}
+
+	// 检查是否是管理员
+	static isAdmin(): boolean {
+		return this.hasRole("admin") || this.hasRole("super_admin")
+	}
+}
+```
+
+### 2. 路由权限控制
+
+```typescript
+// components/ProtectedRoute.tsx
+import { Navigate } from 'react-router-dom'
+import { PermissionManager } from '@/opensource/utils/permission-manager'
+
+interface ProtectedRouteProps {
+  children: React.ReactNode
+  requiredPermission?: {
+    resource: string
+    action: string
+  }
+  requiredRole?: string
+  fallback?: React.ReactNode
+}
+
+const ProtectedRoute = ({
+  children,
+  requiredPermission,
+  requiredRole,
+  fallback = <Navigate to="/unauthorized" />,
+}: ProtectedRouteProps) => {
+  const user = PermissionManager.getUser()
+
+  // 未登录用户重定向到登录页
+  if (!user) {
+    return <Navigate to="/login" />
+  }
+
+  // 检查角色权限
+  if (requiredRole && !PermissionManager.hasRole(requiredRole)) {
+    return fallback
+  }
+
+  // 检查具体权限
+  if (requiredPermission) {
+    const { resource, action } = requiredPermission
+    if (!PermissionManager.hasPermission(resource, action)) {
+      return fallback
+    }
+  }
+
+  return <>{children}</>
+}
+
+// 使用示例
+const App = () => {
+  return (
+    <Routes>
+      <Route path="/admin" element={
+        <ProtectedRoute requiredRole="admin">
+          <AdminPanel />
+        </ProtectedRoute>
+      } />
+      <Route path="/users" element={
+        <ProtectedRoute requiredPermission={{ resource: 'users', action: 'read' }}>
+          <UserList />
+        </ProtectedRoute>
+      } />
+    </Routes>
+  )
+}
+```
+
+### 3. 组件级权限控制
+
+```typescript
+// components/PermissionGate.tsx
+interface PermissionGateProps {
+  children: React.ReactNode
+  requiredPermission?: {
+    resource: string
+    action: string
+  }
+  requiredRole?: string
+  fallback?: React.ReactNode
+  showFallback?: boolean
+}
+
+const PermissionGate = ({
+  children,
+  requiredPermission,
+  requiredRole,
+  fallback = null,
+  showFallback = false,
+}: PermissionGateProps) => {
+  let hasAccess = true
+
+  if (requiredRole) {
+    hasAccess = hasAccess && PermissionManager.hasRole(requiredRole)
+  }
+
+  if (requiredPermission) {
+    const { resource, action } = requiredPermission
+    hasAccess = hasAccess && PermissionManager.hasPermission(resource, action)
+  }
+
+  if (!hasAccess) {
+    return showFallback ? <>{fallback}</> : null
+  }
+
+  return <>{children}</>
+}
+
+// 使用示例
+const UserActions = () => {
+  return (
+    <div>
+      <PermissionGate requiredPermission={{ resource: 'users', action: 'create' }}>
+        <Button>创建用户</Button>
+      </PermissionGate>
+
+      <PermissionGate requiredPermission={{ resource: 'users', action: 'delete' }}>
+        <Button danger>删除用户</Button>
+      </PermissionGate>
+
+      <PermissionGate
+        requiredRole="admin"
+        fallback={<span>需要管理员权限</span>}
+        showFallback
+      >
+        <Button>管理员操作</Button>
+      </PermissionGate>
+    </div>
+  )
+}
+```
+
+## 安全 Headers
+
+### 1. 设置安全响应头
+
+```typescript
+// 推荐的安全响应头配置
+const securityHeaders = {
+	// 防止点击劫持
+	"X-Frame-Options": "DENY",
+
+	// 防止 MIME 类型嗅探
+	"X-Content-Type-Options": "nosniff",
+
+	// XSS 保护
+	"X-XSS-Protection": "1; mode=block",
+
+	// 强制 HTTPS
+	"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+
+	// 推荐人策略
+	"Referrer-Policy": "strict-origin-when-cross-origin",
+
+	// 权限策略
+	"Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+}
+```
+
+## 数据验证
+
+### 1. 输入验证
+
+```typescript
+// utils/validators.ts
+class Validators {
+	// 邮箱验证
+	static isValidEmail(email: string): boolean {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+		return emailRegex.test(email) && email.length <= 254
+	}
+
+	// 密码强度验证
+	static isStrongPassword(password: string): {
+		isValid: boolean
+		errors: string[]
+	} {
+		const errors: string[] = []
+
+		if (password.length < 8) {
+			errors.push("密码长度至少8位")
+		}
+
+		if (!/[A-Z]/.test(password)) {
+			errors.push("密码必须包含大写字母")
+		}
+
+		if (!/[a-z]/.test(password)) {
+			errors.push("密码必须包含小写字母")
+		}
+
+		if (!/\d/.test(password)) {
+			errors.push("密码必须包含数字")
+		}
+
+		if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+			errors.push("密码必须包含特殊字符")
+		}
+
+		return {
+			isValid: errors.length === 0,
+			errors,
+		}
+	}
+
+	// 防止 SQL 注入的字符串验证
+	static isSafeString(input: string): boolean {
+		const dangerousPatterns = [
+			/(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)\b)/i,
+			/(\b(OR|AND)\s+\d+\s*=\s*\d+)/i,
+			/(--|\*\/|\/\*)/,
+			/['"`;]/,
+		]
+
+		return !dangerousPatterns.some((pattern) => pattern.test(input))
+	}
+
+	// 文件类型验证
+	static isAllowedFileType(file: File, allowedTypes: string[]): boolean {
+		return allowedTypes.includes(file.type)
+	}
+
+	// 文件大小验证
+	static isValidFileSize(file: File, maxSizeInMB: number): boolean {
+		const maxSizeInBytes = maxSizeInMB * 1024 * 1024
+		return file.size <= maxSizeInBytes
+	}
+}
+```
+
+## 安全监控
+
+### 1. 安全事件记录
+
+```typescript
+// utils/security-monitor.ts
+interface SecurityEvent {
+	type: string
+	severity: "low" | "medium" | "high" | "critical"
+	message: string
+	userAgent?: string
+	ip?: string
+	timestamp: number
+	userId?: string
+}
+
+class SecurityMonitor {
+	private static events: SecurityEvent[] = []
+
+	// 记录安全事件
+	static logEvent(event: Omit<SecurityEvent, "timestamp">): void {
+		const securityEvent: SecurityEvent = {
+			...event,
+			timestamp: Date.now(),
+		}
+
+		this.events.push(securityEvent)
+
+		// 发送到服务器
+		this.sendToServer(securityEvent)
+
+		// 严重事件立即报警
+		if (event.severity === "critical") {
+			this.triggerAlert(securityEvent)
+		}
+	}
+
+	// 记录登录失败
+	static logFailedLogin(username: string): void {
+		this.logEvent({
+			type: "failed_login",
+			severity: "medium",
+			message: `Failed login attempt for user: ${username}`,
+			userAgent: navigator.userAgent,
+		})
+	}
+
+	// 记录可疑活动
+	static logSuspiciousActivity(activity: string, details?: string): void {
+		this.logEvent({
+			type: "suspicious_activity",
+			severity: "high",
+			message: `Suspicious activity detected: ${activity}`,
+			userAgent: navigator.userAgent,
+		})
+	}
+
+	// 发送到服务器
+	private static async sendToServer(event: SecurityEvent): Promise<void> {
+		try {
+			await fetch("/api/security/events", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(event),
+			})
+		} catch (error) {
+			console.error("Failed to send security event:", error)
+		}
+	}
+
+	// 触发报警
+	private static triggerAlert(event: SecurityEvent): void {
+		// 实现报警逻辑（邮件、短信、推送等）
+		console.error("SECURITY ALERT:", event)
+	}
+}
+```
+
+## 最佳实践检查清单
+
+### 🛡️ XSS 防护
+
+- [ ] 实现输入验证和过滤
+- [ ] 使用 CSP 内容安全策略
+- [ ] 避免使用 dangerouslySetInnerHTML
+- [ ] 验证所有用户输入
+- [ ] 对输出进行编码
+
+### 🔒 CSRF 防护
+
+- [ ] 实现 CSRF Token 机制
+- [ ] 设置 SameSite Cookie
+- [ ] 验证请求来源
+- [ ] 使用安全的 HTTP 方法
+
+### 🔐 数据保护
+
+- [ ] 加密敏感数据
+- [ ] 安全存储机制
+- [ ] 定期清理过期数据
+- [ ] 最小化数据收集
+
+### 👤 权限控制
+
+- [ ] 实现基于角色的访问控制
+- [ ] 路由权限验证
+- [ ] 组件级权限控制
+- [ ] 最小权限原则
+
+### 📊 安全监控
+
+- [ ] 记录安全事件
+- [ ] 监控异常行为
+- [ ] 实现报警机制
+- [ ] 定期安全审计
+
+### 🌐 网络安全
+
+- [ ] 设置安全响应头
+- [ ] 强制 HTTPS
+- [ ] 防止点击劫持
+- [ ] 配置 CORS 策略
+
+遵循这些安全规范，可以有效防护常见的前端安全威胁，保护用户数据和应用安全。

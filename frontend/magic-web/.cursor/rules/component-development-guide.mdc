@@ -1,0 +1,545 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Component Development Guide
+
+## 概述
+
+本指南定义了组件开发的完整规范，包括组件分类、文件结构、代码分离原则和开发流程，确保组件的可维护性、可测试性和可复用性。
+
+## 核心原则
+
+### 1. **关注点分离 (Separation of Concerns)**
+- 样式逻辑与业务逻辑分离
+- 数据处理与 UI 渲染分离
+- 副作用与纯函数分离
+- 类型定义与实现分离
+
+### 2. **单一职责原则 (Single Responsibility Principle)**
+- 每个文件只负责一个特定功能
+- 每个 Hook 只处理一种状态或副作用
+- 每个样式文件只管理相关组件的样式
+
+## 组件分类与文件结构
+
+### 基础组件 (Base Components)
+基础组件是可复用的 UI 元素，需要完整的文档和示例：
+
+```
+BaseComponent/
+├── index.tsx              # 主组件文件（仅包含 JSX 和基本逻辑）
+├── types.ts              # TypeScript 类型定义
+├── styles.ts             # 样式定义（antd-style）
+├── hooks/                # 自定义 Hooks
+│   ├── useComponentName.ts
+│   └── useComponentLogic.ts
+├── components/           # 子组件
+│   ├── SubComponent/
+│   └── AnotherComponent/
+├── constants.ts          # 常量定义
+├── utils.ts             # 工具函数
+├── __tests__/           # 测试文件
+│   ├── index.test.tsx
+│   ├── hooks.test.ts
+│   └── utils.test.ts
+├── examples/            # 使用示例
+│   └── BasicUsage.tsx
+└── README.md           # 组件文档
+```
+
+### 业务组件 (Business Components)
+业务组件是特定功能的组件，不需要示例和 README：
+
+```
+BusinessComponent/
+├── index.tsx              # 主组件文件
+├── types.ts              # TypeScript 类型定义
+├── styles.ts             # 样式定义（antd-style）
+├── hooks/                # 自定义 Hooks
+├── components/           # 子组件
+├── constants.ts          # 常量定义
+├── utils.ts             # 工具函数
+├── services/             # 业务逻辑服务
+└── __tests__/           # 测试文件（可选）
+```
+
+### 复杂组件结构
+```
+ComplexComponent/
+├── index.tsx              # 主组件入口
+├── types.ts              # 类型定义
+├── styles/               # 样式文件夹
+│   ├── index.ts          # 样式入口
+│   ├── base.ts           # 基础样式
+│   ├── variants.ts       # 变体样式
+│   └── responsive.ts     # 响应式样式
+├── hooks/                # Hooks 文件夹
+│   ├── index.ts          # Hooks 入口
+│   ├── useData.ts        # 数据相关 Hook
+│   ├── useUI.ts          # UI 状态 Hook
+│   └── useEffects.ts     # 副作用 Hook
+├── components/           # 子组件
+├── services/             # 业务逻辑服务
+├── constants/            # 常量文件夹
+├── utils/               # 工具函数文件夹
+└── __tests__/           # 测试文件夹
+```
+
+## 文件内容规范
+
+### 1. 主组件文件 (index.tsx)
+
+```tsx
+import { memo } from "react"
+import { observer } from "mobx-react-lite"
+
+// Types
+import type { ComponentNameProps } from "./types"
+
+// Styles
+import { useStyles } from "./styles"
+
+// Hooks
+import { useComponentName } from "./hooks"
+
+// Components
+import SubComponent from "./components/SubComponent"
+
+/**
+ * ComponentName - 组件描述
+ * 
+ * @param props - 组件属性
+ * @returns JSX.Element
+ */
+const ComponentName = memo<ComponentNameProps>(observer((props) => {
+	const { styles } = useStyles()
+	const { state, handlers } = useComponentName(props)
+
+	return (
+		<div className={styles.container}>
+			<SubComponent {...state} {...handlers} />
+		</div>
+	)
+}))
+
+ComponentName.displayName = "ComponentName"
+
+export default ComponentName
+```
+
+### 2. 类型定义文件 (types.ts)
+
+```typescript
+import type { ReactNode, CSSProperties } from "react"
+
+// Base interfaces
+export interface BaseComponentProps {
+	className?: string
+	style?: CSSProperties
+	children?: ReactNode
+}
+
+// Component specific interfaces
+export interface ComponentNameProps extends BaseComponentProps {
+	title: string
+	description?: string
+	onAction?: (data: ActionData) => void
+}
+
+// Data interfaces
+export interface ActionData {
+	id: string
+	type: ActionType
+	payload?: unknown
+}
+
+// Enums and unions
+export enum ActionType {
+	CREATE = "create",
+	UPDATE = "update",
+	DELETE = "delete",
+}
+
+// State interfaces
+export interface ComponentState {
+	loading: boolean
+	data: DataItem[]
+	error?: string
+}
+
+// Event handler types
+export type EventHandler<T = void> = (event: T) => void
+export type AsyncEventHandler<T = void> = (event: T) => Promise<void>
+```
+
+### 3. 样式文件 (styles.ts)
+
+```typescript
+import { createStyles } from "antd-style"
+
+export const useStyles = createStyles(({ token, css, responsive }) => {
+	// Base styles
+	const baseContainer = css`
+		display: flex;
+		flex-direction: column;
+		background-color: ${token.magicColorUsages?.bg?.[0]};
+	`
+
+	// Responsive styles
+	const responsiveContainer = css`
+		${responsive.mobile} {
+			padding: 12px;
+		}
+		
+		${responsive.tablet} {
+			padding: 16px;
+		}
+		
+		${responsive.desktop} {
+			padding: 24px;
+		}
+	`
+
+	return {
+		container: css`
+			${baseContainer}
+			${responsiveContainer}
+		`,
+		
+		header: css`
+			margin-bottom: 16px;
+			border-bottom: 1px solid ${token.magicColorUsages?.border};
+		`,
+		
+		content: css`
+			flex: 1;
+			overflow: hidden;
+		`,
+		
+		// Variants
+		variants: {
+			primary: css`
+				border: 2px solid ${token.colorPrimary};
+			`,
+			secondary: css`
+				border: 2px solid ${token.colorBorder};
+			`,
+		},
+	}
+})
+
+// Export style utilities if needed
+export const getVariantStyle = (variant: string) => {
+	// Style utility logic
+}
+```
+
+### 4. Hooks 文件 (hooks/useComponentName.ts)
+
+```typescript
+import { useState, useCallback, useEffect } from "react"
+import { useMemoizedFn } from "ahooks"
+
+// Types
+import type { ComponentNameProps, ComponentState } from "../types"
+
+// Services
+import { dataService } from "../services"
+
+/**
+ * useComponentName - 组件主要逻辑 Hook
+ * 
+ * @param props - 组件属性
+ * @returns 组件状态和处理函数
+ */
+export function useComponentName(props: ComponentNameProps) {
+	// State
+	const [state, setState] = useState<ComponentState>({
+		loading: false,
+		data: [],
+	})
+
+	// Handlers
+	const handleAction = useMemoizedFn(async (actionData) => {
+		setState(prev => ({ ...prev, loading: true }))
+		
+		try {
+			const result = await dataService.performAction(actionData)
+			setState(prev => ({ 
+				...prev, 
+				data: result,
+				loading: false 
+			}))
+			
+			props.onAction?.(actionData)
+		} catch (error) {
+			setState(prev => ({ 
+				...prev, 
+				error: error.message,
+				loading: false 
+			}))
+		}
+	})
+
+	// Effects
+	useEffect(() => {
+		// Component initialization logic
+	}, [])
+
+	return {
+		state,
+		handlers: {
+			handleAction,
+		},
+	}
+}
+```
+
+## 组件开发规范
+
+### 1. 文件命名
+- 组件目录：使用 PascalCase（如 `ShareIncentives`）
+- 文件名：使用 camelCase（如 `useShareIncentives.ts`）
+- 组件名：使用 PascalCase（如 `ShareIncentives`）
+
+### 2. 国际化支持
+所有业务组件必须支持国际化：
+
+```tsx
+import { useTranslation } from "react-i18next"
+
+function Component() {
+  const { t } = useTranslation("component")
+  
+  return (
+    <div>{t("componentName.title")}</div>
+  )
+}
+```
+
+国际化文件位置：
+- 中文：`src/opensource/assets/locales/zh_CN/component.json`
+- 英文：`src/opensource/assets/locales/en_US/component.json`
+
+### 3. 样式规范
+使用 antd-style 进行样式管理：
+
+```tsx
+import { createStyles } from "antd-style"
+
+export const useStyles = createStyles(({ token, css, responsive }) => {
+  return {
+    container: css`
+      background: ${token.colorBgContainer};
+      
+      ${responsive.mobile} {
+        padding: 12px;
+      }
+    `,
+  }
+})
+```
+
+### 4. 性能优化
+- 使用 `memo` 包装组件
+- 使用 `useMemoizedFn` 优化事件处理
+- 避免内联样式，使用 CSS-in-JS
+
+### 5. TypeScript 规范
+- 所有 props 必须有类型定义
+- 使用 interface 而不是 type
+- 导出所有必要的类型
+
+### 6. 组件导出
+```tsx
+import { memo } from "react"
+
+function Component(props: ComponentProps) {
+  // 组件实现
+}
+
+export default memo(Component)
+```
+
+## 分离原则详解
+
+### 1. **样式分离**
+- 所有样式逻辑放在 `styles.ts` 或 `styles/` 文件夹
+- 使用 `antd-style` 的 `createStyles` API
+- 支持主题变量和响应式设计
+- 样式变体通过配置对象管理
+
+### 2. **状态管理分离**
+- 组件状态逻辑放在自定义 Hooks 中
+- 复杂状态使用 `useReducer` 或 MobX Store
+- 副作用逻辑独立到专门的 Hooks
+- 状态更新逻辑与 UI 渲染分离
+
+### 3. **业务逻辑分离**
+- API 调用放在 `services/` 文件夹
+- 数据处理逻辑独立到工具函数
+- 验证逻辑放在专门的验证函数中
+- 业务规则与 UI 组件解耦
+
+### 4. **类型定义分离**
+- 所有 TypeScript 类型放在 `types.ts`
+- 接口定义要完整和准确
+- 使用泛型提高类型复用性
+- 导出类型供其他模块使用
+
+## 开发流程
+
+### 1. 创建组件结构
+```bash
+mkdir src/components/ComponentName
+touch src/components/ComponentName/{index.tsx,types.ts,styles.ts}
+mkdir src/components/ComponentName/{hooks,components}
+```
+
+### 2. 实现组件
+1. 定义 TypeScript 类型
+2. 创建样式文件
+3. 实现组件逻辑 Hook
+4. 实现主组件
+5. 添加国际化支持
+
+### 3. 测试组件
+- 确保组件渲染正常
+- 测试所有交互功能
+- 验证响应式设计
+- 检查国际化文本
+
+### 4. 文档和示例（仅基础组件）
+- 编写 README 文档
+- 创建使用示例
+- 添加 props 说明
+
+## 最佳实践
+
+### 1. **命名规范**
+- 组件文件使用 PascalCase
+- Hook 文件使用 camelCase，以 `use` 开头
+- 样式文件使用 camelCase
+- 类型定义使用 PascalCase
+
+### 2. **导入顺序**
+```typescript
+// 1. React 相关
+import { memo, useState } from "react"
+
+// 2. 第三方库
+import { observer } from "mobx-react-lite"
+import { Button } from "antd"
+
+// 3. 内部类型
+import type { ComponentProps } from "./types"
+
+// 4. 内部模块
+import { useStyles } from "./styles"
+import { useComponentLogic } from "./hooks"
+
+// 5. 子组件
+import SubComponent from "./components/SubComponent"
+```
+
+### 3. **文件大小控制**
+- 单个文件不超过 300 行
+- 复杂逻辑拆分到多个文件
+- 使用 barrel exports 简化导入
+
+### 4. **测试分离**
+- 组件测试：测试 UI 渲染和交互
+- Hook 测试：测试状态逻辑和副作用
+- 工具函数测试：测试纯函数逻辑
+- 集成测试：测试组件间协作
+
+## 检查清单
+
+在创建组件时，确保：
+
+- [ ] 主组件文件只包含 JSX 和基本组合逻辑
+- [ ] 样式逻辑完全分离到 styles 文件
+- [ ] 状态管理逻辑分离到自定义 Hooks
+- [ ] 业务逻辑分离到 services 文件
+- [ ] 类型定义完整且分离到 types 文件
+- [ ] 工具函数是纯函数且可测试
+- [ ] 文件结构清晰且易于导航
+- [ ] 每个文件职责单一且明确
+- [ ] 导入导出规范且有序
+- [ ] 包含必要的文档和示例
+
+## 注意事项
+
+1. **不要为业务组件创建 examples/ 和 README.md**
+2. **所有文本必须使用国际化**
+3. **遵循代码分离原则**
+4. **使用 TypeScript 严格模式**
+5. **保持组件的单一职责**
+6. **优先使用 Hooks 而不是 Class 组件**
+
+## 违规示例
+
+❌ **不好的做法**：
+```tsx
+// 所有逻辑混在一个文件中
+const BadComponent = () => {
+	const [data, setData] = useState([])
+	const [loading, setLoading] = useState(false)
+	
+	// 样式直接写在组件中
+	const styles = {
+		container: {
+			padding: '16px',
+			backgroundColor: '#fff'
+		}
+	}
+	
+	// 业务逻辑混在组件中
+	const fetchData = async () => {
+		setLoading(true)
+		try {
+			const response = await fetch('/api/data')
+			const result = await response.json()
+			setData(result.map(item => ({
+				...item,
+				formatted: formatDate(item.date)
+			})))
+		} catch (error) {
+			console.error(error)
+		} finally {
+			setLoading(false)
+		}
+	}
+	
+	// 工具函数混在组件中
+	const formatDate = (date) => {
+		return new Date(date).toLocaleDateString()
+	}
+	
+	return (
+		<div style={styles.container}>
+			{/* JSX 内容 */}
+		</div>
+	)
+}
+```
+
+✅ **好的做法**：
+```tsx
+// 主组件文件 - 只负责组合和渲染
+const GoodComponent = memo<GoodComponentProps>((props) => {
+	const { styles } = useStyles()
+	const { state, handlers } = useGoodComponent(props)
+	
+	return (
+		<div className={styles.container}>
+			<ComponentHeader {...state.header} />
+			<ComponentContent {...state.content} {...handlers} />
+		</div>
+	)
+})
+```
+
+遵循这些规范，可以确保组件代码的高质量、可维护性和可扩展性。

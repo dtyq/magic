@@ -1,0 +1,249 @@
+# Figma to Code Conversion Rules
+
+## 设计稿转代码流程
+
+### 1. 分析设计稿
+在开始编码前，仔细分析 Figma 设计稿：
+
+- **布局结构**：识别主要的布局区域和组件层次
+- **交互元素**：确定按钮、输入框、弹窗等交互组件
+- **视觉效果**：注意渐变、阴影、圆角、动画等视觉细节
+- **响应式需求**：考虑不同屏幕尺寸的适配
+- **状态变化**：识别 hover、active、disabled 等状态
+
+### 2. 组件拆分策略
+
+#### 主组件分解
+```
+MainComponent/
+├── index.tsx              # 主容器组件
+├── components/
+│   ├── Header.tsx        # 头部区域
+│   ├── Content.tsx       # 内容区域
+│   ├── Footer.tsx        # 底部区域
+│   └── ActionButton.tsx  # 交互按钮
+└── styles.ts             # 样式定义
+```
+
+#### 可复用组件提取
+- **图标组件**：如积分图标、装饰图标
+- **卡片组件**：如统计卡片、规则卡片
+- **按钮组件**：如主要按钮、次要按钮
+
+### 3. 样式实现规范
+
+#### 颜色系统
+从设计稿中提取颜色值，定义为常量：
+
+```tsx
+const gradientPrimary = "linear-gradient(165.822deg, rgb(63, 143, 255) 5.5906%, rgb(239, 47, 223) 95.082%)"
+const gradientText = "linear-gradient(55.1424deg, rgb(66, 47, 47) 42.794%, rgb(0, 68, 255) 69.36%, rgb(161, 29, 221) 101.18%)"
+```
+
+#### 字体规范
+```tsx
+const fontPrimary = '"PingFang SC", sans-serif'
+const fontNumber = '"D-DIN-PRO", sans-serif'
+```
+
+#### 尺寸规范
+```tsx
+const containerWidth = 700
+const headerHeight = 240
+const borderRadius = 20
+```
+
+### 4. 布局实现
+
+#### Flexbox 布局
+优先使用 Flexbox 进行布局：
+
+```tsx
+container: css`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+`,
+```
+
+#### 绝对定位
+对于装饰元素使用绝对定位：
+
+```tsx
+decorative: css`
+  position: absolute;
+  top: 50px;
+  right: 20px;
+  pointer-events: none;
+`,
+```
+
+### 5. 交互实现
+
+#### 按钮交互
+```tsx
+button: css`
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(63, 143, 255, 0.3);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`,
+```
+
+#### 状态管理
+```tsx
+const [state, setState] = useState({
+  loading: false,
+  copied: false,
+  submitting: false,
+})
+```
+
+### 6. 响应式设计
+
+#### 移动端适配
+```tsx
+${responsive.mobile} {
+  container: css`
+    width: 100vw;
+    max-width: 400px;
+  `,
+  
+  title: css`
+    font-size: 28px;
+  `,
+}
+```
+
+#### 断点定义
+- **mobile**: max-width: 768px
+- **tablet**: max-width: 1024px
+- **desktop**: min-width: 1025px
+
+### 7. 动画和过渡
+
+#### CSS 过渡
+```tsx
+transition: css`
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+`,
+```
+
+#### 加载状态
+```tsx
+loading: css`
+  opacity: 0.6;
+  pointer-events: none;
+  
+  &::after {
+    content: '';
+    animation: spin 1s linear infinite;
+  }
+`,
+```
+
+### 8. 图片和图标处理
+
+#### SVG 图标
+优先使用 SVG 图标，支持自定义颜色和尺寸：
+
+```tsx
+<svg width={size} height={size} viewBox="0 0 24 24">
+  <path d="..." fill={color} />
+</svg>
+```
+
+#### 图片优化
+- 使用 WebP 格式
+- 提供多种尺寸
+- 实现懒加载
+
+### 9. 可访问性
+
+#### 语义化标签
+```tsx
+<button type="button" aria-label="关闭弹窗">
+  <IconX />
+</button>
+```
+
+#### 键盘导航
+```tsx
+onKeyDown={(e) => {
+  if (e.key === 'Escape') {
+    handleClose()
+  }
+}}
+```
+
+### 10. 性能优化
+
+#### 组件懒加载
+```tsx
+const LazyComponent = lazy(() => import('./Component'))
+```
+
+#### 图片懒加载
+```tsx
+<img 
+  src={imageSrc} 
+  loading="lazy" 
+  alt="描述文本"
+/>
+```
+
+#### 样式优化
+- 避免深层嵌套选择器
+- 使用 CSS-in-JS 的缓存机制
+- 减少重复的样式计算
+
+### 11. 测试和验证
+
+#### 设计稿对比
+- 使用浏览器开发工具对比像素级差异
+- 检查颜色、字体、间距是否准确
+- 验证交互效果是否符合设计
+
+#### 跨浏览器测试
+- Chrome、Firefox、Safari、Edge
+- 移动端浏览器测试
+- 不同屏幕尺寸测试
+
+### 12. 代码质量
+
+#### 代码审查清单
+- [ ] 组件结构清晰，职责单一
+- [ ] 样式分离，使用 CSS-in-JS
+- [ ] 支持国际化
+- [ ] 响应式设计完整
+- [ ] 交互效果流畅
+- [ ] 性能优化到位
+- [ ] 可访问性支持
+- [ ] 代码注释充分
+
+#### 命名规范
+- 组件名：PascalCase
+- 样式类名：camelCase
+- 文件名：camelCase
+- 常量：UPPER_SNAKE_CASE
+
+### 13. 最佳实践
+
+1. **渐进式开发**：先实现基础布局，再添加交互和动画
+2. **组件复用**：提取可复用的组件和样式
+3. **性能监控**：使用 React DevTools 监控性能
+4. **用户体验**：注重加载状态、错误处理、反馈机制
+5. **维护性**：保持代码简洁，添加必要注释 

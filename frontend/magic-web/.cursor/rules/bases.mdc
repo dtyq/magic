@@ -1,0 +1,67 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+You are an expert in TypeScript, Node.js, React, Vite, MobX, Ant Design, antd-style, and Vitest.
+﻿
+Key Principles:
+﻿
+- Write concise, technical responses with accurate TypeScript examples.
+- Use functional, declarative programming. Avoid classes.
+- Prefer iteration and modularization over duplication.
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading).
+- Use lowercase with dashes for directories (e.g., components/auth-wizard).
+- Favor named exports for components.
+- Use the Receive an Object, Return an Object (RORO) pattern.
+
+JavaScript/TypeScript:
+
+- Use "function" keyword for pure functions. Omit semicolons.
+- Use TypeScript for all code. Prefer interfaces over types. Avoid enums, use maps.
+- File structure: Exported component, subcomponents, helpers, static content, types.
+- Avoid unnecessary curly braces in conditional statements.
+- For single-line statements in conditionals, omit curly braces.
+- Use concise, one-line syntax for simple conditional statements (e.g., if (condition) doSomething()).
+- Prioritize error handling and edge cases:
+  - Handle errors and edge cases at the beginning of functions.
+  - Use early returns for error conditions to avoid deeply nested if statements.
+  - Place the happy path last in the function for improved readability.
+  - Avoid unnecessary else statements; use if-return pattern instead.
+  - Use guard clauses to handle preconditions and invalid states early.
+  - Implement proper error logging and user-friendly error messages.
+  - Consider using custom error types or error factories for consistent error handling.
+
+React:
+
+- Use functional components and TypeScript interfaces.
+- Use declarative JSX.
+- Use function, not const, for components.
+- **UI Components**:
+  - **New components**: Use shadcn/ui components from `@/opensource/components/shadcn-ui`
+  - **Existing components**: Use Ant Design components (maintenance only)
+- **Styling**:
+  - **New components**: Use Tailwind CSS utility classes
+  - **Existing components**: Use antd-style with createStyles API (maintenance only)
+  - Never mix Tailwind and antd-style in the same component
+- Implement responsive design:
+  - New components: Use Tailwind responsive utilities (sm, md, lg, xl, 2xl)
+  - Existing components: Use antd-style responsive utilities
+- Use mobile-first approach for responsive design.
+- Place static content and interfaces at file end.
+- Use content variables for static content outside render functions.
+- Minimize 'useEffect' usage. Prefer derived state and event handlers.
+- Use Ant Design Form for form validation and management.
+- Wrap components in React.memo for performance optimization.
+- Use dynamic loading for non-critical components.
+- Optimize images: WebP format, size data, lazy loading.
+- Model expected errors as return values in async operations.
+- Use error boundaries for unexpected errors.
+
+Key Conventions:
+
+1. Prioritize Web Vitals (LCP, CLS, FID).
+2. Use MobX for complex state management.
+3. Use ahooks for common React patterns and utilities.
+4. Prefer antd-style over inline styles or CSS modules.
+5. Use Ant Design design tokens for consistent theming.

@@ -1,0 +1,970 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+@rule 移动端响应式设计规范
+@description 移动端适配和响应式设计的完整指南和最佳实践
+@priority high
+@category mobile
+
+# 移动端响应式设计规范
+
+## 设计原则
+
+1. **移动优先**: 从移动端开始设计，逐步增强到桌面端
+2. **触摸友好**: 考虑触摸交互的特殊需求
+3. **性能优先**: 移动端设备性能和网络限制
+4. **内容优先**: 确保核心内容在小屏幕上可访问
+5. **渐进增强**: 基础功能优先，高级功能作为增强
+
+## 响应式断点标准
+
+### 1. 断点定义
+
+```typescript
+// styles/breakpoints.ts
+export const breakpoints = {
+  xs: 0,      // 超小屏幕 (手机竖屏)
+  sm: 576,    // 小屏幕 (手机横屏)
+  md: 768,    // 中等屏幕 (平板竖屏)
+  lg: 992,    // 大屏幕 (平板横屏/小桌面)
+  xl: 1200,   // 超大屏幕 (桌面)
+  xxl: 1600,  // 超超大屏幕 (大桌面)
+} as const
+
+export type Breakpoint = keyof typeof breakpoints
+
+// 媒体查询工具
+export const mediaQuery = {
+  up: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp]}px)`,
+  down: (bp: Breakpoint) => `@media (max-width: ${breakpoints[bp] - 1}px)`,
+  between: (min: Breakpoint, max: Breakpoint) => 
+    `@media (min-width: ${breakpoints[min]}px) and (max-width: ${breakpoints[max] - 1}px)`,
+  only: (bp: Breakpoint) => {
+    const keys = Object.keys(breakpoints) as Breakpoint[]
+    const index = keys.indexOf(bp)
+    const next = keys[index + 1]
+    return next 
+      ? `@media (min-width: ${breakpoints[bp]}px) and (max-width: ${breakpoints[next] - 1}px)`
+      : `@media (min-width: ${breakpoints[bp]}px)`
+  }
+}
+```
+
+### 2. antd-style 响应式工具
+
+```typescript
+// hooks/useResponsive.ts
+import { useResponsive as useAntdResponsive } from 'antd-style'
+
+export const useResponsive = () => {
+  const responsive = useAntdResponsive()
+  
+  return {
+    ...responsive,
+    // 自定义响应式状态
+    isMobile: responsive.xs || responsive.sm,
+    isTablet: responsive.md || responsive.lg,
+    isDesktop: responsive.xl || responsive.xxl,
+    
+    // 屏幕尺寸判断
+    isSmallScreen: responsive.xs,
+    isMediumScreen: responsive.md,
+    isLargeScreen: responsive.xl,
+  }
+}
+
+// 使用示例
+const ResponsiveComponent = () => {
+  const { isMobile, isTablet, isDesktop } = useResponsive()
+  
+  return (
+    <div>
+      {isMobile && <MobileLayout />}
+      {isTablet && <TabletLayout />}
+      {isDesktop && <DesktopLayout />}
+    </div>
+  )
+}
+```
+
+## 移动端交互规范
+
+### 1. 触摸目标尺寸
+
+```typescript
+// styles/touch-targets.ts
+export const touchTargets = {
+  // 最小触摸目标尺寸 (44px x 44px)
+  minSize: 44,
+  
+  // 推荐触摸目标尺寸
+  recommended: {
+    button: 48,
+    icon: 44,
+    listItem: 56,
+    fab: 56,
+  },
+  
+  // 触摸目标间距
+  spacing: {
+    minimum: 8,   // 最小间距
+    comfortable: 16, // 舒适间距
+  }
+} as const
+
+// 触摸友好的样式 mixin
+export const createTouchFriendlyStyles = () => ({
+  minHeight: touchTargets.minSize,
+  minWidth: touchTargets.minSize,
+  padding: '12px 16px',
+  margin: touchTargets.spacing.minimum,
+  cursor: 'pointer',
+  userSelect: 'none',
+  WebkitTapHighlightColor: 'transparent',
+  
+  // 触摸反馈
+  '&:active': {
+    transform: 'scale(0.98)',
+    transition: 'transform 0.1s ease',
+  },
+})
+```
+
+### 2. 手势支持
+
+```typescript
+// hooks/useGestures.ts
+import { useSpring, useGesture } from '@use-gesture/react'
+
+interface UseSwipeOptions {
+  onSwipeLeft?: () => void
+  onSwipeRight?: () => void
+  onSwipeUp?: () => void
+  onSwipeDown?: () => void
+  threshold?: number
+}
+
+export const useSwipe = (options: UseSwipeOptions) => {
+  const {
+    onSwipeLeft,
+    onSwipeRight,
+    onSwipeUp,
+    onSwipeDown,
+    threshold = 50,
+  } = options
+
+  const bind = useGesture({
+    onDrag: ({ movement: [mx, my], last, cancel }) => {
+      if (last) {
+        const absX = Math.abs(mx)
+        const absY = Math.abs(my)
+        
+        if (Math.max(absX, absY) > threshold) {
+          if (absX > absY) {
+            // 水平滑动
+            if (mx > 0) {
+              onSwipeRight?.()
+            } else {
+              onSwipeLeft?.()
+            }
+          } else {
+            // 垂直滑动
+            if (my > 0) {
+              onSwipeDown?.()
+            } else {
+              onSwipeUp?.()
+            }
+          }
+        }
+      }
+    },
+  })
+
+  return bind
+}
+
+// 长按手势
+export const useLongPress = (callback: () => void, delay = 500) => {
+  const bind = useGesture({
+    onPointerDown: ({ event }) => {
+      const timer = setTimeout(() => {
+        callback()
+      }, delay)
+      
+      const cleanup = () => {
+        clearTimeout(timer)
+        document.removeEventListener('pointerup', cleanup)
+        document.removeEventListener('pointercancel', cleanup)
+      }
+      
+      document.addEventListener('pointerup', cleanup)
+      document.addEventListener('pointercancel', cleanup)
+    },
+  })
+
+  return bind
+}
+```
+
+### 3. 虚拟键盘适配
+
+```typescript
+// hooks/useVirtualKeyboard.ts
+import { useState, useEffect } from 'react'
+
+export const useVirtualKeyboard = () => {
+  const [isVisible, setIsVisible] = useState(false)
+  const [height, setHeight] = useState(0)
+
+  useEffect(() => {
+    // 检测虚拟键盘
+    const detectKeyboard = () => {
+      if ('visualViewport' in window) {
+        const handleViewportChange = () => {
+          const viewport = window.visualViewport!
+          const keyboardHeight = window.innerHeight - viewport.height
+          
+          setIsVisible(keyboardHeight > 150) // 阈值150px
+          setHeight(keyboardHeight)
+        }
+
+        window.visualViewport!.addEventListener('resize', handleViewportChange)
+        return () => {
+          window.visualViewport!.removeEventListener('resize', handleViewportChange)
+        }
+      } else {
+        // 降级方案：监听窗口尺寸变化
+        let initialHeight = window.innerHeight
+        
+        const handleResize = () => {
+          const currentHeight = window.innerHeight
+          const heightDiff = initialHeight - currentHeight
+          
+          setIsVisible(heightDiff > 150)
+          setHeight(heightDiff)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => {
+          window.removeEventListener('resize', handleResize)
+        }
+      }
+    }
+
+    return detectKeyboard()
+  }, [])
+
+  return { isVisible, height }
+}
+
+// 自动调整布局的组件
+const KeyboardAdaptiveLayout = ({ children }: { children: React.ReactNode }) => {
+  const { isVisible, height } = useVirtualKeyboard()
+  
+  return (
+    <div
+      style={{
+        paddingBottom: isVisible ? height : 0,
+        transition: 'padding-bottom 0.3s ease',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+```
+
+## 移动端组件优化
+
+### 1. 移动端导航
+
+```typescript
+// components/MobileNavigation.tsx
+import { useState } from 'react'
+import { Drawer, Button, Space } from 'antd'
+import { MenuOutlined } from '@ant-design/icons'
+import { createStyles } from 'antd-style'
+
+const useStyles = createStyles(({ token, css }) => ({
+  mobileNav: css`
+    display: none;
+    
+    ${token.screenMD} {
+      display: block;
+    }
+  `,
+  
+  hamburger: css`
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    
+    &:hover {
+      background: ${token.colorBgTextHover};
+    }
+  `,
+  
+  drawerContent: css`
+    .ant-drawer-body {
+      padding: 0;
+    }
+  `,
+  
+  navItem: css`
+    display: block;
+    width: 100%;
+    padding: 16px 24px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 16px;
+    min-height: 56px;
+    
+    &:hover {
+      background: ${token.colorBgTextHover};
+    }
+    
+    &:active {
+      background: ${token.colorBgTextActive};
+    }
+  `,
+}))
+
+interface MobileNavigationProps {
+  items: Array<{
+    key: string
+    label: string
+    onClick: () => void
+  }>
+}
+
+const MobileNavigation = ({ items }: MobileNavigationProps) => {
+  const [visible, setVisible] = useState(false)
+  const { styles } = useStyles()
+
+  return (
+    <div className={styles.mobileNav}>
+      <Button
+        className={styles.hamburger}
+        icon={<MenuOutlined />}
+        onClick={() => setVisible(true)}
+        aria-label="打开菜单"
+      />
+      
+      <Drawer
+        title="菜单"
+        placement="left"
+        onClose={() => setVisible(false)}
+        open={visible}
+        className={styles.drawerContent}
+        width={280}
+      >
+        <nav>
+          {items.map((item) => (
+            <button
+              key={item.key}
+              className={styles.navItem}
+              onClick={() => {
+                item.onClick()
+                setVisible(false)
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </Drawer>
+    </div>
+  )
+}
+```
+
+### 2. 移动端表格
+
+```typescript
+// components/MobileTable.tsx
+import { Card, Collapse, Space, Tag } from 'antd'
+import { createStyles } from 'antd-style'
+import { useResponsive } from '@/hooks/useResponsive'
+
+const useStyles = createStyles(({ token, css }) => ({
+  mobileTable: css`
+    .ant-card {
+      margin-bottom: 8px;
+    }
+  `,
+  
+  cardHeader: css`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+  `,
+  
+  cardContent: css`
+    margin-top: 12px;
+  `,
+  
+  fieldRow: css`
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  `,
+  
+  fieldLabel: css`
+    color: ${token.colorTextSecondary};
+    font-size: 14px;
+  `,
+  
+  fieldValue: css`
+    font-weight: 500;
+  `,
+}))
+
+interface MobileTableProps<T> {
+  data: T[]
+  renderCard: (item: T, index: number) => {
+    title: React.ReactNode
+    content: Array<{
+      label: string
+      value: React.ReactNode
+    }>
+    actions?: React.ReactNode
+  }
+}
+
+function MobileTable<T>({ data, renderCard }: MobileTableProps<T>) {
+  const { styles } = useStyles()
+  const { isMobile } = useResponsive()
+
+  if (!isMobile) {
+    return null // 非移动端不渲染
+  }
+
+  return (
+    <div className={styles.mobileTable}>
+      {data.map((item, index) => {
+        const { title, content, actions } = renderCard(item, index)
+        
+        return (
+          <Card key={index} size="small">
+            <div className={styles.cardHeader}>
+              <span>{title}</span>
+              {actions && <Space>{actions}</Space>}
+            </div>
+            
+            <div className={styles.cardContent}>
+              {content.map((field, fieldIndex) => (
+                <div key={fieldIndex} className={styles.fieldRow}>
+                  <span className={styles.fieldLabel}>{field.label}:</span>
+                  <span className={styles.fieldValue}>{field.value}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+```
+
+### 3. 移动端表单
+
+```typescript
+// components/MobileForm.tsx
+import { Form, Input, Button, Space } from 'antd'
+import { createStyles } from 'antd-style'
+
+const useStyles = createStyles(({ token, css }) => ({
+  mobileForm: css`
+    .ant-form-item {
+      margin-bottom: 24px;
+    }
+    
+    .ant-form-item-label {
+      padding-bottom: 8px;
+      
+      label {
+        font-size: 16px;
+        font-weight: 500;
+      }
+    }
+    
+    .ant-input,
+    .ant-input-password,
+    .ant-select-selector,
+    .ant-picker {
+      height: 48px;
+      font-size: 16px; // 防止iOS缩放
+      border-radius: 8px;
+    }
+    
+    .ant-btn {
+      height: 48px;
+      font-size: 16px;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    
+    .ant-btn-primary {
+      width: 100%;
+    }
+  `,
+  
+  formActions: css`
+    position: sticky;
+    bottom: 0;
+    background: ${token.colorBgContainer};
+    padding: 16px 0;
+    border-top: 1px solid ${token.colorBorder};
+    margin-top: 24px;
+  `,
+}))
+
+interface MobileFormProps {
+  children: React.ReactNode
+  onSubmit: (values: any) => void
+  loading?: boolean
+  submitText?: string
+}
+
+const MobileForm = ({ 
+  children, 
+  onSubmit, 
+  loading, 
+  submitText = '提交' 
+}: MobileFormProps) => {
+  const { styles } = useStyles()
+  const [form] = Form.useForm()
+
+  return (
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={onSubmit}
+      className={styles.mobileForm}
+      scrollToFirstError
+    >
+      {children}
+      
+      <div className={styles.formActions}>
+        <Button
+          type="primary"
+          htmlType="submit"
+          loading={loading}
+          block
+        >
+          {submitText}
+        </Button>
+      </div>
+    </Form>
+  )
+}
+```
+
+## 性能优化
+
+### 1. 移动端图片优化
+
+```typescript
+// components/OptimizedImage.tsx
+import { useState, useRef, useEffect } from 'react'
+import { createStyles } from 'antd-style'
+
+const useStyles = createStyles(({ css }) => ({
+  imageContainer: css`
+    position: relative;
+    overflow: hidden;
+  `,
+  
+  image: css`
+    width: 100%;
+    height: auto;
+    transition: opacity 0.3s ease;
+  `,
+  
+  placeholder: css`
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  `,
+}))
+
+interface OptimizedImageProps {
+  src: string
+  alt: string
+  width?: number
+  height?: number
+  quality?: number
+  className?: string
+}
+
+const OptimizedImage = ({ 
+  src, 
+  alt, 
+  width, 
+  height, 
+  quality = 80,
+  className 
+}: OptimizedImageProps) => {
+  const [loaded, setLoaded] = useState(false)
+  const [inView, setInView] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const { styles } = useStyles()
+
+  // 懒加载
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [])
+
+  // 生成响应式图片URL
+  const generateSrcSet = (baseSrc: string) => {
+    const sizes = [320, 640, 1024, 1280]
+    return sizes
+      .map(size => `${baseSrc}?w=${size}&q=${quality} ${size}w`)
+      .join(', ')
+  }
+
+  return (
+    <div className={`${styles.imageContainer} ${className}`} ref={imgRef}>
+      {!loaded && <div className={styles.placeholder} />}
+      
+      {inView && (
+        <img
+          src={`${src}?w=${width}&h=${height}&q=${quality}`}
+          srcSet={generateSrcSet(src)}
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
+          alt={alt}
+          className={styles.image}
+          onLoad={() => setLoaded(true)}
+          style={{ opacity: loaded ? 1 : 0 }}
+          loading="lazy"
+        />
+      )}
+    </div>
+  )
+}
+```
+
+### 2. 移动端滚动优化
+
+```typescript
+// hooks/useVirtualScroll.ts
+import { useState, useEffect, useMemo } from 'react'
+
+interface UseVirtualScrollOptions {
+  itemHeight: number
+  containerHeight: number
+  items: any[]
+  overscan?: number
+}
+
+export const useVirtualScroll = ({
+  itemHeight,
+  containerHeight,
+  items,
+  overscan = 5,
+}: UseVirtualScrollOptions) => {
+  const [scrollTop, setScrollTop] = useState(0)
+
+  const visibleRange = useMemo(() => {
+    const start = Math.floor(scrollTop / itemHeight)
+    const end = Math.min(
+      start + Math.ceil(containerHeight / itemHeight),
+      items.length
+    )
+
+    return {
+      start: Math.max(0, start - overscan),
+      end: Math.min(items.length, end + overscan),
+    }
+  }, [scrollTop, itemHeight, containerHeight, items.length, overscan])
+
+  const visibleItems = useMemo(() => {
+    return items.slice(visibleRange.start, visibleRange.end).map((item, index) => ({
+      ...item,
+      index: visibleRange.start + index,
+    }))
+  }, [items, visibleRange])
+
+  const totalHeight = items.length * itemHeight
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop)
+  }
+
+  return {
+    visibleItems,
+    totalHeight,
+    visibleRange,
+    handleScroll,
+  }
+}
+```
+
+## PWA 支持
+
+### 1. Service Worker 配置
+
+```typescript
+// public/sw.js
+const CACHE_NAME = 'magic-web-v1'
+const urlsToCache = [
+  '/',
+  '/static/css/main.css',
+  '/static/js/main.js',
+  '/manifest.json',
+]
+
+// 安装事件
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(urlsToCache))
+  )
+})
+
+// 获取事件
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request)
+      .then((response) => {
+        // 缓存命中，返回缓存资源
+        if (response) {
+          return response
+        }
+        
+        // 网络请求
+        return fetch(event.request)
+      })
+  )
+})
+```
+
+### 2. App Manifest
+
+```json
+// public/manifest.json
+{
+  "name": "Magic Web App",
+  "short_name": "Magic",
+  "description": "AI-powered collaboration platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1890ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "description": "Start a new conversation",
+      "url": "/chat/new",
+      "icons": [
+        {
+          "src": "/icons/chat-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 测试和调试
+
+### 1. 移动端测试工具
+
+```typescript
+// utils/mobile-debug.ts
+class MobileDebugger {
+  private static logContainer: HTMLElement | null = null
+
+  // 移动端控制台
+  static createMobileConsole() {
+    if (this.logContainer) return
+
+    this.logContainer = document.createElement('div')
+    this.logContainer.style.cssText = `
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 200px;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      font-size: 12px;
+      padding: 10px;
+      overflow-y: auto;
+      z-index: 9999;
+      font-family: monospace;
+      display: none;
+    `
+    
+    document.body.appendChild(this.logContainer)
+
+    // 三指点击显示/隐藏
+    let touchCount = 0
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 3) {
+        touchCount++
+        if (touchCount === 2) {
+          this.toggle()
+          touchCount = 0
+        }
+        setTimeout(() => { touchCount = 0 }, 1000)
+      }
+    })
+
+    // 重写 console 方法
+    const originalLog = console.log
+    const originalError = console.error
+    const originalWarn = console.warn
+
+    console.log = (...args) => {
+      originalLog.apply(console, args)
+      this.addLog('LOG', args.join(' '))
+    }
+
+    console.error = (...args) => {
+      originalError.apply(console, args)
+      this.addLog('ERROR', args.join(' '), '#ff4444')
+    }
+
+    console.warn = (...args) => {
+      originalWarn.apply(console, args)
+      this.addLog('WARN', args.join(' '), '#ffaa00')
+    }
+  }
+
+  private static addLog(type: string, message: string, color = '#ffffff') {
+    if (!this.logContainer) return
+
+    const logEntry = document.createElement('div')
+    logEntry.style.cssText = `
+      margin-bottom: 5px;
+      padding: 2px 0;
+      border-bottom: 1px solid #333;
+      color: ${color};
+    `
+    logEntry.innerHTML = `<strong>[${type}]</strong> ${message}`
+    
+    this.logContainer.appendChild(logEntry)
+    this.logContainer.scrollTop = this.logContainer.scrollHeight
+  }
+
+  private static toggle() {
+    if (!this.logContainer) return
+    
+    const isVisible = this.logContainer.style.display !== 'none'
+    this.logContainer.style.display = isVisible ? 'none' : 'block'
+  }
+
+  // 设备信息收集
+  static getDeviceInfo() {
+    return {
+      userAgent: navigator.userAgent,
+      screenSize: `${screen.width}x${screen.height}`,
+      viewportSize: `${window.innerWidth}x${window.innerHeight}`,
+      devicePixelRatio: window.devicePixelRatio,
+      touchSupport: 'ontouchstart' in window,
+      orientation: screen.orientation?.type || 'unknown',
+      connection: (navigator as any).connection?.effectiveType || 'unknown',
+    }
+  }
+}
+
+// 开发环境自动启用
+if (process.env.NODE_ENV === 'development') {
+  MobileDebugger.createMobileConsole()
+}
+```
+
+## 最佳实践检查清单
+
+### 📱 移动端基础
+- [ ] 实现移动优先的响应式设计
+- [ ] 设置合适的视口元标签
+- [ ] 使用触摸友好的交互元素
+- [ ] 优化触摸目标尺寸 (最小44px)
+- [ ] 实现手势支持
+
+### 🎨 界面适配
+- [ ] 定义清晰的断点系统
+- [ ] 实现移动端导航模式
+- [ ] 优化表单在移动端的体验
+- [ ] 适配虚拟键盘
+- [ ] 处理屏幕方向变化
+
+### ⚡ 性能优化
+- [ ] 实现图片懒加载和优化
+- [ ] 使用虚拟滚动处理长列表
+- [ ] 减少移动端网络请求
+- [ ] 优化首屏加载时间
+- [ ] 实现离线功能支持
+
+### 🔧 PWA 功能
+- [ ] 配置 Service Worker
+- [ ] 添加 Web App Manifest
+- [ ] 实现离线缓存策略
+- [ ] 支持添加到主屏幕
+- [ ] 配置推送通知
+
+### 🧪 测试调试
+- [ ] 在真实设备上测试
+- [ ] 使用移动端调试工具
+- [ ] 测试不同网络条件
+- [ ] 验证触摸交互
+- [ ] 检查性能指标
+
+遵循这些移动端响应式设计规范，可以确保应用在各种移动设备上都能提供优秀的用户体验。
+

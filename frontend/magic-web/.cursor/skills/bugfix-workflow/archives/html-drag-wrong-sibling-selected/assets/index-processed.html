@@ -1,0 +1,5213 @@
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" translate="no"><head><meta name="google" content="notranslate" data-injected="true">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="report:sources" content="[{" type":="" "file",="" "name":="" "销售数据图表分析.xlsx",="" "url":="" "..="" 销售数据图表分析.xlsx"}]"="">
+  <title>2025年产品销售数据可视化分析报告</title>
+  <script src="https://cdn.letsmagic.cn/__assets__/packages/tailwindcss/3.4.17/tailwind.min.js" data-original-src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.letsmagic.cn/__assets__/packages/echarts/5.6.0/echarts.min.js" data-original-src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.letsmagic.cn/__assets__/packages/font-awesome/6.7.2/css/all.min.css" data-original-href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.loli.net" data-original-href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://cdn.letsmagic.cn/__assets__/packages/googleapis/fonts/index.css" rel="stylesheet" data-original-href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+  <style>*{font-family:'Noto Sans SC',sans-serif}body{background:linear-gradient(135deg,#f5f7fa 0%,#c3cfe2 100%);min-height:100vh}.card{background:rgba(255,255,255,.85);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.3);box-shadow:0 8px 32px 0 rgba(31,38,135,.15);transition:all .3s ease}.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px 0 rgba(31,38,135,.25)}.metric{position:relative;overflow:hidden}.metric::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(180deg,#ff6b6b,#ee5a6f)}.chart{width:100%;height:400px}@keyframes fadeInUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}.animate{animation:fadeInUp .6s ease-out forwards}.grad-text{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.icon{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px}</style>
+<script data-injected="true">
+
+  // 初始化 window.Magic 方法集
+  if (typeof window.Magic === 'undefined') {
+    window.Magic = {};
+  }
+
+  // 添加 reload 方法，通过 postMessage 通知父窗口重新加载内容
+  window.Magic.reload = function() {
+    window.parent.postMessage({
+      type: "MAGIC_RELOAD_REQUEST",
+      timestamp: Date.now()
+    }, "*");
+  };
+
+  // 添加 setInputMessage 方法，通过 postMessage 通知父窗口设置输入框文本
+  window.Magic.setInputMessage = function(message) {
+    if (typeof message !== 'string') {
+      console.error('window.Magic.setInputMessage: message must be a string');
+      return;
+    }
+    window.parent.postMessage({
+      type: "MAGIC_SET_INPUT_MESSAGE",
+      message: message,
+      timestamp: Date.now()
+    }, "*");
+  };
+
+  // 添加 uploadFiles 方法，通过 postMessage 通知父窗口上传文件
+  window.Magic.uploadFiles = function(files) {
+    return new Promise((resolve, reject) => {
+      // 验证参数格式
+      if (!Array.isArray(files)) {
+        reject(new Error('window.Magic.uploadFiles: files must be an array'));
+        return;
+      }
+
+      if (files.length === 0) {
+        reject(new Error('window.Magic.uploadFiles: files array cannot be empty'));
+        return;
+      }
+
+      // 验证每个元素格式
+      for (let i = 0; i < files.length; i++) {
+        const item = files[i];
+        if (!item || typeof item !== 'object') {
+          reject(new Error(`window.Magic.uploadFiles: files[${i}] must be an object`));
+          return;
+        }
+        if (!(item.file instanceof File)) {
+          reject(new Error(`window.Magic.uploadFiles: files[${i}].file must be a File object`));
+          return;
+        }
+        if (typeof item.path !== 'string') {
+          reject(new Error(`window.Magic.uploadFiles: files[${i}].path must be a string`));
+          return;
+        }
+        if (typeof item.filename !== 'string') {
+          reject(new Error(`window.Magic.uploadFiles: files[${i}].filename must be a string`));
+          return;
+        }
+      }
+
+      // 生成请求ID用于匹配响应
+      const requestId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+      // 转换文件为base64
+      const filePromises = files.map((item) => {
+        return new Promise((resolveFile, rejectFile) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolveFile({
+              base64: reader.result,
+              filename: item.filename,
+              path: item.path,
+              fileSize: item.file.size,
+              fileType: item.file.type
+            });
+          };
+          reader.onerror = () => {
+            rejectFile(new Error('Failed to read file: ' + item.filename));
+          };
+          reader.readAsDataURL(item.file);
+        });
+      });
+
+      // 等待所有文件转换完成
+      Promise.all(filePromises)
+        .then((fileData) => {
+          // 发送上传请求到父窗口
+          window.parent.postMessage({
+            type: "MAGIC_UPLOAD_FILES_REQUEST",
+            requestId: requestId,
+            files: fileData
+          }, "*");
+
+          // 监听响应
+          const messageHandler = (event) => {
+            if (event.data &&
+              event.data.type === "MAGIC_UPLOAD_FILES_RESPONSE" &&
+              event.data.requestId === requestId) {
+              window.removeEventListener('message', messageHandler);
+
+              if (event.data.success) {
+                resolve(event.data.results);
+              } else {
+                reject(new Error(event.data.error || 'Upload failed'));
+              }
+            }
+          };
+
+          window.addEventListener('message', messageHandler);
+        })
+        .catch((error) => {
+          reject(error);
+        });
+    });
+  };
+
+  // 添加 addFilesToMessage 方法，通过 postMessage 通知父窗口将文件添加到消息对话框
+  window.Magic.addFilesToMessage = function(filePaths, agentMode) {
+    return new Promise((resolve, reject) => {
+      // 验证参数格式
+      if (!Array.isArray(filePaths)) {
+        reject(new Error('window.Magic.addFilesToMessage: filePaths must be an array'));
+        return;
+      }
+
+      if (filePaths.length === 0) {
+        reject(new Error('window.Magic.addFilesToMessage: filePaths array cannot be empty'));
+        return;
+      }
+
+      // 验证每个路径都是字符串
+      for (let i = 0; i < filePaths.length; i++) {
+        if (typeof filePaths[i] !== 'string') {
+          reject(new Error(`window.Magic.addFilesToMessage: filePaths[${i}] must be a string`));
+          return;
+        }
+      }
+
+      // 验证 agentMode（如果提供）
+      if (agentMode !== undefined && typeof agentMode !== 'string') {
+        reject(new Error('window.Magic.addFilesToMessage: agentMode must be a string'));
+        return;
+      }
+
+      // 生成请求ID用于匹配响应
+      const requestId = 'add_files_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+      // 发送请求到父窗口
+      window.parent.postMessage({
+        type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+        requestId: requestId,
+        filePaths: filePaths,
+        agentMode: agentMode
+      }, "*");
+
+      // 监听响应
+      const messageHandler = (event) => {
+        if (event.data &&
+          event.data.type === "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE" &&
+          event.data.requestId === requestId) {
+          window.removeEventListener('message', messageHandler);
+
+          if (event.data.success) {
+            resolve(event.data.result);
+          } else {
+            reject(new Error(event.data.error || 'Add files to message failed'));
+          }
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+    });
+  };
+
+  // 添加 downloadFiles 方法，通过 postMessage 通知父窗口下载文件
+  window.Magic.downloadFiles = function(filePaths) {
+    return new Promise((resolve, reject) => {
+      // 验证参数格式
+      if (!Array.isArray(filePaths)) {
+        reject(new Error('window.Magic.downloadFiles: filePaths must be an array'));
+        return;
+      }
+
+      if (filePaths.length === 0) {
+        reject(new Error('window.Magic.downloadFiles: filePaths array cannot be empty'));
+        return;
+      }
+
+      // 验证每个路径都是字符串
+      for (let i = 0; i < filePaths.length; i++) {
+        if (typeof filePaths[i] !== 'string') {
+          reject(new Error(`window.Magic.downloadFiles: filePaths[${i}] must be a string`));
+          return;
+        }
+      }
+
+      // 生成请求ID用于匹配响应
+      const requestId = 'download_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+      // 发送请求到父窗口
+      window.parent.postMessage({
+        type: "MAGIC_DOWNLOAD_FILES_REQUEST",
+        requestId: requestId,
+        filePaths: filePaths
+      }, "*");
+
+      // 监听响应
+      const messageHandler = (event) => {
+        if (event.data &&
+          event.data.type === "MAGIC_DOWNLOAD_FILES_RESPONSE" &&
+          event.data.requestId === requestId) {
+          window.removeEventListener('message', messageHandler);
+
+          if (event.data.success) {
+            resolve(event.data.result);
+          } else {
+            reject(new Error(event.data.error || 'Download files failed'));
+          }
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+    });
+  };
+
+
+  // Cookie存储变量
+  if (typeof memoryCookies === 'undefined') {
+    var memoryCookies = {};
+  }
+
+  // 模拟实现 cookie (WebView 中 document.cookie 可能不可配置，需 try-catch)
+  function setupCookieMock() {
+    try {
+      // 解析cookie字符串为对象
+      function parseCookieString(cookieStr) {
+        const cookies = {};
+        if (!cookieStr) return cookies;
+
+        cookieStr.split(';').forEach(pair => {
+          const [name, value] = pair.trim().split('=');
+          if (name) cookies[name] = decodeURIComponent(value || '');
+        });
+        return cookies;
+      }
+
+      // 格式化cookie对象为字符串
+      function formatCookies() {
+        return Object.entries(memoryCookies)
+          .map(([name, data]) => {
+            if (data.expires && new Date() > new Date(data.expires)) {
+              delete memoryCookies[name];
+              return '';
+            }
+            return `${name}=${encodeURIComponent(data.value)}`;
+          })
+          .filter(Boolean)
+          .join('; ');
+      }
+
+      // 覆盖document.cookie的getter和setter
+      // 钉钉/WebView 等环境中 document.cookie 可能为 non-configurable，会抛出异常
+      Object.defineProperty(document, 'cookie', {
+        get: function() {
+          return formatCookies();
+        },
+        set: function(cookieString) {
+          const [nameValuePair, ...options] = cookieString.split(';');
+          const [name, value] = nameValuePair.trim().split('=');
+
+          if (!name) return;
+
+          memoryCookies[name] = { value: decodeURIComponent(value || '') };
+
+          // 处理cookie选项
+          options.forEach(option => {
+            const [optName, optValue] = option.trim().split('=');
+            const lowerOptName = optName.toLowerCase();
+
+            if (lowerOptName === 'expires') {
+              memoryCookies[name].expires = optValue;
+            } else if (lowerOptName === 'max-age') {
+              const seconds = parseInt(optValue);
+              if (!isNaN(seconds)) {
+                const expireDate = new Date();
+                expireDate.setSeconds(expireDate.getSeconds() + seconds);
+                memoryCookies[name].expires = expireDate.toUTCString();
+              }
+            }
+            // 在模拟环境中，我们忽略path, domain, secure等选项
+          });
+
+          return cookieString;
+        },
+        configurable: true
+      });
+    } catch (e) {
+      // document.cookie 在 WebView/钉钉 等环境中可能不可配置，使用原生 cookie
+      console.warn('Cookie mock skipped:', e && e.message);
+    }
+  }
+
+  // 立即执行cookie模拟设置
+  setupCookieMock();
+
+
+  // 拦截 sessionStorage 和 localStorage (WebView 中可能不可配置，需 try-catch)
+  function setupStorageMocks() {
+    try {
+      const storageKey = "MAGIC:iframe:storage:890653203832922113";
+      const globalStorageKey = "MAGIC:iframe:storage:global";
+
+      // 获取原始存储对象的引用
+      const originalLocalStorage = window.localStorage;
+      const originalSessionStorage = window.sessionStorage;
+
+    // 获取标记存储数据
+    function getMarkerStorage(storageType) {
+      const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
+      return JSON.parse(storage.getItem(storageKey) || '{}');
+    }
+
+    // 保存标记存储数据
+    function saveMarkerStorage(storageType, markerData) {
+      const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
+      storage.setItem(storageKey, JSON.stringify(markerData));
+    }
+
+    // 创建存储对象的工厂函数
+    function createStorageProxy(storageType) {
+      return {
+        getItem: function(key) {
+          // 如果请求的是存储键本身，返回 null 避免递归
+          if (key === storageKey) {
+            return null;
+          }
+          // 如果请求的是全局存储键，直接使用原始存储
+          if (key === globalStorageKey) {
+            const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
+            return storage.getItem(key);
+          }
+          const data = getMarkerStorage(storageType);
+          return data[key] || null;
+        },
+        setItem: function(key, value) {
+          // 如果尝试设置存储键本身，忽略该操作避免递归
+          if (key === storageKey) {
+            console.warn('忽略对存储键本身的设置操作:', key);
+            return;
+          }
+          // 如果设置的是全局存储键，直接使用原始存储
+          if (key === globalStorageKey) {
+            const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
+            storage.setItem(key, value);
+            return;
+          }
+          const data = getMarkerStorage(storageType);
+          data[key] = String(value);
+          saveMarkerStorage(storageType, data);
+        },
+        removeItem: function(key) {
+          // 如果尝试删除存储键本身，忽略该操作
+          if (key === storageKey) {
+            console.warn('忽略对存储键本身的删除操作:', key);
+            return;
+          }
+          // 如果删除的是全局存储键，直接使用原始存储
+          if (key === globalStorageKey) {
+            const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
+            storage.removeItem(key);
+            return;
+          }
+          const data = getMarkerStorage(storageType);
+          delete data[key];
+          saveMarkerStorage(storageType, data);
+        },
+        clear: function() {
+          saveMarkerStorage(storageType, {});
+        },
+        key: function(index) {
+          const data = getMarkerStorage(storageType);
+          const keys = Object.keys(data);
+          return keys[index] || null;
+        },
+        get length() {
+          const data = getMarkerStorage(storageType);
+          return Object.keys(data).length;
+        }
+      };
+    }
+
+    // 创建模拟的存储对象
+    const localStorageInjected = createStorageProxy('localStorage');
+    const sessionStorageInjected = createStorageProxy('sessionStorage');
+
+    // 替换全局 sessionStorage
+    Object.defineProperty(window, 'sessionStorage', {
+      value: sessionStorageInjected,
+      writable: false,
+      configurable: true
+    });
+
+    // 替换全局 localStorage
+    Object.defineProperty(window, 'localStorage', {
+      value: localStorageInjected,
+      writable: false,
+      configurable: true
+    });
+    } catch (e) {
+      // sessionStorage/localStorage 在 WebView/钉钉 等环境中可能不可配置
+      console.warn('Storage mock skipped:', e && e.message);
+    }
+  }
+
+  // 立即执行存储模拟设置
+  setupStorageMocks();
+
+
+  // IndexedDB存储变量
+  if (typeof memoryIndexedDB === 'undefined') {
+    var memoryIndexedDB = {
+      databases: {},
+      currentDb: null
+    };
+  }
+
+  // 模拟 IndexedDB API (WebView 中可能不可配置，需 try-catch)
+  function setupIndexedDBMock() {
+    try {
+    // 模拟 IDBFactory (window.indexedDB 对象)
+    const mockIDBFactory = {
+      open: function(name, version) {
+        const request = new EventTarget();
+        request.result = null;
+
+        // 使用 setTimeout 模拟异步操作
+        setTimeout(() => {
+          // 如果数据库不存在，则创建
+          if (!memoryIndexedDB.databases[name]) {
+            memoryIndexedDB.databases[name] = {
+              name: name,
+              version: version || 1,
+              objectStores: {}
+            };
+          }
+
+          memoryIndexedDB.currentDb = memoryIndexedDB.databases[name];
+          request.result = {
+            name: memoryIndexedDB.currentDb.name,
+            version: memoryIndexedDB.currentDb.version,
+            objectStoreNames: {
+              contains: function(name) {
+                return name in memoryIndexedDB.currentDb.objectStores;
+              },
+              item: function(index) {
+                return Object.keys(memoryIndexedDB.currentDb.objectStores)[index] || null;
+              },
+              get length() {
+                return Object.keys(memoryIndexedDB.currentDb.objectStores).length;
+              }
+            },
+            createObjectStore: function(name, options) {
+              const store = {
+                name: name,
+                keyPath: options?.keyPath,
+                autoIncrement: options?.autoIncrement || false,
+                data: {},
+                getAll: function() {
+                  return Object.values(this.data);
+                },
+                get: function(key) {
+                  return this.data[key] || null;
+                },
+                put: function(value, key) {
+                  const useKey = this.keyPath ? value[this.keyPath] : key;
+                  this.data[useKey] = value;
+                  return useKey;
+                },
+                delete: function(key) {
+                  delete this.data[key];
+                },
+                clear: function() {
+                  this.data = {};
+                }
+              };
+              memoryIndexedDB.currentDb.objectStores[name] = store;
+              return store;
+            },
+            transaction: function(storeNames, mode) {
+              return {
+                objectStore: function(name) {
+                  return memoryIndexedDB.currentDb.objectStores[name];
+                }
+              };
+            }
+          };
+
+          // 触发成功事件
+          const successEvent = new Event('success');
+          request.dispatchEvent(successEvent);
+        }, 0);
+
+        return request;
+      },
+      deleteDatabase: function(name) {
+        const request = new EventTarget();
+
+        setTimeout(() => {
+          delete memoryIndexedDB.databases[name];
+
+          const successEvent = new Event('success');
+          request.dispatchEvent(successEvent);
+        }, 0);
+
+        return request;
+      }
+    };
+
+    // 替换全局 indexedDB
+    Object.defineProperty(window, 'indexedDB', {
+      value: mockIDBFactory,
+      writable: false,
+      configurable: true
+    });
+    } catch (e) {
+      // indexedDB 在 WebView/钉钉 等环境中可能不可配置
+      console.warn('IndexedDB mock skipped:', e && e.message);
+    }
+  }
+
+  // 立即执行IndexedDB模拟设置
+  setupIndexedDBMock();
+
+
+  // 模拟 ServiceWorker API (WebView 中可能不可配置，需 try-catch)
+  function setupServiceWorkerMock() {
+    try {
+    // 创建模拟的 ServiceWorkerContainer
+    const mockServiceWorkerContainer = {
+      // 模拟注册服务工作线程
+      register: function(scriptURL, options) {
+        return Promise.resolve({
+          // 模拟 ServiceWorkerRegistration
+          scope: options?.scope || '/',
+          active: {
+            state: 'activated',
+            addEventListener: function() {},
+            removeEventListener: function() {}
+          },
+          installing: null,
+          waiting: null,
+          update: function() {
+            return Promise.resolve();
+          },
+          unregister: function() {
+            return Promise.resolve(true);
+          },
+          addEventListener: function() {},
+          removeEventListener: function() {}
+        });
+      },
+      // 获取现有的注册
+      getRegistration: function() {
+        return Promise.resolve(null);
+      },
+      getRegistrations: function() {
+        return Promise.resolve([]);
+      },
+      // 控制当前页面的服务工作线程
+      controller: null,
+      ready: Promise.resolve({
+        scope: '/',
+        active: {
+          state: 'activated'
+        },
+        unregister: function() {
+          return Promise.resolve(true);
+        }
+      }),
+      // 添加必要的事件监听方法
+      addEventListener: function() {},
+      removeEventListener: function() {},
+      dispatchEvent: function() { return true; }
+    };
+
+    // 替换全局 navigator.serviceWorker
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: mockServiceWorkerContainer,
+      writable: false,
+      configurable: true
+    });
+    } catch (e) {
+      // navigator.serviceWorker 在 WebView/钉钉 等环境中可能不可配置
+      console.warn('ServiceWorker mock skipped:', e && e.message);
+    }
+  }
+
+  // 立即执行ServiceWorker模拟设置
+  setupServiceWorkerMock();
+
+
+  // 在HTML内容内直接注入脚本，避免跨域访问
+  document.addEventListener("DOMContentLoaded", function() {
+    // 空状态占位图的 base64 SVG
+    const emptyStateSvg = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB2aWV3Qm94PSIwIDAgMjAwIDIwMCIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjRmNiIvPjxzdmcgeD0iNzUiIHk9Ijc1IiB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWNhM2FmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3Qgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiB4PSIzIiB5PSIzIiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI5IiBjeT0iOSIgcj0iMiIvPjxwYXRoIGQ9Im0yMSAxNS0zLjA4Ni0zLjA4NmEyIDIgMCAwIDAtMi44MjggMEw2IDIxIi8+PC9zdmc+PC9zdmc+"
+
+    // 给所有图片添加 onerror 处理
+    function handleImageError() {
+      document.querySelectorAll("img").forEach(img => {
+        if (!img.hasAttribute("data-listener-added")) {
+          img.addEventListener("error", function() {
+            // 保存原始尺寸信息
+            const originalWidth = this.style.width || this.getAttribute('width') || this.offsetWidth;
+            const originalHeight = this.style.height || this.getAttribute('height') || this.offsetHeight;
+
+            // 保存原始src到data-src属性（仅当不是占位图时）
+            if (this.src && this.src !== emptyStateSvg && !this.hasAttribute('data-src')) {
+              this.setAttribute('data-src', this.src);
+            }
+
+            // 替换为占位图
+            this.src = emptyStateSvg;
+
+            // 保持原始尺寸，如果有的话
+            if (originalWidth && originalWidth !== '0' && originalWidth !== 0) {
+              this.style.width = typeof originalWidth === 'number' ? originalWidth + 'px' : originalWidth;
+            }
+            if (originalHeight && originalHeight !== '0' && originalHeight !== 0) {
+              this.style.height = typeof originalHeight === 'number' ? originalHeight + 'px' : originalHeight;
+            }
+
+            // 如果没有明确的尺寸，添加默认样式确保SVG能够合理显示
+            if ((!originalWidth || originalWidth === '0' || originalWidth === 0) &&
+                (!originalHeight || originalHeight === '0' || originalHeight === 0)) {
+
+            }
+
+            // 确保SVG能够正确缩放
+            this.style.objectFit = 'contain';
+
+            this.setAttribute("data-error-handled", "true");
+          });
+          img.setAttribute("data-listener-added", "true");
+        }
+      });
+    }
+
+    // 初始处理已存在的图片
+    handleImageError();
+
+  // 给所有链接添加target属性
+  document.querySelectorAll("a").forEach(link => {
+    const href = link.getAttribute("href");
+    // 检查是否为锚点链接（以#开头）
+    if (href && href.startsWith("#")) {
+      // 为锚点链接添加点击事件处理
+      link.addEventListener("click", function(e) {
+        // 动态检查当前的href值，因为可能被JavaScript修改
+        const currentHref = this.getAttribute("href");
+        // 只有当前仍然是锚点链接时才阻止默认行为
+        if (currentHref && currentHref.startsWith("#")) {
+          const targetId = currentHref.substring(1);
+          const targetElement = document.getElementById(targetId);
+          if (targetElement) {
+            // 目标元素存在时阻止默认行为
+            e.preventDefault();
+            // 滚动到目标元素
+            targetElement.scrollIntoView({ behavior: "smooth" });
+            // 替换历史记录
+            if (window.history && window.history.replaceState) {
+              window.history.replaceState(null, "", currentHref);
+            } else {
+              window.location.hash = currentHref;
+            }
+          }
+        }
+        // 如果href已被修改为其他值（如http://），则不阻止，让浏览器正常处理
+      });
+    } else {
+      // 非锚点链接在新窗口打开
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+
+    // 捕获并处理脚本错误
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error(message);
+    };
+
+      document.addEventListener("click", function(event) {
+              window.parent.postMessage({
+                  type: "DOM_CLICK",
+                  data: {}
+              }, "*")
+    })
+  });
+
+
+  // 处理非HTTP链接的点击事件
+  document.addEventListener("DOMContentLoaded", function() {
+    // 监听所有 a 标签的点击事件
+    document.addEventListener("click", function(event) {
+      // 检查点击的元素是否是 a 标签或其子元素
+      let linkElement = event.target.closest("a");
+
+      if (linkElement && linkElement.href) {
+        const href = linkElement.getAttribute("href");
+
+        // 检查是否为锚点链接（以#开头）
+        if (href && href.startsWith("#")) {
+          return;
+        }
+
+        // 检查 href 是否不是以 http 或 https 开头
+        if (href && !href.startsWith("http://") && !href.startsWith("https://")) {
+          // 阻止默认行为
+          event.preventDefault();
+          event.stopPropagation();
+
+          // 如果当前是编辑模式，不触发通信
+          if (window.slideSelector && window.slideSelector.isEditMode) {
+            console.log('编辑模式下不触发链接通信');
+            return;
+          }
+
+          // 检查是否有 data-auto-edit 属性
+        const autoEdit = linkElement.getAttribute("data-auto-edit") === "true";
+
+        // 通过 postMessage 通知主窗口
+        try {
+          console.log(href)
+          window.parent.postMessage({
+            type: "linkClicked",
+            href: href,
+            originalHref: linkElement.href,
+            text: linkElement.textContent || linkElement.innerText || "",
+            target: linkElement.target || "",
+            autoEdit: autoEdit
+          }, "*");
+        } catch (error) {
+          console.error("发送链接点击消息时出错:", error);
+        }
+        }
+      }
+    });
+
+    // 劫持 window.open 方法
+    const originalWindowOpen = window.open;
+    window.open = function(url, target, features) {
+      // 检查 URL 是否不是以 http 或 https 开头
+      if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+        // 如果当前是编辑模式，不触发通信
+        if (window.slideSelector && window.slideSelector.isEditMode) {
+          console.log('编辑模式下不触发 window.open 通信');
+          return null;
+        }
+
+        // 阻止默认行为，不调用原始的 window.open
+        try {
+          console.log("劫持的 window.open:", url);
+          window.parent.postMessage({
+            type: "linkClicked",
+            href: url,
+            originalHref: url,
+            text: "",
+            target: target || "_blank",
+            autoEdit: false // window.open 不支持 data-auto-edit 属性
+          }, "*");
+        } catch (error) {
+          console.error("发送 window.open 消息时出错:", error);
+        }
+        // 返回一个空的窗口对象引用，防止脚本报错
+        return null;
+      } else {
+        // 对于 HTTP/HTTPS 链接，调用原始的 window.open
+        return originalWindowOpen.call(this, url, target, features);
+      }
+    };
+  });
+
+
+(function() {
+// Returns true when a URL is a relative path pointing to an HTML file
+function isRelativeHtmlPath(url) {
+  if (!url) return false;
+  // Absolute URLs are not relative
+  if (/^(https?:\/\/|\/\/|data:|blob:|mailto:|tel:|javascript:|about:)/i.test(url)) return false;
+  // Must end in .html or .htm (ignoring query/hash)
+  var cleanUrl = url.split(/[?#]/)[0];
+  return /\.html?$/i.test(cleanUrl);
+}
+
+// Expose so the dynamic resource interceptor can defer to this module
+window.__MAGIC_IS_RELATIVE_HTML_PATH__ = isRelativeHtmlPath;
+
+function handleNestedIframeContent(element, relativePath, fallbackSrc) {
+  // Guard against duplicate processing
+  if (element.getAttribute('data-magic-iframe-loading')) return;
+  element.setAttribute('data-magic-iframe-loading', 'true');
+  // 保存原始相对路径，便于保存时还原
+  if (!element.getAttribute('data-original-path')) {
+    element.setAttribute('data-original-path', relativePath);
+  }
+
+  // 生成跳过场景的兜底页面，避免空白或反复重试
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function(char) {
+      return ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char];
+    });
+  }
+
+  function buildFallbackHtml(reason, path) {
+    var safePath = escapeHtml(path || '');
+    var title = 'Iframe content unavailable';
+    var desc =
+      reason === 'cycle'
+        ? 'Detected circular iframe nesting. Rendering is skipped.'
+        : 'Target file was not found. Rendering is skipped.';
+
+    return '<!DOCTYPE html>' +
+      '<html><head><meta charset="UTF-8" />' +
+      '<style>' +
+      'html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}' +
+      'body{display:flex;align-items:center;justify-content:center;background:#fafafa;color:#1f2937;}' +
+      '.card{max-width:520px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:16px 18px;box-shadow:0 1px 2px rgba(0,0,0,.04);}' +
+      '.title{font-size:14px;font-weight:600;margin:0 0 8px;}' +
+      '.desc{font-size:12px;line-height:1.6;margin:0 0 10px;color:#4b5563;}' +
+      '.path{font-size:12px;line-height:1.5;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:8px;word-break:break-all;}' +
+      '</style></head><body>' +
+      '<div class="card">' +
+      '<p class="title">' + title + '</p>' +
+      '<p class="desc">' + desc + '</p>' +
+      '<div class="path">' + safePath + '</div>' +
+      '</div></body></html>';
+  }
+
+  function applyFallbackPage(reason) {
+    element.removeAttribute('src');
+    element.srcdoc = buildFallbackHtml(reason, relativePath || fallbackSrc);
+  }
+
+  // Remove src immediately so the browser won't load the raw file
+  element.removeAttribute('src');
+
+  var requestId = 'nested_iframe_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+  // Timeout fallback: restore src so at least something renders
+  var timeoutId = setTimeout(function() {
+    window.removeEventListener('message', responseHandler);
+    element.removeAttribute('data-magic-iframe-loading');
+    element.setAttribute('src', fallbackSrc || relativePath);
+  }, 15000);
+
+  function responseHandler(event) {
+    if (
+      event.data &&
+      event.data.type === 'MAGIC_IFRAME_CONTENT_RESPONSE' &&
+      event.data.requestId === requestId
+    ) {
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', responseHandler);
+      element.removeAttribute('data-magic-iframe-loading');
+
+      if (event.data.skipProcessing) {
+        // 文件不存在等不可处理场景：标记后跳过，避免反复请求
+        var skipReason = event.data.skipReason || 'skip';
+        element.setAttribute('data-magic-iframe-skipped', skipReason);
+        element.setAttribute('data-magic-iframe-skipped-path', relativePath);
+        // 渲染轻量提示页，提升可观测性
+        applyFallbackPage(skipReason);
+        return;
+      }
+
+      if (event.data.cycleDetected) {
+        // 循环嵌套命中：标记后跳过，避免无限递归请求
+        element.setAttribute('data-magic-iframe-skipped', 'cycle');
+        element.setAttribute('data-magic-iframe-skipped-path', relativePath);
+        applyFallbackPage('cycle');
+        return;
+      }
+
+      if (event.data.success && event.data.content) {
+        element.srcdoc = event.data.content;
+      } else {
+        // Fallback: restore original src
+        element.setAttribute('src', fallbackSrc || relativePath);
+      }
+    }
+  }
+
+  window.addEventListener('message', responseHandler);
+
+  var parentChain = Array.isArray(window.__MAGIC_IFRAME_CHAIN__) ? window.__MAGIC_IFRAME_CHAIN__.slice() : [];
+  var currentFileId = window.__MAGIC_FILE_ID__ || '';
+  if (currentFileId && parentChain.indexOf(currentFileId) === -1) {
+    parentChain.push(currentFileId);
+  }
+
+  // 发送到顶层窗口，确保多层 iframe 下消息可达
+  (window.top || window.parent).postMessage({
+    type: 'MAGIC_IFRAME_CONTENT_REQUEST',
+    requestId: requestId,
+    relativePath: relativePath,
+    fileId: currentFileId,
+    chainFileIds: parentChain
+  }, '*');
+}
+
+// Process a single IFRAME element if it qualifies
+function processIframeElement(el) {
+  var src = el.getAttribute('src');
+  var originalPath = el.getAttribute('data-original-path');
+  var requestPath = null;
+  var fallbackSrc = src || '';
+
+  // 初始化阶段 src 可能已是 OSS URL，优先用 data-original-path 识别
+  if (originalPath && isRelativeHtmlPath(originalPath)) {
+    requestPath = originalPath;
+  } else if (src && isRelativeHtmlPath(src)) {
+    requestPath = src;
+  }
+
+  // 已标记为跳过的节点不再重复处理；若路径变化则允许重新尝试
+  var skippedReason = el.getAttribute('data-magic-iframe-skipped');
+  var skippedPath = el.getAttribute('data-magic-iframe-skipped-path');
+  if (skippedReason) {
+    if (requestPath && skippedPath && requestPath !== skippedPath) {
+      el.removeAttribute('data-magic-iframe-skipped');
+      el.removeAttribute('data-magic-iframe-skipped-path');
+    } else {
+      return;
+    }
+  }
+
+  if (requestPath) handleNestedIframeContent(el, requestPath, fallbackSrc || requestPath);
+}
+
+// Scan all existing IFRAME elements in the document
+function processExistingIframes() {
+  document.querySelectorAll('iframe').forEach(function(el) {
+    processIframeElement(el);
+  });
+}
+
+// Watch for dynamically added/modified IFRAME elements
+var iframeObserver = new MutationObserver(function(mutations) {
+  mutations.forEach(function(mutation) {
+    if (mutation.type === 'childList') {
+      mutation.addedNodes.forEach(function(node) {
+        if (!node || node.nodeType !== 1) return;
+        if (node.tagName === 'IFRAME') {
+          processIframeElement(node);
+        }
+        if (node.querySelectorAll) {
+          node.querySelectorAll('iframe').forEach(function(el) {
+            processIframeElement(el);
+          });
+        }
+      });
+    }
+
+    // Handle src attribute being set programmatically after insertion
+    if (mutation.type === 'attributes' &&
+      mutation.attributeName === 'src' &&
+      mutation.target &&
+      mutation.target.tagName === 'IFRAME') {
+      processIframeElement(mutation.target);
+    }
+  });
+});
+
+function start() {
+  processExistingIframes();
+  iframeObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src']
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', start);
+} else {
+  start();
+}
+})();
+
+
+  (function() {
+    var isEnabled = true;
+    var urlCache = new Map();
+    var pendingRequests = new Map();
+
+    if ('890653203832922113' && !window.__MAGIC_FILE_ID__) {
+      window.__MAGIC_FILE_ID__ = '890653203832922113';
+    }
+
+    function isRelativePath(url) {
+      if (!url) return false;
+      return !/^(https?:\/\/|\/\/|data:|blob:|mailto:|tel:|javascript:|about:)/i.test(url);
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    }
+
+    function shouldSkipUrl(url) {
+      return !url || url.indexOf("__ORIGINAL_URL__") !== -1;
+    }
+
+    function generateRequestId() {
+      return "dynamic_url_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+    }
+
+    function requestUrlFromParent(relativePath) {
+      return new Promise(function(resolve, reject) {
+        var requestId = generateRequestId();
+        var timeout = setTimeout(function() {
+          window.removeEventListener("message", messageHandler);
+          pendingRequests.delete(relativePath);
+          reject(new Error("URL resolve timeout"));
+        }, 8000);
+
+        function messageHandler(event) {
+          if (
+            event.data &&
+            event.data.type === "MAGIC_FETCH_URL_RESPONSE" &&
+            event.data.requestId === requestId
+          ) {
+            clearTimeout(timeout);
+            window.removeEventListener("message", messageHandler);
+
+            if (event.data.success) {
+              urlCache.set(relativePath, event.data.url);
+              pendingRequests.delete(relativePath);
+              resolve(event.data.url);
+            } else {
+              urlCache.set(relativePath, "__NOT_FOUND__");
+              pendingRequests.delete(relativePath);
+              reject(new Error(event.data.error || "URL resolve failed"));
+            }
+          }
+        }
+
+        window.addEventListener("message", messageHandler);
+
+        (window.top || window.parent).postMessage(
+          {
+            type: "MAGIC_FETCH_URL_REQUEST",
+            requestId: requestId,
+            relativePath: relativePath,
+            fileId: window.__MAGIC_FILE_ID__ || "",
+          },
+          "*",
+        );
+      });
+    }
+
+    function resolveUrl(relativePath) {
+      if (urlCache.has(relativePath)) {
+        var cached = urlCache.get(relativePath);
+        if (cached === "__NOT_FOUND__") return Promise.resolve(null);
+        return Promise.resolve(cached);
+      }
+
+      if (pendingRequests.has(relativePath)) {
+        return pendingRequests.get(relativePath);
+      }
+
+      var requestPromise = requestUrlFromParent(relativePath)
+        .then(function(url) {
+          return url;
+        })
+        .catch(function() {
+          return null;
+        });
+
+      pendingRequests.set(relativePath, requestPromise);
+
+      return requestPromise;
+    }
+
+    function setOriginalPath(element, originalPath) {
+      if (!element || !originalPath) return;
+      element.setAttribute("data-original-path", originalPath);
+    }
+
+    function replaceAttributeUrl(element, attrName) {
+      if (!isEnabled || !element || !element.getAttribute) return;
+
+      var attrValue = element.getAttribute(attrName);
+      if (!attrValue || shouldSkipUrl(attrValue)) return;
+      if (!isRelativePath(attrValue)) return;
+
+      resolveUrl(attrValue).then(function(resolvedUrl) {
+        if (!resolvedUrl) return;
+        setOriginalPath(element, attrValue);
+        element.setAttribute(attrName, resolvedUrl);
+      });
+    }
+
+    function replaceStyleText(styleText, applyResult) {
+      if (!styleText || shouldSkipUrl(styleText)) return;
+
+      var urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
+      var match = null;
+      var urlList = [];
+
+      while ((match = urlRegex.exec(styleText)) !== null) {
+        var rawUrl = match[2];
+        if (isRelativePath(rawUrl)) {
+          urlList.push(rawUrl);
+        }
+      }
+
+      if (urlList.length === 0) return;
+
+      var uniqueUrls = Array.from(new Set(urlList));
+
+      Promise.all(
+        uniqueUrls.map(function(url) {
+          return resolveUrl(url).then(function(resolvedUrl) {
+            return { original: url, resolved: resolvedUrl };
+          });
+        }),
+      ).then(function(results) {
+        var nextStyle = styleText;
+
+        results.forEach(function(result) {
+          if (!result.resolved) return;
+          var escaped = escapeRegExp(result.original);
+          var replaceRegex = new RegExp(
+            "url\\(\\s*['\"]?" + escaped + "['\"]?\\s*\\)",
+            "g",
+          );
+          nextStyle = nextStyle.replace(
+            replaceRegex,
+            "/*__ORIGINAL_URL__:" + result.original + "__*/url('" + result.resolved + "')",
+          );
+        });
+
+        applyResult(nextStyle);
+      });
+    }
+
+    function replaceInlineStyle(element) {
+      if (!element || !element.getAttribute) return;
+      var styleText = element.getAttribute("style");
+      replaceStyleText(styleText, function(nextStyle) {
+        element.setAttribute("style", nextStyle);
+      });
+    }
+
+    function replaceStyleTag(element) {
+      if (!element) return;
+      var styleText = element.textContent || "";
+      replaceStyleText(styleText, function(nextStyle) {
+        element.textContent = nextStyle;
+      });
+    }
+
+  function processElement(element) {
+    if (!element || element.nodeType !== 1) return;
+
+    var tag = element.tagName;
+
+    // 相对 HTML iframe 由 nested-iframe-content.ts 专门处理
+    // 这里跳过，避免提前替换成 OSS URL 导致拦截失效
+    if (tag === "IFRAME") {
+      var iframeSrc = element.getAttribute("src");
+      if (iframeSrc && !shouldSkipUrl(iframeSrc) && isRelativePath(iframeSrc)) {
+        var cleanIframeSrc = iframeSrc.split(/[?#]/)[0];
+        if (/[.]html?$/i.test(cleanIframeSrc)) {
+          return;
+        }
+      }
+    }
+
+    if (
+      tag === "IMG" ||
+      tag === "IFRAME" ||
+      tag === "SCRIPT" ||
+      tag === "SOURCE" ||
+      tag === "VIDEO" ||
+      tag === "AUDIO" ||
+      tag === "EMBED"
+    ) {
+      replaceAttributeUrl(element, "src");
+    }
+
+      if (tag === "OBJECT") {
+        replaceAttributeUrl(element, "data");
+      }
+
+      if (tag === "VIDEO") {
+        replaceAttributeUrl(element, "poster");
+      }
+
+      if (tag === "LINK") {
+        var rel = element.getAttribute("rel") || "";
+        if (rel.toLowerCase() === "stylesheet") {
+          replaceAttributeUrl(element, "href");
+        }
+      }
+
+      if (element.hasAttribute && element.hasAttribute("style")) {
+        replaceInlineStyle(element);
+      }
+
+      if (tag === "STYLE") {
+        replaceStyleTag(element);
+      }
+    }
+
+    function processNodeTree(node) {
+      if (!node) return;
+
+      if (node.nodeType === 1) {
+        processElement(node);
+
+        if (node.querySelectorAll) {
+          node
+            .querySelectorAll(
+              "img,iframe,script,source,video,audio,embed,object,link[rel='stylesheet'],style,[style]",
+            )
+            .forEach(function(child) {
+              processElement(child);
+            });
+        }
+      }
+    }
+
+    function processExisting() {
+      if (!isEnabled) return;
+      processNodeTree(document.documentElement);
+    }
+
+    var observer = null;
+
+    function setupObserver() {
+      if (observer || !document.documentElement) return;
+
+      observer = new MutationObserver(function(mutations) {
+        if (!isEnabled) return;
+
+        mutations.forEach(function(mutation) {
+          if (mutation.type === "childList") {
+            mutation.addedNodes.forEach(function(node) {
+              processNodeTree(node);
+            });
+          }
+
+          if (mutation.type === "attributes" && mutation.target) {
+            var attrName = mutation.attributeName || "";
+            if (
+              attrName === "src" ||
+              attrName === "href" ||
+              attrName === "poster" ||
+              attrName === "data" ||
+              attrName === "style"
+            ) {
+              processElement(mutation.target);
+            }
+          }
+        });
+      });
+
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["src", "href", "poster", "data", "style"],
+      });
+    }
+
+    function setEnabled(nextEnabled) {
+      isEnabled = !!nextEnabled;
+
+      if (isEnabled) {
+        processExisting();
+      }
+    }
+
+    window.__MAGIC_DYNAMIC_RESOURCE_INTERCEPTOR__ = {
+      setEnabled: setEnabled,
+      refresh: processExisting,
+      isEnabled: function() {
+        return isEnabled;
+      },
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function() {
+        processExisting();
+        setupObserver();
+      });
+    } else {
+      processExisting();
+      setupObserver();
+    }
+  })();
+
+</script><style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.mx-auto{margin-left:auto;margin-right:auto}.mb-12{margin-bottom:3rem}.mb-2{margin-bottom:0.5rem}.mb-4{margin-bottom:1rem}.mb-8{margin-bottom:2rem}.mr-2{margin-right:0.5rem}.mt-1{margin-top:0.25rem}.mt-12{margin-top:3rem}.mt-2{margin-top:0.5rem}.flex{display:flex}.grid{display:grid}.w-full{width:100%}.max-w-7xl{max-width:80rem}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.gap-6{gap:1.5rem}.overflow-x-auto{overflow-x:auto}.rounded-2xl{border-radius:1rem}.border-b-2{border-bottom-width:2px}.border-b{border-bottom-width:1px}.border-gray-200{--tw-border-opacity:1;border-color:rgb(229 231 235 / var(--tw-border-opacity, 1))}.border-gray-100{--tw-border-opacity:1;border-color:rgb(243 244 246 / var(--tw-border-opacity, 1))}.bg-gradient-to-br{background-image:linear-gradient(to bottom right, var(--tw-gradient-stops))}.from-blue-400{--tw-gradient-from:#60a5fa var(--tw-gradient-from-position);--tw-gradient-to:rgb(96 165 250 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-green-400{--tw-gradient-from:#4ade80 var(--tw-gradient-from-position);--tw-gradient-to:rgb(74 222 128 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-orange-400{--tw-gradient-from:#fb923c var(--tw-gradient-from-position);--tw-gradient-to:rgb(251 146 60 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-purple-400{--tw-gradient-from:#c084fc var(--tw-gradient-from-position);--tw-gradient-to:rgb(192 132 252 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.to-blue-600{--tw-gradient-to:#2563eb var(--tw-gradient-to-position)}.to-green-600{--tw-gradient-to:#16a34a var(--tw-gradient-to-position)}.to-orange-600{--tw-gradient-to:#ea580c var(--tw-gradient-to-position)}.to-purple-600{--tw-gradient-to:#9333ea var(--tw-gradient-to-position)}.p-6{padding:1.5rem}.p-8{padding:2rem}.px-4{padding-left:1rem;padding-right:1rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-5xl{font-size:3rem;line-height:1}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.font-bold{font-weight:700}.font-semibold{font-weight:600}.font-medium{font-weight:500}.text-blue-500{--tw-text-opacity:1;color:rgb(59 130 246 / var(--tw-text-opacity, 1))}.text-gray-500{--tw-text-opacity:1;color:rgb(107 114 128 / var(--tw-text-opacity, 1))}.text-gray-600{--tw-text-opacity:1;color:rgb(75 85 99 / var(--tw-text-opacity, 1))}.text-gray-700{--tw-text-opacity:1;color:rgb(55 65 81 / var(--tw-text-opacity, 1))}.text-gray-800{--tw-text-opacity:1;color:rgb(31 41 55 / var(--tw-text-opacity, 1))}.text-green-500{--tw-text-opacity:1;color:rgb(34 197 94 / var(--tw-text-opacity, 1))}.text-indigo-500{--tw-text-opacity:1;color:rgb(99 102 241 / var(--tw-text-opacity, 1))}.text-orange-500{--tw-text-opacity:1;color:rgb(249 115 22 / var(--tw-text-opacity, 1))}.text-purple-500{--tw-text-opacity:1;color:rgb(168 85 247 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-yellow-500{--tw-text-opacity:1;color:rgb(234 179 8 / var(--tw-text-opacity, 1))}.transition-colors{transition-property:color, background-color, border-color, fill, stroke, -webkit-text-decoration-color;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, -webkit-text-decoration-color;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.hover\:bg-gray-50:hover{--tw-bg-opacity:1;background-color:rgb(249 250 251 / var(--tw-bg-opacity, 1))}@media (min-width: 768px){.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}}@media (min-width: 1024px){.lg\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}</style><script data-injected="true">var IframeEditorRuntime = function(exports) {
+"use strict";
+const MESSAGE_PROTOCOL_VERSION = "1.0.0";
+var MessageCategory = /* @__PURE__ */ ((MessageCategory2) => {
+  MessageCategory2["REQUEST"] = "request";
+  MessageCategory2["RESPONSE"] = "response";
+  MessageCategory2["EVENT"] = "event";
+  MessageCategory2["COMMAND"] = "command";
+  return MessageCategory2;
+})(MessageCategory || {});
+var EventType = /* @__PURE__ */ ((EventType2) => {
+  EventType2["EDITOR_READY"] = "EDITOR_READY";
+  EventType2["CONTENT_CHANGED"] = "CONTENT_CHANGED";
+  EventType2["HISTORY_STATE_CHANGED"] = "HISTORY_STATE_CHANGED";
+  EventType2["EDIT_MODE_CHANGED"] = "EDIT_MODE_CHANGED";
+  EventType2["SELECTION_MODE_CHANGED"] = "SELECTION_MODE_CHANGED";
+  EventType2["IFRAME_ZOOM_REQUEST"] = "IFRAME_ZOOM_REQUEST";
+  return EventType2;
+})(EventType || {});
+class EditorBridge {
+  constructor() {
+    this.isDestroyed = false;
+    this.commandHandlers = /* @__PURE__ */ new Map();
+    this.requestHandlers = /* @__PURE__ */ new Map();
+    this.messageListener = null;
+    this.setupMessageListener();
+  }
+  setupMessageListener() {
+    this.messageListener = (event) => {
+      if (this.isDestroyed) return;
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.version !== MESSAGE_PROTOCOL_VERSION) return;
+      if (message.category === MessageCategory.REQUEST && message.type === "EXECUTE_COMMAND") {
+        const commandMessage = message.payload;
+        if (commandMessage && commandMessage.category === MessageCategory.COMMAND) {
+          this.handleCommand(commandMessage, message.requestId);
+        }
+      } else if (message.category === MessageCategory.REQUEST) {
+        this.handleRequest(message);
+      } else if (message.category === MessageCategory.COMMAND) {
+        this.handleCommand(message);
+      }
+    };
+    window.addEventListener("message", this.messageListener);
+  }
+  async handleRequest(request) {
+    const handler = this.requestHandlers.get(request.type);
+    const response = {
+      version: MESSAGE_PROTOCOL_VERSION,
+      category: MessageCategory.RESPONSE,
+      type: request.type,
+      requestId: request.requestId,
+      timestamp: Date.now(),
+      source: "iframe",
+      success: false
+    };
+    try {
+      if (!handler) {
+        throw new Error(`Unknown request type: ${request.type}`);
+      }
+      const result = await handler(request.payload);
+      response.success = true;
+      response.payload = result;
+    } catch (error) {
+      response.success = false;
+      response.error = {
+        code: "REQUEST_FAILED",
+        message: error.message || String(error)
+      };
+    }
+    this.sendResponse(response);
+  }
+  async handleCommand(command, outerRequestId) {
+    const handler = this.commandHandlers.get(command.commandType);
+    const response = {
+      version: MESSAGE_PROTOCOL_VERSION,
+      category: MessageCategory.RESPONSE,
+      type: "EXECUTE_COMMAND",
+      // Use outer REQUEST's requestId if provided (for wrapped commands),
+      // otherwise use command's own requestId (for direct commands)
+      requestId: outerRequestId || command.requestId || "",
+      timestamp: Date.now(),
+      source: "iframe",
+      success: false
+    };
+    try {
+      if (!handler) {
+        throw new Error(`Unknown command type: ${command.commandType}`);
+      }
+      const result = await handler(command.payload);
+      response.success = true;
+      response.payload = result;
+    } catch (error) {
+      console.error("[EditorBridge] Command failed:", {
+        commandType: command.commandType,
+        error
+      });
+      response.success = false;
+      response.error = {
+        code: "COMMAND_FAILED",
+        message: error.message || String(error),
+        details: {
+          commandType: command.commandType,
+          stack: error.stack
+        }
+      };
+    }
+    this.sendResponse(response);
+  }
+  sendResponse(response) {
+    if (this.isDestroyed) return;
+    try {
+      window.parent.postMessage(response, "*");
+    } catch (error) {
+      console.error("[EditorBridge] Failed to send response:", error);
+    }
+  }
+  sendEvent(type, payload) {
+    if (this.isDestroyed) {
+      console.warn("[EditorBridge] Cannot send event, bridge is destroyed");
+      return;
+    }
+    try {
+      const event = {
+        version: MESSAGE_PROTOCOL_VERSION,
+        category: MessageCategory.EVENT,
+        type,
+        payload,
+        timestamp: Date.now(),
+        source: "iframe"
+      };
+      window.parent.postMessage(event, "*");
+    } catch (error) {
+      console.error("[EditorBridge] Failed to send event:", {
+        type,
+        error
+      });
+    }
+  }
+  onCommand(commandType, handler) {
+    this.commandHandlers.set(commandType, handler);
+  }
+  onRequest(requestType, handler) {
+    this.requestHandlers.set(requestType, handler);
+  }
+  destroy() {
+    this.isDestroyed = true;
+    this.commandHandlers.clear();
+    this.requestHandlers.clear();
+    if (this.messageListener) {
+      window.removeEventListener("message", this.messageListener);
+      this.messageListener = null;
+    }
+  }
+  isActive() {
+    return !this.isDestroyed;
+  }
+}
+class CommandHistory {
+  constructor(maxSize = 50) {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.batchMode = false;
+    this.batchStartCommand = null;
+    this.maxSize = maxSize;
+  }
+  setOnStateChange(callback) {
+    this.onStateChange = callback;
+  }
+  push(command) {
+    if (this.batchMode) {
+      return;
+    }
+    this.undoStack.push(command);
+    if (this.undoStack.length > this.maxSize) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+    this.notifyStateChange();
+  }
+  undo() {
+    if (this.undoStack.length === 0) return null;
+    const command = this.undoStack.pop();
+    this.redoStack.push(command);
+    this.notifyStateChange();
+    return command;
+  }
+  redo() {
+    if (this.redoStack.length === 0) return null;
+    const command = this.redoStack.pop();
+    this.undoStack.push(command);
+    this.notifyStateChange();
+    return command;
+  }
+  canUndo() {
+    return this.undoStack.length > 0;
+  }
+  canRedo() {
+    return this.redoStack.length > 0;
+  }
+  getState() {
+    return {
+      canUndo: this.canUndo(),
+      canRedo: this.canRedo(),
+      currentIndex: this.undoStack.length,
+      totalCommands: this.undoStack.length + this.redoStack.length,
+      undoStack: this.undoStack.map((cmd) => {
+        var _a;
+        return {
+          description: ((_a = cmd.metadata) == null ? void 0 : _a.description) || "Unknown",
+          timestamp: cmd.timestamp
+        };
+      }),
+      redoStack: this.redoStack.map((cmd) => {
+        var _a;
+        return {
+          description: ((_a = cmd.metadata) == null ? void 0 : _a.description) || "Unknown",
+          timestamp: cmd.timestamp
+        };
+      })
+    };
+  }
+  clear() {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.notifyStateChange();
+  }
+  getUndoStackSize() {
+    return this.undoStack.length;
+  }
+  getRedoStackSize() {
+    return this.redoStack.length;
+  }
+  notifyStateChange() {
+    if (this.onStateChange) {
+      this.onStateChange(this.getState());
+    }
+  }
+  /**
+   * Begin batch operation
+   * During batch mode, commands are not recorded to history
+   */
+  beginBatch(initialCommand) {
+    this.batchMode = true;
+    this.batchStartCommand = initialCommand;
+  }
+  /**
+   * End batch operation
+   * Records the batch as a single command in history
+   */
+  endBatch(finalCommand) {
+    if (!this.batchMode || !this.batchStartCommand) {
+      return;
+    }
+    const batchCommand = {
+      ...finalCommand,
+      // Use initial state as previous state
+      previousState: this.batchStartCommand.previousState,
+      timestamp: Date.now()
+    };
+    this.batchMode = false;
+    this.batchStartCommand = null;
+    this.push(batchCommand);
+  }
+  /**
+   * Cancel batch operation without recording
+   */
+  cancelBatch() {
+    this.batchMode = false;
+    this.batchStartCommand = null;
+  }
+  /**
+   * Check if in batch mode
+   */
+  isInBatchMode() {
+    return this.batchMode;
+  }
+}
+function getElementSelector(element) {
+  if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+    return "";
+  }
+  if (element === document.documentElement) {
+    return "html";
+  }
+  if (element === document.body) {
+    return "body";
+  }
+  const path = [];
+  let current = element;
+  while (current && current.nodeType === Node.ELEMENT_NODE && current !== document.documentElement && current !== document.body) {
+    if (!current) break;
+    const currentElement = current;
+    let selector = currentElement.tagName.toLowerCase();
+    if (currentElement.id) {
+      selector += `#${CSS.escape(currentElement.id)}`;
+      path.unshift(selector);
+      break;
+    }
+    const classes = [];
+    if (currentElement.className && typeof currentElement.className === "string") {
+      const classList = currentElement.className.trim().split(" ").filter((cls) => cls && !cls.startsWith("__editor-"));
+      classes.push(...classList);
+    }
+    let baseSelector = selector;
+    if (classes.length > 0) {
+      baseSelector += classes.map((cls) => `.${CSS.escape(cls)}`).join("");
+    }
+    const parentElement = currentElement.parentElement;
+    if (parentElement) {
+      const siblings = Array.from(parentElement.children);
+      const matchingSiblings = siblings.filter((child) => {
+        var _a;
+        if (child.tagName.toLowerCase() !== currentElement.tagName.toLowerCase()) {
+          return false;
+        }
+        const childClasses = ((_a = child.className) == null ? void 0 : _a.trim().split(" ").filter((cls) => cls && !cls.startsWith("__editor-")).sort()) || [];
+        const sortedClasses = [...classes].sort();
+        return JSON.stringify(childClasses) === JSON.stringify(sortedClasses);
+      });
+      if (matchingSiblings.length > 1) {
+        const index = siblings.indexOf(currentElement) + 1;
+        selector = `${baseSelector}:nth-child(${index})`;
+      } else {
+        selector = baseSelector;
+      }
+    } else {
+      selector = baseSelector;
+    }
+    path.unshift(selector);
+    current = parentElement;
+  }
+  return path.join(" > ");
+}
+function isInjectedElement(element) {
+  if (element.getAttribute("data-injected") === "true") return true;
+  if (element.closest('[data-injected="true"]')) return true;
+  return false;
+}
+function camelToKebab(str) {
+  return str.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+function rgbToHex(rgb) {
+  if (rgb.startsWith("#")) return rgb;
+  const match = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/);
+  if (!match) return rgb;
+  const r = parseInt(match[1]);
+  const g = parseInt(match[2]);
+  const b = parseInt(match[3]);
+  const toHex = (n) => {
+    const hex = n.toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+function normalizeColor(color) {
+  if (!color || color === "transparent" || color === "none") {
+    return "#000000";
+  }
+  if (color.startsWith("rgb")) {
+    return rgbToHex(color);
+  }
+  return color;
+}
+function normalizeTextAlign(textAlign) {
+  if (textAlign === "start") return "left";
+  if (textAlign === "end") return "right";
+  if (["left", "center", "right", "justify"].includes(textAlign)) {
+    return textAlign;
+  }
+  return "left";
+}
+class ElementSelector {
+  constructor(bridge) {
+    this.selectedElements = /* @__PURE__ */ new Set();
+    this.hoveredElement = null;
+    this.enabled = false;
+    this.updateTimer = null;
+    this.scrollCleanup = null;
+    this.bridge = bridge;
+    this.injectStyles();
+    this.bindEvents();
+    this.bindScrollListener();
+  }
+  /**
+   * Set callback for text editing requests
+   */
+  setTextEditingCallback(callback) {
+    this.onTextEditingRequest = callback;
+  }
+  /**
+   * Check if element is selected
+   */
+  isSelected(element) {
+    return this.selectedElements.has(element);
+  }
+  /**
+   * Add element to selection
+   */
+  addToSelection(element) {
+    this.selectedElements.add(element);
+    this.notifySelectionChanged();
+  }
+  /**
+   * Remove element from selection
+   */
+  removeFromSelection(element) {
+    if (element.getAttribute("data-text-editing") === "true") {
+      element.contentEditable = "false";
+      element.removeAttribute("data-text-editing");
+      element.style.removeProperty("outline");
+      element.style.removeProperty("outline-offset");
+      this.restoreElementTextSelection(element);
+    }
+    this.selectedElements.delete(element);
+    this.notifySelectionChanged();
+  }
+  /**
+   * Get all selected elements info
+   */
+  getSelectedElementsInfo() {
+    const infos = [];
+    this.selectedElements.forEach((element) => {
+      var _a;
+      const selector = getElementSelector(element);
+      const styles = this.getElementStyles(element);
+      const { rect, rotation } = this.getElementRectWithRotation(element);
+      const isText = this.isTextElement(element);
+      const textContent = ((_a = element.textContent) == null ? void 0 : _a.trim()) || "";
+      infos.push({
+        selector,
+        tagName: element.tagName.toLowerCase(),
+        computedStyles: styles,
+        rect,
+        rotation,
+        isTextElement: isText,
+        textContent: isText ? textContent : void 0
+      });
+    });
+    return infos;
+  }
+  /**
+   * Get selectors of all selected elements
+   */
+  getSelectedSelectors() {
+    const selectors = [];
+    this.selectedElements.forEach((element) => {
+      selectors.push(getElementSelector(element));
+    });
+    return selectors;
+  }
+  /**
+   * Get count of selected elements
+   */
+  getSelectedCount() {
+    return this.selectedElements.size;
+  }
+  /**
+   * Refresh current selection info and notify parent
+   */
+  refreshSelection() {
+    this.notifySelectionChanged();
+  }
+  injectStyles() {
+  }
+  getElementStyles(element) {
+    const computed = window.getComputedStyle(element);
+    const styles = {};
+    const importantProps = [
+      "color",
+      "fontSize",
+      "fontWeight",
+      "fontFamily",
+      "fontStyle",
+      "lineHeight",
+      "textAlign",
+      "textDecoration",
+      "backgroundColor",
+      "backgroundImage",
+      "width",
+      "height",
+      "margin",
+      "marginTop",
+      "marginRight",
+      "marginBottom",
+      "marginLeft",
+      "padding",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "border",
+      "borderWidth",
+      "borderStyle",
+      "borderColor",
+      "borderRadius",
+      "display",
+      "position",
+      "opacity",
+      "boxShadow",
+      "textShadow",
+      "transform",
+      "flexDirection",
+      "justifyContent",
+      "alignItems",
+      "flexWrap",
+      "gap",
+      "gridTemplateColumns",
+      "gridTemplateRows",
+      "justifyItems"
+    ];
+    importantProps.forEach((prop) => {
+      const value = computed[prop];
+      if (prop === "color" || prop === "backgroundColor" || prop === "borderColor") {
+        styles[prop] = normalizeColor(value);
+      } else if (prop === "textAlign") {
+        styles[prop] = normalizeTextAlign(value);
+      } else if (prop === "border" && value.includes("rgb")) {
+        styles[prop] = value.replace(/rgb\([^)]+\)/g, (match) => normalizeColor(match));
+      } else {
+        styles[prop] = value;
+      }
+    });
+    const positionProps = ["top", "left", "right", "bottom"];
+    positionProps.forEach((prop) => {
+      const inlineValue = element.style.getPropertyValue(prop);
+      if (inlineValue) {
+        styles[prop] = inlineValue;
+      } else {
+        styles[prop] = computed[prop];
+      }
+    });
+    if (element.style.top || element.style.left) {
+      console.log("[ElementSelector] getElementStyles position values:", {
+        selector: element.tagName,
+        inlineTop: element.style.top,
+        inlineLeft: element.style.left,
+        stylesTop: styles.top,
+        stylesLeft: styles.left,
+        computedTop: computed.top,
+        computedLeft: computed.left
+      });
+    }
+    return styles;
+  }
+  /**
+   * Find the actual selectable element (handle special containers like ECharts)
+   * If element is inside a special container (e.g. ECharts), return the container
+   */
+  findSelectableElement(element) {
+    let current = element;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (current.hasAttribute("_echarts_instance_")) {
+        console.log(
+          "[ElementSelector] Found ECharts container, selecting it instead:",
+          current
+        );
+        return current;
+      }
+      if (current.classList.contains("chart") || current.classList.contains("chart-container")) {
+        console.log(
+          "[ElementSelector] Found chart container by class, selecting it instead:",
+          current
+        );
+        return current;
+      }
+      if (current.hasAttribute("data-chart") || current.hasAttribute("data-chart-type")) {
+        console.log(
+          "[ElementSelector] Found chart container by data attribute, selecting it instead:",
+          current
+        );
+        return current;
+      }
+      if (current.hasAttribute("data-highcharts-chart")) {
+        console.log(
+          "[ElementSelector] Found Highcharts container, selecting it instead:",
+          current
+        );
+        return current;
+      }
+      const canvasChild = current.querySelector("canvas");
+      if (canvasChild && current.childElementCount === 1 && canvasChild.parentElement === current) {
+        const parent = current.parentElement;
+        if (parent && parent !== document.body && parent !== document.documentElement) {
+          const hasParentChartIndicator = parent.hasAttribute("_echarts_instance_") || parent.hasAttribute("data-chart") || parent.hasAttribute("data-chart-type") || parent.hasAttribute("data-highcharts-chart") || parent.classList.contains("chart") || parent.classList.contains("chart-container");
+          if (hasParentChartIndicator) {
+            current = current.parentElement;
+            continue;
+          }
+        }
+        console.log(
+          "[ElementSelector] Found canvas wrapper, selecting it instead:",
+          current
+        );
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return element;
+  }
+  /**
+   * Check if element is primarily a text element
+   */
+  isTextElement(element) {
+    var _a;
+    const tagName = element.tagName.toLowerCase();
+    const textTags = [
+      "p",
+      "span",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "a",
+      "li",
+      "td",
+      "th",
+      "label",
+      "button",
+      "blockquote",
+      "pre",
+      "code",
+      "strong",
+      "em",
+      "b",
+      "i",
+      "small",
+      "mark",
+      "del",
+      "ins",
+      "sub",
+      "sup"
+    ];
+    if (textTags.includes(tagName)) {
+      return true;
+    }
+    if (tagName === "div") {
+      const textContent = ((_a = element.textContent) == null ? void 0 : _a.trim()) || "";
+      const hasSignificantText = textContent.length > 0;
+      const childElements = element.querySelectorAll("*").length;
+      if (hasSignificantText && childElements < 3) {
+        return true;
+      }
+    }
+    return false;
+  }
+  enableElementTextSelection(element) {
+    const previousUserSelect = element.style.userSelect;
+    const previousWebkitUserSelect = element.style.getPropertyValue("-webkit-user-select");
+    if (previousUserSelect) {
+      element.setAttribute("data-previous-user-select", previousUserSelect);
+    }
+    if (previousWebkitUserSelect) {
+      element.setAttribute("data-previous-webkit-user-select", previousWebkitUserSelect);
+    }
+    element.style.userSelect = "text";
+    element.style.setProperty("-webkit-user-select", "text");
+  }
+  restoreElementTextSelection(element) {
+    const previousUserSelect = element.getAttribute("data-previous-user-select");
+    const previousWebkitUserSelect = element.getAttribute("data-previous-webkit-user-select");
+    if (previousUserSelect !== null) {
+      element.style.userSelect = previousUserSelect;
+      element.removeAttribute("data-previous-user-select");
+    } else {
+      element.style.removeProperty("user-select");
+    }
+    if (previousWebkitUserSelect !== null) {
+      element.style.setProperty("-webkit-user-select", previousWebkitUserSelect);
+      element.removeAttribute("data-previous-webkit-user-select");
+    } else {
+      element.style.removeProperty("-webkit-user-select");
+    }
+  }
+  /**
+   * Extract rotation angle from transform matrix
+   */
+  extractRotation(element) {
+    var _a;
+    const styles = window.getComputedStyle(element);
+    const transform = styles.transform || styles.webkitTransform;
+    if (!transform || transform === "none") {
+      return 0;
+    }
+    if (transform.startsWith("matrix(")) {
+      const values = (_a = transform.match(/matrix\(([^)]+)\)/)) == null ? void 0 : _a[1].split(",").map(parseFloat);
+      if (values && values.length >= 6) {
+        const a = values[0];
+        const b = values[1];
+        const angle = Math.atan2(b, a) * (180 / Math.PI);
+        return angle;
+      }
+    }
+    return 0;
+  }
+  /**
+   * Get element's original rect (unrotated) and rotation angle
+   */
+  getElementRectWithRotation(element) {
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
+    const boundingRect = element.getBoundingClientRect();
+    const centerX = boundingRect.left + boundingRect.width / 2;
+    const centerY = boundingRect.top + boundingRect.height / 2;
+    const left = centerX - width / 2;
+    const top = centerY - height / 2;
+    const rotation = this.extractRotation(element);
+    return {
+      rect: {
+        top,
+        left,
+        width,
+        height
+      },
+      rotation
+    };
+  }
+  selectElement(element, multiSelect = false) {
+    if (!element || element === document.documentElement || element === document.body) {
+      return;
+    }
+    if (isInjectedElement(element)) {
+      return;
+    }
+    const isAlreadySelected = this.selectedElements.has(element);
+    if (!multiSelect) {
+      const isTextEditing = element.getAttribute("data-text-editing") === "true";
+      if (isAlreadySelected && isTextEditing) {
+        this.notifySelectionChanged();
+        console.log(
+          "[ElementSelector] Element already selected and editing, refreshing:",
+          getElementSelector(element)
+        );
+        return;
+      }
+      this.clearSelection();
+    }
+    this.selectedElements.add(element);
+    const isText = this.isTextElement(element);
+    if (!multiSelect && isText && !element.isContentEditable) {
+      element.contentEditable = "true";
+      element.setAttribute("data-text-editing", "true");
+      this.enableElementTextSelection(element);
+    }
+    this.notifySelectionChanged();
+    console.log(
+      "[ElementSelector] Element selected:",
+      getElementSelector(element),
+      "multiSelect:",
+      multiSelect,
+      "total selected:",
+      this.selectedElements.size
+    );
+  }
+  deselectElement() {
+    this.clearSelection();
+  }
+  /**
+   * Clear all selections
+   */
+  clearSelection() {
+    this.selectedElements.forEach((element) => {
+      if (element.getAttribute("data-text-editing") === "true") {
+        element.contentEditable = "false";
+        element.removeAttribute("data-text-editing");
+        element.style.removeProperty("outline");
+        element.style.removeProperty("outline-offset");
+        this.restoreElementTextSelection(element);
+      }
+    });
+    this.selectedElements.clear();
+    this.bridge.sendEvent("ELEMENTS_DESELECTED", {});
+  }
+  /**
+   * Notify parent window about selection change
+   */
+  notifySelectionChanged() {
+    var _a;
+    const count = this.selectedElements.size;
+    if (count === 0) {
+      this.bridge.sendEvent("ELEMENTS_DESELECTED", {});
+    } else if (count === 1) {
+      const element = Array.from(this.selectedElements)[0];
+      const selector = getElementSelector(element);
+      const styles = this.getElementStyles(element);
+      const { rect, rotation } = this.getElementRectWithRotation(element);
+      const isText = this.isTextElement(element);
+      const textContent = ((_a = element.textContent) == null ? void 0 : _a.trim()) || "";
+      this.bridge.sendEvent("ELEMENT_SELECTED", {
+        selector,
+        tagName: element.tagName.toLowerCase(),
+        computedStyles: styles,
+        rect,
+        rotation,
+        isTextElement: isText,
+        textContent: isText ? textContent : void 0
+      });
+    } else {
+      const elements = this.getSelectedElementsInfo();
+      this.bridge.sendEvent("ELEMENTS_SELECTED", {
+        elements
+      });
+    }
+  }
+  bindEvents() {
+    document.addEventListener("mousemove", (e) => {
+      if (!this.enabled) return;
+      const target = e.target;
+      if (!target || target === document.body || target === document.documentElement) {
+        return;
+      }
+      if (isInjectedElement(target)) return;
+      const selectableElement = this.findSelectableElement(target);
+      if (this.hoveredElement !== selectableElement) {
+        this.hoveredElement = selectableElement;
+        if (!this.isSelected(selectableElement)) {
+          const rect = selectableElement.getBoundingClientRect();
+          this.bridge.sendEvent("ELEMENT_HOVERED", {
+            rect: {
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height
+            }
+          });
+        }
+      }
+    });
+    document.addEventListener("mouseout", (e) => {
+      if (!this.enabled) return;
+      const target = e.target;
+      if (target && !this.isSelected(target)) {
+        this.bridge.sendEvent("ELEMENT_HOVER_END", {});
+      }
+    });
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (!this.enabled) return;
+        const target = e.target;
+        if (isInjectedElement(target)) return;
+        const selection = window.getSelection();
+        const hasTextSelection = selection && !selection.isCollapsed && selection.toString().trim().length > 0;
+        if (hasTextSelection) {
+          console.log(
+            "[ElementSelector] Text selection detected, skipping element selection"
+          );
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const selectableElement = this.findSelectableElement(target);
+        if (e.shiftKey) {
+          if (this.isSelected(selectableElement)) {
+            this.removeFromSelection(selectableElement);
+            console.log(
+              "[ElementSelector] Removed from selection:",
+              getElementSelector(selectableElement)
+            );
+          } else {
+            this.selectElement(selectableElement, true);
+            console.log(
+              "[ElementSelector] Added to selection:",
+              getElementSelector(selectableElement)
+            );
+          }
+        } else {
+          const wasAlreadySelected = this.selectedElements.size === 1 && this.isSelected(selectableElement);
+          if (wasAlreadySelected) {
+            const isText = this.isTextElement(selectableElement);
+            if (isText && this.onTextEditingRequest) {
+              const selector = getElementSelector(selectableElement);
+              this.onTextEditingRequest(selector);
+              console.log(
+                "[ElementSelector] Second click on selected text element, requesting text editing:",
+                selector
+              );
+            }
+          } else {
+            this.selectElement(selectableElement, false);
+          }
+        }
+      },
+      true
+    );
+    document.addEventListener("keydown", (e) => {
+      if (!this.enabled || this.selectedElements.size === 0) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.deselectElement();
+      }
+    });
+  }
+  enable() {
+    console.log("[ElementSelector] Enabling selection mode");
+    this.enabled = true;
+  }
+  disable() {
+    console.log("[ElementSelector] Disabling selection mode");
+    this.enabled = false;
+    this.deselectElement();
+    const editingElements = document.querySelectorAll("[data-text-editing='true']");
+    editingElements.forEach((element) => {
+      if (element instanceof HTMLElement) {
+        element.contentEditable = "false";
+        element.removeAttribute("data-text-editing");
+        element.removeAttribute("data-previous-content");
+        element.style.removeProperty("outline");
+        element.style.removeProperty("outline-offset");
+        this.restoreElementTextSelection(element);
+      }
+    });
+    this.bridge.sendEvent("ELEMENT_HOVER_END", {});
+  }
+  /**
+   * Update selected elements position (for scroll/resize events)
+   */
+  updateSelectedElementPosition() {
+    if (this.selectedElements.size === 0 || !this.enabled) return;
+    this.notifySelectionChanged();
+  }
+  /**
+   * Bind scroll listener to update element position on scroll
+   */
+  bindScrollListener() {
+    const handleScroll = () => {
+      if (!this.enabled || this.selectedElements.size === 0) return;
+      if (this.updateTimer) {
+        window.cancelAnimationFrame(this.updateTimer);
+      }
+      this.updateTimer = window.requestAnimationFrame(() => {
+        this.updateSelectedElementPosition();
+      });
+    };
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleScroll);
+    this.scrollCleanup = () => {
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleScroll);
+      if (this.updateTimer) {
+        window.cancelAnimationFrame(this.updateTimer);
+      }
+    };
+  }
+  destroy() {
+    this.disable();
+    this.selectedElements.clear();
+    this.hoveredElement = null;
+    if (this.scrollCleanup) {
+      this.scrollCleanup();
+      this.scrollCleanup = null;
+    }
+  }
+}
+const _EditorLogger = class _EditorLogger {
+  /**
+   * Add a log entry
+   */
+  static addLog(level, message, data) {
+    const timestamp = Date.now();
+    const date = new Date(timestamp);
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
+    const formattedTime = `${hours}:${minutes}:${seconds}.${milliseconds}`;
+    const entry = {
+      id: `${timestamp}-${Math.random().toString(36).slice(2, 9)}`,
+      level,
+      message,
+      data,
+      timestamp,
+      formattedTime
+    };
+    this.logs.push(entry);
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(-this.maxLogs);
+    }
+    this.notifyListeners();
+  }
+  static debug(message, data) {
+    if (this.enabled) {
+      console.debug(`${this.prefix} ${message}`, data);
+      this.addLog("debug", message, data);
+    }
+  }
+  static info(message, data) {
+    if (this.enabled) {
+      console.log(`${this.prefix} ${message}`, data);
+      this.addLog("info", message, data);
+    }
+  }
+  static warn(message, data) {
+    if (this.enabled) {
+      console.warn(`${this.prefix} ${message}`, data);
+      this.addLog("warn", message, data);
+    }
+  }
+  static error(message, error) {
+    if (this.enabled) {
+      console.error(`${this.prefix} ${message}`, error);
+      this.addLog("error", message, error);
+    }
+  }
+  static setEnabled(enabled) {
+    this.enabled = enabled;
+  }
+  /**
+   * Get all log entries
+   */
+  static getLogs() {
+    return [...this.logs];
+  }
+  /**
+   * Clear all logs
+   */
+  static clearLogs() {
+    this.logs = [];
+    this.notifyListeners();
+  }
+  /**
+   * Export logs as JSON string
+   */
+  static exportLogs() {
+    return JSON.stringify(
+      {
+        exportTime: (/* @__PURE__ */ new Date()).toISOString(),
+        totalLogs: this.logs.length,
+        logs: this.logs
+      },
+      null,
+      2
+    );
+  }
+  /**
+   * Subscribe to log changes
+   */
+  static subscribe(listener) {
+    this.listeners.add(listener);
+    try {
+      listener([...this.logs]);
+    } catch (error) {
+      console.error("Error in log listener:", error);
+    }
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  /**
+   * Notify all listeners
+   */
+  static notifyListeners() {
+    const logsCopy = [...this.logs];
+    this.listeners.forEach((listener) => {
+      try {
+        listener(logsCopy);
+      } catch (error) {
+        console.error("Error in log listener:", error);
+      }
+    });
+  }
+};
+_EditorLogger.enabled = true;
+_EditorLogger.prefix = "[IframeRuntime]";
+_EditorLogger.logs = [];
+_EditorLogger.maxLogs = 500;
+_EditorLogger.listeners = /* @__PURE__ */ new Set();
+let EditorLogger = _EditorLogger;
+function findElement(selector) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    throw new Error(`Element not found: ${selector}`);
+  }
+  return element;
+}
+class StyleManager {
+  constructor(commandHistory) {
+    this.elementSelector = null;
+    this.textStyleManager = null;
+    this.isDuplicating = false;
+    this.isDeleting = false;
+    this.commandHistory = commandHistory;
+  }
+  /**
+   * Helper method: Set styles to currently selected elements
+   * Automatically handles single or multiple elements
+   */
+  async setStylesToSelected(styles) {
+    if (!this.elementSelector) {
+      EditorLogger.warn("ElementSelector not set, cannot apply styles to selected elements");
+      return;
+    }
+    const selectors = this.elementSelector.getSelectedSelectors();
+    if (selectors.length === 0) {
+      EditorLogger.warn("No elements selected");
+      return;
+    }
+    if (selectors.length === 1) {
+      await this.setBatchStyles(selectors[0], styles);
+    } else {
+      await this.setBatchStylesMultiple(selectors, styles);
+    }
+  }
+  /**
+   * Helper method: Set background color to currently selected elements
+   */
+  async setBackgroundColorToSelected(color) {
+    if (!this.elementSelector) {
+      EditorLogger.warn("ElementSelector not set");
+      return;
+    }
+    const selectors = this.elementSelector.getSelectedSelectors();
+    if (selectors.length === 0) {
+      EditorLogger.warn("No elements selected");
+      return;
+    }
+    if (selectors.length === 1) {
+      await this.setBackgroundColor(selectors[0], color);
+    } else {
+      await this.setBackgroundColorMultiple(selectors, color);
+    }
+  }
+  /**
+   * Helper method: Set text color to currently selected elements
+   */
+  async setTextColorToSelected(color) {
+    if (!this.elementSelector) {
+      EditorLogger.warn("ElementSelector not set");
+      return;
+    }
+    const selectors = this.elementSelector.getSelectedSelectors();
+    if (selectors.length === 0) {
+      EditorLogger.warn("No elements selected");
+      return;
+    }
+    if (selectors.length === 1) {
+      await this.setTextColor(selectors[0], color);
+    } else {
+      await this.setTextColorMultiple(selectors, color);
+    }
+  }
+  /**
+   * Set element selector reference for refreshing selection after undo/redo
+   */
+  setElementSelector(elementSelector) {
+    this.elementSelector = elementSelector;
+  }
+  /**
+   * Set text style manager reference for handling text selection state
+   */
+  setTextStyleManager(textStyleManager) {
+    this.textStyleManager = textStyleManager;
+  }
+  /**
+   * Set background color (single element)
+   */
+  async setBackgroundColor(selector, color) {
+    const element = findElement(selector);
+    const previousValue = element.style.backgroundColor;
+    element.style.backgroundColor = color;
+    this.commandHistory.push({
+      commandType: "SET_BACKGROUND_COLOR",
+      payload: { selector, color },
+      previousState: { selector, backgroundColor: previousValue },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Set background color to ${color}`
+      }
+    });
+    if (this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+  }
+  /**
+   * Set background color for multiple elements
+   */
+  async setBackgroundColorMultiple(selectors, color) {
+    if (selectors.length === 0) return;
+    if (selectors.length === 1) {
+      await this.setBackgroundColor(selectors[0], color);
+      return;
+    }
+    const previousStates = [];
+    for (const selector of selectors) {
+      try {
+        const element = findElement(selector);
+        const previousValue = element.style.backgroundColor;
+        previousStates.push({ selector, backgroundColor: previousValue });
+        element.style.backgroundColor = color;
+      } catch (error) {
+        EditorLogger.error(`Failed to set background color for element: ${selector}`, error);
+      }
+    }
+    this.commandHistory.push({
+      commandType: "SET_BACKGROUND_COLOR_MULTIPLE",
+      payload: { selectors, color },
+      previousState: { elements: previousStates },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Set background color for ${selectors.length} elements`
+      }
+    });
+    if (this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+  }
+  /**
+   * Set text color (single element)
+   */
+  async setTextColor(selector, color) {
+    const element = findElement(selector);
+    const previousValue = element.style.color;
+    element.style.color = color;
+    this.commandHistory.push({
+      commandType: "SET_TEXT_COLOR",
+      payload: { selector, color },
+      previousState: { selector, color: previousValue },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Set text color to ${color}`
+      }
+    });
+    if (this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+  }
+  /**
+   * Set text color for multiple elements
+   */
+  async setTextColorMultiple(selectors, color) {
+    if (selectors.length === 0) return;
+    if (selectors.length === 1) {
+      await this.setTextColor(selectors[0], color);
+      return;
+    }
+    const previousStates = [];
+    for (const selector of selectors) {
+      try {
+        const element = findElement(selector);
+        const previousValue = element.style.color;
+        previousStates.push({ selector, color: previousValue });
+        element.style.color = color;
+      } catch (error) {
+        EditorLogger.error(`Failed to set text color for element: ${selector}`, error);
+      }
+    }
+    this.commandHistory.push({
+      commandType: "SET_TEXT_COLOR_MULTIPLE",
+      payload: { selectors, color },
+      previousState: { elements: previousStates },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Set text color for ${selectors.length} elements`
+      }
+    });
+  }
+  /**
+   * Set font size
+   */
+  async setFontSize(selector, fontSize, unit = "px") {
+    const element = findElement(selector);
+    const size = typeof fontSize === "number" ? `${fontSize}${unit}` : fontSize;
+    const previousValue = element.style.fontSize;
+    element.style.fontSize = size;
+    this.commandHistory.push({
+      commandType: "SET_FONT_SIZE",
+      payload: { selector, fontSize, unit },
+      previousState: { selector, fontSize: previousValue },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Set font size to ${size}`
+      }
+    });
+  }
+  /**
+   * Batch set styles (single element)
+   */
+  async setBatchStyles(selector, styles) {
+    const element = findElement(selector);
+    const previousState = {};
+    for (const property of Object.keys(styles)) {
+      const kebabProperty = camelToKebab(property);
+      previousState[property] = element.style.getPropertyValue(kebabProperty) || "";
+    }
+    for (const [property, value] of Object.entries(styles)) {
+      const kebabProperty = camelToKebab(property);
+      element.style.setProperty(kebabProperty, value);
+    }
+    if (!this.commandHistory.isInBatchMode()) {
+      this.commandHistory.push({
+        commandType: "BATCH_STYLES",
+        payload: { selector, styles },
+        previousState: { selector, ...previousState },
+        timestamp: Date.now(),
+        metadata: {
+          canUndo: true,
+          description: `Batch set ${Object.keys(styles).length} styles`
+        }
+      });
+    }
+    if (this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+  }
+  /**
+   * Batch set styles for multiple elements
+   * Records as a single undoable operation
+   */
+  async setBatchStylesMultiple(selectors, styles) {
+    if (selectors.length === 0) return;
+    if (selectors.length === 1) {
+      await this.setBatchStyles(selectors[0], styles);
+      return;
+    }
+    const previousStates = [];
+    for (const selector of selectors) {
+      try {
+        const element = findElement(selector);
+        const previousState = {};
+        for (const property of Object.keys(styles)) {
+          const kebabProperty = camelToKebab(property);
+          previousState[property] = element.style.getPropertyValue(kebabProperty) || "";
+        }
+        previousStates.push({ selector, styles: previousState });
+        for (const [property, value] of Object.entries(styles)) {
+          const kebabProperty = camelToKebab(property);
+          element.style.setProperty(kebabProperty, value);
+        }
+      } catch (error) {
+        EditorLogger.error(`Failed to apply styles to element: ${selector}`, error);
+      }
+    }
+    this.commandHistory.push({
+      commandType: "BATCH_STYLES_MULTIPLE",
+      payload: { selectors, styles },
+      previousState: { elements: previousStates },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Apply styles to ${selectors.length} elements`
+      }
+    });
+    if (this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+  }
+  /**
+   * Apply styles without recording to history (for temporary updates during drag)
+   */
+  applyStylesTemporary(selector, styles) {
+    const element = findElement(selector);
+    for (const [property, value] of Object.entries(styles)) {
+      const kebabProperty = camelToKebab(property);
+      element.style.setProperty(kebabProperty, value);
+    }
+    if (styles.top || styles.left) {
+      EditorLogger.debug("Applied temporary styles", {
+        selector,
+        styles,
+        actualInlineTop: element.style.top,
+        actualInlineLeft: element.style.left
+      });
+    }
+  }
+  /**
+   * Apply font size adjustment without recording history
+   * Used internally for redo operations
+   */
+  applyFontSizeAdjustment(selector, scaleFactor, minFontSize = 8) {
+    const rootElement = findElement(selector);
+    const allElements = [rootElement, ...Array.from(rootElement.querySelectorAll("*"))];
+    const previousFontSizes = [];
+    allElements.forEach((el, index) => {
+      if (!(el instanceof HTMLElement)) return;
+      const computedStyle = window.getComputedStyle(el);
+      const currentFontSize = Number.parseFloat(computedStyle.fontSize);
+      if (Number.isNaN(currentFontSize) || currentFontSize <= 0) return;
+      const previousFontSize = el.style.fontSize || "";
+      const relativePath = index === 0 ? "" : this.getRelativePath(rootElement, el);
+      previousFontSizes.push({
+        element: el,
+        relativePath,
+        fontSize: previousFontSize
+      });
+      const newFontSize = Math.round(currentFontSize * scaleFactor);
+      const finalFontSize = Math.max(minFontSize, newFontSize);
+      el.style.fontSize = `${finalFontSize}px`;
+    });
+    return previousFontSizes.map(({ relativePath, fontSize }) => ({
+      relativePath,
+      fontSize
+    }));
+  }
+  /**
+   * Adjust font size recursively for element and all its children
+   * Records as a single atomic operation for undo/redo
+   */
+  async adjustFontSizeRecursive(selector, scaleFactor, minFontSize = 8) {
+    const previousFontSizes = this.applyFontSizeAdjustment(selector, scaleFactor, minFontSize);
+    this.commandHistory.push({
+      commandType: "ADJUST_FONT_SIZE_RECURSIVE",
+      payload: { selector, scaleFactor, minFontSize },
+      previousState: {
+        selector,
+        fontSizes: previousFontSizes
+      },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Adjust font size for ${previousFontSizes.length} elements`
+      }
+    });
+    if (this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+  }
+  /**
+   * Get relative path from root element to target element
+   * This ensures we only affect elements within the selected scope
+   */
+  getRelativePath(rootElement, targetElement) {
+    const path = [];
+    let current = targetElement;
+    while (current && current !== rootElement) {
+      const parentEl = current.parentElement;
+      if (!parentEl || parentEl === rootElement) {
+        const currentTag = current.tagName;
+        const siblings = Array.from(rootElement.children).filter(
+          (child) => child.tagName === currentTag
+        );
+        const index = siblings.indexOf(current);
+        const tag = current.tagName.toLowerCase();
+        path.unshift(`> ${tag}:nth-of-type(${index + 1})`);
+        break;
+      } else {
+        const currentTag = current.tagName;
+        const siblings = Array.from(parentEl.children).filter(
+          (child) => child.tagName === currentTag
+        );
+        const index = siblings.indexOf(current);
+        const tag = current.tagName.toLowerCase();
+        path.unshift(`> ${tag}:nth-of-type(${index + 1})`);
+      }
+      current = parentEl;
+    }
+    return path.join(" ");
+  }
+  /**
+   * Begin batch operation (for drag operations)
+   * Saves initial state before starting drag
+   */
+  beginBatchOperation(selector, styles) {
+    const element = findElement(selector);
+    const previousState = {};
+    for (const property of Object.keys(styles)) {
+      const kebabProperty = camelToKebab(property);
+      previousState[property] = element.style.getPropertyValue(kebabProperty) || "";
+    }
+    this.commandHistory.beginBatch({
+      commandType: "BATCH_STYLES",
+      payload: { selector, styles },
+      previousState: { selector, ...previousState },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Batch set ${Object.keys(styles).length} styles`
+      }
+    });
+  }
+  /**
+   * End batch operation
+   * Records the entire operation as a single history entry
+   */
+  endBatchOperation(selector, styles) {
+    this.commandHistory.endBatch({
+      commandType: "BATCH_STYLES",
+      payload: { selector, styles },
+      previousState: {},
+      // Will be replaced with initial state from beginBatch
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Batch set ${Object.keys(styles).length} styles`
+      }
+    });
+  }
+  /**
+   * Cancel batch operation without recording
+   */
+  cancelBatchOperation() {
+    this.commandHistory.cancelBatch();
+  }
+  /**
+   * Set text content
+   */
+  async setTextContent(selector, textContent) {
+    const element = findElement(selector);
+    const previousValue = element.textContent || "";
+    element.textContent = textContent;
+    this.commandHistory.push({
+      commandType: "SET_TEXT_CONTENT",
+      payload: { selector, textContent },
+      previousState: { selector, textContent: previousValue },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: "Set text content"
+      }
+    });
+  }
+  /**
+   * Get text content
+   */
+  getTextContent(selector) {
+    const element = findElement(selector);
+    const textContent = element.textContent || "";
+    const hasText = textContent.trim().length > 0;
+    return { textContent, hasText };
+  }
+  /**
+   * Enable text selection while editing
+   */
+  enableTextSelectionForEditing(element) {
+    const previousUserSelect = element.style.userSelect;
+    const previousWebkitUserSelect = element.style.getPropertyValue("-webkit-user-select");
+    if (previousUserSelect) {
+      element.setAttribute("data-previous-user-select", previousUserSelect);
+    }
+    if (previousWebkitUserSelect) {
+      element.setAttribute("data-previous-webkit-user-select", previousWebkitUserSelect);
+    }
+    element.style.userSelect = "text";
+    element.style.setProperty("-webkit-user-select", "text");
+  }
+  restoreTextSelectionAfterEditing(element) {
+    const previousUserSelect = element.getAttribute("data-previous-user-select");
+    const previousWebkitUserSelect = element.getAttribute("data-previous-webkit-user-select");
+    if (previousUserSelect !== null) {
+      element.style.userSelect = previousUserSelect;
+      element.removeAttribute("data-previous-user-select");
+    } else {
+      element.style.removeProperty("user-select");
+    }
+    if (previousWebkitUserSelect !== null) {
+      element.style.setProperty("-webkit-user-select", previousWebkitUserSelect);
+      element.removeAttribute("data-previous-webkit-user-select");
+    } else {
+      element.style.removeProperty("-webkit-user-select");
+    }
+  }
+  /**
+   * Enable text editing (set contenteditable)
+   */
+  enableTextEditing(selector) {
+    const element = findElement(selector);
+    if (element.getAttribute("data-text-editing") === "true") {
+      EditorLogger.warn("Text editing state exists, cleaning up first", { selector });
+      element.removeAttribute("contenteditable");
+      element.removeAttribute("data-text-editing");
+      element.removeAttribute("data-previous-content");
+      element.style.outline = "";
+    }
+    EditorLogger.info("Enabling text editing", { selector });
+    const previousContent = element.textContent || "";
+    this.enableTextSelectionForEditing(element);
+    element.setAttribute("contenteditable", "true");
+    element.setAttribute("data-text-editing", "true");
+    element.setAttribute("data-previous-content", previousContent);
+    element.focus();
+    element.style.outline = "none";
+    let updateTimer = null;
+    const handleInput = () => {
+      if (updateTimer) {
+        window.cancelAnimationFrame(updateTimer);
+      }
+      updateTimer = window.requestAnimationFrame(() => {
+        if (this.elementSelector) {
+          const currentSelected = this.elementSelector.selectedElement;
+          const isChildSpan = currentSelected && currentSelected !== element && currentSelected.tagName === "SPAN" && element.contains(currentSelected);
+          if (!isChildSpan) {
+            this.elementSelector.refreshSelection();
+            EditorLogger.debug("Refreshed selection overlay during text editing", {
+              selector
+            });
+          } else {
+            EditorLogger.debug("Skipped refresh - preserving child span selection", {
+              parentSelector: selector,
+              spanTagName: currentSelected.tagName
+            });
+          }
+        }
+      });
+    };
+    const handleBlur = () => {
+      const newContent = element.textContent || "";
+      const oldContent = element.getAttribute("data-previous-content") || "";
+      if (updateTimer) {
+        window.cancelAnimationFrame(updateTimer);
+        updateTimer = null;
+      }
+      if (newContent !== oldContent) {
+        this.commandHistory.push({
+          commandType: "UPDATE_TEXT_CONTENT",
+          payload: { selector, content: newContent },
+          previousState: { selector, textContent: oldContent },
+          timestamp: Date.now(),
+          metadata: {
+            canUndo: true,
+            description: "Update text content"
+          }
+        });
+        EditorLogger.info("Text editing saved on blur", { selector, newContent });
+      }
+      element.removeAttribute("contenteditable");
+      element.removeAttribute("data-text-editing");
+      element.removeAttribute("data-previous-content");
+      this.restoreTextSelectionAfterEditing(element);
+      element.style.outline = "";
+      element.removeEventListener("blur", handleBlur);
+      element.removeEventListener("input", handleInput);
+      element.removeEventListener("keydown", handleKeyDown);
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        element.blur();
+      }
+    };
+    element.addEventListener("blur", handleBlur);
+    element.addEventListener("input", handleInput);
+    element.addEventListener("keydown", handleKeyDown);
+    EditorLogger.info("Text editing enabled", { selector });
+  }
+  /**
+   * Disable text editing (remove contenteditable)
+   */
+  disableTextEditing(selector) {
+    const element = findElement(selector);
+    if (element.getAttribute("data-text-editing") === "true") {
+      element.blur();
+    }
+    element.removeAttribute("contenteditable");
+    element.removeAttribute("data-text-editing");
+    element.removeAttribute("data-previous-content");
+    element.style.outline = "";
+    element.style.outlineOffset = "";
+    if (element.hasAttribute("data-previous-user-select") || element.hasAttribute("data-previous-webkit-user-select")) {
+      this.restoreTextSelectionAfterEditing(element);
+    }
+    EditorLogger.info("Text editing disabled", { selector });
+  }
+  /**
+   * Update text content
+   */
+  async updateTextContent(selector, content) {
+    const element = findElement(selector);
+    const previousValue = element.textContent || "";
+    element.textContent = content;
+    this.commandHistory.push({
+      commandType: "UPDATE_TEXT_CONTENT",
+      payload: { selector, content },
+      previousState: { selector, textContent: previousValue },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: "Update text content"
+      }
+    });
+  }
+  /**
+   * Set element position (relative)
+   */
+  async setElementPosition(selector, top, left) {
+    const element = findElement(selector);
+    const previousPosition = element.style.position || "";
+    const previousTop = element.style.top || "";
+    const previousLeft = element.style.left || "";
+    element.style.position = "relative";
+    element.style.top = `${top}px`;
+    element.style.left = `${left}px`;
+    this.commandHistory.push({
+      commandType: "SET_ELEMENT_POSITION",
+      payload: { selector, top, left },
+      previousState: {
+        selector,
+        position: previousPosition,
+        top: previousTop,
+        left: previousLeft
+      },
+      timestamp: Date.now(),
+      metadata: {
+        canUndo: true,
+        description: `Move element to (${left}, ${top})`
+      }
+    });
+  }
+  /**
+   * Delete element
+   */
+  async deleteElement(selector) {
+    if (this.isDeleting) {
+      EditorLogger.warn("[StyleManager] Delete operation already in progress, ignoring", {
+        selector
+      });
+      return;
+    }
+    try {
+      this.isDeleting = true;
+      EditorLogger.info("[StyleManager] deleteElement called", { selector });
+      const element = findElement(selector);
+      const parent = element.parentElement;
+      if (!parent) {
+        EditorLogger.error("[StyleManager] Cannot delete root element");
+        throw new Error("Cannot delete root element");
+      }
+      EditorLogger.info("[StyleManager] Element found, preparing to delete", {
+        tagName: element.tagName,
+        hasParent: !!parent
+      });
+      const previousHTML = element.outerHTML;
+      const nextSibling = element.nextSibling;
+      let nextSiblingSelector = null;
+      let siblingIndex = -1;
+      if (parent) {
+        const siblings = Array.from(parent.children);
+        siblingIndex = siblings.indexOf(element);
+      }
+      if (nextSibling && nextSibling.nodeType === Node.ELEMENT_NODE) {
+        try {
+          nextSiblingSelector = this.generateSelectorForElement(
+            nextSibling
+          );
+        } catch (error) {
+          EditorLogger.warn(
+            "[StyleManager] Failed to generate selector for nextSibling",
+            error
+          );
+        }
+      }
+      const parentSelector = this.generateSelectorForElement(parent);
+      const specialElementData = this.captureSpecialElementState(element);
+      element.remove();
+      EditorLogger.info("[StyleManager] Element removed from DOM");
+      if (this.elementSelector) {
+        this.elementSelector.clearSelection();
+        EditorLogger.info("[StyleManager] Selection cleared");
+      }
+      this.commandHistory.push({
+        commandType: "DELETE_ELEMENT",
+        payload: { selector },
+        previousState: {
+          selector,
+          parentSelector,
+          nextSiblingSelector,
+          siblingIndex,
+          html: previousHTML,
+          specialElementData
+          // Save special element state
+        },
+        timestamp: Date.now(),
+        metadata: {
+          canUndo: true,
+          description: "Delete element"
+        }
+      });
+      EditorLogger.info("[StyleManager] Delete command recorded in history");
+    } finally {
+      setTimeout(() => {
+        this.isDeleting = false;
+      }, 300);
+    }
+  }
+  /**
+   * Duplicate element and insert after current element as sibling
+   */
+  async duplicateElement(selector) {
+    if (this.isDuplicating) {
+      EditorLogger.warn("[StyleManager] Duplicate operation already in progress, ignoring", {
+        selector
+      });
+      return;
+    }
+    try {
+      this.isDuplicating = true;
+      EditorLogger.info("[StyleManager] duplicateElement called", { selector });
+      const element = findElement(selector);
+      const parent = element.parentElement;
+      if (!parent) {
+        EditorLogger.error("[StyleManager] Cannot duplicate root element");
+        throw new Error("Cannot duplicate root element");
+      }
+      EditorLogger.info("[StyleManager] Element found, preparing to duplicate", {
+        tagName: element.tagName,
+        hasParent: !!parent
+      });
+      const clonedElement = element.cloneNode(true);
+      const specialElementData = this.captureSpecialElementState(element);
+      const nextSibling = element.nextSibling;
+      if (nextSibling) {
+        parent.insertBefore(clonedElement, nextSibling);
+      } else {
+        parent.appendChild(clonedElement);
+      }
+      EditorLogger.info("[StyleManager] Element duplicated and inserted");
+      if (specialElementData) {
+        await this.restoreSpecialElementState(clonedElement, specialElementData);
+      }
+      const duplicatedSelector = this.generateSelectorForElement(clonedElement);
+      const previousState = {
+        selector,
+        duplicatedSelector
+      };
+      this.commandHistory.push({
+        commandType: "DUPLICATE_ELEMENT",
+        payload: { selector, duplicatedSelector },
+        previousState,
+        timestamp: Date.now(),
+        metadata: {
+          canUndo: true,
+          description: "Duplicate element"
+        }
+      });
+      EditorLogger.info("[StyleManager] Duplicate command recorded in history");
+      if (this.elementSelector && clonedElement instanceof HTMLElement) {
+        setTimeout(() => {
+          var _a;
+          (_a = this.elementSelector) == null ? void 0 : _a.selectElement(clonedElement);
+          EditorLogger.info("[StyleManager] Duplicated element selected");
+        }, 0);
+      }
+    } finally {
+      setTimeout(() => {
+        this.isDuplicating = false;
+      }, 300);
+    }
+  }
+  /**
+   * Capture special element state (Canvas, Video, etc.)
+   * Returns data that can be used to restore the element's runtime state
+   */
+  captureSpecialElementState(element) {
+    try {
+      if (element.tagName === "CANVAS") {
+        const canvas = element;
+        try {
+          const dataURL = canvas.toDataURL("image/png");
+          EditorLogger.info("[StyleManager] Captured canvas state", {
+            width: canvas.width,
+            height: canvas.height
+          });
+          return {
+            type: "canvas",
+            dataURL,
+            width: canvas.width,
+            height: canvas.height
+          };
+        } catch (error) {
+          EditorLogger.warn("[StyleManager] Cannot capture canvas state (tainted)", error);
+          return null;
+        }
+      }
+      if (element.tagName === "VIDEO") {
+        const video = element;
+        return {
+          type: "video",
+          currentTime: video.currentTime,
+          paused: video.paused
+        };
+      }
+      if (element.tagName === "AUDIO") {
+        const audio = element;
+        return {
+          type: "audio",
+          currentTime: audio.currentTime,
+          paused: audio.paused
+        };
+      }
+      const canvases = element.querySelectorAll("canvas");
+      if (canvases.length > 0) {
+        const canvasStates = [];
+        canvases.forEach((canvas, index) => {
+          try {
+            const dataURL = canvas.toDataURL("image/png");
+            canvasStates.push({
+              selector: `canvas:nth-of-type(${index + 1})`,
+              data: {
+                type: "canvas",
+                dataURL,
+                width: canvas.width,
+                height: canvas.height
+              }
+            });
+          } catch (error) {
+            EditorLogger.warn(
+              `[StyleManager] Cannot capture descendant canvas ${index}`,
+              error
+            );
+          }
+        });
+        if (canvasStates.length > 0) {
+          return {
+            type: "container-with-canvas",
+            canvasStates
+          };
+        }
+      }
+    } catch (error) {
+      EditorLogger.warn("[StyleManager] Failed to capture special element state", error);
+    }
+    return null;
+  }
+  /**
+   * Restore special element state (Canvas, Video, etc.)
+   */
+  async restoreSpecialElementState(element, specialElementData) {
+    if (!specialElementData) return;
+    try {
+      if (specialElementData.type === "canvas") {
+        const canvas = element;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          EditorLogger.warn("[StyleManager] Cannot get canvas context");
+          return;
+        }
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            canvas.width = specialElementData.width;
+            canvas.height = specialElementData.height;
+            ctx.drawImage(img, 0, 0);
+            EditorLogger.info("[StyleManager] Canvas content restored");
+            resolve();
+          };
+          img.onerror = () => {
+            EditorLogger.error("[StyleManager] Failed to load canvas image");
+            reject(new Error("Failed to load canvas image"));
+          };
+          img.src = specialElementData.dataURL;
+        });
+      } else if (specialElementData.type === "video") {
+        const video = element;
+        video.currentTime = specialElementData.currentTime;
+        if (!specialElementData.paused) {
+          EditorLogger.info("[StyleManager] Video was playing, keeping paused");
+        }
+      } else if (specialElementData.type === "audio") {
+        const audio = element;
+        audio.currentTime = specialElementData.currentTime;
+        if (!specialElementData.paused) {
+          EditorLogger.info("[StyleManager] Audio was playing, keeping paused");
+        }
+      } else if (specialElementData.type === "container-with-canvas") {
+        const canvasStates = specialElementData.canvasStates;
+        for (const { selector, data } of canvasStates) {
+          try {
+            const canvas = element.querySelector(selector);
+            if (canvas) {
+              await this.restoreSpecialElementState(canvas, data);
+            }
+          } catch (error) {
+            EditorLogger.warn(
+              `[StyleManager] Failed to restore descendant canvas: ${selector}`,
+              error
+            );
+          }
+        }
+      }
+    } catch (error) {
+      EditorLogger.error("[StyleManager] Failed to restore special element state", error);
+    }
+  }
+  /**
+   * Generate a unique selector for an element
+   */
+  generateSelectorForElement(element) {
+    if (!element || !element.tagName) {
+      throw new Error("Invalid element: element or tagName is undefined");
+    }
+    if (element.id) {
+      return `#${this.escapeCSSSelector(element.id)}`;
+    }
+    const path = [];
+    let current = element;
+    while (current && current !== document.body) {
+      if (!current.tagName) {
+        EditorLogger.warn("[StyleManager] Element without tagName encountered");
+        break;
+      }
+      let selector = current.tagName.toLowerCase();
+      if (current.className && typeof current.className === "string") {
+        const classes = Array.from(current.classList).filter((cls) => !cls.startsWith("data-")).map((cls) => this.escapeCSSSelector(cls)).join(".");
+        if (classes) {
+          selector += `.${classes}`;
+        }
+      }
+      if (current.parentElement) {
+        const siblings = Array.from(current.parentElement.children).filter(
+          (el) => el.tagName === current.tagName
+        );
+        if (siblings.length > 1) {
+          const index = siblings.indexOf(current) + 1;
+          selector += `:nth-of-type(${index})`;
+        }
+      }
+      path.unshift(selector);
+      current = current.parentElement;
+    }
+    if (path.length === 0) {
+      throw new Error("Failed to generate selector: empty path");
+    }
+    return path.join(" > ");
+  }
+  /**
+   * Escape special characters in CSS selector
+   * Per CSS spec, these characters need to be escaped: !"#$%&'()*+,-./:;<=>?@[\]^`{|}~
+   */
+  escapeCSSSelector(str) {
+    return str.replace(/([!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~-])/g, "\\$1");
+  }
+  /**
+   * Undo last command
+   */
+  async undo() {
+    const command = this.commandHistory.undo();
+    if (!command) return false;
+    const previousState = command.previousState;
+    this.restoreState(command);
+    if (Array.isArray(previousState == null ? void 0 : previousState.elements) && this.elementSelector) {
+      this.elementSelector.refreshSelection();
+    }
+    if (command.commandType !== "DELETE_ELEMENT") {
+      const previousState2 = command.previousState;
+      if ((previousState2 == null ? void 0 : previousState2.selector) && this.elementSelector) {
+        try {
+          const element = findElement(previousState2.selector);
+          if (element instanceof HTMLElement) {
+            const isTextEditing = element.getAttribute("data-text-editing") === "true";
+            if (isTextEditing) {
+              this.elementSelector.refreshSelection();
+            } else {
+              this.elementSelector.selectElement(element);
+            }
+          }
+        } catch (error) {
+          EditorLogger.warn("Failed to refresh element after undo", error);
+        }
+      }
+    }
+    return true;
+  }
+  /**
+   * Redo last command
+   */
+  async redo() {
+    const command = this.commandHistory.redo();
+    if (!command) return false;
+    await this.applyCommand(command);
+    if (command.commandType !== "DELETE_ELEMENT") {
+      const payload = command.payload;
+      if ((payload == null ? void 0 : payload.selector) && this.elementSelector) {
+        try {
+          const element = findElement(payload.selector);
+          if (element instanceof HTMLElement) {
+            const isTextEditing = element.getAttribute("data-text-editing") === "true";
+            if (isTextEditing) {
+              this.elementSelector.refreshSelection();
+            } else {
+              this.elementSelector.selectElement(element);
+            }
+          }
+        } catch (error) {
+          EditorLogger.warn("Failed to refresh element after redo", error);
+        }
+      }
+    }
+    return true;
+  }
+  /**
+   * Restore previous state
+   */
+  restoreState(command) {
+    if (!command.previousState) return;
+    try {
+      if (command.commandType === "BATCH_STYLES_MULTIPLE") {
+        const { elements } = command.previousState;
+        for (const { selector: elemSelector, styles: prevStyles } of elements) {
+          try {
+            const elem = findElement(elemSelector);
+            for (const [property, value] of Object.entries(prevStyles)) {
+              const kebabProperty = camelToKebab(property);
+              if (value) {
+                elem.style.setProperty(kebabProperty, value);
+              } else {
+                elem.style.removeProperty(kebabProperty);
+              }
+            }
+          } catch (error) {
+            EditorLogger.error(
+              `Failed to restore styles for element: ${elemSelector}`,
+              error
+            );
+          }
+        }
+        return;
+      }
+      if (command.commandType === "SET_BACKGROUND_COLOR_MULTIPLE") {
+        const { elements } = command.previousState;
+        for (const { selector: elemSelector, backgroundColor } of elements) {
+          try {
+            const elem = findElement(elemSelector);
+            elem.style.backgroundColor = backgroundColor;
+          } catch (error) {
+            EditorLogger.error(
+              `Failed to restore background color for element: ${elemSelector}`,
+              error
+            );
+          }
+        }
+        return;
+      }
+      if (command.commandType === "SET_TEXT_COLOR_MULTIPLE") {
+        const { elements } = command.previousState;
+        for (const { selector: elemSelector, color } of elements) {
+          try {
+            const elem = findElement(elemSelector);
+            elem.style.color = color;
+          } catch (error) {
+            EditorLogger.error(
+              `Failed to restore text color for element: ${elemSelector}`,
+              error
+            );
+          }
+        }
+        return;
+      }
+      const { selector, textContent, ...previousState } = command.previousState;
+      if (command.commandType === "DUPLICATE_ELEMENT") {
+        const { duplicatedSelector } = command.previousState;
+        EditorLogger.info("[StyleManager] Undoing element duplication", {
+          duplicatedSelector
+        });
+        try {
+          const duplicatedElement = findElement(duplicatedSelector);
+          duplicatedElement.remove();
+          EditorLogger.info("[StyleManager] Duplicated element removed");
+          if (this.elementSelector && command.previousState.selector) {
+            const originalElement = findElement(command.previousState.selector);
+            if (originalElement instanceof HTMLElement) {
+              setTimeout(() => {
+                var _a;
+                (_a = this.elementSelector) == null ? void 0 : _a.selectElement(originalElement);
+                EditorLogger.info("[StyleManager] Original element re-selected");
+              }, 0);
+            }
+          }
+        } catch (error) {
+          EditorLogger.error("[StyleManager] Failed to undo element duplication", error);
+        }
+        return;
+      }
+      if (command.commandType === "DELETE_ELEMENT") {
+        const {
+          parentSelector,
+          nextSiblingSelector,
+          siblingIndex,
+          html,
+          selector: selector2,
+          specialElementData
+        } = command.previousState;
+        EditorLogger.info("[StyleManager] Restoring deleted element", {
+          selector: selector2,
+          hasNextSibling: !!nextSiblingSelector,
+          siblingIndex,
+          hasSpecialData: !!specialElementData
+        });
+        const parent = findElement(parentSelector);
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+        const restoredElement = tempDiv.firstElementChild;
+        if (restoredElement) {
+          let restored = false;
+          if (!restored && typeof siblingIndex === "number" && siblingIndex >= 0) {
+            try {
+              const currentChildren = Array.from(parent.children);
+              if (siblingIndex <= currentChildren.length) {
+                if (siblingIndex < currentChildren.length) {
+                  parent.insertBefore(
+                    restoredElement,
+                    currentChildren[siblingIndex]
+                  );
+                } else {
+                  parent.appendChild(restoredElement);
+                }
+                restored = true;
+                EditorLogger.info(
+                  `[StyleManager] Element restored at index ${siblingIndex}`
+                );
+              }
+            } catch (error) {
+              EditorLogger.warn("[StyleManager] Index-based restore failed");
+            }
+          }
+          if (!restored && nextSiblingSelector) {
+            try {
+              const nextSibling = findElement(nextSiblingSelector);
+              parent.insertBefore(restoredElement, nextSibling);
+              restored = true;
+              EditorLogger.info("[StyleManager] Element restored before next sibling");
+            } catch (error) {
+              EditorLogger.warn("[StyleManager] Next sibling not found");
+            }
+          }
+          if (!restored) {
+            parent.appendChild(restoredElement);
+            EditorLogger.info("[StyleManager] Element restored at end (fallback)");
+          }
+          if (specialElementData) {
+            this.restoreSpecialElementState(restoredElement, specialElementData).catch(
+              (error) => {
+                EditorLogger.error(
+                  "[StyleManager] Failed to restore special element state",
+                  error
+                );
+              }
+            );
+          }
+          if (this.elementSelector && restoredElement instanceof HTMLElement) {
+            setTimeout(() => {
+              var _a;
+              (_a = this.elementSelector) == null ? void 0 : _a.selectElement(restoredElement);
+              EditorLogger.info("[StyleManager] Restored element selected");
+            }, 0);
+          }
+        } else {
+          EditorLogger.error("[StyleManager] Failed to parse restored element HTML");
+        }
+        return;
+      }
+      if (command.commandType === "ADJUST_FONT_SIZE_RECURSIVE") {
+        const { fontSizes } = command.previousState;
+        if (fontSizes && selector) {
+          const rootElement = findElement(selector);
+          fontSizes.forEach(({ relativePath, fontSize: prevFontSize }) => {
+            try {
+              let targetElement = null;
+              if (relativePath === "") {
+                targetElement = rootElement;
+              } else {
+                const scopedSelector = relativePath.startsWith(">") ? `:scope ${relativePath}` : relativePath;
+                targetElement = rootElement.querySelector(scopedSelector);
+              }
+              if (targetElement instanceof HTMLElement) {
+                if (prevFontSize === "") {
+                  targetElement.style.removeProperty("font-size");
+                } else {
+                  targetElement.style.fontSize = prevFontSize;
+                }
+              }
+            } catch (e) {
+              EditorLogger.warn(`Failed to restore font size for ${relativePath}`, e);
+            }
+          });
+        }
+        return;
+      }
+      const element = findElement(selector);
+      if (command.commandType === "APPLY_TEXT_STYLE") {
+        const previousState2 = command.previousState;
+        if (previousState2.styles !== void 0) {
+          const previousStyles = previousState2.styles;
+          const htmlElement = element;
+          for (const [property, value] of Object.entries(previousStyles)) {
+            if (value === "") {
+              htmlElement.style[property] = "";
+            } else {
+              htmlElement.style[property] = value;
+            }
+          }
+          if (this.textStyleManager && previousState2.selectedText) {
+            const restored = this.textStyleManager.restoreTextSelection(
+              selector,
+              previousState2.selectedText
+            );
+            if (!restored) {
+              this.textStyleManager.clearTextSelection();
+            }
+          }
+          return;
+        }
+        if (previousState2.innerHTML !== void 0) {
+          const previousHTML = previousState2.innerHTML;
+          element.innerHTML = previousHTML;
+          if (this.textStyleManager) {
+            const selectedText = previousState2.selectedText;
+            if (selectedText && typeof selectedText === "string" && selectedText.length > 0) {
+              const restored = this.textStyleManager.restoreTextSelection(
+                selector,
+                selectedText
+              );
+              if (!restored) {
+                this.textStyleManager.clearTextSelection();
+              }
+            } else {
+              this.textStyleManager.clearTextSelection();
+            }
+          }
+          return;
+        }
+      }
+      if (command.previousState.innerHTML !== void 0 && command.commandType !== "APPLY_TEXT_STYLE") {
+        element.innerHTML = command.previousState.innerHTML;
+        return;
+      }
+      if (textContent !== void 0) {
+        element.textContent = textContent;
+        return;
+      }
+      for (const [property, value] of Object.entries(previousState)) {
+        const kebabProperty = camelToKebab(property);
+        if (value) {
+          element.style.setProperty(kebabProperty, value);
+        } else {
+          element.style.removeProperty(kebabProperty);
+        }
+      }
+    } catch (error) {
+      EditorLogger.error("Failed to restore state", error);
+    }
+  }
+  /**
+   * Apply command
+   */
+  async applyCommand(command) {
+    if (!command.payload) return;
+    try {
+      if (command.commandType === "BATCH_STYLES_MULTIPLE") {
+        const { selectors, styles: styles2 } = command.payload;
+        for (const elemSelector of selectors) {
+          try {
+            const elem = findElement(elemSelector);
+            for (const [property, value] of Object.entries(styles2)) {
+              const kebabProperty = camelToKebab(property);
+              elem.style.setProperty(kebabProperty, value);
+            }
+          } catch (error) {
+            EditorLogger.error(
+              `Failed to apply styles to element: ${elemSelector}`,
+              error
+            );
+          }
+        }
+        return;
+      }
+      if (command.commandType === "SET_BACKGROUND_COLOR_MULTIPLE") {
+        const { selectors, color: color2 } = command.payload;
+        for (const elemSelector of selectors) {
+          try {
+            const elem = findElement(elemSelector);
+            elem.style.backgroundColor = color2;
+          } catch (error) {
+            EditorLogger.error(
+              `Failed to set background color for element: ${elemSelector}`,
+              error
+            );
+          }
+        }
+        return;
+      }
+      if (command.commandType === "SET_TEXT_COLOR_MULTIPLE") {
+        const { selectors, color: color2 } = command.payload;
+        for (const elemSelector of selectors) {
+          try {
+            const elem = findElement(elemSelector);
+            elem.style.color = color2;
+          } catch (error) {
+            EditorLogger.error(
+              `Failed to set text color for element: ${elemSelector}`,
+              error
+            );
+          }
+        }
+        return;
+      }
+      const { selector, styles, color, fontSize, unit, content, textContent, top, left } = command.payload;
+      if (command.commandType === "DUPLICATE_ELEMENT") {
+        EditorLogger.info("[StyleManager] Redoing element duplication", { selector });
+        const element2 = findElement(selector);
+        const parent = element2.parentElement;
+        if (!parent) {
+          EditorLogger.error("[StyleManager] Cannot duplicate element without parent");
+          return;
+        }
+        const clonedElement = element2.cloneNode(true);
+        const specialElementData = this.captureSpecialElementState(element2);
+        const nextSibling = element2.nextSibling;
+        if (nextSibling) {
+          parent.insertBefore(clonedElement, nextSibling);
+        } else {
+          parent.appendChild(clonedElement);
+        }
+        if (specialElementData) {
+          await this.restoreSpecialElementState(clonedElement, specialElementData);
+        }
+        EditorLogger.info("[StyleManager] Element duplicated during redo");
+        if (this.elementSelector && clonedElement instanceof HTMLElement) {
+          setTimeout(() => {
+            var _a;
+            (_a = this.elementSelector) == null ? void 0 : _a.selectElement(clonedElement);
+            EditorLogger.info("[StyleManager] Duplicated element selected during redo");
+          }, 0);
+        }
+        return;
+      }
+      if (command.commandType === "DELETE_ELEMENT") {
+        EditorLogger.info("[StyleManager] Reapplying DELETE_ELEMENT command", { selector });
+        const element2 = findElement(selector);
+        element2.remove();
+        EditorLogger.info("[StyleManager] Element removed during redo");
+        if (this.elementSelector) {
+          this.elementSelector.clearSelection();
+          EditorLogger.info("[StyleManager] Selection cleared during redo");
+        }
+        return;
+      }
+      const element = findElement(selector);
+      switch (command.commandType) {
+        case "SET_BACKGROUND_COLOR":
+          element.style.backgroundColor = color;
+          break;
+        case "SET_TEXT_COLOR":
+          element.style.color = color;
+          break;
+        case "SET_FONT_SIZE":
+          element.style.fontSize = typeof fontSize === "number" ? `${fontSize}${unit}` : fontSize;
+          break;
+        case "BATCH_STYLES":
+          for (const [property, value] of Object.entries(styles)) {
+            const kebabProperty = camelToKebab(property);
+            element.style.setProperty(kebabProperty, value);
+          }
+          break;
+        case "ADJUST_FONT_SIZE_RECURSIVE": {
+          const { scaleFactor, minFontSize = 8 } = command.payload;
+          this.applyFontSizeAdjustment(selector, scaleFactor, minFontSize);
+          break;
+        }
+        case "SET_TEXT_CONTENT": {
+          element.textContent = textContent;
+          break;
+        }
+        case "UPDATE_TEXT_CONTENT": {
+          element.textContent = content;
+          break;
+        }
+        case "SET_ELEMENT_POSITION": {
+          element.style.position = "relative";
+          element.style.top = `${top}px`;
+          element.style.left = `${left}px`;
+          break;
+        }
+        case "APPLY_TEXT_STYLE": {
+          const payload = command.payload;
+          if (payload.isStyleUpdate && payload.styles) {
+            const styles2 = payload.styles;
+            const htmlElement = element;
+            for (const [property, value] of Object.entries(styles2)) {
+              htmlElement.style[property] = value || "";
+            }
+            if (this.textStyleManager && payload.selectedText) {
+              const restored = this.textStyleManager.restoreTextSelection(
+                selector,
+                payload.selectedText
+              );
+              if (!restored) {
+                this.textStyleManager.clearTextSelection();
+              }
+            }
+          } else if (payload.innerHTML !== void 0) {
+            element.innerHTML = payload.innerHTML;
+            if (this.textStyleManager) {
+              const selectedText = payload.selectedText;
+              if (selectedText && typeof selectedText === "string" && selectedText.length > 0) {
+                const restored = this.textStyleManager.restoreTextSelection(
+                  selector,
+                  selectedText
+                );
+                if (!restored) {
+                  this.textStyleManager.clearTextSelection();
+                }
+              } else {
+                this.textStyleManager.clearTextSelection();
+              }
+            }
+          }
+          break;
+        }
+      }
+    } catch (error) {
+      EditorLogger.error("Failed to apply command", error);
+    }
+  }
+}
+class TextStyleManager {
+  constructor(commandHistory, bridge) {
+    this.elementSelector = null;
+    this.currentRange = null;
+    this.currentContainerSelector = null;
+    this.selectionChangeHandler = null;
+    this.applyingStyle = null;
+    this.commandHistory = commandHistory;
+    this.bridge = bridge;
+  }
+  /**
+   * Set element selector for selecting created spans
+   */
+  setElementSelector(elementSelector) {
+    this.elementSelector = elementSelector;
+  }
+  /**
+   * Start monitoring text selection changes
+   */
+  startMonitoring() {
+    if (this.selectionChangeHandler) {
+      return;
+    }
+    this.selectionChangeHandler = () => {
+      this.handleSelectionChange();
+    };
+    document.addEventListener("selectionchange", this.selectionChangeHandler);
+    EditorLogger.debug("Text selection monitoring started");
+  }
+  /**
+   * Stop monitoring text selection changes
+   */
+  stopMonitoring() {
+    if (this.selectionChangeHandler) {
+      document.removeEventListener("selectionchange", this.selectionChangeHandler);
+      this.selectionChangeHandler = null;
+      EditorLogger.debug("Text selection monitoring stopped");
+    }
+  }
+  /**
+   * Handle selection change event
+   */
+  handleSelectionChange() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      this.clearSelection();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const selectedText = range.toString().trim();
+    if (!selectedText || range.collapsed) {
+      this.clearSelection();
+      return;
+    }
+    this.currentRange = range.cloneRange();
+    const container = this.findEditableContainer(range.commonAncestorContainer);
+    if (!container) {
+      this.clearSelection();
+      return;
+    }
+    this.currentContainerSelector = this.generateSelector(container);
+    const rects = range.getClientRects();
+    const boundingRect = rects.length > 0 ? {
+      top: rects[0].top,
+      left: rects[0].left,
+      width: rects[0].width,
+      height: rects[0].height
+    } : void 0;
+    this.bridge.sendEvent("TEXT_SELECTION_CHANGED", {
+      hasSelection: true,
+      selectedText,
+      boundingRect,
+      containerSelector: this.currentContainerSelector
+    });
+    EditorLogger.debug("Text selection changed", {
+      selectedText,
+      containerSelector: this.currentContainerSelector
+    });
+  }
+  /**
+   * Clear current selection
+   */
+  clearSelection() {
+    if (this.currentRange) {
+      this.currentRange = null;
+      this.currentContainerSelector = null;
+      this.bridge.sendEvent("TEXT_SELECTION_CHANGED", {
+        hasSelection: false,
+        selectedText: "",
+        boundingRect: void 0,
+        containerSelector: void 0
+      });
+    }
+  }
+  /**
+   * Find the editable container element
+   */
+  findEditableContainer(node) {
+    let current = node;
+    while (current) {
+      if (current instanceof HTMLElement) {
+        if (current.isContentEditable) {
+          return current;
+        }
+      }
+      current = current.parentNode;
+    }
+    return null;
+  }
+  /**
+   * Generate a unique selector for an element
+   */
+  generateSelector(element) {
+    const editorId = element.getAttribute("data-editor-id");
+    if (editorId) {
+      return `[data-editor-id="${editorId}"]`;
+    }
+    if (element.id) {
+      return `#${element.id}`;
+    }
+    const path = [];
+    let current = element;
+    while (current && current !== document.body) {
+      let selector = current.tagName.toLowerCase();
+      if (current.className) {
+        selector += `.${current.className.split(" ").join(".")}`;
+      }
+      path.unshift(selector);
+      current = current.parentElement;
+    }
+    return path.join(" > ");
+  }
+  /**
+   * Get current text selection info
+   */
+  getTextSelection() {
+    if (!this.currentRange || !this.currentContainerSelector) {
+      return {
+        hasSelection: false,
+        selectedText: ""
+      };
+    }
+    return {
+      hasSelection: true,
+      selectedText: this.currentRange.toString(),
+      range: {
+        startOffset: this.currentRange.startOffset,
+        endOffset: this.currentRange.endOffset,
+        containerSelector: this.currentContainerSelector
+      }
+    };
+  }
+  /**
+   * Get computed styles for the current text selection
+   * Returns the styles of the first element in the selection range
+   * This is used for style panel to display current text styles
+   */
+  getSelectionComputedStyles() {
+    if (!this.currentRange) {
+      return {};
+    }
+    try {
+      let startNode = this.currentRange.startContainer;
+      if (startNode.nodeType === Node.TEXT_NODE) {
+        startNode = startNode.parentElement;
+      }
+      if (!(startNode instanceof HTMLElement)) {
+        return {};
+      }
+      const computedStyle = window.getComputedStyle(startNode);
+      return {
+        color: computedStyle.color,
+        backgroundColor: computedStyle.backgroundColor,
+        fontSize: computedStyle.fontSize,
+        fontWeight: computedStyle.fontWeight,
+        fontFamily: computedStyle.fontFamily,
+        fontStyle: computedStyle.fontStyle,
+        lineHeight: computedStyle.lineHeight,
+        textAlign: computedStyle.textAlign,
+        textDecoration: computedStyle.textDecoration
+      };
+    } catch (error) {
+      EditorLogger.error("Failed to get selection computed styles", error);
+      return {};
+    }
+  }
+  /**
+   * Apply style to selected text
+   * This will wrap the selected text in a <span> and apply styles to it
+   */
+  async applyTextStyle(selector, styles) {
+    if (this.applyingStyle) {
+      await this.applyingStyle;
+    }
+    let resolveApplying;
+    this.applyingStyle = new Promise((resolve) => {
+      resolveApplying = resolve;
+    });
+    try {
+      await this.applyTextStyleInternal(selector, styles);
+    } finally {
+      resolveApplying();
+      this.applyingStyle = null;
+    }
+  }
+  /**
+   * Internal method to apply text style (without locking)
+   */
+  async applyTextStyleInternal(selector, styles) {
+    if (!this.currentRange) {
+      EditorLogger.warn("No text selection to apply style to");
+      return;
+    }
+    if (selector !== this.currentContainerSelector) {
+      EditorLogger.warn("Selector mismatch", {
+        expected: this.currentContainerSelector,
+        received: selector
+      });
+      return;
+    }
+    const container = findElement(selector);
+    if (!container) {
+      EditorLogger.error("Container element not found", { selector });
+      return;
+    }
+    try {
+      const previousHTML = container.innerHTML;
+      let targetSpan = null;
+      const previousStyles = {};
+      let newSpanCreated = false;
+      const range = this.currentRange;
+      let commonAncestor = range.commonAncestorContainer;
+      if (commonAncestor.nodeType === Node.TEXT_NODE) {
+        commonAncestor = commonAncestor.parentElement;
+      }
+      if (commonAncestor instanceof HTMLSpanElement) {
+        const spanTextContent = commonAncestor.textContent || "";
+        const selectedText2 = range.toString();
+        if (spanTextContent === selectedText2) {
+          targetSpan = commonAncestor;
+          if (styles.fontWeight !== void 0) {
+            previousStyles.fontWeight = targetSpan.style.fontWeight || "";
+          }
+          if (styles.fontStyle !== void 0) {
+            previousStyles.fontStyle = targetSpan.style.fontStyle || "";
+          }
+          if (styles.textDecoration !== void 0) {
+            previousStyles.textDecoration = targetSpan.style.textDecoration || "";
+          }
+          if (styles.color !== void 0) {
+            previousStyles.color = targetSpan.style.color || "";
+          }
+          if (styles.backgroundColor !== void 0) {
+            previousStyles.backgroundColor = targetSpan.style.backgroundColor || "";
+          }
+          if (styles.fontSize !== void 0) {
+            previousStyles.fontSize = targetSpan.style.fontSize || "";
+          }
+        }
+      }
+      if (targetSpan) {
+        if (styles.fontWeight !== void 0) targetSpan.style.fontWeight = styles.fontWeight;
+        if (styles.fontStyle !== void 0) targetSpan.style.fontStyle = styles.fontStyle;
+        if (styles.textDecoration !== void 0)
+          targetSpan.style.textDecoration = styles.textDecoration;
+        if (styles.color !== void 0) targetSpan.style.color = styles.color;
+        if (styles.backgroundColor !== void 0)
+          targetSpan.style.backgroundColor = styles.backgroundColor;
+        if (styles.fontSize !== void 0) targetSpan.style.fontSize = styles.fontSize;
+      } else {
+        const span = document.createElement("span");
+        newSpanCreated = true;
+        if (styles.fontWeight) span.style.fontWeight = styles.fontWeight;
+        if (styles.fontStyle) span.style.fontStyle = styles.fontStyle;
+        if (styles.textDecoration) span.style.textDecoration = styles.textDecoration;
+        if (styles.color) span.style.color = styles.color;
+        if (styles.backgroundColor) span.style.backgroundColor = styles.backgroundColor;
+        if (styles.fontSize) span.style.fontSize = styles.fontSize;
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+        targetSpan = span;
+      }
+      const newHTML = container.innerHTML;
+      const selection = window.getSelection();
+      if (selection && targetSpan) {
+        const newRange = document.createRange();
+        newRange.selectNodeContents(targetSpan);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+        this.currentRange = newRange.cloneRange();
+        const selectedText2 = newRange.toString();
+        const rects = newRange.getClientRects();
+        const boundingRect = rects.length > 0 ? {
+          top: rects[0].top,
+          left: rects[0].left,
+          width: rects[0].width,
+          height: rects[0].height
+        } : void 0;
+        this.bridge.sendEvent("TEXT_SELECTION_CHANGED", {
+          hasSelection: true,
+          selectedText: selectedText2,
+          boundingRect,
+          containerSelector: selector
+        });
+        EditorLogger.debug("Text selection updated after style application", {
+          selectedText: selectedText2,
+          containerSelector: selector
+        });
+      }
+      const selectedText = this.currentRange.toString();
+      if (Object.keys(previousStyles).length > 0) {
+        this.commandHistory.push({
+          commandType: "APPLY_TEXT_STYLE",
+          payload: { selector, styles, selectedText, isStyleUpdate: true },
+          // Mark as style update
+          previousState: { selector, styles: previousStyles, selectedText },
+          // Save previous styles
+          timestamp: Date.now(),
+          metadata: {
+            canUndo: true,
+            description: `Apply text style`
+          }
+        });
+      } else {
+        this.commandHistory.push({
+          commandType: "APPLY_TEXT_STYLE",
+          payload: { selector, styles, innerHTML: newHTML, selectedText },
+          // Save new HTML for redo
+          previousState: { selector, innerHTML: previousHTML, selectedText },
+          // Save old HTML for undo
+          timestamp: Date.now(),
+          metadata: {
+            canUndo: true,
+            description: `Apply text style`
+          }
+        });
+      }
+      EditorLogger.info("Text style applied", { selector, styles });
+      if (newSpanCreated && targetSpan && this.elementSelector) {
+        setTimeout(() => {
+          if (targetSpan && this.elementSelector) {
+            const selection2 = window.getSelection();
+            if (selection2) {
+              selection2.removeAllRanges();
+            }
+            this.clearTextSelection();
+            this.elementSelector.selectElement(targetSpan);
+            EditorLogger.debug("New span selected as selectedElement", {
+              spanSelector: this.generateSpanSelector(targetSpan)
+            });
+          }
+        }, 50);
+      }
+    } catch (error) {
+      EditorLogger.error("Failed to apply text style", error);
+      throw error;
+    }
+  }
+  /**
+   * Generate a selector for a span element
+   */
+  generateSpanSelector(span) {
+    let selector = "span";
+    if (span.id) {
+      selector = `#${span.id}`;
+    } else if (span.className) {
+      selector = `span.${span.className.split(" ").join(".")}`;
+    }
+    return selector;
+  }
+  /**
+   * Clear current text selection state
+   * Called after undo/redo operations that restore innerHTML
+   */
+  clearTextSelection() {
+    this.currentRange = null;
+    this.currentContainerSelector = null;
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+    this.bridge.sendEvent("TEXT_SELECTION_CHANGED", {
+      hasSelection: false,
+      selectedText: "",
+      boundingRect: void 0,
+      containerSelector: void 0
+    });
+    EditorLogger.debug("Text selection cleared");
+  }
+  /**
+   * Try to restore text selection after innerHTML restoration
+   * Returns true if selection was restored successfully
+   */
+  restoreTextSelection(containerSelector, selectedText) {
+    var _a;
+    try {
+      const container = findElement(containerSelector);
+      if (!container) {
+        EditorLogger.warn("Container not found for text selection restoration", {
+          containerSelector
+        });
+        return false;
+      }
+      const textContent = container.textContent || "";
+      const textIndex = textContent.indexOf(selectedText);
+      if (textIndex === -1) {
+        EditorLogger.warn("Selected text not found in container", {
+          selectedText,
+          containerSelector
+        });
+        return false;
+      }
+      const range = document.createRange();
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+      let currentOffset = 0;
+      let startNode = null;
+      let startOffset = 0;
+      let endNode = null;
+      let endOffset = 0;
+      while (walker.nextNode()) {
+        const textNode = walker.currentNode;
+        const nodeLength = ((_a = textNode.textContent) == null ? void 0 : _a.length) || 0;
+        if (!startNode && currentOffset <= textIndex && currentOffset + nodeLength > textIndex) {
+          startNode = textNode;
+          startOffset = textIndex - currentOffset;
+        }
+        if (startNode && currentOffset < textIndex + selectedText.length && currentOffset + nodeLength >= textIndex + selectedText.length) {
+          endNode = textNode;
+          endOffset = textIndex + selectedText.length - currentOffset;
+          break;
+        }
+        currentOffset += nodeLength;
+      }
+      if (!startNode || !endNode) {
+        EditorLogger.warn("Could not find text nodes for selection");
+        return false;
+      }
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+        this.currentRange = range.cloneRange();
+        this.currentContainerSelector = containerSelector;
+        EditorLogger.info("Text selection restored successfully", {
+          selectedText,
+          containerSelector
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      EditorLogger.error("Failed to restore text selection", error);
+      return false;
+    }
+  }
+  /**
+   * Cleanup
+   */
+  destroy() {
+    this.stopMonitoring();
+    this.currentRange = null;
+    this.currentContainerSelector = null;
+  }
+}
+class ContentCleaner {
+  /**
+   * Clean document HTML
+   */
+  static cleanDocument(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    this.removeInjectedElements(doc);
+    this.cleanEditingAttributes(doc);
+    return this.serializeDocument(doc);
+  }
+  /**
+   * Remove injected elements
+   */
+  static removeInjectedElements(doc) {
+    const injected = doc.querySelectorAll("[data-injected]");
+    injected.forEach((el) => {
+      if (["SCRIPT", "STYLE", "LINK", "META"].includes(el.tagName)) {
+        el.remove();
+      } else {
+        el.removeAttribute("data-injected");
+      }
+    });
+  }
+  /**
+   * Clean editing attributes
+   */
+  static cleanEditingAttributes(doc) {
+    var _a, _b;
+    const editingClasses = ["__editor-selected", "__editor-hover"];
+    const editingAttributes = ["contenteditable", "data-text-editing", "data-previous-content"];
+    doc.querySelectorAll("*").forEach((el) => {
+      editingClasses.forEach((cls) => el.classList.remove(cls));
+      editingAttributes.forEach((attr) => el.removeAttribute(attr));
+    });
+    (_a = doc.documentElement) == null ? void 0 : _a.removeAttribute("data-injected");
+    (_b = doc.body) == null ? void 0 : _b.removeAttribute("data-injected");
+  }
+  /**
+   * Serialize document
+   */
+  static serializeDocument(doc) {
+    const doctype = doc.doctype;
+    let doctypeStr = "<!DOCTYPE html>";
+    if (doctype) {
+      doctypeStr = `<!DOCTYPE ${doctype.name}`;
+      if (doctype.publicId) {
+        doctypeStr += ` PUBLIC "${doctype.publicId}"`;
+      }
+      if (doctype.systemId) {
+        doctypeStr += ` "${doctype.systemId}"`;
+      }
+      doctypeStr += ">\n";
+    }
+    return doctypeStr + doc.documentElement.outerHTML;
+  }
+  /**
+   * Validate HTML content
+   */
+  static validateHtmlContent(html) {
+    const errors = [];
+    if (!html || typeof html !== "string") {
+      errors.push("HTML content cannot be empty");
+      return { valid: false, errors };
+    }
+    if (!html.includes("<html") && !html.includes("<!DOCTYPE")) {
+      errors.push("Missing HTML document structure");
+    }
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const parserError = doc.querySelector("parsererror");
+      if (parserError) {
+        errors.push("HTML parse error: " + parserError.textContent);
+      }
+    } catch (error) {
+      errors.push(
+        "HTML parse failed: " + (error instanceof Error ? error.message : String(error))
+      );
+    }
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+}
+function registerRequestHandlers(config) {
+  const {
+    bridge,
+    commandHistory,
+    styleManager,
+    textStyleManager,
+    elementSelector,
+    onEditModeChange,
+    onSelectionModeChange
+  } = config;
+  bridge.onRequest("GET_CONTENT", async () => {
+    const html = document.documentElement.outerHTML;
+    const cleanHtml = ContentCleaner.cleanDocument(html);
+    const hasChanges = commandHistory.getUndoStackSize() > 0;
+    EditorLogger.info("Get content", { hasChanges });
+    return {
+      html,
+      cleanHtml,
+      hasChanges
+    };
+  });
+  bridge.onRequest("GET_CLEAN_CONTENT", async () => {
+    const html = document.documentElement.outerHTML;
+    const cleanHtml = ContentCleaner.cleanDocument(html);
+    EditorLogger.info("Get clean content");
+    return { cleanHtml };
+  });
+  bridge.onRequest("GET_HISTORY_STATE", async () => {
+    const state = commandHistory.getState();
+    EditorLogger.debug("Get history state", state);
+    return state;
+  });
+  bridge.onRequest("UNDO", async () => {
+    const result = await styleManager.undo();
+    EditorLogger.info("Undo operation", { success: result });
+    return { success: result };
+  });
+  bridge.onRequest("REDO", async () => {
+    const result = await styleManager.redo();
+    EditorLogger.info("Redo operation", { success: result });
+    return { success: result };
+  });
+  bridge.onRequest("CLEAR_HISTORY", async () => {
+    commandHistory.clear();
+    EditorLogger.info("Clear history");
+    return { success: true };
+  });
+  bridge.onRequest("ENTER_EDIT_MODE", async () => {
+    onEditModeChange(true);
+    EditorLogger.info("Enter edit mode");
+    return { success: true };
+  });
+  bridge.onRequest("EXIT_EDIT_MODE", async () => {
+    onEditModeChange(false);
+    EditorLogger.info("Exit edit mode");
+    return { success: true };
+  });
+  bridge.onRequest("VALIDATE_CONTENT", async () => {
+    const html = document.documentElement.outerHTML;
+    const result = ContentCleaner.validateHtmlContent(html);
+    EditorLogger.info("Validate content", result);
+    return result;
+  });
+  bridge.onRequest("ENABLE_TEXT_EDITING", async (payload) => {
+    const { selector } = payload;
+    styleManager.enableTextEditing(selector);
+    EditorLogger.info("Enable text editing", { selector });
+    return { success: true };
+  });
+  bridge.onRequest("DISABLE_TEXT_EDITING", async (payload) => {
+    const { selector } = payload;
+    styleManager.disableTextEditing(selector);
+    EditorLogger.info("Disable text editing", { selector });
+    return { success: true };
+  });
+  bridge.onRequest("GET_TEXT_CONTENT", async (payload) => {
+    const { selector } = payload;
+    const result = styleManager.getTextContent(selector);
+    EditorLogger.info("Get text content", { selector, result });
+    return { content: result.textContent, hasText: result.hasText };
+  });
+  bridge.onRequest("REFRESH_SELECTED_ELEMENT", async (payload) => {
+    const { selector } = payload;
+    const element = findElement(selector);
+    if (element instanceof HTMLElement) {
+      const isAlreadySelected = elementSelector.isSelected(element);
+      if (isAlreadySelected) {
+        elementSelector.refreshSelection();
+        EditorLogger.info("Refresh selected element (already selected)", { selector });
+      } else {
+        elementSelector.selectElement(element);
+        EditorLogger.info("Refresh selected element (new selection)", { selector });
+      }
+      return { success: true };
+    }
+    return { success: false };
+  });
+  bridge.onRequest("REFRESH_SELECTED_ELEMENTS", async (payload) => {
+    const { selectors = [] } = payload || {};
+    elementSelector.refreshSelection();
+    EditorLogger.info("Refresh selected elements", { selectorsCount: selectors.length });
+    return { success: true };
+  });
+  bridge.onRequest("ENTER_SELECTION_MODE", async () => {
+    elementSelector.enable();
+    onSelectionModeChange(true);
+    EditorLogger.info("Enter selection mode");
+    return { success: true };
+  });
+  bridge.onRequest("EXIT_SELECTION_MODE", async () => {
+    elementSelector.disable();
+    onSelectionModeChange(false);
+    EditorLogger.info("Exit selection mode");
+    return { success: true };
+  });
+  bridge.onRequest("CLEAR_SELECTION", async () => {
+    elementSelector.clearSelection();
+    EditorLogger.info("Clear selection");
+    return { success: true };
+  });
+  bridge.onRequest("GET_TEXT_SELECTION", async () => {
+    const selection = textStyleManager.getTextSelection();
+    EditorLogger.debug("Get text selection", selection);
+    return selection;
+  });
+  bridge.onRequest("GET_TEXT_SELECTION_STYLES", async () => {
+    const styles = textStyleManager.getSelectionComputedStyles();
+    EditorLogger.debug("Get text selection styles", styles);
+    return { styles };
+  });
+  bridge.onRequest("APPLY_TEXT_STYLE", async (payload) => {
+    const { selector, styles } = payload;
+    await textStyleManager.applyTextStyle(selector, styles);
+    EditorLogger.info("Apply text style", { selector, styles });
+    return { success: true };
+  });
+  bridge.onRequest("GET_LOGS", async () => {
+    const logs = EditorLogger.getLogs();
+    EditorLogger.debug("Get logs", { count: logs.length });
+    return { logs };
+  });
+  bridge.onRequest("CLEAR_LOGS", async () => {
+    EditorLogger.clearLogs();
+    EditorLogger.info("Logs cleared");
+    return { success: true };
+  });
+}
+function registerCommandHandlers(config) {
+  const { bridge, styleManager, textStyleManager } = config;
+  bridge.onCommand("SET_BACKGROUND_COLOR", async (payload) => {
+    const { selector, color } = payload;
+    await styleManager.setBackgroundColor(selector, color);
+    EditorLogger.info("Set background color", { selector, color });
+    return { success: true };
+  });
+  bridge.onCommand("SET_TEXT_COLOR", async (payload) => {
+    const { selector, color } = payload;
+    await styleManager.setTextColor(selector, color);
+    EditorLogger.info("Set text color", { selector, color });
+    return { success: true };
+  });
+  bridge.onCommand("SET_FONT_SIZE", async (payload) => {
+    const {
+      selector,
+      fontSize,
+      unit = "px"
+    } = payload;
+    await styleManager.setFontSize(selector, fontSize, unit);
+    EditorLogger.info("Set font size", { selector, fontSize, unit });
+    return { success: true };
+  });
+  bridge.onCommand("BATCH_STYLES", async (payload) => {
+    const { selector, styles } = payload;
+    await styleManager.setBatchStyles(selector, styles);
+    EditorLogger.info("Batch set styles", { selector, styles });
+    return { success: true };
+  });
+  bridge.onCommand("BATCH_STYLES_MULTIPLE", async (payload) => {
+    const { selectors, styles } = payload;
+    await styleManager.setBatchStylesMultiple(selectors, styles);
+    EditorLogger.info("Batch set styles (multiple)", { selectors, styles });
+    return { success: true };
+  });
+  bridge.onCommand("ADJUST_FONT_SIZE_RECURSIVE", async (payload) => {
+    const {
+      selector,
+      scaleFactor,
+      minFontSize = 8
+    } = payload;
+    await styleManager.adjustFontSizeRecursive(selector, scaleFactor, minFontSize);
+    EditorLogger.info("Adjust font size recursively", {
+      selector,
+      scaleFactor,
+      minFontSize
+    });
+    return { success: true };
+  });
+  bridge.onCommand("APPLY_STYLES_TEMPORARY", async (payload) => {
+    const { selector, styles } = payload;
+    styleManager.applyStylesTemporary(selector, styles);
+    EditorLogger.debug("Apply styles temporarily", { selector, styles });
+    return { success: true };
+  });
+  bridge.onCommand("BEGIN_BATCH_OPERATION", async (payload) => {
+    const { selector, styles } = payload;
+    styleManager.beginBatchOperation(selector, styles);
+    EditorLogger.info("Begin batch operation", { selector });
+    return { success: true };
+  });
+  bridge.onCommand("END_BATCH_OPERATION", async (payload) => {
+    const { selector, styles } = payload;
+    styleManager.endBatchOperation(selector, styles);
+    EditorLogger.info("End batch operation", { selector });
+    return { success: true };
+  });
+  bridge.onCommand("CANCEL_BATCH_OPERATION", async () => {
+    styleManager.cancelBatchOperation();
+    EditorLogger.info("Cancel batch operation");
+    return { success: true };
+  });
+  bridge.onCommand("SET_TEXT_CONTENT", async (payload) => {
+    const { selector, textContent } = payload;
+    await styleManager.setTextContent(selector, textContent);
+    EditorLogger.info("Set text content", { selector, textContent });
+    return { success: true };
+  });
+  bridge.onCommand("UPDATE_TEXT_CONTENT", async (payload) => {
+    const { selector, content } = payload;
+    await styleManager.updateTextContent(selector, content);
+    EditorLogger.info("Update text content", { selector, content });
+    return { success: true };
+  });
+  bridge.onCommand("SET_ELEMENT_POSITION", async (payload) => {
+    const { selector, top, left } = payload;
+    await styleManager.setElementPosition(selector, top, left);
+    EditorLogger.info("Set element position", { selector, top, left });
+    return { success: true };
+  });
+  bridge.onCommand("DELETE_ELEMENT", async (payload) => {
+    try {
+      const { selector } = payload;
+      EditorLogger.info("Delete element command received", { selector });
+      await styleManager.deleteElement(selector);
+      EditorLogger.info("Delete element completed", { selector });
+      return { success: true };
+    } catch (error) {
+      EditorLogger.error("Delete element failed", error);
+      throw error;
+    }
+  });
+  bridge.onCommand("DUPLICATE_ELEMENT", async (payload) => {
+    try {
+      const { selector } = payload;
+      EditorLogger.info("Duplicate element command received", { selector });
+      await styleManager.duplicateElement(selector);
+      EditorLogger.info("Duplicate element completed", { selector });
+      return { success: true };
+    } catch (error) {
+      EditorLogger.error("Duplicate element failed", error);
+      throw error;
+    }
+  });
+  bridge.onCommand("APPLY_TEXT_STYLE", async (payload) => {
+    const { selector, styles } = payload;
+    await textStyleManager.applyTextStyle(selector, styles);
+    EditorLogger.info("Apply text style", { selector, styles });
+    return { success: true };
+  });
+}
+function registerSelectionHandlers(config) {
+  const { bridge } = config;
+  bridge.onRequest("GET_COMPUTED_STYLES", async (payload) => {
+    const { selector } = payload;
+    const element = findElement(selector);
+    const computed = window.getComputedStyle(element);
+    const styles = {};
+    const importantProps = [
+      // Text styles
+      "color",
+      "fontSize",
+      "fontWeight",
+      "fontFamily",
+      "fontStyle",
+      "lineHeight",
+      "textAlign",
+      "textDecoration",
+      // Background
+      "backgroundColor",
+      "backgroundImage",
+      // Layout
+      "width",
+      "height",
+      "display",
+      "position",
+      // Spacing
+      "margin",
+      "marginTop",
+      "marginRight",
+      "marginBottom",
+      "marginLeft",
+      "padding",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      // Border
+      "border",
+      "borderWidth",
+      "borderStyle",
+      "borderColor",
+      "borderRadius",
+      // Flex layout
+      "flexDirection",
+      "justifyContent",
+      "alignItems",
+      "flexWrap",
+      "gap",
+      // Grid layout
+      "gridTemplateColumns",
+      "gridTemplateRows",
+      "justifyItems",
+      // Effects
+      "opacity",
+      "boxShadow",
+      "textShadow",
+      // Transform
+      "transform"
+    ];
+    importantProps.forEach((prop) => {
+      const value = computed[prop];
+      if (prop === "color" || prop === "backgroundColor" || prop === "borderColor") {
+        styles[prop] = normalizeColor(value);
+      } else if (prop === "textAlign") {
+        styles[prop] = normalizeTextAlign(value);
+      } else if (prop === "border" && value.includes("rgb")) {
+        styles[prop] = value.replace(/rgb\([^)]+\)/g, (match) => normalizeColor(match));
+      } else {
+        styles[prop] = value;
+      }
+    });
+    const positionProps = ["top", "left", "right", "bottom"];
+    positionProps.forEach((prop) => {
+      const inlineValue = element.style.getPropertyValue(prop);
+      if (inlineValue) {
+        styles[prop] = inlineValue;
+      } else {
+        styles[prop] = computed[prop];
+      }
+    });
+    EditorLogger.info("Get computed styles", { selector, styles });
+    return { styles };
+  });
+}
+class EditorRuntime {
+  constructor() {
+    this.isEditMode = false;
+    this.keyboardShortcutHandler = null;
+    this.wheelEventHandler = null;
+    EditorLogger.info("Initializing editor runtime");
+    this.commandHistory = new CommandHistory(50);
+    this.bridge = new EditorBridge();
+    this.styleManager = new StyleManager(this.commandHistory);
+    this.textStyleManager = new TextStyleManager(this.commandHistory, this.bridge);
+    this.elementSelector = new ElementSelector(this.bridge);
+    this.styleManager.setElementSelector(this.elementSelector);
+    this.styleManager.setTextStyleManager(this.textStyleManager);
+    this.textStyleManager.setElementSelector(this.elementSelector);
+    this.elementSelector.setTextEditingCallback((selector) => {
+      this.styleManager.enableTextEditing(selector);
+    });
+    this.commandHistory.setOnStateChange((state) => {
+      this.bridge.sendEvent("HISTORY_STATE_CHANGED", state);
+      this.notifyContentChanged();
+    });
+    this.registerHandlers();
+    this.setupKeyboardShortcuts();
+    this.setupWheelHandler();
+    EditorLogger.info("Editor runtime initialized");
+    this.bridge.sendEvent("EDITOR_READY", {
+      timestamp: Date.now(),
+      version: "1.0.0"
+    });
+  }
+  /**
+   * Register all handlers
+   */
+  registerHandlers() {
+    registerRequestHandlers({
+      bridge: this.bridge,
+      commandHistory: this.commandHistory,
+      styleManager: this.styleManager,
+      textStyleManager: this.textStyleManager,
+      elementSelector: this.elementSelector,
+      onEditModeChange: (isEditMode) => {
+        this.isEditMode = isEditMode;
+        this.notifyEditModeChanged();
+        if (isEditMode) {
+          this.textStyleManager.startMonitoring();
+        } else {
+          this.textStyleManager.stopMonitoring();
+        }
+      },
+      onSelectionModeChange: (isSelectionMode) => {
+        this.notifySelectionModeChanged(isSelectionMode);
+      }
+    });
+    registerCommandHandlers({
+      bridge: this.bridge,
+      styleManager: this.styleManager,
+      textStyleManager: this.textStyleManager
+    });
+    registerSelectionHandlers({
+      bridge: this.bridge
+    });
+  }
+  /**
+   * Setup keyboard shortcuts for undo/redo
+   */
+  setupKeyboardShortcuts() {
+    this.keyboardShortcutHandler = async (event) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLElement && event.target.isContentEditable) {
+        return;
+      }
+      const isMac = navigator.platform.toUpperCase().includes("MAC");
+      const ctrlOrCmd = isMac ? event.metaKey : event.ctrlKey;
+      if (ctrlOrCmd && event.key === "z" && !event.shiftKey) {
+        if (this.commandHistory.canUndo()) {
+          event.preventDefault();
+          const result = await this.styleManager.undo();
+          EditorLogger.info("Undo triggered by keyboard shortcut", { success: result });
+        }
+        return;
+      }
+      if (ctrlOrCmd && event.key === "z" && event.shiftKey || ctrlOrCmd && event.key === "y" && !isMac) {
+        if (this.commandHistory.canRedo()) {
+          event.preventDefault();
+          const result = await this.styleManager.redo();
+          EditorLogger.info("Redo triggered by keyboard shortcut", { success: result });
+        }
+      }
+    };
+    window.addEventListener("keydown", this.keyboardShortcutHandler);
+    EditorLogger.info("Keyboard shortcuts registered for undo/redo");
+  }
+  /**
+   * Setup wheel handler for trackpad pinch-to-zoom gesture
+   */
+  setupWheelHandler() {
+    this.wheelEventHandler = (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const delta = -event.deltaY;
+        this.bridge.sendEvent(EventType.IFRAME_ZOOM_REQUEST, {
+          delta,
+          timestamp: Date.now()
+        });
+      }
+    };
+    window.addEventListener("wheel", this.wheelEventHandler, { passive: false });
+    EditorLogger.info("Wheel handler registered for trackpad pinch-to-zoom");
+  }
+  /**
+   * Notify content changed
+   */
+  notifyContentChanged() {
+    const payload = {
+      hasChanges: this.commandHistory.getUndoStackSize() > 0,
+      changeCount: this.commandHistory.getUndoStackSize()
+    };
+    this.bridge.sendEvent("CONTENT_CHANGED", payload);
+  }
+  /**
+   * Notify edit mode changed
+   */
+  notifyEditModeChanged() {
+    const payload = {
+      isEditMode: this.isEditMode
+    };
+    this.bridge.sendEvent("EDIT_MODE_CHANGED", payload);
+  }
+  /**
+   * Notify selection mode changed
+   */
+  notifySelectionModeChanged(isSelectionMode) {
+    const payload = {
+      isSelectionMode
+    };
+    this.bridge.sendEvent("SELECTION_MODE_CHANGED", payload);
+  }
+  /**
+   * Destroy runtime
+   */
+  destroy() {
+    EditorLogger.info("Destroy editor runtime");
+    if (this.keyboardShortcutHandler) {
+      window.removeEventListener("keydown", this.keyboardShortcutHandler);
+      this.keyboardShortcutHandler = null;
+    }
+    if (this.wheelEventHandler) {
+      window.removeEventListener("wheel", this.wheelEventHandler);
+      this.wheelEventHandler = null;
+    }
+    this.elementSelector.destroy();
+    this.bridge.destroy();
+    if (typeof window !== "undefined" && window.__EDITING_FEATURES_V2_INJECTED__) {
+      delete window.__EDITING_FEATURES_V2_INJECTED__;
+    }
+  }
+}
+let editorRuntime = null;
+function initializeRuntime() {
+  if (editorRuntime) {
+    EditorLogger.info("Destroying existing editor runtime before re-initialization");
+    try {
+      editorRuntime.destroy();
+    } catch (error) {
+      EditorLogger.warn("Failed to destroy existing runtime:", error);
+    }
+    editorRuntime = null;
+  }
+  EditorLogger.info("Initializing iframe editor runtime");
+  editorRuntime = new EditorRuntime();
+  if (typeof window !== "undefined") {
+    window.__iframeEditorRuntime__ = editorRuntime;
+    window.__EDITING_FEATURES_V2_INJECTED__ = true;
+  }
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeRuntime);
+} else {
+  initializeRuntime();
+}
+exports.EditorRuntime = EditorRuntime;
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+return exports;
+}({});
+//# sourceMappingURL=iframe-runtime.js.map
+</script></head>
+<body class="p-8">
+  <div class="max-w-7xl mx-auto">
+      <!-- 报告标题 -->
+      <div class="text-center mb-12 animate" style="animation-delay:0s">
+          <h1 class="text-5xl font-bold grad-text mb-4">2025年产品销售数据可视化分析报告</h1>
+          <p class="text-gray-600 text-lg" id="report-date">分析日期：2026-03-10 | 数据周期：一月 - 十月</p>
+      </div>
+
+      <!-- 核心指标卡片 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div class="card metric rounded-2xl p-6 animate" style="animation-delay:0.1s">
+              <div class="flex items-start justify-between">
+                  <div>
+                      <p class="text-gray-500 text-sm mb-2">总销售额</p>
+                      <h3 class="text-3xl font-bold text-gray-800" id="total-sales">19,531</h3>
+                  </div>
+                  <div class="icon bg-gradient-to-br from-blue-400 to-blue-600 text-white">
+                      <i class="fas fa-chart-line"></i>
+                  </div>
+              </div>
+          </div>
+
+          <div class="card metric rounded-2xl p-6 animate" style="animation-delay:0.2s">
+              <div class="flex items-start justify-between">
+                  <div>
+                      <p class="text-gray-500 text-sm mb-2">月均销售额</p>
+                      <h3 class="text-3xl font-bold text-gray-800" id="avg-sales">1,953</h3>
+                  </div>
+                  <div class="icon bg-gradient-to-br from-green-400 to-green-600 text-white">
+                      <i class="fas fa-calendar-alt"></i>
+                  </div>
+              </div>
+          </div>
+
+          <div class="card metric rounded-2xl p-6 animate" style="animation-delay:0.3s">
+              <div class="flex items-start justify-between">
+                  <div>
+                      <p class="text-gray-500 text-sm mb-2">最佳产品</p>
+                      <h3 class="text-2xl font-bold text-gray-800" id="best-product">产品C</h3>
+                      <p class="text-sm text-gray-500 mt-1" id="best-product-sales">销售额：6,236</p>
+                  </div>
+                  <div class="icon bg-gradient-to-br from-purple-400 to-purple-600 text-white">
+                      <i class="fas fa-trophy"></i>
+                  </div>
+              </div>
+          </div>
+
+          <div class="card metric rounded-2xl p-6 animate" style="animation-delay:0.4s">
+              <div class="flex items-start justify-between">
+                  <div>
+                      <p class="text-gray-500 text-sm mb-2">最佳月份</p>
+                      <h3 class="text-2xl font-bold text-gray-800" id="best-month">七月</h3>
+                      <p class="text-sm text-gray-500 mt-1" id="best-month-sales">销售额：2,494</p>
+                  </div>
+                  <div class="icon bg-gradient-to-br from-orange-400 to-orange-600 text-white">
+                      <i class="fas fa-star"></i>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- 图表区域 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <!-- 月度销售趋势 -->
+          <div class="card rounded-2xl p-6 animate" style="animation-delay:0.5s">
+              <h3 class="text-xl font-bold text-gray-800 mb-4">
+                  <i class="fas fa-chart-area text-blue-500 mr-2"></i>月度销售趋势
+              </h3>
+              <div id="monthly-trend-chart" class="chart" style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;" _echarts_instance_="ec_1773308923425"><div style="position: relative; width: 303px; height: 400px; padding: 0px; margin: 0px; border-width: 0px;"><canvas data-zr-dom-id="zr_0" width="303" height="400" style="position: absolute; left: 0px; top: 0px; width: 303px; height: 400px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"></canvas></div><div class=""></div></div>
+          </div>
+
+          <!-- 产品销售占比 -->
+          <div class="card rounded-2xl p-6 animate" style="animation-delay:0.6s">
+              <h3 class="text-xl font-bold text-gray-800 mb-4">
+                  <i class="fas fa-chart-pie text-purple-500 mr-2"></i>产品市场份额
+              </h3>
+              <div id="market-share-chart" class="chart" style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;" _echarts_instance_="ec_1773308923426"><div style="position: relative; width: 303px; height: 400px; padding: 0px; margin: 0px; border-width: 0px;"><canvas data-zr-dom-id="zr_0" width="303" height="400" style="position: absolute; left: 0px; top: 0px; width: 303px; height: 400px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"></canvas></div><div class=""></div></div>
+          </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <!-- 产品总销售对比 -->
+          <div class="card rounded-2xl p-6 animate" style="animation-delay:0.7s">
+              <h3 class="text-xl font-bold text-gray-800 mb-4">
+                  <i class="fas fa-chart-bar text-green-500 mr-2"></i>产品总销售对比
+              </h3>
+              <div id="product-comparison-chart" class="chart" style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;" _echarts_instance_="ec_1773308923427"><div style="position: relative; width: 303px; height: 400px; padding: 0px; margin: 0px; border-width: 0px;"><canvas data-zr-dom-id="zr_0" width="303" height="400" style="position: absolute; left: 0px; top: 0px; width: 303px; height: 400px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"></canvas></div><div class=""></div></div>
+          </div>
+
+          <!-- 月度增长率 -->
+          <div class="card rounded-2xl p-6 animate" style="animation-delay:0.8s">
+              <h3 class="text-xl font-bold text-gray-800 mb-4">
+                  <i class="fas fa-chart-line text-orange-500 mr-2"></i>月度增长率趋势
+              </h3>
+              <div id="growth-rate-chart" class="chart" style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;" _echarts_instance_="ec_1773308923428"><div style="position: relative; width: 303px; height: 400px; padding: 0px; margin: 0px; border-width: 0px;"><canvas data-zr-dom-id="zr_0" width="303" height="400" style="position: absolute; left: 0px; top: 0px; width: 303px; height: 400px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"></canvas></div><div class=""></div></div>
+          </div>
+      </div>
+
+      <!-- 产品性能评分 -->
+      <div class="card rounded-2xl p-6 mb-8 animate" style="animation-delay:0.9s">
+          <h3 class="text-xl font-bold text-gray-800 mb-4">
+              <i class="fas fa-medal text-yellow-500 mr-2"></i>产品综合性能评分
+          </h3>
+          <div id="performance-chart" class="chart" style="user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); position: relative;" _echarts_instance_="ec_1773308923429"><div style="position: relative; width: 303px; height: 400px; padding: 0px; margin: 0px; border-width: 0px;"><canvas data-zr-dom-id="zr_0" width="303" height="400" style="position: absolute; left: 0px; top: 0px; width: 303px; height: 400px; user-select: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); padding: 0px; margin: 0px; border-width: 0px;"></canvas></div><div class=""></div></div>
+      </div>
+
+      <!-- 详细数据表格 -->
+      <div class="card rounded-2xl p-6 animate" style="animation-delay:1s">
+          <h3 class="text-xl font-bold text-gray-800 mb-4">
+              <i class="fas fa-table text-indigo-500 mr-2"></i>月度销售详细数据
+          </h3>
+          <div class="overflow-x-auto">
+              <table class="w-full" id="sales-table">
+                  <thead>
+                      <tr class="border-b-2 border-gray-200">
+                          <th class="text-left py-3 px-4 font-semibold text-gray-700">月份</th>
+                          <th class="text-right py-3 px-4 font-semibold text-gray-700">产品A</th>
+                          <th class="text-right py-3 px-4 font-semibold text-gray-700">产品B</th>
+                          <th class="text-right py-3 px-4 font-semibold text-gray-700">产品C</th>
+                          <th class="text-right py-3 px-4 font-semibold text-gray-700">产品D</th>
+                          <th class="text-right py-3 px-4 font-semibold text-gray-700">合计</th>
+                      </tr>
+                  </thead>
+                  <tbody id="sales-tbody"><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">一月</td><td class="py-3 px-4 text-right">202</td><td class="py-3 px-4 text-right">535</td><td class="py-3 px-4 text-right">960</td><td class="py-3 px-4 text-right">370</td><td class="py-3 px-4 text-right font-bold">2,067</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">二月</td><td class="py-3 px-4 text-right">206</td><td class="py-3 px-4 text-right">171</td><td class="py-3 px-4 text-right">800</td><td class="py-3 px-4 text-right">120</td><td class="py-3 px-4 text-right font-bold">1,297</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">三月</td><td class="py-3 px-4 text-right">714</td><td class="py-3 px-4 text-right">221</td><td class="py-3 px-4 text-right">566</td><td class="py-3 px-4 text-right">314</td><td class="py-3 px-4 text-right font-bold">1,815</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">四月</td><td class="py-3 px-4 text-right">430</td><td class="py-3 px-4 text-right">558</td><td class="py-3 px-4 text-right">187</td><td class="py-3 px-4 text-right">472</td><td class="py-3 px-4 text-right font-bold">1,647</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">五月</td><td class="py-3 px-4 text-right">199</td><td class="py-3 px-4 text-right">971</td><td class="py-3 px-4 text-right">763</td><td class="py-3 px-4 text-right">230</td><td class="py-3 px-4 text-right font-bold">2,163</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">六月</td><td class="py-3 px-4 text-right">761</td><td class="py-3 px-4 text-right">408</td><td class="py-3 px-4 text-right">869</td><td class="py-3 px-4 text-right">443</td><td class="py-3 px-4 text-right font-bold">2,481</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">七月</td><td class="py-3 px-4 text-right">591</td><td class="py-3 px-4 text-right">513</td><td class="py-3 px-4 text-right">905</td><td class="py-3 px-4 text-right">485</td><td class="py-3 px-4 text-right font-bold">2,494</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">八月</td><td class="py-3 px-4 text-right">291</td><td class="py-3 px-4 text-right">376</td><td class="py-3 px-4 text-right">260</td><td class="py-3 px-4 text-right">559</td><td class="py-3 px-4 text-right font-bold">1,486</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">九月</td><td class="py-3 px-4 text-right">413</td><td class="py-3 px-4 text-right">121</td><td class="py-3 px-4 text-right">352</td><td class="py-3 px-4 text-right">847</td><td class="py-3 px-4 text-right font-bold">1,733</td></tr><tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors"><td class="py-3 px-4 font-medium">十月</td><td class="py-3 px-4 text-right">956</td><td class="py-3 px-4 text-right">660</td><td class="py-3 px-4 text-right">574</td><td class="py-3 px-4 text-right">158</td><td class="py-3 px-4 text-right font-bold">2,348</td></tr></tbody>
+              </table>
+          </div>
+      </div>
+
+      <!-- 页脚 -->
+      <div class="text-center mt-12 text-gray-500">
+          <p>数据来源：销售数据图表分析.xlsx</p>
+          <p class="mt-2">© 2025 销售数据分析报告 | 由 SuperMagic 生成</p>
+      </div>
+  </div>
+
+  <!-- 数据注入点：仅保留元数据 + 月度销售矩阵 + 月度增长率矩阵，其余由脚本推导 -->
+  <script data-type="report">
+var raw = {
+meta: { analysis_date: "2026-03-10", data_period: "一月 - 十月" },
+months: ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月"],
+products: ["产品A","产品B","产品C","产品D"],
+sales: [[202,535,960,370],[206,171,800,120],[714,221,566,314],[430,558,187,472],[199,971,763,230],[761,408,869,443],[591,513,905,485],[291,376,260,559],[413,121,352,847],[956,660,574,158]],
+growth: [[-0.01,-17.67,28.69,-8.36],[-15.47,10.92,-0.88,29.16],[3.34,23,14.02,2.52],[-19.34,27.11,8.16,-0.73],[-19.2,-8.46,-7.95,14.16],[10.5,21.66,-11.33,-0.45],[-10.89,17.77,1.26,-9.6],[8.39,-18.43,22.11,2.49],[-0.24,26.33,16.36,-3.67],[8.52,6.04,28.06,22.23]]
+};
+  </script>
+
+  <script>
+(function() {
+var p = raw.products, m = raw.months, sales = raw.sales, growth = raw.growth
+var productTotals = p.map(function(_, i) {
+  var t = sales.reduce(function(s, row) { return s + row[i] }, 0)
+  return { product: p[i], total: t }
+})
+var totalSales = productTotals.reduce(function(s, d) { return s + d.total }, 0)
+var monthlyTotals = sales.map(function(row) { return row.reduce(function(a, b) { return a + b }, 0) })
+var trend = monthlyTotals.map(function(tot, i) {
+  var prev = i === 0 ? tot : monthlyTotals[i - 1]
+  return { month: m[i], total: tot, change_rate: i === 0 ? 0 : Math.round((tot - prev) / prev * 10000) / 100 }
+})
+var avgGrowth = p.map(function(_, i) {
+  return growth.reduce(function(s, row) { return s + row[i] }, 0) / growth.length
+})
+var maxS = Math.max.apply(null, productTotals.map(function(d) { return d.total }))
+var minS = Math.min.apply(null, productTotals.map(function(d) { return d.total }))
+var maxG = Math.max.apply(null, avgGrowth), minG = Math.min.apply(null, avgGrowth)
+var score = function(total, g) {
+  var sn = (total - minS) / (maxS - minS || 1) * 50
+  var gn = (g - minG) / (maxG - minG || 1) * 50
+  return Math.round((sn + gn) * 100) / 100
+}
+var performance = p.map(function(_, i) {
+  return { product: p[i], total_sales: productTotals[i].total, avg_growth: Math.round(avgGrowth[i] * 100) / 100, performance_score: score(productTotals[i].total, avgGrowth[i]) }
+}).sort(function(a, b) { return b.performance_score - a.performance_score })
+var bestProduct = productTotals.reduce(function(a, b) { return a.total > b.total ? a : b })
+var bestMonthIdx = monthlyTotals.indexOf(Math.max.apply(null, monthlyTotals))
+var reportData = {
+  metadata: { report_title: "2025年产品销售数据可视化分析报告", analysis_date: raw.meta.analysis_date, data_period: raw.meta.data_period },
+  summary: {
+    total_sales: totalSales,
+    avg_monthly_sales: Math.round(totalSales / m.length),
+    best_product: { product: bestProduct.product, total: bestProduct.total },
+    best_month: { month: m[bestMonthIdx], total: monthlyTotals[bestMonthIdx] }
+  },
+  monthly_sales: sales.map(function(row, i) {
+    var o = { month: m[i] }; p.forEach(function(prod, j) { o[prod] = row[j] }); return o
+  }),
+  product_totals: productTotals,
+  market_share: productTotals.map(function(d) { return { product: d.product, total: d.total, share: Math.round(d.total / totalSales * 10000) / 100 } }),
+  growth_data: growth.map(function(row, i) { var o = { month: m[i] }; p.forEach(function(prod, j) { o[prod] = row[j] }); return o }),
+  monthly_trend: trend,
+  product_performance: performance
+}
+window.reportData = reportData
+})()
+
+window.onload = function() { initReport() }
+function initReport() {
+var d = reportData, s = d.summary
+document.getElementById('report-date').textContent = '分析日期：' + d.metadata.analysis_date + ' | 数据周期：' + d.metadata.data_period
+document.getElementById('total-sales').textContent = s.total_sales.toLocaleString()
+document.getElementById('avg-sales').textContent = s.avg_monthly_sales.toLocaleString()
+document.getElementById('best-product').textContent = s.best_product.product
+document.getElementById('best-product-sales').textContent = '销售额：' + s.best_product.total.toLocaleString()
+document.getElementById('best-month').textContent = s.best_month.month
+document.getElementById('best-month-sales').textContent = '销售额：' + s.best_month.total.toLocaleString()
+var tbody = document.getElementById('sales-tbody')
+var prods = raw.products
+d.monthly_sales.forEach(function(row) {
+  var total = prods.reduce(function(sum, p) { return sum + (row[p] || 0) }, 0)
+  var cells = [row.month].concat(prods.map(function(p) { return (row[p] || 0).toLocaleString() }), total.toLocaleString())
+  var tr = document.createElement('tr')
+  tr.className = 'border-b border-gray-100 hover:bg-gray-50 transition-colors'
+  tr.innerHTML = '<td class="py-3 px-4 font-medium">' + cells[0] + '</td>' +
+    cells.slice(1, -1).map(function(c) { return '<td class="py-3 px-4 text-right">' + c + '</td>' }).join('') +
+    '<td class="py-3 px-4 text-right font-bold">' + cells[cells.length - 1] + '</td>'
+  tbody.appendChild(tr)
+})
+requestAnimationFrame(function() {
+  initMonthlyTrendChart()
+  initMarketShareChart()
+  initProductComparisonChart()
+  initGrowthRateChart()
+  initPerformanceChart()
+  var charts = ['monthly-trend-chart','market-share-chart','product-comparison-chart','growth-rate-chart','performance-chart']
+  window.addEventListener('resize', function() {
+    charts.forEach(function(id) { var el = document.getElementById(id); if (el) echarts.getInstanceByDom(el) && echarts.getInstanceByDom(el).resize() })
+  })
+})
+}
+function initMonthlyTrendChart() {
+var chart = echarts.init(document.getElementById('monthly-trend-chart'))
+var months = reportData.monthly_sales.map(function(d) { return d.month })
+var p = raw.products
+var colors = ['#5470c6','#91cc75','#fac858','#ee6666']
+chart.setOption({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+  legend: { data: p, bottom: 0 },
+  grid: { left: 0, right: 0, top: 20, bottom: 0, containLabel: false, outerBounds: { bottom: 40 } },
+  xAxis: { type: 'category', data: months, axisLabel: { rotate: 45 }, alignTicks: true },
+  yAxis: { type: 'value', name: '销售额', axisLabel: { formatter: function(v) { return v.toLocaleString() } }, alignTicks: true },
+  series: p.map(function(prod, i) { return { name: prod, type: 'line', data: reportData.monthly_sales.map(function(d) { return d[prod] }), smooth: true, itemStyle: { color: colors[i] } } })
+})
+}
+function initMarketShareChart() {
+var chart = echarts.init(document.getElementById('market-share-chart'))
+chart.setOption({
+  tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+  legend: { orient: 'vertical', left: 0, bottom: 0 },
+  grid: { left: 0, right: 0, top: 0, bottom: 0, containLabel: false, outerBounds: { left: 100 } },
+  series: [{ type: 'pie', radius: ['40%', '70%'], center: ['60%', '50%'], avoidLabelOverlap: true, itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: true, formatter: '{b}\n{d}%', fontSize: 12 }, labelLine: { show: true }, data: reportData.market_share.map(function(d) { return { name: d.product, value: d.total } }) }]
+})
+}
+function initProductComparisonChart() {
+var chart = echarts.init(document.getElementById('product-comparison-chart'))
+chart.setOption({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+  grid: { left: 0, right: 0, top: 20, bottom: 0, containLabel: false },
+  xAxis: { type: 'category', data: reportData.product_totals.map(function(d) { return d.product }), alignTicks: true },
+  yAxis: { type: 'value', name: '销售额', axisLabel: { formatter: function(v) { return v.toLocaleString() } }, alignTicks: true },
+  series: [{ type: 'bar', data: reportData.product_totals.map(function(d) { return d.total }), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#83bff6' }, { offset: 0.5, color: '#188df0' }, { offset: 1, color: '#188df0' }]) }, label: { show: true, position: 'top', formatter: function(params) { return params.value.toLocaleString() }, fontSize: 12, fontWeight: 'bold' }, barWidth: '60%' }]
+})
+}
+function initGrowthRateChart() {
+var chart = echarts.init(document.getElementById('growth-rate-chart'))
+var months = reportData.growth_data.map(function(d) { return d.month })
+var p = raw.products
+chart.setOption({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) { var r = params[0].name + '<br/>'; params.forEach(function(p) { r += p.marker + p.seriesName + ': ' + p.value + '%<br/>' }); return r } },
+  legend: { data: p, bottom: 0 },
+  grid: { left: 0, right: 0, top: 20, bottom: 0, containLabel: false, outerBounds: { bottom: 40 } },
+  xAxis: { type: 'category', data: months, axisLabel: { rotate: 45 }, alignTicks: true },
+  yAxis: { type: 'value', name: '增长率(%)', axisLabel: { formatter: '{value}%' }, alignTicks: true },
+  series: p.map(function(prod) { return { name: prod, type: 'line', data: reportData.growth_data.map(function(d) { return d[prod] }), smooth: true } })
+})
+}
+function initPerformanceChart() {
+var chart = echarts.init(document.getElementById('performance-chart'))
+chart.setOption({
+  tooltip: { trigger: 'axis' },
+  radar: { indicator: reportData.product_performance.map(function(d) { return { name: d.product, max: 100 } }), center: ['50%', '55%'], radius: '65%' },
+  series: [{ type: 'radar', data: [{ value: reportData.product_performance.map(function(d) { return d.performance_score }), name: '综合性能评分', areaStyle: { color: new echarts.graphic.RadialGradient(0.5, 0.5, 1, [{ offset: 0, color: 'rgba(91, 143, 249, 0.3)' }, { offset: 1, color: 'rgba(91, 143, 249, 0.1)' }]) }, itemStyle: { color: '#5b8ff9' } }] }]
+})
+}
+  </script>
+
+
+</body></html>

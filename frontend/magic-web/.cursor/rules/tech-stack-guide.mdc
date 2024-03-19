@@ -1,0 +1,179 @@
+---
+description: Project tech stack: React 18, TypeScript, shadcn/ui+Tailwind for new components, Ant Design+antd-style for legacy. Apply when choosing UI libraries, styling systems, state management, or implementing features.
+globs:
+  - "src/**/*.{ts,tsx}"
+  - "**/components/**/*.{ts,tsx}"
+  - "**/pages/**/*.{ts,tsx}"
+  - "**/apis/**/*.{ts,tsx}"
+  - "**/*.test.{ts,tsx}"
+  - "tailwind.config.ts"
+  - "components.json"
+  - "vite.config.ts"
+alwaysApply: false
+---
+@rule 技术栈指南
+@description 项目使用的核心技术栈与工具详解
+@priority high
+@category development
+
+# 技术栈指南
+
+## 核心技术
+
+### 前端框架
+- **React 18** - 使用最新的 React 18 特性，如并发渲染、自动批处理和 Suspense
+- **TypeScript** - 强类型支持，提高代码质量和开发体验
+
+### UI 组件库
+- **shadcn/ui** - 新组件的首选 UI 库，基于 Radix UI + Tailwind CSS
+- **Ant Design 5** - 现有组件维护，使用 v5 版本的 token 系统（维护模式）
+- **Ant Design Mobile** - 移动端组件库
+- **antd-style** - 样式解决方案，使用 `createStyle` API（仅用于现有组件）
+- **Tailwind CSS** - 新组件的样式系统，配置文件：`tailwind.config.ts`
+
+### 状态管理
+- **Zustand** - 轻量级状态管理库，用于全局状态
+- **MobX** - 用于复杂状态管理场景
+- **使用 Immer** - 配合状态管理库实现不可变数据更新
+
+### 路由
+- **React Router 6** - 客户端路由管理
+
+### 网络请求
+- **SWR** - 数据获取与缓存策略
+- 自定义请求工具封装
+
+### 工具库
+- **lodash-es** - 常用工具函数（使用 ES 模块版本）
+- **dayjs** - 日期处理
+- **ahooks** - React Hooks 工具集
+
+## 构建工具
+
+- **Vite** - 开发服务器与构建工具
+- **TypeScript** - 类型检查
+- **ESLint + Prettier** - 代码风格与质量检查
+- **Husky + lint-staged** - Git Hooks 配置
+
+## 测试框架
+
+- **Vitest** - 单元测试框架
+- **React Testing Library** - 组件测试
+- **测试约定**：
+  - 测试文件放置在 `__tests__` 目录下
+  - 测试文件命名为 `*.test.tsx`
+  - 遵循 AAA (Arrange-Act-Assert) 模式
+
+## API 规范
+
+1. API 接口定义应放在 `apis` 目录下
+2. 使用 TypeScript 类型定义请求参数和响应数据
+3. 错误处理应统一并规范化
+
+## 性能优化策略
+
+1. 组件级别
+   - 使用 React.memo 避免不必要的重渲染
+   - 使用 useMemo 和 useCallback 优化性能
+   - 使用虚拟列表处理大数据列表
+
+2. 应用级别
+   - 代码分割与懒加载
+   - 图片优化
+   - 预加载关键资源
+
+## 开发流程
+
+1. 分支策略遵循 GitFlow 或类似工作流
+2. 代码提交前必须通过 ESLint 和单元测试
+3. 提交信息遵循 Conventional Commits 规范
+
+## 样式系统策略
+
+### 技术栈共存说明
+
+项目当前处于样式系统过渡期，两套系统将短期内共存：
+
+1. **新样式系统**（shadcn/ui + Tailwind CSS）
+   - 所有新开发的组件必须使用此系统
+   - 配置文件：
+     - `components.json` - shadcn/ui 配置
+     - `tailwind.config.ts` - Tailwind CSS 配置
+     - `src/index.css` - CSS 变量和基础样式
+   - 组件路径：`@/opensource/components/shadcn-ui`
+   - 工具函数：`@/opensource/lib/utils`
+
+2. **旧样式系统**（Ant Design + antd-style）
+   - 仅用于现有组件的维护
+   - 不再新增使用 antd-style 的组件
+   - 不主动迁移现有组件（除非有特殊需求）
+   - 保持现有代码稳定性
+
+### 样式系统选择指南
+
+**何时使用 shadcn/ui + Tailwind CSS：**
+- 所有新开发的页面和组件
+- 需要与 Figma 设计稿 1:1 还原的场景
+- 独立的功能模块
+- 开源版本的新功能
+
+**何时使用 Ant Design + antd-style：**
+- 修复现有组件的 bug
+- 优化现有组件的性能
+- 小幅度调整现有组件样式
+- 维护现有业务逻辑
+
+### 严格分离原则
+
+⚠️ **禁止行为：**
+- 在同一个组件中混用 Tailwind 类名和 antd-style
+- 在 shadcn/ui 组件中引入 Ant Design 组件
+- 在 Ant Design 组件中使用 Tailwind 类名
+- 将现有 antd-style 组件强制迁移到 Tailwind（除非必要）
+
+✅ **推荐做法：**
+- 每个组件文件只使用一种样式系统
+- 新旧组件可以在父级组件中组合使用
+- 通过 props 和状态管理进行组件间通信
+- 遵循各自的设计规范和最佳实践
+
+### 配置文件说明
+
+**components.json：**
+```json
+{
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/index.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "@/opensource/components/shadcn-ui",
+    "utils": "@/opensource/lib/utils",
+    "ui": "@/opensource/components/shadcn-ui",
+    "lib": "@/opensource/lib",
+    "hooks": "@/opensource/hooks"
+  }
+}
+```
+
+**关键配置项：**
+- `style: "new-york"` - 使用 New York 风格
+- `cssVariables: true` - 使用 CSS 变量支持主题
+- 组件安装路径：`@/opensource/components/shadcn-ui`
+- 工具函数路径：`@/opensource/lib/utils`
+
+### 迁移路径（未来规划）
+
+1. **第一阶段（当前）**：新组件使用新系统，旧组件保持不变
+2. **第二阶段**：核心组件库稳定后，评估关键模块的迁移价值
+3. **第三阶段**：根据业务需求逐步迁移高优先级模块
+4. **最终状态**：完全过渡到 shadcn/ui + Tailwind CSS
+
+注意：迁移决策需要考虑成本收益比，不盲目追求技术统一

@@ -1,0 +1,456 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+@rule API 接口开发规范
+@description 统一的 API 接口设计、调用和错误处理规范
+@priority high
+@category api
+
+# API 接口开发规范
+
+## 核心原则
+
+1. **统一性**: 所有 API 接口遵循相同的设计模式
+2. **可预测性**: 响应格式和错误处理保持一致
+3. **类型安全**: 使用 TypeScript 定义所有接口类型
+4. **错误处理**: 统一的错误处理和用户反馈机制
+
+## 接口定义规范
+
+### 1. 请求响应类型定义
+
+```typescript
+// 基础响应类型
+interface BaseResponse<T = any> {
+	code: number
+	message: string
+	data: T
+	timestamp: number
+}
+
+// 分页响应类型
+interface PaginatedResponse<T> extends BaseResponse<T[]> {
+	pagination: {
+		current: number
+		pageSize: number
+		total: number
+		totalPages: number
+	}
+}
+
+// 错误响应类型
+interface ErrorResponse extends BaseResponse<null> {
+	error: {
+		type: string
+		details?: Record<string, any>
+		stack?: string // 仅开发环境
+	}
+}
+```
+
+### 2. 请求参数类型定义
+
+```typescript
+// 基础分页参数
+interface PaginationParams {
+	current?: number
+	pageSize?: number
+}
+
+// 基础查询参数
+interface BaseQueryParams extends PaginationParams {
+	keyword?: string
+	sortBy?: string
+	sortOrder?: "asc" | "desc"
+}
+
+// 具体业务参数
+interface UserQueryParams extends BaseQueryParams {
+	status?: "active" | "inactive"
+	role?: string[]
+	createdAt?: [string, string] // 时间范围
+}
+```
+
+## API 客户端配置
+
+### 1. 基础配置
+
+```typescript
+// apis/clients/base.ts
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios"
+
+interface ApiClientConfig {
+	baseURL: string
+	timeout: number
+	retryTimes: number
+	retryDelay: number
+}
+
+class ApiClient {
+	private instance: AxiosInstance
+	private config: ApiClientConfig
+
+	constructor(config: ApiClientConfig) {
+		this.config = config
+		this.instance = axios.create({
+			baseURL: config.baseURL,
+			timeout: config.timeout,
+		})
+
+		this.setupInterceptors()
+	}
+
+	private setupInterceptors() {
+		// 请求拦截器
+		this.instance.interceptors.request.use(
+			(config) => {
+				// 添加认证头
+				const token = localStorage.getItem("token")
+				if (token) {
+					config.headers.Authorization = `Bearer ${token}`
+				}
+
+				// 添加请求ID用于追踪
+				config.headers["X-Request-ID"] = generateRequestId()
+
+				return config
+			},
+			(error) => Promise.reject(error),
+		)
+
+		// 响应拦截器
+		this.instance.interceptors.response.use(
+			(response) => response,
+			(error) => this.handleResponseError(error),
+		)
+	}
+
+	private async handleResponseError(error: any) {
+		const { response, config } = error
+
+		// 401 未授权 - 重定向到登录页
+		if (response?.status === 401) {
+			localStorage.removeItem("token")
+			window.location.href = "/login"
+			return Promise.reject(error)
+		}
+
+		// 403 禁止访问 - 显示权限错误
+		if (response?.status === 403) {
+			showErrorMessage("您没有权限执行此操作")
+			return Promise.reject(error)
+		}
+
+		// 网络错误重试
+		if (!response && config.retryCount < this.config.retryTimes) {
+			config.retryCount = (config.retryCount || 0) + 1
+			await delay(this.config.retryDelay)
+			return this.instance.request(config)
+		}
+
+		return Promise.reject(error)
+	}
+}
+```
+
+### 2. 业务 API 封装
+
+```typescript
+// apis/modules/user.ts
+import { ApiClient } from "../clients/base"
+import type { BaseResponse, PaginatedResponse } from "../types"
+
+interface User {
+	id: string
+	name: string
+	email: string
+	avatar?: string
+	status: "active" | "inactive"
+	createdAt: string
+	updatedAt: string
+}
+
+interface CreateUserParams {
+	name: string
+	email: string
+	password: string
+}
+
+interface UpdateUserParams {
+	name?: string
+	email?: string
+	avatar?: string
+}
+
+class UserApi {
+	constructor(private client: ApiClient) {}
+
+	// 获取用户列表
+	async getUsers(params: UserQueryParams): Promise<PaginatedResponse<User>> {
+		const response = await this.client.get("/users", { params })
+		return response.data
+	}
+
+	// 获取单个用户
+	async getUser(id: string): Promise<BaseResponse<User>> {
+		const response = await this.client.get(`/users/${id}`)
+		return response.data
+	}
+
+	// 创建用户
+	async createUser(params: CreateUserParams): Promise<BaseResponse<User>> {
+		const response = await this.client.post("/users", params)
+		return response.data
+	}
+
+	// 更新用户
+	async updateUser(id: string, params: UpdateUserParams): Promise<BaseResponse<User>> {
+		const response = await this.client.patch(`/users/${id}`, params)
+		return response.data
+	}
+
+	// 删除用户
+	async deleteUser(id: string): Promise<BaseResponse<null>> {
+		const response = await this.client.delete(`/users/${id}`)
+		return response.data
+	}
+}
+
+export { UserApi, type User, type CreateUserParams, type UpdateUserParams }
+```
+
+## 错误处理规范
+
+### 1. 统一错误处理
+
+```typescript
+// utils/error-handler.ts
+import { message } from "antd"
+
+interface ApiError {
+	code: number
+	message: string
+	type: string
+	details?: Record<string, any>
+}
+
+class ErrorHandler {
+	static handle(error: any): void {
+		if (error.response?.data) {
+			const apiError: ApiError = error.response.data
+			this.handleApiError(apiError)
+		} else if (error.code === "NETWORK_ERROR") {
+			this.handleNetworkError()
+		} else {
+			this.handleUnknownError(error)
+		}
+	}
+
+	private static handleApiError(error: ApiError): void {
+		switch (error.type) {
+			case "VALIDATION_ERROR":
+				this.showValidationError(error.details || {})
+				break
+			case "BUSINESS_ERROR":
+				message.error(error.message)
+				break
+			case "SYSTEM_ERROR":
+				message.error("系统错误，请稍后重试")
+				this.reportError(error)
+				break
+			default:
+				message.error(error.message || "请求失败")
+		}
+	}
+
+	private static handleNetworkError(): void {
+		message.error("网络连接失败，请检查网络设置")
+	}
+
+	private static handleUnknownError(error: any): void {
+		console.error("Unknown error:", error)
+		message.error("未知错误，请联系技术支持")
+		this.reportError(error)
+	}
+
+	private static showValidationError(details: Record<string, any>): void {
+		const firstError = Object.values(details)[0]
+		if (typeof firstError === "string") {
+			message.error(firstError)
+		}
+	}
+
+	private static reportError(error: any): void {
+		// 上报错误到监控系统
+		if (process.env.NODE_ENV === "production") {
+			// 发送错误报告
+		}
+	}
+}
+
+export { ErrorHandler }
+```
+
+### 2. React Hook 封装
+
+```typescript
+// hooks/useApi.ts
+import { useState, useCallback } from "react"
+import { ErrorHandler } from "@/opensource/utils/error-handler"
+
+interface UseApiState<T> {
+	data: T | null
+	loading: boolean
+	error: string | null
+}
+
+interface UseApiReturn<T, P extends any[]> extends UseApiState<T> {
+	execute: (...params: P) => Promise<T | null>
+	reset: () => void
+}
+
+function useApi<T, P extends any[]>(apiFunction: (...params: P) => Promise<T>): UseApiReturn<T, P> {
+	const [state, setState] = useState<UseApiState<T>>({
+		data: null,
+		loading: false,
+		error: null,
+	})
+
+	const execute = useCallback(
+		async (...params: P): Promise<T | null> => {
+			setState((prev) => ({ ...prev, loading: true, error: null }))
+
+			try {
+				const result = await apiFunction(...params)
+				setState((prev) => ({ ...prev, data: result, loading: false }))
+				return result
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "请求失败"
+				setState((prev) => ({ ...prev, error: errorMessage, loading: false }))
+				ErrorHandler.handle(error)
+				return null
+			}
+		},
+		[apiFunction],
+	)
+
+	const reset = useCallback(() => {
+		setState({ data: null, loading: false, error: null })
+	}, [])
+
+	return { ...state, execute, reset }
+}
+
+export { useApi }
+```
+
+## 使用示例
+
+### 1. 在组件中使用
+
+```tsx
+import { useEffect } from "react"
+import { useApi } from "@/hooks/useApi"
+import { userApi } from "@/opensource/apis"
+
+const UserList = () => {
+	const { data: users, loading, execute: fetchUsers } = useApi(userApi.getUsers)
+
+	useEffect(() => {
+		fetchUsers({ current: 1, pageSize: 20 })
+	}, [fetchUsers])
+
+	if (loading) return <div>Loading...</div>
+
+	return (
+		<div>
+			{users?.data.map((user) => (
+				<div key={user.id}>{user.name}</div>
+			))}
+		</div>
+	)
+}
+```
+
+### 2. 表单提交
+
+```tsx
+import { Form, Input, Button, message } from "antd"
+import { useApi } from "@/hooks/useApi"
+import { userApi } from "@/opensource/apis"
+
+const CreateUserForm = () => {
+	const [form] = Form.useForm()
+	const { loading, execute: createUser } = useApi(userApi.createUser)
+
+	const handleSubmit = async (values: any) => {
+		const result = await createUser(values)
+		if (result) {
+			message.success("用户创建成功")
+			form.resetFields()
+		}
+	}
+
+	return (
+		<Form form={form} onFinish={handleSubmit}>
+			<Form.Item name="name" rules={[{ required: true }]}>
+				<Input placeholder="用户名" />
+			</Form.Item>
+			<Form.Item name="email" rules={[{ required: true, type: "email" }]}>
+				<Input placeholder="邮箱" />
+			</Form.Item>
+			<Form.Item>
+				<Button type="primary" htmlType="submit" loading={loading}>
+					创建用户
+				</Button>
+			</Form.Item>
+		</Form>
+	)
+}
+```
+
+## 最佳实践
+
+### 1. API 设计原则
+
+- **RESTful**: 遵循 REST 设计原则
+- **版本控制**: 使用 URL 版本控制 (`/api/v1/`)
+- **状态码**: 正确使用 HTTP 状态码
+- **幂等性**: GET、PUT、DELETE 操作保持幂等
+
+### 2. 类型安全
+
+- 所有 API 接口都要有 TypeScript 类型定义
+- 使用泛型提高类型复用性
+- 请求参数和响应数据都要类型化
+
+### 3. 错误处理
+
+- 统一的错误处理机制
+- 用户友好的错误提示
+- 开发环境显示详细错误信息
+- 生产环境上报错误日志
+
+### 4. 性能优化
+
+- 合理使用请求缓存
+- 避免重复请求
+- 实现请求取消机制
+- 使用防抖和节流
+
+## 检查清单
+
+- [ ] API 接口有完整的 TypeScript 类型定义
+- [ ] 实现统一的错误处理
+- [ ] 配置请求和响应拦截器
+- [ ] 添加请求重试机制
+- [ ] 实现加载状态管理
+- [ ] 添加请求缓存策略
+- [ ] 配置开发和生产环境差异
+- [ ] 编写 API 接口文档
+- [ ] 添加单元测试
+- [ ] 配置错误监控上报

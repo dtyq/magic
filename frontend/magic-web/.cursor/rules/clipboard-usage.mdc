@@ -1,0 +1,52 @@
+---
+description: 剪贴板操作规范 - 禁止直接调用 navigator.clipboard，统一使用兼容 HTTP 的 clipboard 工具
+globs: **/*.{ts,tsx}
+alwaysApply: false
+---
+
+# 剪贴板操作规范
+
+**禁止**直接调用 `navigator.clipboard`，统一使用 `@/opensource/utils/clipboard-helpers` 中的 `clipboard` 对象。
+该对象自动兼容 HTTP 环境（execCommand 降级），接口与原生 API 保持一致。
+
+## 用法
+
+```typescript
+import { clipboard } from "@/opensource/utils/clipboard-helpers"
+
+// 复制纯文本
+await clipboard.writeText("hello")
+
+// 复制富文本 / 图片等
+await clipboard.write([new ClipboardItem({ "text/html": blob })])
+```
+
+## ❌ 禁止写法
+
+```typescript
+// 直接调用原生 API，HTTP 下会静默失败
+navigator.clipboard.writeText(text)
+navigator.clipboard.write([...])
+window.navigator.clipboard.writeText(text)
+
+// 手动实现 execCommand 降级（冗余）
+if (navigator.clipboard) {
+  await navigator.clipboard.writeText(text)
+} else {
+  const el = document.createElement("textarea")
+  // ...
+}
+```
+
+## ✅ 正确写法
+
+```typescript
+import { clipboard } from "@/opensource/utils/clipboard-helpers"
+
+await clipboard.writeText(text)
+```
+
+## 附注
+
+- `copyWithMetadata` / `extractClipboardMetadata` 等富元数据方法也在同一文件，处理富文本消息粘贴场景
+- CanvasDesign 通过 `methods.clipboard` 注入剪贴板读写方法，保持与项目隔离；项目侧（如 Design 页）在 `useDesignMethods` 中注入 `clipboard-helpers` 实现

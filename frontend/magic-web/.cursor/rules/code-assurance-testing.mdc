@@ -1,0 +1,86 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+@rule Frontend Code Quality Suite
+@description 前端代码质量综合检测规则（含重构建议与测试验证）
+@priority critical
+@category frontend
+
+▮ 技术栈使用
+ - React
+ - Typescript
+ - Vitest
+
+▮ 代码规范检测
+ - 组件命名规范（PascalCase组件/ camelCase方法）
+ - 状态管理规范（禁止直接修改state/props）
+ - Hooks使用规范（避免条件语句中的useState）
+ - 异步操作规范（必需错误处理边界）
+ - 副作用管理（清理计时器/事件监听）
+▮ 重构建议引擎
+ - 组件复杂度检测（文件行数>300 / 依赖项>15）
+ - 重复逻辑识别（相似度>80%的UI逻辑）
+ - 代码异味标记（多重嵌套/过长参数列表）
+ - 性能优化点（memoization机会识别）
+ - 结构优化建议（组件拆分/组合模式）
+▮ 测试用例验证
+ - 测试覆盖率检查（核心组件<80%时警告）
+ - 测试用例有效性（验证至少包含：正常/异常/边界用例）
+ - 快照测试完整性（UI组件变更未更新快照时警告）
+ - 测试工具规范（推荐Testing Library代替Enzyme）
+
+@example_good
+
+符合规范的React组件
+
+```javascript
+function UserProfile({ userId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await api.getUser(userId);
+        setData(res.data);
+      } catch (error) {
+        handleError(error);
+      }
+    };
+    fetchData();
+    return () => cancelRequest();
+  }, [userId]);
+
+  return <div>{data?.name || 'Loading...'}</div>;
+}
+```
+
+完善的测试用例
+
+```javascript
+describe('UserProfile', () => {
+  test('renders loading state', () => { ... });
+  test('handles API success', async () => { ... });
+  test('handles API failure', async () => { ... });
+});
+```
+
+@example_bad
+
+需要重构的组件
+
+```javascript
+function badComponent(props) { // 违反命名规范
+  let data; // 错误的状态管理
+  if (props.flag) {
+    useState(); // 条件语句中的Hook
+  }
+
+  // 未清理的定时器
+  setInterval(() => { ... }, 1000);
+
+  return <div>{/* 复杂嵌套逻辑 */}</div>;
+} // 文件长度超过400行
+```
+
+---

@@ -1,0 +1,196 @@
+---
+description: 代码文件夹组织和重构规则，用于保持代码结构清晰和可维护性
+globs: **/*
+alwaysApply: false
+---
+
+# 代码组织自动检测规则
+
+## 触发条件
+
+### 自动重构建议
+当检测到以下情况时，主动建议重构：
+
+1. **目录文件过多**：单目录超过8个文件
+2. **功能类型混杂**：同一目录包含3种以上不同功能类型
+3. **导入路径深层嵌套**：出现 `../../../` 等深层相对导入
+4. **命名不规范**：违反既定命名约定
+
+## 重构建议模板
+
+```markdown
+🔧 检测到代码组织问题
+
+📁 目录：{directory_path}
+❗ 问题：{issue_description}
+📊 当前状态：{current_stats}
+
+💡 建议重构方案：
+1. 创建子目录：{suggested_subdirs}
+2. 文件分组策略：{grouping_strategy}  
+3. 更新导出文件：{export_updates}
+
+⚡ 自动化命令：
+{bash_commands}
+
+🔍 重构后验证：
+- [ ] TypeScript 编译通过
+- [ ] 所有导入路径更新
+- [ ] 测试文件同步移动
+- [ ] 文档更新
+
+是否需要执行此重构？
+```
+
+## 目录组织规则
+
+### Hooks 目录规则 (`**/hooks/`)
+```
+触发条件：文件数 > 5
+建议分组：
+- animation/ - 动画相关 hooks
+- data/ - 数据获取和状态管理  
+- ui/ - UI 状态和交互
+- business/ - 业务逻辑
+- utils/ - 工具类 hooks
+```
+
+### Components 目录规则 (`**/components/`)
+```
+触发条件：文件数 > 8
+建议分组：
+- base/ - 基础UI组件
+- business/ - 业务功能组件  
+- layout/ - 布局相关组件
+- forms/ - 表单组件
+```
+
+### Utils 目录规则 (`**/utils/`)
+```
+触发条件：文件数 > 6
+建议分组：
+- format/ - 格式化函数
+- validation/ - 验证函数
+- calculation/ - 计算函数
+- dom/ - DOM 操作
+```
+
+## 自动化脚本生成
+
+### 批量移动文件
+```bash
+# 创建目录结构
+mkdir -p {target_dirs}
+
+# 移动文件到对应目录
+{move_commands}
+
+# 创建导出文件
+{export_creation_commands}
+
+# 更新主导出文件
+{main_export_update}
+```
+
+### 导入路径更新
+```bash
+# 查找并替换导入路径
+find . -name "*.ts" -o -name "*.tsx" | xargs sed -i 's|{old_import_pattern}|{new_import_pattern}|g'
+```
+
+## 文件命名检查
+
+### 自动检测规则
+- 目录：必须使用 kebab-case
+- 组件：必须使用 PascalCase + /index.tsx
+- Hooks：必须以 use 开头，camelCase
+- 类型：必须以 .types.ts 结尾
+- 配置：必须以 .config.ts 结尾
+
+### 修正建议
+```
+❌ 检测到命名问题：
+- 目录 'UserProfile' 应为 'user-profile'  
+- 文件 'Button.tsx' 应为 'Button/index.tsx'
+- Hook 'slideAnimation.ts' 应为 'useSlideAnimation.ts'
+
+✅ 建议修正：
+{renaming_commands}
+```
+
+## 导出文件生成
+
+### Index.ts 模板
+```typescript
+// {category} exports
+{category_exports}
+
+// Types
+{type_exports}
+
+// Re-exports for backward compatibility  
+{legacy_exports}
+```
+
+### 分类导出规则
+- 按功能类型分组注释
+- 优先使用具名导出
+- 类型单独导出（export type）
+- 保持向后兼容性
+
+## 性能检查
+
+### 循环依赖检测
+自动检测并报告：
+- 直接循环依赖
+- 间接循环依赖  
+- 建议解决方案
+
+### 导入优化建议
+- 过长的相对导入路径
+- 未使用的导入
+- 可以合并的导入语句
+
+## 集成到工作流
+
+### Git Hook 集成
+```bash
+# pre-commit hook
+#!/bin/bash
+# 检查代码组织规范
+npm run check:organization
+```
+
+### IDE 集成设置
+```json
+{
+  "explorer.sortOrder": "type",
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "index.ts": "*.ts,*.tsx",
+    "*.types.ts": "*.ts",
+    "*.config.ts": "*.ts"
+  }
+}
+```
+
+## 检查清单
+
+### 重构前
+- [ ] 分析现有文件功能分类
+- [ ] 确认重构不会破坏现有功能
+- [ ] 备份当前代码状态
+- [ ] 通知团队成员重构计划
+
+### 重构中  
+- [ ] 按计划创建目录结构
+- [ ] 逐步移动文件并测试
+- [ ] 更新所有导入引用
+- [ ] 创建正确的导出文件
+
+### 重构后
+- [ ] 运行完整测试套件
+- [ ] 检查 TypeScript 编译
+- [ ] 验证所有导入路径
+- [ ] 更新相关文档
+- [ ] 提交代码并标记重构 

@@ -1,0 +1,58 @@
+---
+description: Enforce OKLCH channel-value theme tokens and Tailwind alpha-compatible color mapping. Apply when editing src/index.css, tailwind.config.js, or TSX classNames using theme vars.
+globs:
+  - "src/index.css"
+  - "tailwind.config.js"
+  - "src/**/*.{ts,tsx}"
+alwaysApply: false
+---
+@rule 主题颜色 Token 规范（OKLCH）
+@description 防止 `bg-secondary/80` 等透明度类失效，统一主题 token 写法与排查流程
+@priority critical
+@category style-system
+
+# 主题颜色 Token 规范（OKLCH）
+
+## 第一性原则
+
+Tailwind 的透明度修饰符（如 `bg-primary/80`）依赖 `<alpha-value>` 注入。  
+为了让透明度在语义色上稳定生效，主题 token 必须是**颜色通道值**，不能是完整颜色函数。
+
+## 强制规则
+
+1. `src/index.css` 中主题 token 必须使用 OKLCH 通道值：
+   - ✅ `--secondary: 0.97 0 0;`
+   - ❌ `--secondary: oklch(0.97 0 0);`
+
+2. `tailwind.config.js` 中颜色映射必须使用：
+   - `oklch(var(--token) / <alpha-value>)`
+   - 对有默认透明度的 token 使用：
+     `oklch(var(--token) / calc(var(--token-alpha) * <alpha-value>))`
+
+3. TSX/样式字符串中，禁止主题 token 走 `hsl(var(--token))`：
+   - ✅ `text-[oklch(var(--muted-foreground))]`
+   - ❌ `text-[hsl(var(--muted-foreground))]`
+
+4. 直接使用 CSS 属性时，必须显式包裹 `oklch(...)`：
+   - ✅ `color: oklch(var(--primary));`
+   - ✅ `border-color: oklch(var(--border) / var(--border-alpha));`
+   - ❌ `color: var(--primary);`
+
+## 自动排查清单
+
+当出现“`hover:bg-secondary/80` 不生效”时，按顺序检查：
+
+- [ ] `src/index.css` 的 token 是否是通道值
+- [ ] `tailwind.config.js` 是否使用了 `oklch(var(--token) / <alpha-value>)`
+- [ ] 是否存在 `hsl(var(--token))` 写法
+- [ ] 是否存在 `color: var(--token)` 等未包裹 `oklch(...)` 的写法
+- [ ] 修改 `tailwind.config.js` 后是否重启 dev server
+
+## 推荐搜索模式（用于发现问题）
+
+```bash
+rg "hsl\\(var\\(--" src
+rg "\"var\\(--(background|foreground|primary|secondary|muted|accent|border|ring|fill|sidebar)" src
+rg "--[a-z0-9-]+:\\s*oklch\\(" src/index.css
+```
+

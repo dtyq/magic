@@ -1,0 +1,1172 @@
+---
+description: shadcn/ui and Tailwind CSS development guide for new components
+globs:
+alwaysApply: false
+---
+
+# shadcn/ui + Tailwind CSS Development Guide
+
+## 概述
+
+本规范定义了使用 shadcn/ui 和 Tailwind CSS 开发新组件的标准流程和最佳实践。
+
+## 适用范围
+
+✅ **必须使用此技术栈的场景：**
+
+- 所有新开发的页面和组件
+- 从 Figma 设计稿转换的 UI 实现
+- 独立功能模块
+- 开源版本的新功能开发
+
+❌ **不适用的场景：**
+
+- 现有 Ant Design + antd-style 组件的维护（参考 [antd-design-system.mdc]）
+- 快速修复现有组件的 bug
+- 小幅调整现有样式
+
+## 核心原则
+
+1. **组件优先**：优先使用 shadcn/ui 提供的组件
+2. **工具类优先**：使用 Tailwind 工具类而非自定义 CSS
+3. **设计令牌**：使用 CSS 变量保持主题一致性
+4. **严格分离**：不与 antd-style 混用
+5. **类型安全**：充分利用 TypeScript 类型系统
+
+## 项目配置
+
+### 配置文件位置
+
+- **shadcn/ui 配置**：`components.json`
+- **Tailwind 配置**：`tailwind.config.ts`
+- **样式入口**：`src/index.css`
+
+### 路径别名配置
+
+根据 `components.json`：
+
+```typescript
+// 组件路径
+import { Button } from "@/opensource/components/shadcn-ui/button"
+
+// 工具函数
+import { cn } from "@/opensource/lib/utils"
+
+// Hooks
+import { useToast } from "@/opensource/hooks/use-toast"
+```
+
+### CSS 变量系统（OKLCH 通道值）
+
+所有主题颜色变量定义在 `src/index.css`，并采用 **OKLCH 通道值** 格式（不是完整颜色函数）：
+
+```css
+:root {
+	--background: 1 0 0;
+	--foreground: 0.145 0 0;
+	--primary: 0.205 0 0;
+	--primary-foreground: 0.985 0 0;
+	--secondary: 0.97 0 0;
+	--border: 0.922 0 0;
+	--border-alpha: 1;
+}
+
+.dark {
+	--background: 0.145 0 0;
+	--foreground: 0.985 0 0;
+	--secondary: 0.269 0 0;
+	--border: 1 0 0;
+	--border-alpha: 0.1;
+}
+```
+
+#### 为什么必须这样定义
+
+Tailwind 透明度修饰符（如 `bg-secondary/80`）依赖 `<alpha-value>` 机制。  
+如果变量是 `oklch(...)` 完整函数，`/80` 可能无法正确拼接，导致 hover 或透明度不生效。
+
+#### 强制约束
+
+- 主题 token（`--primary`、`--secondary` 等）必须是 OKLCH 通道值
+- 直接写样式时使用 `oklch(var(--token))`
+- 带默认透明度的 token 使用 `oklch(var(--token) / var(--token-alpha))`
+- 禁止对主题 token 使用 `hsl(var(--token))`
+- 禁止把主题 token 写成 `--token: oklch(...)`
+
+## shadcn/ui 组件使用规范
+
+### 安装组件
+
+使用 shadcn CLI 安装组件：
+
+```bash
+pnpm dlx shadcn@latest add button
+pnpm dlx shadcn@latest add card
+pnpm dlx shadcn@latest add dialog
+```
+
+组件会自动安装到 `@/opensource/components/shadcn-ui/` 目录。
+
+### 基础用法
+
+```tsx
+import { Button } from "@/opensource/components/shadcn-ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "@/opensource/components/shadcn-ui/card"
+
+function MyComponent() {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Card Title</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<Button variant="default" size="md">
+					Click me
+				</Button>
+			</CardContent>
+		</Card>
+	)
+}
+```
+
+### 组件自定义
+
+shadcn/ui 组件是可以直接编辑的源代码，位于项目中：
+
+```tsx
+// 可以直接修改组件文件
+// src/opensource/components/shadcn-ui/button.tsx
+
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/opensource/lib/utils"
+
+const buttonVariants = cva(
+	"inline-flex items-center justify-center rounded-md text-sm font-medium",
+	{
+		variants: {
+			variant: {
+				default: "bg-primary text-primary-foreground hover:bg-primary/90",
+				destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+				// Add custom variants here
+			},
+			size: {
+				default: "h-10 px-4 py-2",
+				sm: "h-9 rounded-md px-3",
+				lg: "h-11 rounded-md px-8",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+			size: "default",
+		},
+	},
+)
+```
+
+### 常用组件清单
+
+| 组件          | 用途     | 命令                                       |
+| ------------- | -------- | ------------------------------------------ |
+| Button        | 按钮     | `pnpm dlx shadcn@latest add button`        |
+| Card          | 卡片容器 | `pnpm dlx shadcn@latest add card`          |
+| Dialog        | 对话框   | `pnpm dlx shadcn@latest add dialog`        |
+| Dropdown Menu | 下拉菜单 | `pnpm dlx shadcn@latest add dropdown-menu` |
+| Form          | 表单     | `pnpm dlx shadcn@latest add form`          |
+| Input         | 输入框   | `pnpm dlx shadcn@latest add input`         |
+| Select        | 选择器   | `pnpm dlx shadcn@latest add select`        |
+| Tabs          | 标签页   | `pnpm dlx shadcn@latest add tabs`          |
+| Toast         | 提示消息 | `pnpm dlx shadcn@latest add toast`         |
+
+## Tailwind CSS 使用规范
+
+### 工具类优先策略
+
+优先使用 Tailwind 工具类，避免编写自定义 CSS：
+
+```tsx
+// ✅ Good - 使用 Tailwind 工具类
+<div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-background">
+  <span className="text-sm font-medium text-foreground">Label</span>
+  <Button size="sm">Action</Button>
+</div>
+
+// ❌ Bad - 编写自定义 CSS
+<div className={styles.container}>
+  <span className={styles.label}>Label</span>
+  <Button size="sm">Action</Button>
+</div>
+```
+
+### 常用工具类参考
+
+#### 布局
+
+```tsx
+// Flexbox
+className = "flex flex-col items-center justify-between gap-4"
+
+// Grid
+className = "grid grid-cols-3 gap-4"
+
+// 间距
+className = "p-4 px-6 py-2 m-4 mx-auto"
+
+// 尺寸
+className = "w-full h-screen max-w-lg"
+```
+
+#### 颜色（使用 CSS 变量）
+
+```tsx
+// 背景色
+className = "bg-background bg-primary bg-secondary"
+
+// 文字色
+className = "text-foreground text-primary text-muted-foreground"
+
+// 边框色
+className = "border border-border"
+```
+
+#### 透明度与任意值写法
+
+```tsx
+// ✅ Good: 使用语义类 + 透明度修饰符
+className = "hover:bg-secondary/80"
+
+// ✅ Good: 任意值中显式使用 oklch(var(--token))
+className = "text-[oklch(var(--muted-foreground))]"
+
+// ❌ Bad: 使用 hsl(var(--token))
+className = "text-[hsl(var(--muted-foreground))]"
+
+// ❌ Bad: token 是完整函数时再叠加 /80（容易失效）
+// --secondary: oklch(...)
+// className="hover:bg-secondary/80"
+```
+
+#### 排版
+
+```tsx
+// 字体大小
+className = "text-sm text-base text-lg text-xl"
+
+// 字重
+className = "font-normal font-medium font-semibold font-bold"
+
+// 行高
+className = "leading-none leading-tight leading-normal"
+```
+
+#### 圆角和阴影
+
+```tsx
+// 圆角
+className = "rounded rounded-md rounded-lg rounded-full"
+
+// 阴影
+className = "shadow-sm shadow shadow-md shadow-lg"
+```
+
+### 响应式设计
+
+使用 Tailwind 的响应式前缀：
+
+```tsx
+<div className="flex flex-col md:flex-row gap-4 md:gap-6">
+	<div className="w-full md:w-1/2 p-4 md:p-6">Content</div>
+</div>
+
+// 断点说明：
+// sm: 640px
+// md: 768px
+// lg: 1024px
+// xl: 1280px
+// 2xl: 1536px
+```
+
+### 条件类名
+
+使用 `cn` 工具函数组合类名：
+
+```tsx
+import { cn } from "@/opensource/lib/utils"
+
+function Component({ isActive, className }: Props) {
+	return (
+		<div
+			className={cn("base-classes", isActive && "active-classes", "more-classes", className)}
+		>
+			Content
+		</div>
+	)
+}
+```
+
+### 样式变体管理（使用 CVA）
+
+对于具有多种变体的组件，**必须使用** `class-variance-authority` (CVA) 来管理样式变体：
+
+#### 基础用法
+
+```tsx
+import { cva } from "class-variance-authority"
+import { cn } from "@/opensource/lib/utils"
+
+// Define variants
+const buttonVariants = cva(
+	"inline-flex items-center justify-center rounded-md text-sm font-medium",
+	{
+		variants: {
+			variant: {
+				default: "bg-primary text-primary-foreground hover:bg-primary/90",
+				destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+				outline: "border bg-background hover:bg-accent hover:text-accent-foreground",
+			},
+			size: {
+				default: "h-10 px-4 py-2",
+				sm: "h-9 rounded-md px-3",
+				lg: "h-11 rounded-md px-8",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+			size: "default",
+		},
+	},
+)
+
+// Use in component
+function Button({ variant, size, className, ...props }: ButtonProps) {
+	return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />
+}
+```
+
+#### CVA 规范
+
+1. **命名规范**：
+    - 变体名称使用 `{componentName}Variants` 格式
+    - 例如：`buttonVariants`、`cardVariants`、`tabContainerVariants`
+
+2. **基础类名排序**：
+    - Tailwind CSS 排序规则：`hover:` 等前缀类名排在前面
+    - 例如：`"hover:bg-accent/50 flex items-center gap-2"`
+
+3. **变体定义**：
+    - 使用 `variants` 对象定义所有变体
+    - 使用 `defaultVariants` 设置默认值
+    - 变体名称使用 camelCase
+
+4. **多变体组件示例**：
+
+```tsx
+// Define multiple variants for a tab component
+const tabContainerVariants = cva(
+	"flex h-full flex-col items-center gap-2 rounded-lg px-2 pb-0 pt-2",
+	{
+		variants: {
+			isActive: {
+				true: "cursor-default",
+				false: "cursor-pointer",
+			},
+		},
+		defaultVariants: {
+			isActive: false,
+		},
+	},
+)
+
+const tabTitleVariants = cva("overflow-hidden text-ellipsis text-center text-sm leading-5", {
+	variants: {
+		isActive: {
+			true: "font-semibold text-[color:var(--magic-color-text-0)]",
+			false: "font-normal text-[color:var(--magic-color-text-1)]",
+		},
+	},
+	defaultVariants: {
+		isActive: false,
+	},
+})
+
+// Use in component
+function TabComponent({ isActive, tab }: TabProps) {
+	return (
+		<div className={cn(tabContainerVariants({ isActive }))}>
+			<span className={cn(tabTitleVariants({ isActive }))}>{tab.title}</span>
+		</div>
+	)
+}
+```
+
+5. **响应式变体**：
+
+```tsx
+const containerVariants = cva("flex gap-4", {
+	variants: {
+		direction: {
+			horizontal: "flex-row",
+			vertical: "flex-col",
+		},
+		responsive: {
+			true: "flex-col md:flex-row",
+			false: "",
+		},
+	},
+	defaultVariants: {
+		direction: "horizontal",
+		responsive: false,
+	},
+})
+```
+
+6. **组合变体（Compound Variants）**：
+
+```tsx
+const alertVariants = cva("rounded-lg border p-4", {
+	variants: {
+		variant: {
+			info: "border-blue-500",
+			warning: "border-yellow-500",
+			error: "border-red-500",
+		},
+		size: {
+			small: "text-sm p-2",
+			large: "text-lg p-6",
+		},
+	},
+	compoundVariants: [
+		{
+			variant: "error",
+			size: "large",
+			class: "font-bold",
+		},
+	],
+	defaultVariants: {
+		variant: "info",
+		size: "small",
+	},
+})
+```
+
+#### 什么时候使用 CVA
+
+✅ **必须使用 CVA 的场景：**
+
+- 组件有 2 个或以上的状态变体（如 active/inactive, large/small/medium）
+- 组件样式根据 props 动态变化
+- 需要组合多个条件类名
+- 需要保持变体逻辑的可维护性和可读性
+
+❌ **不需要使用 CVA 的场景：**
+
+- 简单的单一条件样式切换（使用 `cn()` + 条件表达式即可）
+- 静态样式（直接使用 Tailwind 类名）
+- 仅有一个变体选项的情况
+
+#### CVA 最佳实践
+
+1. **单一职责**：每个 variant 函数只负责一个 UI 元素
+2. **可组合性**：复杂组件可以有多个 variant 函数
+3. **类型安全**：配合 TypeScript 使用，确保变体选项类型正确
+4. **性能优化**：variant 函数在组件外部定义，避免重复创建
+5. **文档化**：为复杂的 variant 添加注释说明用途
+
+### 暗色模式支持
+
+使用 `dark:` 前缀定义暗色模式样式：
+
+```tsx
+<div className="bg-white dark:bg-slate-900 text-black dark:text-white">
+	<p className="text-gray-700 dark:text-gray-300">This text adapts to theme</p>
+</div>
+```
+
+## 组件开发模式
+
+### 文件结构
+
+```
+MyComponent/
+├── index.tsx          # 主组件文件
+├── types.ts           # TypeScript 类型定义
+└── components/        # 子组件（如需要）
+    └── SubComponent.tsx
+```
+
+注意：不再需要 `styles.ts` 文件，样式直接使用 Tailwind 类名。
+
+### 组件模板
+
+```tsx
+// MyComponent/types.ts
+export interface MyComponentProps {
+	title: string
+	description?: string
+	onAction?: () => void
+	className?: string
+}
+
+// MyComponent/index.tsx
+import { Button } from "@/opensource/components/shadcn-ui/button"
+import { cn } from "@/opensource/lib/utils"
+import type { MyComponentProps } from "./types"
+
+function MyComponent({ title, description, onAction, className }: MyComponentProps) {
+	return (
+		<div className={cn("rounded-lg border bg-card p-6", className)}>
+			<h2 className="text-xl font-semibold text-foreground">{title}</h2>
+			{description && <p className="mt-2 text-sm text-muted-foreground">{description}</p>}
+			{onAction && (
+				<Button onClick={onAction} className="mt-4">
+					Action
+				</Button>
+			)}
+		</div>
+	)
+}
+
+export default MyComponent
+export type { MyComponentProps }
+```
+
+### 复合组件模式
+
+```tsx
+import { cn } from '@/opensource/lib/utils'
+
+// 主组件
+export function Card({ className, children, ...props }: CardProps) {
+  return (
+    <div
+      className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
+
+// 子组件
+Card.Header = function CardHeader({ className, children, ...props }: CardHeaderProps) {
+  return (
+    <div className={cn('flex flex-col space-y-1.5 p-6', className)} {...props}>
+      {children}
+    </div>
+  )
+}
+
+Card.Title = function CardTitle({ className, children, ...props }: CardTitleProps) {
+  return (
+    <h3 className={cn('text-2xl font-semibold leading-none tracking-tight', className)} {...props}>
+      {children}
+    </h3>
+  )
+}
+
+// 使用
+<Card>
+  <Card.Header>
+    <Card.Title>Title</Card.Title>
+  </Card.Header>
+</Card>
+```
+
+## Figma 设计稿转换规范
+
+### 转换流程
+
+1. **分析设计稿**：识别可复用的 shadcn/ui 组件
+2. **映射组件**：将设计映射到对应的 shadcn/ui 组件
+3. **提取样式**：使用 Tailwind 工具类还原设计
+4. **调整细节**：微调间距、颜色等细节
+5. **验证响应式**：确保在不同屏幕尺寸下正常显示
+
+### 设计令牌映射
+
+| Figma 属性 | Tailwind 类名           |
+| ---------- | ----------------------- |
+| 间距 8px   | `gap-2`, `p-2`, `m-2`   |
+| 间距 16px  | `gap-4`, `p-4`, `m-4`   |
+| 圆角 8px   | `rounded-md`            |
+| 圆角 16px  | `rounded-lg`            |
+| 主要文字色 | `text-foreground`       |
+| 次要文字色 | `text-muted-foreground` |
+| 主背景色   | `bg-background`         |
+| 卡片背景   | `bg-card`               |
+| 边框色     | `border-border`         |
+
+### 尺寸转换示例
+
+```tsx
+// Figma: width: 928px, height: 120px, padding: 16px, gap: 8px
+<div className="w-[928px] h-[120px] p-4 flex flex-col gap-2">{/* Content */}</div>
+
+// 注意：使用任意值 [928px] 仅在精确还原时使用
+// 一般情况优先使用标准尺寸：w-full, w-1/2, max-w-lg 等
+```
+
+## 状态管理集成
+
+### 与 MobX 集成
+
+```tsx
+import { observer } from "mobx-react-lite"
+import { useStore } from "@/stores"
+import { Button } from "@/opensource/components/shadcn-ui/button"
+
+const Component = observer(() => {
+	const { userStore } = useStore()
+
+	return (
+		<div className="p-4">
+			<p className="text-foreground">{userStore.name}</p>
+			<Button onClick={() => userStore.updateName("New Name")}>Update</Button>
+		</div>
+	)
+})
+
+export default Component
+```
+
+### 表单处理
+
+使用 shadcn/ui Form + react-hook-form：
+
+```tsx
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { Button } from "@/opensource/components/shadcn-ui/button"
+import {
+	Form,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/opensource/components/shadcn-ui/form"
+import { Input } from "@/opensource/components/shadcn-ui/input"
+
+const formSchema = z.object({
+	username: z.string().min(2, "Username must be at least 2 characters"),
+})
+
+function MyForm() {
+	const form = useForm<z.infer<typeof formSchema>>({
+		resolver: zodResolver(formSchema),
+		defaultValues: {
+			username: "",
+		},
+	})
+
+	function onSubmit(values: z.infer<typeof formSchema>) {
+		console.log(values)
+	}
+
+	return (
+		<Form {...form}>
+			<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+				<FormField
+					control={form.control}
+					name="username"
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel>Username</FormLabel>
+							<FormControl>
+								<Input placeholder="Enter username" {...field} />
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+				<Button type="submit">Submit</Button>
+			</form>
+		</Form>
+	)
+}
+```
+
+## 国际化支持
+
+```tsx
+import { useTranslation } from "react-i18next"
+import { Button } from "@/opensource/components/shadcn-ui/button"
+
+function Component() {
+	const { t } = useTranslation("component")
+
+	return (
+		<div className="p-4">
+			<h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+			<p className="mt-2 text-muted-foreground">{t("description")}</p>
+			<Button className="mt-4">{t("action")}</Button>
+		</div>
+	)
+}
+```
+
+## 性能优化
+
+### 组件懒加载
+
+```tsx
+import { lazy, Suspense } from "react"
+
+const HeavyComponent = lazy(() => import("./HeavyComponent"))
+
+function App() {
+	return (
+		<Suspense fallback={<div className="p-4">Loading...</div>}>
+			<HeavyComponent />
+		</Suspense>
+	)
+}
+```
+
+### 条件渲染优化
+
+```tsx
+import { memo } from "react"
+
+const ExpensiveComponent = memo(({ data }: Props) => {
+	return (
+		<div className="grid grid-cols-3 gap-4">
+			{data.map((item) => (
+				<Card key={item.id}>{/* Heavy rendering */}</Card>
+			))}
+		</div>
+	)
+})
+```
+
+## 避免混用检查清单
+
+开发新组件时，确保：
+
+- [ ] 仅使用 shadcn/ui 组件，不引入 Ant Design 组件
+- [ ] 仅使用 Tailwind 类名，不使用 `createStyles` 或 antd-style
+- [ ] 不导入 `antd-style` 包
+- [ ] 不导入 `@tabler/icons-react`（使用 lucide-react 代替）
+- [ ] CSS 变量来自 `src/index.css`，不使用 antd token
+- [ ] 组件路径使用 `@/opensource/` 别名
+- [ ] 遵循 shadcn/ui 的组件 API 设计模式
+- [ ] 对于有多种状态变体的组件，使用 CVA 管理样式
+- [ ] CVA variants 命名遵循 `{componentName}Variants` 规范
+- [ ] Tailwind 类名排序正确（hover/focus 等前缀类在前）
+
+## 常见问题
+
+### Q: 如何选择合适的 shadcn/ui 组件？
+
+A:
+
+1. 查看 [shadcn/ui 官方文档](https://ui.shadcn.com/)
+2. 使用 `pnpm dlx shadcn@latest add` 命令浏览可用组件
+3. 如果没有合适的组件，可以基于 Radix UI 自己实现
+
+### Q: 为什么 `hover:bg-secondary/80` 不生效？
+
+A:
+
+按顺序检查：
+
+1. `src/index.css` 中 `--secondary` 是否为通道值（如 `0.97 0 0`）
+2. `tailwind.config.js` 是否用 `oklch(var(--secondary) / <alpha-value>)` 映射颜色
+3. 是否误用了 `hsl(var(--secondary))` 或 `--secondary: oklch(...)`
+4. 修改 `tailwind.config.js` 后是否已重启 dev server
+
+### Q: 什么时候可以编写自定义 CSS？
+
+A:
+
+1. Tailwind 工具类无法实现的复杂动画
+2. 需要使用 CSS Grid 的高级特性
+3. 特殊的视觉效果（滤镜、混合模式等）
+4. 但仍应尽量使用 `@apply` 指令组合 Tailwind 类
+
+### Q: 如何处理与现有 Ant Design 组件的交互？
+
+A:
+在父组件层面组合，不要在同一组件内混用：
+
+```tsx
+// ✅ Good - 在父组件中组合
+function ParentComponent() {
+	return (
+		<div>
+			<NewShadcnComponent /> {/* 新组件使用 shadcn */}
+			<OldAntdComponent /> {/* 旧组件保持 antd */}
+		</div>
+	)
+}
+
+// ❌ Bad - 在同一组件中混用
+function BadComponent() {
+	return (
+		<div className="flex gap-4">
+			{" "}
+			{/* Tailwind */}
+			<AntdButton /> {/* Ant Design */}
+		</div>
+	)
+}
+```
+
+### Q: 图标库如何选择？
+
+A:
+
+**优先级规则：**
+
+1. **首选 `lucide-react`**（shadcn/ui 官方推荐）- 优先在此库中查找所需图标
+2. **备选 `@tabler/icons-react`** - 仅当 lucide-react 中找不到合适图标时使用
+3. **统一尺寸** - 所有图标统一使用 16px (`size={16}`) 以保持视觉一致性
+
+**使用示例：**
+
+```tsx
+// ✅ 优先使用 lucide-react
+import { Files, Timer, Settings, ChevronRight } from 'lucide-react'
+
+<Files size={16} />
+<Timer size={16} className="text-muted-foreground" />
+<Settings size={16} />
+
+// ✅ 当 lucide-react 中找不到时，使用 @tabler/icons-react
+import { IconBrain, IconShareCog } from '@tabler/icons-react'
+
+<IconBrain size={16} />
+<IconShareCog size={16} />
+```
+
+**注意事项：**
+
+- 不要在同一个组件中混用两个图标库（选择其中一个）
+- 现有使用 `@tabler/icons-react` 的组件保持不变（维护模式）
+- 新组件开发时优先查找 lucide-react，找不到再考虑 @tabler/icons-react
+
+## 工具和资源
+
+### 开发工具
+
+- [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss) - VSCode 插件，提供自动完成和类名提示
+- [Tailwind Merge](https://github.com/dcastil/tailwind-merge) - 类名合并工具（已集成在 `cn` 函数中）
+- [class-variance-authority (CVA)](https://cva.style/docs) - **必备**样式变体管理工具，用于管理组件的多种状态样式
+
+### 学习资源
+
+- [shadcn/ui 官方文档](https://ui.shadcn.com/)
+- [Tailwind CSS 官方文档](https://tailwindcss.com/docs)
+- [Radix UI 文档](https://www.radix-ui.com/)
+
+## 从 antd-style 迁移到 Tailwind CSS
+
+### 迁移原则
+
+当需要将现有的 antd-style 组件迁移到 Tailwind CSS 时，遵循以下原则：
+
+#### 1. **使用 Tailwind 配置的颜色变量**
+
+**❌ 错误做法 - 使用 CSS 变量引用 antd-style token：**
+
+```tsx
+// 不要使用 arbitrary values 引用 antd-style 的 CSS 变量
+<div className="border-[var(--border)]" />
+<div className="text-[color:var(--magic-color-text-1)]" />
+<div className="bg-[var(--magic-color-fill-0)]" />
+```
+
+**✅ 正确做法 - 使用 Tailwind 配置的颜色类：**
+
+```tsx
+// 使用 tailwind.config.js 中定义的颜色类
+<div className="border-border" />
+<div className="text-foreground" />
+<div className="bg-muted" />
+```
+
+#### 2. **颜色映射表**
+
+将 antd-style token 映射到 Tailwind 颜色类：
+
+| antd-style Token                              | Tailwind 类名                         | 说明         |
+| --------------------------------------------- | ------------------------------------- | ------------ |
+| `token.magicColorUsages.border`               | `border-border`                       | 边框颜色     |
+| `token.magicColorUsages.text[0]`              | `text-foreground`                     | 主要文本颜色 |
+| `token.magicColorUsages.text[1]`              | `text-foreground`                     | 次要文本颜色 |
+| `token.magicColorUsages.text[2]`              | `text-muted-foreground`               | 提示文本颜色 |
+| `token.magicColorUsages.text[3]`              | `text-muted-foreground`               | 禁用文本颜色 |
+| `token.magicColorUsages.fill[0]`              | `bg-muted/50`                         | 填充背景色   |
+| `token.magicColorUsages.fill[1]`              | `bg-muted`                            | 填充背景色   |
+| `token.magicColorUsages.bg[0]`                | `bg-background`                       | 主背景色     |
+| `token.magicColorUsages.primary.default`      | `text-primary` / `bg-primary`         | 主题色       |
+| `token.magicColorUsages.primary.hover`        | `hover:bg-primary/90`                 | 主题色悬停   |
+| `token.magicColorUsages.primaryLight.default` | `bg-accent`                           | 浅主题色背景 |
+| `token.magicColorUsages.primaryLight.hover`   | `hover:bg-accent/80`                  | 浅主题色悬停 |
+| `token.magicColorUsages.danger.default`       | `text-destructive` / `bg-destructive` | 危险色       |
+| `token.magicColorUsages.white`                | `bg-white` / `text-white`             | 白色         |
+| `token.magicColorUsages.black`                | `bg-black` / `text-black`             | 黑色         |
+
+#### 3. **Tailwind 配置的可用颜色**
+
+根据 `tailwind.config.js`，以下是项目中可用的颜色类：
+
+**基础颜色：**
+
+- `border` - 边框色
+- `input` - 输入框边框色
+- `ring` - 聚焦环颜色
+- `background` - 背景色
+- `foreground` - 前景色（文本）
+- `fill` - 填充色
+- `fill-secondary` - 次要填充色
+
+**语义化颜色：**
+
+- `primary` / `primary-foreground` - 主题色
+- `secondary` / `secondary-foreground` - 次要色
+- `destructive` / `destructive-foreground` - 危险/错误色
+- `muted` / `muted-foreground` - 柔和色
+- `accent` / `accent-foreground` - 强调色
+- `popover` / `popover-foreground` - 弹出层色
+- `card` / `card-foreground` - 卡片色
+
+**使用示例：**
+
+```tsx
+// 文本颜色
+<p className="text-foreground">主要文本</p>
+<p className="text-muted-foreground">次要文本</p>
+<p className="text-primary">主题色文本</p>
+
+// 背景颜色
+<div className="bg-background">主背景</div>
+<div className="bg-muted">柔和背景</div>
+<div className="bg-accent">强调背景</div>
+<div className="bg-primary">主题色背景</div>
+
+// 边框颜色
+<div className="border border-border">默认边框</div>
+<div className="border border-input">输入框边框</div>
+
+// 组合使用
+<div className="bg-card text-card-foreground">
+  卡片内容
+</div>
+```
+
+#### 4. **迁移步骤**
+
+**步骤 1：移除 antd-style 依赖**
+
+```tsx
+// ❌ 删除这些导入
+import { createStyles } from "antd-style"
+import { useStyles } from "./styles"
+
+// ✅ 添加这些导入
+import { cn } from "@/opensource/lib/utils"
+```
+
+**步骤 2：删除 styles.ts 文件**
+
+```bash
+# 删除组件的 styles.ts 文件
+rm ComponentName/styles.ts
+```
+
+**步骤 3：转换样式**
+
+```tsx
+// ❌ Before - 使用 antd-style
+const useStyles = createStyles(({ css, token }) => ({
+	container: css`
+		padding: 8px 16px;
+		border-radius: 8px;
+		border: 1px solid ${token.magicColorUsages.border};
+		background: ${token.magicColorUsages.fill[0]};
+		color: ${token.magicColorUsages.text[1]};
+
+		&:hover {
+			background: ${token.magicColorUsages.fill[1]};
+		}
+	`,
+}))
+
+function Component() {
+	const { styles } = useStyles()
+	return <div className={styles.container}>Content</div>
+}
+
+// ✅ After - 使用 Tailwind CSS
+function Component() {
+	return (
+		<div className="rounded-lg border border-border bg-muted/50 px-4 py-2 text-foreground hover:bg-muted">
+			Content
+		</div>
+	)
+}
+```
+
+**步骤 4：替换 Ant Design 组件**
+
+```tsx
+// ❌ Before
+import { Dropdown, Popover } from "antd"
+;<Dropdown menu={{ items }} trigger={["click"]}>
+	<button>Trigger</button>
+</Dropdown>
+
+// ✅ After
+import {
+	DropdownMenu,
+	DropdownMenuTrigger,
+	DropdownMenuContent,
+	DropdownMenuItem,
+} from "@/opensource/components/shadcn-ui/dropdown-menu"
+;<DropdownMenu>
+	<DropdownMenuTrigger asChild>
+		<button>Trigger</button>
+	</DropdownMenuTrigger>
+	<DropdownMenuContent>
+		{items.map((item) => (
+			<DropdownMenuItem key={item.key}>{item.label}</DropdownMenuItem>
+		))}
+	</DropdownMenuContent>
+</DropdownMenu>
+```
+
+**步骤 5：移动端适配**
+
+```tsx
+// 移动端使用 MagicPopup 包裹
+import MagicPopup from "@/opensource/components/base-mobile/MagicPopup"
+
+const isMobile = size === "mobile"
+
+if (isMobile) {
+	return (
+		<div className="relative">
+			<div onClick={() => setOpen(true)}>Trigger</div>
+			<MagicPopup visible={open} onClose={() => setOpen(false)} position="bottom">
+				<div className="flex max-h-[300px] flex-col gap-1 overflow-y-auto p-2.5">
+					{/* 菜单项 */}
+				</div>
+			</MagicPopup>
+		</div>
+	)
+}
+```
+
+#### 5. **常见模式转换**
+
+**条件样式：**
+
+```tsx
+// ❌ Before
+<div className={cx(
+  styles.item,
+  isActive && styles.itemActive,
+  isDisabled && styles.itemDisabled,
+)} />
+
+// ✅ After
+<div className={cn(
+  "rounded px-2 py-1",
+  isActive && "bg-accent text-accent-foreground",
+  isDisabled && "cursor-not-allowed opacity-50",
+)} />
+```
+
+**响应式样式：**
+
+```tsx
+// ❌ Before
+const useStyles = createStyles(({ css, responsive }) => ({
+  container: css`
+    padding: 8px;
+
+    ${responsive.mobile} {
+      padding: 16px;
+    }
+  `,
+}))
+
+// ✅ After
+<div className="p-2 md:p-4" />
+```
+
+**伪类样式：**
+
+```tsx
+// ❌ Before
+const useStyles = createStyles(({ css, token }) => ({
+  button: css`
+    &:hover {
+      background: ${token.magicColorUsages.fill[1]};
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  `,
+}))
+
+// ✅ After
+<button className="hover:bg-muted active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50" />
+```
+
+#### 6. **迁移检查清单**
+
+完成迁移后，确保：
+
+- [ ] 删除了所有 `styles.ts` 文件
+- [ ] 移除了 `antd-style` 的导入
+- [ ] 移除了 `useStyles` hook 的使用
+- [ ] 所有颜色使用 Tailwind 配置的类名，不使用 arbitrary values 引用 CSS 变量
+- [ ] 替换了 Ant Design 组件为 shadcn/ui 组件
+- [ ] 移动端使用 `MagicPopup` 包裹
+- [ ] 通过 linter 检查（无错误）
+- [ ] 视觉效果与原组件一致
+- [ ] 保持了所有原有功能和交互
+- [ ] 保留了所有 `data-testid` 属性用于测试
+
+#### 7. **实际迁移案例**
+
+参考以下已完成的迁移案例：
+
+1. **ModeToggle 组件**
+    - 路径：`src/opensource/pages/superMagic/components/MessageEditor/components/ModeToggle/`
+    - 迁移内容：
+        - Ant Design `Dropdown` → shadcn/ui `DropdownMenu`
+        - Ant Design `Popover` → shadcn/ui `Popover`
+        - 移动端使用 `MagicPopup`
+        - 删除 `styles.ts`，使用 Tailwind 类名
+
+2. **BlackPurpleButton 组件**
+    - 路径：`src/opensource/components/other/BlackPurpleButton/`
+    - 迁移内容：
+        - 移除 `antd-style` 依赖
+        - 使用 Tailwind 渐变背景和状态样式
+        - 保持所有交互状态
+
+### 迁移最佳实践
+
+1. **渐进式迁移**：一次迁移一个组件，确保每次迁移都通过测试
+2. **保持接口不变**：组件的 props 接口应保持不变，确保向后兼容
+3. **视觉还原**：使用浏览器开发工具对比迁移前后的视觉效果
+4. **性能验证**：确保迁移后的组件性能不低于原组件
+5. **文档更新**：更新组件文档，说明使用的新技术栈
+
+## 更新日志
+
+- 2026-03: 统一 OKLCH 通道值 token 规范，补充透明度失效排查
+- 2024-12: 添加从 antd-style 迁移到 Tailwind CSS 的详细指南
+- 2024-11: 初始版本，定义 shadcn/ui + Tailwind CSS 开发规范

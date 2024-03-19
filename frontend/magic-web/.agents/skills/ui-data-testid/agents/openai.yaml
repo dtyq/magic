@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Data-testid"
+  short_description: "Add/preserve stable data-testid with RTL testability rules"
+  default_prompt: "When creating or refactoring UI components, add and preserve stable data-testid on root/interactive nodes, cover form/list/menu/modal/async states, forward data-testid through config renderers, and follow project data-testid-first Testing Library queries."

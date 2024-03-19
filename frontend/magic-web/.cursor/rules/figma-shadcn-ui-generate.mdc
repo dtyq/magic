@@ -1,0 +1,60 @@
+---
+description: 1:1 Figma design implementation using shadcn/ui, Tailwind CSS, and React. Apply when implementing or converting Figma designs to code, building UI from design specs, or when user mentions Figma URLs or design-to-code.
+globs:
+  - "**/opensource/**/*.{tsx,ts}"
+  - "**/components/shadcn-ui/**/*.{tsx,ts}"
+alwaysApply: false
+---
+请基于以下 Figma 设计稿进行 1:1 开发实现。
+
+**项目技术栈：**
+- Vite
+- React 18
+- TypeScript
+- Tailwind CSS
+- shadcn/ui 组件库
+- Radix UI 基础组件
+
+**开发要求：**
+
+1. **设计还原度：**
+   - 严格按照 Figma 设计稿进行 1:1 还原
+   - 确保尺寸、间距、颜色、字体等完全一致
+   - 注意响应式布局和交互状态
+
+2. **组件使用规范：**
+   - 优先使用 shadcn/ui 现有组件（如 Button、Card、Dialog、Dropdown Menu、Tabs 等）
+   - 如果设计稿中的组件与 shadcn/ui 组件匹配，直接使用
+   - 如需自定义组件，请基于 shadcn/ui 的设计系统进行扩展
+   - 使用 Radix UI 作为无障碍组件基础
+
+3. **样式规范：**
+   - Figma 设计稿中使用了与 shadcn 和 Tailwind 一致的变量系统
+   - 使用 Tailwind CSS 类名进行样式编写，避免内联样式
+   - 颜色使用 CSS 变量（如 `bg-primary`, `text-foreground`, `border-border` 等）
+   - 间距使用 Tailwind 的标准间距系统
+   - 圆角使用 `rounded-lg`, `rounded-md`, `rounded-sm` 等标准值
+
+4. **代码规范：**
+   - 使用 TypeScript，确保类型安全
+   - 遵循 React 18 最佳实践
+   - 组件命名使用 PascalCase
+   - 事件处理函数使用 `handle` 前缀（如 `handleClick`）
+   - 使用 `const` 声明函数组件
+   - 确保代码可读性和可维护性
+   - 注意组件拆分，如果组件太大，请拆分成小组件
+
+5. **文件组织：**
+   - 拆分的组件放在当前组件所在文件夹下的 `./components/` 目录下
+   - shadcn/ui 组件放在 `components/ui/` 目录下
+   - 工具函数放在 `lib/` 目录下
+   - 页面文件放在 `app/` 目录下
+
+6. **其他要求：**
+   [在此添加其他特定需求，如：]
+   - 需要实现的特定功能
+   - 需要注意的交互细节
+   - 需要集成的 API 或数据
+   - 其他特殊说明
+
+请先分析 Figma 设计稿，然后提供实现方案，最后编写完整的代码。

@@ -1,0 +1,621 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+@rule React 组件风格指南
+@description React 组件开发规范与最佳实践
+@priority high
+@category development
+
+# React 组件风格指南
+
+## 组件类型
+
+1. **函数组件**：默认使用函数组件和 Hooks，避免使用类组件
+
+    ```tsx
+    export const MyComponent = ({ prop1, prop2 }: MyComponentProps) => {
+    	// 组件逻辑
+    	return <div>组件内容</div>
+    }
+    ```
+
+2. **HOC 模式**：需要共享逻辑时使用高阶组件
+
+    ```tsx
+    export const withAuth = (Component: React.ComponentType<any>) => {
+    	return (props: any) => {
+    		// 认证逻辑
+    		return <Component {...props} />
+    	}
+    }
+    ```
+
+3. **Compound Components**：复杂组件使用复合组件模式
+
+    ```tsx
+    export const Tabs = ({ children }: TabsProps) => {
+    	// Tabs 逻辑
+    	return <div className="tabs">{children}</div>
+    }
+
+    Tabs.Item = ({ children }: TabItemProps) => {
+    	return <div className="tab-item">{children}</div>
+    }
+    ```
+
+## 样式系统选择
+
+### 决策树
+
+在开始编写组件前，先确定使用哪种样式系统：
+
+```
+是新组件吗？
+├─ 是 → 使用 shadcn/ui + Tailwind CSS
+│       └─ 参考：shadcn-tailwind-guide.mdc
+└─ 否 → 是否需要修改现有组件？
+        ├─ 是 → 保持原有样式系统（antd-style）
+        │       └─ 参考：antd-design-system.mdc
+        └─ 否 → 无需编写样式
+```
+
+### 新组件（使用 Tailwind CSS）
+
+**适用场景：**
+
+- 所有新开发的页面和组件
+- 从 Figma 设计稿转换的 UI
+- 独立功能模块
+
+**基本用法：**
+
+```tsx
+import { Button } from "@/opensource/components/shadcn-ui/button"
+import { cn } from "@/opensource/lib/utils"
+
+function NewComponent({ className }: Props) {
+	return (
+		<div className={cn("flex items-center gap-4 p-4 rounded-lg bg-card", className)}>
+			<span className="text-sm font-medium text-foreground">Label</span>
+			<Button variant="default" size="sm">
+				Action
+			</Button>
+		</div>
+	)
+}
+```
+
+**关键要点：**
+
+- 使用 Tailwind 工具类，不编写 CSS 文件
+- 使用 shadcn/ui 组件库
+- 颜色使用 CSS 变量（`text-foreground`, `bg-card` 等）
+- 使用 `cn()` 函数组合类名
+- 图标使用 lucide-react
+
+### 现有组件（使用 antd-style）
+
+**适用场景：**
+
+- 维护和修复现有组件
+- 优化现有组件性能
+- 小幅调整现有样式
+
+**基本用法：**
+
+```tsx
+import { createStyles } from "antd-style"
+
+const useStyles = createStyles(({ token, css }) => ({
+	container: css`
+		padding: ${token.padding}px;
+		background-color: ${token.colorBgContainer};
+		border-radius: ${token.borderRadius}px;
+	`,
+}))
+
+function ExistingComponent() {
+	const { styles } = useStyles()
+	return <div className={styles.container}>Content</div>
+}
+```
+
+**关键要点：**
+
+- 继续使用 `createStyles`
+- 不要迁移到 Tailwind
+- 保持现有代码风格
+- 使用 antd token 系统
+
+## 样式约定
+
+### 1. 使用 antd-style 创建样式（现有组件维护）
+
+```tsx
+import { createStyles } from "antd-style"
+
+const useStyles = createStyles(({ token, css, responsive }) => ({
+	container: css`
+		padding: ${token.padding}px;
+		background-color: ${token.colorBgContainer};
+		border-radius: ${token.borderRadius}px;
+
+		${responsive.mobile} {
+			padding: ${token.paddingSM}px;
+		}
+	`,
+	title: css`
+		color: ${token.colorTextHeading};
+		font-size: ${token.fontSizeHeading3}px;
+		margin-bottom: ${token.margin}px;
+	`,
+}))
+
+export const MyComponent = () => {
+	const { styles } = useStyles()
+	return (
+		<div className={styles.container}>
+			<h2 className={styles.title}>标题</h2>
+		</div>
+	)
+}
+```
+
+2. **使用 Ant Design 设计 Token**
+
+    ```tsx
+    const useStyles = createStyles(({ token, css }) => ({
+    	primary: css`
+    		color: ${token.colorPrimary};
+    		background: ${token.magicColorUsages?.bg?.[0]};
+    		border: 1px solid ${token.magicColorUsages?.border};
+    	`,
+    	text: css`
+    		color: ${token.magicColorUsages?.text?.[0]};
+    		font-family: ${token.fontFamily};
+    	`,
+    }))
+    ```
+
+3. **响应式设计**
+
+    ```tsx
+    const useStyles = createStyles(({ responsive, css }) => ({
+    	container: css`
+    		display: flex;
+    		flex-direction: column;
+
+    		${responsive.tablet} {
+    			flex-direction: row;
+    		}
+
+    		${responsive.desktop} {
+    			max-width: 1200px;
+    			margin: 0 auto;
+    		}
+    	`,
+    }))
+    ```
+
+### 2. 使用 Tailwind CSS（新组件开发）
+
+**工具类组合：**
+
+```tsx
+import { cn } from "@/opensource/lib/utils"
+
+function Component({ isActive, className }: Props) {
+	return (
+		<div
+			className={cn(
+				// Base styles
+				"flex items-center gap-4 p-4",
+				"rounded-lg border",
+				"bg-card text-card-foreground",
+				// Conditional styles
+				isActive && "border-primary bg-primary/10",
+				// User custom classes
+				className,
+			)}
+		>
+			Content
+		</div>
+	)
+}
+```
+
+**响应式设计：**
+
+```tsx
+function ResponsiveComponent() {
+	return (
+		<div className="flex flex-col md:flex-row gap-4 md:gap-6 p-4 md:p-6">
+			<div className="w-full md:w-1/2">Left</div>
+			<div className="w-full md:w-1/2">Right</div>
+		</div>
+	)
+}
+
+// 断点：sm(640px), md(768px), lg(1024px), xl(1280px), 2xl(1536px)
+```
+
+**暗色模式：**
+
+```tsx
+<div className="bg-white dark:bg-slate-900 text-black dark:text-white">
+	<p className="text-gray-700 dark:text-gray-300">Adaptive content</p>
+</div>
+```
+
+**常用模式：**
+
+```tsx
+// Layout
+className = "flex flex-col items-center justify-between gap-4"
+className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+
+// Spacing
+className = "p-4 px-6 py-2" // padding
+className = "m-4 mx-auto" // margin
+className = "space-y-4" // vertical spacing between children
+
+// Sizing
+className = "w-full h-screen"
+className = "max-w-lg min-h-[200px]"
+
+// Colors (use CSS variables)
+className = "bg-background text-foreground"
+className = "bg-primary text-primary-foreground"
+className = "border border-border"
+
+// Typography
+className = "text-sm font-medium leading-none"
+className = "text-lg font-semibold tracking-tight"
+
+// Effects
+className = "rounded-lg shadow-md hover:shadow-lg transition-shadow"
+className = "opacity-50 hover:opacity-100 transition-opacity"
+```
+
+## 状态管理
+
+1. **局部状态**：使用 `useState` 或 `useReducer`
+
+    ```tsx
+    const [loading, setLoading] = useState(false)
+    const [data, setData] = useState<DataType[]>([])
+    ```
+
+2. **全局状态**：使用 MobX
+
+    ```tsx
+    import { observer } from "mobx-react-lite"
+    import { useStore } from "@/stores"
+
+    const Component = observer(() => {
+    	const { userStore } = useStore()
+    	return <div>{userStore.name}</div>
+    })
+    ```
+
+3. **表单状态**：使用 Ant Design Form
+
+    ```tsx
+    import { Form, Input, Button } from "antd"
+
+    const MyForm = () => {
+    	const [form] = Form.useForm()
+
+    	const onFinish = (values: any) => {
+    		console.log("Success:", values)
+    	}
+
+    	return (
+    		<Form form={form} onFinish={onFinish}>
+    			<Form.Item name="username" rules={[{ required: true }]}>
+    				<Input placeholder="用户名" />
+    			</Form.Item>
+    			<Form.Item>
+    				<Button type="primary" htmlType="submit">
+    					提交
+    				</Button>
+    			</Form.Item>
+    		</Form>
+    	)
+    }
+    ```
+
+## Props 设计
+
+1. **明确定义 Props 类型**
+
+    ```tsx
+    interface ButtonProps {
+    	type?: "primary" | "default" | "danger"
+    	size?: "small" | "middle" | "large"
+    	onClick?: (e: React.MouseEvent) => void
+    	disabled?: boolean
+    	children: React.ReactNode
+    }
+    ```
+
+2. **使用 Props 解构和默认值**
+
+    ```tsx
+    export const Button = ({
+    	type = "default",
+    	size = "middle",
+    	onClick,
+    	disabled = false,
+    	children,
+    }: ButtonProps) => {
+    	// 组件实现
+    }
+    ```
+
+3. **组合 Props 模式**
+
+    ```tsx
+    interface BaseProps {
+    	className?: string
+    	style?: React.CSSProperties
+    }
+
+    interface ComponentProps extends BaseProps {
+    	title: string
+    	description?: string
+    }
+    ```
+
+## 性能优化
+
+1. **使用 React.memo 避免不必要的重渲染**
+
+    ```tsx
+    import { memo } from "react"
+
+    const ExpensiveComponent = memo(({ data }: Props) => {
+    	return <div>{/* 复杂渲染逻辑 */}</div>
+    })
+    ```
+
+    **重要：如果组件使用了 `observer` 包装，则不需要再使用 `memo`**
+    - `observer` 已经提供了响应式更新和性能优化
+    - 同时使用 `memo` 和 `observer` 是多余的，可能导致不必要的复杂性
+
+    ```tsx
+    // ✅ 正确：只使用 observer
+    import { observer } from "mobx-react-lite"
+
+    const MyComponent = observer(() => {
+    	const store = useStore()
+    	return <div>{store.data}</div>
+    })
+
+    // ❌ 错误：同时使用 memo 和 observer
+    const MyComponent = memo(
+    	observer(() => {
+    		const store = useStore()
+    		return <div>{store.data}</div>
+    	}),
+    )
+    ```
+
+2. **使用 useMemo 缓存计算结果**
+
+    ```tsx
+    const expensiveValue = useMemo(() => {
+    	return computeExpensiveValue(data)
+    }, [data])
+    ```
+
+3. **使用 useCallback 缓存函数引用**
+
+    ```tsx
+    const handleClick = useCallback(
+    	(id: string) => {
+    		onItemClick(id)
+    	},
+    	[onItemClick],
+    )
+    ```
+
+4. **使用 ahooks 的 useMemoizedFn**
+
+    ```tsx
+    import { useMemoizedFn } from "ahooks"
+
+    const handleSubmit = useMemoizedFn(async (values) => {
+    	await submitData(values)
+    })
+    ```
+
+## 错误处理
+
+1. **使用 ErrorBoundary 组件捕获渲染错误**
+
+    ```tsx
+    import { ErrorBoundary } from "react-error-boundary"
+
+    const ErrorFallback = ({ error }: { error: Error }) => (
+    	<div>Something went wrong: {error.message}</div>
+    )
+
+    ;<ErrorBoundary FallbackComponent={ErrorFallback}>
+    	<MyComponent />
+    </ErrorBoundary>
+    ```
+
+2. **API 请求错误统一处理**
+
+    ```tsx
+    const [error, setError] = useState<string | null>(null)
+
+    const fetchData = async () => {
+    	try {
+    		const result = await api.getData()
+    		setData(result)
+    		setError(null)
+    	} catch (err) {
+    		setError(err instanceof Error ? err.message : "Unknown error")
+    	}
+    }
+    ```
+
+## 组件组织
+
+1. **文件结构**
+
+    **新组件（shadcn/ui + Tailwind）：**
+
+    ```
+    Component/
+    ├── index.tsx       # 组件主文件（包含 Tailwind 类名）
+    ├── types.ts        # TypeScript 类型定义
+    ├── hooks/          # 自定义 Hooks（可选）
+    └── components/     # 子组件（可选）
+    ```
+
+    **现有组件（antd-style）：**
+
+    ```
+    Component/
+    ├── index.tsx       # 组件主文件
+    ├── types.ts        # TypeScript 类型定义
+    ├── styles.ts       # antd-style 样式文件
+    ├── hooks/          # 自定义 Hooks（可选）
+    └── components/     # 子组件（可选）
+    ```
+
+2. **导入顺序**
+
+    **新组件（shadcn/ui + Tailwind）：**
+
+    ```tsx
+    // React 相关
+    import { memo, useState } from "react"
+
+    // 第三方库
+    import { observer } from "mobx-react-lite"
+
+    // shadcn/ui 组件
+    import { Button } from "@/opensource/components/shadcn-ui/button"
+    import { Card } from "@/opensource/components/shadcn-ui/card"
+
+    // 工具函数
+    import { cn } from "@/opensource/lib/utils"
+
+    // 图标
+    import { ChevronRight, Settings } from "lucide-react"
+
+    // 内部类型
+    import type { ComponentProps } from "./types"
+
+    // 内部组件
+    import SubComponent from "./components/SubComponent"
+    ```
+
+    **现有组件（antd-style）：**
+
+    ```tsx
+    // React 相关
+    import { memo, useState } from "react"
+
+    // 第三方库
+    import { Button } from "antd"
+    import { observer } from "mobx-react-lite"
+
+    // 内部类型
+    import type { ComponentProps } from "./types"
+
+    // 内部模块
+    import { useStyles } from "./styles"
+    ```
+
+3. **导出规范**
+
+    ```tsx
+    // 默认导出组件
+    export default memo(Component)
+
+    // 命名导出类型
+    export type { ComponentProps }
+    ```
+
+## 可访问性
+
+1. **使用语义化的 HTML 标签**
+
+    ```tsx
+    <main>
+    	<section>
+    		<h1>页面标题</h1>
+    		<article>内容</article>
+    	</section>
+    </main>
+    ```
+
+2. **提供适当的 ARIA 属性**
+
+    ```tsx
+    <button aria-label="关闭对话框" aria-expanded={isOpen} onClick={handleClose}>
+    	<CloseIcon />
+    </button>
+    ```
+
+3. **确保键盘可导航**
+    ```tsx
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+    	if (e.key === "Enter" || e.key === " ") {
+    		handleClick()
+    	}
+    }
+    ```
+
+## 国际化支持
+
+```tsx
+import { useTranslation } from "react-i18next"
+
+const Component = () => {
+	const { t } = useTranslation("component")
+
+	return (
+		<div>
+			<h1>{t("title")}</h1>
+			<p>{t("description")}</p>
+		</div>
+	)
+}
+```
+
+## 测试
+
+1. **组件测试**
+
+    ```tsx
+    import { render, screen } from "@testing-library/react"
+    import { Component } from "./Component"
+
+    test("renders component correctly", () => {
+    	render(<Component title="Test" />)
+    	expect(screen.getByText("Test")).toBeInTheDocument()
+    })
+    ```
+
+2. **交互测试**
+
+    ```tsx
+    import { fireEvent } from "@testing-library/react"
+
+    test("handles click events", () => {
+    	const handleClick = jest.fn()
+    	render(<Button onClick={handleClick}>Click me</Button>)
+
+    	fireEvent.click(screen.getByRole("button"))
+    	expect(handleClick).toHaveBeenCalled()
+    })
+    ```

@@ -1,0 +1,685 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+@rule 性能优化规范
+@description 前端应用性能优化的完整指南和最佳实践
+@priority high
+@category performance
+
+# 性能优化规范
+
+## 核心指标
+
+遵循 Web Vitals 核心指标：
+
+1. **LCP (Largest Contentful Paint)** - 最大内容绘制 < 2.5s
+2. **FID (First Input Delay)** - 首次输入延迟 < 100ms
+3. **CLS (Cumulative Layout Shift)** - 累积布局偏移 < 0.1
+4. **FCP (First Contentful Paint)** - 首次内容绘制 < 1.8s
+5. **TTI (Time to Interactive)** - 可交互时间 < 5s
+
+## 代码分割策略
+
+### 1. 路由级别分割
+
+```typescript
+// routes/index.tsx
+import { lazy } from 'react'
+
+// 页面级别懒加载
+const ChatPage = lazy(() => import('@/pages/chat'))
+const SettingsPage = lazy(() => import('@/pages/settings'))
+const AdminPage = lazy(() => import('@/pages/admin'))
+
+// 带错误边界的路由配置
+const routes = [
+  {
+    path: '/chat',
+    element: (
+      <Suspense fallback={<PageLoading />}>
+        <ErrorBoundary>
+          <ChatPage />
+        </ErrorBoundary>
+      </Suspense>
+    ),
+  },
+  {
+    path: '/settings',
+    element: (
+      <Suspense fallback={<PageLoading />}>
+        <SettingsPage />
+      </Suspense>
+    ),
+  },
+]
+```
+
+### 2. 组件级别分割
+
+```typescript
+// 重组件懒加载
+const HeavyChart = lazy(() => import('@/components/HeavyChart'))
+const RichTextEditor = lazy(() => import('@/components/RichTextEditor'))
+
+// 条件加载
+const ConditionalComponent = ({ showAdvanced }: { showAdvanced: boolean }) => {
+  return (
+    <div>
+      {showAdvanced && (
+        <Suspense fallback={<div>Loading advanced features...</div>}>
+          <HeavyChart />
+        </Suspense>
+      )}
+    </div>
+  )
+}
+```
+
+### 3. 第三方库分割
+
+```typescript
+// utils/dynamic-imports.ts
+export const loadChartLibrary = () => import('echarts')
+export const loadMarkdownParser = () => import('marked')
+export const loadPDFViewer = () => import('react-pdf')
+
+// 使用示例
+const ChartComponent = () => {
+  const [chartLib, setChartLib] = useState(null)
+
+  useEffect(() => {
+    loadChartLibrary().then(lib => {
+      setChartLib(lib.default)
+    })
+  }, [])
+
+  if (!chartLib) return <div>Loading chart...</div>
+  
+  return <div>Chart rendered with {chartLib}</div>
+}
+```
+
+## 懒加载最佳实践
+
+### 1. 图片懒加载
+
+```typescript
+// components/LazyImage.tsx
+import { useState, useRef, useEffect } from 'react'
+
+interface LazyImageProps {
+  src: string
+  alt: string
+  placeholder?: string
+  className?: string
+}
+
+const LazyImage = ({ src, alt, placeholder, className }: LazyImageProps) => {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isInView, setIsInView] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div className={className} ref={imgRef}>
+      {isInView && (
+        <img
+          src={src}
+          alt={alt}
+          onLoad={() => setIsLoaded(true)}
+          style={{
+            opacity: isLoaded ? 1 : 0,
+            transition: 'opacity 0.3s',
+          }}
+        />
+      )}
+      {!isLoaded && placeholder && (
+        <div className="placeholder">{placeholder}</div>
+      )}
+    </div>
+  )
+}
+```
+
+### 2. 列表虚拟化
+
+```typescript
+// components/VirtualList.tsx
+import { FixedSizeList as List } from 'react-window'
+import { memo } from 'react'
+
+interface VirtualListProps {
+  items: any[]
+  itemHeight: number
+  height: number
+  renderItem: (item: any, index: number) => React.ReactNode
+}
+
+const VirtualList = memo(({ items, itemHeight, height, renderItem }: VirtualListProps) => {
+  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => (
+    <div style={style}>
+      {renderItem(items[index], index)}
+    </div>
+  )
+
+  return (
+    <List
+      height={height}
+      itemCount={items.length}
+      itemSize={itemHeight}
+      overscanCount={5} // 预渲染5个项目
+    >
+      {Row}
+    </List>
+  )
+})
+
+// 使用示例
+const MessageList = ({ messages }: { messages: Message[] }) => {
+  return (
+    <VirtualList
+      items={messages}
+      itemHeight={80}
+      height={600}
+      renderItem={(message, index) => (
+        <MessageItem key={message.id} message={message} />
+      )}
+    />
+  )
+}
+```
+
+## 内存优化
+
+### 1. 防止内存泄漏
+
+```typescript
+// hooks/useCleanup.ts
+import { useEffect, useRef } from 'react'
+
+export const useCleanup = () => {
+  const cleanupFns = useRef<(() => void)[]>([])
+
+  const addCleanup = (fn: () => void) => {
+    cleanupFns.current.push(fn)
+  }
+
+  useEffect(() => {
+    return () => {
+      cleanupFns.current.forEach(fn => fn())
+      cleanupFns.current = []
+    }
+  }, [])
+
+  return { addCleanup }
+}
+
+// 使用示例
+const Component = () => {
+  const { addCleanup } = useCleanup()
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // 定时器逻辑
+    }, 1000)
+
+    const subscription = eventBus.subscribe('event', handler)
+
+    // 注册清理函数
+    addCleanup(() => clearInterval(timer))
+    addCleanup(() => subscription.unsubscribe())
+  }, [addCleanup])
+}
+```
+
+### 2. 大对象处理
+
+```typescript
+// utils/memory-management.ts
+class MemoryPool<T> {
+  private pool: T[] = []
+  private createFn: () => T
+  private resetFn: (item: T) => void
+
+  constructor(createFn: () => T, resetFn: (item: T) => void) {
+    this.createFn = createFn
+    this.resetFn = resetFn
+  }
+
+  acquire(): T {
+    if (this.pool.length > 0) {
+      return this.pool.pop()!
+    }
+    return this.createFn()
+  }
+
+  release(item: T): void {
+    this.resetFn(item)
+    this.pool.push(item)
+  }
+}
+
+// 使用示例：Canvas 对象池
+const canvasPool = new MemoryPool(
+  () => document.createElement('canvas'),
+  (canvas) => {
+    const ctx = canvas.getContext('2d')
+    ctx?.clearRect(0, 0, canvas.width, canvas.height)
+  }
+)
+```
+
+### 3. WeakMap/WeakSet 使用
+
+```typescript
+// utils/weak-cache.ts
+class WeakCache<K extends object, V> {
+  private cache = new WeakMap<K, V>()
+
+  get(key: K): V | undefined {
+    return this.cache.get(key)
+  }
+
+  set(key: K, value: V): void {
+    this.cache.set(key, value)
+  }
+
+  has(key: K): boolean {
+    return this.cache.has(key)
+  }
+}
+
+// 组件实例缓存
+const componentCache = new WeakCache<React.ComponentType, any>()
+```
+
+## 渲染优化
+
+### 1. React.memo 和 useMemo
+
+```typescript
+// 组件 memo 化
+const ExpensiveComponent = memo(({ data, onAction }: Props) => {
+  // 计算密集型操作
+  const processedData = useMemo(() => {
+    return data.map(item => ({
+      ...item,
+      computed: heavyComputation(item)
+    }))
+  }, [data])
+
+  // 稳定的回调函数
+  const handleAction = useCallback((id: string) => {
+    onAction(id)
+  }, [onAction])
+
+  return (
+    <div>
+      {processedData.map(item => (
+        <ItemComponent 
+          key={item.id} 
+          item={item} 
+          onAction={handleAction}
+        />
+      ))}
+    </div>
+  )
+})
+
+// 避免内联对象和函数
+const BadComponent = ({ items }: { items: Item[] }) => (
+  <div>
+    {items.map(item => (
+      <ItemComponent
+        key={item.id}
+        item={item}
+        style={{ margin: 10 }} // ❌ 内联对象
+        onClick={() => handleClick(item.id)} // ❌ 内联函数
+      />
+    ))}
+  </div>
+)
+
+const GoodComponent = ({ items }: { items: Item[] }) => {
+  const itemStyle = useMemo(() => ({ margin: 10 }), []) // ✅ 稳定引用
+  const handleClick = useCallback((id: string) => {
+    // 处理逻辑
+  }, [])
+
+  return (
+    <div>
+      {items.map(item => (
+        <ItemComponent
+          key={item.id}
+          item={item}
+          style={itemStyle}
+          onClick={() => handleClick(item.id)}
+        />
+      ))}
+    </div>
+  )
+}
+```
+
+### 2. 状态更新优化
+
+```typescript
+// 批量状态更新
+import { unstable_batchedUpdates } from 'react-dom'
+
+const batchedUpdate = (updates: (() => void)[]) => {
+  unstable_batchedUpdates(() => {
+    updates.forEach(update => update())
+  })
+}
+
+// 使用示例
+const handleMultipleUpdates = () => {
+  batchedUpdate([
+    () => setLoading(true),
+    () => setError(null),
+    () => setData(newData),
+  ])
+}
+```
+
+## 网络优化
+
+### 1. 请求优化
+
+```typescript
+// utils/request-optimization.ts
+import { debounce } from 'lodash-es'
+
+// 请求去重
+class RequestDeduplicator {
+  private pendingRequests = new Map<string, Promise<any>>()
+
+  async request<T>(key: string, requestFn: () => Promise<T>): Promise<T> {
+    if (this.pendingRequests.has(key)) {
+      return this.pendingRequests.get(key)!
+    }
+
+    const promise = requestFn().finally(() => {
+      this.pendingRequests.delete(key)
+    })
+
+    this.pendingRequests.set(key, promise)
+    return promise
+  }
+}
+
+// 防抖搜索
+const useDebounceSearch = (searchFn: (query: string) => void, delay = 300) => {
+  const debouncedSearch = useMemo(
+    () => debounce(searchFn, delay),
+    [searchFn, delay]
+  )
+
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel()
+    }
+  }, [debouncedSearch])
+
+  return debouncedSearch
+}
+```
+
+### 2. 缓存策略
+
+```typescript
+// utils/cache-manager.ts
+interface CacheItem<T> {
+  data: T
+  timestamp: number
+  ttl: number
+}
+
+class CacheManager {
+  private cache = new Map<string, CacheItem<any>>()
+
+  set<T>(key: string, data: T, ttl: number = 5 * 60 * 1000): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl,
+    })
+  }
+
+  get<T>(key: string): T | null {
+    const item = this.cache.get(key)
+    if (!item) return null
+
+    if (Date.now() - item.timestamp > item.ttl) {
+      this.cache.delete(key)
+      return null
+    }
+
+    return item.data
+  }
+
+  clear(): void {
+    this.cache.clear()
+  }
+}
+
+export const apiCache = new CacheManager()
+```
+
+## 打包优化
+
+### 1. Vite 配置优化
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite'
+import { resolve } from 'path'
+
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // 框架代码分离
+          vendor: ['react', 'react-dom'],
+          // UI 库分离
+          antd: ['antd', 'antd-style'],
+          // 工具库分离
+          utils: ['lodash-es', 'dayjs'],
+          // 图表库分离
+          charts: ['echarts'],
+        },
+      },
+    },
+    // 启用 gzip 压缩
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // 移除 console
+        drop_debugger: true, // 移除 debugger
+      },
+    },
+  },
+  // 预构建优化
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'antd'],
+    exclude: ['some-large-lib'],
+  },
+})
+```
+
+### 2. 资源优化
+
+```typescript
+// 图片压缩和格式优化
+const imageOptimization = {
+  // 使用 WebP 格式
+  formats: ['webp', 'jpg'],
+  // 响应式图片
+  srcSet: [
+    { width: 320, quality: 80 },
+    { width: 640, quality: 85 },
+    { width: 1280, quality: 90 },
+  ],
+}
+
+// 字体优化
+const fontOptimization = {
+  preload: ['font-display: swap'],
+  subset: 'unicode-range: U+0000-00FF',
+}
+```
+
+## 监控和测量
+
+### 1. 性能监控
+
+```typescript
+// utils/performance-monitor.ts
+class PerformanceMonitor {
+  static measureComponent(name: string, component: React.ComponentType) {
+    return (props: any) => {
+      const startTime = performance.now()
+      
+      useEffect(() => {
+        const endTime = performance.now()
+        console.log(`${name} render time: ${endTime - startTime}ms`)
+      })
+
+      return React.createElement(component, props)
+    }
+  }
+
+  static measureFunction<T extends (...args: any[]) => any>(
+    name: string,
+    fn: T
+  ): T {
+    return ((...args: any[]) => {
+      const startTime = performance.now()
+      const result = fn(...args)
+      const endTime = performance.now()
+      
+      console.log(`${name} execution time: ${endTime - startTime}ms`)
+      return result
+    }) as T
+  }
+
+  static reportWebVitals() {
+    // 集成 web-vitals 库
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(console.log)
+      getFID(console.log)
+      getFCP(console.log)
+      getLCP(console.log)
+      getTTFB(console.log)
+    })
+  }
+}
+```
+
+### 2. 内存监控
+
+```typescript
+// utils/memory-monitor.ts
+class MemoryMonitor {
+  static logMemoryUsage() {
+    if ('memory' in performance) {
+      const memory = (performance as any).memory
+      console.log({
+        used: `${Math.round(memory.usedJSHeapSize / 1048576)} MB`,
+        total: `${Math.round(memory.totalJSHeapSize / 1048576)} MB`,
+        limit: `${Math.round(memory.jsHeapSizeLimit / 1048576)} MB`,
+      })
+    }
+  }
+
+  static startMemoryMonitoring(interval = 10000) {
+    const timer = setInterval(() => {
+      this.logMemoryUsage()
+    }, interval)
+
+    return () => clearInterval(timer)
+  }
+}
+```
+
+## 最佳实践检查清单
+
+### 🚀 代码分割
+- [ ] 实现路由级别代码分割
+- [ ] 组件按需加载
+- [ ] 第三方库分离
+- [ ] 使用 Suspense 和 ErrorBoundary
+
+### 🖼️ 资源优化
+- [ ] 图片懒加载和压缩
+- [ ] 使用 WebP 格式
+- [ ] 字体优化和预加载
+- [ ] SVG 图标优化
+
+### 🧠 内存管理
+- [ ] 清理定时器和事件监听器
+- [ ] 避免内存泄漏
+- [ ] 使用对象池
+- [ ] WeakMap/WeakSet 适当使用
+
+### ⚡ 渲染优化
+- [ ] React.memo 包装组件
+- [ ] useMemo 缓存计算结果
+- [ ] useCallback 稳定函数引用
+- [ ] 避免内联对象和函数
+
+### 🌐 网络优化
+- [ ] 请求去重和防抖
+- [ ] 实现缓存策略
+- [ ] 压缩和 gzip
+- [ ] CDN 使用
+
+### 📊 监控测量
+- [ ] 集成 Web Vitals
+- [ ] 性能监控埋点
+- [ ] 内存使用监控
+- [ ] 错误监控
+
+## 性能预算
+
+为项目设置性能预算：
+
+```typescript
+const performanceBudget = {
+  // 包大小限制
+  maxBundleSize: '500KB',
+  maxChunkSize: '200KB',
+  
+  // 加载时间限制
+  maxLCP: '2.5s',
+  maxFID: '100ms',
+  maxCLS: '0.1',
+  
+  // 网络请求限制
+  maxRequests: 50,
+  maxRequestSize: '1MB',
+}
+```
+
+遵循这些性能优化规范，可以确保应用在各种设备和网络条件下都能提供良好的用户体验。

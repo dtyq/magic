@@ -1,0 +1,7 @@
+interface:
+  display_name: "Code Review Expert"
+  short_description: "Senior engineer code review: SOLID, security, performance, error handling"
+  default_prompt: "Review current git changes for SOLID violations, security risks, race conditions, error handling issues, performance problems, and boundary condition bugs."
+
+# Agent-agnostic skill - works with any LLM provider.
+# No provider-specific configuration required.

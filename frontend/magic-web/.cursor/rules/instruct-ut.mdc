@@ -1,0 +1,44 @@
+---
+description: 基于用户的目标，生产 todo list 并按顺序执行
+globs: *
+alwaysApply: false
+---
+# Instructions
+
+When a user requests to generate unit tests for a directory of packages, first check the task progress in the `.cursor/unit-test` directory and prioritize resuming the previous progress. If no previous progress is recorded, start a new task and execute:
+
+1. Find the code location corresponding to the package name;
+2. Locate the source files containing logic code in the directory, record them as a task list, and save to `.cursor/unit-test/tasks.md`, for example:
+
+- [ ] `src/index.ts`
+- [ ] `src/utils/index.ts`
+- [ ] `src/hooks/index.ts`
+- [ ] `src/components/index.ts`
+- [ ] `src/pages/index.ts`
+- [ ] `src/services/index.ts`
+- [ ] `src/types/index.ts`
+
+3. Following the instructions in `./.cursor/spec-for-ut.md`, generate unit tests for each file from the previous step. After generation and passing tests, record in `.cursor/unit-test/tasks.md`, for example:
+
+- [x] `src/index.ts`
+- [x] `src/utils/index.ts`
+- [x] `src/hooks/index.ts`
+- [x] `src/components/index.ts`
+- [x] `src/pages/index.ts`
+- [x] `src/services/index.ts`
+- [x] `src/types/index.ts`
+
+4. If some unit test files consistently fail and only have one or two failing test cases, remove those test cases to ensure overall test passing
+
+5. If any error cases are encountered during generation, record them in `.cursor/lessons` to avoid repeating the same mistakes in the future;
+
+6. Recursively generate unit tests for each file until all files are completed, then exit the execution process
+
+7. after all the files are completed, you should update the `.cursor/tasks/index.md` file to reflect the progress. If unit tests are generated for a specific component or domain, a task list belonging to that component or domain can be added, such as: `.cursor/tasks/xxx.md`
+
+# Limitations
+
+- you can just use vitest to generate the unit test code.
+
+
+

@@ -1,0 +1,93 @@
+---
+description: Apply when user is creating Git commits, writing commit messages, managing branches (feature/fix/refactor), creating merge requests, or asking about Git workflow and branching strategy.
+globs: 
+alwaysApply: false
+---
+
+@rule Git 工作流指南
+@description Git 分支管理与提交规范
+@priority medium
+@category workflow
+
+# Git 工作流指南
+
+## 分支管理
+
+根据项目的实际情况，我们采用以下分支管理策略：
+
+1. **master** - 主分支，包含最新开发代码
+2. **released** - 发布分支，保存生产环境稳定版本代码
+3. **pre-release** - 预发布分支，用于发布前的测试和验证
+4. **feature/** - 功能分支，开发新功能时从 master 分支创建
+5. **fix/** - 修复分支，用于修复问题
+6. **refactor/** - 重构分支，用于代码重构
+
+## 分支工作流程
+
+1. **功能开发**
+   - 从 master 分支创建 feature 分支：`git checkout -b feature/my-feature master`
+   - 在 feature 分支上开发并提交代码
+   - 完成后，创建 Merge Request 合并到 master 分支
+
+2. **Bug 修复**
+   - 从 master 或 released 分支创建 fix 分支：`git checkout -b fix/issue-123 master`
+   - 修复 bug 并提交代码
+   - 完成后，根据需要创建 Merge Request 合并到相应分支
+
+3. **版本发布流程**
+   - 从 master 分支更新 pre-release 分支：`git checkout pre-release && git merge master`
+   - 在 pre-release 分支上进行最终测试和调整
+   - 测试通过后，更新 released 分支：`git checkout released && git merge pre-release`
+   - 完成后，为生产版本打 tag：`git tag v1.x.x`
+
+## 提交信息规范
+
+我们采用 Emoji + 类型 的提交信息规范：
+
+```
+<emoji> <type>: <subject>
+
+<body>
+
+<footer>
+```
+
+Emoji 和类型对应关系：
+- `✨ feat`: 新功能
+- `🐛 fix`: 修复 bug
+- `📝 docs`: 文档变更
+- `💄 style`: 代码格式(不影响代码运行的变动)
+- `♻️ refactor`: 重构(既不是增加feature，也不是修复bug)
+- `⚡️ perf`: 性能优化
+- `✅ test`: 增加测试
+- `🔧 chore`: 构建过程或辅助工具的变动
+
+示例：
+```
+✨ feat: 引入用户选择器组件 & 替换发起群聊/日程添加用户/flow权限管理/agent可见范围等用户选择器
+
+- 重构用户选择逻辑，统一使用@dtyq/user-selector组件
+- 优化群聊创建流程中的用户选择体验
+- 支持按部门、姓名等多维度搜索用户
+
+Closes #456
+```
+
+## Code Review 规范
+
+1. 提交代码前，先运行测试和 lint 检查：`pnpm lint && pnpm test`
+2. 创建 Merge Request 时，添加清晰的描述
+3. Code Review 关注点：
+   - 代码质量和风格
+   - 测试覆盖
+   - 性能影响
+   - 安全问题
+
+## 开发流程检查清单
+
+- [ ] 从正确的分支创建新分支
+- [ ] 遵循编码规范和样式指南
+- [ ] 添加适当的单元测试
+- [ ] 通过所有测试和 lint 检查
+- [ ] 提交信息符合Emoji + 类型规范
+- [ ] 文档更新（如果需要）
