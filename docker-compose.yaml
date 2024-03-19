@@ -1,0 +1,298 @@
+# syntax version.
+
+services:
+  # API 服务
+  magic-service:
+    image: ghcr.io/dtyq/magic-service:${MAGIC_SERVICE_TAG-latest}
+    platform: ${PLATFORM}
+    container_name: magic-service
+    #restart: always
+    environment:
+      type: main
+      suffix: -open
+      CRONTAB_ENABLE: "false"
+    ports:
+      - "9501:9501"
+      - "9502:9502"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    volumes:
+      - ./volumes/storage/files:/opt/www/storage/files
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    networks:
+      - magic-sandbox-network
+
+  magic-service-daemon:
+    image: ghcr.io/dtyq/magic-service:${MAGIC_SERVICE_TAG-latest}
+    platform: ${PLATFORM}
+    container_name: magic-service-daemon
+    #restart: always
+    environment:
+      type: daemon
+      suffix: -daemon
+      CRONTAB_ENABLE: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      magic-service:
+        condition: service_started
+    volumes:
+       - ./volumes/storage/files:/opt/www/storage/files
+       - ./bin/magic-service/daemon-entrypoint.sh:/opt/www/start.sh
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    networks:
+      - magic-sandbox-network
+
+
+  # Web 应用
+  magic-web:
+    image: ghcr.io/dtyq/magic-web:${MAGIC_WEB_TAG-latest}
+    container_name: magic-web
+    #restart: always
+    environment:
+      MAGIC_SOCKET_BASE_URL: ${MAGIC_SOCKET_BASE_URL}
+      MAGIC_SERVICE_BASE_URL: ${MAGIC_SERVICE_BASE_URL}
+      MAGIC_EDITION: ${MAGIC_EDITION}
+    ports:
+      - "8080:8080"
+    # volumes:
+    #   - ./web:/app
+    env_file:
+      - .env
+    networks:
+      - magic-sandbox-network
+
+  # Super Magic 服务
+  super-magic:
+    image: ghcr.io/dtyq/super-magic:${SUPER_MAGIC_TAG-latest}
+    container_name: super-magic
+    #restart: always
+    profiles:
+      - super-magic
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./volumes/storage/files:/opt/www/storage/files
+      - ./config/config.yaml:/app/config/config.yaml
+    env_file:
+      - config/.env_super_magic
+    networks:
+      - magic-sandbox-network
+
+  # Magic 网关服务
+  magic-gateway:
+    image: ghcr.io/dtyq/magic-gateway:${MAGIC_GATEWAY_TAG-latest}
+    container_name: magic-gateway
+    #restart: always
+    profiles:
+      - magic-gateway
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_started
+    volumes:
+      - ./config/.env_magic_gateway:/app/.env
+    env_file:
+      - config/.env_magic_gateway
+    networks:
+      - magic-sandbox-network
+
+  # 沙箱网关服务
+  sandbox-gateway:
+    image: ghcr.io/dtyq/sandbox-gateway:${SANDBOX_GATEWAY_TAG-latest}
+    container_name: sandbox-gateway
+    #restart: always
+    profiles:
+      - sandbox-gateway
+    environment:
+      SUPER_MAGIC_CONFIG_FILE_PATH: ${SUPER_MAGIC_CONFIG_FILE_PATH:-${PWD}/config/config.yaml}
+    depends_on:
+      qdrant:
+        condition: service_started
+      magic-gateway:
+        condition: service_started
+    ports:
+      - "39003:39003"
+    volumes:
+      - ./config/.env_super_magic:/app/.env.agent
+      - ${SANDBOX_DOCKER_RUNTIME}:/var/run/docker.sock
+      - ./config/config.yaml:/app/config/config.yaml
+    env_file:
+      - config/.env_sandbox_gateway
+    networks:
+      - magic-sandbox-network
+
+ # Caddy 文件服务
+  caddy:
+    image: caddy:2.7-alpine
+    container_name: magic-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./volumes/storage/files:/srv/files
+      - ./bin/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./volumes/caddy/data:/data
+      - ./volumes/caddy/config:/config
+    command: caddy run --config /etc/caddy/Caddyfile
+    networks:
+      - magic-sandbox-network
+
+  # MySQL 数据库服务
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - ./volumes/db/data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    env_file:
+      - .env
+    networks:
+      - magic-sandbox-network
+
+  # Redis 缓存服务
+  redis:
+    image: redis:6-alpine
+    container_name: magic-redis
+    restart: always
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - ./volumes/redis/data:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+    env_file:
+      - .env
+    networks:
+      - magic-sandbox-network
+
+
+  # RabbitMQ 消息队列服务
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    container_name: magic-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${AMQP_USER}
+      RABBITMQ_DEFAULT_PASS: ${AMQP_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${AMQP_VHOST}
+    ports:
+      - "5672:5672"   # AMQP 协议端口
+      - "15672:15672" # 管理界面端口
+    volumes:
+      - ./volumes/rabbitmq/data:/var/lib/rabbitmq
+      - ./volumes/rabbitmq/logs:/var/log/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    env_file:
+      - .env
+    networks:
+      - magic-sandbox-network
+
+
+  # OpenSearch 搜索引擎服务
+  # opensearch:
+  #   container_name: magic-opensearch
+  #   image: opensearchproject/opensearch:latest
+  #   restart: always
+  #   profiles:
+  #     - opensearch
+  #   environment:
+  #     discovery.type: ${OPENSEARCH_DISCOVERY_TYPE}
+  #     bootstrap.memory_lock: ${OPENSEARCH_BOOTSTRAP_MEMORY_LOCK}
+  #     OPENSEARCH_JAVA_OPTS: -Xms${OPENSEARCH_JAVA_OPTS_MIN} -Xmx${OPENSEARCH_JAVA_OPTS_MAX}
+  #     OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+  #   ulimits:
+  #     memlock:
+  #       soft: ${OPENSEARCH_MEMLOCK_SOFT}
+  #       hard: ${OPENSEARCH_MEMLOCK_HARD}
+  #     nofile:
+  #       soft: ${OPENSEARCH_NOFILE_SOFT}
+  #       hard: ${OPENSEARCH_NOFILE_HARD}
+  #   volumes:
+  #     - ./volumes/opensearch/data:/usr/share/opensearch/data
+  #   networks:
+  #     - default
+  #     - opensearch-net
+  #   env_file:
+  #     - .env
+
+  # OpenSearch Dashboards 可视化界面
+  # opensearch-dashboards:
+  #   container_name: magic-opensearch-dashboards
+  #   image: opensearchproject/opensearch-dashboards:latest
+  #   restart: always
+  #   profiles:
+  #     - opensearch-dashboards
+  #   environment:
+  #     OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+  #   volumes:
+  #     - ./volumes/opensearch/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+  #   networks:
+  #     - default
+  #     - opensearch-net
+  #   depends_on:
+  #     - opensearch
+  #   env_file:
+  #     - .env
+
+  # Qdrant 向量数据库服务
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: magic-qdrant
+    restart: always
+    ports:
+      - "6333:6333"
+      - "6334:6334"  # GRPC
+    volumes:
+      - ./volumes/qdrant:/qdrant/storage
+    environment:
+      QDRANT_API_KEY: ${ODIN_QDRANT_API_KEY}
+    env_file:
+      - .env
+    networks:
+      - magic-sandbox-network
+
+networks:
+  magic-sandbox-network:
+    external: true
+    driver: bridge
