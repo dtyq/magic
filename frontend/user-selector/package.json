@@ -1,0 +1,180 @@
+{
+	"name": "@dtyq/user-selector",
+	"version": "0.1.5",
+	"description": "React user selector components for organization and member selection.",
+	"keywords": [
+		"react",
+		"user-selector",
+		"component-library",
+		"organization-tree",
+		"typescript",
+		"ui"
+	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/user-selector#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/user-selector"
+	},
+	"license": "Apache-2.0",
+	"sideEffects": [
+		"**/*.css"
+	],
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/es/index.js",
+			"default": "./dist/es/index.js"
+		},
+		"./style.css": "./dist/styles/index.css",
+		"./package.json": "./package.json"
+	},
+	"main": "./dist/es/index.js",
+	"module": "./dist/es/index.js",
+	"types": "./dist/types/index.d.ts",
+	"style": "./dist/styles/index.css",
+	"files": [
+		"dist",
+		"CHANGELOG.md",
+		"README.md",
+		"package.json",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "pnpm run check && vite build --mode production",
+		"check": "pnpm run lint && pnpm run typecheck && pnpm run test:ci",
+		"ci": "pnpm run check",
+		"dev": "vite --mode development",
+		"lint": "eslint ./src --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0",
+		"lint:fix": "pnpm run lint -- --fix",
+		"prepare": "husky",
+		"preview": "vite preview",
+		"test": "vitest",
+		"test:ci": "vitest run --coverage",
+		"typecheck": "tsc -p tsconfig.app.json --noEmit"
+	},
+	"commitlint": {
+		"extends": [
+			"./commitlint.config.cjs"
+		]
+	},
+	"lint-staged": {
+		"*.{js,jsx,ts,tsx}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{css,less,scss,sass}": [
+			"stylelint --fix"
+		],
+		"*.json": [
+			"prettier --write"
+		],
+		"package.json": "sort-package-json"
+	},
+	"dependencies": {
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"tailwind-merge": "^3.4.0"
+	},
+	"devDependencies": {
+		"@commitlint/cli": "^19.2.2",
+		"@commitlint/config-conventional": "^19.8.0",
+		"@commitlint/types": "^19.0.3",
+		"@dtyq/eslint-config": "^0.0.10",
+		"@radix-ui/react-avatar": "^1.1.11",
+		"@radix-ui/react-checkbox": "^1.3.3",
+		"@radix-ui/react-dialog": "^1.1.15",
+		"@radix-ui/react-dropdown-menu": "^2.1.16",
+		"@radix-ui/react-select": "^2.2.6",
+		"@radix-ui/react-slot": "^1.2.4",
+		"@radix-ui/react-tooltip": "^1.2.8",
+		"@tabler/icons-react": "^3.31.0",
+		"@testing-library/jest-dom": "^6.6.3",
+		"@testing-library/react": "^16.2.0",
+		"@types/lodash": "^4.17.4",
+		"@types/lodash-es": "^4.17.12",
+		"@types/react": "^18.3.2",
+		"@types/react-dom": "^18.3.0",
+		"@typescript-eslint/eslint-plugin": "^5.36.1",
+		"@typescript-eslint/parser": "^5.36.1",
+		"@vitejs/plugin-react": "^4.3.4",
+		"@vitest/coverage-v8": "^2.1.8",
+		"ahooks": "^3.8.4",
+		"autoprefixer": "^10.4.23",
+		"commitlint-config-gitmoji": "^2.3.1",
+		"conventional-changelog-conventionalcommits": "^7.0.2",
+		"eslint": "^8.23.0",
+		"eslint-config-prettier": "^9.1.0",
+		"eslint-import-resolver-jsconfig": "^1.1.0",
+		"eslint-import-resolver-typescript": "^3.9.1",
+		"eslint-plugin-import": "^2.26.0",
+		"eslint-plugin-jsx-a11y": "^6.6.1",
+		"eslint-plugin-node": "^11.1.0",
+		"eslint-plugin-prettier": "^5.1.3",
+		"eslint-plugin-react": "^7.31.5",
+		"eslint-plugin-react-hooks": "^4.6.0",
+		"eslint-plugin-tailwindcss": "^3.18.2",
+		"globals": "^15.14.0",
+		"husky": "^9.0.11",
+		"jsdom": "^25.0.1",
+		"lint-staged": "^15.2.2",
+		"lodash-es": "^4.17.23",
+		"lucide-react": "^0.562.0",
+		"next-themes": "^0.4.6",
+		"postcss": "^8.4.38",
+		"postcss-html": "^1.8.0",
+		"prettier": "^3.3.2",
+		"prettier-plugin-sort-json": "^4.2.0",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"react-infinite-scroll-component": "^6.1.0",
+		"sonner": "^2.0.7",
+		"sort-package-json": "^2.10.0",
+		"stylelint": "^15.11.0",
+		"stylelint-config-prettier": "^3.3.0",
+		"stylelint-config-rational-order": "^0.1.2",
+		"stylelint-config-standard": "^31.0.0",
+		"stylelint-declaration-block-no-ignored-properties": "^2.8.0",
+		"stylelint-prettier": "^3.0.0",
+		"tailwindcss": "^3.4.19",
+		"tailwindcss-animate": "^1.0.7",
+		"terser": "^5.46.0",
+		"ts-node": "^10.9.2",
+		"typescript": "~5.7.2",
+		"vaul": "^1.1.2",
+		"vite": "^6.1.0",
+		"vite-plugin-dts": "^4.5.0",
+		"vitest": "^2.1.8"
+	},
+	"peerDependencies": {
+		"@radix-ui/react-avatar": ">=1 <2",
+		"@radix-ui/react-checkbox": ">=1 <2",
+		"@radix-ui/react-dialog": ">=1 <2",
+		"@radix-ui/react-dropdown-menu": ">=2 <3",
+		"@radix-ui/react-select": ">=2 <3",
+		"@radix-ui/react-slot": ">=1 <2",
+		"@radix-ui/react-tooltip": ">=1 <2",
+		"@tabler/icons-react": ">=3 <4",
+		"ahooks": ">=3 <4",
+		"lodash-es": ">=4 <5",
+		"lucide-react": ">=0.562 <1",
+		"next-themes": ">=0.4 <1",
+		"react": ">=18 <20",
+		"react-dom": ">=18 <20",
+		"react-infinite-scroll-component": ">=6 <7",
+		"sonner": ">=2 <3",
+		"vaul": ">=1 <2"
+	},
+	"packageManager": "pnpm@9.0.0",
+	"engines": {
+		"node": ">=18.18.0",
+		"pnpm": ">=9"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"declaration": true, // 生成 .d.ts 类型声明
+		"declarationMap": false, // 生成声明文件的 sourcemap
+		"emitDeclarationOnly": true, // 同时生成 JS 和声明文件
+		// 编译输出控制
+		"noEmit": false, // 必须启用输出
+		"outDir": "./dist/types",
+		"resolveJsonModule": true,
+		// 输出目录
+		"rootDir": "./src",
+		"sourceMap": false // 生成源码映射
+	},
+	"exclude": ["node_modules", "dist"],
+	"extends": "./tsconfig.app.json", // 继承基础配置
+	"include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json"]
+}

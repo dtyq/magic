@@ -1,0 +1,42 @@
+{
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"baseUrl": ".",
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+
+		"lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+		"module": "ESNext",
+		/* Bundler mode */
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"noFallthroughCasesInSwitch": true,
+
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		/* alias */
+		"paths": {
+			"@/*": ["./src/*"],
+			"@enterprise/*": ["./enterprise/src/*"]
+		},
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+
+		/* Linting */
+		"strict": true,
+		"target": "ES2020",
+		/* type */
+		"typeRoots": ["./types"],
+
+		"useDefineForClassFields": true
+	},
+	"exclude": [
+		"dist/**/*",
+		"src/**/__tests__/**/*.ts",
+		"src/**/__tests__/**/*.tsx",
+		"enterprise/src/**/__tests__/**/*.ts",
+		"enterprise/src/**/__tests__/**/*.tsx"
+	],
+	"include": ["src/**/*", "enterprise/src/**/*", "types/**/*", "test", "vite/**/*.ts"],
+	"references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.test.json" }]
+}

@@ -1,0 +1,23 @@
+{
+	"compilerOptions": {
+		"noEmit": true,
+		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.eslint.tsbuildinfo",
+		"types": ["vitest/globals", "node"]
+	},
+	"extends": "./tsconfig.app.json",
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"src/**/*.d.ts",
+		"src/**/*.json",
+		"demo/**/*.ts",
+		"demo/**/*.tsx",
+		"tests/**/*.ts",
+		"tests/**/*.tsx",
+		"tests/**/*.d.ts",
+		"vitest.config.ts",
+		"vite.config.ts",
+		"vite.config.dev.ts",
+		"vite.config.build.ts"
+	]
+}

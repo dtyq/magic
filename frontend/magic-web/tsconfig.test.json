@@ -1,0 +1,47 @@
+{
+	"compilerOptions": {
+		"allowJs": false,
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": ".",
+		"composite": true,
+		"declaration": true,
+		"declarationDir": "dist/types",
+		"emitDecoratorMetadata": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"lib": ["es2015", "es2016", "es2017", "dom"],
+		"module": "esnext",
+		"moduleResolution": "node",
+		"outDir": "dist/lib",
+		"paths": {
+			"@/*": ["./src/*"],
+			"@enterprise/*": ["./enterprise/src/*"]
+		},
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"target": "es5",
+		"typeRoots": ["./types"]
+	},
+	"files": [
+		"src/opensource/assets/tabler-icons/tabler-icons-tags.json",
+		"src/opensource/layouts/BaseLayout/components/Sketch/routeSketchMap.ts"
+	],
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"src/**/*.json",
+		"packages/**/*.ts",
+		"packages/**/*.tsx",
+		"packages/**/*.json",
+		"src/**/__tests__/**/*.ts",
+		"src/**/__tests__/**/*.tsx",
+		"enterprise/src/**/*.ts",
+		"enterprise/src/**/*.tsx",
+		"enterprise/src/**/*.json"
+	]
+}
