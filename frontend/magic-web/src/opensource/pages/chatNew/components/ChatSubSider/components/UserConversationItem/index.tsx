@@ -1,0 +1,92 @@
+import MagicButton from "@/opensource/components/base/MagicButton"
+import MagicIcon from "@/opensource/components/base/MagicIcon"
+import { IconDots } from "@tabler/icons-react"
+import { getUserName } from "@/opensource/utils/modules/chat"
+import { Flex } from "antd"
+import { formatRelativeTime } from "@/opensource/utils/string"
+import MagicMemberAvatar from "@/opensource/components/business/MagicMemberAvatar"
+import { cx } from "antd-style"
+import conversationStore from "@/opensource/stores/chatNew/conversation"
+import { observer } from "mobx-react-lite"
+import type Conversation from "@/opensource/models/chat/conversation"
+import { useStyles } from "../ConversationItem/styles"
+import ConversationBadge from "../ConversationBadge"
+import LastMessageRender from "../LastMessageRender"
+import { useGlobalLanguage } from "@/opensource/models/config/hooks"
+import userInfoStore from "@/opensource/stores/userInfo"
+
+interface UserConversationItemProps {
+	conversationId: string
+	onClick: (conversation: Conversation) => void
+	enableMenu?: boolean
+	onMenuToggle?: () => void
+	onContextMenu?: (e: React.MouseEvent) => void
+}
+
+const UserConversationItem = observer(
+	({
+		conversationId,
+		onClick,
+		enableMenu = true,
+		onMenuToggle,
+		onContextMenu,
+	}: UserConversationItemProps) => {
+		const conversation = conversationStore.getConversation(conversationId)
+		const userInfo = userInfoStore.get(conversation.receive_id)
+
+		const active = conversationStore.currentConversation?.id === conversationId
+
+		const { styles } = useStyles()
+
+		const lastMessage = conversation.last_receive_message
+		const language = useGlobalLanguage(false)
+
+		const Avatar = <MagicMemberAvatar uid={userInfo?.user_id} showAvatar showPopover={false} />
+
+		const handleMenuClick = (e: React.MouseEvent) => {
+			e.stopPropagation()
+			onMenuToggle?.()
+		}
+
+		return (
+			<Flex
+				id={conversation.id}
+				className={cx(
+					styles.container,
+					active ? "active" : undefined,
+					conversation.is_top ? styles.topFlag : undefined,
+				)}
+				gap={8}
+				align="center"
+				onClick={() => onClick(conversation)}
+				onContextMenu={onContextMenu}
+			>
+				{/* 头像 */}
+				<ConversationBadge count={conversation.unread_dots}>{Avatar}</ConversationBadge>
+				{/* 内容 */}
+				<Flex vertical flex={1} justify="space-between" className={styles.mainWrapper}>
+					<Flex align="center" justify="space-between" className={styles.top}>
+						<span className={styles.title}>{getUserName(userInfo)}</span>
+						<span className={styles.time}>
+							{formatRelativeTime(language)(conversation.last_receive_message_time)}
+						</span>
+					</Flex>
+					<LastMessageRender message={lastMessage} className={styles.content} />
+				</Flex>
+				{/* 更多 */}
+				<div className={styles.extra} onClick={handleMenuClick}>
+					{enableMenu && (
+						<MagicButton
+							type="text"
+							className={styles.moreButton}
+							onClick={handleMenuClick}
+							icon={<MagicIcon color="currentColor" component={IconDots} size={18} />}
+						/>
+					)}
+				</div>
+			</Flex>
+		)
+	},
+)
+
+export default UserConversationItem
