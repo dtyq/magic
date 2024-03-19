@@ -1,0 +1,139 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+@rule Todo 开发指南
+@description Todo 组件开发与业务逻辑实现指南
+@priority medium
+@category business
+
+# Todo 开发指南
+
+## 组件结构
+
+Todo 功能包含以下核心组件：
+
+1. **TodoList** - 展示待办事项列表
+2. **TodoItem** - 单个待办事项
+3. **TodoInput** - 新增待办事项输入框
+4. **TodoFilter** - 待办事项过滤器
+5. **TodoStats** - 待办事项统计信息
+
+## 数据模型
+
+```typescript
+interface Todo {
+  id: string;        // 唯一标识符
+  content: string;   // 待办事项内容
+  completed: boolean; // 是否已完成
+  createdAt: number; // 创建时间戳
+  updatedAt: number; // 更新时间戳
+  priority?: 'low' | 'medium' | 'high'; // 优先级
+  tags?: string[];   // 标签
+}
+```
+
+## 状态管理
+
+使用 Zustand 管理 Todo 状态：
+
+```typescript
+import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
+
+interface TodoState {
+  todos: Todo[];
+  filter: 'all' | 'active' | 'completed';
+  
+  // 操作方法
+  addTodo: (content: string) => void;
+  toggleTodo: (id: string) => void;
+  removeTodo: (id: string) => void;
+  editTodo: (id: string, content: string) => void;
+  setFilter: (filter: 'all' | 'active' | 'completed') => void;
+  clearCompleted: () => void;
+}
+
+export const useTodoStore = create<TodoState>()(
+  immer((set) => ({
+    todos: [],
+    filter: 'all',
+    
+    addTodo: (content) => set((state) => {
+      state.todos.push({
+        id: nanoid(),
+        content,
+        completed: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }),
+    
+    // 其他方法实现...
+  }))
+);
+```
+
+## 持久化
+
+使用 IndexedDB 或 localStorage 实现 Todo 数据持久化：
+
+```typescript
+// 使用 zustand 中间件实现持久化
+import { persist } from 'zustand/middleware';
+
+export const useTodoStore = create<TodoState>()(
+  persist(
+    immer((set) => ({
+      // 状态与方法...
+    })),
+    { name: 'todo-storage' }
+  )
+);
+```
+
+## 样式实现
+
+使用 antd-style 创建样式：
+
+```typescript
+import { createStyle } from 'antd-style';
+
+const useStyles = createStyle(({ token }) => ({
+  todoList: {
+    width: '100%',
+    maxWidth: 600,
+    margin: '0 auto',
+    padding: token.padding,
+    backgroundColor: token.colorBgContainer,
+    borderRadius: token.borderRadius,
+    boxShadow: token.boxShadow,
+  },
+  todoItem: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: token.paddingSM,
+    borderBottom: `1px solid ${token.colorBorderSecondary}`,
+    '&:last-child': {
+      borderBottom: 'none',
+    },
+  },
+  completed: {
+    textDecoration: 'line-through',
+    color: token.colorTextDisabled,
+  },
+}));
+```
+
+## 测试策略
+
+1. **单元测试**：测试 store 中的业务逻辑
+2. **组件测试**：测试各个 Todo 组件的渲染和交互
+3. **集成测试**：测试 Todo 功能的完整流程
+
+## 性能考虑
+
+1. 使用 `useCallback` 优化事件处理函数
+2. 使用 `React.memo` 优化组件渲染
+3. 大量 Todo 时使用虚拟列表优化渲染性能

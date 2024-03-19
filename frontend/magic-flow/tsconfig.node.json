@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"composite": true,
+		"skipLibCheck": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"allowSyntheticDefaultImports": true
+	},
+	"include": [
+		".dumirc.ts",
+		".fatherrc.ts",
+		".eslintrc.cjs",
+		".prettierrc.cjs",
+		".stylelintrc.cjs"
+	]
+}

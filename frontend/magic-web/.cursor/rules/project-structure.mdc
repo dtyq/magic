@@ -1,0 +1,64 @@
+---
+description: 
+alwaysApply: true
+---
+
+@rule 项目结构指南
+@description 项目目录结构与文件组织方式详解
+@priority high
+@category structure
+
+# 项目结构指南
+
+## 目录结构
+
+- `src/` - 源代码目录
+  - `apis/` - API 接口定义和请求函数
+  - `assets/` - 静态资源文件（图片、字体等）
+  - `components/` - React 组件
+    - `base/` - 基础组件（按钮、输入框等）
+    - `business/` - 业务组件（特定业务功能的组件）
+    - `common/` - 通用组件（可跨业务复用的组件）
+    - `providers/` - Context Provider 组件
+    - `debug/` - 调试相关组件
+  - `const/` - 常量定义
+  - `enhance/` - 增强功能
+  - `hooks/` - 自定义 React Hooks
+  - `layouts/` - 页面布局组件
+  - `models/` - 数据模型定义
+  - `pages/` - 页面组件
+  - `premium/` - 商业版功能
+  - `routes/` - 路由配置
+  - `services/` - 服务层（业务逻辑处理）
+  - `stores/` - 状态管理（Zustand/MobX 等）
+  - `styles/` - 全局样式
+  - `types/` - TypeScript 类型定义
+  - `utils/` - 工具函数
+
+## 命名规范
+
+1. 文件/目录命名采用 kebab-case 风格（如 `user-profile.tsx`）
+2. 组件文件使用 PascalCase 命名（如 `UserProfile.tsx`）
+3. Hook 文件使用 `use` 前缀命名（如 `useUserData.ts`）
+4. 类型定义文件使用 `.d.ts` 或 `.types.ts` 后缀
+
+## 文件组织
+
+1. 组件目录结构：
+   ```
+   ComponentName/
+   ├── index.tsx       # 组件主文件
+   ├── style.ts        # 样式文件 (使用 createStyle)
+   ├── types.ts        # 类型定义
+   ├── utils.ts        # 组件内工具函数
+   └── __tests__/      # 测试目录
+       └── index.test.tsx  # 测试文件
+   ```
+
+2. 页面目录结构遵循与组件相似的模式，但可能包含子组件
+
+## 导入导出规范
+
+1. 使用命名导出而非默认导出
+2. 从 index 文件统一导出模块内容
+3. 导入顺序：外部库 > 内部模块 > 相对路径模块

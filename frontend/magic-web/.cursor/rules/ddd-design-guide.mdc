@@ -1,0 +1,356 @@
+---
+description: Apply when designing or refactoring domain models, services, stores, or discussing DDD (Domain-Driven Design) architecture. Also apply when working on business logic layers, API modules, or planning domain boundaries and migrations.
+globs:
+  - "**/models/**/*.{ts,tsx}"
+  - "**/services/**/*.{ts,tsx}"
+  - "**/stores/**/*.{ts,tsx}"
+  - "**/apis/**/*.{ts,tsx}"
+  - "**/types/**/*.ts"
+alwaysApply: false
+---
+@rule DDD领域驱动设计指南-修订版
+@description 项目领域分析与DDD开发规范（根据实际项目结构调整）
+@priority high
+@category architecture
+
+# DDD领域驱动设计指南（修订版）
+
+## 当前项目结构分析
+
+通过对当前项目结构的分析，发现项目采用了以下组织方式：
+
+```
+src/
+├── apis/                  # API接口定义
+│   ├── modules/           # 按业务模块组织的API
+│   ├── clients/           # API客户端实现
+│   └── ...
+├── components/            # 共享UI组件
+├── hooks/                 # 自定义React Hooks
+├── layouts/               # 页面布局组件
+├── models/                # 数据模型定义
+│   └── user/              # 用户相关模型
+├── pages/                 # 页面组件
+├── services/              # 服务层实现
+│   └── user/              # 用户相关服务
+├── stores/                # 状态管理
+│   ├── user/              # 用户状态管理
+│   ├── approval/          # 审批流状态管理
+│   ├── calendar/          # 日历状态管理
+│   └── ...
+├── utils/                 # 工具函数
+└── ...
+```
+
+## 领域划分（基于当前结构）
+
+根据现有项目结构和业务功能，我们可以识别以下核心领域：
+
+1. **用户域 (User Domain)**
+   - 已有实现：`models/user`, `stores/user`, `services/user`
+   - 职责：用户账户管理、认证授权、个人信息维护
+
+2. **审批域 (Approval Domain)**
+   - 已有实现：`stores/approval`
+   - 职责：审批流程管理、表单处理、审批记录
+
+3. **日历域 (Calendar Domain)**
+   - 已有实现：`stores/calendar`
+   - 职责：日程管理、提醒设置、日历视图
+
+4. **驱动域 (Drive Domain)**
+   - 已有实现：`stores/drive`
+   - 职责：文件存储、文件共享、权限管理
+
+5. **团队协作域 (Teamshare Domain)**
+   - 已有实现：`stores/teamshare`
+   - 职责：团队协作、共享资源、成员管理
+
+## 改进建议：DDD架构调整
+
+为了更好地实施DDD，建议对项目结构进行以下调整：
+
+### 调整后的目录结构
+
+```
+src/
+├── domains/                 # 领域目录
+│   ├── user/                # 用户领域
+│   │   ├── models/          # 领域模型（实体、值对象）
+│   │   ├── repositories/    # 仓储接口
+│   │   ├── services/        # 领域服务
+│   │   └── events/          # 领域事件
+│   ├── approval/            # 审批领域
+│   ├── calendar/            # 日历领域
+│   ├── drive/               # 驱动领域
+│   └── teamshare/           # 团队协作领域
+├── application/             # 应用服务层
+│   ├── user/                
+│   ├── approval/
+│   └── ...
+├── infrastructure/          # 基础设施层
+│   ├── api/                 # API实现（转移自apis目录）
+│   ├── storage/             # 存储实现
+│   └── persistence/         # 仓储实现
+├── ui/                      # 表现层
+│   ├── components/          # 共享组件（转移自components目录）
+│   ├── pages/               # 页面组件（转移自pages目录）
+│   ├── hooks/               # 自定义Hooks（转移自hooks目录）
+│   └── stores/              # UI状态管理（重构自stores目录）
+```
+
+## 当前结构与DDD的不匹配点
+
+1. **领域模型不明确**
+   - 当前`models`目录内容有限，未充分体现领域实体和值对象
+   - 建议：丰富领域模型，将业务规则封装到模型中
+
+2. **状态管理与领域逻辑混合**
+   - `stores`直接包含业务逻辑，不符合DDD关注点分离原则
+   - 建议：将业务逻辑移至领域服务，stores仅负责UI状态管理
+
+3. **缺乏明确的仓储层**
+   - 没有专门的仓储接口和实现，数据访问逻辑分散
+   - 建议：引入仓储模式，实现领域模型和数据访问的分离
+
+4. **领域边界不清晰**
+   - 领域之间的依赖关系不明确
+   - 建议：明确定义领域边界，通过应用服务或领域事件实现跨领域通信
+
+## 迁移策略
+
+为了平稳过渡到DDD架构，建议采取渐进式迁移策略：
+
+1. **保留现有功能**
+   - 第一阶段不改变现有功能，专注于调整架构
+   - 编写适配器连接新旧代码
+
+2. **按领域逐步迁移**
+   - 从单一领域（如用户域）开始实施DDD
+   - 成功后再扩展到其他领域
+
+3. **新功能采用DDD**
+   - 所有新功能采用DDD架构设计
+   - 确保新旧架构的兼容性
+
+## 领域对象设计示例（基于现有项目）
+
+### 用户领域实体示例
+
+```typescript
+// domains/user/models/User.ts
+export class User {
+  private _id: string;
+  private _nickname: string;
+  private _avatar: string;
+  private _phone: string;
+  private _status: UserStatus;
+  private _organizationCode: string;
+
+  constructor(id: string, nickname: string, avatar: string, phone: string, status: UserStatus, organizationCode: string) {
+    this._id = id;
+    this._nickname = nickname;
+    this._avatar = avatar;
+    this._phone = phone;
+    this._status = status;
+    this._organizationCode = organizationCode;
+  }
+
+  // 属性访问器
+  get id(): string {
+    return this._id;
+  }
+
+  get nickname(): string {
+    return this._nickname;
+  }
+
+  // 领域行为
+  updateProfile(nickname: string, avatar: string): void {
+    this._nickname = nickname;
+    this._avatar = avatar;
+  }
+
+  deactivate(): void {
+    this._status = UserStatus.INACTIVE;
+  }
+
+  activate(): void {
+    this._status = UserStatus.ACTIVE;
+  }
+
+  // 业务规则
+  canAccessOrganization(orgCode: string): boolean {
+    return this._organizationCode === orgCode;
+  }
+}
+```
+
+### 仓储接口示例
+
+```typescript
+// domains/user/repositories/UserRepository.ts
+export interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  findByPhone(phone: string): Promise<User | null>;
+  save(user: User): Promise<void>;
+  search(query: UserSearchCriteria): Promise<User[]>;
+}
+```
+
+### 领域服务示例
+
+```typescript
+// domains/user/services/UserService.ts
+export class UserService {
+  constructor(
+    private userRepository: UserRepository,
+    private authService: AuthService
+  ) {}
+
+  async registerUser(dto: RegisterUserDto): Promise<Result<User>> {
+    // 验证业务规则
+    if (await this.userRepository.findByPhone(dto.phone)) {
+      return Result.fail('用户手机号已注册');
+    }
+
+    // 创建用户实体
+    const user = new User(
+      generateId(),
+      dto.nickname,
+      dto.avatar,
+      dto.phone,
+      UserStatus.ACTIVE,
+      dto.organizationCode
+    );
+
+    // 持久化
+    await this.userRepository.save(user);
+
+    // 处理关联行为
+    await this.authService.createUserCredentials(user.id, dto.password);
+
+    return Result.ok(user);
+  }
+}
+```
+
+### 应用服务示例
+
+```typescript
+// application/user/UserApplicationService.ts
+export class UserApplicationService {
+  constructor(
+    private userService: UserService,
+    private userRepository: UserRepository
+  ) {}
+
+  async registerUser(dto: RegisterUserDto): Promise<Result<UserDto>> {
+    // 调用领域服务
+    const result = await this.userService.registerUser(dto);
+    
+    if (result.isFailure) {
+      return Result.fail(result.error);
+    }
+    
+    // 转换为DTO返回
+    const user = result.value;
+    return Result.ok({
+      id: user.id,
+      nickname: user.nickname,
+      avatar: user.avatar,
+      phone: user.phone,
+      // 其他属性...
+    });
+  }
+}
+```
+
+## 与现有状态管理整合
+
+将MobX状态管理与DDD整合：
+
+```typescript
+// ui/stores/user/userStore.ts
+import { makeAutoObservable, runInAction } from 'mobx';
+import { UserApplicationService } from '../../../application/user/UserApplicationService';
+import { UserDto } from '../../../application/user/dtos/UserDto';
+
+export class UserStore {
+  currentUser: UserDto | null = null;
+  loading = false;
+  error: string | null = null;
+
+  constructor(private userAppService: UserApplicationService) {
+    makeAutoObservable(this);
+  }
+
+  async loadCurrentUser(): Promise<void> {
+    this.loading = true;
+    this.error = null;
+
+    try {
+      const result = await this.userAppService.getCurrentUser();
+      runInAction(() => {
+        if (result.isSuccess) {
+          this.currentUser = result.value;
+        } else {
+          this.error = result.error;
+        }
+        this.loading = false;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.error = error instanceof Error ? error.message : '加载失败';
+        this.loading = false;
+      });
+    }
+  }
+}
+```
+
+## 最佳实践总结
+
+根据项目实际情况，推荐以下DDD实施最佳实践：
+
+1. **增量式改进**
+   - 不要试图一次性重构整个应用
+   - 识别核心领域，优先应用DDD
+
+2. **保持向后兼容**
+   - 确保新架构能与现有前端组件协同工作
+   - 添加适配层连接新旧结构
+
+3. **注重领域模型设计**
+   - 将业务规则从stores迁移到领域模型和服务
+   - 明确实体、值对象和聚合的边界
+
+4. **使用TypeScript强类型**
+   - 充分利用TypeScript类型系统
+   - 为领域对象定义明确的接口和类型
+
+5. **重视领域事件**
+   - 使用领域事件实现领域间的解耦
+   - 避免直接的领域间依赖
+
+## 渐进式实施路线图
+
+1. **第一阶段：领域识别与划分**
+   - 梳理现有业务功能，识别核心领域
+   - 定义领域模型和边界
+
+2. **第二阶段：建立基础设施**
+   - 设计仓储接口
+   - 实现数据映射层
+
+3. **第三阶段：领域层实现**
+   - 实现领域实体和值对象
+   - 开发领域服务
+
+4. **第四阶段：应用层实现**
+   - 开发应用服务
+   - 集成前端状态管理
+
+5. **第五阶段：逐步迁移**
+   - 将现有功能逐个迁移至新架构
+   - 验证并调整

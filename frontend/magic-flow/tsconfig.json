@@ -1,0 +1,37 @@
+{
+	"references": [{ "path": "./tsconfig.node.json" }],
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["src/*"]
+		},
+		"target": "es5",
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"allowJs": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"strict": false,
+		"noImplicitAny": false,
+		"noImplicitThis": false,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noImplicitReturns": false,
+		"forceConsistentCasingInFileNames": true,
+		"noFallthroughCasesInSwitch": true,
+		"module": "esnext",
+		"moduleResolution": "node",
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"downlevelIteration": true,
+		"declaration": true,
+		"declarationMap": false,
+		"emitDeclarationOnly": false,
+		"noEmit": false,
+		"rootDir": "src", // 限制仅编译src下的内容
+		"outDir": "dist"
+	},
+	"include": ["src/**/*", "types/**/*"],
+	"exclude": ["node_modules", "dist"]
+}
