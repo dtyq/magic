@@ -718,7 +718,7 @@ class MagicFlowExportImportAppService
     ): void {
         foreach ($flow->getNodes() as $node) {
             // 如果是子流程节点
-            if ($node->getNodeType() === NodeType::Sub) {
+            if ($node->getNodeType() === NodeType::Sub->value) {
                 $subFlowId = $node->getParams()['sub_flow_id'] ?? '';
                 // 跳过空ID和已处理的子流程
                 if (! $subFlowId || in_array($subFlowId, $processedFlowCodes)) {
@@ -756,7 +756,7 @@ class MagicFlowExportImportAppService
     ): void {
         foreach ($flow->getNodes() as $node) {
             // 主要检查LLM和Tool节点
-            if ($node->getNodeType() === NodeType::LLM || $node->getNodeType() === NodeType::Tool) {
+            if ($node->getNodeType() === NodeType::LLM->value || $node->getNodeType() === NodeType::Tool->value) {
                 $params = $node->getParams();
                 if (isset($params['option_tools']) && is_array($params['option_tools'])) {
                     foreach ($params['option_tools'] as $optionToolData) {
