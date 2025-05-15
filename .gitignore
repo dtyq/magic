@@ -39,6 +39,9 @@ config/.env_magic_gateway
 config/.env_sandbox_gateway
 config/.env_super_magic
 config/config.yaml
+config/.env_magic_gateway.bak
+config/.env_sandbox_gateway.bak
+config/.env_super_magic.bak
 
 
 
@@ -49,3 +52,4 @@ config/config.yaml
 .git-main-authors-map.txt.bak
 .super-magic-authors-map.txt
 .super-magic-authors/
+
