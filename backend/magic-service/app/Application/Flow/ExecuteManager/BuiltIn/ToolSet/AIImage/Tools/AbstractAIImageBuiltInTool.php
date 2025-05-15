@@ -13,7 +13,7 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Domain\Chat\DTO\AIImage\Request\MagicChatAIImageReqDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
 use App\Domain\Chat\Entity\ValueObject\AIImage\Radio;
-use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Flow\Entity\ValueObject\NodeInput;
 use App\ErrorCode\GenericErrorCode;
@@ -186,33 +186,26 @@ JSON
             // debug 模式
             return ['ai_image : current not support debug model'];
         }
-        $args = $executionData->getTriggerData()->getParams();
+
+        $args = $executionData->getTriggerData()?->getParams();
         $searchKeyword = $args['user_prompt'] ?? '';
         $radio = $args['radio'] ?? Radio::OneToOne->value;
         $model = $modelVersion;
-        $userInfoEntity = $executionData->getTriggerData()->getUserInfo()['user_entity'] ?? null;
-        if (empty($userInfoEntity) || ! $userInfoEntity instanceof MagicUserEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'sender_user_not_found');
-        }
-        $userId = $userInfoEntity->getUserId();
-        $userInfoEntity = $this->getMagicUserDomainService()->getUserById($userId);
-        $conversationId = $executionData->getOriginConversationId();
-        $topicId = $executionData->getTopicId();
+        $agentConversationId = $executionData->getOriginConversationId();
+        $assistantAuthorization = $this->getAssistantAuthorization($agentConversationId);
+
         $requestContext = new RequestContext();
-        $userAuthorization = new MagicUserAuthorization();
-        $userAuthorization->setId($userInfoEntity->getUserId());
-        $userAuthorization->setOrganizationCode($userInfoEntity->getOrganizationCode());
-        $userAuthorization->setUserType($userInfoEntity->getUserType());
-        $requestContext->setUserAuthorization($userAuthorization);
-        $requestContext->setOrganizationCode($userInfoEntity->getOrganizationCode());
+        $requestContext->setUserAuthorization($assistantAuthorization);
+        $requestContext->setOrganizationCode($assistantAuthorization->getOrganizationCode());
+
         $textMessage = new TextMessage([]);
         $textMessage->setContent($searchKeyword);
         $reqDto = (new MagicChatAIImageReqDTO())
-            ->setTopicId($topicId ?? '')
-            ->setConversationId($conversationId)
+            ->setTopicId($executionData->getTopicId() ?? '')
+            ->setConversationId($agentConversationId)
             ->setUserMessage($textMessage)
-            ->setAttachments($executionData->getTriggerData()->getAttachments())
-            ->setReferMessageId($executionData->getTriggerData()->getSeqEntity()->getSeqId());
+            ->setAttachments($executionData->getTriggerData()?->getAttachments())
+            ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId());
         // 设置实际请求的尺寸和比例
         $enumModel = ImageGenerateModelType::fromModel($model, false);
         $reqDto->getParams()->setRatioForModel($radio, $enumModel);
@@ -222,13 +215,38 @@ JSON
         return [];
     }
 
-    private function getMagicChatAIImageAppService(): MagicChatAIImageAppService
+    protected function getAssistantAuthorization(string $agentConversationId): MagicUserAuthorization
+    {
+        // 获取助理的用户信息。生成的图片上传者是助理自己。
+        $agentConversationEntity = $this->getMagicConversationDomainService()->getConversationByIdWithoutCheck($agentConversationId);
+        if (! $agentConversationEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'assistant_not_found');
+        }
+        // 助理信息
+        $assistantUserId = $agentConversationEntity->getUserId();
+        $assistantInfoEntity = $this->getMagicUserDomainService()->getUserById($assistantUserId);
+        if ($assistantInfoEntity === null) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'assistant_not_found');
+        }
+        $assistantAuthorization = new MagicUserAuthorization();
+        $assistantAuthorization->setId($assistantInfoEntity->getUserId());
+        $assistantAuthorization->setOrganizationCode($assistantInfoEntity->getOrganizationCode());
+        $assistantAuthorization->setUserType($assistantInfoEntity->getUserType());
+        return $assistantAuthorization;
+    }
+
+    protected function getMagicChatAIImageAppService(): MagicChatAIImageAppService
     {
         return di(MagicChatAIImageAppService::class);
     }
 
-    private function getMagicUserDomainService(): MagicUserDomainService
+    protected function getMagicUserDomainService(): MagicUserDomainService
     {
         return di(MagicUserDomainService::class);
+    }
+
+    protected function getMagicConversationDomainService(): MagicConversationDomainService
+    {
+        return di(MagicConversationDomainService::class);
     }
 }

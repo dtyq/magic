@@ -3,7 +3,7 @@
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
 </div>
 
-![麦吉开源产品矩阵](https://cdn.letsmagic.cn/static/img/super-magic-publish-header.png)
+![麦吉开源产品矩阵](https://cdn.letsmagic.cn/static/img/super-magic-publish-header.png?v=20250515)
 
 # 🔥 麦吉 - 首个开源一站式 AI 生产力平台
 
@@ -36,11 +36,11 @@
 
 麦吉是首个 **"开源的一站式 AI 生产力平台"**，它不是一个单一的 AI 产品，而是一个涵盖了丰富能力的全面的产品矩阵。
 
-![产品矩阵](https://cdn.letsmagic.cn/static/img/super-magic-open-source-projects.png)
+![产品矩阵](https://cdn.letsmagic.cn/static/img/super-magic-open-source-projects.png?v=20250515)
 
 - **[超级麦吉 Super Magic](https://github.com/dtyq/super-magic)** - 一个专为复杂任务场景设计的 **通用型 AI Agent**
 - **[麦吉聊天 Magic IM](https://github.com/dtyq/magic)** - 企业级的即时通讯系统，融合 AI Agent 对话与企业内部沟通
-- **[神奇流程 Magic Flow](https://github.com/dtyq/magic-flow)** - 强大的可视化 AI 流程编排系统
+- **[神奇流程 Magic Flow](https://github.com/dtyq/magic)** - 强大的可视化 AI 流程编排系统
 - **天书办公协同系统 Teamshare OS** (即将发布) - 企业级的在线协同办公系统
 
 除了上述的 AI 产品，我们还把我们构建这些产品的一些基础设施也都开源了出来：
@@ -80,7 +80,7 @@
 
 作为麦吉产品矩阵的重要组成部分，神奇流程可与其他麦吉产品无缝集成，打造完整的企业级 AI 应用生态。
 
-![Magic Multi-Agents and Events](https://cdn.letsmagic.cn/static/img/super-magic-multi-agents-and-events.png)
+![Magic Multi-Agents and Events](https://cdn.letsmagic.cn/static/img/super-magic-multi-agents-and-events.png?v=20250515)
 
 ### 麦吉对话 Magic IM
 
@@ -94,7 +94,7 @@
 - **多组织架构**：支持多组织部署和严格的组织数据隔离，每个组织拥有独立的数据空间和访问权限。
 - **数据安全**：严格的数据隔离和访问控制机制，多层次权限管理，保障企业敏感信息安全，确保组织间数据不互相泄露。
 
-![Magic IM](https://cdn.letsmagic.cn/static/img/magic-im-group-chat.png)
+![Magic IM](https://cdn.letsmagic.cn/static/img/magic-im-group-chat.png?v=20250515)
 
 ## 天书办公协同系统 Teamshare OS
 
@@ -172,7 +172,7 @@ cd magic
 
 ## 贡献
 
-对于想要贡献代码的人，请参阅我们的[贡献指南](https://github.com/dtyq/magic/blob/main/CONTRIBUTING_CN.md)。
+对于想要贡献代码的人，请参阅我们的[贡献指南](https://github.com/dtyq/magic/blob/master/CONTRIBUTING_CN.md)。
 同时，请考虑通过社交媒体、活动和会议来支持麦吉，麦吉的发展离不开你的支持。
 
 ## 安全漏洞

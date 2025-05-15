@@ -98,7 +98,7 @@ class TaskAppService extends AbstractAppService
             // 检查用户任务数量限制和白名单
             if ($instruction != ChatInstruction::Interrupted && $instruction != ChatInstruction::FollowUp) {
                 // 检查环境变量，如果是开源版本则跳过白名单和任务数量限制检查
-                $magicEdition = env('MAGIC_EDITION', '');
+                $magicEdition = env('MAGIC_EDITION', 'open-source');
                 if ($magicEdition === 'open-source') {
                     $this->logger->info('开源版本，跳过白名单和任务数量限制检查');
                 } else {

@@ -9,18 +9,12 @@ namespace App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AIImage\Tools;
 
 use App\Application\Chat\Service\MagicChatImageConvertHighAppService;
 use App\Application\Flow\ExecuteManager\BuiltIn\BuiltInToolSet;
-use App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AbstractBuiltInTool;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
-use App\Domain\Contact\Entity\MagicUserEntity;
-use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Flow\Entity\ValueObject\NodeInput;
-use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Collector\BuiltInToolSet\Annotation\BuiltInToolDefine;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Closure;
 use Dtyq\FlowExprEngine\ComponentFactory;
 use Dtyq\FlowExprEngine\Structure\StructureType;
@@ -28,7 +22,7 @@ use Dtyq\FlowExprEngine\Structure\StructureType;
 use function di;
 
 #[BuiltInToolDefine]
-class ImageConvertHighBuiltInTool extends AbstractBuiltInTool
+class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
 {
     public function getToolSetCode(): string
     {
@@ -52,31 +46,24 @@ class ImageConvertHighBuiltInTool extends AbstractBuiltInTool
                 // debug 模式
                 return ['image_convert_high: current not support debug model'];
             }
-            $args = $executionData->getTriggerData()->getParams();
+            $args = $executionData->getTriggerData()?->getParams();
             $searchKeyword = $args['user_prompt'] ?? '';
-            $userInfoEntity = $executionData->getTriggerData()->getUserInfo()['user_entity'] ?? null;
-            if (empty($userInfoEntity) || ! $userInfoEntity instanceof MagicUserEntity) {
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'sender_user_not_found');
-            }
-            $userId = $userInfoEntity->getUserId();
-            $userInfoEntity = $this->getMagicUserDomainService()->getUserById($userId);
-            $conversationId = $executionData->getOriginConversationId();
-            $topicId = $executionData->getTopicId();
+            $agentConversationId = $executionData->getOriginConversationId();
+            $assistantAuthorization = $this->getAssistantAuthorization($agentConversationId);
+
             $requestContext = new RequestContext();
-            $userAuthorization = new MagicUserAuthorization();
-            $userAuthorization->setId($userInfoEntity->getUserId());
-            $userAuthorization->setOrganizationCode($userInfoEntity->getOrganizationCode());
-            $userAuthorization->setUserType($userInfoEntity->getUserType());
-            $requestContext->setUserAuthorization($userAuthorization);
+            $requestContext->setUserAuthorization($assistantAuthorization);
+            $requestContext->setOrganizationCode($assistantAuthorization->getOrganizationCode());
+
             $textMessage = new TextMessage([]);
             $textMessage->setContent($searchKeyword);
             $reqDto = (new MagicChatImageConvertHighReqDTO())
-                ->setTopicId($topicId ?? '')
-                ->setConversationId($conversationId)
+                ->setTopicId($executionData->getTopicId() ?? '')
+                ->setConversationId($agentConversationId)
                 ->setUserMessage($textMessage)
-                ->setOriginImageUrl($executionData->getTriggerData()->getAttachments()[0]->getUrl())
-                ->setOriginImageId($executionData->getTriggerData()->getAttachments()[0]->getChatFileId())
-                ->setReferMessageId($executionData->getTriggerData()->getSeqEntity()->getSeqId());
+                ->setOriginImageUrl($executionData->getTriggerData()?->getAttachments()[0]->getUrl())
+                ->setOriginImageId($executionData->getTriggerData()?->getAttachments()[0]->getChatFileId())
+                ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId());
             $this->getMagicChatImageConvertHighAppService()->handleUserMessage($requestContext, $reqDto);
             return [];
         };
@@ -199,13 +186,8 @@ JSON
         return $input;
     }
 
-    private function getMagicChatImageConvertHighAppService(): MagicChatImageConvertHighAppService
+    protected function getMagicChatImageConvertHighAppService(): MagicChatImageConvertHighAppService
     {
         return di(MagicChatImageConvertHighAppService::class);
-    }
-
-    private function getMagicUserDomainService(): MagicUserDomainService
-    {
-        return di(MagicUserDomainService::class);
     }
 }
