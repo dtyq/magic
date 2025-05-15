@@ -172,7 +172,7 @@ cd magic
 
 ## 贡献
 
-对于想要贡献代码的人，请参阅我们的[贡献指南](https://github.com/dtyq/magic/blob/main/CONTRIBUTING_CN.md)。
+对于想要贡献代码的人，请参阅我们的[贡献指南](https://github.com/dtyq/magic/blob/master/CONTRIBUTING_CN.md)。
 同时，请考虑通过社交媒体、活动和会议来支持麦吉，麦吉的发展离不开你的支持。
 
 ## 安全漏洞
