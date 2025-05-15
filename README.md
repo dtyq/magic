@@ -171,7 +171,7 @@ Documentation: [https://docs.letsmagic.cn/en](https://docs.letsmagic.cn/en)
 
 ## Contribution
 
-For those who want to contribute code, please refer to our [Contribution Guide](https://github.com/dtyq/magic/blob/main/CONTRIBUTING.md).
+For those who want to contribute code, please refer to our [Contribution Guide](https://github.com/dtyq/magic/blob/master/CONTRIBUTING.md).
 Also, please consider supporting Magic through social media, events, and conferences. The development of Magic relies on your support.
 
 ## Security Vulnerabilities
