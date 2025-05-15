@@ -3,7 +3,6 @@ import { memo } from "react"
 import { useStyles } from "./styles"
 import { Flex } from "antd"
 import ActionButtons from "./ActionButtons"
-import { cx } from "antd-style"
 
 interface CommonHeaderProps {
 	icon?: React.ReactNode
@@ -39,7 +38,7 @@ export default memo(function CommonHeader(props: CommonHeaderProps) {
 		isFromNode,
 		isFullscreen,
 	} = props
-	const { styles } = useStyles()
+	const { styles, cx } = useStyles()
 
 	return (
 		<Flex className={styles.commonHeader} justify="space-between" align="center">
