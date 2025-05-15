@@ -19,6 +19,9 @@ export const useStyles = createStyles(({ token }) => {
 		},
 		titleContainer: {
 			flex: 1,
+			maxWidth: "65%",
+		},
+		extentTitle: {
 			maxWidth: "100%",
 		},
 		icon: {

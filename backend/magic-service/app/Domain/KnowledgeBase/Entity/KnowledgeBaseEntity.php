@@ -51,7 +51,7 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
 
     protected string $syncStatusMessage = '';
 
-    protected string $model;
+    protected ?string $model = null;
 
     protected string $vectorDB;
 
@@ -316,12 +316,12 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this;
     }
 
-    public function getModel(): string
+    public function getModel(): ?string
     {
         return $this->getEmbeddingConfig()['model_id'] ?? $this->model;
     }
 
-    public function setModel(string $model): static
+    public function setModel(?string $model): static
     {
         $this->model = $model;
         return $this;

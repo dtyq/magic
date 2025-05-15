@@ -38,11 +38,17 @@ export default memo(function CommonHeader(props: CommonHeaderProps) {
 		isFromNode,
 		isFullscreen,
 	} = props
-	const { styles } = useStyles()
+	const { styles, cx } = useStyles()
 
 	return (
 		<Flex className={styles.commonHeader} justify="space-between" align="center">
-			<Flex className={styles.titleContainer} gap={4} align="center">
+			<Flex
+				className={cx(styles.titleContainer, {
+					[styles.extentTitle]: isFromNode,
+				})}
+				gap={4}
+				align="center"
+			>
 				<div className={styles.icon}>{icon}</div>
 				<span
 					className={styles.title}

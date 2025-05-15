@@ -66,8 +66,12 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
                 if (! $modelGatewayMapper->exists($modelId, $dataIsolation->getCurrentOrganizationCode())) {
                     // 获取第一个
                     $firstEmbeddingModel = $modelGatewayMapper->getEmbeddingModels($dataIsolation->getCurrentOrganizationCode())[0] ?? null;
-                    $modelId = $firstEmbeddingModel->getKey();
+                    $modelId = $firstEmbeddingModel?->getKey();
                 }
+                // 更新嵌入配置model_id
+                $embeddingConfig = $magicFlowKnowledgeEntity->getEmbeddingConfig();
+                $embeddingConfig['model_id'] = $modelId;
+                $magicFlowKnowledgeEntity->setEmbeddingConfig($embeddingConfig);
             }
             if (! $modelId) {
                 ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.model.error_config_missing', ['name' => 'embedding_model']);

@@ -9,6 +9,7 @@ namespace App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AIImage\Tools;
 
 use App\Application\Flow\ExecuteManager\BuiltIn\BuiltInToolSet;
 use App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AbstractBuiltInTool;
+use App\Application\Flow\ExecuteManager\Compressible\CompressibleContent;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityFilter;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityManager;
@@ -128,7 +129,7 @@ MARKDOWN;
                 $similarityContents[] = $fragment->getContent();
                 $fragmentList[] = [
                     'business_id' => $fragment->getBusinessId(),
-                    'content' => $fragment->getContent(),
+                    'content' => CompressibleContent::compress($fragment->getContent()),
                     'metadata' => $fragment->getMetadata(),
                 ];
             }
