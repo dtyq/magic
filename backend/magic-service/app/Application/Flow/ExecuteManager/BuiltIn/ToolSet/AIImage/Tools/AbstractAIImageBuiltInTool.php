@@ -23,8 +23,6 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\FlowExprEngine\ComponentFactory;
 use Dtyq\FlowExprEngine\Structure\StructureType;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Logger\LoggerFactory;
 
 use function di;
 
@@ -189,20 +187,12 @@ JSON
             return ['ai_image : current not support debug model'];
         }
 
-        $log = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get('AbstractAIImageBuiltInTool');
-        $log->info(sprintf(
-            'conversation_id: %s, origin_conversation_id: %s, agent_user_id: %s',
-            $executionData->getConversationId(),
-            $executionData->getOriginConversationId(),
-            $executionData->getAgentUserId()
-        ));
-
         $args = $executionData->getTriggerData()?->getParams();
         $searchKeyword = $args['user_prompt'] ?? '';
         $radio = $args['radio'] ?? Radio::OneToOne->value;
         $model = $modelVersion;
-        $senderConversationId = $executionData->getOriginConversationId();
-        $assistantAuthorization = $this->getAssistantAuthorization($senderConversationId);
+        $agentConversationId = $executionData->getOriginConversationId();
+        $assistantAuthorization = $this->getAssistantAuthorization($agentConversationId);
 
         $requestContext = new RequestContext();
         $requestContext->setUserAuthorization($assistantAuthorization);
@@ -212,7 +202,7 @@ JSON
         $textMessage->setContent($searchKeyword);
         $reqDto = (new MagicChatAIImageReqDTO())
             ->setTopicId($executionData->getTopicId() ?? '')
-            ->setConversationId($senderConversationId)
+            ->setConversationId($agentConversationId)
             ->setUserMessage($textMessage)
             ->setAttachments($executionData->getTriggerData()?->getAttachments())
             ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId());
@@ -225,15 +215,15 @@ JSON
         return [];
     }
 
-    protected function getAssistantAuthorization(string $senderConversationId): MagicUserAuthorization
+    protected function getAssistantAuthorization(string $agentConversationId): MagicUserAuthorization
     {
         // 获取助理的用户信息。生成的图片上传者是助理自己。
-        $senderConversationEntity = $this->getMagicConversationDomainService()->getConversationByIdWithoutCheck($senderConversationId);
-        if (! $senderConversationEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'sender_user_not_found');
+        $agentConversationEntity = $this->getMagicConversationDomainService()->getConversationByIdWithoutCheck($agentConversationId);
+        if (! $agentConversationEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'assistant_not_found');
         }
         // 助理信息
-        $assistantUserId = $senderConversationEntity->getReceiveId();
+        $assistantUserId = $agentConversationEntity->getUserId();
         $assistantInfoEntity = $this->getMagicUserDomainService()->getUserById($assistantUserId);
         if ($assistantInfoEntity === null) {
             ExceptionBuilder::throw(GenericErrorCode::SystemError, 'assistant_not_found');

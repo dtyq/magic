@@ -48,8 +48,8 @@ class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
             }
             $args = $executionData->getTriggerData()?->getParams();
             $searchKeyword = $args['user_prompt'] ?? '';
-            $senderConversationId = $executionData->getOriginConversationId();
-            $assistantAuthorization = $this->getAssistantAuthorization($senderConversationId);
+            $agentConversationId = $executionData->getOriginConversationId();
+            $assistantAuthorization = $this->getAssistantAuthorization($agentConversationId);
 
             $requestContext = new RequestContext();
             $requestContext->setUserAuthorization($assistantAuthorization);
@@ -59,7 +59,7 @@ class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
             $textMessage->setContent($searchKeyword);
             $reqDto = (new MagicChatImageConvertHighReqDTO())
                 ->setTopicId($executionData->getTopicId() ?? '')
-                ->setConversationId($senderConversationId)
+                ->setConversationId($agentConversationId)
                 ->setUserMessage($textMessage)
                 ->setOriginImageUrl($executionData->getTriggerData()?->getAttachments()[0]->getUrl())
                 ->setOriginImageId($executionData->getTriggerData()?->getAttachments()[0]->getChatFileId())

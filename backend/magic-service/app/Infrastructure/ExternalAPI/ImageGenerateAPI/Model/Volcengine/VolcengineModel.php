@@ -19,8 +19,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateRespon
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
+use Hyperf\Di\Annotation\Inject;
 use Hyperf\Engine\Coroutine;
-use Hyperf\Logger\LoggerFactory;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Hyperf\Retry\Annotation\Retry;
 use Psr\Log\LoggerInterface;
@@ -36,6 +36,7 @@ class VolcengineModel implements ImageGenerate
     // 图生图数量限制
     private const IMAGE_TO_IMAGE_IMAGE_COUNT = 1;
 
+    #[Inject]
     protected LoggerInterface $logger;
 
     private VolcengineAPI $api;
@@ -47,10 +48,9 @@ class VolcengineModel implements ImageGenerate
     // 图生图配置
     private string $imageToImageReqKey = 'byteedit_v2.0';
 
-    public function __construct(ServiceProviderConfig $serviceProviderConfig, protected LoggerFactory $loggerFactory)
+    public function __construct(ServiceProviderConfig $serviceProviderConfig)
     {
         $this->api = new VolcengineAPI($serviceProviderConfig->getAk(), $serviceProviderConfig->getSk());
-        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
