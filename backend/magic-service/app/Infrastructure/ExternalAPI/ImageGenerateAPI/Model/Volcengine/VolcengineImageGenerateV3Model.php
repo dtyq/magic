@@ -16,7 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
-use Hyperf\Di\Annotation\Inject;
+use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
 class VolcengineImageGenerateV3Model implements ImageGenerate
@@ -27,14 +27,14 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
     // 轮询重试间隔（秒）
     private const RETRY_INTERVAL = 2;
 
-    #[Inject]
     protected LoggerInterface $logger;
 
     private VolcengineAPI $api;
 
-    public function __construct(ServiceProviderConfig $serviceProviderConfig)
+    public function __construct(ServiceProviderConfig $serviceProviderConfig, protected LoggerFactory $loggerFactory)
     {
         $this->api = new VolcengineAPI($serviceProviderConfig->getAk(), $serviceProviderConfig->getSk());
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse

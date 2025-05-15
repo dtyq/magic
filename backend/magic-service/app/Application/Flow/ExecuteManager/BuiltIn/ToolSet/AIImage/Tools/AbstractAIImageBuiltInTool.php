@@ -23,6 +23,8 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\FlowExprEngine\ComponentFactory;
 use Dtyq\FlowExprEngine\Structure\StructureType;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Logger\LoggerFactory;
 
 use function di;
 
@@ -186,6 +188,15 @@ JSON
             // debug 模式
             return ['ai_image : current not support debug model'];
         }
+
+        $log = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get('AbstractAIImageBuiltInTool');
+        $log->info(sprintf(
+            'conversation_id: %s, origin_conversation_id: %s, agent_user_id: %s',
+            $executionData->getConversationId(),
+            $executionData->getOriginConversationId(),
+            $executionData->getAgentUserId()
+        ));
+
         $args = $executionData->getTriggerData()?->getParams();
         $searchKeyword = $args['user_prompt'] ?? '';
         $radio = $args['radio'] ?? Radio::OneToOne->value;
