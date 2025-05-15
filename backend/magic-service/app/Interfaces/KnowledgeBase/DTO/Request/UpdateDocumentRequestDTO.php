@@ -29,7 +29,7 @@ class UpdateDocumentRequestDTO extends AbstractRequestDTO
         return [
             'code' => 'required|string|max:64',
             'name' => 'required|string|max:255',
-            'fragmentConfig' => 'nullable|array',
+            'fragment_config' => 'nullable|array',
             'doc_metadata' => 'array',
             'enabled' => 'boolean',
         ];
