@@ -194,11 +194,14 @@ class KnowledgeBaseDocumentRepository extends KnowledgeBaseAbstractRepository im
         return $result;
     }
 
-    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?int $lastId, int $pageSize = 500): array
+    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?string $knowledgeBaseCode = null, ?int $lastId = null, int $pageSize = 500): array
     {
         $res = $this->createBuilder($dataIsolation, KnowledgeBaseDocumentModel::query())
             ->where('third_platform_type', $thirdPlatformType)
             ->where('third_file_id', $thirdFileId)
+            ->when($knowledgeBaseCode, function ($query) use ($knowledgeBaseCode) {
+                return $query->where('knowledge_base_code', $knowledgeBaseCode);
+            })
             ->when($lastId, function ($query) use ($lastId) {
                 return $query->where('id', '<', $lastId);
             })
@@ -389,6 +392,8 @@ class KnowledgeBaseDocumentRepository extends KnowledgeBaseAbstractRepository im
             'word_count' => $entity->getWordCount(),
             'deleted_at' => $entity->getDeletedAt(),
             'document_file' => $entity->getDocumentFile(),
+            'third_file_id' => $entity->getThirdFileId(),
+            'third_platform_type' => $entity->getThirdPlatformType(),
         ];
 
         if ($entity->getCode()) {

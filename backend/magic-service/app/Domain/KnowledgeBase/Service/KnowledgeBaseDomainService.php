@@ -66,7 +66,7 @@ readonly class KnowledgeBaseDomainService
 
         $magicFlowKnowledgeEntity = $this->magicFlowKnowledgeRepository->save($dataIsolation, $magicFlowKnowledgeEntity);
 
-        $event = new KnowledgeBaseSavedEvent($magicFlowKnowledgeEntity, $create, $files);
+        $event = new KnowledgeBaseSavedEvent($dataIsolation, $magicFlowKnowledgeEntity, $create, $files);
         AsyncEventUtil::dispatch($event);
 
         return $magicFlowKnowledgeEntity;
@@ -149,7 +149,7 @@ readonly class KnowledgeBaseDomainService
     {
         $this->magicFlowKnowledgeRepository->destroy($dataIsolation, $magicFlowKnowledgeEntity);
         $this->magicFlowKnowledgeFragmentRepository->destroyByKnowledgeCode($dataIsolation, $magicFlowKnowledgeEntity->getCode());
-        AsyncEventUtil::dispatch(new KnowledgeBaseRemovedEvent($magicFlowKnowledgeEntity));
+        AsyncEventUtil::dispatch(new KnowledgeBaseRemovedEvent($dataIsolation, $magicFlowKnowledgeEntity));
     }
 
     /**

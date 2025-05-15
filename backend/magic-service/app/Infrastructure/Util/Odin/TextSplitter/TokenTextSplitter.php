@@ -86,7 +86,16 @@ class TokenTextSplitter extends TextSplitter
     {
         $text = $this->ensureUtf8Encoding($text);
 
-        // 使用固定分隔符进行初始分割
+        // 保存原始文本，用于还原标签
+        $originalText = $text;
+
+        // 1. 先把原文中的0x00替换成0x000x00
+        $text = str_replace("\x00", "\x00\x00", $text);
+
+        // 2. 把标签替换成0x00
+        $text = preg_replace('/<MagicCompressibleContent.*?<\/MagicCompressibleContent>/s', "\x00", $text);
+
+        // 3. 分割文本
         if ($this->fixedSeparator) {
             $chunks = $this->splitBySeparator($text, $this->fixedSeparator);
         } else {
@@ -108,7 +117,20 @@ class TokenTextSplitter extends TextSplitter
             }
         }
 
-        return $finalChunks;
+        // 4. 还原文本
+        // 先获取所有标签
+        preg_match_all('/<MagicCompressibleContent.*?<\/MagicCompressibleContent>/s', $originalText, $matches);
+        $tags = $matches[0];
+        $tagIndex = 0;
+
+        return array_map(function ($chunk) use ($tags, &$tagIndex) {
+            // 还原0x000x00为0x00
+            $chunk = str_replace("\x00\x00", "\x00", $chunk);
+            // 还原标签
+            return preg_replace_callback('/\x00/', function () use ($tags, &$tagIndex) {
+                return $tags[$tagIndex++] ?? '';
+            }, $chunk);
+        }, $finalChunks);
     }
 
     /**
@@ -157,6 +179,8 @@ class TokenTextSplitter extends TextSplitter
         if ($separator === ' ') {
             $chunks = preg_split('/\s+/', $text);
         } else {
+            // 如果分隔符包含0x00，替换成0x000x00
+            $separator = str_replace("\x00", "\x00\x00", $separator);
             $chunks = explode($separator, $text);
             if ($this->preserveSeparator) {
                 $chunks = $this->preserveSeparator($chunks, $separator);
@@ -194,7 +218,7 @@ class TokenTextSplitter extends TextSplitter
      */
     private function splitByFixedLength(string $text): array
     {
-        $chunkSize = $this->chunkSize / 2; // 使用较小的块大小
+        $chunkSize = (int) floor($this->chunkSize / 2); // 使用较小的块大小
         $length = mb_strlen($text);
         $splits = [];
         for ($i = 0; $i < $length; $i += $chunkSize) {

@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Text\TextPreprocess;
 
-use App\Infrastructure\Util\Text\TextPreprocess\Strategy\ExcelHeaderConcatTextPreprocessStrategy;
+use App\Infrastructure\Util\Text\TextPreprocess\Strategy\FormatExcelTextPreprocessStrategy;
 use App\Infrastructure\Util\Text\TextPreprocess\Strategy\RemoveUrlEmailTextPreprocessStrategy;
 use App\Infrastructure\Util\Text\TextPreprocess\Strategy\ReplaceWhitespaceTextPreprocessStrategy;
 use App\Infrastructure\Util\Text\TextPreprocess\Strategy\TextPreprocessStrategyInterface;
@@ -24,15 +24,36 @@ class TextPreprocessUtil
      */
     public static function preprocess(array $rules, string $text): string
     {
-        // 如果有EXCEL_HEADER_CONCAT 需要先执行，并且删除EXCEL_HEADER_CONCAT规则
-        $excelHeaderConcatRule = array_filter($rules, fn (TextPreprocessRule $rule) => $rule === TextPreprocessRule::EXCEL_HEADER_CONCAT);
-        if (count($excelHeaderConcatRule) > 0) {
-            $text = di(ExcelHeaderConcatTextPreprocessStrategy::class)->preprocess($text);
-            $rules = array_filter($rules, fn (TextPreprocessRule $rule) => $rule !== TextPreprocessRule::EXCEL_HEADER_CONCAT);
+        // 保护标签内容
+        $protectedContent = [];
+        $text = preg_replace_callback(
+            '/<MagicCompressibleContent[^>]*>.*?<\/MagicCompressibleContent>/s',
+            function ($matches) use (&$protectedContent) {
+                $key = '{{PROTECTED_' . count($protectedContent) . '}}';
+                $protectedContent[$key] = $matches[0];
+                return $key;
+            },
+            $text
+        );
+
+        // 将FORMAT_EXCEL规则放到数组前面
+        $excelSheetLineRemoveRule = array_filter($rules, fn (TextPreprocessRule $rule) => $rule === TextPreprocessRule::FORMAT_EXCEL);
+        $otherRules = array_filter(
+            $rules,
+            fn (TextPreprocessRule $rule) => $rule !== TextPreprocessRule::FORMAT_EXCEL
+        );
+
+        // 确保FORMAT_EXCEL的固定顺序
+        $orderedRules = [];
+        if (! empty($excelSheetLineRemoveRule)) {
+            $orderedRules[] = TextPreprocessRule::FORMAT_EXCEL;
         }
+        $rules = array_merge($orderedRules, $otherRules);
+
         foreach ($rules as $rule) {
             /** @var ?TextPreprocessStrategyInterface $strategy */
             $strategy = match ($rule) {
+                TextPreprocessRule::FORMAT_EXCEL => di(FormatExcelTextPreprocessStrategy::class),
                 TextPreprocessRule::REPLACE_WHITESPACE => di(ReplaceWhitespaceTextPreprocessStrategy::class),
                 TextPreprocessRule::REMOVE_URL_EMAIL => di(RemoveUrlEmailTextPreprocessStrategy::class),
                 default => null,
@@ -42,6 +63,12 @@ class TextPreprocessUtil
             }
             $text = $strategy->preprocess($text);
         }
+
+        // 恢复标签内容
+        foreach ($protectedContent as $key => $content) {
+            $text = str_replace($key, $content, $text);
+        }
+
         return $text;
     }
 }

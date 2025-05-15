@@ -87,6 +87,7 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
     public function fragmentPreview(Authenticatable $authorization, DocumentFileInterface $documentFile, FragmentConfig $fragmentConfig): array
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $documentFile = $this->documentFileStrategy->preProcessDocumentFile($dataIsolation, $documentFile);
         $content = $this->documentFileStrategy->parseContent($dataIsolation, $documentFile);
         $fragmentContents = $this->knowledgeBaseFragmentDomainService->processFragmentsByContent($dataIsolation, $content, $fragmentConfig);
         return KnowledgeBaseFragmentEntity::fromFragmentContents($fragmentContents);
