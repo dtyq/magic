@@ -90,7 +90,7 @@ class ExportAgentWithFlowCommand extends HyperfCommand
             $uploadFile = new UploadFile($tempFile, $subDir, '', false);
 
             // 上传文件（指定不自动创建目录）
-            $this->fileDomainService->upload($orgCode, $uploadFile);
+            $this->fileDomainService->uploadByCredential($orgCode, $uploadFile);
 
             // 生成可访问的链接
             $fileLink = $this->fileDomainService->getLink($orgCode, $uploadFile->getKey(), StorageBucketType::Private);
