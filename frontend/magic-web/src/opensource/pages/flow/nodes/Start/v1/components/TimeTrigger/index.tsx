@@ -100,7 +100,7 @@ const TimeTrigger = ({ branchId }: TimeTriggeredProps) => {
 			const options = []
 			for (let i = 1; i <= 31; i += 1) {
 				options.push({
-					label: resolveToString(t("common.rollbackDesc", { ns: "flow" }), { num: i }),
+					label: resolveToString(t("start.nDay", { ns: "flow" }), { num: i }),
 					id: `${i}`,
 				})
 			}
