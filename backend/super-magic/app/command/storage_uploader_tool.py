@@ -167,14 +167,8 @@ class StorageUploaderTool:
             return ""
 
     async def upload_file(self, file_path: Path, workspace_dir: Path) -> bool:
-        if not self.storage_service or not self.storage_service.credentials:
-            logger.error("上传失败：存储服务或凭证未初始化。请先调用 initialize() 或确保 _load_credentials() 成功。")
-            if not await self._load_credentials():
-                 logger.error("尝试重新加载凭证失败，无法上传。")
-                 return False
-            if not self.storage_service or not self.storage_service.credentials:
-                 logger.error("重新加载凭证后，服务或凭证依然未就绪。")
-                 return False
+        # 每次都重新加载凭证
+        self._load_credentials()
 
 
         try:
