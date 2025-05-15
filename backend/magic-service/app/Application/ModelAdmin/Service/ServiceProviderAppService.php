@@ -32,6 +32,7 @@ use App\Infrastructure\Util\Locker\Excpetion\LockException;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Exception;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
+use App\Domain\ModelAdmin\Constant\NaturalLanguageProcessing;
 
 class ServiceProviderAppService
 {
@@ -146,8 +147,8 @@ class ServiceProviderAppService
 
         // 根据服务商类型和模型类型进行连通性测试
         return match ($this->getConnectivityTestType($serviceProviderConfigDTO->getCategory(), $model->getModelType())) {
-            'embedding' => $this->embeddingConnectivityTest($modelId, $authorization),
-            'llm' => $this->llmConnectivityTest($modelId, $authorization),
+            NaturalLanguageProcessing::EMBEDDING => $this->embeddingConnectivityTest($modelId, $authorization),
+            NaturalLanguageProcessing::LLM => $this->llmConnectivityTest($modelId, $authorization),
             default => $this->serviceProviderDomainService->connectivityTest($serviceProviderConfigId, $modelVersion, $authorization->getOrganizationCode()),
         };
     }
@@ -247,9 +248,9 @@ class ServiceProviderAppService
     private function getConnectivityTestType(string $category, int $modelType): string
     {
         if (ServiceProviderCategory::from($category) === ServiceProviderCategory::LLM) {
-            return $modelType === ModelType::EMBEDDING->value ? 'embedding' : 'llm';
+            return $modelType === ModelType::EMBEDDING->value ? NaturalLanguageProcessing::EMBEDDING : NaturalLanguageProcessing::LLM;
         }
-        return 'default';
+        return NaturalLanguageProcessing::DEFAULT;
     }
 
     private function embeddingConnectivityTest(string $modelId, MagicUserAuthorization $authorization): ConnectResponse
