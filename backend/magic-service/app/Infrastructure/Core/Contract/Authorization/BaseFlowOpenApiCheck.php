@@ -63,8 +63,8 @@ class BaseFlowOpenApiCheck implements FlowOpenApiCheckInterface
             ->setOrganizationCode($apiKey->getOrganizationCode())
             ->setUserType(UserType::Human)
             ->setMagicEnvId(0);
-        if ($apiKey->getConversationId() === '') {
-            $apiKey->setConversationId($apiKey->getConversationId());
+        if (empty($magicFlowApiChatDTO->getConversationId())) {
+            $magicFlowApiChatDTO->setConversationId($apiKey->getConversationId());
         }
         $magicFlowApiChatDTO->setFlowCode($apiKey->getFlowCode());
         $user = di(MagicUserDomainService::class)->getByUserId($apiKey->getCreator());
