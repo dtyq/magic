@@ -3,7 +3,7 @@
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
 </div>
 
-![Magic Open Source Product Matrix](https://cdn.letsmagic.cn/static/img/super-magic-publish-header.png)
+![Magic Open Source Product Matrix](https://cdn.letsmagic.cn/static/img/super-magic-publish-header-en.png?v=20250515)
 
 # 🔥 Magic - First Open-Source All-in-One AI Productivity Platform
 
@@ -36,11 +36,11 @@ Magic aims to help enterprises of all sizes quickly build and deploy AI applicat
 
 Magic is the first **"open-source all-in-one AI productivity platform"**, not a single AI product, but a comprehensive product matrix with rich capabilities.
 
-![Product Matrix](https://cdn.letsmagic.cn/static/img/super-magic-open-source-projects.png)
+![Product Matrix](https://cdn.letsmagic.cn/static/img/super-magic-open-source-projects-en.png?v=20250515)
 
 - **[Super Magic](https://github.com/dtyq/super-magic)** - A **general-purpose AI Agent** designed for complex task scenarios
 - **[Magic IM](https://github.com/dtyq/magic)** - An enterprise-grade instant messaging system that integrates AI Agent conversations with internal enterprise communication
-- **[Magic Flow](https://github.com/dtyq/magic-flow)** - A powerful visual AI workflow orchestration system
+- **[Magic Flow](https://github.com/dtyq/magic)** - A powerful visual AI workflow orchestration system
 - **Teamshare OS** (Coming soon) - An enterprise-grade online collaborative office system
 
 In addition to the above AI products, we have also open-sourced some of the infrastructure we used to build these products:
@@ -58,11 +58,11 @@ A powerful **general-purpose AI Agent** specially designed for complex task scen
 ![Super Magic](https://cdn.letsmagic.cn/static/img/super-magic-buffett.gif)
 
 #### Super Magic Case Studies
-- [Warren Buffett's 2025 Shareholder Meeting Investment Insights Analysis](https://www.letsmagic.ai/share/777665156986277889)
-- [Beijing Humanoid Robot Half Marathon Related Stock Analysis](https://www.letsmagic.ai/share/774280936479625217)
-- [Core Concepts Summary of "Thinking, Fast and Slow"](https://www.letsmagic.ai/share/777461325648195584)
-- [Shanghai Auntie IPO Analysis and Investment Recommendations](https://www.letsmagic.ai/share/777604044873928705)
-- [SKU Sales Forecast Requirements](https://www.letsmagic.ai/share/771022574397648897)
+- [Analysis of Investment Insights from Buffett's 2025 Shareholders Meeting](https://www.letsmagic.cn/share/777665156986277889)
+- [Analysis of Stocks Related to Beijing Humanoid Robot Half Marathon](https://www.letsmagic.cn/share/774280936479625217)
+- [Summary of Key Points from 'Thinking, Fast and Slow](https://www.letsmagic.cn/share/777461325648195584)
+- [Auntie Jenny IPO Analysis and Investment Recommendations](https://www.letsmagic.cn/share/777604044873928705)
+- [SKU Sales Forecast Requirements](https://www.letsmagic.cn/share/771022574397648897)
 - For more case studies, please visit the [Official Website](https://www.letsmagic.ai)
 
 ### Magic Flow
@@ -80,7 +80,7 @@ Magic Flow is a powerful visual AI workflow orchestration system that allows use
 
 As an important component of the Magic product matrix, Magic Flow can be seamlessly integrated with other Magic products to create a complete enterprise-level AI application ecosystem.
 
-![Magic Multi-Agents and Events](https://cdn.letsmagic.cn/static/img/super-magic-multi-agents-and-events.png)
+![Magic Multi-Agents and Events](https://cdn.letsmagic.cn/static/img/super-magic-multi-agents-and-events-en.png?v=20250515)
 
 ### Magic IM
 
@@ -94,7 +94,7 @@ Magic IM has the following core features:
 - **Multi-organizational Architecture**: Support for multi-organization deployment and strict organizational data isolation, with each organization having independent data space and access permissions.
 - **Data Security**: Strict data isolation and access control mechanisms, multi-level permission management, safeguarding sensitive enterprise information and ensuring no data leakage between organizations.
 
-![Magic IM](https://cdn.letsmagic.cn/static/img/magic-im-group-chat.png)
+![Magic IM](https://cdn.letsmagic.cn/static/img/magic-im-group-chat-en.png?v=20250515)
 
 ## Teamshare OS
 
