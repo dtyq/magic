@@ -7,15 +7,13 @@ declare(strict_types=1);
 
 namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile;
 
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
-
 interface DocumentFileInterface
 {
-    public function getDocType(): ?DocType;
+    public function getDocType(): ?int;
 
     public function getName(): string;
 
-    public function getThirdPlatformType(): ?string;
+    public function getPlatformType(): ?string;
 
     public function getThirdFileId(): ?string;
 }

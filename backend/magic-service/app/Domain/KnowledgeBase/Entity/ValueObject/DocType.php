@@ -21,6 +21,8 @@ enum DocType: int
     case CSV = 9;
     case XML = 10;
     case HTM = 11;
+    case PPT = 12;
+    case JSON = 13;
 
     public static function fromExtension(string $extension): self
     {
@@ -37,6 +39,8 @@ enum DocType: int
             'csv' => self::CSV,
             'htm' => self::HTM,
             'xml' => self::XML,
+            'ppt' => self::PPT,
+            'json' => self::JSON,
             default => self::UNKNOWN,
         };
     }

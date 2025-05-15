@@ -11,11 +11,15 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
 
 class ThirdPlatformDocumentFile extends AbstractDocumentFile
 {
-    public DocumentFileType $type = DocumentFileType::THIRD_PLATFORM;
-
     public string $thirdFileId;
 
-    public string $thirdPlatformType;
+    public string $platformType;
+
+    // 第三方文件类型，自定义字段，由第三方平台设置
+    public ?string $thirdFileType = null;
+
+    // 第三方文件扩展名，自定义字段，由第三方平台设置
+    public ?string $thirdFileExtensionName = null;
 
     public function getThirdFileId(): string
     {
@@ -28,19 +32,46 @@ class ThirdPlatformDocumentFile extends AbstractDocumentFile
         return $this;
     }
 
-    public function getThirdPlatformType(): string
+    public function getPlatformType(): string
     {
-        return $this->thirdPlatformType;
+        return $this->platformType;
     }
 
-    public function setThirdPlatformType(string $thirdPlatformType): static
+    public function setPlatformType(string $platformType): static
     {
-        $this->thirdPlatformType = $thirdPlatformType;
+        $this->platformType = $platformType;
         return $this;
     }
 
-    public function getDocType(): DocType
+    public function getDocType(): int
     {
-        return DocType::TXT;
+        return $this->docType ?? DocType::TXT->value;
+    }
+
+    public function getThirdFileType(): ?string
+    {
+        return $this->thirdFileType;
+    }
+
+    public function setThirdFileType(?string $thirdFileType): static
+    {
+        $this->thirdFileType = $thirdFileType;
+        return $this;
+    }
+
+    public function getThirdFileExtensionName(): ?string
+    {
+        return $this->thirdFileExtensionName;
+    }
+
+    public function setThirdFileExtensionName(?string $thirdFileExtensionName): static
+    {
+        $this->thirdFileExtensionName = $thirdFileExtensionName;
+        return $this;
+    }
+
+    protected function initType(): DocumentFileType
+    {
+        return DocumentFileType::THIRD_PLATFORM;
     }
 }
