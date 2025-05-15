@@ -15,7 +15,11 @@ class ThirdPlatformDocumentFileDTO extends AbstractDocumentFileDTO
 
     public string $thirdFileId;
 
-    public DocumentFileType $type = DocumentFileType::THIRD_PLATFORM;
+    // 第三方文件类型，自定义字段，由第三方平台设置
+    public ?string $thirdFileType = null;
+
+    // 第三方文件扩展名，自定义字段，由第三方平台设置
+    public ?string $thirdFileExtensionName = null;
 
     public function getThirdFileId(): string
     {
@@ -38,8 +42,8 @@ class ThirdPlatformDocumentFileDTO extends AbstractDocumentFileDTO
         return $this;
     }
 
-    public function getType(): DocumentFileType
+    protected function initType(): DocumentFileType
     {
-        return $this->type;
+        return DocumentFileType::THIRD_PLATFORM;
     }
 }

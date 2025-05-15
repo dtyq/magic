@@ -13,8 +13,6 @@ class ExternalDocumentFileDTO extends AbstractDocumentFileDTO
 {
     public string $key;
 
-    public DocumentFileType $type = DocumentFileType::EXTERNAL;
-
     public function getKey(): string
     {
         return $this->key;
@@ -23,5 +21,10 @@ class ExternalDocumentFileDTO extends AbstractDocumentFileDTO
     public function setKey(string $key): void
     {
         $this->key = $key;
+    }
+
+    protected function initType(): DocumentFileType
+    {
+        return DocumentFileType::EXTERNAL;
     }
 }

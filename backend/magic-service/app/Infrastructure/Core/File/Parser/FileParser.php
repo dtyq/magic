@@ -12,6 +12,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\ExcelFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\FileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\OcrFileParserDriverInterface;
+use App\Infrastructure\Core\File\Parser\Driver\Interfaces\PdfFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\TextFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\WordFileParserDriverInterface;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
@@ -56,20 +57,27 @@ class FileParser
                 ExceptionBuilder::throw(FlowErrorCode::Error, message: "无法从MIME类型 '{$mimeType}' 确定文件扩展名");
             }
 
-            /** @var FileParserDriverInterface $interface */
             $interface = match ($extension) {
                 // 更多的文件类型支持
-                'pdf', 'png', 'jpeg', 'jpg' => di(OcrFileParserDriverInterface::class),
-                'xlsx','xls' => di(ExcelFileParserDriverInterface::class),
+                'png', 'jpeg', 'jpg' => OcrFileParserDriverInterface::class,
+                'pdf' => PdfFileParserDriverInterface::class,
+                'xlsx','xls' => ExcelFileParserDriverInterface::class,
                 'txt', 'json', 'csv', 'md', 'mdx',
-                'py', 'java', 'php', 'js', 'html', 'htm', 'css', 'xml', 'yaml', 'yml', 'sql' => di(TextFileParserDriverInterface::class),
-                'docx', 'doc' => di(WordFileParserDriverInterface::class),
+                'py', 'java', 'php', 'js', 'html', 'htm', 'css', 'xml', 'yaml', 'yml', 'sql' => TextFileParserDriverInterface::class,
+                'docx', 'doc' => WordFileParserDriverInterface::class,
                 default => ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'flow.node.loader.unsupported_file_type', ['file_extension' => $extension]),
             };
-            $res = $interface->parse($tempFile, $fileUrl, $extension);
+
+            if (! container()->has($interface)) {
+                ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'flow.node.loader.unsupported_file_type', ['file_extension' => $extension]);
+            }
+
+            /** @var FileParserDriverInterface $driver */
+            $driver = di($interface);
+            $res = $driver->parse($tempFile, $fileUrl, $extension);
             // 如果是csv、xlsx、xls文件，需要进行额外处理
             if ($textPreprocess && in_array($extension, ['csv', 'xlsx', 'xls'])) {
-                $res = TextPreprocessUtil::preprocess([TextPreprocessRule::EXCEL_HEADER_CONCAT], $res);
+                $res = TextPreprocessUtil::preprocess([TextPreprocessRule::FORMAT_EXCEL], $res);
             }
 
             // 设置缓存

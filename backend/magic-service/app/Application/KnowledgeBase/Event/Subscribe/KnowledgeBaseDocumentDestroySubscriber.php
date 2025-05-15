@@ -10,6 +10,7 @@ namespace App\Application\KnowledgeBase\Event\Subscribe;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseFragmentEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentRemovedEvent;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
@@ -42,8 +43,13 @@ readonly class KnowledgeBaseDocumentDestroySubscriber implements ListenerInterfa
         if (! $event instanceof KnowledgeBaseDocumentRemovedEvent) {
             return;
         }
+        $knowledge = $event->knowledgeBaseEntity;
         $document = $event->knowledgeBaseDocumentEntity;
-        $dataIsolation = KnowledgeBaseDataIsolation::create($document->getOrganizationCode());
+        $dataIsolation = $event->dataIsolation;
+        // 如果是基础知识库类型，则传知识库创建者，避免权限不足
+        if (in_array($knowledge->getType(), KnowledgeType::getAll())) {
+            $dataIsolation->setCurrentUserId($knowledge->getCreator())->setCurrentOrganizationCode($knowledge->getOrganizationCode());
+        }
         /** @var KnowledgeBaseDomainService $knowledgeBaseDomainService */
         $knowledgeBaseDomainService = di()->get(KnowledgeBaseDomainService::class);
         /** @var KnowledgeBaseFragmentDomainService $knowledgeBaseFragmentDomainService */

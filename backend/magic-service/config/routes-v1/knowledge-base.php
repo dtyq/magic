@@ -47,4 +47,10 @@ Router::addGroup('/api/v1/knowledge-bases', static function () {
         Router::get('/rerank/list', [KnowledgeBaseProviderApi::class, 'getOfficialRerankProviderList']);
         Router::get('/embedding/list', [KnowledgeBaseProviderApi::class, 'getEmbeddingProviderList']);
     });
+
+    // 文件
+    Router::addGroup('/files', function () {
+        // 获取文件链接
+        Router::get('/link', [KnowledgeBaseApi::class, 'getFileLink']);
+    });
 }, ['middleware' => [RequestContextMiddleware::class]]);

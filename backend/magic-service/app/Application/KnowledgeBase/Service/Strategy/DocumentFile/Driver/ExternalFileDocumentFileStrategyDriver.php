@@ -27,18 +27,18 @@ class ExternalFileDocumentFileStrategyDriver implements ExternalFileDocumentFile
     public function parseContent(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): string
     {
         $fileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $documentFile->getKey());
-        return di(FileParser::class)->parse($fileLink->getUrl());
+        return di(FileParser::class)->parse($fileLink->getUrl(), true);
     }
 
     /**
      * @param ExternalDocumentFile $documentFile
      */
-    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): DocType
+    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): int
     {
         if (! $documentFile->getDocType()) {
             $fileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $documentFile->getKey());
             $extension = FileType::getType($fileLink->getUrl());
-            $documentFile->setDocType(DocType::fromExtension($extension));
+            $documentFile->setDocType(DocType::fromExtension($extension)->value);
         }
         return $documentFile->getDocType();
     }

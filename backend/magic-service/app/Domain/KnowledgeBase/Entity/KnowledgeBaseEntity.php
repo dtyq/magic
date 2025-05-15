@@ -101,6 +101,8 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
 
     protected int $wordCount = 0;
 
+    protected ?int $sourceType = null;
+
     private string $forceCreateCode = '';
 
     public function shouldCreate(): bool
@@ -567,6 +569,17 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
     public function setWordCount(int $wordCount): void
     {
         $this->wordCount = $wordCount;
+    }
+
+    public function getSourceType(): ?int
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(?int $sourceType): static
+    {
+        $this->sourceType = $sourceType;
+        return $this;
     }
 
     private static function createTemplate(string $organizationCode, string $code, string $creator): KnowledgeBaseEntity

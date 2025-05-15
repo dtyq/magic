@@ -10,6 +10,7 @@ namespace HyperfTest\Cases\Api\KnowledgeBase;
 use App\Domain\KnowledgeBase\Entity\ValueObject\FragmentMode;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\SearchType;
+use App\Domain\KnowledgeBase\Entity\ValueObject\SourceType;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Util\Text\TextPreprocess\ValueObject\TextPreprocessRule;
 use Hyperf\Snowflake\IdGeneratorInterface;
@@ -99,6 +100,7 @@ class KnowledgeBaseApiTest extends HttpTestCase
         $this->assertTrue($knowledgeBase['enabled']);
         $this->assertIsInt($knowledgeBase['word_count']);
         $this->assertIsInt($knowledgeBase['document_count']);
+        $this->assertSame(SourceType::EXTERNAL_FILE->value, $knowledgeBase['source_type']);
     }
 
     /**
@@ -533,8 +535,9 @@ class KnowledgeBaseApiTest extends HttpTestCase
 
     /**
      * 测试知识库片段预览功能.
+     * document_file传外部文件.
      */
-    public function testFragmentPreview()
+    public function testFragmentPreview1()
     {
         $data = [
             'document_file' => [
@@ -699,6 +702,7 @@ class KnowledgeBaseApiTest extends HttpTestCase
     protected function createKnowledgeBase(array $data = []): array
     {
         $data = array_merge([
+            'source_type' => SourceType::EXTERNAL_FILE->value,
             'name' => '测试知识库',
             'description' => '这是一个测试知识库描述',
             'icon' => 'qqqq',

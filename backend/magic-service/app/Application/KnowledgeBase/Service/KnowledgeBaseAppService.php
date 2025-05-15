@@ -105,6 +105,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $knowledgeBaseEntity->setUserOperation($operation->value);
         $iconFileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $knowledgeBaseEntity->getIcon());
         $knowledgeBaseEntity->setIcon($iconFileLink?->getUrl() ?? '');
+        $knowledgeBaseEntity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledgeBaseEntity));
         return $knowledgeBaseEntity;
     }
 
@@ -114,7 +115,9 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $savingKnowledgeEntity->setCreator($dataIsolation->getCurrentUserId());
         $this->checkKnowledgeBaseOperation($dataIsolation, 'w', $savingKnowledgeEntity->getCode());
 
-        return $this->knowledgeBaseDomainService->saveProcess($dataIsolation, $savingKnowledgeEntity);
+        $entity = $this->knowledgeBaseDomainService->saveProcess($dataIsolation, $savingKnowledgeEntity);
+        $entity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($entity));
+        return $entity;
     }
 
     public function getByBusinessId(Authenticatable $authorization, string $businessId, ?int $type = null): ?KnowledgeBaseEntity
@@ -137,7 +140,9 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $query->setBusinessId($businessId);
         $query->setType($type);
         $result = $this->knowledgeBaseDomainService->queries($dataIsolation, $query, new Page(1, 1));
-        return $result['list'][0] ?? null;
+        $entity = $result['list'][0] ?? null;
+        $entity && $entity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($entity));
+        return $entity;
     }
 
     /**
@@ -159,6 +164,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
             $iconFileLink = $iconFileLinks[$item->getIcon()] ?? null;
             $item->setIcon($iconFileLink?->getUrl() ?? '');
             $item->setUserOperation(($resources[$item->getCode()] ?? Operation::None)->value);
+            $item->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($item));
         }
         $result['users'] = $this->magicUserDomainService->getByUserIds($this->createContactDataIsolationByBase($dataIsolation), $userIds);
         return $result;
@@ -170,6 +176,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $operation = $this->checkKnowledgeBaseOperation($dataIsolation, 'r', $code);
         $knowledge = $this->knowledgeBaseDomainService->show($dataIsolation, $code, true);
         $knowledge->setUserOperation($operation->value);
+        $knowledge->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledge));
         $iconFileLink = $this->fileDomainService->getLink($dataIsolation->getCurrentOrganizationCode(), $knowledge->getIcon());
         $knowledge->setIcon($iconFileLink?->getUrl() ?? '');
         return $knowledge;

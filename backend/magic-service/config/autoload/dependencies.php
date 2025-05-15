@@ -153,9 +153,11 @@ use App\Infrastructure\Core\Embeddings\EmbeddingGenerator\OdinEmbeddingGenerator
 use App\Infrastructure\Core\File\Parser\Driver\ExcelFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\ExcelFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\OcrFileParserDriverInterface;
+use App\Infrastructure\Core\File\Parser\Driver\Interfaces\PdfFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\TextFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\WordFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\OcrFileParserDriver;
+use App\Infrastructure\Core\File\Parser\Driver\PdfFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\TextFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\WordFileParserDriver;
 use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
@@ -310,6 +312,7 @@ $dependencies = [
     TextFileParserDriverInterface::class => TextFileParserDriver::class,
     ExcelFileParserDriverInterface::class => ExcelFileParserDriver::class,
     WordFileParserDriverInterface::class => WordFileParserDriver::class,
+    PdfFileParserDriverInterface::class => PdfFileParserDriver::class,
 
     // 知识库
     KnowledgeBaseStrategyInterface::class => BaseKnowledgeBaseStrategy::class,
