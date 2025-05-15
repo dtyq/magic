@@ -9,7 +9,6 @@
 .env
 .DS_Store
 *.cache
-*.lock
 .php-accessor/
 .phpunit*
 .vscode/
@@ -32,7 +31,6 @@ bin/splitsh-lite
 bin/user_lang
 bin/use_super_magic
 backend/magic-service/vendor/
-backend/magic-service/composer.lock
 backend/magic-service/runtime/
 
 config/.env_magic_gateway
