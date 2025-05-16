@@ -445,16 +445,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.343.11",
+            "version": "3.343.12",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "f8ce590dcc151ef176ef5b0e6f3e9c59d11c363b"
+                "reference": "d4b21990410d023e9c5303487d3248e8d7c8c2b6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/f8ce590dcc151ef176ef5b0e6f3e9c59d11c363b",
-                "reference": "f8ce590dcc151ef176ef5b0e6f3e9c59d11c363b",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d4b21990410d023e9c5303487d3248e8d7c8c2b6",
+                "reference": "d4b21990410d023e9c5303487d3248e8d7c8c2b6",
                 "shasum": ""
             },
             "require": {
@@ -536,9 +536,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.11"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.12"
             },
-            "time": "2025-05-14T18:11:59+00:00"
+            "time": "2025-05-15T18:14:32+00:00"
         },
         {
             "name": "brick/math",
@@ -2166,16 +2166,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.24",
+            "version": "v0.0.25",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "0f15d16ff808d45526c2cc3ae479c4f265536821"
+                "reference": "cca7e7343e70097d3027837474afd34fb07190c8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/0f15d16ff808d45526c2cc3ae479c4f265536821",
-                "reference": "0f15d16ff808d45526c2cc3ae479c4f265536821",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/cca7e7343e70097d3027837474afd34fb07190c8",
+                "reference": "cca7e7343e70097d3027837474afd34fb07190c8",
                 "shasum": ""
             },
             "require": {
@@ -2267,10 +2267,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.24",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.25",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-05-14T18:56:05+00:00"
+            "time": "2025-05-15T11:08:25+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -13593,16 +13593,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.145",
+            "version": "v1.0.146",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "8854512cd2b0c0a23a8ca5c0e6d8f64b4ad0af16"
+                "reference": "0e377369d3dd4c6c602ef1819059959a15539589"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/8854512cd2b0c0a23a8ca5c0e6d8f64b4ad0af16",
-                "reference": "8854512cd2b0c0a23a8ca5c0e6d8f64b4ad0af16",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/0e377369d3dd4c6c602ef1819059959a15539589",
+                "reference": "0e377369d3dd4c6c602ef1819059959a15539589",
                 "shasum": ""
             },
             "require": {
@@ -13637,9 +13637,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.145"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.146"
             },
-            "time": "2025-05-08T12:35:41+00:00"
+            "time": "2025-05-15T12:02:53+00:00"
         },
         {
             "name": "w7corp/easywechat",
@@ -16309,12 +16309,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "4aa0a0890ece3b361fc4179b1e30fdcc0d2c689b"
+                "reference": "98ed8a7be061968455a548ceb0ba2790b11b119f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/4aa0a0890ece3b361fc4179b1e30fdcc0d2c689b",
-                "reference": "4aa0a0890ece3b361fc4179b1e30fdcc0d2c689b",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/98ed8a7be061968455a548ceb0ba2790b11b119f",
+                "reference": "98ed8a7be061968455a548ceb0ba2790b11b119f",
                 "shasum": ""
             },
             "conflict": {
@@ -16982,7 +16982,7 @@
                 "subhh/libconnect": "<7.0.8|>=8,<8.1",
                 "sukohi/surpass": "<1",
                 "sulu/form-bundle": ">=2,<2.5.3",
-                "sulu/sulu": "<1.6.44|>=2,<2.5.21|>=2.6,<2.6.5",
+                "sulu/sulu": "<1.6.44|>=2,<2.5.25|>=2.6,<2.6.9|>=3.0.0.0-alpha1,<3.0.0.0-alpha3",
                 "sumocoders/framework-user-bundle": "<1.4",
                 "superbig/craft-audit": "<3.0.2",
                 "svewap/a21glossary": "<=0.4.10",
@@ -17232,7 +17232,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-14T18:07:05+00:00"
+            "time": "2025-05-15T17:04:55+00:00"
         },
         {
             "name": "sebastian/cli-parser",
