@@ -7,11 +7,11 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelAdmin\Constant;
 
-enum NaturalLanguageProcessing
+enum NaturalLanguageProcessing: string
 {
-    public const string DEFAULT = 'default';
+    case DEFAULT = 'default';
 
-    public const string EMBEDDING = 'embedding'; // 嵌入
+    case EMBEDDING = 'embedding'; // 嵌入
 
-    public const string LLM = 'llm'; // 大语言
+    case LLM = 'llm'; // 大语言
 }
