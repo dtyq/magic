@@ -125,6 +125,8 @@ services:
     depends_on:
       qdrant:
         condition: service_started
+      magic-gateway:
+        condition: service_started
     ports:
       - "39003:39003"
     volumes:
