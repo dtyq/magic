@@ -253,7 +253,9 @@ class MagicChatMessageAppService extends MagicSeqAppService
             ));
             throw $exception;
         }
-        // 如果消息中有文件 id，判断文件的所有者是否是当前用户
+        return;
+        // todo 如果消息中有文件:1.判断文件的所有者是否是当前用户;2.判断用户是否接收过这些文件。
+        /* @phpstan-ignore-next-line */
         $messageContent = $senderMessageDTO->getContent();
         if ($messageContent instanceof ChatFileInterface) {
             $fileIds = $messageContent->getFileIds();
