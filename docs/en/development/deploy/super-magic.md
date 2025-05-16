@@ -15,7 +15,7 @@ Before getting started, make sure your system has the following software install
 ### 1. Get the Project Code
 
 ```bash
-git clone [repository-url]
+git clone https://github.com/dtyq/magic.git
 cd magic
 ```
 
@@ -267,7 +267,7 @@ The `config/.env_sandbox_gateway` file contains the following important configur
 ### Common Issues
 
 1. **Configuration Files Don't Exist**
-   
+
    Make sure you have copied and properly configured all necessary environment files from the example files:
    - `config/.env_super_magic`
    - `config/.env_magic_gateway`
@@ -275,19 +275,19 @@ The `config/.env_sandbox_gateway` file contains the following important configur
    - `config/config.yaml`
 
 2. **Service Startup Failure**
-   
+
    Check if the Docker service is running properly:
    ```bash
    docker info
    ```
-   
+
    View service logs for detailed error information:
    ```bash
    ./bin/magic.sh logs
    ```
 
 3. **Network Connection Issues**
-   
+
    If using remote deployment, ensure that the configured IP address is correct and relevant ports are open:
    - Super Magic service ports
    - Gateway service ports
