@@ -156,6 +156,18 @@ cd magic
 # View logs
 ./bin/magic.sh logs
 ```
+
+##### Configure Environment Variables
+
+```bash
+# Configure Magic environment variables, must configure at least one large language model's environment variables to use Magic normally
+cp .env.example .env
+
+# Configure Super Magic environment variables, must configure any large language model that supports OpenAI format to use it normally
+./bin/magic.sh status
+cp config/.env_super_magic.example .env_super_magic
+```
+
 ##### Access Services
 - API Service: http://localhost:9501
 - Web Application: http://localhost:8080

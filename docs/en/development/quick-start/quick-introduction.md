@@ -22,7 +22,7 @@ Magic is a powerful enterprise-grade AI application innovation engine designed t
 - 🔒 **Enterprise-Grade Security**: Comprehensive security mechanisms, supporting organizational structure and permission management
 
 ## 🚀 Quick Start
-  
+
 ### System Requirements
 - Docker 24.0+
 - Docker Compose 2.0+
@@ -53,6 +53,19 @@ cd magic
 # View logs
 ./bin/magic.sh logs
 ```
+
+
+##### Configure Environment Variables
+
+```bash
+# Configure Magic environment variables, must configure at least one large language model's environment variables to use Magic normally
+cp .env.example .env
+
+# Configure Super Magic environment variables, must configure any large language model that supports OpenAI format to use it normally
+./bin/magic.sh status
+cp config/.env_super_magic.example .env_super_magic
+```
+
 
 ###  Access Services
 - API Service: http://localhost:9501

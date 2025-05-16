@@ -156,6 +156,22 @@ cd magic
 # 查看日志
 ./bin/magic.sh logs
 ```
+
+##### 配置环境变量
+
+```bash
+# 配置magic 环境变量, 必须配置任意一种大模型的环境变量才可正常使用magic
+cp .env.example .env
+
+
+# 配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用使用
+./bin/magic.sh status
+cp config/.env_super_magic.example .env_super_magic
+
+```
+
+
+
 ##### 访问服务
 - API 服务: http://localhost:9501
 - Web 应用: http://localhost:8080

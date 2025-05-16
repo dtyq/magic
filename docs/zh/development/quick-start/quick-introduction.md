@@ -21,7 +21,7 @@ Magic 是一个强大的企业级 AI 应用创新引擎，旨在帮助开发者�
 - 🔒 **企业级安全**：完善的安全机制，支持组织架构和权限管理
 
 ## 🚀 快速开始
-  
+
 ### 系统要求
 - Docker 24.0+
 - Docker Compose 2.0+
@@ -52,6 +52,22 @@ cd magic
 # 查看日志
 ./bin/magic.sh logs
 ```
+
+
+##### 配置环境变量
+
+```bash
+# 配置magic 环境变量, 必须配置任意一种大模型的环境变量才可正常使用magic
+cp .env.example .env
+
+
+# 配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用使用
+./bin/magic.sh status
+cp config/.env_super_magic.example .env_super_magic
+
+```
+
+
 ### 访问服务
 - API 服务: http://localhost:9501
 - Web 应用: http://localhost:8080
@@ -61,7 +77,7 @@ cd magic
   - 用户名: admin
   - 密码: magic123456
 
-  
+
 
 
 ## 🤝 贡献
