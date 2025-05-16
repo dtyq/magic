@@ -28,8 +28,9 @@ Super Magic 服务依赖于几个关键的配置文件：
 ```bash
 cp config/.env_super_magic.example config/.env_super_magic
 ```
-配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用使用
-编辑 `config/.env_super_magic` 文件，配置所有必要的环境变量：
+配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用
+
+编辑 `config/.env_super_magic` 文件，配置必要的环境变量：
 
 ```bash
 vim config/.env_super_magic

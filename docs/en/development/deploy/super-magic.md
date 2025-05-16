@@ -29,7 +29,8 @@ The Super Magic service depends on several key configuration files:
 cp config/.env_super_magic.example config/.env_super_magic
 ```
 Configure Super Magic environment variables. You must configure at least one large language model environment variable that supports the OpenAI format for proper functionality.
-Edit the `config/.env_super_magic` file to configure all necessary environment variables:
+
+Edit the `config/.env_super_magic` file to configure necessary environment variables:
 
 ```bash
 vim config/.env_super_magic
