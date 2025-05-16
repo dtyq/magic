@@ -154,11 +154,12 @@ class MagicChatFileDomainService extends AbstractDomainService
         $fileIds = array_column($attachments, 'file_id');
         $fileEntities = $this->getFileEntitiesByFileIds($fileIds);
         $fileEntities = array_column($fileEntities, null, 'file_id');
-        foreach ($fileEntities as $fileEntity) {
-            if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(ChatErrorCode::FILE_NOT_FOUND);
-            }
-        }
+        // todo 如果消息中有文件:1.判断文件的所有者是否是当前用户;2.判断用户是否接收过这些文件。
+        //        foreach ($fileEntities as $fileEntity) {
+        //            if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+        //                ExceptionBuilder::throw(ChatErrorCode::FILE_NOT_FOUND);
+        //            }
+        //        }
 
         foreach ($attachments as $attachment) {
             $fileId = $attachment->getFileId();
