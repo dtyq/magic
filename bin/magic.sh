@@ -169,6 +169,15 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         exit 1
     fi
 
+    # 检查sandbox-network网络是否存在，如果不存在则创建
+    if ! docker network inspect sandbox-network &> /dev/null; then
+        bilingual "网络 sandbox-network 不存在，正在创建..." "Network sandbox-network does not exist, creating..."
+        docker network create sandbox-network
+        bilingual "网络 sandbox-network 已创建。" "Network sandbox-network has been created."
+    else
+        bilingual "网络 sandbox-network 已存在，跳过创建。" "Network sandbox-network already exists, skipping creation."
+    fi
+
     # Check if docker compose is installed
     if ! command -v docker compose &> /dev/null; then
         bilingual "错误: docker compose 未安装。" "Error: docker compose is not installed."
