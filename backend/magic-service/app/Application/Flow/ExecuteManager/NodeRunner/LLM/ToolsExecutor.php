@@ -257,8 +257,8 @@ class ToolsExecutor extends AbstractTool
             $flow->setEndNode($this->magicFlowEntity->getEndNode());
         }
         $executionData = clone $this->executionData;
-        $executionData->setId(uniqid());
+        $executionData->setId(uniqid('', true));
 
-        return self::execute($executionData, $flow, $args, $this->customSystemInput, $this->optionTool->isAsync(), true);
+        return self::execute($executionData, $flow, $args, $this->customSystemInput, $this->optionTool->isAsync(), true) ?? [];
     }
 }

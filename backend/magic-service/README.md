@@ -1,6 +1,6 @@
 # Magic Service
-    
-## 项目概述 
+
+## 项目概述
 
 Magic Service 是一个基于 Hyperf 框架的高性能 PHP 微服务应用，使用 Swow 协程驱动实现高并发处理能力。该项目集成了多种功能模块，包括 AI 搜索、聊天功能、文件处理、权限管理等，旨在提供一个全面的服务解决方案。
 
@@ -26,7 +26,7 @@ Magic Service 是一个基于 Hyperf 框架的高性能 PHP 微服务应用，�
 ### 1. 克隆项目
 
 ```bash
-git clone [项目仓库地址]
+git clone https://github.com/dtyq/magic.git
 cd magic-service
 ```
 
@@ -133,6 +133,3 @@ docker build -t magic-service .
 ## 许可证
 
 该项目采用 MIT 许可证 - 详情请查看 LICENSE 文件
-    
-  
- 

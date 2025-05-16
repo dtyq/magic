@@ -4,11 +4,12 @@
 window 系统可以通过docker-compose运行
 ### 1. 克隆项目
 ```bash
-git clone [项目地址]
+git clone https://github.com/dtyq/magic.git
 cd magic
 ```
 
 ### 2. 配置环境变量
+配置magic 环境变量, 必须配置任意一种大模型的环境变量才可正常使用magic
 复制 `.env.example` 文件为 `.env`，并根据需要修改配置：
 ```bash
 cp .env.example .env

@@ -15,7 +15,7 @@
 ### 1. 获取项目代码
 
 ```bash
-git clone [项目仓库地址]
+git clone https://github.com/dtyq/magic.git
 cd magic
 ```
 
@@ -28,33 +28,11 @@ Super Magic 服务依赖于几个关键的配置文件：
 ```bash
 cp config/.env_super_magic.example config/.env_super_magic
 ```
-
+配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用使用
 编辑 `config/.env_super_magic` 文件，配置所有必要的环境变量：
 
 ```bash
 vim config/.env_super_magic
-```
-
-#### 2.2 创建 Gateway 配置文件
-
-Magic Gateway 配置：
-
-```bash
-cp config/.env_magic_gateway.example config/.env_magic_gateway
-vim config/.env_magic_gateway
-```
-
-Sandbox Gateway 配置：
-
-```bash
-cp config/.env_sandbox_gateway.example config/.env_sandbox_gateway
-vim config/.env_sandbox_gateway
-```
-
-#### 2.3 配置主配置文件
-
-```bash
-cp config/config.yaml.example config/config.yaml
 ```
 
 ### 3. 运行安装脚本
@@ -155,31 +133,6 @@ cp config/config.yaml.example config/config.yaml
 - `OPENAI_4_1_MINI_MODEL`: OpenAI 4.1 Mini 模型名称
 - `OPENAI_4_1_NANO_MODEL`: OpenAI 4.1 Nano 模型名称
 
-##### DeepSeek 配置
-- `DEEPSEEK_API_BASE_URL`: DeepSeek API 的基础 URL
-- `DEEPSEEK_API_KEY`: DeepSeek API 密钥
-- `DEEPSEEK_MODEL`: DeepSeek 模型名称
-- `DEEPSEEK_REASONER_MODEL`: DeepSeek Reasoner 模型名称
-
-##### Claude 配置
-- `CLAUDE_API_BASE_URL`: Claude API 的基础 URL
-- `CLAUDE_API_KEY`: Claude API 密钥
-- `CLAUDE_MODEL`: Claude 模型名称，如 "claude-3-7"
-
-##### 豆包 (Doubao) 配置
-- `DOUBAO_API_BASE_URL`: 豆包 API 的基础 URL
-- `DOUBAO_API_KEY`: 豆包 API 密钥
-- `DOUBAO_1_5_VISION_PRO_32K_MODEL`: 豆包 1.5 Vision Pro 32K 模型名称
-- `DOUBAO_1_5_PRO_32K_MODEL`: 豆包 1.5 Pro 32K 模型名称
-- `DOUBAO_1_5_PRO_256K_MODEL`: 豆包 1.5 Pro 256K 模型名称
-
-##### 通义千问 (Qwen) 配置
-- `QWEN_MODEL`: 通义千问默认模型，如 "qwen-max"
-- `QWEN_LONG_MODEL`: 通义千问长文本模型
-- `QWEN_PLUS_MODEL`: 通义千问增强版模型
-- `QWEN_TURBO_MODEL`: 通义千问快速版模型
-- `QWQ_PLUS_MODEL`: QWQ Plus 模型
-
 #### 向量数据库配置
 - `QDRANT_COLLECTION_PREFIX`: Qdrant 集合前缀，默认为 "SUPERMAGIC-"
 
@@ -191,15 +144,6 @@ cp config/config.yaml.example config/config.yaml
 - `BING_SUBSCRIPTION_ENDPOINT`: Bing 搜索 API 端点
 - `BING_SUBSCRIPTION_KEY`: Bing 搜索订阅密钥
 
-### Magic Gateway 配置
-
-`config/.env_magic_gateway` 文件包含以下重要配置项：
-
-#### 通用配置
-- `JWT_SECRET`: JWT 认证密钥，用于安全身份验证
-- `API_GATEWAY_VERSION`: API 网关版本号
-- `DEFAULT_API_URL`: 默认 API 服务地址
-- `MAGIC_GATEWAY_API_KEY`: Magic Gateway API 密钥
 
 #### 模型服务配置
 
@@ -208,86 +152,28 @@ cp config/config.yaml.example config/config.yaml
 - `OPENAI_API_BASE_URL`: OpenAI API 基础 URL
 - `OPENAI_MODEL`: 使用的 OpenAI 模型
 
-##### Magic 服务
-- `MAGIC_API_KEY`: Magic API 密钥
-- `MAGIC_API_BASE_URL`: Magic API 基础 URL
-- `MAGIC_MODEL`: 使用的 Magic 模型
-
-##### DeepSeek 服务
-- `DEEPSEEK_API_KEY`: DeepSeek API 密钥
-- `DEEPSEEK_API_BASE_URL`: DeepSeek API 基础 URL
-- `DEEPSEEK_MODEL`: 使用的 DeepSeek 模型
-
-##### Azure OpenAI 服务
-- `AZURE_OPENAI_EMBEDDING_API_KEY`: Azure OpenAI 嵌入 API 密钥
-- `AZURE_OPENAI_EMBEDDING_ENDPOINT`: Azure OpenAI 嵌入端点
-- `AZURE_OPENAI_EMBEDDING_MODEL`: Azure OpenAI 嵌入模型名称
-- `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`: Azure OpenAI 嵌入部署名称
-- `AZURE_OPENAI_EMBEDDING_API_VERSION`: Azure OpenAI 嵌入 API 版本
-
-#### Gateway 配置
-- `MAGIC_GATEWAY_API_KEY`: Magic Gateway API 密钥
-- `MAGIC_GATEWAY_DEBUG`: 是否启用调试模式（true/false）
-- `MAGIC_GATEWAY_HOST`: Magic Gateway 主机地址
-- `REDIS_PASSWORD`: Redis 数据库密码
-
-### Sandbox Gateway 配置
-
-`config/.env_sandbox_gateway` 文件包含以下重要配置项：
-
-#### 基础配置
-- `APP_ENV`: 应用环境设置，如 "test"、"production" 等
-- `LOG_LEVEL`: 日志级别，如 DEBUG、INFO 等
-- `SANDBOX_NETWORK`: 沙箱网络名称
-
-#### 沙箱配置
-- `SUPER_MAGIC_IMAGE_NAME`: Super Magic 镜像名称及版本
-- `SANDBOX_NETWORK`: 沙箱网络名称
-
-#### API 安全配置
-- `API_TOKEN`: 沙箱 API 访问令牌
-
-#### Docker 配置
-- `DOCKER_HOST`: Docker 主机地址，通常为 "unix:///var/run/docker.sock"
-
-#### 沙箱网关配置
-- `SANDBOX_GATEWAY_IMAGE`: 沙箱网关镜像名称
-- `SANDBOX_GATEWAY_CONTAINER_NAME`: 沙箱网关容器名称
-- `SANDBOX_GATEWAY_PORT`: 沙箱网关服务端口
-
-#### Agent 环境配置
-- `AGENT_ENV_FILE_PATH`: Agent 环境文件路径
-
-#### Magic Gateway 配置
-- `MAGIC_GATEWAY_BASE_URL`: Magic Gateway 基础 URL
-- `MAGIC_GATEWAY_API_KEY`: Magic Gateway API 密钥
-
 ## 故障排除
 
 ### 常见问题
 
 1. **配置文件不存在**
-   
-   确保已经从示例文件复制并正确配置了所有必要的环境文件：
-   - `config/.env_super_magic`
-   - `config/.env_magic_gateway`
-   - `config/.env_sandbox_gateway`
-   - `config/config.yaml`
 
+   确保已经从示例文件复制并正确配置了所有必要的环境文件：
+   - `config/.env_sandbox_gateway`
 2. **服务启动失败**
-   
+
    检查 Docker 服务是否正常运行：
    ```bash
    docker info
    ```
-   
+
    查看服务日志以获取详细错误信息：
    ```bash
    ./bin/magic.sh logs
    ```
 
 3. **网络连接问题**
-   
+
    如果使用远程部署，确保配置的 IP 地址正确，并且相关端口已开放：
    - Super Magic 服务端口
    - Gateway 服务端口
@@ -322,4 +208,4 @@ cp config/config.yaml.example config/config.yaml
 
 ## 结语
 
-通过本教程，您应该已经成功安装并配置了 Super Magic 服务。如有任何问题，请参考项目文档或联系技术支持团队。 
+通过本教程，您应该已经成功安装并配置了 Super Magic 服务。如有任何问题，请参考项目文档或联系技术支持团队。
