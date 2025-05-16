@@ -245,7 +245,7 @@ class ServiceProviderAppService
     /**
      * 获取联通测试类型.
      */
-    private function getConnectivityTestType(string $category, int $modelType): string
+    private function getConnectivityTestType(string $category, int $modelType)
     {
         if (ServiceProviderCategory::from($category) === ServiceProviderCategory::LLM) {
             return $modelType === ModelType::EMBEDDING->value ? NaturalLanguageProcessing::EMBEDDING : NaturalLanguageProcessing::LLM;
