@@ -2,12 +2,12 @@
 set -e
 set -x
 
-if (( "$#" != 1 ))
-then
-    echo "Tag has to be provided"
+# if (( "$#" != 1 ))
+# then
+#     echo "Tag has to be provided"
 
-    exit 1
-fi
+#     exit 1
+# fi
 
 NOW=$(date +%s)
 VERSION=$1
@@ -86,11 +86,11 @@ remote magic-docs $REMOTE_URL
 echo "Splitting and pushing..."
 split "docs" magic-docs
 
-# 打标签并推送标签
-echo "Tagging and pushing tag..."
-git fetch magic-docs || true
-git tag -a $VERSION -m "Release $VERSION" $CURRENT_BRANCH
-git push magic-docs $VERSION
+# # 打标签并推送标签
+# echo "Tagging and pushing tag..."
+# git fetch magic-docs || true
+# git tag -a $VERSION -m "Release $VERSION" $CURRENT_BRANCH
+# git push magic-docs $VERSION
 
 TIME=$(echo "$(date +%s) - $NOW" | bc)
 

@@ -9,7 +9,7 @@ FROM ${NODE_BASE_IMAGE} AS builder
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json  ./
 
 RUN npm install -g pnpm
 RUN pnpm install

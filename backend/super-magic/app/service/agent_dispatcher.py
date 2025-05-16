@@ -1,27 +1,28 @@
+import asyncio
+import os
+import json
+from typing import Optional
 import importlib
 import importlib.metadata
 import inspect
-import json
-import os
-from typing import Optional
 
-from agentlang.config.config import config
+from app.core.context.agent_context import AgentContext
 from agentlang.event.data import ErrorEventData
 from agentlang.event.event import EventType
-from agentlang.logger import get_logger
-from app.core.context.agent_context import AgentContext
-from app.core.entity.message.client_message import ChatClientMessage, InitClientMessage, TaskMode
 from app.core.stream.http_subscription_stream import HTTPSubscriptionStream
 from app.core.stream.stdout_stream import StdoutStream
+from agentlang.config.config import config
 from app.magic.agent import Agent
-from app.paths import PathManager
-from app.service.agent_event.file_listener_service import FileListenerService
+from app.service.agent_service import AgentService
 from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
 from app.service.agent_event.finish_task_listener_service import FinishTaskListenerService
 from app.service.agent_event.rag_listener_service import RagListenerService
 from app.service.agent_event.stream_listener_service import StreamListenerService
 from app.service.agent_event.todo_listener_service import TodoListenerService
-from app.service.agent_service import AgentService
+from app.service.agent_event.file_listener_service import FileListenerService
+from app.paths import PathManager
+from app.core.entity.message.client_message import InitClientMessage, TaskMode, ChatClientMessage
+from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -89,7 +90,7 @@ class AgentDispatcher:
                 module_name = entry_point.value.split(':')[0]
                 method_name = entry_point.value.split(':')[1]
                 module = importlib.import_module(module_name)
-
+                
                 found_method = False
                 for name, obj in inspect.getmembers(module):
                     if inspect.isclass(obj) and hasattr(obj, method_name):
@@ -99,7 +100,7 @@ class AgentDispatcher:
                         found_method = True
                         logger.info(f"已注册 agent_dispatcher 监听器: {entry_point.name}")
                         break
-
+                
                 if not found_method:
                     logger.warning(f"模块 {module_name} 中没有找到类提供的静态方法 {method_name}，跳过")
             except Exception as e:
@@ -148,6 +149,23 @@ class AgentDispatcher:
             self.http_stream = HTTPSubscriptionStream(init_message.message_subscription_config)
             self.agent_context.add_stream(self.http_stream)
             logger.info("创建和添加了HTTP订阅流")
+
+        # 从 init_message.metadata 提取并设置关键字段
+        if init_message.metadata:
+            # 设置 task_id
+            if "super_magic_task_id" in init_message.metadata:
+                self.agent_context.set_task_id(init_message.metadata["super_magic_task_id"])
+                logger.info(f"从 init_message.metadata 设置任务ID: {init_message.metadata['super_magic_task_id']}")
+            
+            # 设置 sandbox_id
+            if "sandbox_id" in init_message.metadata:
+                self.agent_context.set_sandbox_id(init_message.metadata["sandbox_id"])
+                logger.info(f"从 init_message.metadata 设置沙盒ID: {init_message.metadata['sandbox_id']}")
+
+            # 设置 organization_code
+            if "organization_code" in init_message.metadata:
+                self.agent_context.set_organization_code(init_message.metadata["organization_code"])
+                logger.info(f"从 init_message.metadata 设置组织编码: {init_message.metadata['organization_code']}")
 
         await self.agent_service.init_workspace(agent_context=self.agent_context)
 

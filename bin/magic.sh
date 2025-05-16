@@ -4,7 +4,7 @@
 detect_language() {
   # Default to English
   DEFAULT_LANG="en"
-  
+
   # Get system language settings
   if [[ "$(uname -s)" == "Darwin" ]]; then
     # macOS system
@@ -13,12 +13,12 @@ detect_language() {
     # Linux and other systems
     SYS_LANG=$(echo $LANG || echo $LC_ALL || echo $LC_MESSAGES || echo "en_US.UTF-8")
   fi
-  
+
   # If language code starts with zh_, set to Chinese, otherwise use English
   if [[ $SYS_LANG == zh_* ]]; then
     DEFAULT_LANG="zh"
   fi
-  
+
   echo $DEFAULT_LANG
 }
 
@@ -52,7 +52,7 @@ check_super_magic_env() {
             return 1
         fi
     fi
-    
+
     # 检查config/config.yaml文件是否存在
     if [ ! -f "config/config.yaml" ]; then
         if [ -f "config/config.yaml.example" ]; then
@@ -65,7 +65,7 @@ check_super_magic_env() {
             return 1
         fi
     fi
-    
+
     return 0
 }
 
@@ -79,7 +79,7 @@ if [ -f "bin/magic.lock" ]; then
     fi
     SKIP_LANGUAGE_SELECTION=true
     SKIP_INSTALLATION=true
-    
+
     # 检查是否存在super-magic配置文件，如果存在则自动设置MAGIC_USE_SUPER_MAGIC
     if [ -f "bin/use_super_magic" ]; then
         # 直接使用固定的配置参数，而不是从文件读取内容
@@ -100,7 +100,7 @@ if [ "$SKIP_LANGUAGE_SELECTION" = "false" ]; then
     echo "1. English"
     echo "2. 中文"
     read -p "Enter your choice / 输入您的选择 [1/2] (default: $SYSTEM_LANG): " LANG_CHOICE
-    
+
     if [ -z "$LANG_CHOICE" ]; then
       USER_LANG=$SYSTEM_LANG
     elif [ "$LANG_CHOICE" = "1" ]; then
@@ -112,10 +112,10 @@ if [ "$SKIP_LANGUAGE_SELECTION" = "false" ]; then
       echo "无效的选择，使用系统检测到的语言：$SYSTEM_LANG"
       USER_LANG=$SYSTEM_LANG
     fi
-    
+
     echo "Selected language / 已选择语言: $([ "$USER_LANG" = "en" ] && echo "English" || echo "中文")"
     echo ""
-    
+
     # 保存用户选择的语言到文件
     echo "$USER_LANG" > bin/user_lang
   }
@@ -129,7 +129,7 @@ fi
 # Check if lock file exists - if it does, set default values and skip installation process
 if [ "$SKIP_INSTALLATION" = "true" ]; then
     bilingual "检测到 magic.lock 文件，跳过安装配置流程..." "Detected magic.lock file, skipping installation configuration..."
-    
+
     # Set default values for required variables
     if [ -f ".env_super_magic" ]; then
         export MAGIC_USE_SUPER_MAGIC=""
@@ -169,19 +169,28 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         exit 1
     fi
 
-    # Check if docker-compose is installed
-    if ! command -v docker-compose &> /dev/null; then
-        bilingual "错误: docker-compose 未安装。" "Error: docker-compose is not installed."
-        bilingual "请先安装 docker-compose:" "Please install docker-compose first:"
+    # 检查sandbox-network网络是否存在，如果不存在则创建
+    if ! docker network inspect sandbox-network &> /dev/null; then
+        bilingual "网络 sandbox-network 不存在，正在创建..." "Network sandbox-network does not exist, creating..."
+        docker network create sandbox-network
+        bilingual "网络 sandbox-network 已创建。" "Network sandbox-network has been created."
+    else
+        bilingual "网络 sandbox-network 已存在，跳过创建。" "Network sandbox-network already exists, skipping creation."
+    fi
+
+    # Check if docker compose is installed
+    if ! command -v docker compose &> /dev/null; then
+        bilingual "错误: docker compose 未安装。" "Error: docker compose is not installed."
+        bilingual "请先安装 docker compose:" "Please install docker compose first:"
         if [ "$(uname -s)" == "Darwin" ]; then
-            bilingual "1. Docker Desktop for Mac 默认包含 docker-compose" "1. Docker Desktop for Mac includes docker-compose by default"
+            bilingual "1. Docker Desktop for Mac 默认包含 docker compose" "1. Docker Desktop for Mac includes docker compose by default"
             bilingual "2. 如果您使用的是旧版本，请访问 https://docs.docker.com/compose/install/" "2. If you're using an older version, visit https://docs.docker.com/compose/install/"
         elif [ "$(uname -s)" == "Linux" ]; then
             bilingual "1. 访问 https://docs.docker.com/compose/install/" "1. Visit https://docs.docker.com/compose/install/"
             bilingual "2. 按照您的 Linux 发行版安装说明进行操作" "2. Follow the installation instructions for your Linux distribution"
             bilingual "   例如，在 Ubuntu/Debian 上:" "   For example, on Ubuntu/Debian:"
             echo "   sudo apt-get update"
-            echo "   sudo apt-get install docker-compose-plugin"
+            echo "   sudo apt-get install docker compose-plugin"
         else
             bilingual "请访问 https://docs.docker.com/compose/install/ 获取安装指南" "Please visit https://docs.docker.com/compose/install/ for installation instructions"
         fi
@@ -239,28 +248,28 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         bilingual "1. 是，安装Super Magic服务" "1. Yes, install Super Magic service"
         bilingual "2. 否，不安装Super Magic服务" "2. No, don't install Super Magic service"
         read -p "$(bilingual "请输入选项编号 [1/2]: " "Please enter option number [1/2]: ")" SUPER_MAGIC_OPTION
-        
+
         if [ "$SUPER_MAGIC_OPTION" = "1" ]; then
             bilingual "您选择了安装Super Magic服务。" "You have chosen to install Super Magic service."
-            
+
             # Check if .env_super_magic exists
             if ! check_super_magic_env; then
                 exit 1
             fi
-            
+
             # Check if other gateway configuration files exist
             if [ ! -f "config/.env_magic_gateway" ]; then
                 bilingual "错误：config/.env_magic_gateway 文件不存在！" "Error: config/.env_magic_gateway file does not exist!"
                 bilingual "请确保 Magic Gateway 配置文件存在。" "Please ensure the Magic Gateway configuration file exists."
                 exit 1
             fi
-            
+
             if [ ! -f "config/.env_sandbox_gateway" ]; then
                 bilingual "错误：config/.env_sandbox_gateway 文件不存在！" "Error: config/.env_sandbox_gateway file does not exist!"
                 bilingual "请确保 Sandbox Gateway 配置文件存在。" "Please ensure the Sandbox Gateway configuration file exists."
                 exit 1
             fi
-            
+
             # Add profiles for super-magic, magic-gateway and sandbox-gateway
             export MAGIC_USE_SUPER_MAGIC=" --profile magic-gateway --profile sandbox-gateway"
             # 记录super-magic配置，在下次启动时自动加载
@@ -284,7 +293,7 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         bilingual "1. 本地电脑部署" "1. Local deployment"
         bilingual "2. 远程服务器部署" "2. Remote server deployment"
         read -p "$(bilingual "请输入选项编号 [1/2]: " "Please enter option number [1/2]: ")" DEPLOYMENT_TYPE
-        
+
         # If user chooses local deployment, do not update IP
         if [ "$DEPLOYMENT_TYPE" = "1" ]; then
             bilingual "已选择本地部署，保持默认设置。" "Local deployment selected, keeping default settings."
@@ -293,12 +302,12 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
             bilingual "无效的选项，默认使用本地部署。" "Invalid option, using local deployment by default."
             return 0
         fi
-        
+
         bilingual "正在检测公网IP..." "Detecting public IP..."
-        
+
         # Try multiple methods to get public IP
         PUBLIC_IP=""
-        
+
         # Method 1: Using ipinfo.io
         if [ -z "$PUBLIC_IP" ]; then
             PUBLIC_IP=$(curl -s https://ipinfo.io/ip 2>/dev/null)
@@ -306,7 +315,7 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
                 PUBLIC_IP=""
             fi
         fi
-        
+
         # Method 2: Using ip.sb
         if [ -z "$PUBLIC_IP" ]; then
             PUBLIC_IP=$(curl -s https://api.ip.sb/ip 2>/dev/null)
@@ -314,7 +323,7 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
                 PUBLIC_IP=""
             fi
         fi
-        
+
         # Method 3: Using ipify
         if [ -z "$PUBLIC_IP" ]; then
             PUBLIC_IP=$(curl -s https://api.ipify.org 2>/dev/null)
@@ -322,16 +331,16 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
                 PUBLIC_IP=""
             fi
         fi
-        
+
         # If successfully obtained public IP, ask user whether to use this IP
         if [ -n "$PUBLIC_IP" ]; then
             bilingual "检测到公网IP: $PUBLIC_IP" "Detected public IP: $PUBLIC_IP"
             bilingual "是否使用此IP更新配置?" "Do you want to use this IP for configuration?"
             read -p "$(bilingual "请输入 [y/n]: " "Please enter [y/n]: ")" USE_DETECTED_IP
-            
+
             if [[ "$USE_DETECTED_IP" =~ ^[Yy]$ ]]; then
                 bilingual "正在更新环境变量..." "Updating environment variables..."
-                
+
                 # Update MAGIC_SOCKET_BASE_URL and MAGIC_SERVICE_BASE_URL
                 if [ "$(uname -s)" == "Darwin" ]; then
                     # macOS version
@@ -342,7 +351,7 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
                     sed -i "s|^MAGIC_SOCKET_BASE_URL=ws://localhost:9502|MAGIC_SOCKET_BASE_URL=ws://$PUBLIC_IP:9502|" .env
                     sed -i "s|^MAGIC_SERVICE_BASE_URL=http://localhost:9501|MAGIC_SERVICE_BASE_URL=http://$PUBLIC_IP:9501|" .env
                 fi
-                
+
                 bilingual "环境变量已更新:" "Environment variables updated:"
                 echo "MAGIC_SOCKET_BASE_URL=ws://$PUBLIC_IP:9502"
                 echo "MAGIC_SERVICE_BASE_URL=http://$PUBLIC_IP:9501"
@@ -353,13 +362,13 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
             bilingual "未能检测到公网IP。" "Failed to detect public IP."
             bilingual "是否手动输入IP地址?" "Do you want to manually enter an IP address?"
             read -p "$(bilingual "请输入 [y/n]: " "Please enter [y/n]: ")" MANUAL_IP
-            
+
             if [[ "$MANUAL_IP" =~ ^[Yy]$ ]]; then
                 read -p "$(bilingual "请输入IP地址: " "Please enter IP address: ")" MANUAL_IP_ADDRESS
-                
+
                 if [ -n "$MANUAL_IP_ADDRESS" ]; then
                     bilingual "正在使用IP: $MANUAL_IP_ADDRESS 更新环境变量..." "Updating environment variables with IP: $MANUAL_IP_ADDRESS..."
-                    
+
                     # Update MAGIC_SOCKET_BASE_URL and MAGIC_SERVICE_BASE_URL
                     if [ "$(uname -s)" == "Darwin" ]; then
                         # macOS version
@@ -370,7 +379,7 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
                         sed -i "s|^MAGIC_SOCKET_BASE_URL=ws://localhost:9502|MAGIC_SOCKET_BASE_URL=ws://$MANUAL_IP_ADDRESS:9502|" .env
                         sed -i "s|^MAGIC_SERVICE_BASE_URL=http://localhost:9501|MAGIC_SERVICE_BASE_URL=http://$MANUAL_IP_ADDRESS:9501|" .env
                     fi
-                    
+
                     bilingual "环境变量已更新:" "Environment variables updated:"
                     echo "MAGIC_SOCKET_BASE_URL=ws://$MANUAL_IP_ADDRESS:9502"
                     echo "MAGIC_SERVICE_BASE_URL=http://$MANUAL_IP_ADDRESS:9501"
@@ -382,12 +391,12 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
             fi
         fi
     }
-    
+
     detect_public_ip
-    
+
     # Ask if Super Magic service should be installed
     ask_super_magic
-    
+
     # Create lock file to skip installation next time
     touch bin/magic.lock
     bilingual "已创建 magic.lock 文件，下次启动将跳过安装配置流程。" "Created magic.lock file, next startup will skip installation configuration."
@@ -415,9 +424,9 @@ start_services() {
     bilingual "正在前台启动服务..." "Starting services in foreground..."
     if [ -f "bin/use_super_magic" ]; then
         # 直接使用profile参数启动
-        docker-compose  --profile super-magic --profile  magic-gateway --profile sandbox-gateway up
+        docker compose  --profile super-magic --profile  magic-gateway --profile sandbox-gateway up
     else
-        docker-compose up
+        docker compose up
     fi
 }
 
@@ -425,9 +434,9 @@ start_services() {
 stop_services() {
     bilingual "正在停止服务..." "Stopping services..."
     if [ -f "bin/use_super_magic" ]; then
-        docker-compose --profile super-magic --profile  magic-gateway --profile sandbox-gateway down
+        docker compose --profile super-magic --profile  magic-gateway --profile sandbox-gateway down
     else
-        docker-compose down
+        docker compose down
     fi
 }
 
@@ -435,9 +444,9 @@ stop_services() {
 start_daemon() {
     bilingual "正在后台启动服务..." "Starting services in background..."
     if [ -f "bin/use_super_magic" ]; then
-        docker-compose --profile super-magic --profile  magic-gateway --profile sandbox-gateway up -d
+        docker compose --profile super-magic --profile  magic-gateway --profile sandbox-gateway up -d
     else
-        docker-compose up -d
+        docker compose up -d
     fi
 }
 
@@ -445,22 +454,22 @@ start_daemon() {
 restart_services() {
     bilingual "正在重启服务..." "Restarting services..."
     if [ -f "bin/use_super_magic" ]; then
-        docker-compose --profile super-magic --profile  magic-gateway --profile sandbox-gateway restart
+        docker compose --profile super-magic --profile  magic-gateway --profile sandbox-gateway restart
     else
-        docker-compose restart
+        docker compose restart
     fi
 }
 
 # Show services status
 show_status() {
     bilingual "服务状态:" "Services status:"
-    docker-compose $MAGIC_USE_SUPER_MAGIC ps
+    docker compose $MAGIC_USE_SUPER_MAGIC ps
 }
 
 # Show services logs
 show_logs() {
     bilingual "显示服务日志:" "Showing services logs:"
-    docker-compose $MAGIC_USE_SUPER_MAGIC logs -f
+    docker compose $MAGIC_USE_SUPER_MAGIC logs -f
 }
 
 # Start only Super Magic service
@@ -469,14 +478,14 @@ start_super_magic() {
     if ! check_super_magic_env; then
         exit 1
     fi
-    
+
     # Check if other gateway configuration files exist
     if [ ! -f "config/.env_magic_gateway" ]; then
         bilingual "错误：config/.env_magic_gateway 文件不存在！" "Error: config/.env_magic_gateway file does not exist!"
         bilingual "请确保 Magic Gateway 配置文件存在。" "Please ensure the Magic Gateway configuration file exists."
         exit 1
     fi
-    
+
     if [ ! -f "config/.env_sandbox_gateway" ]; then
         bilingual "错误：config/.env_sandbox_gateway 文件不存在！" "Error: config/.env_sandbox_gateway file does not exist!"
         bilingual "请确保 Sandbox Gateway 配置文件存在。" "Please ensure the Sandbox Gateway configuration file exists."
@@ -484,7 +493,7 @@ start_super_magic() {
     fi
 
     bilingual "正在前台启动Super Magic服务和Gateway服务..." "Starting Super Magic service and Gateway services in foreground..."
-    docker-compose  --profile magic-gateway --profile sandbox-gateway up
+    docker compose  --profile magic-gateway --profile sandbox-gateway up
 }
 
 # Start only Super Magic service in background
@@ -493,14 +502,14 @@ start_super_magic_daemon() {
     if ! check_super_magic_env; then
         exit 1
     fi
-    
+
     # Check if other gateway configuration files exist
     if [ ! -f "config/.env_magic_gateway" ]; then
         bilingual "错误：config/.env_magic_gateway 文件不存在！" "Error: config/.env_magic_gateway file does not exist!"
         bilingual "请确保 Magic Gateway 配置文件存在。" "Please ensure the Magic Gateway configuration file exists."
         exit 1
     fi
-    
+
     if [ ! -f "config/.env_sandbox_gateway" ]; then
         bilingual "错误：config/.env_sandbox_gateway 文件不存在！" "Error: config/.env_sandbox_gateway file does not exist!"
         bilingual "请确保 Sandbox Gateway 配置文件存在。" "Please ensure the Sandbox Gateway configuration file exists."
@@ -508,7 +517,7 @@ start_super_magic_daemon() {
     fi
 
     bilingual "正在后台启动Super Magic服务和Gateway服务..." "Starting Super Magic service and Gateway services in background..."
-    docker-compose  --profile magic-gateway --profile sandbox-gateway up -d
+    docker compose  --profile magic-gateway --profile sandbox-gateway up -d
 }
 
 # Handle command line arguments
@@ -549,4 +558,4 @@ case "$1" in
             exit 1
         fi
         ;;
-esac 
+esac

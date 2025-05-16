@@ -2,18 +2,20 @@ import asyncio
 import hashlib
 import json
 import os
+import time
+import traceback
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional, Dict
 
 import typer
-from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler, FileSystemEvent
 
-from agentlang.logger import get_logger, setup_logger
+from app.infrastructure.storage.factory import StorageFactory
+from app.infrastructure.storage.types import PlatformType, BaseStorageCredentials
 from app.infrastructure.storage.base import AbstractStorage
 from app.infrastructure.storage.exceptions import InitException, UploadException
-from app.infrastructure.storage.factory import StorageFactory
-from app.infrastructure.storage.types import PlatformType
+from agentlang.logger import get_logger, setup_logger
 from app.paths import PathManager
 
 cli_app = typer.Typer(name="storage-uploader", help="Storage Uploader Tool for various backends.", no_args_is_help=True)
@@ -67,6 +69,7 @@ class StorageUploaderTool:
         self.platform: Optional[PlatformType] = None
         self.uploaded_files_cache = FileHashCache()
         self.uploaded_files_for_registration: list = []
+        self.last_upload_time = time.time()  # 记录最后一次上传时间
 
         self.api_base_url = os.getenv("MAGIC_API_SERVICE_BASE_URL")
         if self.api_base_url:
@@ -104,7 +107,7 @@ class StorageUploaderTool:
                         credentials_path_to_load = p
                         logger.info(f"使用默认凭证文件: {credentials_path_to_load}")
                         break
-
+            
             if not credentials_path_to_load:
                 logger.error("未找到任何可用的凭证文件 (检查了指定路径和默认路径)")
                 return False
@@ -116,7 +119,7 @@ class StorageUploaderTool:
             if not upload_config_dict:
                 logger.error(f"凭证文件 {credentials_path_to_load} 中未找到 'upload_config' 键")
                 return False
-
+            
             if self.sandbox_id is None and "sandbox_id" in credentials_data:
                 self.sandbox_id = credentials_data.get("sandbox_id")
                 logger.info(f"从凭证文件加载了 sandbox_id: {self.sandbox_id}")
@@ -124,13 +127,14 @@ class StorageUploaderTool:
                 self.organization_code = credentials_data.get("organization_code")
                 logger.info(f"从凭证文件加载了 organization_code: {self.organization_code}")
 
+            # 每次重新加载凭证后也重新初始化存储服务
             self.storage_service = await StorageFactory.get_storage(
                 sts_token_refresh=None,
                 metadata=None
             )
 
             self.storage_service.set_credentials(upload_config_dict)
-
+            
             if hasattr(self.storage_service.credentials, 'platform') and isinstance(self.storage_service.credentials.platform, PlatformType):
                 self.platform = self.storage_service.credentials.platform
             else:
@@ -153,6 +157,7 @@ class StorageUploaderTool:
             return False
         except Exception as e:
             logger.error(f"加载凭证或初始化存储服务时发生未知错误: {e}", exc_info=True)
+            logger.error(traceback.format_exc())
             return False
 
     def _get_file_hash(self, file_path: Path) -> str:
@@ -167,10 +172,9 @@ class StorageUploaderTool:
             return ""
 
     async def upload_file(self, file_path: Path, workspace_dir: Path) -> bool:
-        # 每次都重新加载凭证
-        self._load_credentials()
-
-
+        # 每次都重新加载凭证以确保使用最新的凭证
+        await self._load_credentials()
+        
         try:
             if not file_path.exists():
                 logger.warning(f"文件不存在，无法上传: {file_path}")
@@ -185,12 +189,12 @@ class StorageUploaderTool:
                 relative_path_str = file_path.name
 
             base_dir = self.storage_service.credentials.get_dir()
-
+            
             object_key_parts = []
             if base_dir: object_key_parts.append(base_dir.strip('/'))
             if self.sandbox_id: object_key_parts.append(self.sandbox_id.strip('/'))
             object_key_parts.append(relative_path_str.strip('/'))
-
+            
             object_key = "/".join(filter(None, object_key_parts))
 
 
@@ -200,12 +204,14 @@ class StorageUploaderTool:
                 return True
 
             logger.info(f"开始上传文件到平台 {self.platform.value if self.platform else 'N/A'}: {relative_path_str}, 存储键: {object_key}")
-
+            
             await self.storage_service.upload(file=str(file_path), key=object_key)
             self.uploaded_files_cache.set_hash(object_key, file_hash)
+            # 更新最后上传时间
+            self.last_upload_time = time.time()
             logger.info(f"文件上传成功: {relative_path_str}, 存储键: {object_key}")
 
-            if self.task_id:
+            if self.sandbox_id:
                 file_ext = file_path.suffix.lstrip('.')
                 external_url = None
                 base_url = self.storage_service.credentials.get_public_access_base_url()
@@ -220,6 +226,7 @@ class StorageUploaderTool:
                     "filename": file_path.name,
                     "file_size": file_path.stat().st_size,
                     "external_url": external_url,
+                    "sandbox_id": self.sandbox_id
                 })
                 logger.debug(f"文件已添加到待注册列表, 当前列表大小: {len(self.uploaded_files_for_registration)}")
 
@@ -229,13 +236,14 @@ class StorageUploaderTool:
             return False
         except Exception as e:
             logger.error(f"上传过程中发生未知错误 ({relative_path_str if 'relative_path_str' in locals() else file_path}): {e}", exc_info=True)
+            logger.error(traceback.format_exc())
             return False
 
     async def register_uploaded_files(self) -> bool:
-        if not self.task_id:
-            logger.info("未提供 task_id，跳过文件注册步骤。")
+        if not self.sandbox_id:
+            logger.info("未设置沙盒ID，无法注册文件")
             return True
-
+        
         if not self.uploaded_files_for_registration:
             logger.info("没有需要注册的新文件，跳过注册")
             return True
@@ -245,21 +253,27 @@ class StorageUploaderTool:
             return False
 
         api_url = f"{self.api_base_url.strip('/')}/api/v1/super-agent/file/process-attachments"
-
+        
         request_data = {
             "attachments": self.uploaded_files_for_registration,
-            "task_id": self.task_id
+            "sandbox_id": self.sandbox_id
         }
-        if self.sandbox_id:
-            request_data["sandbox_id"] = self.sandbox_id
+        # 添加组织编码（如果有）
         if self.organization_code:
             request_data["organization_code"] = self.organization_code
-
+        
+        # 如果有task_id也加上（虽然较少使用）
+        if self.task_id:
+            request_data["task_id"] = self.task_id
+            
         headers = {"Content-Type": "application/json", "User-Agent": "StorageUploaderTool/2.0"}
-
-        logger.info(f"准备向API注册 {len(self.uploaded_files_for_registration)} 个文件 (Task ID: {self.task_id}) ...")
-        logger.debug(f"注册请求URL: {api_url}")
-        logger.debug(f"注册请求体: {json.dumps(request_data, ensure_ascii=False, indent=2)}")
+        
+        logger.info(f"========= 文件注册请求信息 =========")
+        logger.info(f"准备向API注册 {len(self.uploaded_files_for_registration)} 个文件 (沙盒ID: {self.sandbox_id}) ...")
+        logger.info(f"请求URL: {api_url}")
+        logger.debug(f"请求头: {json.dumps(headers, ensure_ascii=False, indent=2)}")
+        logger.debug(f"请求体: {json.dumps(request_data, ensure_ascii=False, indent=2)}")
+        logger.info(f"===================================")
 
         try:
             import aiohttp
@@ -272,7 +286,9 @@ class StorageUploaderTool:
                         try:
                             result = json.loads(response_text)
                             if result.get("code") == 1000:
-                                logger.info("文件注册成功。")
+                                logger.info(f"文件注册API调用成功，总数: {result.get('data', {}).get('total', 0)}, "
+                                          f"成功: {result.get('data', {}).get('success', 0)}, "
+                                          f"跳过: {result.get('data', {}).get('skipped', 0)}")
                                 self.uploaded_files_for_registration.clear()
                                 return True
                             else:
@@ -284,20 +300,41 @@ class StorageUploaderTool:
             return False
         except Exception as e:
             logger.error(f"注册上传文件时发生严重错误: {e}", exc_info=True)
+            logger.error(traceback.format_exc())
             return False
 
     async def scan_existing_files(self, workspace_dir: Path, refresh: bool = False):
         if refresh:
             self.uploaded_files_cache.clear()
             logger.info("强制刷新模式：已清空本地文件哈希缓存。")
-
+        
         logger.info(f"开始扫描已存在文件于目录: {workspace_dir}")
         for item in workspace_dir.rglob('*'):
             if item.is_file():
                 await self.upload_file(item, workspace_dir)
         logger.info("现有文件扫描完成。")
-        if self.uploaded_files_for_registration:
+        # 添加条件判断，与原TOSUploader保持一致
+        if self.sandbox_id and self.uploaded_files_for_registration:
             await self.register_uploaded_files()
+
+    async def _periodic_register(self):
+        """周期性检查并注册上传的文件"""
+        while True:
+            try:
+                # 等待30秒后尝试注册
+                await asyncio.sleep(30)
+                
+                # 如果有上传的文件且距上次上传超过20秒，则注册
+                current_time = time.time()
+                if (self.uploaded_files_for_registration and 
+                    self.sandbox_id and
+                    current_time - self.last_upload_time > 20):
+                    logger.info("检测到30秒内无新上传，开始注册已上传文件")
+                    await self.register_uploaded_files()
+            except Exception as e:
+                logger.error(f"定期注册任务异常: {e}")
+                logger.error(traceback.format_exc())
+                # 继续循环，不因异常中断
 
     async def watch_command(self, workspace_dir: Path, once: bool, refresh: bool):
         if not await self._load_credentials():
@@ -305,11 +342,15 @@ class StorageUploaderTool:
             return
 
         logger.info(f"监控命令启动，监控目录: {workspace_dir}, 一次性扫描: {once}, 强制刷新: {refresh}")
-
+        
         await self.scan_existing_files(workspace_dir, refresh)
         if once:
             logger.info("已完成一次性扫描，程序退出。")
             return
+
+        # 启动周期性注册任务
+        asyncio.create_task(self._periodic_register())
+        logger.info("已启动周期性文件注册任务（每30秒检查一次）")
 
         event_handler = FileChangeEventHandler(tool_instance=self, workspace_dir_to_watch=workspace_dir)
         observer = Observer()
@@ -343,14 +384,19 @@ class FileChangeEventHandler(FileSystemEventHandler):
         while True:
             file_path_to_upload = await self.upload_queue.get()
             try:
-                await asyncio.sleep(0.5) 
+                # 延迟1秒，等待文件操作完成（与原TOSUploader一致）
+                await asyncio.sleep(1) 
                 logger.info(f"队列处理器: 开始处理文件 {file_path_to_upload}")
                 success = await self.tool.upload_file(file_path_to_upload, self.workspace_dir)
-                if success and self.tool.uploaded_files_for_registration:
+                
+                # 更加精确的立即注册逻辑判断，与原TOSUploader保持一致
+                if success and self.tool.uploaded_files_for_registration and self.tool.sandbox_id:
+                    logger.info(f"文件上传成功，尝试立即注册，已上传文件数: {len(self.tool.uploaded_files_for_registration)}")
                     await self.tool.register_uploaded_files()
 
             except Exception as e:
                 logger.error(f"处理上传队列中的文件 {file_path_to_upload} 失败: {e}", exc_info=True)
+                logger.error(traceback.format_exc())
             finally:
                 self.upload_queue.task_done()
 
@@ -358,7 +404,7 @@ class FileChangeEventHandler(FileSystemEventHandler):
         file_path = Path(file_path_str)
         if not file_path.is_absolute():
              file_path = self.workspace_dir / file_path
-
+        
         asyncio.run_coroutine_threadsafe(self.upload_queue.put(file_path), self.loop)
         logger.debug(f"已将文件 {file_path} 添加到上传队列。")
 
@@ -372,9 +418,16 @@ class FileChangeEventHandler(FileSystemEventHandler):
             logger.info(f"检测到文件修改: {event.src_path}")
             self._schedule_upload(event.src_path)
 
+    def on_deleted(self, event):
+        if not event.is_directory:
+            logger.info(f"检测到文件删除: {event.src_path}")
+            # 目前仅记录删除事件，不执行操作
+            # TODO: 未来可能需要实现从存储中删除文件的功能
+
     def on_moved(self, event):
         if not event.is_directory:
             logger.info(f"检测到文件移动: {event.src_path} -> {event.dest_path}")
+            # 将移动视为删除原文件并创建新文件
             self._schedule_upload(event.dest_path)
 
 
@@ -427,7 +480,7 @@ def start_storage_uploader_watcher(
                 cmd_logger.warning(f"'--use-context' is True, but context credentials file not found at: {context_creds_path}")
         else:
             cmd_logger.warning("PathManager not initialized. Cannot resolve context credentials path for '--use-context'.")
-
+    
     cmd_logger.info(f"Final credentials file to be used by StorageUploaderTool: {final_credentials_file or 'Default lookup in StorageUploaderTool'}")
 
     try:
@@ -437,7 +490,7 @@ def start_storage_uploader_watcher(
             task_id=task_id,
             organization_code=organization_code
         )
-
+        
         asyncio.run(
             _run_storage_uploader_watch_async(
                 tool=tool_instance,
@@ -448,6 +501,7 @@ def start_storage_uploader_watcher(
         )
     except Exception as e:
         cmd_logger.error(f"Error in storage uploader watcher command: {e}", exc_info=True)
+        cmd_logger.error(traceback.format_exc())
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
