@@ -277,6 +277,23 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         fi
     }
 
+    # Check and create sandbox-network if it doesn't exist
+    check_and_create_network() {
+        NETWORK_NAME="sandbox-network"
+        if ! docker network ls | grep -q "$NETWORK_NAME"; then
+            bilingual "创建 $NETWORK_NAME 网络..." "Creating $NETWORK_NAME network..."
+            docker network create "$NETWORK_NAME"
+            if [ $? -eq 0 ]; then
+                bilingual "$NETWORK_NAME 网络创建成功。" "$NETWORK_NAME network created successfully."
+            else
+                bilingual "错误：无法创建 $NETWORK_NAME 网络。" "Error: Failed to create $NETWORK_NAME network."
+                exit 1
+            fi
+        else
+            bilingual "$NETWORK_NAME 网络已存在，跳过创建。" "$NETWORK_NAME network already exists, skipping creation."
+        fi
+    }
+
     # Detect public IP and update environment variables
     detect_public_ip() {
         # Ask user about deployment method
@@ -288,6 +305,7 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         # If user chooses local deployment, do not update IP
         if [ "$DEPLOYMENT_TYPE" = "1" ]; then
             bilingual "已选择本地部署，保持默认设置。" "Local deployment selected, keeping default settings."
+            check_and_create_network  # 自动检查和创建 sandbox-network
             return 0
         elif [ "$DEPLOYMENT_TYPE" != "2" ]; then
             bilingual "无效的选项，默认使用本地部署。" "Invalid option, using local deployment by default."
