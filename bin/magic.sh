@@ -37,33 +37,91 @@ bilingual() {
 
 # Check if Super Magic environment file exists
 check_super_magic_env() {
-    if [ ! -f "config/.env_super_magic" ]; then
-        if [ -f "config/.env_super_magic.example" ]; then
-            bilingual "错误：config/.env_super_magic 文件不存在！" "Error: config/.env_super_magic file does not exist!"
-            bilingual "请按照以下步骤进行操作：" "Please follow these steps:"
-            bilingual "1. 复制示例配置文件：cp config/.env_super_magic.example config/.env_super_magic" "1. Copy the example configuration file: cp config/.env_super_magic.example config/.env_super_magic"
-            bilingual "2. 编辑配置文件：vim config/.env_super_magic（或使用您喜欢的编辑器）" "2. Edit the configuration file: vim config/.env_super_magic (or use your preferred editor)"
-            bilingual "3. 配置所有必要的环境变量" "3. Configure all necessary environment variables"
-            bilingual "4. 再次运行此脚本" "4. Run this script again"
-            return 1
-        else
-            bilingual "错误：config/.env_super_magic 和 config/.env_super_magic.example 文件都不存在！" "Error: Both config/.env_super_magic and config/.env_super_magic.example files do not exist!"
-            bilingual "请联系系统管理员获取正确的配置文件。" "Please contact your system administrator for the correct configuration files."
-            return 1
-        fi
-    fi
+    local missing_files=()
+    local config_files=(
+        "config/.env_super_magic"
+        "config/config.yaml"
+        "config/.env_magic_gateway"
+        "config/.env_sandbox_gateway"
+    )
+    local example_files=(
+        "config/.env_super_magic.example"
+        "config/config.yaml.example"
+    )
     
-    # 检查config/config.yaml文件是否存在
-    if [ ! -f "config/config.yaml" ]; then
-        if [ -f "config/config.yaml.example" ]; then
-            bilingual "注意：config/config.yaml 文件不存在，正在从示例文件复制..." "Note: config/config.yaml file does not exist, copying from example file..."
-            cp config/config.yaml.example config/config.yaml
-            bilingual "已复制 config/config.yaml.example 到 config/config.yaml" "Copied config/config.yaml.example to config/config.yaml"
-        else
-            bilingual "错误：config/config.yaml 和 config/config.yaml.example 文件都不存在！" "Error: Both config/config.yaml and config/config.yaml.example files do not exist!"
-            bilingual "请联系系统管理员获取正确的配置文件。" "Please contact your system administrator for the correct configuration files."
-            return 1
+    # 检查必要的配置文件
+    for file in "${config_files[@]}"; do
+        if [ ! -f "$file" ]; then
+            # 对于前两个文件，检查是否有示例文件可以复制
+            if [[ "$file" == "config/.env_super_magic" || "$file" == "config/config.yaml" ]]; then
+                example_file="${file}.example"
+                if [ -f "$example_file" ]; then
+                    if [[ "$file" == "config/config.yaml" ]]; then
+                        bilingual "注意：$file 文件不存在，正在从示例文件复制..." "Note: $file file does not exist, copying from example file..."
+                        cp "$example_file" "$file"
+                        bilingual "已复制 $example_file 到 $file" "Copied $example_file to $file"
+                    else
+                        missing_files+=("$file")
+                    fi
+                else
+                    missing_files+=("$file")
+                fi
+            else
+                missing_files+=("$file")
+            fi
         fi
+    done
+    
+    # 如果有缺失文件，显示错误信息
+    if [ ${#missing_files[@]} -gt 0 ]; then
+        bilingual "错误：以下配置文件不存在：" "Error: The following configuration files do not exist:"
+        for file in "${missing_files[@]}"; do
+            echo "- $file"
+        done
+        
+        bilingual "请按照以下步骤创建缺失的配置文件：" "Please follow these steps to create the missing configuration files:"
+        
+        # 给出针对性的指导
+        if [[ " ${missing_files[*]} " =~ " config/.env_super_magic " ]]; then
+            if [ -f "config/.env_super_magic.example" ]; then
+                bilingual "- 对于Super Magic配置：" "-  For Super Magic configuration:"
+                bilingual "   - 复制示例配置文件：cp config/.env_super_magic.example config/.env_super_magic" "   - Copy the example configuration file: cp config/.env_super_magic.example config/.env_super_magic"
+                bilingual "   - 编辑配置文件：vim config/.env_super_magic（或使用您喜欢的编辑器）" "   - Edit the configuration file: vim config/.env_super_magic (or use your preferred editor)"
+                bilingual "   - 设置必要的环境变量，如API密钥、服务地址等" "   - Set the necessary environment variables such as API keys, service addresses, etc."
+            else
+                bilingual "- 对于Super Magic配置：" "- For Super Magic configuration:"
+                bilingual "   - config/.env_super_magic.example 示例文件也不存在" "   - The config/.env_super_magic.example example file is also missing"
+            fi
+        fi
+        
+        if [[ " ${missing_files[*]} " =~ " config/config.yaml " ]]; then
+            if [ -f "config/config.yaml.example" ]; then
+                bilingual "- 对于系统配置：" "- For system configuration:"
+                bilingual "   - 复制示例配置文件：cp config/config.yaml.example config/config.yaml" "   - Copy the example configuration file: cp config/config.yaml.example config/config.yaml"
+                bilingual "   - 编辑配置文件：vim config/config.yaml（或使用您喜欢的编辑器）" "   - Edit the configuration file: vim config/config.yaml (or use your preferred editor)"
+                bilingual "   - 根据您的环境设置适当的参数" "   - Set appropriate parameters according to your environment"
+            else
+                bilingual "- 对于系统配置：" "- For system configuration:"
+                bilingual "   - config/config.yaml.example 示例文件也不存在" "   - The config/config.yaml.example example file is also missing"
+            fi
+        fi
+        
+        if [[ " ${missing_files[*]} " =~ " config/.env_magic_gateway " ]]; then
+            bilingual "- 对于Magic Gateway配置：" "- For Magic Gateway configuration:"
+            bilingual "   - 创建配置文件：cp config/.env_magic_gateway.example config/.env_magic_gateway" "   - Create the configuration file: cp config/.env_magic_gateway.example config/.env_magic_gateway"
+            bilingual "   - 编辑配置文件：vim config/.env_magic_gateway（或使用您喜欢的编辑器）" "   - Edit the configuration file: vim config/.env_magic_gateway (or use your preferred editor)"
+            bilingual "   - 添加必要的网关配置参数，如端口、路由规则等" "   - Add necessary gateway configuration parameters such as ports, routing rules, etc."
+        fi
+        
+        if [[ " ${missing_files[*]} " =~ " config/.env_sandbox_gateway " ]]; then
+            bilingual "- 对于Sandbox Gateway配置：" "- For Sandbox Gateway configuration:"
+            bilingual "   - 创建配置文件：cp config/.env_sandbox_gateway.example config/.env_sandbox_gateway" "   - Create the configuration file: cp config/.env_sandbox_gateway.example config/.env_sandbox_gateway"
+            bilingual "   - 编辑配置文件：vim config/.env_sandbox_gateway（或使用您喜欢的编辑器）" "   - Edit the configuration file: vim config/.env_sandbox_gateway (or use your preferred editor)"
+            bilingual "   - 添加必要的沙盒网关配置参数，如端口、安全设置等" "   - Add necessary sandbox gateway configuration parameters such as ports, security settings, etc."
+        fi
+        
+        bilingual "完成上述步骤后，再次运行此脚本。" "After completing the above steps, run this script again."
+        return 1
     fi
     
     return 0
@@ -243,21 +301,8 @@ if [ "$SKIP_INSTALLATION" = "false" ]; then
         if [ "$SUPER_MAGIC_OPTION" = "1" ]; then
             bilingual "您选择了安装Super Magic服务。" "You have chosen to install Super Magic service."
             
-            # Check if .env_super_magic exists
+            # Check if all required config files exist
             if ! check_super_magic_env; then
-                exit 1
-            fi
-            
-            # Check if other gateway configuration files exist
-            if [ ! -f "config/.env_magic_gateway" ]; then
-                bilingual "错误：config/.env_magic_gateway 文件不存在！" "Error: config/.env_magic_gateway file does not exist!"
-                bilingual "请确保 Magic Gateway 配置文件存在。" "Please ensure the Magic Gateway configuration file exists."
-                exit 1
-            fi
-            
-            if [ ! -f "config/.env_sandbox_gateway" ]; then
-                bilingual "错误：config/.env_sandbox_gateway 文件不存在！" "Error: config/.env_sandbox_gateway file does not exist!"
-                bilingual "请确保 Sandbox Gateway 配置文件存在。" "Please ensure the Sandbox Gateway configuration file exists."
                 exit 1
             fi
             
@@ -465,21 +510,8 @@ show_logs() {
 
 # Start only Super Magic service
 start_super_magic() {
-    # Check if .env_super_magic exists
+    # Check if all required config files exist
     if ! check_super_magic_env; then
-        exit 1
-    fi
-    
-    # Check if other gateway configuration files exist
-    if [ ! -f "config/.env_magic_gateway" ]; then
-        bilingual "错误：config/.env_magic_gateway 文件不存在！" "Error: config/.env_magic_gateway file does not exist!"
-        bilingual "请确保 Magic Gateway 配置文件存在。" "Please ensure the Magic Gateway configuration file exists."
-        exit 1
-    fi
-    
-    if [ ! -f "config/.env_sandbox_gateway" ]; then
-        bilingual "错误：config/.env_sandbox_gateway 文件不存在！" "Error: config/.env_sandbox_gateway file does not exist!"
-        bilingual "请确保 Sandbox Gateway 配置文件存在。" "Please ensure the Sandbox Gateway configuration file exists."
         exit 1
     fi
 
@@ -489,21 +521,8 @@ start_super_magic() {
 
 # Start only Super Magic service in background
 start_super_magic_daemon() {
-    # Check if .env_super_magic exists
+    # Check if all required config files exist
     if ! check_super_magic_env; then
-        exit 1
-    fi
-    
-    # Check if other gateway configuration files exist
-    if [ ! -f "config/.env_magic_gateway" ]; then
-        bilingual "错误：config/.env_magic_gateway 文件不存在！" "Error: config/.env_magic_gateway file does not exist!"
-        bilingual "请确保 Magic Gateway 配置文件存在。" "Please ensure the Magic Gateway configuration file exists."
-        exit 1
-    fi
-    
-    if [ ! -f "config/.env_sandbox_gateway" ]; then
-        bilingual "错误：config/.env_sandbox_gateway 文件不存在！" "Error: config/.env_sandbox_gateway file does not exist!"
-        bilingual "请确保 Sandbox Gateway 配置文件存在。" "Please ensure the Sandbox Gateway configuration file exists."
         exit 1
     fi
 
