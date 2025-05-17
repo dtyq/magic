@@ -2,27 +2,45 @@
 :80 {
     # 上传文件服务根目录
     root * /srv/files
-    
+
     # 启用文件浏览
     file_server browse
-    
+
        # 为文件服务添加专门的前缀路径
     @static_files {
         path /files/*
     }
-    
+
+    # 处理OPTIONS预检请求
+    @options {
+        method OPTIONS
+        path /files/*
+    }
+
+    handle @options {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "*"
+        header Access-Control-Max-Age "3600"
+        respond 204
+    }
+
     # 对匹配的静态文件路径提供文件服务
     handle @static_files {
         uri strip_prefix /files
         file_server browse
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "*"
+        header Access-Control-Max-Age "3600"
     }
-    
+
     # 启用压缩
     encode gzip
-    
+
     # 启用压缩
     encode gzip
-    
+
     # 设置缓存
     header {
         Cache-Control "public, max-age=3600"
@@ -33,7 +51,7 @@
         header Connection *Upgrade*
         header Upgrade websocket
     }
-    
+
     # 反向代理WebSocket请求
     reverse_proxy @websockets {
         to magic-service:9502
@@ -63,7 +81,7 @@
         header_up X-Forwarded-Proto {scheme}
         header_down Access-Control-Allow-Origin *
     }
-    
+
     # 默认将所有其他请求代理到 magic-web 服务
     reverse_proxy {
         to magic-web:8080
@@ -72,10 +90,10 @@
         header_up X-Forwarded-For {remote}
         header_up X-Forwarded-Proto {scheme}
     }
-    
+
     # 日志配置
     log {
         output stdout
         format console
     }
-} 
+}
