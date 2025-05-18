@@ -7,7 +7,6 @@ declare(strict_types=1);
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ConfigApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\LogApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
@@ -53,11 +52,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::addGroup('/accounts', static function () {
         // 初始化超级麦吉账号
         Router::post('/init', [AccountApi::class, 'initAccount']);
-    });
-
-    // 前端日志上报
-    Router::addGroup('/log', static function () {
-        Router::post('/report', [LogApi::class, 'reportLog']);
     });
 
     // 配置相关
