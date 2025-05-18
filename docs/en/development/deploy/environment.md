@@ -341,4 +341,4 @@ For detailed file driver configuration and usage methods, please refer to [File 
 
 1. When deploying for the first time, using the `./bin/magic.sh start` command will automatically copy `.env.example` to `.env`
 2. If using cloud storage services, you need to execute the file system initialization command: `php bin/hyperf.php file:init`
-3. After modifying environment variables, you need to restart the service for the changes to take effect 
+3. After modifying environment variables, you need to restart the service for the changes to take effect

@@ -3,11 +3,12 @@ Supports Mac OS and Linux operating systems. Windows systems can run through doc
 
 ### 1. Clone the Project
 ```bash
-git clone [project address]
+git clone https://github.com/dtyq/magic.git
 cd magic
 ```
 
 ### 2. Configure Environment Variables
+Configure Magic environment variables. You must configure at least one large language model environment variable for proper functionality.
 Copy the `.env.example` file to `.env` and modify the configuration as needed:
 ```bash
 cp .env.example .env

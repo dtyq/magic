@@ -259,6 +259,6 @@ class ToolsExecutor extends AbstractTool
         $executionData = clone $this->executionData;
         $executionData->setId(uniqid('', true));
 
-        return self::execute($executionData, $flow, $args, $this->customSystemInput, $this->optionTool->isAsync(), true) ?: [];
+        return self::execute($executionData, $flow, $args, $this->customSystemInput, $this->optionTool->isAsync(), true) ?? [];
     }
 }
