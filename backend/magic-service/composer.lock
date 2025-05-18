@@ -445,16 +445,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.343.12",
+            "version": "3.343.13",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "d4b21990410d023e9c5303487d3248e8d7c8c2b6"
+                "reference": "eb50d111a09ef39675358e74801260ac129ee346"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d4b21990410d023e9c5303487d3248e8d7c8c2b6",
-                "reference": "d4b21990410d023e9c5303487d3248e8d7c8c2b6",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/eb50d111a09ef39675358e74801260ac129ee346",
+                "reference": "eb50d111a09ef39675358e74801260ac129ee346",
                 "shasum": ""
             },
             "require": {
@@ -536,9 +536,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.12"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.13"
             },
-            "time": "2025-05-15T18:14:32+00:00"
+            "time": "2025-05-16T18:24:39+00:00"
         },
         {
             "name": "brick/math",
@@ -2167,16 +2167,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.25",
+            "version": "v0.0.26",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "cca7e7343e70097d3027837474afd34fb07190c8"
+                "reference": "ff176efeadbf9c42943a9dee832a7ab67fda8a01"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/cca7e7343e70097d3027837474afd34fb07190c8",
-                "reference": "cca7e7343e70097d3027837474afd34fb07190c8",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/ff176efeadbf9c42943a9dee832a7ab67fda8a01",
+                "reference": "ff176efeadbf9c42943a9dee832a7ab67fda8a01",
                 "shasum": ""
             },
             "require": {
@@ -2268,10 +2268,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.25",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.26",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-05-15T11:08:25+00:00"
+            "time": "2025-05-16T14:56:28+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -16310,12 +16310,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "98ed8a7be061968455a548ceb0ba2790b11b119f"
+                "reference": "0cc529f6cf08a858fcb7a2c5617780fcdc20d1fe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/98ed8a7be061968455a548ceb0ba2790b11b119f",
-                "reference": "98ed8a7be061968455a548ceb0ba2790b11b119f",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0cc529f6cf08a858fcb7a2c5617780fcdc20d1fe",
+                "reference": "0cc529f6cf08a858fcb7a2c5617780fcdc20d1fe",
                 "shasum": ""
             },
             "conflict": {
@@ -16357,7 +16357,10 @@
                 "athlon1600/php-proxy-app": "<=3",
                 "athlon1600/youtube-downloader": "<=4",
                 "austintoddj/canvas": "<=3.4.2",
-                "auth0/wordpress": "<=4.6",
+                "auth0/auth0-php": ">=8.0.0.0-beta1,<8.14",
+                "auth0/login": "<7.17",
+                "auth0/symfony": "<5.4",
+                "auth0/wordpress": "<5.3",
                 "automad/automad": "<2.0.0.0-alpha5",
                 "automattic/jetpack": "<9.8",
                 "awesome-support/awesome-support": "<=6.0.7",
@@ -17233,7 +17236,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-15T17:04:55+00:00"
+            "time": "2025-05-17T16:05:20+00:00"
         },
         {
             "name": "sebastian/cli-parser",
