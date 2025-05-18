@@ -16,6 +16,7 @@ use Hyperf\Amqp\Result;
 use Hyperf\Contract\StdoutLoggerInterface;
 use PhpAmqpLib\Message\AMQPMessage;
 use Throwable;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
 /**
  * 话题任务消息订阅者.
@@ -56,12 +57,43 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
 
             // 创建DTO
             $messageDTO = TopicTaskMessageDTO::fromArray($data);
+            
+            // 获取sandboxId用于锁定
+            $sandboxId = $messageDTO->getMetadata()?->getSandboxId();
+            if (empty($sandboxId)) {
+                $this->logger->warning('缺少有效的sandboxId，无法加锁保证消息顺序性', [
+                    'message_id' => $messageDTO->getPayload()?->getMessageId(),
+                    'message' => json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ]);
+            }
 
-            // 调用应用层服务处理消息
-            $this->superAgentAppService->handleTopicTaskMessage($messageDTO);
+            // 获取锁并处理消息
+            $lockInfo = $this->acquireLockWithRetry($sandboxId, $messageDTO);
+            $lockAcquired = $lockInfo['acquired'];
+            $lockOwner = $lockInfo['owner'];
+            $lockKey = $lockInfo['key'];
+            
+            // 如果无法获取锁，直接返回ACK确认消息
+            if (!empty($sandboxId) && !$lockAcquired) {
+                return Result::ACK;
+            }
 
-            // 返回ACK确认消息已处理
-            return Result::ACK;
+            try {
+                // 调用应用层服务处理消息
+                $this->superAgentAppService->handleTopicTaskMessage($messageDTO);
+                
+                // 返回ACK确认消息已处理
+                return Result::ACK;
+            } finally {
+                // 释放锁
+                if ($lockAcquired && !empty($sandboxId)) {
+                    if ($this->superAgentAppService->releaseLock($lockKey, $lockOwner)) {
+                        $this->logger->debug(sprintf('已释放sandbox %s的锁，持有者: %s', $sandboxId, $lockOwner));
+                    } else {
+                        $this->logger->error(sprintf('释放sandbox %s的锁失败，持有者: %s，可能需要人工干预', $sandboxId, $lockOwner));
+                    }
+                }
+            }
         } catch (BusinessException $e) {
             // 业务异常，记录错误信息
             $this->logger->error(sprintf(
@@ -225,5 +257,70 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                 ));
             }
         }
+    }
+
+    /**
+     * 带重试机制的获取锁.
+     * 
+     * @param string $sandboxId 沙箱ID
+     * @param TopicTaskMessageDTO $messageDTO 消息DTO
+     * @return array 包含锁信息的数组，acquired表示是否成功获取锁，owner表示锁的持有者，key表示锁的键名
+     */
+    private function acquireLockWithRetry(?string $sandboxId, TopicTaskMessageDTO $messageDTO): array
+    {
+        $result = [
+            'acquired' => false,
+            'owner' => '',
+            'key' => '',
+        ];
+        
+        if (empty($sandboxId)) {
+            return $result;
+        }
+        
+        $lockKey = 'handle_sandbox_message_lock:' . $sandboxId;
+        $lockOwner = IdGenerator::getUniqueId32(); // 使用唯一ID作为锁持有者标识
+        $lockExpireSeconds = 30; // 锁的过期时间（秒），消息处理可能需要更长时间
+        
+        $maxRetries = 3;
+        $retryCount = 0;
+        $baseWaitTime = 1; // 基础等待时间（秒）
+        
+        while ($retryCount <= $maxRetries) {
+            $lockAcquired = (bool) $this->superAgentAppService->acquireLock($lockKey, $lockOwner, $lockExpireSeconds);
+            
+            if ($lockAcquired) {
+                $this->logger->debug(sprintf('已获取sandbox %s的锁，持有者: %s', $sandboxId, $lockOwner));
+                $result['acquired'] = true;
+                $result['owner'] = $lockOwner;
+                $result['key'] = $lockKey;
+                return $result;
+            }
+            
+            if ($retryCount === $maxRetries) {
+                $this->logger->error(sprintf(
+                    '在重试%d次后仍无法获取sandbox %s的锁，该sandbox可能有其他消息正在处理中，message_id: %s',
+                    $maxRetries,
+                    $sandboxId,
+                    $messageDTO->getPayload()?->getMessageId()
+                ));
+                // 可以选择将消息重新入队或实现延迟重试策略
+                return $result;
+            }
+            
+            $waitTime = $baseWaitTime * pow(2, $retryCount); // 指数退避
+            $this->logger->warning(sprintf(
+                '无法获取sandbox %s的锁，该sandbox可能有其他消息正在处理中，message_id: %s，将在%d秒后进行第%d次重试',
+                $sandboxId,
+                $messageDTO->getPayload()?->getMessageId(),
+                $waitTime,
+                $retryCount + 1
+            ));
+            
+            sleep($waitTime);
+            $retryCount++;
+        }
+        
+        return $result;
     }
 }

@@ -280,29 +280,7 @@ class TaskAppService extends AbstractAppService
             ]);
         }
 
-        $lockKey = 'handle_sandbox_message_lock:' . $sandboxId;
-        $lockOwner = IdGenerator::getUniqueId32(); // 使用唯一ID作为锁持有者标识
-        $lockExpireSeconds = 30; // 锁的过期时间（秒），消息处理可能需要更长时间
-        $lockAcquired = false;
-
         try {
-            // 如果有有效的sandboxId，尝试获取分布式互斥锁
-            if (! empty($sandboxId)) {
-                $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
-
-                if (! $lockAcquired) {
-                    $this->logger->warning(sprintf(
-                        '无法获取sandbox %s的锁，该sandbox可能有其他消息正在处理中，message_id: %s',
-                        $sandboxId,
-                        $messageDTO->getPayload()?->getMessageId()
-                    ));
-                    // 可以选择将消息重新入队或实现延迟重试策略
-                    return;
-                }
-
-                $this->logger->debug(sprintf('已获取sandbox %s的锁，持有者: %s', $sandboxId, $lockOwner));
-            }
-
             $this->logger->info(sprintf(
                 '开始处理话题任务消息，task_id: %s , 消息内容为: %s',
                 $messageDTO->getPayload()->getTaskId() ?? '',
@@ -350,17 +328,32 @@ class TaskAppService extends AbstractAppService
                 'exception' => $e,
                 'message' => $messageDTO->toArray(),
             ]);
-        } finally {
-            // 如果获取了锁，确保释放它
-            if ($lockAcquired) {
-                if ($this->locker->release($lockKey, $lockOwner)) {
-                    $this->logger->debug(sprintf('已释放sandbox %s的锁，持有者: %s', $sandboxId, $lockOwner));
-                } else {
-                    // 记录释放锁失败的情况，可能需要人工干预
-                    $this->logger->error(sprintf('释放sandbox %s的锁失败，持有者: %s，可能需要人工干预', $sandboxId, $lockOwner));
-                }
-            }
         }
+    }
+
+    /**
+     * 获取分布式互斥锁.
+     * 
+     * @param string $lockKey 锁的键名
+     * @param string $lockOwner 锁的持有者
+     * @param int $lockExpireSeconds 锁的过期时间（秒）
+     * @return bool 是否成功获取锁
+     */
+    public function acquireLock(string $lockKey, string $lockOwner, int $lockExpireSeconds): bool
+    {
+        return $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+    }
+    
+    /**
+     * 释放分布式互斥锁.
+     * 
+     * @param string $lockKey 锁的键名
+     * @param string $lockOwner 锁的持有者
+     * @return bool 是否成功释放锁
+     */
+    public function releaseLock(string $lockKey, string $lockOwner): bool
+    {
+        return $this->locker->release($lockKey, $lockOwner);
     }
 
     /**
