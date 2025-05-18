@@ -221,9 +221,22 @@ class MagicChatAISearchV2AppService extends AbstractAppService
     ): void {
         $start = microtime(true);
         $parallel = new Parallel(5);
+
+        $numContexts = count($noRepeatSearchContexts);
+        $numQuestions = count($associateQuestions);
+        $limitPerQuestion = 0;
+        if ($numQuestions > 0) {
+            $limitPerQuestion = (int) floor($numContexts / $numQuestions);
+            if ($numContexts > 0 && $limitPerQuestion == 0) {
+                $limitPerQuestion = 1; // Ensure at least one item is distributed if contexts exist
+            }
+        }
+        $questionIndex = 0;
+
         foreach ($associateQuestions as $associateQuestion) {
             $questionId = $associateQuestion->getQuestionId();
-            $parallel->add(function () use ($noRepeatSearchContexts, $questionId, $associateQuestion, $dto) {
+            $currentOffset = $questionIndex * $limitPerQuestion;
+            $parallel->add(function () use ($noRepeatSearchContexts, $questionId, $associateQuestion, $dto, $limitPerQuestion, $currentOffset) {
                 $start = microtime(true);
                 CoContext::setRequestId($dto->getRequestId());
                 // 已生成关联问题，准备发送搜索结果
@@ -231,7 +244,7 @@ class MagicChatAISearchV2AppService extends AbstractAppService
                 $pageCount = random_int(30, 60);
                 $webSearchItem = new QuestionSearchResult([
                     'question_id' => $questionId,
-                    'search' => array_slice($noRepeatSearchContexts, 0, 5),
+                    'search' => array_slice($noRepeatSearchContexts, $currentOffset, $limitPerQuestion),
                     'page_count' => $pageCount,
                     'match_count' => random_int(1000, 5000),
                     'total_words' => $pageCount * random_int(50, 200),
@@ -243,6 +256,7 @@ class MagicChatAISearchV2AppService extends AbstractAppService
                     TimeUtil::getMillisecondDiffFromNow($start) / 1000
                 ));
             });
+            ++$questionIndex;
         }
         $parallel->wait();
         $this->logger->info(sprintf(
@@ -262,37 +276,50 @@ class MagicChatAISearchV2AppService extends AbstractAppService
     ): void {
         $start = microtime(true);
         $parallel = new Parallel(5);
+
+        $numContexts = count($noRepeatSearchContexts);
+        $numQuestions = count($associateQuestions);
+        $limitPerQuestion = 0;
+        if ($numQuestions > 0) {
+            $limitPerQuestion = (int) floor($numContexts / $numQuestions);
+            if ($numContexts > 0 && $limitPerQuestion == 0) {
+                $limitPerQuestion = 1; // Ensure at least one item is distributed if contexts exist
+            }
+        }
+        $questionIndex = 0;
+
         foreach ($associateQuestions as $associateQuestion) {
             $questionId = $associateQuestion->getQuestionId();
-            $parallel->add(function () use ($questionId, $associateQuestion, $dto, $noRepeatSearchContexts) {
+            $currentOffset = $questionIndex * $limitPerQuestion;
+            $parallel->add(function () use ($questionId, $associateQuestion, $dto, $noRepeatSearchContexts, $limitPerQuestion, $currentOffset) {
                 CoContext::setRequestId($dto->getRequestId());
                 $start = microtime(true);
                 $associateQuestionsQueryVo = $this->getAssociateQuestionsQueryVo($dto, $noRepeatSearchContexts, $associateQuestion->getQuestion());
                 $associateQuestionsQueryVo->setMessageHistory(new MessageHistory());
-                $relatedQuestions = $this->magicLLMDomainService->getRelatedQuestions($associateQuestionsQueryVo, 2, 3);
-                // 由于这里是对所有维度汇总后再精读，因此丢失了每个维度的数量，只能随机生成。
+                // 获取子问题
+                $associateSubQuestions = $this->magicLLMDomainService->getRelatedQuestions($associateQuestionsQueryVo, 2, 3);
                 $pageCount = random_int(30, 60);
+                $onePageWords = random_int(200, 2000);
+                $totalWords = $pageCount * $onePageWords;
+                // todo 由于这里是对所有维度汇总后再精读，因此丢失了每个维度的数量，只能随机生成。
                 $webSearchItem = new QuestionSearchResult([
                     'question_id' => $questionId,
-                    'search' => array_slice($noRepeatSearchContexts, 0, 5),
+                    'search_keywords' => $associateSubQuestions,
+                    'search' => array_slice($noRepeatSearchContexts, $currentOffset, $limitPerQuestion),
                     'page_count' => $pageCount,
                     'match_count' => random_int(1000, 5000),
-                    'total_words' => $pageCount * random_int(50, 200),
+                    'total_words' => $totalWords,
                 ]);
-                // 发送问题的字问题，可能后续用于继续根据子问题往下搜索
-                // 流式推送关联问题
-                $parentQuestionId = $questionId;
-                $associateQuestions = $this->buildAssociateQuestions($relatedQuestions, $parentQuestionId);
-                $this->sendAssociateQuestions($dto, $associateQuestions, $parentQuestionId);
-                // 发送问题的网页搜索结果
                 $this->streamSendSearchWebPages($dto, $webSearchItem);
+
                 $this->logger->info(sprintf(
                     'getSearchResults 关联问题：%s 的子问题 %s 生成并推送完毕 结束计时，耗时 %s 秒',
                     $associateQuestion->getQuestion(),
-                    Json::encode($relatedQuestions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                    Json::encode($associateSubQuestions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                     TimeUtil::getMillisecondDiffFromNow($start) / 1000
                 ));
             });
+            ++$questionIndex;
         }
         $parallel->wait();
         $this->logger->info(sprintf(
