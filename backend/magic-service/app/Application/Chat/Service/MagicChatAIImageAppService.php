@@ -190,7 +190,7 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
         $magicUserAuthorization = $requestContext->getUserAuthorization();
         $images = $this->llmAppService->imageGenerate($magicUserAuthorization, $model, '', $data);
         $this->logger->info('images', $images);
-        $images = $this->upLoadFiles($requestContext, $images);
+        $images = $this->uploadFiles($requestContext, $images);
         return [
             'images' => $images,
         ];
@@ -200,7 +200,7 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
      * 将文件上传到云端.
      */
     #[ArrayShape([['file_id' => 'string', 'url' => 'string']])]
-    private function upLoadFiles(RequestContext $requestContext, array $attachments): array
+    private function uploadFiles(RequestContext $requestContext, array $attachments): array
     {
         $images = [];
         foreach ($attachments as $attachment) {
