@@ -179,12 +179,26 @@ class FileAppService extends AbstractAppService
 
     public function getStsTemporaryCredential(Authenticatable $authorization, string $storage, string $dir = '', int $expires = 7200): array
     {
-        return $this->fileDomainService->getStsTemporaryCredential(
-            $this->getOrganizationCode($authorization),
+        $organizationCode = $this->getOrganizationCode($authorization);
+        // 调用文件服务获取STS Token
+        $data = $this->fileDomainService->getStsTemporaryCredential(
+            $organizationCode,
             StorageBucketType::from($storage),
             $dir,
             $expires
         );
+
+        // 如果是本地驱动，那么增加一个临时 key
+        if ($data['platform'] === AdapterName::LOCAL) {
+            $localCredential = 'local_credential:' . IdGenerator::getUniqueId32();
+            $data['temporary_credential']['dir'] = $organizationCode . '/' . $data['temporary_credential']['dir'];
+            $data['temporary_credential']['credential'] = $localCredential;
+            $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DCOKER_READ_HOST', '');
+            $data['temporary_credential']['host'] = env('FILE_LOCAL_DOCKER_WRITE_HOST', '');
+            $this->cache->set($localCredential, ['organization_code' => $organizationCode], (int) ($data['expires'] - time()));
+        }
+        
+        return $data;
     }
 
     protected function getOrganizationCode(Authenticatable $authorization): string

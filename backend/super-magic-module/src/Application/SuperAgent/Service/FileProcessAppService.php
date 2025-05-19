@@ -8,12 +8,14 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatFileAppService;
+use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\AdapterName;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
@@ -37,6 +39,7 @@ class FileProcessAppService extends AbstractAppService
         private readonly MagicChatFileAppService $magicChatFileAppService,
         private readonly TaskDomainService $taskDomainService,
         private readonly FileDomainService $fileDomainService,
+        private readonly FileAppService $fileAppService,
         private CacheInterface $cache,
         LoggerFactory $loggerFactory
     ) {
@@ -358,7 +361,7 @@ class FileProcessAppService extends AbstractAppService
             }
 
             // 获取STS临时凭证
-            $storageType = StorageBucketType::Private;
+            $storageType = StorageBucketType::Private->value;
             $expires = 7200; // 凭证有效期2小时
 
             // 调用文件服务获取STS Token
