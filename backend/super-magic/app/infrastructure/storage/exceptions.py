@@ -8,6 +8,7 @@ from typing import List, Optional
 
 class InitExceptionCode(str, Enum):
     """Initialization exception codes."""
+    CREDENTIAL_ERROR = "CREDENTIAL_ERROR"
     MISSING_CREDENTIALS_PARAMS = "MISSING_CREDENTIALS_PARAMS"
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
 
