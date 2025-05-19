@@ -189,14 +189,8 @@ class StorageUploaderTool:
                 relative_path_str = file_path.name
 
             base_dir = self.storage_service.credentials.get_dir()
-            
-            object_key_parts = []
-            if base_dir: object_key_parts.append(base_dir.strip('/'))
-            if self.sandbox_id: object_key_parts.append(self.sandbox_id.strip('/'))
-            object_key_parts.append(relative_path_str.strip('/'))
-            
-            object_key = "/".join(filter(None, object_key_parts))
 
+            object_key = f"{base_dir}{relative_path_str}"
 
             cached_hash = self.uploaded_files_cache.get_hash(object_key)
             if cached_hash == file_hash:
