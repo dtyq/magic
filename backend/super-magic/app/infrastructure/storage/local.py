@@ -282,7 +282,7 @@ class LocalStorage(AbstractStorage, BaseFileProcessor):
         if not upload_url:
             error_msg = "上传URL不能为空"
             logger.error(error_msg)
-            raise UploadException(UploadExceptionCode.CREDENTIAL_ERROR, error_msg)
+            raise UploadException(UploadExceptionCode.CREDENTIALS_EXPIRED, error_msg)
 
         return upload_url, credential
 
