@@ -9,6 +9,7 @@ export const useStyles = createStyles(
 			global: {
 				width: "100%",
 				height: "100%",
+				overflow: "hidden",
 				backgroundSize: "cover",
 				backgroundPosition: "center",
 				backgroundRepeat: "no-repeat",
@@ -33,7 +34,7 @@ export const useStyles = createStyles(
 			subSider: {},
 			content: css`
 				width: calc(100% - var(--sider-width));
-				height: calc(100% - 44px);
+				height: 100%;
 			`,
 		}
 	},
