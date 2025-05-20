@@ -1,6 +1,6 @@
 import MagicAvatar from "@/opensource/components/base/MagicAvatar"
 import { useCurrentMagicOrganization } from "@/opensource/models/user/hooks"
-
+import ComponentRender from "@/opensource/components/ComponentRender"
 import { Popover } from "antd"
 import type { ReactNode } from "react"
 import { useState, memo } from "react"
@@ -47,7 +47,7 @@ const OrganizationSwitch = memo(function OrganizationSwitch({
 			arrow={false}
 			trigger={["click"]}
 			autoAdjustOverflow
-			content={<OrganizationList onClose={() => setOpen(false)} />}
+			content={<ComponentRender componentName="OrganizationList" onClose={() => setOpen(false)} />}
 		>
 			{ChildrenContent}
 		</Popover>

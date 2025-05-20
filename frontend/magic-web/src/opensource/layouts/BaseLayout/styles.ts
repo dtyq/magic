@@ -7,8 +7,8 @@ export const useStyles = createStyles(
 	) => {
 		return {
 			global: {
-				width: "100vw",
-				height: "100vh",
+				width: "100%",
+				height: "100%",
 				backgroundSize: "cover",
 				backgroundPosition: "center",
 				backgroundRepeat: "no-repeat",
@@ -33,6 +33,7 @@ export const useStyles = createStyles(
 			subSider: {},
 			content: css`
 				width: calc(100% - var(--sider-width));
+				height: calc(100% - 44px);
 			`,
 		}
 	},

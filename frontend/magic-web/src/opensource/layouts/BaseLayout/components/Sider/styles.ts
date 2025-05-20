@@ -11,7 +11,7 @@ export const useStyles = createStyles(
 			sider: css`
 				box-sizing: border-box;
 				border-right: 1px solid ${ token.colorBorder };
-				height: calc(100vh - ${ token.titleBarHeight }px);
+				height: calc(100% - ${ token.titleBarHeight }px);
 				min-width: 56px;
 				width: ${ collapsed ? "56px" : "auto" };
 				padding: 10px 10px;

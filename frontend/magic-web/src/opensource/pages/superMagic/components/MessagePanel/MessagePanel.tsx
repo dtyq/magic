@@ -17,7 +17,6 @@ import TaskList from "../TaskList"
 import { useStyles } from "./styles"
 import { FileData } from "@/opensource/pages/chatNew/components/MessageEditor/components/InputFiles/types"
 import { genFileData } from "@/opensource/pages/chatNew/components/MessageEditor/components/InputFiles/utils"
-import { isEmpty } from "lodash-es"
 
 export interface MessagePanelProps {
 	onSendMessage?: (content: string, options?: any) => void
@@ -179,16 +178,6 @@ const MessagePanel: React.FC<MessagePanelProps> = ({
 		return fileType
 	}
 
-	// 判断是否显示模式切换区域
-	const shouldShowModeToggle = useMemo(() => {
-		return isEmptyStatus
-	}, [isEmptyStatus])
-
-	const previewMode = useMemo(() => {
-		return topicModeInfo
-	}, [topicModeInfo])
-	console.log(previewMode, "previewMode", isEmptyStatus, "isEmptyStatusxxx")
-
 	return (
 		<div ref={containerRef} className={cx(styles.container, className)}>
 			<div className={styles.inputArea}>
@@ -257,7 +246,7 @@ const MessagePanel: React.FC<MessagePanelProps> = ({
 
 					<div className={styles.toolBar}>
 						<div className={styles.toolBarLeft}>
-							{shouldShowModeToggle && (
+							{isEmptyStatus && (
 								<div className={styles.modeToggle}>
 									{isEmptyStatus ? (
 										<>
@@ -300,7 +289,7 @@ const MessagePanel: React.FC<MessagePanelProps> = ({
 										</>
 									) : (
 										<>
-											{previewMode === "plan" && (
+											{topicModeInfo === "plan" && (
 												<div
 													className={cx(
 														styles.modeToggleButton,
@@ -315,7 +304,7 @@ const MessagePanel: React.FC<MessagePanelProps> = ({
 													任务
 												</div>
 											)}
-											{previewMode === "chat" && (
+											{topicModeInfo === "chat" && (
 												<div
 													className={cx(
 														styles.modeToggleButton,
@@ -330,9 +319,9 @@ const MessagePanel: React.FC<MessagePanelProps> = ({
 									)}
 								</div>
 							)}
-							{!shouldShowModeToggle && previewMode && (
+							{!isEmptyStatus && topicModeInfo && (
 								<div className={styles.modeToggle}>
-									{previewMode === "plan" && (
+									{topicModeInfo === "plan" && (
 										<Tooltip
 											title="AI自主规划决策，并分步自动执行"
 											placement="top"
@@ -352,7 +341,7 @@ const MessagePanel: React.FC<MessagePanelProps> = ({
 											</div>
 										</Tooltip>
 									)}
-									{previewMode === "chat" && (
+									{topicModeInfo === "chat" && (
 										<Tooltip
 											title="AI 单步执行，人与AI多轮对话协同完成任务"
 											placement="top"

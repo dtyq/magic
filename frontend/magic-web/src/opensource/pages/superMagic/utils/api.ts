@@ -132,7 +132,7 @@ export const getMessagesByConversationId = async ({
 	page_token?: string
 }): Promise<any> => {
 	return magicClient.post(
-		`/api/v1/im/conversations/${conversation_id}/messages/queries`,
+		`/api/v2/magic/conversations/${conversation_id}/message/queries`,
 		{
 			limit,
 			order,
