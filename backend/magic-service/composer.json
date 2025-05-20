@@ -177,6 +177,10 @@
         {
           "type": "github",
           "url": "https://github.com/dtyq/super-magic-module.git"
+        },
+        {
+            "type": "gitlab",
+            "url": "https://git.kkgroup.cn/dtyq/billing-manager.git"
         }
     ]
 }
