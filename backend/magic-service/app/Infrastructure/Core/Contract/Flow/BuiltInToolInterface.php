@@ -14,7 +14,7 @@ use Closure;
 
 interface BuiltInToolInterface
 {
-    public function generateToolFlow(string $organizationCode = ''): MagicFlowEntity;
+    public function generateToolFlow(string $organizationCode = '', string $userId = ''): MagicFlowEntity;
 
     public function getToolSetCode(): string;
 

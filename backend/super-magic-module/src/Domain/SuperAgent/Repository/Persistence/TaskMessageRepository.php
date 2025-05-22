@@ -62,17 +62,24 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
      * @param int $pageSize 每页大小
      * @param bool $shouldPage 是否需要分页
      * @param string $sortDirection 排序方向，支持asc和desc
+     * @param bool $showInUi 是否只显示UI可见的消息
      * @return array 返回包含消息列表和总数的数组 ['list' => TaskMessageEntity[], 'total' => int]
      */
-    public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc'): array
+    public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array
     {
         // 确保排序方向是有效的
         $sortDirection = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
 
         // 构建基础查询
         $query = $this->model::query()
-            ->where('topic_id', $topicId)
-            ->orderBy('id', $sortDirection);
+            ->where('topic_id', $topicId);
+
+        // 如果 $showInUi 为 true，则添加条件过滤
+        if ($showInUi) {
+            $query->where('show_in_ui', true);
+        }
+
+        $query->orderBy('id', $sortDirection);
 
         // 获取总记录数
         $total = $query->count();

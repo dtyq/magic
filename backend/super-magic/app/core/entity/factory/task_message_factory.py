@@ -4,6 +4,9 @@
 提供创建不同类型TaskMessage的工厂类
 """
 
+import random
+import time
+
 from agentlang.event.data import (
     AfterInitEventData,
     AfterLlmResponseEventData,
@@ -185,6 +188,10 @@ class TaskMessageFactory:
             status = TaskStatus.ERROR
             content = "任务执行结束"
 
+        sleep_duration = random.uniform(1, 2)
+        time.sleep(sleep_duration)
+        logger.debug(f"Slept for {sleep_duration:.2f} seconds before LLM request")
+        
         return ServerMessage.create(
             metadata=agent_context.get_init_client_message_metadata(),
             payload=ServerMessagePayload.create(
@@ -248,18 +255,25 @@ class TaskMessageFactory:
 
         # 确保 task_id 不为 None，如果为 None 则使用空字符串
         task_id = agent_context.get_task_id() or ""
+        
+        # 从事件数据中获取 token_usage_details
+        token_usage_details_from_event = getattr(event.data, "token_usage", None)
 
+        payload = ServerMessagePayload.create(
+            task_id=task_id,
+            sandbox_id=agent_context.get_sandbox_id(),
+            message_type=MessageType.THINKING,
+            status=TaskStatus.RUNNING,
+            content=content,
+            event=event.event_type,
+            show_in_ui=show_in_ui,
+            # token_usage_details is no longer part of ServerMessagePayload.create
+        )
+        
         return ServerMessage.create(
             metadata=agent_context.get_init_client_message_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=task_id,
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.THINKING,
-                status=TaskStatus.RUNNING,
-                content=content,
-                event=event.event_type,
-                show_in_ui=show_in_ui  # 传递显示标志
-            )
+            payload=payload,
+            token_usage_details=token_usage_details_from_event
         )
 
     @classmethod

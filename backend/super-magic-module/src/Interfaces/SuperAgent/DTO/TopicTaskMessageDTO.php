@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
 
 /**
  * 话题任务消息DTO.
@@ -20,10 +21,12 @@ class TopicTaskMessageDTO
      *
      * @param MessageMetadata $metadata 消息元数据
      * @param MessagePayload $payload 消息负载
+     * @param null|TokenUsageDetails $tokenUsageDetails Token 使用详情
      */
     public function __construct(
         private MessageMetadata $metadata,
-        private MessagePayload $payload
+        private MessagePayload $payload,
+        private ?TokenUsageDetails $tokenUsageDetails = null
     ) {
     }
 
@@ -42,7 +45,11 @@ class TopicTaskMessageDTO
             ? MessagePayload::fromArray($data['payload'])
             : new MessagePayload();
 
-        return new self($metadata, $payload);
+        $tokenUsageDetails = isset($data['token_usage_details']) && is_array($data['token_usage_details'])
+            ? TokenUsageDetails::fromArray($data['token_usage_details'])
+            : null;
+
+        return new self($metadata, $payload, $tokenUsageDetails);
     }
 
     /**
@@ -84,6 +91,25 @@ class TopicTaskMessageDTO
     }
 
     /**
+     * 获取 Token 使用详情.
+     */
+    public function getTokenUsageDetails(): ?TokenUsageDetails
+    {
+        return $this->tokenUsageDetails;
+    }
+
+    /**
+     * 设置 Token 使用详情.
+     *
+     * @param null|TokenUsageDetails $tokenUsageDetails Token 使用详情
+     */
+    public function setTokenUsageDetails(?TokenUsageDetails $tokenUsageDetails): self
+    {
+        $this->tokenUsageDetails = $tokenUsageDetails;
+        return $this;
+    }
+
+    /**
      * 转换为数组.
      */
     public function toArray(): array
@@ -91,6 +117,7 @@ class TopicTaskMessageDTO
         return [
             'metadata' => $this->metadata->toArray(),
             'payload' => $this->payload->toArray(),
+            'token_usage_details' => $this->tokenUsageDetails?->toArray(),
         ];
     }
 }

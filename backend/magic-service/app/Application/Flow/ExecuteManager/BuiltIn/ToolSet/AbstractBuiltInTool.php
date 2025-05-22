@@ -18,7 +18,7 @@ use DateTime;
 
 abstract class AbstractBuiltInTool implements BuiltInToolInterface
 {
-    public function generateToolFlow(string $organizationCode = ''): MagicFlowEntity
+    public function generateToolFlow(string $organizationCode = '', string $userId = ''): MagicFlowEntity
     {
         $toolFlow = new MagicFlowEntity();
         $toolFlow->setOrganizationCode($organizationCode);
@@ -28,9 +28,9 @@ abstract class AbstractBuiltInTool implements BuiltInToolInterface
         $toolFlow->setType(Type::Tools);
         $toolFlow->setToolSetId($this->getToolSetCode());
         $toolFlow->setEnabled(true);
-        $toolFlow->setCreator('system');
+        $toolFlow->setCreator($userId ?: 'system');
         $toolFlow->setCreatedAt(new DateTime());
-        $toolFlow->setModifier('system');
+        $toolFlow->setModifier($userId ?: 'system');
         $toolFlow->setUpdatedAt(new DateTime());
         $toolFlow->setNodes([]);
         $toolFlow->setInput($this->getInput());

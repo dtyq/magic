@@ -10,8 +10,8 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Chat\Service\MagicChatFileAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
+use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -22,7 +22,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
-use Psr\SimpleCache\CacheInterface;
 use Throwable;
 
 /**
@@ -349,11 +348,11 @@ class FileProcessAppService extends AbstractAppService
             // 获取 task 表中的 work_dir 目录作为工作目录
             $taskEntity = $this->taskDomainService->getTaskById((int) $requestDTO->getSuperMagicTaskId());
             if (empty($taskEntity)) {
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'task.not_found');
+                ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.not_found');
             }
             $workDir = $taskEntity->getWorkDir();
             if (empty($workDir)) {
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'task.work_dir.not_found');
+                ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'task.work_dir.not_found');
             }
 
             // 获取STS临时凭证

@@ -9,6 +9,7 @@ from agentlang.utils.snowflake import Snowflake
 from app.core.entity.attachment import Attachment
 from app.core.entity.message.message import MessageType
 from app.core.entity.project_archive import ProjectArchiveInfo
+from agentlang.llms.token_usage.models import TokenUsage
 
 
 class TaskStatus(str, Enum):
@@ -204,9 +205,6 @@ class ServerMessagePayload(BaseModel):
             event: 可选的事件类型
             project_archive: 可选的项目压缩包信息
             show_in_ui: 是否在UI中显示，默认为True
-
-        Returns:
-            TaskMessage: 创建的任务消息对象
         """
         # 使用雪花算法生成ID
         snowflake = Snowflake.create_default()
@@ -232,10 +230,12 @@ class ServerMessage(BaseModel):
 
     metadata: Dict[str, Any]
     payload: ServerMessagePayload
+    token_usage_details: Optional[TokenUsage] = Field(default=None, description="Details of token usage for the current operation/LLM call")
 
     @classmethod
-    def create(cls, metadata: Dict[str, Any], payload: ServerMessagePayload) -> "ServerMessage":
+    def create(cls, metadata: Dict[str, Any], payload: ServerMessagePayload, token_usage_details: Optional[TokenUsage] = None) -> "ServerMessage":
         return ServerMessage(
             metadata=metadata,
-            payload=payload
+            payload=payload,
+            token_usage_details=token_usage_details
         )

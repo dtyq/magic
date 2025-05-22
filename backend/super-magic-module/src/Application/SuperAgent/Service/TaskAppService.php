@@ -644,6 +644,7 @@ class TaskAppService extends AbstractAppService
         $event = $payload->getEvent();
         $attachments = $payload->getAttachments() ?? [];
         $projectArchive = $payload->getProjectArchive() ?? [];
+        $showInUi = $payload->getShowInUi() ?? true;
 
         // 2. 处理未知消息类型
         if (! MessageType::isValid($messageType)) {
@@ -692,23 +693,26 @@ class TaskAppService extends AbstractAppService
                 $tool,
                 $task->getTopicId(),
                 $event,
-                $attachments
+                $attachments,
+                $showInUi
             );
 
             // 5. 发送消息到客户端
-            $this->sendMessageToClient(
-                topicId: $task->getTopicId(),
-                taskId: (string) $task->getId(),
-                chatTopicId: $taskContext->getChatTopicId(),
-                chatConversationId: $taskContext->getChatConversationId(),
-                content: $content,
-                messageType: $messageType,
-                status: $status,
-                event: $event,
-                steps: $steps,
-                tool: $tool,
-                attachments: $attachments
-            );
+            if ($showInUi) {
+                $this->sendMessageToClient(
+                    topicId: $task->getTopicId(),
+                    taskId: (string) $task->getId(),
+                    chatTopicId: $taskContext->getChatTopicId(),
+                    chatConversationId: $taskContext->getChatConversationId(),
+                    content: $content,
+                    messageType: $messageType,
+                    status: $status,
+                    event: $event,
+                    steps: $steps,
+                    tool: $tool,
+                    attachments: $attachments
+                );
+            }
 
             // 6. 判断是否需要继续处理
             $taskStatus = TaskStatus::tryFrom($status) ?? TaskStatus::ERROR;

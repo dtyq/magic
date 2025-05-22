@@ -234,7 +234,8 @@ class TaskDomainService
         ?array $tool = null,
         ?int $topicId = null,
         ?string $event = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        bool $showInUi = true
     ): TaskMessageEntity {
         $message = new TaskMessageEntity([
             'task_id' => $taskId,
@@ -249,6 +250,7 @@ class TaskDomainService
             'attachments' => $attachments,
             'topic_id' => $topicId,
             'event' => $event,
+            'show_in_ui' => $showInUi,
         ]);
 
         $this->messageRepository->save($message);
@@ -266,7 +268,8 @@ class TaskDomainService
         ?array $tool = null,
         ?int $topicId = null,
         ?string $event = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        bool $showInUi = true
     ): TaskMessageEntity {
         return $this->recordTaskMessage(
             $taskId,
@@ -280,7 +283,8 @@ class TaskDomainService
             $tool,
             $topicId,
             $event,
-            $attachments
+            $attachments,
+            $showInUi
         );
     }
 
@@ -298,7 +302,8 @@ class TaskDomainService
         ?array $tool = null,
         ?int $topicId = null,
         ?string $event = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        bool $showInUi = true
     ): TaskMessageEntity {
         return $this->recordTaskMessage(
             $taskId,
@@ -312,7 +317,8 @@ class TaskDomainService
             $tool,
             $topicId,
             $event,
-            $attachments
+            $attachments,
+            $showInUi
         );
     }
 
@@ -490,11 +496,12 @@ class TaskDomainService
      * @param int $pageSize 每页大小
      * @param bool $shouldPage 是否分页
      * @param string $sortDirection 排序方向，支持asc和desc
+     * @param bool $showInUi 是否只显示UI可见的消息，默认为true
      * @return array 返回消息列表和总数
      */
-    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc'): array
+    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array
     {
-        return $this->messageRepository->findByTopicId($topicId, $page, $pageSize, $shouldPage, $sortDirection);
+        return $this->messageRepository->findByTopicId($topicId, $page, $pageSize, $shouldPage, $sortDirection, $showInUi);
     }
 
     /**

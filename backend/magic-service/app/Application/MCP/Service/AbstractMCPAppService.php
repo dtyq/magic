@@ -9,30 +9,19 @@ namespace App\Application\MCP\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Permission\Service\OperationPermissionAppService;
-use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
+use App\Domain\Flow\Service\MagicFlowDomainService;
+use App\Domain\Flow\Service\MagicFlowVersionDomainService;
 use App\Domain\MCP\Service\MCPServerDomainService;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
+use App\Domain\MCP\Service\MCPServerToolDomainService;
 
 abstract class AbstractMCPAppService extends AbstractKernelAppService
 {
     public function __construct(
         protected readonly MCPServerDomainService $mcpServerDomainService,
+        protected readonly MCPServerToolDomainService $mcpServerToolDomainService,
+        protected readonly MagicFlowDomainService $magicFlowDomainService,
+        protected readonly MagicFlowVersionDomainService $magicFlowVersionDomainService,
         protected readonly OperationPermissionAppService $operationPermissionAppService,
     ) {
-    }
-
-    protected function getMCPServerOperation(MCPDataIsolation $dataIsolation, int|string $code): Operation
-    {
-        if (empty($code)) {
-            return Operation::None;
-        }
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        return $this->operationPermissionAppService->getOperationByResourceAndUser(
-            $permissionDataIsolation,
-            ResourceType::MCPServer,
-            (string) $code,
-            $permissionDataIsolation->getCurrentUserId()
-        );
     }
 }

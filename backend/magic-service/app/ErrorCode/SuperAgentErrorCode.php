@@ -19,4 +19,10 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('topic.topic_not_found')]
     case TOPIC_NOT_FOUND = 51100;
+
+    #[ErrorMessage('task.task_not_found')]
+    case TASK_NOT_FOUND = 51200;
+
+    #[ErrorMessage('task.work_dir.not_found')]
+    case WORK_DIR_NOT_FOUND = 51201;
 }

@@ -14,9 +14,15 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
 abstract class AbstractDocumentFileDTO extends AbstractDTO implements DocumentFileDTOInterface
 {
-    public DocumentFileType $type;
-
     public string $name;
+
+    protected DocumentFileType $type;
+
+    public function __construct(array $data)
+    {
+        parent::__construct($data);
+        $this->type = $this->initType();
+    }
 
     public function getName(): string
     {
@@ -49,4 +55,9 @@ abstract class AbstractDocumentFileDTO extends AbstractDTO implements DocumentFi
         $this->type = $type;
         return $this;
     }
+
+    /**
+     * 初始化文档类型.
+     */
+    abstract protected function initType(): DocumentFileType;
 }

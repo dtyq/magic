@@ -314,10 +314,10 @@ class StreamListenerService:
             event_context = tool_context.get_extension_typed("event_context", EventContext)
             payload = task_message.payload
 
-            # 检查是否应该在UI中显示
-            if hasattr(payload, "show_in_ui") and not payload.show_in_ui:
-                logger.info(f"跳过向客户端发送消息，因为 show_in_ui=False, message_id: {payload.message_id}")
-                return
+            # 检查是否应该在UI中显示，交给业务取控制
+            # if hasattr(payload, "show_in_ui") and not payload.show_in_ui:
+            #     logger.info(f"跳过向客户端发送消息，因为 show_in_ui=False, message_id: {payload.message_id}")
+            #     return
 
             # 检查是否需要推送到客户端
             if payload.is_empty:

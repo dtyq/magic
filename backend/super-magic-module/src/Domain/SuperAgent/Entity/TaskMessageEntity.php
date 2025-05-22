@@ -87,6 +87,8 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected int $sendTimestamp = 0;
 
+    protected bool $showInUi = true;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -242,6 +244,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this->sendTimestamp;
     }
 
+    public function getShowInUi(): bool
+    {
+        return $this->showInUi;
+    }
+
+    public function setShowInUi(bool $showInUi): self
+    {
+        $this->showInUi = $showInUi;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -260,6 +273,7 @@ class TaskMessageEntity extends AbstractEntity
             'attachments' => $this->attachments,
             'event' => $this->event,
             'send_timestamp' => $this->sendTimestamp,
+            'show_in_ui' => $this->showInUi,
         ];
 
         return array_filter($result, function ($value) {
