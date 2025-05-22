@@ -28,6 +28,8 @@ use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\MagicBotThirdPlatformChatRepositoryInterface;
 use App\Domain\Agent\Repository\Persistence\MagicBotThirdPlatformChatRepository;
+use App\Domain\Authentication\Repository\ApiKeyProviderRepository;
+use App\Domain\Authentication\Repository\Facade\ApiKeyProviderRepositoryInterface;
 use App\Domain\Authentication\Repository\Facade\AuthenticationRepositoryInterface;
 use App\Domain\Authentication\Repository\Implement\AuthenticationRepository;
 use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
@@ -96,7 +98,9 @@ use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseBaseRepository;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseDocumentRepository;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseFragmentRepository;
 use App\Domain\MCP\Repository\Facade\MCPServerRepositoryInterface;
+use App\Domain\MCP\Repository\Facade\MCPServerToolRepositoryInterface;
 use App\Domain\MCP\Repository\Persistence\MCPServerRepository;
+use App\Domain\MCP\Repository\Persistence\MCPServerToolRepository;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -129,6 +133,10 @@ use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
 use App\Domain\Token\Repository\Persistence\MagicMagicTokenRepository;
+use App\Infrastructure\Core\Broadcast\Publisher\AmqpPublisher;
+use App\Infrastructure\Core\Broadcast\Publisher\PublisherInterface;
+use App\Infrastructure\Core\Broadcast\Subscriber\AmqpSubscriber;
+use App\Infrastructure\Core\Broadcast\Subscriber\SubscriberInterface;
 use App\Infrastructure\Core\Contract\Authorization\BaseFlowOpenApiCheck;
 use App\Infrastructure\Core\Contract\Authorization\FlowOpenApiCheckInterface;
 use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PHPExecutorInterface;
@@ -238,6 +246,10 @@ $dependencies = [
 
     // mcp
     MCPServerRepositoryInterface::class => MCPServerRepository::class,
+    MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
+
+    // api-key
+    ApiKeyProviderRepositoryInterface::class => ApiKeyProviderRepository::class,
 
     // magic-api
     ApplicationRepositoryInterface::class => ApplicationRepository::class,
@@ -310,6 +322,10 @@ $dependencies = [
 
     // 权限
     PermissionInterface::class => Permission::class,
+
+    // broadcast
+    SubscriberInterface::class => AmqpSubscriber::class,
+    PublisherInterface::class => AmqpPublisher::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并

@@ -43,6 +43,8 @@ class MCPServerDTO extends AbstractDTO
 
     public int $userOperation = 0;
 
+    public int $toolsCount = 0;
+
     public function getName(): string
     {
         return $this->name;
@@ -101,5 +103,15 @@ class MCPServerDTO extends AbstractDTO
     public function setUserOperation(?int $userOperation): void
     {
         $this->userOperation = $userOperation ?? 0;
+    }
+
+    public function getToolsCount(): int
+    {
+        return $this->toolsCount;
+    }
+
+    public function setToolsCount(int $toolsCount): void
+    {
+        $this->toolsCount = $toolsCount;
     }
 }

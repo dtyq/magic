@@ -10,7 +10,6 @@ namespace App\Application\KnowledgeBase\Service\Strategy\DocumentFile;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\BaseDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
@@ -33,7 +32,7 @@ class DocumentFileStrategy
         return $driver?->parseContent($dataIsolation, $documentFile) ?? '';
     }
 
-    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, ?DocumentFileInterface $documentFile): ?DocType
+    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, ?DocumentFileInterface $documentFile): ?int
     {
         $driver = $this->getImplement($documentFile);
         return $driver?->parseDocType($dataIsolation, $documentFile);
@@ -56,8 +55,23 @@ class DocumentFileStrategy
      */
     public function preProcessDocumentFiles(KnowledgeBaseDataIsolation $dataIsolation, array $documentFiles): array
     {
-        $driver = $this->getImplement($documentFiles[0]);
-        return $driver?->preProcessDocumentFiles($dataIsolation, $documentFiles) ?? [];
+        // 按类分组
+        $groupedFiles = [];
+        foreach ($documentFiles as $file) {
+            $class = get_class($file);
+            $groupedFiles[$class][] = $file;
+        }
+
+        $result = [];
+        // 对每个分组分别处理
+        foreach ($groupedFiles as $class => $files) {
+            $driver = $this->getImplement($files[0]);
+            if ($driver) {
+                $result = array_merge($result, $driver->preProcessDocumentFiles($dataIsolation, $files));
+            }
+        }
+
+        return $result;
     }
 
     public function preProcessDocumentFile(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): DocumentFileInterface

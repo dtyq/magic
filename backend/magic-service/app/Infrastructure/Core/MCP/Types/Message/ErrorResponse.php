@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\MCP\Types\Message;
 
+use JsonSerializable;
+use stdClass;
 use Throwable;
 
-class ErrorResponse implements MessageInterface
+class ErrorResponse implements MessageInterface, JsonSerializable
 {
     public function __construct(
         public int $id,
@@ -36,5 +38,18 @@ class ErrorResponse implements MessageInterface
     public function getParams(): ?array
     {
         return null;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'jsonrpc' => $this->jsonrpc,
+            'error' => [
+                'code' => $this->throwable->getCode(),
+                'message' => $this->throwable->getMessage(),
+                'data' => new stdClass(),
+            ],
+        ];
     }
 }

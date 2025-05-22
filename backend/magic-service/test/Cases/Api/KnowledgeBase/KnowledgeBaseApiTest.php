@@ -533,8 +533,9 @@ class KnowledgeBaseApiTest extends HttpTestCase
 
     /**
      * 测试知识库片段预览功能.
+     * document_file传外部文件.
      */
-    public function testFragmentPreview()
+    public function testFragmentPreview1()
     {
         $data = [
             'document_file' => [

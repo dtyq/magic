@@ -352,6 +352,7 @@ class MagicFlowAppService extends AbstractFlowAppService
             }
             $toolInfo = [
                 'code' => $tool->getCode(),
+                'version_code' => $tool->getVersionCode(),
                 'name' => $tool->getName(),
                 'description' => $tool->getDescription(),
             ];

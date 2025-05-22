@@ -187,7 +187,7 @@ class MagicFlowExportImportAppService
         // 遍历所有节点检查依赖
         foreach ($flow->getNodes() as $node) {
             // 检查子流程节点
-            if ($node->getNodeType() === NodeType::Sub) {
+            if ($node->getNodeType() === NodeType::Sub->value) {
                 $subFlowId = $node->getParams()['sub_flow_id'] ?? '';
                 if ($subFlowId && $this->checkCircularDependency($dataIsolation, $subFlowId, $visited)) {
                     return true; // 子流程中存在循环依赖
@@ -195,7 +195,7 @@ class MagicFlowExportImportAppService
             }
 
             // 检查LLM节点中的工具引用
-            if ($node->getNodeType() === NodeType::LLM || $node->getNodeType() === NodeType::Tool) {
+            if ($node->getNodeType() === NodeType::LLM->value || $node->getNodeType() === NodeType::Tool->value) {
                 $params = $node->getParams();
                 if (isset($params['option_tools']) && is_array($params['option_tools'])) {
                     foreach ($params['option_tools'] as $optionTool) {
@@ -498,6 +498,15 @@ class MagicFlowExportImportAppService
                     }
                 }
 
+                // 处理类型26的工具节点直接引用
+                if ($nodeType === 26) {
+                    if (isset($nodeData['params']['tool_id'])) {
+                        $oldToolId = $nodeData['params']['tool_id'];
+                        $newToolId = $idMapping['flows'][$oldToolId] ?? $oldToolId;
+                        $nodeData['params']['tool_id'] = $newToolId;
+                    }
+                }
+
                 // 工具节点或LLM节点
                 if ($nodeType === NodeType::Tool->value || $nodeType === NodeType::LLM->value) {
                     // 更新工具引用
@@ -565,9 +574,8 @@ class MagicFlowExportImportAppService
                         $newIdStr = (string) $newId;
 
                         // 使用正则表达式确保只替换完整的ID
-                        // 确保将$oldId转换为字符串
-                        if (preg_match('/^' . preg_quote((string) $oldId, '/') . '_/', $edge['sourceHandle'])) {
-                            $edge['sourceHandle'] = preg_replace('/^' . preg_quote((string) $oldId, '/') . '/', $newId, $edge['sourceHandle']);
+                        if (preg_match('/^' . preg_quote($oldIdStr, '/') . '_/', $edge['sourceHandle'])) {
+                            $edge['sourceHandle'] = preg_replace('/^' . preg_quote($oldIdStr, '/') . '/', $newIdStr, $edge['sourceHandle']);
                         }
                     }
                 }
@@ -755,6 +763,31 @@ class MagicFlowExportImportAppService
         array &$processedToolSetIds
     ): void {
         foreach ($flow->getNodes() as $node) {
+            // 处理节点类型26（直接在params中有tool_id的工具节点）
+            if ($node->getNodeType() === NodeType::Tool->value) {
+                $params = $node->getParams();
+                $toolId = $params['tool_id'] ?? '';
+
+                if (! $toolId || in_array($toolId, $processedFlowCodes)) {
+                    continue;
+                }
+
+                // 获取工具流程
+                $toolFlow = $this->magicFlowDomainService->getByCode($dataIsolation, $toolId);
+                if (! $toolFlow) {
+                    continue;
+                }
+
+                // 标记为已处理
+                $processedFlowCodes[] = $toolId;
+
+                // 添加到导出数据中
+                $exportData['tool_flows'][$toolId] = $toolFlow->toArray();
+
+                // 递归处理
+                $this->processFlowForExport($dataIsolation, $toolFlow, $exportData, $processedFlowCodes, $processedToolSetIds);
+            }
+
             // 主要检查LLM和Tool节点
             if ($node->getNodeType() === NodeType::LLM->value || $node->getNodeType() === NodeType::Tool->value) {
                 $params = $node->getParams();

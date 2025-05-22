@@ -9,11 +9,12 @@ namespace App\Interfaces\KnowledgeBase\DTO\Request;
 
 use App\Domain\KnowledgeBase\Entity\ValueObject\FragmentConfig;
 use App\Infrastructure\Core\AbstractRequestDTO;
-use App\Interfaces\KnowledgeBase\DTO\DocumentFile\ExternalDocumentFileDTO;
+use App\Interfaces\KnowledgeBase\DTO\DocumentFile\AbstractDocumentFileDTO;
+use App\Interfaces\KnowledgeBase\DTO\DocumentFile\DocumentFileDTOInterface;
 
 class FragmentPreviewRequestDTO extends AbstractRequestDTO
 {
-    public ExternalDocumentFileDTO $documentFile;
+    public DocumentFileDTOInterface $documentFile;
 
     public FragmentConfig $fragmentConfig;
 
@@ -21,8 +22,11 @@ class FragmentPreviewRequestDTO extends AbstractRequestDTO
     {
         return [
             'document_file' => 'required|array',
-            'document_file.name' => 'required|string|max:255',
-            'document_file.key' => 'required|string|max:255',
+            'document_file.type' => 'integer|between:1,2',
+            'document_file.name' => 'required|string',
+            'document_file.key' => 'required_if:document_file.type,1|string',
+            'document_file.third_file_id' => 'required_if:document_file.type,2|string',
+            'document_file.platform_type' => 'required_if:document_file.type,2|string',
             'fragment_config' => 'required|array',
             'fragment_config.mode' => 'required|integer|in:1,2',
             'fragment_config.normal' => 'required_if:fragment_config.mode,1|array',
@@ -90,14 +94,14 @@ class FragmentPreviewRequestDTO extends AbstractRequestDTO
         ];
     }
 
-    public function getDocumentFile(): ExternalDocumentFileDTO
+    public function getDocumentFile(): DocumentFileDTOInterface
     {
         return $this->documentFile;
     }
 
-    public function setDocumentFile(array|ExternalDocumentFileDTO $documentFile): void
+    public function setDocumentFile(array|DocumentFileDTOInterface $documentFile): void
     {
-        is_array($documentFile) && $documentFile = new ExternalDocumentFileDTO($documentFile);
+        is_array($documentFile) && $documentFile = AbstractDocumentFileDTO::fromArray($documentFile);
         $this->documentFile = $documentFile;
     }
 

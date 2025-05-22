@@ -28,6 +28,14 @@ class MagicFlowVersionDomainService extends AbstractDomainService
     ) {
     }
 
+    /**
+     * @return array<MagicFlowVersionEntity>
+     */
+    public function getByCodes(FlowDataIsolation $dataIsolation, array $versionCodes): array
+    {
+        return $this->magicFlowVersionRepository->getByCodes($dataIsolation, $versionCodes);
+    }
+
     public function getLastVersion(FlowDataIsolation $dataIsolation, string $flowCode): ?MagicFlowVersionEntity
     {
         return $this->magicFlowVersionRepository->getLastVersion($dataIsolation, $flowCode);

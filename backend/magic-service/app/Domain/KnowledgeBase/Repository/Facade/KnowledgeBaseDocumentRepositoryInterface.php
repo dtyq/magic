@@ -60,7 +60,7 @@ interface KnowledgeBaseDocumentRepositoryInterface
      *
      * @return array<KnowledgeBaseDocumentEntity>
      */
-    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?int $lastId, int $pageSize = 500): array;
+    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?string $knowledgeBaseCode = null, ?int $lastId = null, int $pageSize = 500): array;
 
     /**
      * 查看单个知识库文档详情.
