@@ -25,6 +25,12 @@ if [ -z "${GIT_REPO_URL}" ]; then
     # 如果环境变量未设置，使用默认值
     GIT_REPO_URL="git@github.com:dtyq"
 fi
+
+# 本地执行分发时，使用环境变量来区分公共远程仓库和 fork 的私有远程仓库(公共远程：ups 私有fork：origin)
+if [ -z "${GIT_REPO_PUBLIC_NAME}" ]; then
+    # 如果环境变量未设置，使用默认值
+    GIT_REPO_PUBLIC_NAME="ups"
+fi
 REMOTE_URL="${GIT_REPO_URL}/magic-service.git"
 
 # 检查是否为GitHub仓库，如果不是则认为是GitLab仓库
@@ -91,9 +97,9 @@ function remote()
 
 # 更健壮地处理git pull操作
 echo "Checking remote branch status..."
-if git ls-remote --heads origin $CURRENT_BRANCH | grep -q $CURRENT_BRANCH; then
+if git ls-remote --heads $GIT_REPO_PUBLIC_NAME $CURRENT_BRANCH | grep -q $CURRENT_BRANCH; then
     echo "Remote branch exists, pulling now..."
-    git pull origin $CURRENT_BRANCH
+    git pull $GIT_REPO_PUBLIC_NAME $CURRENT_BRANCH
 else
     echo "Remote branch does not exist, skipping pull operation"
 fi
