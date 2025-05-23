@@ -674,8 +674,9 @@ abstract class AbstractDomainService
     /**
      * 由于一条消息,在2个会话窗口渲染时,会生成2个消息id,因此需要解析出来收件方能看到的消息引用的id.
      * 根据 magic_message_id + object_id + object_type 找到消息的收件方的refer_message_id.
+     * Support for the message editing function: For multiple sequences (seqs) of the same object_id, only the one with the smallest seq_id is returned.
      */
-    protected function getReceiverReferMessageId(MagicSeqEntity $senderSeqEntity): array
+    protected function getMinSeqListByReferMessageId(MagicSeqEntity $senderSeqEntity): array
     {
         // 发送方自己的会话窗口里,引用的消息id,需要转换成收件方的消息id
         $sendReferMessageId = $senderSeqEntity->getReferMessageId();
@@ -687,8 +688,10 @@ abstract class AbstractDomainService
         if ($referSeqEntity === null) {
             return [];
         }
-        // 根据 magic_message_id 找到所有消息接收者. 用于后续处理群聊中的消息引用/撤回等操作
-        $seqList = $this->magicSeqRepository->getSeqListByMagicMessageId($referSeqEntity->getMagicMessageId());
+        // Optimized version: Group by object_id at MySQL level and return only the minimum seq_id record for each user
+        $seqList = $this->magicSeqRepository->getMinSeqListByMagicMessageId($referSeqEntity->getMagicMessageId());
+
+        // build referMap
         $referMap = [];
         foreach ($seqList as $seq) {
             $referMap[$seq['object_id']] = $seq['message_id'];
