@@ -78,9 +78,8 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
         $this->knowledgeBaseAppService->destroy($this->getAuthorization(), $code);
     }
 
-
     /**
-     * 根据 file_key 获取知识库文件链接
+     * 根据 file_key 获取知识库文件链接.
      */
     public function getFileLink(RequestInterface $request): array
     {
@@ -89,7 +88,7 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
             return [];
         }
         // 校验file_key格式，必须以组织/应用id/knowledge-base/开头
-        if (!preg_match('/^[a-zA-Z0-9]+\\/[0-9]+\\/knowledge-base\\/.*$/', $fileKey)) {
+        if (! preg_match('/^[a-zA-Z0-9]+\/[0-9]+\/knowledge-base\/.*$/', $fileKey)) {
             ExceptionBuilder::throw(AuthenticationErrorCode::ValidateFailed);
         }
 
@@ -107,5 +106,4 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
             'key' => $fileKey,
         ];
     }
-
 }
