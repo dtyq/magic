@@ -125,7 +125,7 @@ class MagicChatUserApi extends AbstractApi
     public function getUserUpdatePermission(): array
     {
         $authorization = $this->getAuthorization();
-        $permission = $this->userAppService->checkUpdateUserInfo($authorization);
+        $permission = $this->userAppService->getUserUpdatePermission($authorization);
         return ['permission' => $permission];
     }
 
