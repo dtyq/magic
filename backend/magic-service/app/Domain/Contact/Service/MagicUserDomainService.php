@@ -11,6 +11,7 @@ use App\Domain\Authentication\DTO\LoginResponseDTO;
 use App\Domain\Chat\Entity\MagicFriendEntity;
 use App\Domain\Chat\Entity\ValueObject\FriendStatus;
 use App\Domain\Contact\DTO\FriendQueryDTO;
+use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\AccountEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -323,19 +324,25 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $account->getPhone();
     }
 
-    public function updateUserInfo(DataIsolation $dataIsolation, array $userInfo): int
+    public function updateUserInfo(DataIsolation $dataIsolation, UserUpdateDTO $userUpdateDTO): int
     {
         $userId = $dataIsolation->getCurrentUserId();
         if (empty($userId)) {
             ExceptionBuilder::throw(ChatErrorCode::USER_NOT_CREATE_ACCOUNT);
         }
+
         $updateFilter = [];
-        //只允许指定范围的字段修改
-        foreach (["avatar_url", "nickname"] as $field) {
-            if (array_key_exists($field, $userInfo) && $userInfo[$field] !== null) {
-                $updateFilter[$field] = $userInfo[$field];
-            }
+
+        // 处理头像URL
+        if ($userUpdateDTO->getAvatarUrl() !== null) {
+            $updateFilter['avatar_url'] = $userUpdateDTO->getAvatarUrl();
         }
+
+        // 处理昵称
+        if ($userUpdateDTO->getNickname() !== null) {
+            $updateFilter['nickname'] = $userUpdateDTO->getNickname();
+        }
+
         return $this->userRepository->updateDataById($userId, $updateFilter);
     }
 

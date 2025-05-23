@@ -10,6 +10,7 @@ namespace App\Application\ModelAdmin\Service;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelAdmin\Constant\ModelType;
+use App\Domain\ModelAdmin\Constant\NaturalLanguageProcessing;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCode;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
@@ -32,7 +33,6 @@ use App\Infrastructure\Util\Locker\Excpetion\LockException;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Exception;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
-use App\Domain\ModelAdmin\Constant\NaturalLanguageProcessing;
 
 class ServiceProviderAppService
 {

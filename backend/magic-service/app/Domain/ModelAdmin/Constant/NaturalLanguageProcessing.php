@@ -10,8 +10,6 @@ namespace App\Domain\ModelAdmin\Constant;
 enum NaturalLanguageProcessing: string
 {
     case DEFAULT = 'default';
-
     case EMBEDDING = 'embedding'; // 嵌入
-
     case LLM = 'llm'; // 大语言
 }
