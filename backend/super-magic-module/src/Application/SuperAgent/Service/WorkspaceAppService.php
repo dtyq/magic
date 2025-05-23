@@ -641,6 +641,14 @@ class WorkspaceAppService extends AbstractAppService
 
     public function getTopicAttachmentList(DataIsolation $dataIsolation, GetTopicAttachmentsRequestDTO $requestDto): array
     {
+        // 判断话题是否存在
+        $topicEntity = $this->workspaceDomainService->getTopicById((int) $requestDto->getTopicId());
+        if (empty($topicEntity)) {
+            return [];
+        }
+        $sandboxId = $topicEntity->getSandboxId();
+        $workDir = $topicEntity->getWorkDir();
+
         // 通过领域服务获取话题附件列表
         $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
             (int) $requestDto->getTopicId(),
@@ -665,7 +673,16 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileExtension = $entity->getFileExtension();
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
-            $dto->menu = $entity->getMenu() ?? '';
+            
+            // Calculate relative file path by removing workDir from fileKey
+            $fileKey = $entity->getFileKey();
+            $workDirPos = strpos($fileKey, $workDir);
+            if ($workDirPos !== false) {
+                $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
+            } else {
+                $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
+            }
+            
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
@@ -680,18 +697,6 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             $list[] = $dto->toArray();
-        }
-
-        // 获取沙箱 id
-        $sandboxId = '';
-        $workDir = '';
-        if (count($result['list']) > 0) {
-            // 通过 topic_id 获取topic实体
-            $topicEntity = $this->workspaceDomainService->getTopicById((int) $result['list'][0]->getTopicId());
-            if (! empty($topicEntity)) {
-                $sandboxId = $topicEntity->getSandboxId();
-                $workDir = $topicEntity->getWorkDir();
-            }
         }
 
         // 构建树状结构
