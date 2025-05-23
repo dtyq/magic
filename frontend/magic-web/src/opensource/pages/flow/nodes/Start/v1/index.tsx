@@ -347,7 +347,7 @@ export default function StartV1() {
 															value: "minutes",
 														},
 														{
-															label: t("start.seconds", {
+															label: t("common.seconds", {
 																ns: "flow",
 															}),
 															value: "seconds",

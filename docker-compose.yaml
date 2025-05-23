@@ -30,8 +30,8 @@ services:
         limits:
           memory: 4G
     networks:
-      - sandbox-network
-  
+      - magic-sandbox-network
+
   magic-service-daemon:
     image: ghcr.io/dtyq/magic-service:${MAGIC_SERVICE_TAG-latest}
     platform: ${PLATFORM}
@@ -58,7 +58,7 @@ services:
         limits:
           memory: 4G
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
 
   # Web 应用
@@ -77,7 +77,7 @@ services:
     env_file:
       - .env
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
   # Super Magic 服务
   super-magic:
@@ -94,8 +94,8 @@ services:
     env_file:
       - config/.env_super_magic
     networks:
-      - sandbox-network
-  
+      - magic-sandbox-network
+
   # Magic 网关服务
   magic-gateway:
     image: ghcr.io/dtyq/magic-gateway:${MAGIC_GATEWAY_TAG-latest}
@@ -107,13 +107,13 @@ services:
       - "8001:8001"
     depends_on:
       redis:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./config/.env_magic_gateway:/app/.env
     env_file:
       - config/.env_magic_gateway
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
   # 沙箱网关服务
   sandbox-gateway:
@@ -122,6 +122,8 @@ services:
     #restart: always
     profiles:
       - sandbox-gateway
+    environment:
+      SUPER_MAGIC_CONFIG_FILE_PATH: ${SUPER_MAGIC_CONFIG_FILE_PATH-${PWD}/config/config.yaml}
     depends_on:
       qdrant:
         condition: service_started
@@ -132,10 +134,11 @@ services:
     volumes:
       - ./config/.env_super_magic:/app/.env.agent
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/config.yaml:/app/config/config.yaml
     env_file:
       - config/.env_sandbox_gateway
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
  # Caddy 文件服务
   caddy:
@@ -152,7 +155,7 @@ services:
       - ./volumes/caddy/config:/config
     command: caddy run --config /etc/caddy/Caddyfile
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
   # MySQL 数据库服务
   db:
@@ -176,7 +179,7 @@ services:
     env_file:
       - .env
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
   # Redis 缓存服务
   redis:
@@ -195,12 +198,12 @@ services:
     env_file:
       - .env
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
 
   # RabbitMQ 消息队列服务
   rabbitmq:
-    image: rabbitmq:3.12-management-alpine
+    image: rabbitmq:4.1-management-alpine
     container_name: magic-rabbitmq
     restart: always
     environment:
@@ -221,7 +224,7 @@ services:
     env_file:
       - .env
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
 
   # OpenSearch 搜索引擎服务
@@ -285,13 +288,9 @@ services:
     env_file:
       - .env
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
 networks:
-  sandbox-network:
+  magic-sandbox-network:
     external: true
-    driver: bridge 
-
-volumes:
-  oradata:
-  magic_es01_data:
+    driver: bridge

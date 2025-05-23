@@ -2,10 +2,12 @@
 import type {
 	AIImagesMessage,
 	AggregateAISearchCardConversationMessage,
+	AggregateAISearchCardConversationMessageV2,
 	ConversationMessage,
 } from "@/types/chat/conversation_message"
 import {
 	AggregateAISearchCardDataType,
+	AggregateAISearchCardV2Status,
 	AIImagesDataType,
 	ConversationMessageStatus,
 	ConversationMessageType,
@@ -27,11 +29,11 @@ import chatTopicService from "@/opensource/services/chat/topic"
 import DotsService from "@/opensource/services/chat/dots/DotsService"
 import AiImageApplyService from "./AiImageApplyService"
 import AiSearchApplyService from "./AiSearchApplyService"
-import StreamMessageApplyService from "../StreamMessageApplyService"
 import type { ApplyMessageOptions } from "./types"
 import { bigNumCompare } from "@/utils/string"
 import OrganizationDotsStore from "@/opensource/stores/chatNew/dots/OrganizationDotsStore"
 import { userStore } from "@/opensource/models/user"
+import StreamMessageApplyServiceV2 from "../StreamMessageApplyServiceV2"
 
 // 消息事件监听器类型
 type MessageEventListener = (message: SeqResponse<CMessage>, options?: ApplyMessageOptions) => void
@@ -111,6 +113,7 @@ class ChatMessageApplyService {
 			ConversationMessageType.Video,
 			ConversationMessageType.Voice,
 			ConversationMessageType.AggregateAISearchCard,
+			ConversationMessageType.AggregateAISearchCardV2,
 			ConversationMessageType.HDImage,
 			ConversationMessageType.AiImage,
 			ConversationMessageType.RecordingSummary,
@@ -151,6 +154,7 @@ class ChatMessageApplyService {
 			ConversationMessageType.Video,
 			ConversationMessageType.Voice,
 			ConversationMessageType.AggregateAISearchCard,
+			ConversationMessageType.AggregateAISearchCardV2,
 			ConversationMessageType.HDImage,
 			ConversationMessageType.AiImage,
 			ConversationMessageType.RecordingSummary,
@@ -172,16 +176,40 @@ class ChatMessageApplyService {
 		switch (message.message.type) {
 			case ConversationMessageType.Text:
 				pubsub.publish("super_magic_new_message", message)
-				StreamMessageApplyService.recordMessageInfo(
+				StreamMessageApplyServiceV2.recordMessageInfo(
 					message as SeqResponse<ConversationMessage>,
 				)
 				this.applyConversationMessage(message as SeqResponse<ConversationMessage>, options)
 				break
 			case ConversationMessageType.Markdown:
-				StreamMessageApplyService.recordMessageInfo(
+				StreamMessageApplyServiceV2.recordMessageInfo(
 					message as SeqResponse<ConversationMessage>,
 				)
 				this.applyConversationMessage(message as SeqResponse<ConversationMessage>, options)
+				break
+			case ConversationMessageType.AggregateAISearchCardV2:
+				console.log(`[apply] 处理AI搜索卡片V2消息, message:`, message)
+				StreamMessageApplyServiceV2.recordMessageInfo(
+					message as SeqResponse<ConversationMessage>,
+				)
+				console.log(
+					`[apply] 处理AI搜索卡片V2消息, message:`,
+					StreamMessageApplyServiceV2.queryMessageInfo(message.message_id),
+				)
+
+				const msg = message as SeqResponse<AggregateAISearchCardConversationMessageV2>
+				if (msg.message.aggregate_ai_search_card_v2?.status === undefined) {
+					// 初始化状态
+					msg.message.aggregate_ai_search_card_v2!.status =
+						AggregateAISearchCardV2Status.isSearching
+				}
+
+				this.applyConversationMessage(msg, options)
+
+				console.log(
+					`[apply] 处理AI搜索卡片V2消息, applied message:`,
+					MessageStore.messages.find((m) => m.message_id === message.message_id),
+				)
 				break
 			case ConversationMessageType.RichText:
 			case ConversationMessageType.MagicSearchCard:

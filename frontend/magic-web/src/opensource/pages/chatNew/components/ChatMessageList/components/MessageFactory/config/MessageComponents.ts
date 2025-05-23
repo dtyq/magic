@@ -7,6 +7,7 @@ import type {
 	TextConversationMessage,
 	MarkdownConversationMessage,
 	FileConversationMessage,
+	AggregateAISearchCardConversationMessageV2,
 } from "@/types/chat/conversation_message"
 import { ConversationMessageType } from "@/types/chat/conversation_message"
 import { StreamStatus } from "@/types/request"
@@ -55,7 +56,6 @@ const messageComponents: Record<string, MessageComponent> = {
 				message.text?.stream_options?.status !== StreamStatus.End && message.text?.content,
 			)
 		},
-
 		isReasoningStreamingParser: (message: TextConversationMessage) => {
 			if (!message.text?.stream_options) return false
 			return (
@@ -121,6 +121,26 @@ const messageComponents: Record<string, MessageComponent> = {
 		},
 		showFileComponent: false,
 		loader: () => import("../components/AiSearch"),
+	},
+	[ConversationMessageType.AggregateAISearchCardV2]: {
+		componentType: "AggregateAISearchCardV2",
+		contentParser: (content: AggregateAISearchCardConversationMessageV2) =>
+			content.aggregate_ai_search_card_v2 ?? "",
+		reasoningContentParser: (content: AggregateAISearchCardConversationMessageV2) => {
+			return content.aggregate_ai_search_card_v2?.summary?.reasoning_content ?? ""
+		},
+		isStreamingParser: (message: AggregateAISearchCardConversationMessageV2) => {
+			if (message.aggregate_ai_search_card_v2?.stream_options?.status === StreamStatus.End)
+				return false
+			return true
+		},
+		isReasoningStreamingParser: (message: AggregateAISearchCardConversationMessageV2) => {
+			if (message.aggregate_ai_search_card_v2?.stream_options?.status === StreamStatus.End)
+				return false
+			return !message.aggregate_ai_search_card_v2?.summary?.content
+		},
+		showFileComponent: false,
+		loader: () => import("../components/AiSearchV2"),
 	},
 	[ConversationMessageType.AiImage]: {
 		componentType: "AiImage",

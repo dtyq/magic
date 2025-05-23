@@ -8,13 +8,13 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatFileAppService;
+use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\CloudFile\Kernel\AdapterName;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -36,8 +36,7 @@ class FileProcessAppService extends AbstractAppService
     public function __construct(
         private readonly MagicChatFileAppService $magicChatFileAppService,
         private readonly TaskDomainService $taskDomainService,
-        private readonly FileDomainService $fileDomainService,
-        private CacheInterface $cache,
+        private readonly FileAppService $fileAppService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -358,27 +357,15 @@ class FileProcessAppService extends AbstractAppService
             }
 
             // 获取STS临时凭证
-            $storageType = StorageBucketType::Private;
+            $storageType = StorageBucketType::Private->value;
             $expires = 7200; // 凭证有效期2小时
 
-            // 调用文件服务获取STS Token
-            $data = $this->fileDomainService->getStsTemporaryCredential(
-                $organizationCode,
-                $storageType,
-                $workDir,
-                $expires
-            );
+            // 创建用户授权对象
+            $userAuthorization = new MagicUserAuthorization();
+            $userAuthorization->setOrganizationCode($organizationCode);
 
-            // 如果是本地驱动，那么增加一个临时 key
-            if ($data['platform'] === AdapterName::LOCAL) {
-                $localCredential = 'local_credential:' . IdGenerator::getUniqueId32();
-                $data['temporary_credential']['dir'] = $organizationCode . '/' . $data['temporary_credential']['dir'];
-                $data['temporary_credential']['credential'] = $localCredential;
-                $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DCOKER_READ_HOST', '');
-                $data['temporary_credential']['host'] = env('FILE_LOCAL_DOCKER_WRITE_HOST', '');
-                $this->cache->set($localCredential, ['organization_code' => $organizationCode], (int) ($data['expires'] - time()));
-            }
-            return $data;
+            // 使用统一的FileAppService获取STS Token
+            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $workDir, $expires);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 '刷新STS Token失败: %s，组织编码: %s，沙箱ID: %s',

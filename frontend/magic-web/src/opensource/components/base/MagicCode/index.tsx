@@ -49,7 +49,7 @@ const MagicCode = memo((props: MagicCodeProps) => {
 
 	const { appearance } = useThemeMode()
 
-	const { styles } = useStyles()
+	const { styles, cx } = useStyles()
 
 	const { fontSize } = useFontSize()
 
@@ -81,7 +81,7 @@ const MagicCode = memo((props: MagicCodeProps) => {
 			<MagicButton
 				hidden={!isHover || isStreaming}
 				type="text"
-				className={styles.copy}
+				className={cx(styles.copy, "magic-code-copy")}
 				onClick={setCopied}
 				size="small"
 				icon={

@@ -147,7 +147,7 @@ interface OrganizationListItemProps {
 	onClose?: () => void
 }
 
-function OrganizationList(props: OrganizationListItemProps) {
+function OrganizationListComponent(props: OrganizationListItemProps) {
 	const { onClose } = props
 
 	const { styles, cx } = useOrganizationListStyles()
@@ -235,4 +235,6 @@ function OrganizationList(props: OrganizationListItemProps) {
 	)
 }
 
-export default memo(OrganizationList)
+const OrganizationList = memo(OrganizationListComponent)
+
+export default OrganizationList

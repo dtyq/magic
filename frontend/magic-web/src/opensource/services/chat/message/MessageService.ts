@@ -6,6 +6,7 @@ import {
 	SendStatus,
 	ConversationMessageStatus,
 	ConversationMessageType,
+	AggregateAISearchCardV2Status,
 } from "@/types/chat/conversation_message"
 import dayjs from "dayjs"
 import type {
@@ -20,6 +21,8 @@ import type {
 	ImageConversationMessage,
 	VideoConversationMessage,
 	HDImageMessage,
+	AggregateAISearchCardConversationMessageV2,
+	AggregateAISearchCardConversationMessage,
 } from "@/types/chat/conversation_message"
 import { EventType } from "@/types/chat"
 import { action, makeObservable, toJS } from "mobx"
@@ -28,7 +31,7 @@ import { message as AntdMessage } from "antd"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
 import type { User } from "@/types/user"
 import userInfoStore from "@/opensource/stores/userInfo"
-import type { SeqResponse } from "@/types/request"
+import { StreamStatus, type SeqResponse } from "@/types/request"
 import type { SeenMessage } from "@/types/chat/seen_message"
 import Logger from "@/utils/log/Logger"
 import type { FullMessage, MessagePage } from "@/types/chat/message"
@@ -48,6 +51,8 @@ import MessageFileService from "./MessageFileService"
 import { getStringSizeInBytes } from "@/opensource/utils/size"
 import { JSONContent } from "@tiptap/core"
 import ChatFileService from "../file/ChatFileService"
+import AiSearchApplyService from "./MessageApplyServices/ChatMessageApplyServices/AiSearchApplyService"
+import { SeqRecord } from "@/opensource/apis/modules/chat/types"
 const console = new Logger("MessageService", "blue")
 
 type SendData =
@@ -929,15 +934,135 @@ class MessageService {
 
 			// 格式化消息数据
 			const messages = await Promise.all(
-				res.messages.map((message: SeqResponse<ConversationMessage>) =>
-					this.formatMessage(message, userInfo),
-				),
+				res.messages.map((message: SeqResponse<ConversationMessage>) => {
+					return this.checkMessageIntegrity(message)
+						.then((message) => {
+							return this.formatMessage(message, userInfo)
+						})
+						.catch((err) => {
+							console.error("消息完整性检查失败", err, message)
+							return this.formatMessage(message, userInfo)
+						})
+				}),
 			)
 
 			return { messages, page: res.page, pageSize: res.pageSize, totalPages: res.totalPages }
 		} catch (error) {
 			console.error("数据库访问错误，无法获取消息", error)
 			return { messages: [], page: 1, pageSize: 10, totalPages: 1 }
+		}
+	}
+
+	/**
+	 * 检查消息完整性
+	 * @param message 消息
+	 * @returns 消息
+	 */
+	private async checkMessageIntegrity(message: SeqResponse<ConversationMessage>) {
+		const appMessageId = message.message?.app_message_id
+
+		switch (message.message.type) {
+			case ConversationMessageType.AggregateAISearchCardV2:
+				const msg = (message as SeqResponse<AggregateAISearchCardConversationMessageV2>)
+					.message
+				if (
+					appMessageId &&
+					(msg.aggregate_ai_search_card_v2?.stream_options?.status !== StreamStatus.End ||
+						msg.aggregate_ai_search_card_v2?.status !==
+							AggregateAISearchCardV2Status.isEnd)
+				) {
+					const messages = await ChatApi.getMessagesByAppMessageId(appMessageId).then(
+						(messages) => {
+							return messages.filter(
+								(m) =>
+									m.seq.message.type ===
+									ConversationMessageType.AggregateAISearchCardV2,
+							)
+						},
+					)
+					if (messages.length > 0) {
+						const msg = messages[0]
+							.seq as SeqResponse<AggregateAISearchCardConversationMessageV2>
+
+						msg.message.aggregate_ai_search_card_v2!.status =
+							AggregateAISearchCardV2Status.isEnd
+
+						return msg
+					}
+					return message
+				}
+				return message
+			case ConversationMessageType.Text:
+				if (
+					appMessageId &&
+					// 如果消息类型为文本，并且有stream_options，并且stream_options的状态不为End
+					(message as SeqResponse<TextConversationMessage>).message.text
+						?.stream_options &&
+					(message as SeqResponse<TextConversationMessage>).message.text?.stream_options
+						?.status !== StreamStatus.End
+				) {
+					const messages = await ChatApi.getMessagesByAppMessageId(appMessageId).then(
+						(messages) => {
+							return messages.filter(
+								(m) => m.seq.message.type === ConversationMessageType.Text,
+							)
+						},
+					)
+					if (messages.length > 0) {
+						return messages[0].seq as SeqResponse<TextConversationMessage>
+					}
+					return message
+				}
+				return message
+			case ConversationMessageType.Markdown:
+				if (
+					appMessageId &&
+					// 如果消息类型为Markdown，并且有stream_options，并且stream_options的状态不为End
+					(message as SeqResponse<MarkdownConversationMessage>).message.markdown
+						?.stream_options &&
+					(message as SeqResponse<MarkdownConversationMessage>).message.markdown
+						?.stream_options?.status !== StreamStatus.End
+				) {
+					const messages = await ChatApi.getMessagesByAppMessageId(appMessageId).then(
+						(messages) => {
+							return messages.filter(
+								(m) => m.seq.message.type === ConversationMessageType.Markdown,
+							)
+						},
+					)
+					if (messages.length > 0) {
+						return messages[0].seq as SeqResponse<MarkdownConversationMessage>
+					}
+					return message
+				}
+				return message
+			case ConversationMessageType.AggregateAISearchCard:
+				if (
+					appMessageId &&
+					!(message as SeqResponse<AggregateAISearchCardConversationMessage<false>>)
+						.message.aggregate_ai_search_card?.finish
+				) {
+					const messages = await ChatApi.getMessagesByAppMessageId(appMessageId).then(
+						(messages) => {
+							return messages.filter(
+								(m) =>
+									m.seq.message.type ===
+									ConversationMessageType.AggregateAISearchCard,
+							) as SeqRecord<AggregateAISearchCardConversationMessage>[]
+						},
+					)
+					if (messages.length > 0) {
+						return (
+							AiSearchApplyService.combineAiSearchMessage(
+								messages.map((m) => m.seq),
+							) ?? message
+						)
+					}
+					return message
+				}
+				return message
+			default:
+				return message
 		}
 	}
 

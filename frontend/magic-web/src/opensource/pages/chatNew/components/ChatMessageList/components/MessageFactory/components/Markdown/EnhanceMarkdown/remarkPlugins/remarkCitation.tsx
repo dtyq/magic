@@ -1,45 +1,24 @@
 import { findAndReplace } from "mdast-util-find-and-replace"
 
+export const CitationRegexes = [
+	/\[\[citation:(\d+)\]\]/g,
+	/\[\[citation(\d+)\]\]/g,
+	/\[citation:(\d+)\]/g,
+	/\[citation(\d+)\]/g,
+]
+
 export default function remarkCitation() {
 	return (tree: any) => {
-		findAndReplace(tree, [
-			/\[\[citation:(\d+)\]\]/g,
-			(_: string, $1: any) => {
-				return {
-					type: "footnoteReference",
-					identifier: $1,
-				}
-			},
-		])
-
-		findAndReplace(tree, [
-			/\[\[citation(\d+)\]\]/g,
-			(_: string, $1: any) => {
-				return {
-					type: "footnoteReference",
-					identifier: $1,
-				}
-			},
-		])
-
-		findAndReplace(tree, [
-			/\[citation:(\d+)\]/g,
-			(_: string, $1: any) => {
-				return {
-					type: "footnoteReference",
-					identifier: $1,
-				}
-			},
-		])
-
-		findAndReplace(tree, [
-			/\[citation(\d+)\]/g,
-			(_: string, $1: any) => {
-				return {
-					type: "footnoteReference",
-					identifier: $1,
-				}
-			},
-		])
+		CitationRegexes.forEach((regex) => {
+			findAndReplace(tree, [
+				regex,
+				(_: string, $1: any) => {
+					return {
+						type: "footnoteReference",
+						identifier: $1,
+					}
+				},
+			])
+		})
 	}
 }

@@ -386,8 +386,6 @@ class ControlMessageApplyService {
 	applyDeleteTopicMessage(message: SeqResponse<DeleteTopicMessage>) {
 		chatTopicService.applyDeleteTopicMessage(message)
 	}
-
-	applyEditMessage(message: SeqResponse<EditMessage>) {}
 }
 
 export default new ControlMessageApplyService()

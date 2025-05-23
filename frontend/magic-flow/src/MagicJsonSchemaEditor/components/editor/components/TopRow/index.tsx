@@ -192,7 +192,6 @@ export default function TopRow(props: TopRowProps) {
 									allowExpression={allowExpression}
 									allowModifyField
 									multiple={false}
-									onlyExpression
 								/>
 							</Col>
 						)}

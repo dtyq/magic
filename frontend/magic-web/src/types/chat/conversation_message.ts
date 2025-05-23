@@ -26,6 +26,9 @@ export const enum ConversationMessageType {
 	/** AI 搜索 */
 	AggregateAISearchCard = "aggregate_ai_search_card",
 
+	/** AI 搜索 - 新版本 */
+	AggregateAISearchCardV2 = "aggregate_ai_search_card_v2",
+
 	/** 图片消息 */
 	Image = "image",
 
@@ -52,6 +55,18 @@ export const enum ConversationMessageType {
 
 	/** 超级麦吉消息 */
 	SuperMagic = "general_agent_card",
+}
+
+/**
+ * 携带流式消息状态
+ */
+export interface WithStreamOptions<T extends object = object> {
+	stream_options?: {
+		/** 流式消息状态 */
+		status: StreamStatus
+		/** 流式消息 ID */
+		stream: boolean
+	} & T
 }
 
 /**
@@ -272,7 +287,7 @@ export interface AggregateAISearchCardSearch {
 	/** 搜索结果是否缓存 */
 	noCache: boolean
 	/** 来源索引 */
-	index: number
+	index?: number
 }
 
 /**
@@ -395,6 +410,129 @@ export interface AggregateAISearchCardConversationMessage<FromService extends bo
 	aggregate_ai_search_card?: FromService extends true
 		? AggregateAISearchCardContentFromService
 		: AggregateAISearchCardContent
+}
+
+/**
+ * AI 搜索 - 新版本 - 关联问题
+ */
+export interface AssociateQuestionV2 {
+	parent_question_id: string
+	question_id: string
+	question: string
+}
+
+/**
+ * AI 搜索 - 新版本 - 搜索结果
+ */
+export interface SearchWebPageItem {
+	id: string
+	name: string
+	url: string
+	datePublished: string
+	datePublishedDisplayText: string
+	isFamilyFriendly: boolean
+	displayUrl: string
+	snippet: string
+	dateLastCrawled: string
+	cachedPageUrl: string
+	language: string
+	isNavigational: boolean
+	noCache: boolean
+	detail: string
+	index?: number
+}
+
+/**
+ * AI 搜索 - 新版本 - 搜索结果
+ */
+export interface SearchWebPage {
+	question_id: string
+	search: SearchWebPageItem[]
+	total_words: number
+	match_count: number
+	page_count: number
+}
+
+export interface NoRepeatSearchDetail {
+	id: string
+	name: string
+	url: string
+	date_published: string
+	date_published_display_text: string
+	is_family_friendly: boolean
+	display_url: string
+	snippet: string
+	date_last_crawled: string
+	cached_page_url: string
+	language: string
+	is_navigational: boolean
+	no_cache: boolean
+}
+
+/**
+ * 流式消息阶段结束原因
+ */
+export const enum StreamStepFinishedReason {
+	/** 成功 */
+	Success = 0,
+	/** 失败 */
+	Error = 1,
+}
+
+export interface StreamStepFinished {
+	key: string
+	finished_reason: StreamStepFinishedReason
+}
+
+/**
+ * AI 搜索 - 新版本 - 流式消息选项
+ */
+export interface AggregateAISearchCardV2StreamOptions
+	extends WithStreamOptions<{
+		stream_app_message_id: string
+		steps_finished: Record<string, any>
+	}> {}
+
+/**
+ * AI 搜索 - 新版本 - 状态
+ */
+export const enum AggregateAISearchCardV2Status {
+	/** 正在搜索 */
+	isSearching = 1,
+	/** 正在阅读 */
+	isReading = 2,
+	/** 正在思考 */
+	isReasoning = 3,
+	/** 正在总结 */
+	isSummarizing = 4,
+	/** 结束 */
+	isEnd = 5,
+}
+
+/**
+ * AI 搜索 - 新版本内容
+ */
+export interface AggregateAISearchCardContentV2 extends AggregateAISearchCardV2StreamOptions {
+	search_deep_level?: AggregateAISearchCardDeepLevel
+	associate_questions?: Record<string, AssociateQuestionV2[]>
+	search_web_pages?: SearchWebPage[]
+	no_repeat_search_details?: SearchWebPageItem[]
+	summary?: {
+		reasoning_content?: string
+		content: string
+	}
+	events?: AggregateAISearchCardEvent[]
+	mind_map?: string
+	ppt?: string
+	status?: AggregateAISearchCardV2Status
+}
+
+/**
+ * AI 搜索 - 新版本
+ */
+export interface AggregateAISearchCardConversationMessageV2 extends ConversationMessageBase {
+	type: ConversationMessageType.AggregateAISearchCardV2
+	aggregate_ai_search_card_v2?: AggregateAISearchCardContentV2
 }
 
 /**
@@ -610,6 +748,7 @@ export type ConversationMessage =
 	| GroupUsersRemoveMessage
 	| GroupUpdateMessage
 	| AggregateAISearchCardConversationMessage<false>
+	| AggregateAISearchCardConversationMessageV2
 	| AIImagesMessage
 	| RecordSummaryConversationMessage
 	| HDImageMessage

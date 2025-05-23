@@ -20,7 +20,6 @@ class InitializeHandler extends AbstractMethodHandler
      */
     public function handle(MessageInterface $request): ?array
     {
-        // 根据各管理器状态动态构建capabilities
         $capabilities = new Capabilities(
             hasTools: ! $this->getToolManager()->isEmpty(),
             hasResources: ! $this->getResourceManager()->isEmpty(),
@@ -28,12 +27,13 @@ class InitializeHandler extends AbstractMethodHandler
         );
 
         return [
-            'protocolVersion' => '2024-11-05',
-            'capabilities' => $capabilities,
+            'protocolVersion' => '2025-03-26',
+            'capabilities' => $capabilities->jsonSerialize(),
             'serverInfo' => [
                 'name' => 'magic-sse',
                 'version' => '1.0.0',
             ],
+            'instructions' => '',
         ];
     }
 }

@@ -57,6 +57,7 @@ export const getFileType = (file_extension: string) => {
 			"swift",
 			"kt",
 			"rs",
+			"sh",
 		].includes(ext)
 	) {
 		return "code"

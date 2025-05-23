@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 
-
 ### web 本地构建镜像
-
-
 set -e
 
 # determine swoole version to build.
@@ -32,7 +29,7 @@ function publish() {
 check_and_install_buildx() {
     if ! docker buildx version > /dev/null 2>&1; then
         echo "Docker Buildx not detected, attempting to install..."
-        
+
         # 检测操作系统并安装
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
             echo "Linux system detected, installing Buildx..."
@@ -62,7 +59,7 @@ check_and_install_buildx() {
             echo "Unsupported operating system, please install Docker Buildx manually: https://docs.docker.com/go/buildx/"
             exit 1
         fi
-        
+
         # 验证安装
         if docker buildx version > /dev/null 2>&1; then
             echo "Docker Buildx installed successfully: $(docker buildx version | head -n 1)"
@@ -79,16 +76,16 @@ check_and_install_buildx() {
 if [[ ${TASK} == "build" ]]; then
     # 检查并安装 buildx
     check_and_install_buildx
-    
-    
+
+
     # 启用 BuildKit
     export DOCKER_BUILDKIT=1
-    
+
     echo "Building image: ${REGISTRY}/${WEB_IMAGE}:${TAG}"
     docker build -t ${REGISTRY}"/"${WEB_IMAGE}":"${TAG} -f ./frontend/magic-web/Dockerfile.web ./frontend/magic-web
 fi
 
 if [[ ${TASK} == "publish" ]]; then
     # Push base image
-    publish $TAG  
+    publish $TAG
 fi

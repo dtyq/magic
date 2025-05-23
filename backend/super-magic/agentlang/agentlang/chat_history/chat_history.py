@@ -437,9 +437,9 @@ class ChatHistory:
                      except Exception as e:
                           raise ValueError(f"无法将 ToolCall arguments 转换为 JSON 字符串: {tc.function.arguments}, 错误: {e}")
 
-        # 如果 content 为空字符串但有 tool_calls，确保 content 是 None (API 可能需要)
+        # 如果 content 为空字符串但有 tool_calls，确保 content 是 Continue (API 不允许为空或者None)
         if isinstance(message, AssistantMessage) and message.content == " " and message.tool_calls:
-            message.content = None
+             message.content = "Continue"
 
         # 确保 created_at 存在且格式正确
         if not hasattr(message, 'created_at') or not isinstance(message.created_at, str):

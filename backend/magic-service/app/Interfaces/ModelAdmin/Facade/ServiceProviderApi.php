@@ -33,7 +33,7 @@ class ServiceProviderApi extends AbstractApi
     // 获取服务商
     public function getServiceProviders(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $category = $request->input('category', 'llm');
@@ -46,7 +46,7 @@ class ServiceProviderApi extends AbstractApi
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
 
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         return $this->serviceProviderAppService->getServiceProviderConfig($serviceProviderConfigId, $authenticatable->getOrganizationCode());
@@ -55,7 +55,7 @@ class ServiceProviderApi extends AbstractApi
     // 更新服务商
     public function updateServiceProviderConfig(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $serviceProviderConfigEntity = new ServiceProviderConfigEntity($request->all());
@@ -66,7 +66,7 @@ class ServiceProviderApi extends AbstractApi
     // 修改模型状态
     public function updateModelStatus(RequestInterface $request, ?string $modelId = null)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         $modelId = $modelId ?? $request->input('model_id') ?? '';
         $authenticatable = $this->getAuthorization();
         $status = $request->input('status', 0);
@@ -89,7 +89,7 @@ class ServiceProviderApi extends AbstractApi
     // 保存模型
     public function saveModelToServiceProvider(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         $authenticatable = $this->getAuthorization();
         $serviceProviderModelsEntity = new ServiceProviderModelsEntity($request->all());
         /* @var MagicUserAuthorization $authenticatable */
@@ -103,7 +103,7 @@ class ServiceProviderApi extends AbstractApi
      */
     public function connectivityTest(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $serviceProviderConfigId = $request->input('service_provider_config_id');
@@ -119,7 +119,7 @@ class ServiceProviderApi extends AbstractApi
      */
     public function deleteModel(RequestInterface $request, ?string $modelId = null)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         $modelId = $modelId ?? $request->input('model_id') ?? '';
         $authenticatable = $this->getAuthorization();
         /* @var MagicUserAuthorization $authenticatable */
@@ -129,7 +129,7 @@ class ServiceProviderApi extends AbstractApi
     // 获取原始模型id
     public function listOriginalModels(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         return $this->serviceProviderAppService->listOriginalModels($authenticatable);
@@ -138,7 +138,7 @@ class ServiceProviderApi extends AbstractApi
     // 增加原始模型id
     public function addOriginalModel(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
 
         $this->getAuthorization();
         $modelId = $request->input('model_id');
@@ -182,7 +182,7 @@ class ServiceProviderApi extends AbstractApi
     // 组织添加服务商
     public function addServiceProviderForOrganization(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $serviceProviderConfigDTO = new ServiceProviderConfigDTO($request->all());
@@ -194,7 +194,7 @@ class ServiceProviderApi extends AbstractApi
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
 
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $this->serviceProviderAppService->deleteServiceProviderForOrganization($serviceProviderConfigId, $authenticatable);
@@ -203,7 +203,7 @@ class ServiceProviderApi extends AbstractApi
     // 组织添加模型标识
     public function addModelIdForOrganization(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $modelId = $request->input('model_id');
@@ -213,7 +213,7 @@ class ServiceProviderApi extends AbstractApi
     // 组织删除模型标识
     public function deleteModelIdForOrganization(RequestInterface $request, ?string $modelId = null)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         $modelId = $modelId ?? $request->input('model_id') ?? '';
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -227,7 +227,7 @@ class ServiceProviderApi extends AbstractApi
      */
     public function getNonOfficialLlmProviders(RequestInterface $request)
     {
-        $this->isInWhiteListForOrgization();
+        $this->isInWhiteListForOrganization();
         $authenticatable = $this->getAuthorization();
         // 直接获取所有LLM类型的非官方服务商
         return $this->serviceProviderAppService->getAllNonOfficialProviders(ServiceProviderCategory::LLM, $authenticatable->getOrganizationCode());
@@ -243,7 +243,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 判断当前用户是否在白名单中
-    private function isInWhiteListForOrgization(): void
+    private function isInWhiteListForOrganization(): void
     {
         $authentication = $this->getAuthorization();
         $phone = $this->getPhone($authentication->getId());

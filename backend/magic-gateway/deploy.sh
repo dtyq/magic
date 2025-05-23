@@ -54,7 +54,7 @@ function check_config_dir {
   if [ ! -d "config/$env" ]; then
     echo -e "${YELLOW}配置目录 config/$env 不存在，正在创建...${NC}"
     mkdir -p config/$env
-    
+
     # 如果没有环境配置文件，从示例文件复制
     if [ ! -f "config/$env/.env" ]; then
       if [ -f ".env_example" ]; then
@@ -70,11 +70,11 @@ function check_config_dir {
 
 # 检查并创建外部网络
 function ensure_network_exists {
-  if ! docker network ls | grep -q sandbox-network; then
-    echo -e "${YELLOW}创建外部网络 sandbox-network...${NC}"
-    docker network create sandbox-network
+  if ! docker network ls | grep -q magic-sandbox-network; then
+    echo -e "${YELLOW}创建外部网络 magic-sandbox-network...${NC}"
+    docker network create magic-sandbox-network
   else
-    echo -e "${GREEN}外部网络 sandbox-network 已存在${NC}"
+    echo -e "${GREEN}外部网络 magic-sandbox-network 已存在${NC}"
   fi
 }
 
@@ -87,15 +87,15 @@ function start_env {
   local debug
   local redis_port
   local redis_db
-  
+
   # 检查配置目录
   check_config_dir $env
-  
+
   # 确保外部网络存在
   ensure_network_exists
-  
+
   echo -e "${GREEN}正在启动 $env 环境...${NC}"
-  
+
   case $env in
     test)
       port=8001
@@ -122,7 +122,7 @@ function start_env {
       debug="false"
       ;;
   esac
-  
+
   # 检查Redis容器是否已存在
   if docker ps -a | grep -q "api-gateway-redis"; then
     echo -e "${YELLOW}Redis容器 api-gateway-redis 已存在，跳过创建...${NC}"
@@ -134,13 +134,13 @@ function start_env {
   else
     echo -e "${YELLOW}创建Redis容器...${NC}"
     # 直接启动Redis容器，不通过docker-compose
-    docker run -d --name api-gateway-redis --network sandbox-network -p ${redis_port}:6379 -v $(pwd)/redis_data:/data redis:alpine redis-server --appendonly yes
+    docker run -d --name api-gateway-redis --network magic-sandbox-network -p ${redis_port}:6379 -v $(pwd)/redis_data:/data redis:alpine redis-server --appendonly yes
   fi
-  
+
   # 获取Redis容器的IP地址
   local redis_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' api-gateway-redis)
   echo -e "${YELLOW}Redis容器IP地址: ${redis_ip}${NC}"
-  
+
   # 创建临时的docker-compose重写文件
   cat > docker-compose.override.yml <<EOF
 services:
@@ -153,13 +153,13 @@ services:
   magic-redis:
     profiles: ["disabled"]
 EOF
-  
+
   ENV=$env PORT=$port MAGIC_GATEWAY_PORT=$port MAGIC_GATEWAY_API_KEY=$api_key JWT_SECRET=$jwt_secret MAGIC_GATEWAY_DEBUG=$debug \
     docker compose -p magic-gateway-$env up -d --build
-  
+
   # 移除临时文件
   rm docker-compose.override.yml
-  
+
   echo -e "${GREEN}$env 环境已启动，访问地址: http://localhost:$port${NC}"
   echo -e "${GREEN}Redis信息: IP=${redis_ip}, 端口=6379, DB=${redis_db}${NC}"
 }
@@ -190,7 +190,7 @@ function check_status {
 function process_operation {
   local env=$1
   local operation=$2
-  
+
   case $operation in
     start)
       start_env $env
@@ -214,7 +214,7 @@ function process_operation {
 # 处理所有环境
 function process_all_envs {
   local operation=$1
-  
+
   for env in test pre prod; do
     process_operation $env $operation
   done
@@ -225,4 +225,4 @@ if [ "$1" == "all" ]; then
   process_all_envs $2
 else
   process_operation $1 $2
-fi 
+fi

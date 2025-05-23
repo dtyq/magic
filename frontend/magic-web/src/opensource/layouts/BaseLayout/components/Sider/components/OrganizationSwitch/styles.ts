@@ -1,6 +1,9 @@
 import { createStyles } from "antd-style"
 
 export const useStyles = createStyles(({ css, isDarkMode, prefixCls, token }) => {
+	const backgroundColor = isDarkMode
+		? token.magicColorScales.grey[0]
+		: token.magicColorScales.white
 	return {
 		popover: css`
 			.${prefixCls}-popover-inner {
@@ -55,7 +58,11 @@ export const useStyles = createStyles(({ css, isDarkMode, prefixCls, token }) =>
 				flex-shrink: 0;
 
 				&.${prefixCls}-menu-item-danger:hover {
-					background-color: ${isDarkMode ? token.magicColorUsages.danger.default : token.magicColorScales.red[0]} !important;
+					background-color: ${
+						isDarkMode
+							? token.magicColorUsages.danger.default
+							: token.magicColorScales.red[0]
+					} !important;
 					color: ${isDarkMode ? token.magicColorUsages.white : token.magicColorUsages.danger} !important;
 				}
 			}
@@ -76,24 +83,31 @@ export const useStyles = createStyles(({ css, isDarkMode, prefixCls, token }) =>
 			color: white !important;
 			border: 1px solid ${token.magicColorUsages.border};
 		`,
+		popoverContent: css`
+			width: 300px;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 10px;
+			background-color: ${backgroundColor};
+			box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.1), 0 0 1px 0 rgba(0, 0, 0, 0.3);
+			border-radius: 8px;
+		`,
 	}
 })
 
 export const useOrganizationListStyles = createStyles(({ isDarkMode, css, token }) => {
-	const backgroundColor = isDarkMode ? token.magicColorScales.grey[0] : token.magicColorScales.white
+	const backgroundColor = isDarkMode
+		? token.magicColorScales.grey[0]
+		: token.magicColorScales.white
 	return {
 		container: css`
 			display: flex;
-			width: 400px;
+			width: 100%;
 			padding: 10px 0;
 			flex-direction: column;
 			align-items: flex-start;
 			gap: 10px;
 			border-radius: 12px;
-			background-color: ${backgroundColor};
-			box-shadow:
-				0 4px 14px 0 rgba(0, 0, 0, 0.1),
-				0 0 1px 0 rgba(0, 0, 0, 0.3);
 			overflow: hidden;
 		`,
 		scroll: css`
@@ -114,7 +128,7 @@ export const useOrganizationListStyles = createStyles(({ isDarkMode, css, token 
 		groupHeader: css`
 			position: relative;
 			background-color: ${backgroundColor};
-			
+
 			&:before {
 				content: "";
 				position: absolute;

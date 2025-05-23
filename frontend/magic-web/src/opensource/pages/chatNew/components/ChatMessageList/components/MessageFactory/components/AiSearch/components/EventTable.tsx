@@ -75,6 +75,7 @@ const EventTable = memo(({ events }: { events: AggregateAISearchCardEvent[] }) =
 			columns={eventTableColumns}
 			pagination={false}
 			className={styles.eventTable}
+			scroll={{ x: 600 }}
 		/>
 	)
 })

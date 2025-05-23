@@ -541,6 +541,13 @@ class WorkspaceAppService extends AbstractAppService
                 continue;
             }
 
+            // 验证文件是否属于当前用户
+            $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
+            if (empty($topicEntity) || $topicEntity->getUserId() !== $userAuthorization->getId()) {
+                // 如果这个话题不是本人的，不处理
+                continue;
+            }
+
             $downloadNames = [];
             if ($downloadMode == 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();

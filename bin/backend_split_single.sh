@@ -60,7 +60,25 @@ function split()
 
 function remote()
 {
-    git remote add $1 $2 || true
+    # 检查远程仓库是否已存在
+    if git remote | grep -q "^$1$"; then
+        CURRENT_URL=$(git remote get-url $1)
+        if [ "$CURRENT_URL" != "$2" ]; then
+            echo "⚠️ Warning: Remote '$1' exists but points to a different URL"
+            echo "Current URL: $CURRENT_URL"
+            echo "Expected URL: $2"
+            read -p "Do you want to update the remote URL? (y/n): " update_remote
+            if [[ $update_remote == "y" || $update_remote == "Y" ]]; then
+                echo "Updating remote URL..."
+                git remote set-url $1 $2
+            else
+                echo "❌ Operation cancelled: Remote URL mismatch"
+                exit 1
+            fi
+        fi
+    else
+        git remote add $1 $2
+    fi
 }
 
 # 更健壮地处理git pull操作

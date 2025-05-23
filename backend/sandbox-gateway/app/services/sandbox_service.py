@@ -68,38 +68,38 @@ class SandboxService:
     def _get_agent_container_by_sandbox_id(self, sandbox_id: str) -> Optional[docker.models.containers.Container]:
         """
         通过沙箱ID获取对应的容器
-        
+
         Args:
             sandbox_id: 沙箱ID
-            
+
         Returns:
             Container: 容器对象，如果未找到则返回None
         """
         try:
             # 通过标签查找容器
             containers = self.docker_client.containers.list(
-                all=True, 
+                all=True,
                 filters={"label": f"{AGENT_LABEL}={sandbox_id}"}
             )
             return containers[0] if containers else None
         except Exception as e:
             logger.error(f"查询容器时出错: {e}")
             return None
-            
+
     def _get_qdrant_container_by_sandbox_id(self, sandbox_id: str) -> Optional[docker.models.containers.Container]:
         """
         通过Qdrant ID获取对应的容器
-        
+
         Args:
             qdrant_id: Qdrant ID
-            
+
         Returns:
             Container: 容器对象，如果未找到则返回None
         """
         try:
             # 通过标签查找容器
             containers = self.docker_client.containers.list(
-                all=True, 
+                all=True,
                 filters={"label": f"{QDRANT_LABEL}={sandbox_id}"}
             )
             return containers[0] if containers else None
@@ -110,10 +110,10 @@ class SandboxService:
     def _get_container_info(self, container: docker.models.containers.Container) -> ContainerInfo:
         """
         获取容器的详细信息
-        
+
         Args:
             container: Docker容器对象
-            
+
         Returns:
             ContainerInfo: 容器信息
         """
@@ -132,7 +132,7 @@ class SandboxService:
 
         # 获取创建时间
         created_at = time.mktime(time.strptime(
-            container.attrs['Created'].split('.')[0], 
+            container.attrs['Created'].split('.')[0],
             '%Y-%m-%dT%H:%M:%S'
         ))
 
@@ -151,7 +151,7 @@ class SandboxService:
                 try:
                     # 将字符串时间转换为时间戳
                     started_at_time = time.mktime(time.strptime(
-                        started_at_str, 
+                        started_at_str,
                         '%Y-%m-%dT%H:%M:%S'
                     ))
                     # 将UTC时间转换为本地时间
@@ -169,7 +169,7 @@ class SandboxService:
                 try:
                     # 将字符串时间转换为时间戳
                     finished_at = time.mktime(time.strptime(
-                        finished_at_str, 
+                        finished_at_str,
                         '%Y-%m-%dT%H:%M:%S'
                     ))
                     # 将UTC时间转换为本地时间
@@ -191,11 +191,11 @@ class SandboxService:
     def _get_container_logs(self, container: docker.models.containers.Container, tail: int = 100) -> str:
         """
         获取容器的日志
-        
+
         Args:
             container: Docker容器对象
             tail: 返回的日志行数，默认为100行
-            
+
         Returns:
             str: 容器日志内容
         """
@@ -210,46 +210,46 @@ class SandboxService:
     async def _get_auth_token(self) -> Optional[str]:
         """
         向认证服务发送请求获取认证 token，如果 MAGIC_GATEWAY_BASE_URL 环境变量未设置，则返回 None
-        
+
         Returns:
             Optional[str]: 认证 token，如果 MAGIC_GATEWAY_BASE_URL 环境变量未设置则返回 None
-            
+
         Raises:
             ContainerOperationError: 当请求失败、响应格式不符合预期或 MAGIC_GATEWAY_API_KEY 未设置时
         """
         magic_gateway_url = os.environ.get("MAGIC_GATEWAY_BASE_URL")
-        
+
         if not magic_gateway_url:
             logger.info("MAGIC_GATEWAY_BASE_URL 环境变量未设置，跳过认证步骤")
             return None
-        
+
         magic_gateway_api_key = os.environ.get("MAGIC_GATEWAY_API_KEY")
         if not magic_gateway_api_key:
             error_msg = "MAGIC_GATEWAY_API_KEY 环境变量未设置，无法进行认证"
             logger.error(error_msg)
             raise ContainerOperationError(error_msg)
-        
+
         try:
             headers = {
                 "X-USER-ID": "user",
                 "X-Gateway-API-Key": magic_gateway_api_key
             }
-            
+
             auth_url = f"{magic_gateway_url}/auth"
             logger.info(f"正在请求认证服务: {auth_url}")
-            
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(auth_url, headers=headers) as response:
                     if response.status != 200:
                         raise ContainerOperationError(f"认证服务请求失败，状态码: {response.status}")
-                    
+
                     auth_data = await response.json()
-                    
+
                     if "token" not in auth_data:
                         raise ContainerOperationError("认证服务响应格式不符合预期，缺少 token 字段")
-                    
+
                     return auth_data["token"]
-                    
+
         except aiohttp.ClientError as e:
             error_msg = f"请求认证服务失败: {e}"
             logger.error(error_msg)
@@ -259,20 +259,20 @@ class SandboxService:
     async def _create_agent_container(self, sandbox_id: str) -> str:
         """
         创建新的沙箱容器并执行健康检查
-        
+
         Args:
             container_id: 容器ID
-            
+
         Returns:
             str: Docker容器ID
-            
+
         Raises:
             ContainerOperationError: 容器操作失败
         """
-        try:            
+        try:
             # 检查是否已存在处于退出状态的容器
             container = self._get_agent_container_by_sandbox_id(sandbox_id)
-            
+
             if container:
                 if container.status == "running":
                     logger.info(f"Agent容器已存在: {container.name}，关联沙箱ID: {sandbox_id}")
@@ -289,19 +289,19 @@ class SandboxService:
                     logger.info(f"使用镜像: {self.image_name}")
                 except ImageNotFound:
                     raise ContainerOperationError(f"镜像不存在: {self.image_name}")
-                
+
                 # 准备容器环境变量
                 environment = {
                     "QDRANT_BASE_URI": f"http://{QDRANT_LABEL_PREFIX}{sandbox_id}:{self.qdrant_port}",
                     "SANDBOX_ID": sandbox_id,
                     "APP_ENV": settings.app_env,
                 }
-                
+
                 token = await self._get_auth_token()
                 if token:
                     environment["MAGIC_AUTHORIZATION"] = token
                     logger.info("已成功获取认证 token 并添加到容器环境变量中")
-                
+
                 # 读取Agent环境文件变量(文件必定存在，因为settings加载时已检查)
                 env_vars = dotenv_values(settings.agent_env_file_path)
                 if env_vars:
@@ -310,8 +310,23 @@ class SandboxService:
                     logger.info(f"已从Agent环境文件{settings.agent_env_file_path}添加{len(env_vars)}个环境变量")
                 else:
                     logger.warning(f"Agent环境文件{settings.agent_env_file_path}存在但未读取到任何环境变量")
-                
+
                 # 创建并启动容器
+                # 挂载配置文件,判断/app/config/config.yaml是否存在
+                config_file_path = os.environ.get("SUPER_MAGIC_CONFIG_FILE_PATH")
+                if config_file_path:
+                    volumes = {
+                        config_file_path: {
+                            'bind': '/app/config/config.yaml',
+                            'mode': 'rw'
+                        }
+                    }
+                    logger.info(f"使用配置文件: {config_file_path}")
+                else:
+                    logger.warning(f"SUPER_MAGIC_CONFIG_FILE_PATH 配置文件不存在: {config_file_path}")
+                    volumes = {}
+
+                # 挂载配置文件
                 container = self.docker_client.containers.run(
                     self.image_name,
                     detach=True,
@@ -321,14 +336,15 @@ class SandboxService:
                         AGENT_LABEL: sandbox_id,
                         SANDBOX_LABEL: sandbox_id
                     },
-                    network=self.network_name  # 使用与网关相同的网络
+                    network=self.network_name,  # 使用与网关相同的网络
+                    volumes=volumes
                 )
                 logger.info(f"容器已创建: {container.name}，使用网络: {self.network_name}")
-            
+
             # 无论是启动已有容器还是创建新容器，以下代码都是一样的
             # 等待容器启动
             container.reload()
-            
+
             # 获取容器信息
             container_info = self._get_container_info(container)
 
@@ -366,10 +382,10 @@ class SandboxService:
                 logger.info(f"已重启沙箱容器name: {container.name}, 沙箱容器ip: {container_info.ip}")
             else:
                 logger.info(f"沙箱容器name: {container.name}, 沙箱容器ip: {container_info.ip}")
-            
+
             # 返回容器ID
             return container.id
-            
+
         except ContainerOperationError:
             # 重新抛出容器操作异常
             raise
@@ -386,13 +402,13 @@ class SandboxService:
     async def create_sandbox(self, sandbox_id: Optional[str] = None) -> str:
         """
         创建新的沙箱容器
-        
+
         Args:
             sandbox_id: 可选的沙箱ID，如果未提供则自动生成
-            
+
         Returns:
             str: 沙箱容器ID
-            
+
         Raises:
             ContainerOperationError: 容器操作失败
         """
@@ -419,25 +435,25 @@ class SandboxService:
             error_msg = f"创建沙箱出错: {e}"
             logger.error(error_msg)
             raise ContainerOperationError(error_msg)
-            
+
     @async_handle_exceptions
     async def _create_qdrant_container(self, sandbox_id: str) -> str:
         """
         为沙箱创建对应的Qdrant容器
-        
+
         Args:
             sandbox_id: 沙箱ID，用于关联Qdrant容器
-            
+
         Returns:
             str: Qdrant容器ID
-            
+
         Raises:
             ContainerOperationError: 容器操作失败
         """
         try:
             # 检查是否已存在处于退出状态的Qdrant容器
             qdrant_container = self._get_qdrant_container_by_sandbox_id(sandbox_id)
-            
+
             if qdrant_container:
                 if qdrant_container.status == "running":
                     logger.info(f"Qdrant容器已存在: {qdrant_container.name}，关联沙箱ID: {sandbox_id}")
@@ -455,10 +471,10 @@ class SandboxService:
                     logger.info(f"使用Qdrant镜像: {self.qdrant_image_name}")
                 except ImageNotFound:
                     raise ContainerOperationError(f"Qdrant镜像不存在: {self.qdrant_image_name}")
-                    
+
                 # 设置容器名称和标签
                 qdrant_name = f"{QDRANT_LABEL_PREFIX}{sandbox_id}"
-                
+
                 # 创建并启动Qdrant容器
                 qdrant_container = self.docker_client.containers.run(
                     self.qdrant_image_name,
@@ -472,14 +488,14 @@ class SandboxService:
                     network=self.network_name  # 使用与沙箱容器相同的网络
                 )
                 logger.info(f"Qdrant容器已创建: {qdrant_container.name}，关联沙箱ID: {sandbox_id}，使用网络: {self.network_name}")
-            
+
             # 无论是启动已有容器还是创建新容器，以下代码都是一样的
             # 等待容器启动
             qdrant_container.reload()
-            
+
             # 获取容器信息
             container_info = self._get_container_info(qdrant_container)
-            
+
             # 检查Qdrant容器是否准备就绪
             qdrant_ready = await self._wait_for_qdrant_ready(container_info)
             if not qdrant_ready:
@@ -494,14 +510,14 @@ class SandboxService:
                 except Exception as e:
                     logger.error(f"清理失败的Qdrant容器时出错: {e}")
                 raise ContainerOperationError(f"{error_msg}，详细错误信息请查看日志")
-            
+
             # 记录容器状态
             is_restarted = qdrant_container and qdrant_container.status == "exited"
             if is_restarted:
                 logger.info(f"已重启Qdrant容器: {qdrant_container.name}，关联沙箱ID: {sandbox_id}")
-                
+
             return qdrant_container.id
-            
+
         except ContainerOperationError:
             # 重新抛出容器操作异常
             raise
@@ -517,21 +533,21 @@ class SandboxService:
     async def _wait_for_qdrant_ready(self, container_info: ContainerInfo, max_attempts: int = 20, sleep_time: int = 1) -> bool:
         """
         通过请求Qdrant健康检查端点确定Qdrant容器是否已完全启动
-        
+
         Args:
             container_info: 容器信息
             max_attempts: 最大尝试次数
             sleep_time: 每次尝试间隔时间(秒)
-            
+
         Returns:
             bool: 容器是否准备就绪
         """
         if not container_info.ip:
             return False
-        
+
         health_url = f"http://{container_info.ip}:{self.qdrant_port}"
         logger.info(f"等待Qdrant容器健康检查: {health_url}, 最大尝试次数: {max_attempts}")
-        
+
         for attempt in range(1, max_attempts + 1):
             try:
                 async with aiohttp.ClientSession() as session:
@@ -541,9 +557,9 @@ class SandboxService:
                             return True
             except Exception as e:
                 logger.debug(f"Qdrant健康检查尝试 {attempt}/{max_attempts} 失败: {e}")
-            
+
             await asyncio.sleep(sleep_time)
-        
+
         logger.warning(f"Qdrant容器健康检查失败，已达到最大尝试次数: {max_attempts}")
         return False
 
@@ -551,10 +567,10 @@ class SandboxService:
     def get_agent_container(self, sandbox_id: str) -> Optional[SandboxInfo]:
         """
         获取沙箱信息
-        
+
         Args:
             sandbox_id: 沙箱ID
-            
+
         Returns:
             SandboxInfo: 沙箱信息，如果沙箱不存在则返回None
         """
@@ -577,7 +593,7 @@ class SandboxService:
     def list_sandboxes(self) -> List[SandboxInfo]:
         """
         列出所有沙箱容器
-        
+
         Returns:
             List[SandboxInfo]: 沙箱信息列表
         """
@@ -585,7 +601,7 @@ class SandboxService:
         try:
             # 获取所有带有沙箱标签的容器
             containers = self.docker_client.containers.list(
-                all=True, 
+                all=True,
                 filters={"label": [f"{SANDBOX_LABEL}"]}
             )
 
@@ -610,13 +626,13 @@ class SandboxService:
     def delete_sandbox(self, sandbox_id: str) -> bool:
         """
         删除沙箱容器
-        
+
         Args:
             sandbox_id: 沙箱ID
-            
+
         Returns:
             bool: 是否成功删除
-            
+
         Raises:
             SandboxNotFoundError: 沙箱不存在
             ContainerOperationError: 容器操作失败
@@ -636,7 +652,7 @@ class SandboxService:
                     logger.info(f"Qdrant容器已删除，关联沙箱ID: {sandbox_id}")
                 except Exception as e:
                     logger.error(f"删除Qdrant容器 {sandbox_id} 时出错: {e}")
-            
+
             # 删除沙箱容器
             container.stop()
             container.remove()
@@ -651,11 +667,11 @@ class SandboxService:
     async def handle_websocket(self, websocket: WebSocket, sandbox_id: str) -> None:
         """
         处理WebSocket连接，连接到指定的沙箱容器
-        
+
         Args:
             websocket: WebSocket连接
             sandbox_id: 要连接的沙箱ID
-            
+
         Raises:
             SandboxNotFoundError: 沙箱不存在
             ContainerOperationError: 容器操作失败
@@ -724,7 +740,7 @@ class SandboxService:
     ) -> None:
         """
         代理WebSocket连接
-        
+
         Args:
             client_ws: 客户端WebSocket连接
             container_ws: 容器WebSocket连接
@@ -770,7 +786,7 @@ class SandboxService:
                         except json.JSONDecodeError:
                             # 如果不是有效的JSON，直接记录原始数据
                             logger.debug(f"转发到客户端 {sandbox_id}: {data}")
-                        
+
                         # 始终发送原始数据
                         await client_ws.send_text(data)
                     except asyncio.TimeoutError:
@@ -802,33 +818,33 @@ class SandboxService:
     async def _check_container_health(self, container_id: str) -> Tuple[bool, str]:
         """
         检查容器健康状态
-        
+
         Args:
             container_id: 容器ID
-            
+
         Returns:
             Tuple[bool, str]: (是否健康, 状态信息)
         """
         container = self._get_agent_container_by_sandbox_id(container_id)
         if not container:
             return False, "容器不存在"
-        
+
         try:
             container.reload()
-            
+
             # 检查容器是否在运行
             if container.status != "running":
                 # 获取容器日志以了解故障原因
                 container_logs = self._get_container_logs(container)
                 logger.error(f"容器状态异常: {container.status}\n容器日志:\n{container_logs}")
                 return False, f"容器状态: {container.status}"
-            
+
             # 获取容器信息
             container_info = self._get_container_info(container)
-            
+
             # 尝试连接容器WebSocket服务
             container_ws_url = f"ws://{container_info.ip}:{container_info.ws_port}/ws"
-            
+
             try:
                 # 尝试连接但不等待，只验证连接是否成功
                 async with websockets.connect(container_ws_url, close_timeout=2, ping_interval=None):
@@ -838,7 +854,7 @@ class SandboxService:
                 container_logs = self._get_container_logs(container)
                 logger.error(f"WebSocket连接失败: {e}\n容器日志:\n{container_logs}")
                 return False, f"WebSocket连接失败: {e}"
-                
+
         except Exception as e:
             # 尝试获取容器日志，即使在健康检查过程中发生了异常
             try:
@@ -851,7 +867,7 @@ class SandboxService:
     async def _cleanup_running_containers(self, current_time: float) -> None:
         """
         清理运行时间过长的容器（停止操作）
-        
+
         Args:
             current_time: 当前时间戳
         """
@@ -860,25 +876,25 @@ class SandboxService:
             running_containers = self.docker_client.containers.list(
                 filters={"label": [f"{SANDBOX_LABEL}"], "status": "running"}
             )
-            
+
             for container in running_containers:
                 try:
                     container_info = self._get_container_info(container)
-                    
+
                     # 使用启动时间代替创建时间
                     started_at = container_info.started_at
                     if not started_at:
                         logger.warning(f"容器 {container.name} 没有有效的启动时间，使用创建时间代替")
                         started_at = container_info.created_at
-                    
+
                     running_seconds = (current_time - started_at)
-                    
+
                     # 记录容器状态和运行时间
                     logger.info(
                         f"运行中容器 {container.name} 已运行: {running_seconds:.2f}秒, "
                         f"启动时间: {started_at}, 当前时间: {current_time}"
                     )
-                    
+
                     # 检查是否超过运行时间限制
                     if running_seconds > self.running_container_expire_time:
                         logger.info(f"开始暂停过期容器: {container.name}，已运行时间: {running_seconds:.2f}秒")
@@ -892,7 +908,7 @@ class SandboxService:
     async def _cleanup_exited_containers(self, current_time: float) -> None:
         """
         清理已退出的过期容器（删除操作）
-        
+
         Args:
             current_time: 当前时间戳
         """
@@ -902,20 +918,20 @@ class SandboxService:
                 all=True,  # 包含所有状态的容器
                 filters={"label": [f"{SANDBOX_LABEL}"], "status": "exited"}
             )
-            
+
             for container in exited_containers:
                 try:
                     container_info = self._get_container_info(container)
                     created_at = container_info.created_at
                     exited_at = container_info.exited_at
-                    
+
                     # 使用退出时间计算已经退出的时间
                     idle_seconds = (current_time - exited_at)
                     logger.info(
                         f"已退出容器 {container.name} 已退出: {idle_seconds:.2f}秒, "
                         f"创建时间: {created_at}, 退出时间: {exited_at}"
                     )
-                    
+
                     # 检查是否超过退出容器保留时间
                     if idle_seconds > self.exited_container_expire_time:
                         logger.info(f"开始删除已退出的过期容器: {container.name}，已退出时间: {idle_seconds:.2f}秒")
@@ -934,7 +950,7 @@ class SandboxService:
 
                 # 暂停运行中的容器
                 await self._cleanup_running_containers(current_time)
-                
+
                 # 清理已退出的容器
                 # await self._cleanup_exited_containers(current_time)
 
@@ -946,21 +962,21 @@ class SandboxService:
     async def _wait_for_container_ready(self, container_info: ContainerInfo, max_attempts: int = 10, sleep_time: int = 1) -> bool:
         """
         通过请求容器的健康检查端点确定容器是否已完全启动
-        
+
         Args:
             container_info: 容器信息
             max_attempts: 最大尝试次数
             sleep_time: 每次尝试间隔时间(秒)
-            
+
         Returns:
             bool: 容器是否准备就绪
         """
         if not container_info.ip:
             return False
-        
+
         health_url = f"http://{container_info.ip}:{container_info.ws_port}/api/health"
         logger.info(f"等待容器健康检查: {health_url}, 最大尝试次数: {max_attempts}")
-        
+
         for attempt in range(1, max_attempts + 1):
             try:
                 async with aiohttp.ClientSession() as session:
@@ -970,12 +986,12 @@ class SandboxService:
                             return True
             except Exception as e:
                 logger.debug(f"健康检查尝试 {attempt}/{max_attempts} 失败: {e}")
-            
+
             await asyncio.sleep(sleep_time)
-        
+
         logger.warning(f"容器健康检查失败，已达到最大尝试次数: {max_attempts}")
         return False
 
 
 # 创建全局沙箱服务实例
-sandbox_service = SandboxService() 
+sandbox_service = SandboxService()

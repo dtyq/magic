@@ -72,7 +72,7 @@ class MCPServerRepository extends MCPAbstractRepository implements MCPServerRepo
     {
         $builder = $this->createBuilder($dataIsolation, MCPServerModel::query());
 
-        if ($query->getCodes()) {
+        if (! is_null($query->getCodes())) {
             $builder->whereIn('code', $query->getCodes());
         }
 
@@ -88,12 +88,20 @@ class MCPServerRepository extends MCPAbstractRepository implements MCPServerRepo
             $builder->where('enabled', $query->getEnabled());
         }
 
+        if ($query->getWithToolCount()) {
+            $builder->withCount('tools');
+        }
+
         $result = $this->getByPage($builder, $page, $query);
 
         $list = [];
         /** @var MCPServerModel $model */
         foreach ($result['list'] as $model) {
-            $list[] = MCPServerFactory::createEntity($model);
+            $entity = MCPServerFactory::createEntity($model);
+            if ($model->getAttribute('tools_count')) {
+                $entity->setToolsCount($model->getAttribute('tools_count'));
+            }
+            $list[] = $entity;
         }
 
         return [

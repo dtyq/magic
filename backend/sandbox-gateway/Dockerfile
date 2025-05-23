@@ -41,9 +41,8 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 # 复制并安装项目依赖
 COPY requirements.txt .
 
-# 安装依赖，使用缓存挂载优化
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+# 安装依赖
+RUN pip install -r requirements.txt
 
 # 复制项目文件
 COPY . .
@@ -52,4 +51,4 @@ COPY . .
 EXPOSE 8003
 
 # 启动命令
-CMD ["python", "main.py"] 
+CMD ["python", "main.py"]

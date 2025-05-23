@@ -31,6 +31,7 @@ use App\Domain\Flow\Entity\ValueObject\Type;
 use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\ErrorCode\FlowErrorCode;
 use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Collector\BuiltInToolSet\BuiltInToolSetCollector;
 use App\Infrastructure\Core\Contract\Authorization\FlowOpenApiCheckInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -228,6 +229,54 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         ];
     }
 
+    public function apiParamCallByMCPTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO): array
+    {
+        $user = $this->magicUserDomainService->getByUserId($flowDataIsolation->getCurrentUserId());
+        if (! $user) {
+            ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'user not found');
+        }
+        $account = $this->magicAccountDomainService->getByMagicId($user->getMagicId());
+        if (! $account) {
+            ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'account not found');
+        }
+        $operator = $this->createExecutionOperator($flowDataIsolation);
+        $operator->setSourceId('mcp_tool');
+
+        $magicFlow = $this->getFlow(
+            $flowDataIsolation,
+            $apiChatDTO->getFlowCode(),
+            [Type::Tools],
+            operationValidate: 'read',
+            flowVersionCode: $apiChatDTO->getFlowVersionCode()
+        );
+
+        $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);
+
+        $triggerData = new TriggerData(
+            triggerTime: new DateTime(),
+            userInfo: ['user_entity' => $user, 'account_entity' => $account],
+            messageInfo: ['message_entity' => TriggerData::createMessageEntity($messageEntity)],
+            params: $apiChatDTO->getParams(),
+            globalVariable: $magicFlow->getGlobalVariable(),
+            attachments: AttachmentUtil::getByApiArray($apiChatDTO->getAttachments()),
+        );
+        $originConversationId = $apiChatDTO->getConversationId() ?: IdGenerator::getUniqueId32();
+        $executionData = new ExecutionData(
+            flowDataIsolation: $flowDataIsolation,
+            operator: $operator,
+            triggerType: TriggerType::ParamCall,
+            triggerData: $triggerData,
+            conversationId: ConversationId::ApiKeyChat->gen($originConversationId),
+            originConversationId: $originConversationId,
+            executionType: ExecutionType::SKApi,
+        );
+        $executor = new MagicFlowExecutor($magicFlow, $executionData);
+        $executor->execute();
+        return [
+            'result' => $magicFlow->getResult(),
+        ];
+    }
+
     public function getByExecuteId(MagicFlowApiChatDTO $apiChatDTO): MagicFlowExecuteLogEntity
     {
         $apiChatDTO->validate();
@@ -402,8 +451,12 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         return $msgInstruct;
     }
 
-    private function getFlow(FlowDataIsolation $dataIsolation, string $flowId, ?array $types = null, string $operationValidate = ''): MagicFlowEntity
+    private function getFlow(FlowDataIsolation $dataIsolation, string $flowId, ?array $types = null, string $operationValidate = '', string $flowVersionCode = ''): MagicFlowEntity
     {
+        if ($tool = BuiltInToolSetCollector::getToolByCode($flowId)) {
+            return $tool->generateToolFlow($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+        }
+
         $magicFlow = $this->magicFlowDomainService->getByCode($dataIsolation, $flowId);
         if (! $magicFlow) {
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'flow.common.not_found', ['label' => $flowId]);
@@ -413,7 +466,6 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         }
 
         $agentId = '';
-        $flowVersionCode = '';
         switch ($magicFlow->getType()) {
             case Type::Main:
                 $agent = $this->magicAgentDomainService->getByFlowCode($magicFlow->getCode());

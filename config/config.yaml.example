@@ -39,7 +39,7 @@ agent:
   enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-false}
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   parallel_tool_calls_timeout: ${AGENT_PARALLEL_TOOL_CALLS_TIMEOUT:-None}
-  safety_checker_model_id: ${AGENT_SAFETY_MODEL_ID:-gpt-4.1} # 安全检查模型统一使用
+  safety_checker_model_id: ${AGENT_SAFETY_MODEL_ID:-gpt-4.1} # Safety checker model used uniformly
 
 # Image Generation Service Configuration
 image_generator:
@@ -332,7 +332,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192 # 最大输出长度
+    max_output_tokens: 8192 # Maximum output length
     max_context_tokens: 131072
     temperature: 0.7
     support_thinking: true
@@ -600,15 +600,15 @@ bing:
   search_api_key: "${BING_SUBSCRIPTION_KEY}"
   search_endpoint: "${BING_SUBSCRIPTION_ENDPOINT:-https://api.bing.microsoft.com/v7.0}"
 
-# Tavily 搜索 API 配置
+# Tavily Search API Configuration
 tavily:
   api_key: "${TAVILY_API_KEY}"
   api_endpoint: "${TAVILY_API_ENDPOINT:-https://api.tavily.com}"
   search_endpoint: "${TAVILY_SEARCH_ENDPOINT:-/search}"
 
-# 搜索引擎选择
+# Search Engine Selection
 search:
-  # 默认搜索引擎: bing 或 tavily
+  # Default search engine: bing or tavily
   default_engine: "${DEFAULT_SEARCH_ENGINE:-bing}"
 
 token_service:

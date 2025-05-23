@@ -8,7 +8,6 @@ export const useStyles = createStyles(({ css, prefixCls }) => {
 			}
 		`,
 		modalHeader: css`
-			padding: 20px 24px 0 24px !important;
 			display: flex;
 			align-items: center;
 		`,
@@ -21,7 +20,7 @@ export const useStyles = createStyles(({ css, prefixCls }) => {
 		layout: css`
 			width: 100%;
 			height: 100%;
-			padding: 40px;
+			padding: 20px 10px;
 		`,
 		header: css`
 			width: 100%;

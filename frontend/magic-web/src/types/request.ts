@@ -35,11 +35,12 @@ export type WebSocketPayload =
 	  }
 	| {
 			type: EventType.Stream
-			payload: StreamResponse
+			payload: StreamResponseV2
 	  }
 
 /**
  * 流式消息响应
+ * @deprecated 请使用 StreamResponseV2 代替
  */
 export type StreamResponse = {
 	target_seq_id: string
@@ -47,6 +48,18 @@ export type StreamResponse = {
 	status: StreamStatus
 	content: string
 	llm_response: string
+}
+
+/**
+ * 流式消息响应V2
+ */
+export type StreamResponseV2 = {
+	streams: {
+		stream_options: {
+			status: StreamStatus
+		}
+	} & Record<string, unknown>
+	target_seq_id: string
 }
 
 /**

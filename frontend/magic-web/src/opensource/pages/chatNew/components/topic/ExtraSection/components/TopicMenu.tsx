@@ -79,7 +79,7 @@ const TopicMenu = memo(function TopicMenu({ children, topic, ...props }: TopicMe
 		switch (e.key) {
 			case TopicMenuKey.AI_RENAME:
 				setLoadingTrue()
-				chatTopicService.getAndSetMagicTopicName?.(topic.id).finally(() => {
+				chatTopicService.getAndSetMagicTopicName?.(topic.id, true).finally(() => {
 					setLoadingFalse()
 				})
 				break

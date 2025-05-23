@@ -86,40 +86,34 @@ class StorageUploaderTool:
         加载凭证文件，确定平台，并初始化/更新存储服务及其凭证。
         """
         try:
-            default_creds_paths = []
-            if PathManager._initialized:
-                project_root = PathManager.get_project_root()
-                default_creds_paths.append(project_root / ".credentials" / "upload_credentials.json")
-                default_creds_paths.append(project_root / "config" / "upload_credentials.json")
-            else:
-                logger.warning("PathManager not initialized. Relying on CWD for default credential paths.")
-                default_creds_paths.append(Path(".credentials/upload_credentials.json").resolve())
-                default_creds_paths.append(Path("config/upload_credentials.json").resolve())
-
-
+            # 优先使用指定的凭证文件，否则使用默认路径
             credentials_path_to_load = None
             if self.credentials_file and Path(self.credentials_file).exists():
                 credentials_path_to_load = Path(self.credentials_file)
                 logger.info(f"使用指定的凭证文件: {credentials_path_to_load}")
             else:
-                for p in default_creds_paths:
-                    if p.exists():
-                        credentials_path_to_load = p
-                        logger.info(f"使用默认凭证文件: {credentials_path_to_load}")
-                        break
-            
+                default_path = Path(".credentials/upload_credentials.json").resolve()
+                if default_path.exists():
+                    credentials_path_to_load = default_path
+                    logger.info(f"使用默认凭证文件: {credentials_path_to_load}")
+
             if not credentials_path_to_load:
-                logger.error("未找到任何可用的凭证文件 (检查了指定路径和默认路径)")
+                logger.error("未找到可用的凭证文件")
                 return False
 
             with open(credentials_path_to_load, "r") as f:
                 credentials_data = json.load(f)
 
+            # 读取并打印batch_id
+            batch_id = credentials_data.get("batch_id", "未设置")
+            logger.info(f"当前操作批次ID: {batch_id}")
+
             upload_config_dict = credentials_data.get("upload_config")
             if not upload_config_dict:
                 logger.error(f"凭证文件 {credentials_path_to_load} 中未找到 'upload_config' 键")
                 return False
-            
+
+            # 读取 sandbox_id 和 organization_code（如果未设置）
             if self.sandbox_id is None and "sandbox_id" in credentials_data:
                 self.sandbox_id = credentials_data.get("sandbox_id")
                 logger.info(f"从凭证文件加载了 sandbox_id: {self.sandbox_id}")
@@ -127,37 +121,33 @@ class StorageUploaderTool:
                 self.organization_code = credentials_data.get("organization_code")
                 logger.info(f"从凭证文件加载了 organization_code: {self.organization_code}")
 
-            # 每次重新加载凭证后也重新初始化存储服务
+            # 直接从凭证中获取平台类型
+            platform_type = None
+            if 'platform' in upload_config_dict:
+                try:
+                    platform_type = PlatformType(upload_config_dict['platform'])
+                    logger.info(f"从凭证文件中确定平台类型: {platform_type.value}")
+                except (ValueError, TypeError):
+                    logger.warning(f"无法将凭证中的 platform 值 '{upload_config_dict['platform']}' 转换为 PlatformType 枚举")
+
+            # 初始化存储服务
             self.storage_service = await StorageFactory.get_storage(
                 sts_token_refresh=None,
-                metadata=None
+                metadata=None,
+                platform=platform_type
             )
 
+            # 设置凭证
             self.storage_service.set_credentials(upload_config_dict)
-            
-            if hasattr(self.storage_service.credentials, 'platform') and isinstance(self.storage_service.credentials.platform, PlatformType):
-                self.platform = self.storage_service.credentials.platform
-            else:
-                current_service_platform_name = self.storage_service.get_platform_name()
-                try:
-                    self.platform = PlatformType(current_service_platform_name)
-                    logger.info(f"StorageFactory 初始化了基于 '{current_service_platform_name}' (环境变量/默认) 的服务.")
-                except ValueError:
-                    logger.warning(f"无法从存储服务确定的平台名称 '{current_service_platform_name}' 转换为 PlatformType 枚举")
-                    self.platform = None
 
-            logger.info(f"凭证加载和存储服务准备完成，实际使用平台: {self.platform.value if self.platform else '未知'}")
+            # 设置平台类型
+            self.platform = platform_type
+
+            logger.info(f"凭证加载和存储服务准备完成，使用平台: {self.platform.value if self.platform else '未知'}")
             return True
 
-        except InitException as e:
-            logger.error(f"存储服务初始化失败: {e}")
-            return False
-        except ValueError as e:
-            logger.error(f"加载或设置凭证失败 (格式错误): {e}")
-            return False
         except Exception as e:
-            logger.error(f"加载凭证或初始化存储服务时发生未知错误: {e}", exc_info=True)
-            logger.error(traceback.format_exc())
+            logger.error(f"加载凭证或初始化存储服务时发生错误: {e}", exc_info=True)
             return False
 
     def _get_file_hash(self, file_path: Path) -> str:
@@ -174,7 +164,7 @@ class StorageUploaderTool:
     async def upload_file(self, file_path: Path, workspace_dir: Path) -> bool:
         # 每次都重新加载凭证以确保使用最新的凭证
         await self._load_credentials()
-        
+
         try:
             if not file_path.exists():
                 logger.warning(f"文件不存在，无法上传: {file_path}")
@@ -189,14 +179,9 @@ class StorageUploaderTool:
                 relative_path_str = file_path.name
 
             base_dir = self.storage_service.credentials.get_dir()
-            
-            object_key_parts = []
-            if base_dir: object_key_parts.append(base_dir.strip('/'))
-            if self.sandbox_id: object_key_parts.append(self.sandbox_id.strip('/'))
-            object_key_parts.append(relative_path_str.strip('/'))
-            
-            object_key = "/".join(filter(None, object_key_parts))
 
+            # 简化对象键构造逻辑，移除沙盒ID，直接使用base_dir和相对路径
+            object_key = f"{base_dir}{relative_path_str}"
 
             cached_hash = self.uploaded_files_cache.get_hash(object_key)
             if cached_hash == file_hash:
@@ -204,7 +189,7 @@ class StorageUploaderTool:
                 return True
 
             logger.info(f"开始上传文件到平台 {self.platform.value if self.platform else 'N/A'}: {relative_path_str}, 存储键: {object_key}")
-            
+
             await self.storage_service.upload(file=str(file_path), key=object_key)
             self.uploaded_files_cache.set_hash(object_key, file_hash)
             # 更新最后上传时间
@@ -243,7 +228,7 @@ class StorageUploaderTool:
         if not self.sandbox_id:
             logger.info("未设置沙盒ID，无法注册文件")
             return True
-        
+
         if not self.uploaded_files_for_registration:
             logger.info("没有需要注册的新文件，跳过注册")
             return True
@@ -253,7 +238,7 @@ class StorageUploaderTool:
             return False
 
         api_url = f"{self.api_base_url.strip('/')}/api/v1/super-agent/file/process-attachments"
-        
+
         request_data = {
             "attachments": self.uploaded_files_for_registration,
             "sandbox_id": self.sandbox_id
@@ -261,13 +246,13 @@ class StorageUploaderTool:
         # 添加组织编码（如果有）
         if self.organization_code:
             request_data["organization_code"] = self.organization_code
-        
+
         # 如果有task_id也加上（虽然较少使用）
         if self.task_id:
             request_data["task_id"] = self.task_id
-            
+
         headers = {"Content-Type": "application/json", "User-Agent": "StorageUploaderTool/2.0"}
-        
+
         logger.info(f"========= 文件注册请求信息 =========")
         logger.info(f"准备向API注册 {len(self.uploaded_files_for_registration)} 个文件 (沙盒ID: {self.sandbox_id}) ...")
         logger.info(f"请求URL: {api_url}")
@@ -307,7 +292,7 @@ class StorageUploaderTool:
         if refresh:
             self.uploaded_files_cache.clear()
             logger.info("强制刷新模式：已清空本地文件哈希缓存。")
-        
+
         logger.info(f"开始扫描已存在文件于目录: {workspace_dir}")
         for item in workspace_dir.rglob('*'):
             if item.is_file():
@@ -323,10 +308,10 @@ class StorageUploaderTool:
             try:
                 # 等待30秒后尝试注册
                 await asyncio.sleep(30)
-                
+
                 # 如果有上传的文件且距上次上传超过20秒，则注册
                 current_time = time.time()
-                if (self.uploaded_files_for_registration and 
+                if (self.uploaded_files_for_registration and
                     self.sandbox_id and
                     current_time - self.last_upload_time > 20):
                     logger.info("检测到30秒内无新上传，开始注册已上传文件")
@@ -342,7 +327,7 @@ class StorageUploaderTool:
             return
 
         logger.info(f"监控命令启动，监控目录: {workspace_dir}, 一次性扫描: {once}, 强制刷新: {refresh}")
-        
+
         await self.scan_existing_files(workspace_dir, refresh)
         if once:
             logger.info("已完成一次性扫描，程序退出。")
@@ -385,10 +370,10 @@ class FileChangeEventHandler(FileSystemEventHandler):
             file_path_to_upload = await self.upload_queue.get()
             try:
                 # 延迟1秒，等待文件操作完成（与原TOSUploader一致）
-                await asyncio.sleep(1) 
+                await asyncio.sleep(1)
                 logger.info(f"队列处理器: 开始处理文件 {file_path_to_upload}")
                 success = await self.tool.upload_file(file_path_to_upload, self.workspace_dir)
-                
+
                 # 更加精确的立即注册逻辑判断，与原TOSUploader保持一致
                 if success and self.tool.uploaded_files_for_registration and self.tool.sandbox_id:
                     logger.info(f"文件上传成功，尝试立即注册，已上传文件数: {len(self.tool.uploaded_files_for_registration)}")
@@ -404,7 +389,7 @@ class FileChangeEventHandler(FileSystemEventHandler):
         file_path = Path(file_path_str)
         if not file_path.is_absolute():
              file_path = self.workspace_dir / file_path
-        
+
         asyncio.run_coroutine_threadsafe(self.upload_queue.put(file_path), self.loop)
         logger.debug(f"已将文件 {file_path} 添加到上传队列。")
 
@@ -480,7 +465,7 @@ def start_storage_uploader_watcher(
                 cmd_logger.warning(f"'--use-context' is True, but context credentials file not found at: {context_creds_path}")
         else:
             cmd_logger.warning("PathManager not initialized. Cannot resolve context credentials path for '--use-context'.")
-    
+
     cmd_logger.info(f"Final credentials file to be used by StorageUploaderTool: {final_credentials_file or 'Default lookup in StorageUploaderTool'}")
 
     try:
@@ -490,7 +475,7 @@ def start_storage_uploader_watcher(
             task_id=task_id,
             organization_code=organization_code
         )
-        
+
         asyncio.run(
             _run_storage_uploader_watch_async(
                 tool=tool_instance,
@@ -513,4 +498,4 @@ if __name__ == "__main__":
     else:
         print(f"PathManager already initialized. Project root: {PathManager.get_project_root()}")
 
-    cli_app() 
+    cli_app()

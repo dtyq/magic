@@ -5,9 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ConfigApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\LogApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
@@ -55,16 +53,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/init', [AccountApi::class, 'initAccount']);
     });
 
-    // 前端日志上报
-    Router::addGroup('/log', static function () {
-        Router::post('/report', [LogApi::class, 'reportLog']);
-    });
-
-    // 配置相关
-    Router::addGroup('/config', static function () {
-        // 检查是否应该重定向到SuperMagic
-        Router::get('/should-redirect', [ConfigApi::class, 'shouldRedirectToSuperMagic']);
-    });
 },
     ['middleware' => [RequestContextMiddlewareV2::class]]
 );
@@ -75,7 +63,7 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::addGroup('/topics', static function () {
         Router::post('/{id}/attachments', [TopicApi::class, 'getTopicAttachments']);
     });
-    
+
     // 获取任务附件
     Router::post('/tasks/get-file-url', [TaskApi::class, 'getFileUrls']);
     // 投递消息
@@ -89,4 +77,3 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/process-attachments', [FileApi::class, 'processAttachments']);
     });
 });
-

@@ -323,14 +323,23 @@ class ChatTopicService {
 	/**
 	 * 获取并设置魔法话题名称
 	 * @param topicId 话题ID
+	 * @param force 是否强制更新
 	 * @returns 魔法话题名称
 	 */
-	getAndSetMagicTopicName(topicId: string) {
+	getAndSetMagicTopicName(topicId: string, force = false) {
 		const conversationId = conversationStore.currentConversation?.id
 		if (!conversationId) {
 			return Promise.reject(new Error("conversationId 不存在"))
 		}
 
+		const topicName = topicStore.topicList.find((i) => i.id === topicId)?.name
+
+		// 如果话题名称存在，并且不是强制更新，则不自动调用
+		if (topicName && !force) {
+			return Promise.resolve()
+		}
+
+		// 如果当前会话不是 AI 会话，则不调用
 		if (!isAiConversation(conversationStore.currentConversation?.receive_type))
 			return Promise.resolve()
 

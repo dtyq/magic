@@ -16,7 +16,7 @@ export default function useMaterialSearch({ tab }:UseMaterialSearchProps) {
 
     const [agentType, setAgentType] = useState(AgentType.Enterprise)
 
-	const onSearchChange = useMemoizedFn((e) => {
+	const onSearchChange = useMemoizedFn((e: React.ChangeEvent<HTMLInputElement>) => {
 		setKeyword(e.target.value)
         // 触发业务测传入的更新数据方法
         switch(tab) {

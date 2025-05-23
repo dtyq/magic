@@ -33,7 +33,7 @@ export default function useContacts() {
 							icon: groupInfo?.group_avatar,
 							name: groupInfo?.group_name,
 							description: t("common.groupChat", { ns: "flow" }),
-							time: value.last_receive_message?.time
+							time: value.last_receive_message?.time,
 						},
 					})
 				}
@@ -79,7 +79,15 @@ export default function useContacts() {
 	)
 
 	return {
-		users: genUserListData(ConversationSiderbarStore.conversationSiderbarGroups.user.map(id => conversations[id])),
-		groups: genGroupListData(ConversationSiderbarStore.conversationSiderbarGroups.group.map(id => conversations[id])),
+		users: genUserListData(
+			ConversationSiderbarStore.conversationSiderbarGroups.user
+				.map((id) => conversations[id])
+				.filter(Boolean),
+		),
+		groups: genGroupListData(
+			ConversationSiderbarStore.conversationSiderbarGroups.group
+				.map((id) => conversations[id])
+				.filter(Boolean),
+		),
 	}
 }

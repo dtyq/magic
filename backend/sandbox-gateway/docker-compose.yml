@@ -23,8 +23,8 @@ services:
       - NO_PROXY=
     restart: unless-stopped
     networks:
-      - sandbox-network
+      - magic-sandbox-network
 
 networks:
-  sandbox-network:
+  magic-sandbox-network:
     external: true

@@ -237,7 +237,7 @@ class LocalStorage(AbstractStorage, BaseFileProcessor):
         if not credentials or not credentials.temporary_credential:
             error_msg = "凭证无效或临时凭证缺失"
             logger.error(error_msg)
-            raise UploadException(UploadExceptionCode.CREDENTIAL_ERROR, error_msg)
+            raise UploadException(UploadExceptionCode.CREDENTIALS_EXPIRED, error_msg)
         return credentials
 
     def _check_file_size(self, file_obj: BinaryIO, file_size: int, key: str, is_path: bool) -> None:
@@ -282,7 +282,7 @@ class LocalStorage(AbstractStorage, BaseFileProcessor):
         if not upload_url:
             error_msg = "上传URL不能为空"
             logger.error(error_msg)
-            raise UploadException(UploadExceptionCode.CREDENTIAL_ERROR, error_msg)
+            raise UploadException(UploadExceptionCode.CREDENTIALS_EXPIRED, error_msg)
 
         return upload_url, credential
 

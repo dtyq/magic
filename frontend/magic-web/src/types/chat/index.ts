@@ -2,6 +2,7 @@ import type { SeqResponse } from "../request"
 import type { User } from "../user"
 import type {
 	AggregateAISearchCardConversationMessage,
+	AggregateAISearchCardConversationMessageV2,
 	ConversationMessage,
 	SuperMagicContent,
 } from "./conversation_message"
@@ -79,4 +80,5 @@ export type CMessage =
 	| IntermediateMessage
 	| ConversationMessage
 	| AggregateAISearchCardConversationMessage<true>
+	| AggregateAISearchCardConversationMessageV2
 	| SuperMagicContent

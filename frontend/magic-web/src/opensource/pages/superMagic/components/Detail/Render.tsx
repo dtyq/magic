@@ -82,9 +82,9 @@ export default function Render(props: any) {
 		case DetailType.Excel:
 			return <UniverViewer data={data as DetailUniverData} {...commonProps} />
 			break
-		case DetailType.PowerPoint:
-			return <UniverViewer data={data as DetailUniverData} {...commonProps} />
-			break
+		// case DetailType.PowerPoint:
+		// 	return <UniverViewer data={data as DetailUniverData} {...commonProps} />
+		// 	break
 		case DetailType.Image:
 			return <Image data={data} {...commonProps} />
 			break

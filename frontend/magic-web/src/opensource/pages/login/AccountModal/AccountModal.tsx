@@ -1,4 +1,4 @@
-import { Form, Modal, message } from "antd"
+import { Form, message } from "antd"
 import { useMemoizedFn } from "ahooks"
 import type { Login } from "@/types/login"
 import { LoginFormValuesMap, OnSubmitFn } from "@/opensource/pages/login/types"
@@ -14,6 +14,7 @@ import MobilePhonePasswordForm from "../components/MobilePhonePasswordForm"
 import Footer from "../components/Footer"
 import { useUserAgreedPolicy } from "../hooks/useUserAgreedPolicy"
 import MagicSpin from "@/opensource/components/base/MagicSpin"
+import MagicModal from "@/opensource/components/base/MagicModal"
 
 interface AccountModalProps {
 	onClose: () => void
@@ -85,7 +86,7 @@ function AccountModal(props: AccountModalProps) {
 	const dom = <div className={styles.header}>{t("account.create")}</div>
 
 	return (
-		<Modal
+		<MagicModal
 			title={dom}
 			footer={null}
 			open={open}
@@ -107,7 +108,7 @@ function AccountModal(props: AccountModalProps) {
 					<Footer agree={agree} onAgreeChange={setAgree} tipVisible />
 				</div>
 			</MagicSpin>
-		</Modal>
+		</MagicModal>
 	)
 }
 

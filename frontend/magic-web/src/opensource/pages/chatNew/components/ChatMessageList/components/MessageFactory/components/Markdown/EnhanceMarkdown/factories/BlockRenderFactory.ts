@@ -81,7 +81,9 @@ class BlockRenderFactory extends BaseRenderFactory<BlockRenderProps> {
 	/**
 	 * 生成切割后的block
 	 */
-	public getBlocks(content: string) {
+	public getBlocks(content: string | undefined) {
+		if (!content) return []
+
 		if (this.splitters.size === 0) {
 			return [content]
 		}

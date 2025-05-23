@@ -84,4 +84,19 @@ class MagicFlowVersionRepository extends MagicFlowAbstractRepository implements 
         $builder = $this->createBuilder($dataIsolation, MagicFlowVersionModel::query());
         return $builder->where('flow_code', $flowCode)->exists();
     }
+
+    public function getByCodes(FlowDataIsolation $dataIsolation, array $versionCodes): array
+    {
+        $builder = $this->createBuilder($dataIsolation, MagicFlowVersionModel::query());
+        /** @var array<MagicFlowVersionModel> $models */
+        $models = $builder->whereIn('code', $versionCodes)->get();
+        if (empty($models)) {
+            return [];
+        }
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = MagicFlowVersionFactory::modelToEntity($model);
+        }
+        return $list;
+    }
 }

@@ -57,17 +57,32 @@ export default function IsolatedHTMLRenderer({
 	const { styles, cx } = useStyles()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const iframeRef = useRef<HTMLIFrameElement>(null)
+	const [iframeLoaded, setIframeLoaded] = useState(false)
+	const currentOrigin = window.location?.origin
 
 	// 处理iframe内容更新
 	useEffect(() => {
 		if (sandboxType === "iframe" && iframeRef.current && content) {
-			const iframe = iframeRef.current
-			try {
-				// 解码HTML实体
-				const decodedContent = decodeHTMLEntities(content)
+			// 创建消息监听器
+			const handleMessage = (event: MessageEvent) => {
+				// 只处理来自iframe的消息
+				if (event.source !== iframeRef.current?.contentWindow) return
+				if (event.data && event.data.type === "iframeReady") {
+					// iframe已准备好接收内容
+					setIframeLoaded(true)
+				}
+			}
 
-				// 创建完整HTML内容
-				const noTranslateContent = `
+			// 添加监听器
+			window.addEventListener("message", handleMessage)
+
+			// 如果iframe已加载，发送内容
+			if (iframeLoaded && content) {
+				try {
+					// 解码HTML实体
+					const decodedContent = decodeHTMLEntities(content)
+					// 创建完整HTML内容
+					const fullContent = `
 						<html translate="no">
 						<head>
 							<meta name="google" content="notranslate">
@@ -80,31 +95,31 @@ export default function IsolatedHTMLRenderer({
 							</style>
 							<script>
 								// 在HTML内容内直接注入脚本，避免跨域访问
-								document.addEventListener('DOMContentLoaded', function() {
+								document.addEventListener("DOMContentLoaded", function() {
 									// 给所有链接添加target属性
-									document.querySelectorAll('a').forEach(link => {
-										const href = link.getAttribute('href');
+									document.querySelectorAll("a").forEach(link => {
+										const href = link.getAttribute("href");
 										// 检查是否为锚点链接（以#开头）
-										if (href && href.startsWith('#')) {
+										if (href && href.startsWith("#")) {
 											// 为锚点链接添加点击事件处理
-											link.addEventListener('click', function(e) {
+											link.addEventListener("click", function(e) {
 												e.preventDefault();
 												const targetId = href.substring(1);
 												const targetElement = document.getElementById(targetId);
 												if (targetElement) {
-													targetElement.scrollIntoView({ behavior: 'smooth' });
+													targetElement.scrollIntoView({ behavior: "smooth" });
 												}
 											});
 										} else {
 											// 非锚点链接在新窗口打开
-											link.setAttribute('target', '_blank');
-											link.setAttribute('rel', 'noopener noreferrer');
+											link.setAttribute("target", "_blank");
+											link.setAttribute("rel", "noopener noreferrer");
 										}
 									});
 
 									// 捕获并处理脚本错误
 									window.onerror = function(message, source, lineno, colno, error) {
-										console.error('HTML渲染错误:', message);
+										console.error("HTML渲染错误:", message);
 										return true; // 防止错误向上传播
 									};
 								});
@@ -115,20 +130,33 @@ export default function IsolatedHTMLRenderer({
 						</body>
 						</html>
 					`
-
-				// 使用contentWindow.document.write写入内容
-				if (iframe.contentWindow) {
-					iframe.contentWindow.document.open()
-					iframe.contentWindow.document.write(noTranslateContent)
-					iframe.contentWindow.document.close()
-				} else {
-					console.error("无法访问iframe的contentWindow")
+					// 发送内容到iframe
+					try {
+						if (iframeRef.current && iframeRef.current.contentWindow) {
+							iframeRef.current.contentWindow.postMessage(
+								{
+									type: "setContent",
+									content: fullContent,
+								},
+								"*",
+							)
+						} else {
+							console.error("iframe或contentWindow不可用")
+						}
+					} catch (postError) {
+						console.error("发送消息到iframe时出错:", postError)
+					}
+				} catch (error) {
+					console.error("处理iframe内容时出错:", error)
 				}
-			} catch (error) {
-				console.error("处理iframe内容时出错:", error)
+			}
+
+			// 清理监听器
+			return () => {
+				window.removeEventListener("message", handleMessage)
 			}
 		}
-	}, [content, sandboxType])
+	}, [content, sandboxType, iframeLoaded])
 
 	// 如果content为空，显示loading状态
 	if (!content || content.trim() === "") {
@@ -153,8 +181,10 @@ export default function IsolatedHTMLRenderer({
 					ref={iframeRef}
 					className={styles.iframe}
 					title="Isolated HTML Content"
-					sandbox={"allow-scripts allow-modals allow-same-origin"}
+					sandbox="allow-scripts allow-modals"
 					translate="no"
+					src={`${currentOrigin}/html-messenger.html`}
+					onLoad={() => setIframeLoaded(true)}
 				/>
 			) : (
 				<div ref={containerRef} className={styles.shadowHost} translate="no" />

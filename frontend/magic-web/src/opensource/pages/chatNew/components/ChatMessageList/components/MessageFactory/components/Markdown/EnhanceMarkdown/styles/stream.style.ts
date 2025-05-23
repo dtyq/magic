@@ -10,8 +10,8 @@ export const useStreamStyles = createStyles(({ css }) => {
 		cursor: css`
 			display: inline-block;
 			margin-left: 2px;
-			width: 16.5px;
-			height: 16.5px;
+			width: 16px;
+			height: 16px;
 			background: url(${streamLoadingIcon});
 			background-size: 100%;
 			scale: 1.3;

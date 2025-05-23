@@ -67,6 +67,7 @@ db.sqlite3-journal
 .env.agent
 .cursor/
 .output/
+config/config.yaml
 
 # 临时文件
 tmp/
@@ -76,5 +77,4 @@ data/
 cache/
 
 debug/
-
 qdrant-config.yaml

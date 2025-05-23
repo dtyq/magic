@@ -2,27 +2,29 @@
 Base classes and utilities for storage SDK.
 """
 
-import functools
 import io
-import json
 import os
-from abc import ABC, abstractmethod
+import functools
+import time
+import json
+import uuid
 from pathlib import Path
-from typing import BinaryIO, Callable, Dict, Optional, TypeVar
+from abc import ABC, abstractmethod
+from typing import BinaryIO, Dict, Optional, Callable, TypeVar, Any
 
 from loguru import logger
 
 from app.core.config.communication_config import STSTokenRefreshConfig
 from app.paths import PathManager
+from .types import BaseStorageCredentials, FileContent, Options, StorageResponse, PlatformType
 
-from .types import BaseStorageCredentials, FileContent, Options, StorageResponse
 
 T = TypeVar('T')
 
 def with_refreshed_credentials(method: Callable[..., T]) -> Callable[..., T]:
     """
     装饰器：确保使用最新的凭证执行存储操作
-    
+
     自动处理凭证刷新
     """
     @functools.wraps(method)
@@ -54,13 +56,48 @@ class AbstractStorage(ABC):
         """设置元数据，用于凭证刷新"""
         self.metadata = metadata
 
+    def get_platform_name(self) -> str:
+        """
+        获取当前存储服务的平台名称。
+        如果凭证中有平台信息，则返回该平台名称，否则返回 'unknown'。
+
+        Returns:
+            str: 存储平台名称
+        """
+        if self.credentials and hasattr(self.credentials, 'platform'):
+            if isinstance(self.credentials.platform, PlatformType):
+                return self.credentials.platform.value
+            return str(self.credentials.platform)
+        return "unknown"
+
+    def get_platform_type(self) -> Optional[PlatformType]:
+        """
+        获取当前存储服务的平台类型。
+        如果凭证中有平台信息且类型为 PlatformType，则返回该平台类型，否则返回 None。
+
+        Returns:
+            Optional[PlatformType]: 存储平台类型，如果无法确定则返回 None
+        """
+        if self.credentials and hasattr(self.credentials, 'platform'):
+            if isinstance(self.credentials.platform, PlatformType):
+                return self.credentials.platform
+            try:
+                return PlatformType(str(self.credentials.platform))
+            except (ValueError, TypeError):
+                pass
+        return None
+
     async def refresh_credentials(self):
         """
         如果需要则刷新凭证 - 模板方法
         """
         if self._should_refresh_credentials():
+            logger.info("开始刷新凭证")
+
             # 调用子类实现的刷新方法
             await self._refresh_credentials_impl()
+
+            logger.info("凭证刷新完成")
 
             # 刷新后自动保存到文件
             if self.credentials:
@@ -100,14 +137,16 @@ class AbstractStorage(ABC):
         file_path = credentials_dir / "upload_credentials.json"
         credentials_data = self.credentials.model_dump()
 
+        # 创建带有批次ID的凭证数据
         wrapped_data = {
-            "upload_config": credentials_data
+            "upload_config": credentials_data,
+            "batch_id": str(uuid.uuid4())  # 添加随机批次ID
         }
 
         with open(file_path, "w") as f:
             json.dump(wrapped_data, f, indent=2)
 
-        logger.info(f"成功保存凭证到文件: {file_path}")
+        logger.info(f"成功保存凭证到文件: {file_path}, 批次ID: {wrapped_data['batch_id']}")
 
     @abstractmethod
     async def upload(
@@ -186,13 +225,13 @@ class BaseFileProcessor:
     def process_file(file: FileContent) -> tuple[BinaryIO, int]:
         """
         Process file input and return file object and size.
-        
+
         Args:
             file: File content in various formats (path, bytes, or file object)
-            
+
         Returns:
             tuple: (file_object, file_size)
-            
+
         Raises:
             ValueError: If file type is not supported
         """
@@ -228,11 +267,11 @@ class BaseFileProcessor:
     def combine_path(dir_path: str, file_path: str) -> str:
         """
         Combine directory path and file path ensuring only one separator between them.
-        
+
         Args:
             dir_path: Directory path
             file_path: File path or key
-            
+
         Returns:
             str: Combined path with a single separator
         """
@@ -245,7 +284,7 @@ class ProgressTracker:
     def __init__(self, callback: callable):
         """
         Initialize progress tracker.
-        
+
         Args:
             callback: Function to call with progress updates
         """
@@ -256,11 +295,11 @@ class ProgressTracker:
     def __call__(self, monitor):
         """
         Update progress based on monitor data.
-        
+
         Args:
             monitor: Upload monitor object with bytes_read and len attributes
         """
         self.uploaded = monitor.bytes_read
         if monitor.len and monitor.len > 0:
             progress = (self.uploaded / monitor.len) * 100
-            self.callback(min(progress, 100.0)) 
+            self.callback(min(progress, 100.0))

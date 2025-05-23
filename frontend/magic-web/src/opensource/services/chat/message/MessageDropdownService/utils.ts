@@ -12,6 +12,7 @@ export function canCopy(messageType: ConversationMessageType | ControlEventMessa
 		ConversationMessageType.RichText,
 		ConversationMessageType.Markdown,
 		ConversationMessageType.AggregateAISearchCard,
+		ConversationMessageType.AggregateAISearchCardV2,
 		ConversationMessageType.AiImage,
 		ConversationMessageType.HDImage,
 	].includes(messageType as ConversationMessageType)
@@ -28,6 +29,7 @@ export function canReply(messageType: ConversationMessageType | ControlEventMess
 		ConversationMessageType.RichText,
 		ConversationMessageType.Markdown,
 		ConversationMessageType.AggregateAISearchCard,
+		ConversationMessageType.AggregateAISearchCardV2,
 	].includes(messageType as ConversationMessageType)
 }
 

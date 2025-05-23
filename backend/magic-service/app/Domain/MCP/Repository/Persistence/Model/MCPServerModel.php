@@ -9,6 +9,7 @@ namespace App\Domain\MCP\Repository\Persistence\Model;
 
 use App\Infrastructure\Core\AbstractModel;
 use DateTime;
+use Hyperf\Database\Model\Relations\HasMany;
 use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\Snowflake\Concern\Snowflake;
 
@@ -62,4 +63,10 @@ class MCPServerModel extends AbstractModel
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public function tools(): HasMany
+    {
+        /* @phpstan-ignore-next-line */
+        return $this->hasMany(MCPServerToolModel::class, 'mcp_server_code', 'code');
+    }
 }

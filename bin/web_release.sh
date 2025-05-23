@@ -2,8 +2,6 @@
 set -e
 set -x
 
-
-
 NOW=$(date +%s)
 VERSION=$1
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -85,4 +83,3 @@ split "frontend/magic-web" magic-web
 TIME=$(echo "$(date +%s) - $NOW" | bc)
 
 printf "Execution time: %f seconds" $TIME
-

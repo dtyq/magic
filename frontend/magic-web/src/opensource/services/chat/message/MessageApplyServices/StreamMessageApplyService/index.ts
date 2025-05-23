@@ -19,6 +19,7 @@ const console = new Logger("StreamMessageApplyService", "blue", { console: false
 
 /**
  * 流式消息管理器
+ * @deprecated 已废弃，使用 StreamMessageApplyServiceV2 替代
  *
  * @class StreamMessageApplyService
  */

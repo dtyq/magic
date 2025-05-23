@@ -10,7 +10,7 @@ const MagicCitationProvider = ({
 	sources,
 	children,
 }: {
-	sources: AggregateAISearchCardSearch[]
+	sources: AggregateAISearchCardSearch[] | undefined
 	children: ReactNode
 }) => {
 	const value = useMemo(() => {

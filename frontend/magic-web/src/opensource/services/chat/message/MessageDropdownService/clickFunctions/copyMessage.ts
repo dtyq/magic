@@ -1,8 +1,15 @@
 import MessageDropdownStore from "@/opensource/stores/chatNew/messageUI/Dropdown"
-import { ConversationMessageType } from "@/types/chat/conversation_message"
+import {
+	ConversationMessageType,
+	AggregateAISearchCardContent,
+	AggregateAISearchCardContentV2,
+	AggregateAISearchCardEvent,
+} from "@/types/chat/conversation_message"
 import type { FullMessage } from "@/types/chat/message"
 import { getRichMessagePasteText } from "@/opensource/pages/chatNew/components/ChatSubSider/utils"
 import MessageFilePreviewService from "@/opensource/services/chat/message/MessageFilePreview"
+import { t } from "i18next"
+import { CitationRegexes } from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageFactory/components/Markdown/EnhanceMarkdown/remarkPlugins/remarkCitation"
 
 /**
  * 选择元素文本
@@ -50,6 +57,72 @@ function copySelection(el: HTMLElement) {
 }
 
 /**
+ * 生成 AI 搜索卡片文本
+ * @param message 消息
+ * @returns 文本
+ */
+function genAggregateAISearchCardText(message?: AggregateAISearchCardContent) {
+	if (!message) return ""
+
+	const result = `${message.llm_response}
+
+## 事件
+
+${genMarkdownTableText(message.event)}
+
+## 来源
+
+${message.search["0"]?.map((item, index) => `${index + 1}. [${item.name}](${item.url})`).join("\n")}
+`
+
+	return CitationRegexes.reduce((acc, regex) => {
+		return acc.replace(regex, (_, $1) => `[${$1}]`)
+	}, result)
+}
+
+/**
+ * 生成 AI 搜索卡片事件文本
+ * @param message 消息
+ * @returns 文本
+ */
+function genMarkdownTableText(message?: AggregateAISearchCardEvent[]) {
+	return `
+| ${t("chat.aggregate_ai_search_card.eventName", { ns: "interface" })} | ${t(
+		"chat.aggregate_ai_search_card.eventTime",
+		{ ns: "interface" },
+	)} | ${t("chat.aggregate_ai_search_card.eventDescription", { ns: "interface" })} |
+| --- | --- | --- |
+${message?.map((item) => `| ${item.name} | ${item.time} | ${item.description} |`).join("\n")}
+`
+}
+
+/**
+ * 生成 AI 搜索卡片文本
+ * @param message 消息
+ * @returns 文本
+ */
+function genAggregateAISearchCardV2Text(message?: AggregateAISearchCardContentV2) {
+	if (!message) return ""
+
+	const result = `${message.summary?.content}
+
+## 事件
+
+${genMarkdownTableText(message.events)}
+
+## 来源
+
+${message.no_repeat_search_details
+	?.map((item, index) => `${index + 1}. [${item.name}](${item.url})`)
+	.join("\n")}
+`
+
+	return CitationRegexes.reduce((acc, regex) => {
+		return acc.replace(regex, (_, $1) => `[${$1}]`)
+	}, result)
+}
+
+/**
  * 获取消息文本
  * @param message 消息
  * @returns 消息文本
@@ -63,7 +136,9 @@ function getMessageText(message: FullMessage) {
 		case ConversationMessageType.Markdown:
 			return message.message.markdown?.content ?? ""
 		case ConversationMessageType.AggregateAISearchCard:
-			return message.message.aggregate_ai_search_card?.llm_response ?? ""
+			return genAggregateAISearchCardText(message.message.aggregate_ai_search_card)
+		case ConversationMessageType.AggregateAISearchCardV2:
+			return genAggregateAISearchCardV2Text(message.message.aggregate_ai_search_card_v2)
 		default:
 			return ""
 	}
@@ -93,6 +168,8 @@ function copyMessage(messageId: string, e: EventTarget | null) {
 				MessageFilePreviewService.copy(e)
 			}
 			break
+		case ConversationMessageType.AggregateAISearchCard:
+		case ConversationMessageType.AggregateAISearchCardV2:
 		case ConversationMessageType.Text:
 		case ConversationMessageType.Markdown:
 		default:

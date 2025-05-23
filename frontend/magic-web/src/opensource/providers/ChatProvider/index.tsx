@@ -6,10 +6,14 @@ import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 import { bigNumCompare } from "@/utils/string"
 import { interfaceStore } from "@/opensource/stores/interface"
-import type { IntermediateResponse, StreamResponse, WebSocketPayload } from "@/types/request"
+import type {
+	StreamResponseV2,
+	IntermediateResponse,
+	StreamResponse,
+	WebSocketPayload,
+} from "@/types/request"
 import MessageSeqIdService from "@/opensource/services/chat/message/MessageSeqIdService"
 import MessageService from "@/opensource/services/chat/message/MessageService"
-import StreamMessageApplyService from "@/opensource/services/chat/message/MessageApplyServices/StreamMessageApplyService"
 import { SeqRecordType } from "@/opensource/apis/modules/chat/types"
 import type { SeqRecord } from "@/opensource/apis/modules/chat/types"
 import chatWebSocket from "@/opensource/apis/clients/chatWebSocket"
@@ -18,6 +22,7 @@ import { userStore } from "@/opensource/models/user"
 import ContactProvider from "@/opensource/providers/ContactProvider"
 import { observer } from "mobx-react-lite"
 import { useStyles } from "./styles"
+import StreamMessageApplyServiceV2 from "@/opensource/services/chat/message/MessageApplyServices/StreamMessageApplyServiceV2"
 import IntermediateMessageApplyService from "@/opensource/services/chat/message/MessageApplyServices/IntermediateMessageApplyService"
 
 interface ChatServiceProps extends PropsWithChildren {}
@@ -32,7 +37,7 @@ const ChatProvider = observer(function ChatProvider({ children }: ChatServicePro
 		const callback = (message: WebSocketPayload) => {
 			switch (message.type) {
 				case EventType.Stream:
-					StreamMessageApplyService.apply(message.payload as StreamResponse)
+					StreamMessageApplyServiceV2.apply(message.payload as StreamResponseV2)
 					break
 				case EventType.Intermediate:
 					IntermediateMessageApplyService.apply(message.payload as IntermediateResponse)

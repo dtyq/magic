@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HTML Messenger</title>
+  <script>
+    // 定义事件处理函数，方便重用
+    function setupMessageListener() {
+      window.addEventListener("message", handleMessage);
+    }
+
+    function handleMessage(event) {
+      try {
+        if (event.data && event.data.type === "setContent") {
+          // 收到内容后，使用document.write写入
+          document.open();
+          document.write(event.data.content);
+          document.close();
+          
+          // 重新绑定消息监听器
+          setupMessageListener();
+          
+          // 通知父窗口内容已加载
+          window.parent.postMessage({ type: "contentLoaded" }, "*");
+        }
+      } catch (error) {
+        console.error("处理消息时出错:", error);
+      }
+    }
+
+    // 全局错误处理
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error("HTML Messenger错误:", message);
+      // 防止浏览器默认的错误处理（可能包括alert）
+      return true;
+    };
+
+    // 初始设置消息监听器
+    setupMessageListener();
+    
+    // 页面加载完成后通知父窗口
+    window.addEventListener("DOMContentLoaded", function() {
+      try {
+        // 通知父窗口iframe已准备好接收内容
+        window.parent.postMessage({ type: "iframeReady" }, "*");
+      } catch (error) {
+        console.error("发送iframeReady消息时出错:", error);
+      }
+    });
+  </script>
+  <style>
+    html,body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .loading {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div>加载中...</div>
+  </div>
+</body>
+</html> 

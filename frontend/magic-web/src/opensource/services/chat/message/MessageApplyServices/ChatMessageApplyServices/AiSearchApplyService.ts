@@ -8,7 +8,7 @@ import { StreamStatus, type SeqResponse } from "@/types/request"
 import { cloneDeep, merge } from "lodash-es"
 import { makeObservable, observable, toJS } from "mobx"
 import MessageService from "../../MessageService"
-import StreamMessageApplyService from "../StreamMessageApplyService"
+import StreamMessageApplyServiceV2 from "../StreamMessageApplyServiceV2"
 import { bigNumCompare } from "@/utils/string"
 
 interface RelationInfo {
@@ -128,9 +128,9 @@ class AiSearchApplyService {
 		if (!this.getTempMessageContent(message.message.app_message_id)) {
 			MessageService.addReceivedMessage(this.generateMessage(message))
 			// 记录应用消息ID与实际消息ID的关系
-			StreamMessageApplyService.recordMessageInfo(message)
+			StreamMessageApplyServiceV2.recordMessageInfo(message)
 		} else {
-			const messageInfo = StreamMessageApplyService.queryMessageInfo(
+			const messageInfo = StreamMessageApplyServiceV2.queryMessageInfo(
 				message.message.app_message_id,
 			)
 			// 更新消息
@@ -164,7 +164,7 @@ class AiSearchApplyService {
 		localMessage.aggregate_ai_search_card!.reasoning_content =
 			(localMessage.aggregate_ai_search_card!.reasoning_content ?? "") + reasoningContent
 
-		const messageInfo = StreamMessageApplyService.queryMessageInfo(appMessageId)
+		const messageInfo = StreamMessageApplyServiceV2.queryMessageInfo(appMessageId)
 		if (!messageInfo) return
 
 		// 更新视图数据
@@ -196,7 +196,7 @@ class AiSearchApplyService {
 		localMessage.aggregate_ai_search_card!.llm_response =
 			(localMessage.aggregate_ai_search_card!.llm_response ?? "") + content
 
-		const messageInfo = StreamMessageApplyService.queryMessageInfo(appMessageId)
+		const messageInfo = StreamMessageApplyServiceV2.queryMessageInfo(appMessageId)
 		if (!messageInfo) return
 
 		// 更新视图数据
@@ -518,18 +518,19 @@ class AiSearchApplyService {
 			// 压到下一轮事件循环，确保流式传输开始时，消息信息已经记录
 			setTimeout(() => {
 				// 流式传输开始，添加到任务队列
-				StreamMessageApplyService.addToTaskMap(
-					message.seq_id,
-					{
-						target_seq_id: message.seq_id,
+				StreamMessageApplyServiceV2.apply({
+					target_seq_id: message.seq_id,
+					// @ts-ignore
+					streams: {
+						stream_options: {
+							status: StreamStatus.Start,
+						},
 						reasoning_content:
 							message.message.aggregate_ai_search_card?.reasoning_content ?? "",
-						status: StreamStatus.Start,
 						content: "",
 						llm_response: "",
 					},
-					true,
-				)
+				})
 			})
 		}
 	}

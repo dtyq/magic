@@ -85,7 +85,7 @@ function MainWorkspaceContent() {
 				setAutoDetail(latestMessageDetail)
 			}
 		},
-		[userSelectDetail, autoDetail],
+		[setAutoDetail],
 	)
 
 	useEffect(() => {
@@ -123,7 +123,8 @@ function MainWorkspaceContent() {
 			pubsub?.unsubscribe("OrganizationList_close")
 		}
 	}, [])
-	useEffect(() => {
+
+	useDeepCompareEffect(() => {
 		setAutoDetail(null)
 		setUserSelectDetail(null)
 		setShowLoading(false)

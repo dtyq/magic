@@ -230,10 +230,6 @@ export const useStyles = createStyles(
 			`,
 
 			img: css`
-				img {
-					max-width: 100%;
-				}
-
 				> img,
 				> p > img {
 					margin-block: calc(var(--${prefixCls}-markdown-margin-multiple) * 1em);
@@ -534,7 +530,9 @@ export const useStyles = createStyles(
 				}
 
 				video {
-					max-width: 100%;
+					width: 100%;
+					max-width: 240px;
+					max-height: 240px;
 				}
 			`,
 			math: css`

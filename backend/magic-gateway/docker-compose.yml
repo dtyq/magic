@@ -11,7 +11,7 @@ services:
       - ./config/${ENV:-dev}/.env:/app/.env
     restart: unless-stopped
     networks:
-      - sandbox-network
+      - magic-sandbox-network
     # depends_on:
     #   - magic-redis
 
@@ -23,7 +23,7 @@ services:
       - ./redis_data:/data
     restart: unless-stopped
     networks:
-      - sandbox-network
+      - magic-sandbox-network
     command: redis-server --appendonly yes
     labels:
       - "com.docker.compose.skip.create=true"
@@ -33,7 +33,6 @@ volumes:
   caddy_config:
 
 networks:
-  sandbox-network:
+  magic-sandbox-network:
     external: true
-    driver: bridge 
-    
+    driver: bridge

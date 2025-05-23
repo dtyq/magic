@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/magic-flow",
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"description": "An expression component that allows you to set user-defined content, block content, and function blocks",
 	"repository": {
 		"type": "git",

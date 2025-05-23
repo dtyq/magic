@@ -6,6 +6,7 @@ import LoadingFallback from "@/opensource/components/fallback/LoadingFallback"
 import AppearanceProvider from "./providers/AppearanceProvider"
 import ConfigProvider from "./providers/ConfigProvider"
 import { AppRoutes } from "./routes"
+import "./index.css"
 
 function App() {
 	return (
