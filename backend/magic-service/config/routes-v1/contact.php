@@ -18,6 +18,8 @@ Router::addGroup('/api/v1/contact', static function () {
         Router::get('/self/groups', [MagicChatHttpApi::class, 'getUserGroupList']);
         // 更新用户信息
         Router::patch('/me', [MagicChatUserApi::class, 'updateUserInfo']);
+        // 是否允许更新用户信息
+        Router::get('/me/update-permission', [MagicChatUserApi::class, 'getUserUpdatePermission']);
         // 按用户 id 批量查询
         Router::post('/queries', [MagicChatAdminContactApi::class, 'userGetByIds']);
         // 按手机号/昵称等查询

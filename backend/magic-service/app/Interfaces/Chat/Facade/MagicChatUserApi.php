@@ -120,6 +120,16 @@ class MagicChatUserApi extends AbstractApi
     }
 
     /**
+     * 是否允许更新用户信息.
+     */
+    public function getUserUpdatePermission(): array
+    {
+        $authorization = $this->getAuthorization();
+        $permission = $this->userAppService->checkUpdateUserInfo($authorization);
+        return ['permission' => $permission];
+    }
+
+    /**
      * 更新用户信息
      * 支持更新字段：
      * 1. avatar_url: 头像
