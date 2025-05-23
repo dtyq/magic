@@ -43,6 +43,11 @@ class TaskFileItemDTO extends AbstractDTO
     public string $fileKey;
 
     /**
+     * 文件相对路径.
+     */
+    public string $relativeFilePath;
+
+    /**
      * 文件大小.
      */
     public int $fileSize;
@@ -51,11 +56,6 @@ class TaskFileItemDTO extends AbstractDTO
      * 文件URL.
      */
     public string $fileUrl;
-
-    /**
-     * 菜单信息.
-     */
-    public string $menu;
 
     /**
      * 从实体创建DTO.
@@ -70,8 +70,8 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileExtension = $entity->getFileExtension();
         $dto->fileKey = $entity->getFileKey();
         $dto->fileSize = $entity->getFileSize();
+        $dto->relativeFilePath = '';
         $dto->fileUrl = $entity->getExternalUrl();
-        $dto->menu = $entity->getMenu();
 
         return $dto;
     }
@@ -89,8 +89,8 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileExtension = $data['file_extension'] ?? '';
         $dto->fileKey = $data['file_key'] ?? '';
         $dto->fileSize = $data['file_size'] ?? 0;
+        $dto->relativeFilePath = $data['relative_file_path'] ?? '';
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
-        $dto->menu = $data['menu'] ?? '';
         return $dto;
     }
 
@@ -108,8 +108,8 @@ class TaskFileItemDTO extends AbstractDTO
             'file_extension' => $this->fileExtension,
             'file_key' => $this->fileKey,
             'file_size' => $this->fileSize,
+            'relative_file_path' => $this->relativeFilePath,
             'file_url' => $this->fileUrl,
-            'menu' => $this->menu,
         ];
     }
 }

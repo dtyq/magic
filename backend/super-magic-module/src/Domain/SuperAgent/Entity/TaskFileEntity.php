@@ -33,8 +33,6 @@ class TaskFileEntity extends AbstractEntity
 
     protected string $externalUrl = '';
 
-    protected ?string $menu = null;
-
     protected string $storageType = 'workspace';
 
     protected string $createdAt = '';
@@ -153,16 +151,6 @@ class TaskFileEntity extends AbstractEntity
         $this->externalUrl = $externalUrl;
     }
 
-    public function getMenu(): ?string
-    {
-        return $this->menu;
-    }
-
-    public function setMenu(?string $menu): void
-    {
-        $this->menu = $menu;
-    }
-
     public function getStorageType(): string
     {
         return $this->storageType;
@@ -221,7 +209,6 @@ class TaskFileEntity extends AbstractEntity
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
-            'menu' => $this->menu,
         ];
     }
 }
