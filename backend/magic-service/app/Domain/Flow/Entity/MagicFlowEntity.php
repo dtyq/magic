@@ -111,6 +111,8 @@ class MagicFlowEntity extends AbstractEntity
      */
     private ?Closure $callback = null;
 
+    private ?array $callbackResult = null;
+
     /**
      * agent id.
      */
@@ -280,6 +282,9 @@ class MagicFlowEntity extends AbstractEntity
 
     public function getResult(bool $throw = true): array
     {
+        if ($this->getCallbackResult()) {
+            return $this->getCallbackResult();
+        }
         $result = [];
         foreach ($this->nodes as $node) {
             $nodeDebugResult = $node->getNodeDebugResult();
@@ -589,6 +594,16 @@ class MagicFlowEntity extends AbstractEntity
     public function setCallback(?Closure $callback): void
     {
         $this->callback = $callback;
+    }
+
+    public function getCallbackResult(): ?array
+    {
+        return $this->callbackResult;
+    }
+
+    public function setCallbackResult(?array $callbackResult): void
+    {
+        $this->callbackResult = $callbackResult;
     }
 
     public function getAgentId(): string

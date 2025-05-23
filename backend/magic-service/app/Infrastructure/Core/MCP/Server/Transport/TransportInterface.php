@@ -7,15 +7,14 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\MCP\Server\Transport;
 
+use App\Infrastructure\Core\MCP\Server\Handler\MCPHandler;
 use App\Infrastructure\Core\MCP\Types\Message\MessageInterface;
 
 interface TransportInterface
 {
-    public function sendMessage(string $serverName, ?MessageInterface $message): void;
+    public function register(string $path, string $serverName, MCPHandler $handler): void;
+
+    public function handle(string $serverName, string $sessionId, MessageInterface $message, bool $broadcast = true): void;
 
     public function readMessage(): MessageInterface;
-
-    public function send(string $serverName, string $message): void;
-
-    public function register(string $path, string $serverName): void;
 }

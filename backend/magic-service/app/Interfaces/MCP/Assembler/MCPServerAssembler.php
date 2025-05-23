@@ -34,6 +34,7 @@ class MCPServerAssembler
         $DTO->setCreatorInfo(OperatorAssembler::createOperatorDTOByUserEntity($users[$mcpServerEntity->getCreator()] ?? null, $mcpServerEntity->getCreatedAt()));
         $DTO->setModifierInfo(OperatorAssembler::createOperatorDTOByUserEntity($users[$mcpServerEntity->getModifier()] ?? null, $mcpServerEntity->getUpdatedAt()));
         $DTO->setUserOperation($mcpServerEntity->getUserOperation());
+        $DTO->setToolsCount($mcpServerEntity->getToolsCount());
         return $DTO;
     }
 

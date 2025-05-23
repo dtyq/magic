@@ -21,6 +21,17 @@ class BuiltInToolSetCollector
     protected static ?array $list = null;
 
     /**
+     * @var null|array<string, BuiltInToolInterface> tools
+     */
+    protected static ?array $tools = [];
+
+    public static function getToolByCode(string $code): ?BuiltInToolInterface
+    {
+        self::list();
+        return self::$tools[$code] ?? null;
+    }
+
+    /**
      * 获取所有内置工具集 - 工具.
      * @return array<BuiltInToolSetInterface>
      */
@@ -48,6 +59,7 @@ class BuiltInToolSetCollector
                 continue;
             }
             $toolsKeyBySetCode[$tool->getToolSetCode()][$tool->getCode()] = $tool;
+            self::$tools[$tool->getCode()] = $tool;
         }
 
         /**
@@ -70,5 +82,16 @@ class BuiltInToolSetCollector
         self::$list = $list;
 
         return self::$list;
+    }
+
+    public static function isBuiltInToolSet(string $code): bool
+    {
+        $list = self::list();
+        foreach ($list as $toolSet) {
+            if ($toolSet->getCode() === $code) {
+                return true;
+            }
+        }
+        return false;
     }
 }
