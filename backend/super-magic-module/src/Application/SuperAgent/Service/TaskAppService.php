@@ -294,6 +294,10 @@ class TaskAppService extends AbstractAppService
                 throw new RuntimeException(sprintf('根据任务 id: %s 未找到任务信息', $messageDTO->getPayload()->getTaskId() ?? ''));
             }
 
+            if (empty($taskEntity->getSandboxId())) {
+                $taskEntity->setSandboxId($messageDTO->getMetadata()?->getSandboxId());
+            }
+
             // 创建数据隔离对象
             $dataIsolation = DataIsolation::create(
                 $messageDTO->getMetadata()->getOrganizationCode(),
