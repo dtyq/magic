@@ -101,6 +101,7 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $documents = $this->knowledgeBaseDocumentDomainService->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId);
         $knowledgeEntities = $this->knowledgeBaseDomainService->getByCodes($dataIsolation, array_column($documents, 'knowledge_base_code'));
+        $knowledgeEntities = array_column($knowledgeEntities, null, 'code');
 
         foreach ($documents as $document) {
             $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
