@@ -323,6 +323,22 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $account->getPhone();
     }
 
+    public function updateUserInfo(DataIsolation $dataIsolation, array $userInfo): int
+    {
+        $userId = $dataIsolation->getCurrentUserId();
+        if (empty($userId)) {
+            ExceptionBuilder::throw(ChatErrorCode::USER_NOT_CREATE_ACCOUNT);
+        }
+        $updateFilter = [];
+        //只允许指定范围的字段修改
+        foreach (["avatar_url", "nickname"] as $field) {
+            if (array_key_exists($field, $userInfo) && $userInfo[$field] !== null) {
+                $updateFilter[$field] = $userInfo[$field];
+            }
+        }
+        return $this->userRepository->updateDataById($userId, $updateFilter);
+    }
+
     protected function setUserIdsByAiCodes(FriendQueryDTO $friendQueryDTO, DataIsolation $dataIsolation): array
     {
         $userIdToFlowCodeMaps = [];

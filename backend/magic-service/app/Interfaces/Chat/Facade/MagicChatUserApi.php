@@ -117,4 +117,21 @@ class MagicChatUserApi extends AbstractApi
         $friends = $this->userAppService->getUserFriendList($friendQueryDTO, $authorization);
         return PageListAssembler::pageByMysql($friends);
     }
+
+    /**
+     * 更新用户信息
+     * 支持更新字段：
+     * 1. avatar_url: 头像
+     * 2. nickname:   昵称
+     */
+    public function updateUserInfo(RequestInterface $request): array
+    {
+        $authorization = $this->getAuthorization();
+        $userInfo = [
+            "avatar_url" => $request->input('avatar_url',null),
+            "nickname" => $request->input('nickname',null)
+        ];
+        $userEntity = $this->userAppService->updateUserInfo($authorization, $userInfo);
+        return $userEntity->toArray();
+    }
 }

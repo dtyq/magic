@@ -306,6 +306,13 @@ class MagicUserContactAppService extends AbstractAppService
         return $magicEnvironmentEntity;
     }
 
+    public function updateUserInfo(MagicUserAuthorization $userAuthorization, array $userInfo): MagicUserEntity
+    {
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $this->userDomainService->updateUserInfo($dataIsolation, $userInfo);
+        return $this->getByUserId($dataIsolation->getCurrentUserId());
+    }
+
     /**
      * 为用户添加Agent信息(应用层协调器).
      * @param array<UserDetailDTO> $usersDetailDTOList
