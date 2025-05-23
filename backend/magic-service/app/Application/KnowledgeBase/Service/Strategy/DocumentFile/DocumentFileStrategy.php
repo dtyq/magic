@@ -37,8 +37,8 @@ class DocumentFileStrategy
     {
         $driver = $this->getImplement($documentFile);
         $originContent = $driver?->parseContent($dataIsolation, $documentFile) ?? '';
-        // 替换base64图片
-        return $this->replaceBase64Images($originContent, $dataIsolation, $knowledgeBaseCode);
+        // 替换图片
+        return $this->replaceImages($originContent, $dataIsolation, $knowledgeBaseCode);
     }
 
     public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, ?DocumentFileInterface $documentFile): ?int
@@ -90,34 +90,57 @@ class DocumentFileStrategy
     }
 
     /**
-     * 替换内容中的 base64 图片为 MagicCompressibleContent 标签.
+     * 替换内容中的图片为 MagicCompressibleContent 标签.
      */
-    private function replaceBase64Images(string $content, KnowledgeBaseDataIsolation $dataIsolation, ?string $knowledgeBaseCode = null): string
+    private function replaceImages(string $content, KnowledgeBaseDataIsolation $dataIsolation, ?string $knowledgeBaseCode = null): string
     {
-        // 提取base64的图片
-        $pattern = '/(!\[.*\]\((data:image\/([^;]+);base64,([^)]+))\))/';
+        // 匹配所有图片
+        $pattern = '/(!\[.*\]\((.*?)\))/';
         $matches = [];
         preg_match_all($pattern, $content, $matches);
         $fullMatches = $matches[1] ?? [];  // 完整的markdown图片语法
-        $images = $matches[2] ?? [];  // 完整的data URL
-        $imageTypes = $matches[3] ?? [];  // 图片类型
-        $base64Contents = $matches[4] ?? [];  // base64内容
+        $imageUrls = $matches[2] ?? [];  // 图片URL或base64
 
-        foreach ($images as $index => $image) {
+        foreach ($imageUrls as $index => $imageUrl) {
             try {
-                $md5 = md5($image);
-                $cacheKey = 'knowledge_base:' . $knowledgeBaseCode . ':document_file:base64_image:' . $md5;
+                $md5 = md5($imageUrl);
+                $isBase64 = str_starts_with($imageUrl, 'data:image/');
+
+                // 获取缓存key
+                $cacheKey = 'knowledge_base:' . $knowledgeBaseCode . ':document_file:image:' . $md5;
                 $fileKey = $this->cache->get($cacheKey);
+
                 if (! $fileKey) {
-                    $extension = $imageTypes[$index] ?? 'png';
+                    // 获取图片内容
+                    if ($isBase64) {
+                        // 解析base64数据
+                        $base64Data = explode(',', $imageUrl);
+                        $imageContent = base64_decode($base64Data[1]);
+                    } else {
+                        // 下载图片
+                        $imageContent = file_get_contents($imageUrl);
+                        if ($imageContent === false) {
+                            throw new \RuntimeException('Failed to download image from URL: ' . $imageUrl);
+                        }
+                    }
+
+                    // 保存临时文件
+                    $tempFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid();
+                    file_put_contents($tempFile, $imageContent);
+
+                    // 获取文件扩展名
+                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                    $mimeType = finfo_file($finfo, $tempFile);
+                    finfo_close($finfo);
+                    $extension = $this->getExtensionFromMimeType($mimeType);
+
+                    // 重命名临时文件
                     $imageName = uniqid() . '.' . $extension;
                     $imagePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $imageName;
-                    file_put_contents($imagePath, base64_decode($base64Contents[$index]));
+                    rename($tempFile, $imagePath);
 
-                    // 创建上传文件对象
+                    // 创建上传文件对象并上传
                     $uploadFile = new UploadFile($imagePath, 'knowledge-base/' . $knowledgeBaseCode, $imageName);
-
-                    // 上传文件
                     $this->fileDomainService->uploadByCredential(
                         $dataIsolation->getCurrentOrganizationCode(),
                         $uploadFile,
@@ -126,21 +149,44 @@ class DocumentFileStrategy
                     $fileKey = $uploadFile->getKey();
                     $this->cache->set($cacheKey, $fileKey, 3600);
                 }
+
                 // 替换图片链接
                 $content = str_replace($fullMatches[$index], '<MagicCompressibleContent Type="Image">![image](magic_knowledge_base_file_' . $fileKey . ')</MagicCompressibleContent>', $content);
             } catch (Throwable $e) {
                 $this->logger->error('Failed to process image', [
                     'error' => $e->getMessage(),
-                    'image' => $image,
+                    'url' => $imageUrl,
                 ]);
             } finally {
                 // 删除临时文件
                 if (isset($imagePath) && file_exists($imagePath)) {
                     unlink($imagePath);
                 }
+                if (isset($tempFile) && file_exists($tempFile)) {
+                    unlink($tempFile);
+                }
             }
         }
+
         return $content;
+    }
+
+    /**
+     * 根据MIME类型获取文件扩展名
+     */
+    private function getExtensionFromMimeType(string $mimeType): string
+    {
+        $mimeMap = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/bmp' => 'bmp',
+            'image/svg+xml' => 'svg',
+            'image/x-icon' => 'ico',
+        ];
+
+        return $mimeMap[$mimeType] ?? 'png';
     }
 
     private function getImplement(?DocumentFileInterface $documentFile): ?BaseDocumentFileStrategyInterface

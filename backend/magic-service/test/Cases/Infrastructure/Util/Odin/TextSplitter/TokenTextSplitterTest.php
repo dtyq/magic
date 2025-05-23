@@ -222,16 +222,23 @@ EOT;
 测试缓存
 EOT;
 
-        $chunks = $this->splitter->splitText($text);
+        $splitter = new TokenTextSplitter(
+            null,
+            6,
+            0,
+            "\n\n",
+            preserveSeparator: true
+        );
+        $chunks = $splitter->splitText($text);
 
         $this->assertIsArray($chunks);
         $this->assertNotEmpty($chunks);
 
         // 验证标签内容被完整保留
         $this->assertStringContainsString('测试word', $chunks[0]);
-        $this->assertStringContainsString('<MagicCompressibleContent', $chunks[1]);
-        $this->assertStringContainsString('</MagicCompressibleContent>', $chunks[1]);
-        $this->assertStringContainsString('测试缓存', $chunks[2]);
+        $this->assertStringContainsString('<MagicCompressibleContent', $chunks[0]);
+        $this->assertStringContainsString('</MagicCompressibleContent>', $chunks[0]);
+        $this->assertStringContainsString('测试缓存', $chunks[1]);
     }
 
     public function testMultipleTaggedContent()
@@ -244,17 +251,23 @@ EOT;
 第三段文本
 EOT;
 
-        $chunks = $this->splitter->splitText($text);
+        $splitter = new TokenTextSplitter(
+            null,
+            10,
+            0,
+            "\n\n",
+            preserveSeparator: true
+        );
+        $chunks = $splitter->splitText($text);
 
         $this->assertIsArray($chunks);
         $this->assertNotEmpty($chunks);
 
         // 验证所有标签内容都被完整保留
         $this->assertStringContainsString('第一段文本', $chunks[0]);
-        $this->assertStringContainsString('image1.png', $chunks[1]);
-        $this->assertStringContainsString('第二段文本', $chunks[2]);
-        $this->assertStringContainsString('image2.png', $chunks[3]);
-        $this->assertStringContainsString('第三段文本', $chunks[4]);
+        $this->assertStringContainsString('第二段文本', $chunks[1]);
+        $this->assertStringContainsString('<MagicCompressibleContent Type="Image">image2.png</MagicCompressibleContent>', $chunks[1]);
+        $this->assertStringContainsString('第三段文本', $chunks[2]);
     }
 
     public function testTaggedContentWithChinese()
@@ -265,14 +278,22 @@ EOT;
 继续测试
 EOT;
 
-        $chunks = $this->splitter->splitText($text);
+        $splitter = new TokenTextSplitter(
+            null,
+            10,
+            0,
+            "\n\n",
+            preserveSeparator: true
+        );
+        $chunks = $splitter->splitText($text);
 
         $this->assertIsArray($chunks);
         $this->assertNotEmpty($chunks);
+        $this->assertCount(2, $chunks);
 
         // 验证中文内容被正确处理
         $this->assertStringContainsString('中文测试', $chunks[0]);
-        $this->assertStringContainsString('中文路径/图片.png', $chunks[1]);
-        $this->assertStringContainsString('继续测试', $chunks[2]);
+        $this->assertStringContainsString('<MagicCompressibleContent Type="Image">中文路径/图片.png</MagicCompressibleContent>', $chunks[0]);
+        $this->assertStringContainsString('继续测试', $chunks[1]);
     }
 }
