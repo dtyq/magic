@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Core\MCP\Types\Message;
 
 use JsonSerializable;
+use stdClass;
 
 class Response implements MessageInterface, JsonSerializable
 {
@@ -48,11 +49,15 @@ class Response implements MessageInterface, JsonSerializable
                 return $item;
             }, $this->result['content']);
         }
+        $result = $this->result;
+        if (is_array($result) && empty($result)) {
+            $result = new stdClass();
+        }
 
         return [
             'id' => $this->id,
             'jsonrpc' => $this->jsonrpc,
-            'result' => $this->result,
+            'result' => $result,
         ];
     }
 }

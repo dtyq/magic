@@ -29,6 +29,8 @@ class MethodHandlerFactory
         'prompts/list' => PromptListHandler::class,
         'prompts/get' => PromptGetHandler::class,
         'notifications/initialized' => NotificationInitializedHandler::class,
+        'notifications/cancelled' => NotificationCancelledHandler::class,
+        'ping' => PingHandler::class,
     ];
 
     public function __construct(

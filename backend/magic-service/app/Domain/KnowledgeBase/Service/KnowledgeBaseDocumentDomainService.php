@@ -218,7 +218,7 @@ readonly class KnowledgeBaseDocumentDomainService
     /**
      * @return array<KnowledgeBaseDocumentEntity>
      */
-    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId): array
+    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?string $knowledgeBaseCode = null): array
     {
         $loopCount = 20;
         $pageSize = 500;
@@ -227,7 +227,10 @@ readonly class KnowledgeBaseDocumentDomainService
         $res = [];
         // 最多允许获取一万份文档
         while ($loopCount--) {
-            $entities = $this->knowledgeBaseDocumentRepository->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId, $lastId, $pageSize);
+            $entities = $this->knowledgeBaseDocumentRepository->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId, $knowledgeBaseCode, $lastId, $pageSize);
+            if (empty($entities)) {
+                break;
+            }
             $res = array_merge($res, $entities);
         }
         return $res;
@@ -268,9 +271,9 @@ readonly class KnowledgeBaseDocumentDomainService
         $documentEntity->setUpdatedUid($documentEntity->getCreatedUid());
         $documentEntity->setSyncStatus(0); // 0 表示未同步
         // 以下属性均从文档文件中获取
-        $documentEntity->setDocType($documentFile?->getDocType()?->value ?? DocType::TXT->value);
+        $documentEntity->setDocType($documentFile?->getDocType() ?? DocType::TXT->value);
         $documentEntity->setThirdFileId($documentFile?->getThirdFileId());
-        $documentEntity->setThirdPlatformType($documentFile?->getThirdPlatformType());
+        $documentEntity->setThirdPlatformType($documentFile?->getPlatformType());
     }
 
     /**

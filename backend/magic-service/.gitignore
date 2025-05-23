@@ -11,7 +11,6 @@ vendor/
 .env
 .DS_Store
 *.cache
-*.lock
 .php-accessor/
 .phpunit*
 .vscode/
@@ -25,5 +24,3 @@ test/bin/
 build/
 coverage/
 odin_models.json
-composer.lock
-scripts/

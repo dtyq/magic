@@ -10,8 +10,6 @@ namespace App\Infrastructure\Core\MCP\Tools;
 use App\Infrastructure\Core\MCP\Exception\InvalidParamsException;
 use Closure;
 
-use function Hyperf\Support\call;
-
 readonly class MCPTool
 {
     public function __construct(
@@ -57,6 +55,6 @@ readonly class MCPTool
             throw new InvalidParamsException('Callback is not set.');
         }
 
-        return call($this->getCallback(), $arguments);
+        return call_user_func($this->getCallback(), $arguments);
     }
 }

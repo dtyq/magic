@@ -24,6 +24,18 @@ class TextPreprocessUtil
      */
     public static function preprocess(array $rules, string $text): string
     {
+        // 保护标签内容
+        $protectedContent = [];
+        $text = preg_replace_callback(
+            '/<MagicCompressibleContent[^>]*>.*?<\/MagicCompressibleContent>/s',
+            function ($matches) use (&$protectedContent) {
+                $key = '{{PROTECTED_' . count($protectedContent) . '}}';
+                $protectedContent[$key] = $matches[0];
+                return $key;
+            },
+            $text
+        );
+
         // 如果有EXCEL_HEADER_CONCAT 需要先执行，并且删除EXCEL_HEADER_CONCAT规则
         $excelHeaderConcatRule = array_filter($rules, fn (TextPreprocessRule $rule) => $rule === TextPreprocessRule::EXCEL_HEADER_CONCAT);
         if (count($excelHeaderConcatRule) > 0) {
@@ -42,6 +54,12 @@ class TextPreprocessUtil
             }
             $text = $strategy->preprocess($text);
         }
+
+        // 恢复标签内容
+        foreach ($protectedContent as $key => $content) {
+            $text = str_replace($key, $content, $text);
+        }
+
         return $text;
     }
 }

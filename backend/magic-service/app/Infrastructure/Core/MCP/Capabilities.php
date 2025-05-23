@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Infrastructure\Core\MCP;
 
 use JsonSerializable;
-use stdClass;
 
 class Capabilities implements JsonSerializable
 {
@@ -19,17 +18,14 @@ class Capabilities implements JsonSerializable
     ) {
     }
 
-    public function jsonSerialize(): stdClass
+    public function jsonSerialize(): array
     {
-        $capabilities = new stdClass();
+        $capabilities = [
+        ];
         if ($this->hasTools) {
-            $capabilities->tools = new stdClass();
-        }
-        if ($this->hasResources) {
-            $capabilities->resources = new stdClass();
-        }
-        if ($this->hasPrompts) {
-            $capabilities->prompts = new stdClass();
+            $capabilities['tools'] = [
+                'listChanged' => false,
+            ];
         }
         return $capabilities;
     }

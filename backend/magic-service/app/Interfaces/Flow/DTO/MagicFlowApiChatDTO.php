@@ -40,6 +40,8 @@ class MagicFlowApiChatDTO extends AbstractFlowDTO
 
     public string $flowCode = '';
 
+    public string $flowVersionCode = '';
+
     public string $apiKey = '';
 
     public string $authorization = '';
@@ -121,6 +123,11 @@ class MagicFlowApiChatDTO extends AbstractFlowDTO
         return $this->flowCode;
     }
 
+    public function getFlowVersionCode(): string
+    {
+        return $this->flowVersionCode;
+    }
+
     public function getApiKey(): string
     {
         return $this->apiKey;
@@ -200,6 +207,11 @@ class MagicFlowApiChatDTO extends AbstractFlowDTO
     public function setFlowCode(?string $flowCode): void
     {
         $this->flowCode = $flowCode ?? '';
+    }
+
+    public function setFlowVersionCode(?string $flowVersionCode): void
+    {
+        $this->flowVersionCode = $flowVersionCode ?? '';
     }
 
     public function setApiKey(?string $apiKey): void

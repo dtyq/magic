@@ -117,6 +117,8 @@ class TokenUsage:
     total_tokens: int
     input_tokens_details: Optional[InputTokensDetails] = None
     output_tokens_details: Optional[OutputTokensDetails] = None
+    model_id: Optional[str] = None  # Added field for model ID
+    model_name: Optional[str] = None  # Added field for model name
 
     # 注册的解析器，按优先级顺序排列
     _parsers: ClassVar[List[Type[TokenUsageParser]]] = []
@@ -128,6 +130,10 @@ class TokenUsage:
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
         }
+        if self.model_id:
+            data["model_id"] = self.model_id
+        if self.model_name:
+            data["model_name"] = self.model_name
 
         # 只有当details对象存在且其to_dict()结果不为None时才加入
         if self.input_tokens_details:
@@ -151,6 +157,8 @@ class TokenUsage:
             total_tokens=data.get("total_tokens", 0),
             input_tokens_details=InputTokensDetails.from_dict(data.get("input_tokens_details")),
             output_tokens_details=OutputTokensDetails.from_dict(data.get("output_tokens_details")),
+            model_id=data.get("model_id"),
+            model_name=data.get("model_name")
         )
 
     @classmethod

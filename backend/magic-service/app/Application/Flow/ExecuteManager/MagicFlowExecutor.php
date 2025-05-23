@@ -102,7 +102,9 @@ class MagicFlowExecutor
         try {
             $this->begin($args);
             if ($this->magicFlowEntity->hasCallback()) {
-                return $this->executeCallback();
+                $result = $this->executeCallback();
+                $this->magicFlowEntity->setCallbackResult($result);
+                return $result;
             }
             return $this->dag->run($args);
         } finally {

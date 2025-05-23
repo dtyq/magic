@@ -28,4 +28,10 @@ interface MagicFlowVersionRepositoryInterface
     public function getLastVersion(FlowDataIsolation $dataIsolation, string $flowCode): ?MagicFlowVersionEntity;
 
     public function existVersion(FlowDataIsolation $dataIsolation, string $flowCode): bool;
+
+    /**
+     * @param array<string> $versionCodes
+     * @return array<MagicFlowVersionEntity>
+     */
+    public function getByCodes(FlowDataIsolation $dataIsolation, array $versionCodes): array;
 }

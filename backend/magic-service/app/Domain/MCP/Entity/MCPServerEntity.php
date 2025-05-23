@@ -48,7 +48,7 @@ class MCPServerEntity extends AbstractEntity
     /**
      * 是否启用.
      */
-    protected bool $enabled = false;
+    protected ?bool $enabled = null;
 
     protected string $creator;
 
@@ -59,6 +59,8 @@ class MCPServerEntity extends AbstractEntity
     protected DateTime $updatedAt;
 
     private int $userOperation = 0;
+
+    private int $toolsCount = 0;
 
     public function shouldCreate(): bool
     {
@@ -247,5 +249,15 @@ class MCPServerEntity extends AbstractEntity
     public function setUserOperation(int $userOperation): void
     {
         $this->userOperation = $userOperation;
+    }
+
+    public function getToolsCount(): int
+    {
+        return $this->toolsCount;
+    }
+
+    public function setToolsCount(int $toolsCount): void
+    {
+        $this->toolsCount = $toolsCount;
     }
 }
