@@ -1,7 +1,7 @@
 import MagicSpin from "@/opensource/components/base/MagicSpin"
 import { Avatar, Flex, Input, List, Select } from "antd"
 import { useEffect, useMemo, useState } from "react"
-import { FlowRouteType, VectorKnowledge } from "@/types/flow"
+import { Flow, FlowRouteType, VectorKnowledge } from "@/types/flow"
 import { useLocation, useParams } from "react-router"
 import { useNavigate } from "@/opensource/hooks/useNavigate"
 import FlowEmptyImage from "@/assets/logos/empty-flow.png"
@@ -48,9 +48,10 @@ function FlowListPage() {
 		loading,
 		flowList,
 		title,
-		toolSetId,
-		setToolSetId,
+		groupId,
+		setGroupId,
 		currentFlow,
+		setCurrentFlow,
 		currentTool,
 		updateFlowOrTool,
 		expandPanelOpen,
@@ -64,6 +65,7 @@ function FlowListPage() {
 		loadMoreData,
 		hasMore,
 		total,
+		mcpEventListener,
 	} = useFlowList({
 		flowType,
 	})
@@ -131,8 +133,7 @@ function FlowListPage() {
 							type="primary"
 							onClick={createHandler}
 						>
-							{t("button.create")}
-							{title}
+							{t("common.createSomething", { ns: "flow", name: title })}
 						</MagicButton>
 					</Flex>
 				</Flex>
@@ -172,8 +173,7 @@ function FlowListPage() {
 
 								{flowList.length === 0 && (
 									<MagicButton type="primary" onClick={createHandler}>
-										{t("button.create")}
-										{title}
+										{t("common.createSomething", { ns: "flow", name: title })}
 									</MagicButton>
 								)}
 							</Flex>
@@ -209,7 +209,10 @@ function FlowListPage() {
 									dataSource={flowList}
 									loading={loading}
 									renderItem={(
-										item: MagicFlow.Flow | Knowledge.KnowledgeItem,
+										item:
+											| MagicFlow.Flow
+											| Knowledge.KnowledgeItem
+											| Flow.Mcp.Detail,
 									) => {
 										const dropdownItems = getDropdownItems(item)
 										return (
@@ -240,15 +243,18 @@ function FlowListPage() {
 					data={currentFlow}
 					goToFlow={goToFlow}
 					flowType={flowType}
-					setToolSetId={setToolSetId}
+					setGroupId={setGroupId}
 					getDropdownItems={getRightPanelDropdownItems}
+					mcpEventListener={mcpEventListener}
+					setCurrentFlow={setCurrentFlow}
+					mutate={mutate}
 				/>
 			)}
 			{flowType !== FlowRouteType.VectorKnowledge && (
 				<AddOrUpdateFlow
 					flow={currentFlow}
 					tool={currentTool}
-					toolSetId={toolSetId}
+					groupId={groupId}
 					open={addOrUpdateFlowOpen}
 					onClose={handleCloseAddOrUpdateFlow}
 					updateFlowOrTool={updateFlowOrTool}

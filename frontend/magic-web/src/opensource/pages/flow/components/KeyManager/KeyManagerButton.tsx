@@ -1,7 +1,7 @@
 import MagicIcon from "@/opensource/components/base/MagicIcon"
 import MagicModal from "@/opensource/components/base/MagicModal"
 import MagicTable from "@/opensource/components/base/MagicTable"
-import type { ApiKey } from "@/types/flow"
+import { Flow, type ApiKey } from "@/types/flow"
 import {
 	IconCopy,
 	IconEdit,
@@ -70,6 +70,7 @@ type KeyManagerProps = {
 	open: boolean
 	onClose: () => void
 	isAgent?: boolean
+	type?: Flow.ApiKeyType
 }
 
 export default function KeyManagerButton({
@@ -78,8 +79,10 @@ export default function KeyManagerButton({
 	open,
 	onClose,
 	isAgent = false,
+	type,
 }: KeyManagerProps) {
 	const { t } = useTranslation("interface")
+	const { t: globalT } = useTranslation()
 
 	const { styles } = useKeyManagerStyles()
 
@@ -87,6 +90,11 @@ export default function KeyManagerButton({
 	const [visibleKeys, setVisibleKeys, resetVisibleKeys] = useResetState<Record<string, boolean>>(
 		{},
 	)
+
+	// 暂时只在Mcp处理v1版本的Api key新接口，其余接口后端还没处理
+	const isMcp = useMemo(() => {
+		return type === Flow.ApiKeyType.Mcp
+	}, [type])
 
 	const toggleKeyVisibility = useMemoizedFn((keyId: string) => {
 		setVisibleKeys((prev) => ({
@@ -130,14 +138,27 @@ export default function KeyManagerButton({
 
 	const updateKey = useMemoizedFn(
 		async (
-			params: Pick<ApiKey, "id" | "name" | "description" | "conversation_id" | "enabled">,
+			params: Pick<
+				ApiKey,
+				| "id"
+				| "name"
+				| "description"
+				| "conversation_id"
+				| "enabled"
+				| "rel_code"
+				| "rel_type"
+			>,
 		) => {
-			const data = await FlowApi.saveApiKey(
-				{
-					...params,
-				},
-				flowId,
-			)
+			const data = isMcp
+				? await FlowApi.saveApiKeyV1({
+						...params,
+				  })
+				: await FlowApi.saveApiKey(
+						{
+							...params,
+						},
+						flowId,
+				  )
 
 			onListItemChanged(data, "edit")
 			message.success(
@@ -149,13 +170,19 @@ export default function KeyManagerButton({
 	)
 
 	const deleteKey = useMemoizedFn(async (key: ApiKey) => {
-		await FlowApi.deleteApiKey(key.id, flowId)
+		if (isMcp) {
+			await FlowApi.deleteApiKeyV1(key.id)
+		} else {
+			await FlowApi.deleteApiKey(key.id, flowId)
+		}
 		message.success(`${t("flow.apiKey.deleteKey")} ${t("flow.apiKey.success")}`)
 		onListItemChanged(key, "delete")
 	})
 
 	const rebuildKey = useMemoizedFn(async (key: ApiKey) => {
-		const newKey = await FlowApi.rebuildApiKey(key.id, flowId)
+		const newKey = isMcp
+			? await FlowApi.rebuildApiKeyV1(key.id)
+			: await FlowApi.rebuildApiKey(key.id, flowId)
 		message.success(`${t("flow.apiKey.resetKey")} ${t("flow.apiKey.success")}`)
 		onListItemChanged(newKey, "edit")
 	})
@@ -190,6 +217,14 @@ export default function KeyManagerButton({
 
 		copyToClipboard(curlCommand)
 		message.success(`${t("flow.apiKey.copyCurl")} ${t("flow.apiKey.success")}`)
+	})
+
+	const copySSEURL = useMemoizedFn((key: ApiKey) => {
+		const sseURL = `${env("MAGIC_SERVICE_BASE_URL")}/api/v1/mcp/sse/${flowId}?key=${
+			key.secret_key
+		}`
+		copyToClipboard(sseURL)
+		message.success(`${globalT("mcp.copySSEURLSuccess", { ns: "flow" })}`)
 	})
 
 	const columns = useMemo<TableProps<ApiKey>["columns"]>(() => {
@@ -246,12 +281,15 @@ export default function KeyManagerButton({
 				dataIndex: "enabled",
 				title: t("flow.apiKey.status"),
 				render: (_, record) => {
-					const params = pick(record, ["conversation_id", "id", "name", "description"])
+					const params = isMcp
+						? pick(record, ["id", "name", "description", "rel_type", "rel_code"])
+						: pick(record, ["conversation_id", "id", "name", "description"])
 					return (
 						<Switch
 							defaultValue={_}
 							onChange={(checked) =>
 								updateKey({
+									conversation_id: "",
 									...params,
 									enabled: checked,
 								})
@@ -274,6 +312,7 @@ export default function KeyManagerButton({
 					return (
 						<Flex>
 							<NewKeyButton
+								isMcp={isMcp}
 								flowId={flowId}
 								conversation={conversation!}
 								detail={record}
@@ -331,16 +370,30 @@ export default function KeyManagerButton({
 								</Popconfirm>
 							</Tooltip>
 
-							<Tooltip title={t("flow.apiKey.copyCurl")}>
-								<Flex
-									className={styles.iconTrash}
-									align="center"
-									justify="center"
-									onClick={() => copyCurl(record)}
-								>
-									<MagicIcon component={IconCopy} stroke={1} size={18} />
-								</Flex>
-							</Tooltip>
+							{!isMcp && (
+								<Tooltip title={t("flow.apiKey.copyCurl")}>
+									<Flex
+										className={styles.iconTrash}
+										align="center"
+										justify="center"
+										onClick={() => copyCurl(record)}
+									>
+										<MagicIcon component={IconCopy} stroke={1} size={18} />
+									</Flex>
+								</Tooltip>
+							)}
+							{isMcp && (
+								<Tooltip title={globalT("mcp.copySSEURL", { ns: "flow" })}>
+									<Flex
+										className={styles.iconTrash}
+										align="center"
+										justify="center"
+										onClick={() => copySSEURL(record)}
+									>
+										<MagicIcon component={IconCopy} stroke={1} size={18} />
+									</Flex>
+								</Tooltip>
+							)}
 						</Flex>
 					)
 				},
@@ -353,6 +406,7 @@ export default function KeyManagerButton({
 		styles.iconEdit,
 		styles.iconTrash,
 		toggleKeyVisibility,
+		isMcp,
 		updateKey,
 		flowId,
 		conversation,
@@ -360,11 +414,17 @@ export default function KeyManagerButton({
 		deleteKey,
 		rebuildKey,
 		copyCurl,
+		copySSEURL,
 	])
 
 	useAsyncEffect(async () => {
 		if (open && flowId) {
-			const data = await FlowApi.getApiKeyList(flowId)
+			const data = isMcp
+				? await FlowApi.getApiKeyListV1({
+						rel_type: Flow.ApiKeyType.Mcp,
+						rel_code: flowId,
+				  })
+				: await FlowApi.getApiKeyList(flowId)
 			if (data?.list) {
 				setApiKeyList(data.list)
 			}
@@ -381,7 +441,7 @@ export default function KeyManagerButton({
 			cancelText={t("button.cancel", { ns: "interface" })}
 			centered
 			onCancel={onClose}
-			width={800}
+			width={900}
 			modalRender={(modal) => (
 				<div onClick={(e) => e.stopPropagation()}>{modal}</div> // 阻止最外层的事件冒泡
 			)}
@@ -392,6 +452,7 @@ export default function KeyManagerButton({
 						conversation={conversation!}
 						onListItemChanged={onListItemChanged}
 						flowId={flowId}
+						isMcp={isMcp}
 					/>
 				</Flex>
 			)}
@@ -406,6 +467,7 @@ export default function KeyManagerButton({
 						conversation={conversation!}
 						onListItemChanged={onListItemChanged}
 						flowId={flowId}
+						isMcp={isMcp}
 					/>
 				</Flex>
 			)}

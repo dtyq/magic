@@ -1,19 +1,23 @@
-import { Flex } from "antd"
+import { Flex, Divider } from "antd"
 import { cx } from "antd-style"
 import type { UseableToolSet } from "@/types/flow"
-import { useBoolean } from "ahooks"
+import { useBoolean, useWhyDidYouUpdate } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { Divider } from "antd"
 import EmptyTools from "@/assets/logos/empty-tools.svg"
 import ToolsCardBaseInfo from "./components/ToolsCardBaseInfo/ToolsCardBaseInfo"
 import useStyles from "./style"
-import ToolAddableCard from "./components/ToolAddableCard/ToolAddableCard"
+import React, { memo } from "react"
+import { ToolSelectedItem } from "../../types"
+
+// 使用React.lazy懒加载ToolsList组件
+const ToolsList = React.lazy(() => import("./components/ToolsList"))
 
 type ToolsCardProps = {
 	toolSet: UseableToolSet.Item
+	selectedTools?: ToolSelectedItem[]
 }
 
-export default function ToolsCard({ toolSet }: ToolsCardProps) {
+function ToolsCard({ toolSet, selectedTools }: ToolsCardProps) {
 	const { t: interfaceT } = useTranslation("interface")
 	const { t } = useTranslation()
 
@@ -25,7 +29,10 @@ export default function ToolsCard({ toolSet }: ToolsCardProps) {
 		<Flex vertical className={styles.toolsetWrap}>
 			<Flex vertical className={cx(styles.cardWrapper)} gap={8} onClick={toggle}>
 				<ToolsCardBaseInfo toolSet={toolSet} lineCount={1} height={9} />
-				<div>{`${interfaceT("agent.createTo")} ${toolSet.created_at?.replace(/-/g, "/")}`}</div>
+				<div>{`${interfaceT("agent.createTo")} ${toolSet.created_at?.replace(
+					/-/g,
+					"/",
+				)}`}</div>
 
 				<Divider className={styles.divider} />
 				<Flex
@@ -34,9 +41,14 @@ export default function ToolsCard({ toolSet }: ToolsCardProps) {
 						[styles.cardOpen]: cardOpen,
 					})}
 				>
-					{toolSet.tools.map((tool) => {
-						return <ToolAddableCard tool={tool} cardOpen={cardOpen} toolSet={toolSet} />
-					})}
+					{toolSet.tools.length > 0 && (
+						<ToolsList
+							tools={toolSet.tools}
+							cardOpen={cardOpen}
+							toolSet={toolSet}
+							selectedTools={selectedTools}
+						/>
+					)}
 					{toolSet.tools.length === 0 && (
 						<Flex vertical align="center" justify="center" style={{ padding: "12px" }}>
 							<img src={EmptyTools} alt="" />
@@ -48,3 +60,5 @@ export default function ToolsCard({ toolSet }: ToolsCardProps) {
 		</Flex>
 	)
 }
+
+export default memo(ToolsCard)

@@ -14,6 +14,7 @@ import { KnowledgeApi } from "@/apis"
 import type { Knowledge } from "@/types/knowledge"
 import type { FlowWithTools } from "@/opensource/pages/flow/list/hooks/useFlowList"
 import DEFAULT_KNOWLEDGE_ICON from "@/assets/logos/knowledge-avatar.png"
+import { Flow } from "@/types/flow"
 
 type UpdateInfoModalForm = {
 	name: string
@@ -23,7 +24,7 @@ type UpdateInfoModalForm = {
 type UpdateInfoModalProps = {
 	title: string
 	open: boolean
-	details: Knowledge.KnowledgeItem | FlowWithTools
+	details: Knowledge.KnowledgeItem | FlowWithTools | Flow.Mcp.Detail
 	onClose: () => void
 	updateList: (data: Knowledge.Detail) => void
 }

@@ -4,7 +4,7 @@ const useStyles = createStyles(({ css, isDarkMode, token }) => {
 	return {
 		drawerItem: css`
 			width: 100%;
-			height: 68px;
+			min-height: 68px;
 			background-color: ${isDarkMode
 				? token.magicColorUsages.fill[2]
 				: token.magicColorUsages.fill[0]};

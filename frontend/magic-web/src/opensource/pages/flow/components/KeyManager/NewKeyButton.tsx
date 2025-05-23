@@ -2,7 +2,7 @@ import MagicButton from "@/opensource/components/base/MagicButton"
 import MagicModal from "@/opensource/components/base/MagicModal"
 import { generateSnowFlake } from "@/opensource/pages/flow/utils/helpers"
 import type { Conversation } from "@/types/chat/conversation"
-import type { ApiKey, ApiKeyRequestParams, NewKeyForm } from "@/types/flow"
+import { Flow, type ApiKey, type ApiKeyRequestParams, type NewKeyForm } from "@/types/flow"
 import { useBoolean, useMemoizedFn, useUpdateEffect } from "ahooks"
 import { FlowApi } from "@/apis"
 import { Form, Input, message } from "antd"
@@ -18,6 +18,7 @@ type NewKeyButtonProps = {
 		onClick: () => void
 	}>
 	flowId: string
+	isMcp: boolean
 }
 
 export default function NewKeyButton({
@@ -26,6 +27,7 @@ export default function NewKeyButton({
 	conversation,
 	IconComponent,
 	flowId,
+	isMcp,
 }: NewKeyButtonProps) {
 	const { t } = useTranslation("interface")
 
@@ -61,14 +63,21 @@ export default function NewKeyButton({
 					params.id = detail.id
 					params.conversation_id = detail.conversation_id
 				}
-				const data = await FlowApi.saveApiKey(
-					{
-						// @ts-ignore
-						conversation_id: curConversation.id,
-						...params,
-					},
-					flowId,
-				)
+				const data = isMcp
+					? await FlowApi.saveApiKeyV1({
+							...res,
+							id: detail?.id ?? "",
+							rel_type: Flow.ApiKeyType.Mcp,
+							rel_code: flowId,
+					  })
+					: await FlowApi.saveApiKey(
+							{
+								// @ts-ignore
+								conversation_id: curConversation.id,
+								...params,
+							},
+							flowId,
+					  )
 				const labelPrefix = detail ? t("flow.apiKey.addKey") : t("flow.apiKey.editKey")
 				message.success(`${labelPrefix} ${res.name} ${t("flow.apiKey.success")}`)
 				onListItemChanged(data, detail ? "edit" : "create")

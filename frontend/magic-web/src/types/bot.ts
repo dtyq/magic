@@ -213,6 +213,7 @@ export namespace Bot {
 			bot: string
 			flow: string
 			tool_set: string
+			mcp: string
 		}
 	}
 

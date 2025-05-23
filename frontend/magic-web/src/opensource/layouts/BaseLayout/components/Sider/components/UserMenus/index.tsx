@@ -72,10 +72,10 @@ const UserMenus = observer(function UserMenus({ children }: UserMenusProps) {
 				).catch(console.error)
 
 				if (info?.magic_id) {
-					accountLogout(info?.magic_id)
+					await accountLogout(info?.magic_id)
 				}
 			} else {
-				accountLogout()
+				await accountLogout()
 				navigate(RoutePath.Login)
 			}
 		}
