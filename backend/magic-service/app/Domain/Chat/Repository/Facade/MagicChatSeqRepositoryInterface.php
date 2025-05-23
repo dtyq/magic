@@ -85,7 +85,15 @@ interface MagicChatSeqRepositoryInterface
 
     public function getMessageReceiveList(string $messageId, string $magicId, ConversationType $userType): ?array;
 
-    public function getSeqListByMagicMessageId(string $magicMessageId): array;
+    /**
+     * Retrieve the sequence (seq) lists of both the sender and the receiver based on the $magicMessageId (generally used in the message editing scenario).
+     */
+    public function getBothSeqListByMagicMessageId(string $magicMessageId): array;
+
+    /**
+     * Optimized version: Group by object_id at MySQL level and return only the minimum seq_id record for each user.
+     */
+    public function getMinSeqListByMagicMessageId(string $magicMessageId): array;
 
     /**
      * 获取消息的撤回 seq.
