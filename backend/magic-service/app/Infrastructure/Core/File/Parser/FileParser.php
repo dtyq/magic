@@ -77,7 +77,7 @@ class FileParser
             $res = $driver->parse($tempFile, $fileUrl, $extension);
             // 如果是csv、xlsx、xls文件，需要进行额外处理
             if ($textPreprocess && in_array($extension, ['csv', 'xlsx', 'xls'])) {
-                $res = TextPreprocessUtil::preprocess([TextPreprocessRule::EXCEL_HEADER_CONCAT], $res);
+                $res = TextPreprocessUtil::preprocess([TextPreprocessRule::FORMAT_EXCEL], $res);
             }
 
             // 设置缓存
