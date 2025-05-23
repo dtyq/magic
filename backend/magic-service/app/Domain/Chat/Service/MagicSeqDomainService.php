@@ -222,7 +222,11 @@ class MagicSeqDomainService extends AbstractDomainService
         usort($seqList, function ($a, $b) {
             return $a['seq_id'] <=> $b['seq_id'];
         });
-        return $seqList[0] ?? null;
+        $seqData = $seqList[0] ?? null;
+        if ($seqData === null) {
+            return null;
+        }
+        return SeqAssembler::getSeqEntity($seqData);
     }
 
     private function setRequestId(string $appMsgId): void
