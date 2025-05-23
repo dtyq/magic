@@ -10,7 +10,9 @@ namespace Dtyq\SuperMagic\Interfaces\Share\Facade;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
+use Dtyq\SuperMagic\Domain\Share\Event\CancelShareAfterEvent;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\CreateShareRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\GetShareDetailDTO;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\ResourceListRequestDTO;
@@ -62,6 +64,8 @@ class ShareApi extends AbstractApi
         $userAuthorization = $requestContext->getUserAuthorization();
 
         $this->shareAppService->cancelShare($userAuthorization, (int) $id);
+
+        AsyncEventUtil::dispatch(new CancelShareAfterEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $id));
 
         return [
             'id' => $id,

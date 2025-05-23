@@ -77,6 +77,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
             $applicationHeaders = $messageProperties['application_headers'] ?? new AMQPTable([]);
             // 直接从原生数据中获取，如果不存在则为 null
             $originalTimestampFromHeader = $applicationHeaders->getNativeData()['x-original-timestamp'] ?? null;
+
             $currentTimeForLog = time(); // 当前处理时间，主要用于日志和可能的本地逻辑
             $actualOriginalTimestamp = null; // 初始化变量以避免 linter 警告
 
@@ -97,9 +98,6 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
 
             // 验证消息格式
             $this->validateMessageFormat($data);
-
-            // 打印消息详情，用于测试和验证 (根据需要取消注释)
-            // $this->logMessageDetails($data);
 
             // 创建DTO
             $messageDTO = TopicTaskMessageDTO::fromArray($data);
@@ -140,6 +138,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                 date('Y-m-d H:i:s', $actualOriginalTimestamp),
                 $messageDTO->getPayload()?->getMessageId()
             ));
+
             try {
                 $this->superAgentAppService->handleTopicTaskMessage($messageDTO);
                 return Result::ACK;

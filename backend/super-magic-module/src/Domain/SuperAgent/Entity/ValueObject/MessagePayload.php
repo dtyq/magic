@@ -26,6 +26,7 @@ class MessagePayload
      * @param string $event 事件
      * @param array $attachments 附件列表
      * @param null|array $projectArchive 项目归档数据
+     * @param bool $showInUi 是否在UI中显示
      */
     public function __construct(
         private string $messageId = '',
@@ -38,7 +39,8 @@ class MessagePayload
         private int $sendTimestamp = 0,
         private string $event = '',
         private array $attachments = [],
-        private ?array $projectArchive = null
+        private ?array $projectArchive = null,
+        private bool $showInUi = true,
     ) {
     }
 
@@ -60,7 +62,8 @@ class MessagePayload
             isset($data['send_timestamp']) ? (int) $data['send_timestamp'] : time(),
             $data['event'] ?? '',
             $data['attachments'] ?? [],
-            $data['project_archive'] ?? null
+            $data['project_archive'] ?? null,
+            $data['show_in_ui'] ?? true,
         );
     }
 
@@ -83,6 +86,7 @@ class MessagePayload
             'event' => $this->event,
             'attachments' => $this->attachments,
             'project_archive' => $this->projectArchive,
+            'show_in_ui' => $this->showInUi,
         ];
     }
 
@@ -143,6 +147,11 @@ class MessagePayload
     public function getProjectArchive(): ?array
     {
         return $this->projectArchive;
+    }
+
+    public function getShowInUi(): bool
+    {
+        return $this->showInUi;
     }
 
     // Withers for immutability
@@ -223,6 +232,13 @@ class MessagePayload
     {
         $clone = clone $this;
         $clone->projectArchive = $projectArchive;
+        return $clone;
+    }
+
+    public function withShowInUi(bool $showInUi): self
+    {
+        $clone = clone $this;
+        $clone->showInUi = $showInUi;
         return $clone;
     }
 }

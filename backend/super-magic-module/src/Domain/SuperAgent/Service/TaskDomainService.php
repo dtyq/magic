@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -44,31 +45,17 @@ class TaskDomainService
      * 初始化话题任务
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param string $chatTopicId 聊天话题ID
+     * @param TopicEntity $topicEntity 话题实体
      * @param string $prompt 用户的问题
      * @param string $attachments 用户上传的附件信息（JSON格式）
      * @param ChatInstruction $instruction 指令 正常，追问，打断
      * @return TaskEntity 任务实体
      * @throws RuntimeException 如果任务仓库或话题仓库未注入
      */
-    public function initTopicTask(DataIsolation $dataIsolation, string $chatTopicId, ChatInstruction $instruction, string $taskMode, string $prompt = '', string $attachments = ''): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, ChatInstruction $instruction, string $taskMode, string $prompt = '', string $attachments = ''): TaskEntity
     {
         // 获取当前用户ID
         $userId = $dataIsolation->getCurrentUserId();
-
-        // 1. 通过用户ID和聊天话题ID(chat_topic_id)查询话题实体
-        $conditions = [
-            'user_id' => $userId,
-            'chat_topic_id' => $chatTopicId,
-        ];
-
-        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
-
-        if (empty($result['list'])) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
-        }
-
-        $topicEntity = $result['list'][0];
         $topicId = $topicEntity->getId();
 
         // 如果指令是打断或者追问的情况下
@@ -234,7 +221,8 @@ class TaskDomainService
         ?array $tool = null,
         ?int $topicId = null,
         ?string $event = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        bool $showInUi = true
     ): TaskMessageEntity {
         $message = new TaskMessageEntity([
             'task_id' => $taskId,
@@ -249,6 +237,7 @@ class TaskDomainService
             'attachments' => $attachments,
             'topic_id' => $topicId,
             'event' => $event,
+            'show_in_ui' => $showInUi,
         ]);
 
         $this->messageRepository->save($message);
@@ -266,7 +255,8 @@ class TaskDomainService
         ?array $tool = null,
         ?int $topicId = null,
         ?string $event = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        bool $showInUi = true
     ): TaskMessageEntity {
         return $this->recordTaskMessage(
             $taskId,
@@ -280,7 +270,8 @@ class TaskDomainService
             $tool,
             $topicId,
             $event,
-            $attachments
+            $attachments,
+            $showInUi
         );
     }
 
@@ -298,7 +289,8 @@ class TaskDomainService
         ?array $tool = null,
         ?int $topicId = null,
         ?string $event = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        bool $showInUi = true
     ): TaskMessageEntity {
         return $this->recordTaskMessage(
             $taskId,
@@ -312,7 +304,8 @@ class TaskDomainService
             $tool,
             $topicId,
             $event,
-            $attachments
+            $attachments,
+            $showInUi
         );
     }
 
@@ -490,11 +483,12 @@ class TaskDomainService
      * @param int $pageSize 每页大小
      * @param bool $shouldPage 是否分页
      * @param string $sortDirection 排序方向，支持asc和desc
+     * @param bool $showInUi 是否只显示UI可见的消息，默认为true
      * @return array 返回消息列表和总数
      */
-    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc'): array
+    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array
     {
-        return $this->messageRepository->findByTopicId($topicId, $page, $pageSize, $shouldPage, $sortDirection);
+        return $this->messageRepository->findByTopicId($topicId, $page, $pageSize, $shouldPage, $sortDirection, $showInUi);
     }
 
     /**
@@ -663,5 +657,10 @@ class TaskDomainService
     public function getTasksExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
         return $this->taskRepository->getTasksExceedingUpdateTime($timeThreshold, $limit);
+    }
+
+    public function getTaskNumByTopicId(int $topicId): int
+    {
+        return $this->taskRepository->getTaskCountByTopicId($topicId);
     }
 }
