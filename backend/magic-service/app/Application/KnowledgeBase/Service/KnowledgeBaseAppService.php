@@ -159,6 +159,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
             $iconFileLink = $iconFileLinks[$item->getIcon()] ?? null;
             $item->setIcon($iconFileLink?->getUrl() ?? '');
             $item->setUserOperation(($resources[$item->getCode()] ?? Operation::None)->value);
+            $item->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($item));
         }
         $result['users'] = $this->magicUserDomainService->getByUserIds($this->createContactDataIsolationByBase($dataIsolation), $userIds);
         return $result;
@@ -170,6 +171,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $operation = $this->checkKnowledgeBaseOperation($dataIsolation, 'r', $code);
         $knowledge = $this->knowledgeBaseDomainService->show($dataIsolation, $code, true);
         $knowledge->setUserOperation($operation->value);
+        $knowledge->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledge));
         $iconFileLink = $this->fileDomainService->getLink($dataIsolation->getCurrentOrganizationCode(), $knowledge->getIcon());
         $knowledge->setIcon($iconFileLink?->getUrl() ?? '');
         return $knowledge;

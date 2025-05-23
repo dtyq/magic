@@ -61,6 +61,19 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
 
     public ?array $embeddingConfig = [];
 
+    public int $sourceType;
+
+    public function getSourceType(): int
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(int $sourceType): static
+    {
+        $this->sourceType = $sourceType;
+        return $this;
+    }
+
     public function getRetrieveConfig(): ?RetrieveConfig
     {
         return $this->retrieveConfig;

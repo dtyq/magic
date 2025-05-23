@@ -20,4 +20,13 @@ interface KnowledgeBaseStrategyInterface
     public function getKnowledgeOperation(KnowledgeBaseDataIsolation $dataIsolation, int|string $knowledgeCode): Operation;
 
     public function getOrCreateDefaultDocument(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $knowledgeBaseEntity): void;
+
+    /**
+     * 获取或创建默认知识库数据源类型.
+     *
+     * @param KnowledgeBaseEntity $knowledgeBaseEntity 知识库实体
+     *
+     * @return null|int 数据源类型
+     */
+    public function getOrCreateDefaultSourceType(KnowledgeBaseEntity $knowledgeBaseEntity): ?int;
 }
