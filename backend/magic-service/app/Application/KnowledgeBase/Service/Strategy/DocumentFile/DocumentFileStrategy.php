@@ -19,6 +19,7 @@ use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
+use RuntimeException;
 use Throwable;
 
 class DocumentFileStrategy
@@ -120,7 +121,7 @@ class DocumentFileStrategy
                         // 下载图片
                         $imageContent = file_get_contents($imageUrl);
                         if ($imageContent === false) {
-                            throw new \RuntimeException('Failed to download image from URL: ' . $imageUrl);
+                            throw new RuntimeException('Failed to download image from URL: ' . $imageUrl);
                         }
                     }
 
@@ -172,7 +173,7 @@ class DocumentFileStrategy
     }
 
     /**
-     * 根据MIME类型获取文件扩展名
+     * 根据MIME类型获取文件扩展名.
      */
     private function getExtensionFromMimeType(string $mimeType): string
     {
