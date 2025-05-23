@@ -281,10 +281,37 @@ sql;
         return $statusChangeSeq;
     }
 
-    public function getSeqListByMagicMessageId(string $magicMessageId): array
+    /**
+     * Retrieve the sequence (seq) lists of both the sender and the receiver based on the $magicMessageId (generally used in the message editing scenario).
+     */
+    public function getBothSeqListByMagicMessageId(string $magicMessageId): array
     {
         $query = $this->magicSeq::query()->where('magic_message_id', $magicMessageId);
         return Db::select($query->toSql(), $query->getBindings());
+    }
+
+    /**
+     * Optimized version: Group by object_id at MySQL level and return only the minimum seq_id record for each user
+     * Supports message editing functionality and reduces data transfer volume.
+     *
+     * Performance optimization recommendations:
+     * 1. Add composite index: CREATE INDEX idx_magic_message_id_object_id_seq_id ON magic_chat_sequences (magic_message_id, object_id, seq_id)
+     * 2. This avoids table lookup queries and completes operations directly on the index
+     */
+    public function getMinSeqListByMagicMessageId(string $magicMessageId): array
+    {
+        // Use window function to group by object_id and select only the minimum seq_id for each user
+        $sql = '
+            SELECT * FROM (
+                SELECT *,
+                       ROW_NUMBER() OVER (PARTITION BY object_id ORDER BY seq_id ASC) as rn
+                FROM magic_chat_sequences 
+                WHERE magic_message_id = ?
+            ) t 
+            WHERE t.rn = 1
+        ';
+
+        return Db::select($sql, [$magicMessageId]);
     }
 
     /**

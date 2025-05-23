@@ -214,19 +214,29 @@ class MagicSeqDomainService extends AbstractDomainService
         }
     }
 
-    // 根据 magic_message_id 调用 getSeqListByMagicMessageId ， 获取收件方 seq_id 最小的一条记录
-    public function getMinSeqIdByMagicMessageId(string $magicMessageId): ?MagicSeqEntity
+    /**
+     * Get the minimum seq_id record for the same user (object_id) based on magic_message_id
+     * Used to find the original message when there are multiple edited versions.
+     */
+    public function getSelfMinSeqIdByMagicMessageId(MagicSeqEntity $magicSeqEntity): ?MagicSeqEntity
     {
-        $seqList = $this->magicSeqRepository->getSeqListByMagicMessageId($magicMessageId);
-        // 排序
-        usort($seqList, function ($a, $b) {
-            return $a['seq_id'] <=> $b['seq_id'];
-        });
-        $seqData = $seqList[0] ?? null;
-        if ($seqData === null) {
+        // Get all seq records with minimum seq_id for each user
+        $seqList = $this->magicSeqRepository->getMinSeqListByMagicMessageId($magicSeqEntity->getMagicMessageId());
+
+        if (empty($seqList)) {
             return null;
         }
-        return SeqAssembler::getSeqEntity($seqData);
+
+        // Find the record belonging to the same user (object_id)
+        $targetObjectId = $magicSeqEntity->getObjectId();
+        foreach ($seqList as $seqData) {
+            if ($seqData['object_id'] === $targetObjectId) {
+                // Convert array data to MagicSeqEntity object
+                return SeqAssembler::getSeqEntity($seqData);
+            }
+        }
+
+        return null;
     }
 
     private function setRequestId(string $appMsgId): void

@@ -273,8 +273,8 @@ class MagicChatDomainService extends AbstractDomainService
         $receiveConversationId = $receiveConversationEntity->getId();
         $receiveUserEntity = $this->getUserInfo($messageEntity->getReceiveId());
         // 由于一条消息,在2个会话窗口渲染时,会生成2个消息id,因此需要解析出来收件方能看到的消息引用的id.
-        $receiverSeqList = $this->getReceiverReferMessageId($senderSeqEntity);
-        $receiverReferMessageId = $receiverSeqList[$receiveUserEntity->getMagicId()] ?? '';
+        $minSeqListByReferMessageId = $this->getMinSeqListByReferMessageId($senderSeqEntity);
+        $receiverReferMessageId = $minSeqListByReferMessageId[$receiveUserEntity->getMagicId()] ?? '';
         $seqId = (string) IdGenerator::getSnowId();
         // 节约存储空间,聊天消息在seq表不存具体内容,只存消息id
         $content = $this->getSeqContent($messageEntity);
@@ -486,7 +486,7 @@ class MagicChatDomainService extends AbstractDomainService
             // 找到被隐藏的会话，更改状态
             $this->handlerGroupReceiverConversation($groupUserConversations);
             // 这条消息是否有引用其他消息
-            $magicMessageSeqList = $this->getReceiverReferMessageId($senderSeqEntity);
+            $minSeqListByReferMessageId = $this->getMinSeqListByReferMessageId($senderSeqEntity);
             // 给这些群成员批量生成聊天消息的 seq. 对于万人群,应该每批一千条seq.
             $seqListCreateDTO = [];
             foreach ($groupUsers as $groupUser) {
@@ -514,7 +514,7 @@ class MagicChatDomainService extends AbstractDomainService
                 }
                 // 多个参数都放在DTO里处理
                 $receiveSeqDTO = clone $senderSeqEntity;
-                $receiveSeqDTO->setReferMessageId($magicMessageSeqList[$user['magic_id']] ?? '');
+                $receiveSeqDTO->setReferMessageId($minSeqListByReferMessageId[$user['magic_id']] ?? '');
                 // 根据发件方的 seq,为群聊的每个成员生成 seq
                 $seqEntity = $this->generateGroupSeqEntityByChatSeq(
                     $user,
@@ -779,7 +779,7 @@ class MagicChatDomainService extends AbstractDomainService
                     // 先把第一个版本的消息存入 message_version 表
                     $this->magicChatMessageVersionsRepository->createMessageVersion($messageVersionEntity);
                     // 初次编辑时，更新收发双发的消息初始 seq，标记消息已编辑，方便前端渲染
-                    $seqList = $this->magicSeqRepository->getSeqListByMagicMessageId($messageEntity->getMagicMessageId());
+                    $seqList = $this->magicSeqRepository->getBothSeqListByMagicMessageId($messageEntity->getMagicMessageId());
                     foreach ($seqList as $seqData) {
                         $extra = $seqData['extra'] ?? null;
                         if (json_validate($extra)) {
