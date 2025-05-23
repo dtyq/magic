@@ -836,8 +836,8 @@ PROMPT;
         if (empty($magicSeqEntity->getExtra()?->getEditMessageOptions()?->getMagicMessageId())) {
             return;
         }
-        // 获取消息的版本列表
-        $magicSeqEntity = $this->magicSeqDomainService->getMinSeqIdByMagicMessageId($magicSeqEntity->getMagicMessageId());
+        // get message min seqEntity
+        $magicSeqEntity = $this->magicSeqDomainService->getSelfMinSeqIdByMagicMessageId($magicSeqEntity);
         if ($magicSeqEntity === null) {
             ExceptionBuilder::throw(ChatErrorCode::REFER_MESSAGE_NOT_FOUND);
         }

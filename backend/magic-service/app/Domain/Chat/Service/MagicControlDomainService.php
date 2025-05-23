@@ -238,7 +238,7 @@ class MagicControlDomainService extends AbstractDomainService
     public function batchCreateSeqByRevokeOrEditMessage(MagicSeqEntity $needChangeSeqEntity, ControlMessageType $controlMessageType): array
     {
         // 获取所有收件方的seq
-        $receiveSeqList = $this->magicSeqRepository->getSeqListByMagicMessageId($needChangeSeqEntity->getMagicMessageId());
+        $receiveSeqList = $this->magicSeqRepository->getBothSeqListByMagicMessageId($needChangeSeqEntity->getMagicMessageId());
         $receiveSeqList = array_column($receiveSeqList, null, 'object_id');
         // 去掉自己,因为需要及时响应,已经单独生成了seq并推送了
         unset($receiveSeqList[$needChangeSeqEntity->getObjectId()]);
