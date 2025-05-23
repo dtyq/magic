@@ -374,7 +374,19 @@
 		"supported": "Supported",
 		"fileSizeLimit": "Each file cannot exceed {{size}}",
 		"fileDragTip": "Drag files here or click to select files",
-		"uploadFile": "Upload File"
+		"uploadFile": "Upload File",
+		"startTime": "Start Time",
+		"endTime": "End Time",
+		"createSomething": "Create {{name}}",
+		"updateSomething": "Update {{name}}",
+        "inputName": "{{name}} Name",
+		"inputDesc": "{{name}} Description",
+		"inputDescPlaceholder": "Enter {{name}} Description",
+		"inputNamePlaceholder": "Enter {{name}} Name",
+		"noArguments": "No arguments",
+        "deleteSomething": "Delete {{name}}",
+        "editSomething": "Edit {{name}}",
+        "modifySomething": "Modify {{name}}"
 	},
 	"knowledgeDatabase": {
 		"name": "Knowledge Base",
@@ -868,5 +880,17 @@
 		"publishError": "Failed to publish flow",
 		"processingCommands": "Collecting instruction data...",
 		"commandCompleted": "Command execution completed"
+	},
+    "mcp": {
+		"name": "MCP Service",
+		"importTools": "Import Tools",
+		"currentVersion": "Current Version: {{version}}",
+		"latestVersion": "Latest Version: {{version}}",
+		"updateVersion": "Update Version",
+		"confirmToUpdateVersion": "Are you sure you want to update the version?",
+		"updateVersionSuccess": "Update version successfully",
+		"copySSEURL": "Copy SSE URL",
+        "copySSEURLSuccess": "Copy SSE URL successfully",
+        "modifyMcp": "Modify MCP"
 	}
 }

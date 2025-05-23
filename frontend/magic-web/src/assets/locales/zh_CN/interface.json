@@ -1003,7 +1003,7 @@
 		},
 		"appAuth": "应用授权",
 		"changeInfo": "修改信息",
-		"emptyTips": "暂未添加任何${title}",
+		"emptyTips": "暂未添加任何{{title}}",
 		"flow": "流程",
 		"flowInput": "流程入参",
 		"hasToolsNum": "包含 ${num} 个工具",

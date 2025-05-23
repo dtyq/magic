@@ -1,26 +1,35 @@
 import MagicModal from "@/opensource/components/base/MagicModal"
-import { Avatar, Checkbox, Flex, Select } from "antd"
+import { Avatar, Checkbox, Flex, Select, Spin } from "antd"
 import { IconChevronDown } from "@tabler/icons-react"
 import SearchInput from "@dtyq/magic-flow/dist/common/BaseUI/DropdownRenderer/SearchInput"
-import { resolveToString } from "@dtyq/es6-template-strings"
 import ToolsEmptyImage from "@/assets/logos/empty-tools.svg"
 import { useTranslation } from "react-i18next"
 import type { ToolSelectedItem } from "../../types"
 import useToolsPanel from "./hooks/useToolsPanel"
-import ToolsCard from "../ToolsCard/ToolsCard"
+import React, { Suspense } from "react"
 import styles from "./ToolsPanel.module.less"
 import { ToolsPanelProvider } from "./context/ToolsPanelProvider"
+
+// 使用React.lazy动态导入ToolSetList组件
+const ToolSetList = React.lazy(() => import("./components/ToolSetList"))
 
 type ToolsPanelModalProps = {
 	open: boolean
 	onClose: () => void
 	onAddTool: (tool: ToolSelectedItem) => void
+	selectedTools?: ToolSelectedItem[]
 }
 
-export default function ToolsPanel({ open, onAddTool, onClose }: ToolsPanelModalProps) {
+export default function ToolsPanel({
+	open,
+	onAddTool,
+	onClose,
+	selectedTools,
+}: ToolsPanelModalProps) {
 	const { filteredUseableToolSets, keyword, setKeyword } = useToolsPanel({ open })
 	const { t: interfaceT } = useTranslation("interface")
 	const { t } = useTranslation()
+
 	return (
 		<MagicModal
 			title={t("common.addTools", { ns: "flow" })}
@@ -61,11 +70,18 @@ export default function ToolsPanel({ open, onAddTool, onClose }: ToolsPanelModal
 					</Flex>
 				</Flex>
 				{filteredUseableToolSets.length > 0 && (
-					<Flex vertical gap={4}>
-						{filteredUseableToolSets.map((toolSet) => {
-							return <ToolsCard key={toolSet.id} toolSet={toolSet} />
-						})}
-					</Flex>
+					<Suspense
+						fallback={
+							<Flex justify="center" style={{ padding: "20px" }}>
+								<Spin />
+							</Flex>
+						}
+					>
+						<ToolSetList
+							filteredUseableToolSets={filteredUseableToolSets}
+							selectedTools={selectedTools}
+						/>
+					</Suspense>
 				)}
 				{filteredUseableToolSets.length === 0 && (
 					<Flex vertical gap={4} align="center" justify="center" flex={1}>
@@ -73,7 +89,7 @@ export default function ToolsPanel({ open, onAddTool, onClose }: ToolsPanelModal
 							<Avatar src={ToolsEmptyImage} size={140} />
 						</Flex>
 						<div className={styles.emptyTips}>
-							{resolveToString(interfaceT("flow.emptyTips"), {
+							{interfaceT("flow.emptyTips", {
 								title: interfaceT("flow.tools"),
 							})}
 						</div>

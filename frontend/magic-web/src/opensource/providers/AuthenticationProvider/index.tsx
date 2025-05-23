@@ -84,10 +84,10 @@ function AuthenticationProvider({ children }: PropsWithChildren) {
 				.then(() => {
 					loginSuccess()
 				})
-				.catch((error) => {
+				.catch(async (error) => {
 					// 登录异常需要清空缓存
 					console.error(error)
-					userService.deleteAccount()
+					await userService.deleteAccount()
 					loginFail()
 				})
 		} else {

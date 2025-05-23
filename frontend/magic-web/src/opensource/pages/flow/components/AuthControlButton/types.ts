@@ -4,6 +4,7 @@ export enum ResourceTypes {
 	Flow = 2,
 	Tools = 3,
 	Knowledge = 4,
+	Mcp = 5,
 }
 
 // 权限成员类型

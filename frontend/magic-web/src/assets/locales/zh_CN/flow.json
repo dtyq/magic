@@ -374,7 +374,19 @@
 		"supported": "支持",
 		"fileSizeLimit": "每个文件不超过{{size}}",
 		"fileDragTip": "将文件拖至此处或点击选择文件",
-		"uploadFile": "上传文件"
+		"uploadFile": "上传文件",
+		"startTime": "开始时间",
+		"endTime": "结束时间",
+		"createSomething": "创建 {{name}}",
+		"updateSomething": "更新 {{name}}",
+        "inputName": "{{name}}名称",
+        "inputDesc": "{{name}}描述",
+        "inputDescPlaceholder": "请输入{{name}}描述",
+        "inputNamePlaceholder": "请输入{{name}}名称",
+        "noArguments": "暂未添加任何参数",
+        "deleteSomething": "删除{{name}}",
+        "editSomething": "编辑{{name}}",
+        "modifySomething": "修改{{name}}"
 	},
 	"knowledgeDatabase": {
 		"name": "知识库",
@@ -871,5 +883,17 @@
 		"publishError": "流程发布失败",
 		"processingCommands": "收集指令数据中...",
         "commandCompleted": "指令执行完成"
+	},
+    "mcp": {
+		"name": " MCP 服务",
+		"importTools": "导入工具",
+		"currentVersion": "当前版本: {{version}}",
+		"latestVersion": "最新版本: {{version}}",
+		"updateVersion": "更新版本",
+		"confirmToUpdateVersion": "确定更新版本吗？",
+		"updateVersionSuccess": "更新版本成功",
+		"copySSEURL": "复制 SSE 地址",
+        "copySSEURLSuccess": "复制 SSE 地址成功",
+        "modifyMcp": "修改 MCP 信息"
 	}
 }

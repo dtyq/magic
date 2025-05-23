@@ -2,7 +2,7 @@ import type { WidgetValue } from "@dtyq/magic-flow/dist/MagicFlow/examples/BaseF
 import SourceHandle from "@dtyq/magic-flow/dist/MagicFlow/nodes/common/Handle/Source"
 import { useCurrentNode } from "@dtyq/magic-flow/dist/MagicFlow/nodes/common/context/CurrentNode/useCurrentNode"
 import DropdownCard from "@dtyq/magic-flow/dist/common/BaseUI/DropdownCard"
-import JSONSchemaRenderer from "@dtyq/magic-flow/dist/common/BaseUI/JSONSchemaRenderer"
+import JSONSchemaRenderer from "@/opensource/pages/flow/components/JSONSchemaRenderer"
 import { useMemo, type ReactElement, type ReactNode } from "react"
 import type React from "react"
 import { cx } from "antd-style"

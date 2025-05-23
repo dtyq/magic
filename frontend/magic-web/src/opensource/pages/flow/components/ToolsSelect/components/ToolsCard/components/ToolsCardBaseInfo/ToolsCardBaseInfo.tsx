@@ -51,7 +51,7 @@ const ToolsCardBaseInfo = memo(
 									<IconCircleCheckFilled size={12} color={colorScales.green[4]} />
 								),
 							},
-						]
+					  ]
 					: [
 							{
 								key: "quote",
@@ -63,7 +63,7 @@ const ToolsCardBaseInfo = memo(
 									/>
 								),
 							},
-						]
+					  ]
 
 			return [
 				{
@@ -127,4 +127,4 @@ const ToolsCardBaseInfo = memo(
 	},
 )
 
-export default ToolsCardBaseInfo
+export default memo(ToolsCardBaseInfo)

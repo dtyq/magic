@@ -83,6 +83,7 @@ export const useBotStore = create<BotStore>((set) => ({
 			bot: "",
 			flow: "",
 			tool_set: "",
+			mcp: "",
 		},
 	},
 	useDefaultIcon: () => {

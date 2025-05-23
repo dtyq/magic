@@ -25,10 +25,12 @@ const enum HttpStatusCode {
 }
 
 const enum BusinessResponseCode {
-	/** 响应成功 */
+	/** Response successful */
 	Success = 1000,
-	/** 组织无效 */
+	/** Invalid organization */
 	InvalidOrganization = 40101,
+	/** Invalid authorization */
+	InvalidAuthorization = 3103,
 }
 
 /**
@@ -47,11 +49,8 @@ export const genLoginRedirectUrl = () => {
 /** 登录无效 */
 export function generateUnauthorizedResInterceptor(service: Container) {
 	return async (response: ResponseData) => {
-		if (response.status === HttpStatusCode.Unauthorized) {
-			service
-				.get<UserService>("userService")
-				.deleteAccount(userStore.user.organizations?.[0]?.organization_code)
-
+		if (response.status === HttpStatusCode.Unauthorized || response?.data?.code === BusinessResponseCode.InvalidAuthorization) {
+			await service.get<UserService>("userService").deleteAccount()
 			window.history.pushState({}, "", genLoginRedirectUrl())
 			throw new Error("Unauthorized")
 		}

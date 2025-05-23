@@ -309,33 +309,33 @@ export class UserService {
 	 * @description 账号移除
 	 * @param unionId
 	 */
-	deleteAccount = (unionId?: string) => {
-		const allClean = () => {
+	deleteAccount = async (unionId?: string) => {
+		const allClean = async () => {
 			MessageService.destroy()
 
-			// 移除当前token
+			// remove the current token
 			const user = new UserRepository()
-			user.setAuthorization("")
+			await user.setAuthorization("")
 			userStore.user.setAuthorization(null)
 
 			this.setUserInfo(null)
 			this.removeOrganization()
 
 			const account = new AccountRepository()
-			account.clear()
+			await account.clear()
 		}
 		if (unionId) {
 			// 移除持久化数据
 			const account = new AccountRepository()
-			account.delete(unionId)
+			await account.delete(unionId)
 
 			userStore.account.deleteAccount(unionId)
 
 			if (userStore.account.accounts.length === 0) {
-				allClean()
+				await allClean()
 			}
 		} else {
-			allClean()
+			await allClean()
 		}
 	}
 
@@ -413,12 +413,12 @@ export class UserService {
 					// 切换 chat 数据
 					await this.switchUser(res.data.user, showLoginLoading)
 				})
-				.catch((err) => {
+				.catch(async (err) => {
 					console.log("ws 登录失败", err)
 					if (err.code === 3103) {
 						console.log(err)
 						// accountBusiness.accountLogout() -》 this.deleteAccount()
-						this.deleteAccount()
+						await this.deleteAccount()
 					}
 					if (this.lastLogin?.authorization === authorization) {
 						this.lastLogin.promise = Promise.reject(err)

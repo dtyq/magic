@@ -4,35 +4,31 @@
 
 import { useFlowStore } from "@/opensource/stores/flow"
 import type { UseableToolSet } from "@/types/flow"
-import { useResetState, useUpdateEffect } from "ahooks"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 
 type UseToolPanelProps = {
 	open: boolean
 }
 
 export default function useToolsPanel({ open }: UseToolPanelProps) {
-	const [filteredUseableToolSets, setFilteredUseableToolSets] = useResetState(
-		[] as UseableToolSet.Item[],
-	)
-
 	const [keyword, setKeyword] = useState("")
 
 	const { useableToolSets } = useFlowStore()
 
-	useEffect(() => {
-		setFilteredUseableToolSets(useableToolSets)
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [useableToolSets, open])
+	// 使用useMemo缓存过滤结果，避免不必要的重复计算
+	const filteredUseableToolSets = useMemo(() => {
+		if (!keyword.trim()) {
+			return useableToolSets
+		}
 
-	useUpdateEffect(() => {
-		const filterResult = useableToolSets
+		return useableToolSets
 			.map((useableToolSet) => {
 				const filterTools = useableToolSet?.tools?.filter(
 					(tool) =>
-						tool?.name?.includes?.(keyword) || tool?.description?.includes?.(keyword),
+						tool?.name?.toLowerCase?.()?.includes?.(keyword.toLowerCase()) ||
+						tool?.description?.toLowerCase?.()?.includes?.(keyword.toLowerCase()),
 				)
-				if (filterTools.length > 0) {
+				if (filterTools?.length > 0) {
 					return {
 						...useableToolSet,
 						tools: filterTools,
@@ -40,9 +36,15 @@ export default function useToolsPanel({ open }: UseToolPanelProps) {
 				}
 				return null
 			})
-			.filter((t) => !!t) as UseableToolSet.Item[]
-		setFilteredUseableToolSets(filterResult)
-	}, [keyword])
+			.filter(Boolean) as UseableToolSet.Item[]
+	}, [useableToolSets, keyword])
+
+	// 在面板打开时重置关键词
+	useEffect(() => {
+		if (open) {
+			setKeyword("")
+		}
+	}, [open])
 
 	return {
 		useableToolSets,
