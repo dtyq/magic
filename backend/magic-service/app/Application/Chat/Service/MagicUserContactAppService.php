@@ -18,6 +18,7 @@ use App\Domain\Chat\Entity\ValueObject\PlatformRootDepartmentId;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\DTO\FriendQueryDTO;
 use App\Domain\Contact\DTO\UserQueryDTO;
+use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\AddFriendType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -306,10 +307,13 @@ class MagicUserContactAppService extends AbstractAppService
         return $magicEnvironmentEntity;
     }
 
-    public function updateUserInfo(MagicUserAuthorization $userAuthorization, array $userInfo): MagicUserEntity
+    /**
+     * 更新用户信息.
+     */
+    public function updateUserInfo(MagicUserAuthorization $userAuthorization, UserUpdateDTO $userUpdateDTO): MagicUserEntity
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        $this->userDomainService->updateUserInfo($dataIsolation, $userInfo);
+        $this->userDomainService->updateUserInfo($dataIsolation, $userUpdateDTO);
         return $this->getByUserId($dataIsolation->getCurrentUserId());
     }
 
