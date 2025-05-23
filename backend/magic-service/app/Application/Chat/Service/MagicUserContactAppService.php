@@ -308,6 +308,15 @@ class MagicUserContactAppService extends AbstractAppService
     }
 
     /**
+     * 是否允许更新用户信息.
+     */
+    public function getUserUpdatePermission(MagicUserAuthorization $userAuthorization): bool
+    {
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        return $this->userDomainService->getUserUpdatePermission($dataIsolation);
+    }
+
+    /**
      * 更新用户信息.
      */
     public function updateUserInfo(MagicUserAuthorization $userAuthorization, UserUpdateDTO $userUpdateDTO): MagicUserEntity

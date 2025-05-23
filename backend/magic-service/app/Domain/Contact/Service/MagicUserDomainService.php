@@ -22,6 +22,7 @@ use App\Domain\OrganizationEnvironment\Entity\MagicEnvironmentEntity;
 use App\Domain\Token\Entity\MagicTokenEntity;
 use App\Domain\Token\Entity\ValueObject\MagicTokenType;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\MagicAccountErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -324,13 +325,28 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $account->getPhone();
     }
 
-    public function updateUserInfo(DataIsolation $dataIsolation, UserUpdateDTO $userUpdateDTO): int
+    /**
+     * 是否允许更新用户信息.
+     */
+    public function getUserUpdatePermission(DataIsolation $dataIsolation): bool
     {
         $userId = $dataIsolation->getCurrentUserId();
         if (empty($userId)) {
-            ExceptionBuilder::throw(ChatErrorCode::USER_NOT_CREATE_ACCOUNT);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 更新用户信息.
+     */
+    public function updateUserInfo(DataIsolation $dataIsolation, UserUpdateDTO $userUpdateDTO): int
+    {
+        if (! $this->getUserUpdatePermission($dataIsolation)) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied);
         }
 
+        $userId = $dataIsolation->getCurrentUserId();
         $updateFilter = [];
 
         // 处理头像URL
