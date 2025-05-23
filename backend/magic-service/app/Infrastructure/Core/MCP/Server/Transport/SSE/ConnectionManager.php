@@ -46,6 +46,7 @@ class ConnectionManager
         if ($connection instanceof SSEStream && $handler instanceof MCPHandler) {
             return true;
         }
+
         $this->removeConnection($serverName, $sessionId);
         return false;
     }

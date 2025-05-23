@@ -17,10 +17,10 @@ class KeepAlive
 
     public static function create(string $channel): void
     {
-        di(Timer::class)->tick(5, function () use ($channel) {
+        di(Timer::class)->tick(30, function () use ($channel) {
             $locker = di(LockerInterface::class);
             $owner = 'KeepAlive_' . $channel;
-            if (! $locker->mutexLock($channel, $owner, 5)) {
+            if (! $locker->mutexLock($channel, $owner, 25)) {
                 return;
             }
             try {
