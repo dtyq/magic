@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "51a791d729864c112f585a6f8372bb984c9f32f9"
+                "reference": "91860eda1376756ae37c2e58a48b992bbc857e36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=51a791d729864c112f585a6f8372bb984c9f32f9",
-                "reference": "51a791d729864c112f585a6f8372bb984c9f32f9",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=91860eda1376756ae37c2e58a48b992bbc857e36",
+                "reference": "91860eda1376756ae37c2e58a48b992bbc857e36",
                 "shasum": ""
             },
             "require": {
@@ -2300,7 +2300,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-05-23T10:13:55+00:00"
+            "time": "2025-05-23T13:16:41+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
