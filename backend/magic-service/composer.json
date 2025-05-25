@@ -175,8 +175,8 @@
             "url": "https://git.kkgroup.cn/hyperf/odin.git"
         },
         {
-          "type": "gitlab",
-          "url": "https://git.kkgroup.cn/dtyq/super-magic-module.git"
+            "type": "gitlab",
+            "url": "https://git.kkgroup.cn/dtyq/super-magic-module.git"
         },
         {
             "type": "gitlab",
