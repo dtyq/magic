@@ -54,9 +54,9 @@ function remote()
 {
     # 检查远程仓库是否已存在
     if ! git remote | grep -q "^$ORIGIN$"; then
-        git remote add $ORIGIN "$GIT_REPO_URL/$1.git" || true
+        git remote add $1 "$GIT_REPO_URL/$1.git" || true
     else
-        git remote set-url $ORIGIN "$GIT_REPO_URL/$1.git" || true
+        git remote set-url $1 "$GIT_REPO_URL/$1.git" || true
     fi
 }
 
