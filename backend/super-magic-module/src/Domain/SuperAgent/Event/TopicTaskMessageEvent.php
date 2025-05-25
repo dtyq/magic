@@ -21,11 +21,12 @@ class TopicTaskMessageEvent
      *
      * @param MessageMetadata $metadata 消息元数据
      * @param MessagePayload $payload 消息负载
+     * @param null|TokenUsageDetails $tokenUsageDetails Token 使用详情
      */
     public function __construct(
         private MessageMetadata $metadata,
         private MessagePayload $payload,
-        private TokenUsageDetails $tokenUsageDetails,
+        private ?TokenUsageDetails $tokenUsageDetails = null,
     ) {
     }
 

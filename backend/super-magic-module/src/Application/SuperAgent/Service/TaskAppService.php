@@ -195,6 +195,14 @@ class TaskAppService extends AbstractAppService
             });
 
             return $taskContext->getTaskId();
+        } catch (EventException $e) {
+            $this->logger->error(sprintf(
+                '初始化任务, 事件处理失败: %s',
+                $e->getMessage()
+            ));
+            // 发送消息给客户端
+            $this->sendErrorMessageToClient($topicId, (string) $taskId, $chatTopicId, $conversationId, $e->getMessage());
+            throw new BusinessException('初始化任务, 事件处理失败', 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 '初始化任务失败: %s',
