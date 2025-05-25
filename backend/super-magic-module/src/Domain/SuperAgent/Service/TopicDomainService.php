@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -38,5 +39,23 @@ class TopicDomainService
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
         return $this->topicRepository->getTopicsExceedingUpdateTime($timeThreshold, $limit);
+    }
+
+    /**
+     * 通过ChatTopicId获取话题实体.
+     */
+    public function getTopicByChatTopicId(DataIsolation $dataIsolation, string $chatTopicId): ?TopicEntity
+    {
+        $conditions = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'chat_topic_id' => $chatTopicId,
+        ];
+
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return null;
+        }
+
+        return $result['list'][0];
     }
 }

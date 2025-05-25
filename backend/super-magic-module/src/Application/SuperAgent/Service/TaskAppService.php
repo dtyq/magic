@@ -19,23 +19,31 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\ErrorCode\GenericErrorCode;
+use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
@@ -64,6 +72,7 @@ class TaskAppService extends AbstractAppService
 
     public function __construct(
         private readonly WorkspaceDomainService $workspaceDomainService,
+        private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly MagicChatMessageAppService $chatMessageAppService,
         private readonly MagicChatFileDomainService $chatFileDomainService,
@@ -95,76 +104,14 @@ class TaskAppService extends AbstractAppService
         $topicId = 0;
         $taskId = '';
         try {
-            // 检查用户任务数量限制和白名单
-            if ($instruction != ChatInstruction::Interrupted && $instruction != ChatInstruction::FollowUp) {
-                // 检查环境变量，如果是开源版本则跳过白名单和任务数量限制检查
-                $magicEdition = env('MAGIC_EDITION', 'commercial');
-                if ($magicEdition === 'open-source') {
-                    $this->logger->info('开源版本，跳过白名单和任务数量限制检查');
-                } else {
-                    $userId = $dataIsolation->getCurrentUserId();
-
-                    $this->logger->info(sprintf(
-                        '检查用户userId: %s',
-                        $userId
-                    ));
-
-                    // 检查用户是否在白名单中
-                    $userPhoneNumber = $this->userDomainService->getUserPhoneByUserId($userId);
-
-                    $this->logger->info(sprintf(
-                        '检查用户手机号: %s',
-                        $userPhoneNumber
-                    ));
-
-                    $isOrganizationAdmin = false;
-                    $isInviteUser = false;
-                    $isSuperMagicBoardManager = false;
-                    $isSuperMagicBoardOperator = false;
-
-                    // 检查是否是组织拥有者或者管理员
-                    if (class_exists(PermissionChecker::class)) {
-                        $permissionChecker = make(PermissionChecker::class);
-                        $isOrganizationAdmin = $permissionChecker->isOrganizationAdmin($dataIsolation->getCurrentOrganizationCode(), $userPhoneNumber);
-
-                        // 检查是否是邀请用户
-                        $isInviteUser = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_INVITE_USER);
-
-                        // 检查是否是超级麦吉看板管理人员
-                        $isSuperMagicBoardManager = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_MAGIC_BOARD_ADMIN);
-
-                        // 检查是否是超级麦吉看板运营人员
-                        $isSuperMagicBoardOperator = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_MAGIC_BOARD_OPERATOR);
-                    }
-
-                    if (! $isOrganizationAdmin && ! $isInviteUser && ! $isSuperMagicBoardManager && ! $isSuperMagicBoardOperator) {
-                        // 根据header 判断返回中文还是英文
-                        ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, '十分抱歉，目前您暂未获得内测资格。还请您密切留意我们发布的邀请内测相关信息，以便及时获取内测资格。');
-                    }
-
-                    // 获取配置的任务数量限制
-                    $defaultTaskLimit = 3;
-
-                    // 获取当前用户正在运行的任务数量@
-                    $runningTasks = $this->taskRepository->getTasksByUserId($userId, ['task_status' => TaskStatus::RUNNING->value]);
-                    // 根据sandbox_id进行去重
-                    $uniqueSandboxIds = [];
-                    $uniqueRunningTasks = [];
-                    foreach ($runningTasks as $task) {
-                        $sandboxId = $task->getSandboxId();
-                        if (! empty($sandboxId) && ! in_array($sandboxId, $uniqueSandboxIds)) {
-                            $uniqueSandboxIds[] = $sandboxId;
-                            $uniqueRunningTasks[] = $task;
-                        }
-                    }
-                    if (count($uniqueRunningTasks) > $defaultTaskLimit) {
-                        ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, '您正在执行的任务数量已达到上限（' . $defaultTaskLimit . '个），请稍后再试');
-                    }
-                }
+            $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $chatTopicId);
+            if (is_null($topicEntity)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
-
+            // 检查用户任务数量限制和白名单
+            $this->beforeInitTask($dataIsolation, $instruction, $topicEntity);
             // 1. 初始化任务
-            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $chatTopicId, $instruction, $taskMode, $prompt, $attachments);
+            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $instruction, $taskMode, $prompt, $attachments);
             $topicId = $taskEntity->getTopicId();
             $taskId = $taskEntity->getId();
 
@@ -264,12 +211,67 @@ class TaskAppService extends AbstractAppService
         }
     }
 
+    public function beforeInitTask(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
+    {
+        if ($instruction == ChatInstruction::Interrupted) {
+            return;
+        }
+
+        // 检查环境变量，如果是开源版本则跳过白名单和任务数量限制检查
+        $magicEdition = env('MAGIC_EDITION', 'open-source');
+        if ($magicEdition === 'open-source') {
+            $this->logger->info('开源版本，跳过白名单和任务数量限制检查');
+            return;
+        }
+
+        $userId = $dataIsolation->getCurrentUserId();
+        $this->logger->info(sprintf(
+            '检查用户userId: %s',
+            $userId
+        ));
+
+        // 检查用户是否在白名单中
+        $userPhoneNumber = $this->userDomainService->getUserPhoneByUserId($userId);
+        $this->logger->info(sprintf(
+            '检查用户手机号: %s',
+            $userPhoneNumber
+        ));
+
+        $isOrganizationAdmin = false;
+        $isInviteUser = false;
+        $isSuperMagicBoardManager = false;
+        $isSuperMagicBoardOperator = false;
+
+        // 检查是否是组织拥有者或者管理员
+        if (class_exists(PermissionChecker::class)) {
+            $permissionChecker = make(PermissionChecker::class);
+            $isOrganizationAdmin = $permissionChecker->isOrganizationAdmin($dataIsolation->getCurrentOrganizationCode(), $userPhoneNumber);
+
+            // 检查是否是邀请用户
+            $isInviteUser = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_INVITE_USER);
+
+            // 检查是否是超级麦吉看板管理人员
+            $isSuperMagicBoardManager = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_MAGIC_BOARD_ADMIN);
+
+            // 检查是否是超级麦吉看板运营人员
+            $isSuperMagicBoardOperator = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_MAGIC_BOARD_OPERATOR);
+        }
+
+        if (! $isOrganizationAdmin && ! $isInviteUser && ! $isSuperMagicBoardManager && ! $isSuperMagicBoardOperator) {
+            // 根据header 判断返回中文还是英文
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, '十分抱歉，目前您暂未获得内测资格。还请您密切留意我们发布的邀请内测相关信息，以便及时获取内测资格。');
+        }
+
+        $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound));
+    }
+
     /**
      * 处理话题任务消息.
      *
      * @param TopicTaskMessageDTO $messageDTO 消息DTO
      */
-    public function handleTopicTaskMessage($messageDTO): void
+    public function handleTopicTaskMessage(TopicTaskMessageDTO $messageDTO): void
     {
         // 获取sandboxId用于锁定
         $sandboxId = $messageDTO->getMetadata()?->getSandboxId();
@@ -313,7 +315,7 @@ class TaskAppService extends AbstractAppService
             );
 
             // 处理接收到的消息
-            $this->handleReceivedMessage($messageDTO->getPayload(), $taskContext);
+            $this->handleReceivedMessage($messageDTO, $taskContext);
 
             $this->logger->info(sprintf(
                 '处理话题任务消息完成，message_id: %s',
@@ -602,7 +604,7 @@ class TaskAppService extends AbstractAppService
                 $taskContext->setTaskId($messageDTO->getPayload()->getTaskId() ?: $task->getTaskId());
 
                 // 处理消息并判断是否需要继续处理
-                $shouldContinue = $this->handleReceivedMessage($messageDTO->getPayload(), $taskContext);
+                $shouldContinue = $this->handleReceivedMessage($messageDTO, $taskContext);
                 if (! $shouldContinue) {
                     $this->logger->info('[任务已经完成] task_id: ' . $taskContext->getTaskId());
                     break; // 如果是终止消息，退出循环
@@ -629,12 +631,25 @@ class TaskAppService extends AbstractAppService
     /**
      * 处理接收到的消息.
      *
-     * @param MessagePayload $payload 消息负载值对象
+     * @param TopicTaskMessageDTO $messageDTO 消息
      * @param TaskContext $taskContext 任务上下文
      * @return bool 是否继续处理消息
      */
-    private function handleReceivedMessage(MessagePayload $payload, TaskContext $taskContext): bool
+    private function handleReceivedMessage(TopicTaskMessageDTO $messageDTO, TaskContext $taskContext): bool
     {
+        $payload = $messageDTO->getPayload();
+        // 触发消息事件
+        $topicEntity = $this->topicDomainService->getTopicById($taskContext->getTopicId());
+        $topicName = is_null($topicEntity) ? '' : $topicEntity->getTopicName();
+        AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
+            $taskContext->getCurrentOrganizationCode(),
+            $taskContext->getCurrentUserId(),
+            $taskContext->getTopicId(),
+            $topicName,
+            $taskContext->getTask()->getId(),
+            $messageDTO
+        ));
+
         // 1. 解析消息基本信息
         $messageType = $payload->getType() ?: 'unknown';
         $content = $payload->getContent();
@@ -719,9 +734,14 @@ class TaskAppService extends AbstractAppService
             if (TaskStatus::tryFrom($status)) {
                 $this->updateTaskStatus($taskContext->getTask(), $taskContext->getDataIsolation(), $taskContext->getTaskId(), $taskStatus);
             }
-            if (in_array($status, [TaskStatus::ERROR->value, TaskStatus::FINISHED->value, TaskStatus::Suspended->value])) {
-                return true;
+            if (in_array($status, [TaskStatus::FINISHED->value, TaskStatus::Suspended->value])) {
+                AsyncEventUtil::dispatch(new RunTaskAfterEvent($taskContext->getCurrentOrganizationCode(), $taskContext->getCurrentUserId(), $task->getTopicId(), $task->getId(), $status));
+                return false;
             }
+        } catch (EventException $e) {
+            $this->logger->error(sprintf('处理消息事件回调的过程出现异常: %s', $e->getMessage()));
+            $this->sendErrorMessageToClient($taskContext->getTopicId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $e->getMessage());
+            return true;
         } catch (Exception $e) {
             $this->logger->error(sprintf('处理消息的过程出现异常: %s', $e->getMessage()));
             return true;

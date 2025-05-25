@@ -9,7 +9,7 @@ from agentlang.utils.snowflake import Snowflake
 from app.core.entity.attachment import Attachment
 from app.core.entity.message.message import MessageType
 from app.core.entity.project_archive import ProjectArchiveInfo
-from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.models import TokenUsageReport
 
 
 class TaskStatus(str, Enum):
@@ -230,10 +230,10 @@ class ServerMessage(BaseModel):
 
     metadata: Dict[str, Any]
     payload: ServerMessagePayload
-    token_usage_details: Optional[TokenUsage] = Field(default=None, description="Details of token usage for the current operation/LLM call")
+    token_usage_details: Optional[TokenUsageReport] = Field(default=None, description="Details of token usage for the current operation/LLM call")
 
     @classmethod
-    def create(cls, metadata: Dict[str, Any], payload: ServerMessagePayload, token_usage_details: Optional[TokenUsage] = None) -> "ServerMessage":
+    def create(cls, metadata: Dict[str, Any], payload: ServerMessagePayload, token_usage_details: Optional[TokenUsageReport] = None) -> "ServerMessage":
         return ServerMessage(
             metadata=metadata,
             payload=payload,

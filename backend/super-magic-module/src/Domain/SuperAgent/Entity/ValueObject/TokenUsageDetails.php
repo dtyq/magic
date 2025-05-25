@@ -14,15 +14,13 @@ class TokenUsageDetails
 {
     /**
      * Constructor.
+     *
+     * @param null|string $type 类型："summary" 或 "item"
+     * @param null|array $usages Token使用记录数组
      */
     public function __construct(
-        private ?int $inputTokens,
-        private ?int $outputTokens,
-        private ?int $totalTokens,
-        private ?InputTokensDetails $inputTokensDetails,
-        private ?OutputTokensDetails $outputTokensDetails,
-        private ?string $modelId,
-        private ?string $modelName
+        private ?string $type,
+        private ?array $usages
     ) {
     }
 
@@ -39,14 +37,21 @@ class TokenUsageDetails
             return null;
         }
 
+        $usages = [];
+        if (isset($data['usages']) && is_array($data['usages'])) {
+            foreach ($data['usages'] as $usage) {
+                if (is_array($usage)) {
+                    $tokenUsage = TokenUsage::fromArray($usage);
+                    if ($tokenUsage !== null) {
+                        $usages[] = $tokenUsage;
+                    }
+                }
+            }
+        }
+
         return new self(
-            $data['input_tokens'] ?? null,
-            $data['output_tokens'] ?? null,
-            $data['total_tokens'] ?? null,
-            isset($data['input_tokens_details']) && is_array($data['input_tokens_details']) ? InputTokensDetails::fromArray($data['input_tokens_details']) : null,
-            isset($data['output_tokens_details']) && is_array($data['output_tokens_details']) ? OutputTokensDetails::fromArray($data['output_tokens_details']) : null,
-            $data['model_id'] ?? null,
-            $data['model_name'] ?? null
+            $data['type'] ?? null,
+            ! empty($usages) ? $usages : null
         );
     }
 
@@ -55,49 +60,36 @@ class TokenUsageDetails
      */
     public function toArray(): array
     {
+        $usages = [];
+        if (is_array($this->usages)) {
+            foreach ($this->usages as $usage) {
+                if ($usage instanceof TokenUsage) {
+                    $usages[] = $usage->toArray();
+                }
+            }
+        }
+
         return [
-            'input_tokens' => $this->inputTokens,
-            'output_tokens' => $this->outputTokens,
-            'total_tokens' => $this->totalTokens,
-            'input_tokens_details' => $this->inputTokensDetails?->toArray(),
-            'output_tokens_details' => $this->outputTokensDetails?->toArray(),
-            'model_id' => $this->modelId,
-            'model_name' => $this->modelName,
+            'type' => $this->type,
+            'usages' => $usages,
         ];
     }
 
-    public function getInputTokens(): ?int
+    /**
+     * 获取类型.
+     */
+    public function getType(): ?string
     {
-        return $this->inputTokens;
+        return $this->type;
     }
 
-    public function getOutputTokens(): ?int
+    /**
+     * 获取使用记录数组.
+     *
+     * @return null|array 返回TokenUsage对象数组或null
+     */
+    public function getUsages(): ?array
     {
-        return $this->outputTokens;
-    }
-
-    public function getTotalTokens(): ?int
-    {
-        return $this->totalTokens;
-    }
-
-    public function getInputTokensDetails(): ?InputTokensDetails
-    {
-        return $this->inputTokensDetails;
-    }
-
-    public function getOutputTokensDetails(): ?OutputTokensDetails
-    {
-        return $this->outputTokensDetails;
-    }
-
-    public function getModelId(): ?string
-    {
-        return $this->modelId;
-    }
-
-    public function getModelName(): ?string
-    {
-        return $this->modelName;
+        return $this->usages;
     }
 }

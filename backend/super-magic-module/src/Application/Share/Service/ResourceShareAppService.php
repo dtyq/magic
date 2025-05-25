@@ -11,10 +11,12 @@ use App\ErrorCode\ShareErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Constant\ShareAccessType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
+use Dtyq\SuperMagic\Domain\Share\Event\CreateShareBeforeEvent;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
@@ -58,6 +60,9 @@ class ResourceShareAppService extends AbstractShareAppService
         $resourceId = $dto->resourceId;
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
+
+        // 发送创建分享事件
+        AsyncEventUtil::dispatch(new CreateShareBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $dto->getResourceId(), $dto->getResourceType()->value));
 
         // 验证资源类型
         $resourceType = ResourceType::from($dto->resourceType);

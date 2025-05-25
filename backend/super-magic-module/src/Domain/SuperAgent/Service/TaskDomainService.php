@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -44,31 +45,17 @@ class TaskDomainService
      * 初始化话题任务
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param string $chatTopicId 聊天话题ID
+     * @param TopicEntity $topicEntity 话题实体
      * @param string $prompt 用户的问题
      * @param string $attachments 用户上传的附件信息（JSON格式）
      * @param ChatInstruction $instruction 指令 正常，追问，打断
      * @return TaskEntity 任务实体
      * @throws RuntimeException 如果任务仓库或话题仓库未注入
      */
-    public function initTopicTask(DataIsolation $dataIsolation, string $chatTopicId, ChatInstruction $instruction, string $taskMode, string $prompt = '', string $attachments = ''): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, ChatInstruction $instruction, string $taskMode, string $prompt = '', string $attachments = ''): TaskEntity
     {
         // 获取当前用户ID
         $userId = $dataIsolation->getCurrentUserId();
-
-        // 1. 通过用户ID和聊天话题ID(chat_topic_id)查询话题实体
-        $conditions = [
-            'user_id' => $userId,
-            'chat_topic_id' => $chatTopicId,
-        ];
-
-        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
-
-        if (empty($result['list'])) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
-        }
-
-        $topicEntity = $result['list'][0];
         $topicId = $topicEntity->getId();
 
         // 如果指令是打断或者追问的情况下
@@ -670,5 +657,10 @@ class TaskDomainService
     public function getTasksExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
         return $this->taskRepository->getTasksExceedingUpdateTime($timeThreshold, $limit);
+    }
+
+    public function getTaskNumByTopicId(int $topicId): int
+    {
+        return $this->taskRepository->getTaskCountByTopicId($topicId);
     }
 }

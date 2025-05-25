@@ -20,7 +20,7 @@ class TopicTaskMessageAssembler
      */
     public static function toEvent(TopicTaskMessageDTO $dto): TopicTaskMessageEvent
     {
-        return new TopicTaskMessageEvent($dto->getMetadata(), $dto->getPayload());
+        return new TopicTaskMessageEvent($dto->getMetadata(), $dto->getPayload(), $dto->getTokenUsageDetails());
     }
 
     /**
@@ -30,7 +30,8 @@ class TopicTaskMessageAssembler
     {
         return new TopicTaskMessageDTO(
             $event->getMetadata(),
-            $event->getPayload()
+            $event->getPayload(),
+            $event->getTokenUsageDetails(),
         );
     }
 }
