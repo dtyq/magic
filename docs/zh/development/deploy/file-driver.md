@@ -1,10 +1,10 @@
 # 文件驱动使用说明
 
-本文档详细介绍Magic Service项目中支持的文件存储驱动、配置方法以及使用场景。
+本文档详细介绍 Magic Service 项目中支持的文件存储驱动、配置方法以及使用场景。
 
 ## 概述
 
-Magic Service支持多种文件存储驱动，可根据不同环境和需求灵活配置。目前支持以下三种驱动类型：
+Magic Service 支持多种文件存储驱动，可根据不同环境和需求灵活配置。目前支持以下三种驱动类型：
 
 1. 本地文件系统（Local）
 2. 阿里云对象存储（OSS）
@@ -18,16 +18,16 @@ Magic Service支持多种文件存储驱动，可根据不同环境和需求灵�
 
 ### 基础配置
 
-首先在`.env`文件中设置使用的文件驱动类型：
+首先在 `.env` 文件中设置使用的文件驱动类型：
 
 ```
 # 文件驱动
-FILE_DRIVER=local   # 可选值: local, oss, tos
+FILE_DRIVER=local   # 可选值：local/oss/tos
 ```
 
 ### 本地文件系统驱动 (local)
 
-当`FILE_DRIVER=local`时，使用本地文件系统存储文件。
+当 `FILE_DRIVER=local` 时，使用本地文件系统存储文件。
 
 必要配置：
 ```
@@ -38,63 +38,63 @@ FILE_LOCAL_WRITE_HOST=    # 文件上传域名，例如：https://upload.example
 ```
 
 说明：
-- `FILE_LOCAL_ROOT`：指定文件存储的绝对路径，若不配置，默认为项目根目录下的`storage/files`
+- `FILE_LOCAL_ROOT`：指定文件存储的绝对路径，若不配置，默认为项目根目录下的 `storage/files`
 - `FILE_LOCAL_READ_HOST`：文件访问的基础URL
-- `FILE_LOCAL_WRITE_HOST`：文件上传的基础URL，系统会自动拼接`/api/v1/file/upload`作为上传路径
+- `FILE_LOCAL_WRITE_HOST`：文件上传的基础URL，系统会自动拼接 `/api/v1/file/upload` 作为上传路径
 
 ### 阿里云对象存储驱动 (oss)
 
-当`FILE_DRIVER=oss`时，使用阿里云OSS存储文件。
+当 `FILE_DRIVER=oss`时，使用阿里云 OSS 存储文件。
 
 必要配置：
 ```
 # 阿里云文件驱动配置 - 私有 
-FILE_PRIVATE_ALIYUN_ACCESS_ID=      # 阿里云AccessKey ID
-FILE_PRIVATE_ALIYUN_ACCESS_SECRET=  # 阿里云AccessKey Secret
-FILE_PRIVATE_ALIYUN_BUCKET=         # OSS存储桶名称
-FILE_PRIVATE_ALIYUN_ENDPOINT=       # OSS访问域名，例如：oss-cn-hangzhou.aliyuncs.com
-FILE_PRIVATE_ALIYUN_ROLE_ARN=       # 可选，用于STS临时授权的角色ARN
+FILE_PRIVATE_ALIYUN_ACCESS_ID=      # 阿里云 AccessKey ID
+FILE_PRIVATE_ALIYUN_ACCESS_SECRET=  # 阿里云 AccessKey Secret
+FILE_PRIVATE_ALIYUN_BUCKET=         # OSS 存储桶名称
+FILE_PRIVATE_ALIYUN_ENDPOINT=       # OSS 访问域名，例如：oss-cn-hangzhou.aliyuncs.com
+FILE_PRIVATE_ALIYUN_ROLE_ARN=       # 可选，用于 STS 临时授权的角色 ARN
 
 # 阿里云文件驱动配置 - 公有
-FILE_PUBLIC_ALIYUN_ACCESS_ID=       # 阿里云AccessKey ID
-FILE_PUBLIC_ALIYUN_ACCESS_SECRET=   # 阿里云AccessKey Secret
-FILE_PUBLIC_ALIYUN_BUCKET=          # OSS存储桶名称
-FILE_PUBLIC_ALIYUN_ENDPOINT=        # OSS访问域名
-FILE_PUBLIC_ALIYUN_ROLE_ARN=        # 可选，用于STS临时授权的角色ARN
+FILE_PUBLIC_ALIYUN_ACCESS_ID=       # 阿里云 AccessKey ID
+FILE_PUBLIC_ALIYUN_ACCESS_SECRET=   # 阿里云 AccessKey Secret
+FILE_PUBLIC_ALIYUN_BUCKET=          # OSS 存储桶名称
+FILE_PUBLIC_ALIYUN_ENDPOINT=        # OSS 访问域名
+FILE_PUBLIC_ALIYUN_ROLE_ARN=        # 可选，用于 STS 临时授权的角色 ARN
 ```
 
 ### 火山引擎对象存储驱动 (tos)
 
-当`FILE_DRIVER=tos`时，使用火山引擎TOS存储文件。
+当 `FILE_DRIVER=tos` 时，使用火山引擎 TOS 存储文件。
 
 必要配置：
 ```
 # 火山云文件驱动配置 - 私有
-FILE_PRIVATE_TOS_REGION=     # TOS地域，例如：cn-beijing
-FILE_PRIVATE_TOS_ENDPOINT=   # TOS访问域名
-FILE_PRIVATE_TOS_AK=         # 火山引擎AccessKey
-FILE_PRIVATE_TOS_SK=         # 火山引擎SecretKey
-FILE_PRIVATE_TOS_BUCKET=     # TOS存储桶名称
-FILE_PRIVATE_TOS_TRN=        # 可选，用于STS临时授权的角色ARN
+FILE_PRIVATE_TOS_REGION=     # TOS 地域，例如：cn-beijing
+FILE_PRIVATE_TOS_ENDPOINT=   # TOS 访问域名
+FILE_PRIVATE_TOS_AK=         # 火山引擎 AccessKey
+FILE_PRIVATE_TOS_SK=         # 火山引擎 SecretKey
+FILE_PRIVATE_TOS_BUCKET=     # TOS 存储桶名称
+FILE_PRIVATE_TOS_TRN=        # 可选，用于 STS 临时授权的角色 ARN
 
 # 火山云文件驱动配置 - 公有
-FILE_PUBLIC_TOS_REGION=      # TOS地域
-FILE_PUBLIC_TOS_ENDPOINT=    # TOS访问域名
-FILE_PUBLIC_TOS_AK=          # 火山引擎AccessKey
-FILE_PUBLIC_TOS_SK=          # 火山引擎SecretKey
-FILE_PUBLIC_TOS_BUCKET=      # TOS存储桶名称
-FILE_PUBLIC_TOS_TRN=         # 可选，用于STS临时授权的角色ARN
+FILE_PUBLIC_TOS_REGION=      # TOS 地域
+FILE_PUBLIC_TOS_ENDPOINT=    # TOS 访问域名
+FILE_PUBLIC_TOS_AK=          # 火山引擎 AccessKey
+FILE_PUBLIC_TOS_SK=          # 火山引擎 SecretKey
+FILE_PUBLIC_TOS_BUCKET=      # TOS 存储桶名称
+FILE_PUBLIC_TOS_TRN=         # 可选，用于 STS 临时授权的角色 ARN
 ```
 
 ## 系统初始化
 
 ### 默认图标文件
 
-系统预设了一组默认图标文件，位于`storage/files/MAGIC/open/default/`目录下。这些图标在系统初始化时会被上传到配置的存储服务中（仅当使用云存储服务时需要上传）。
+系统预设了一组默认图标文件，位于 `storage/files/MAGIC/open/default/` 目录下。这些图标在系统初始化时会被上传到配置的存储服务中（仅当使用云存储服务时需要上传）。
 
 ### 初始化命令
 
-Magic Service提供了一个命令行工具用于初始化文件系统，尤其是在使用云存储服务时需要执行此命令将默认图标文件上传到云端：
+Magic Service 提供了一个命令行工具用于初始化文件系统，尤其是在使用云存储服务时需要执行此命令将默认图标文件上传到云端：
 
 ```bash
 php bin/hyperf.php file:init
@@ -103,7 +103,7 @@ php bin/hyperf.php file:init
 命令执行流程：
 1. 读取当前配置的存储桶设置
 2. 如果是本地文件系统（local），则不需要额外初始化
-3. 如果是云存储（oss或tos），则将默认图标文件从本地上传到云端存储
+3. 如果是云存储（oss 或 tos），则将默认图标文件从本地上传到云端存储
 
 ### 各驱动初始化特点
 
@@ -159,20 +159,20 @@ php bin/hyperf.php file:init
 
 ## 安全建议
 
-1. 定期更换AccessKey和Secret
+1. 定期更换 AccessKey 和 Secret
 2. 为不同环境使用不同的存储桶
-3. 对于私有存储，使用签名URL限制访问时间（系统默认签名有效期为259200秒，约3天）
+3. 对于私有存储，使用签名 URL 限制访问时间（系统默认签名有效期为 259200 秒，约 3 天）
 4. 配置适当的跨域访问策略（CORS）
 5. 不要在代码仓库中保存敏感的访问凭证，应使用环境变量或密钥管理系统
 
 ## 文件系统API使用说明
 
-Magic Service提供了一套完整的文件操作API，主要通过`FileDomainService`类进行调用。以下是常用API及其用法：
+Magic Service 提供了一套完整的文件操作API，主要通过 `FileDomainService` 类进行调用。以下是常用 API 及其用法：
 
 ### 核心服务类
 
-- **FileDomainService**: 文件领域服务，提供所有文件操作的高级API
-- **CloudFileRepository**: 文件存储库实现，负责与具体存储驱动交互
+- **FileDomainService**：文件领域服务，提供所有文件操作的高级 API
+- **CloudFileRepository**：文件存储库实现，负责与具体存储驱动交互
 
 ### 常用方法
 
@@ -295,11 +295,11 @@ StorageBucketType::Private
 
 ### 最佳实践
 
-1. **文件路径命名**: 建议使用 `{组织代码}/{业务类型}/{年月}/{文件名}` 的格式，便于管理和查找
-2. **大文件处理**: 对于大文件，应使用 `uploadByCredential` 方法获取临时凭证，让前端直接上传到存储服务
-3. **私有文件访问**: 对于私有文件，应使用预签名URL或系统生成的临时链接访问
-4. **文件类型限制**: 在应用层应限制允许上传的文件类型，避免安全风险
-5. **异常处理**: 所有文件操作应包含适当的异常处理机制，确保系统稳定性
+1. **文件路径命名**：建议使用 `{组织代码}/{业务类型}/{年月}/{文件名}` 的格式，便于管理和查找
+2. **大文件处理**：对于大文件，应使用 `uploadByCredential` 方法获取临时凭证，让前端直接上传到存储服务
+3. **私有文件访问**：对于私有文件，应使用预签名 URL 或系统生成的临时链接访问
+4. **文件类型限制**：在应用层应限制允许上传的文件类型，避免安全风险
+5. **异常处理**：所有文件操作应包含适当的异常处理机制，确保系统稳定性
 
 ---
 
