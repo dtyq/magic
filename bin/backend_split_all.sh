@@ -71,8 +71,15 @@ fi
 # remote   "sandbox"
 # split "backend/sandbox" "$GIT_REPO_URL/sandbox.git"
 
-curl -L https://cdn.letsmagic.cn/gitlab/splitsh-lite -o ./bin/splitsh-lite
-chmod +x ./bin/splitsh-lite
+# Download splitsh-lite from GitHub releases
+ARCH=$(uname -m)
+SPLITSH_BIN=./bin/splitsh-lite
+
+# 下载并解压 splitsh-lite
+curl -L https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz -o /tmp/lite_linux_amd64.tar.gz
+tar -xzvf /tmp/lite_linux_amd64.tar.gz -C /tmp
+mv /tmp/splitsh-lite $SPLITSH_BIN
+chmod +x $SPLITSH_BIN
 
 
 for REPO in $REPOS ; do
