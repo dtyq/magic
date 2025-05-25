@@ -105,6 +105,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $knowledgeBaseEntity->setUserOperation($operation->value);
         $iconFileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $knowledgeBaseEntity->getIcon());
         $knowledgeBaseEntity->setIcon($iconFileLink?->getUrl() ?? '');
+        $knowledgeBaseEntity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledgeBaseEntity));
         return $knowledgeBaseEntity;
     }
 
