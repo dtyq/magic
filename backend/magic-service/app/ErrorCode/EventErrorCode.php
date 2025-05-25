@@ -102,4 +102,7 @@ enum EventErrorCode: int
 
     #[ErrorMessage('event.system_maintenance')]
     case EVENT_SYSTEM_MAINTENANCE = 6602;
+
+    #[ErrorMessage('event.points.insufficient')]
+    case EVENT_POINTS_INSUFFICIENT = 6603;
 }
