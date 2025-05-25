@@ -71,6 +71,9 @@ fi
 # remote   "sandbox"
 # split "backend/sandbox" "$GIT_REPO_URL/sandbox.git"
 
+curl -L https://cdn.letsmagic.cn/gitlab/splitsh-lite -o ./bin/splitsh-lite
+chmod +x ./bin/splitsh-lite
+
 
 for REPO in $REPOS ; do
     remote $REPO
