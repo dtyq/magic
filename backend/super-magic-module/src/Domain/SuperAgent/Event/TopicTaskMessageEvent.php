@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
 
 /**
  * 话题任务消息事件.
@@ -23,7 +24,8 @@ class TopicTaskMessageEvent
      */
     public function __construct(
         private MessageMetadata $metadata,
-        private MessagePayload $payload
+        private MessagePayload $payload,
+        private TokenUsageDetails $tokenUsageDetails,
     ) {
     }
 
@@ -42,7 +44,11 @@ class TopicTaskMessageEvent
             ? MessagePayload::fromArray($data['payload'])
             : new MessagePayload();
 
-        return new self($metadata, $payload);
+        $tokenUsageDetails = isset($data['token_usage_details']) && is_array($data['token_usage_details'])
+            ? TokenUsageDetails::fromArray($data['token_usage_details'])
+            : null;
+
+        return new self($metadata, $payload, $tokenUsageDetails);
     }
 
     /**
@@ -55,6 +61,7 @@ class TopicTaskMessageEvent
         return [
             'metadata' => $this->metadata->toArray(),
             'payload' => $this->payload->toArray(),
+            'token_usage_details' => $this->tokenUsageDetails?->toArray(),
         ];
     }
 
@@ -72,5 +79,10 @@ class TopicTaskMessageEvent
     public function getPayload(): MessagePayload
     {
         return $this->payload;
+    }
+
+    public function getTokenUsageDetails(): ?TokenUsageDetails
+    {
+        return $this->tokenUsageDetails;
     }
 }

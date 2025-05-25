@@ -21,6 +21,7 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -38,6 +39,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -269,7 +271,7 @@ class TaskAppService extends AbstractAppService
      *
      * @param TopicTaskMessageDTO $messageDTO 消息DTO
      */
-    public function handleTopicTaskMessage($messageDTO): void
+    public function handleTopicTaskMessage(TopicTaskMessageDTO $messageDTO): void
     {
         // 获取sandboxId用于锁定
         $sandboxId = $messageDTO->getMetadata()?->getSandboxId();
@@ -313,7 +315,7 @@ class TaskAppService extends AbstractAppService
             );
 
             // 处理接收到的消息
-            $this->handleReceivedMessage($messageDTO->getPayload(), $taskContext);
+            $this->handleReceivedMessage($messageDTO, $taskContext);
 
             $this->logger->info(sprintf(
                 '处理话题任务消息完成，message_id: %s',
@@ -602,7 +604,7 @@ class TaskAppService extends AbstractAppService
                 $taskContext->setTaskId($messageDTO->getPayload()->getTaskId() ?: $task->getTaskId());
 
                 // 处理消息并判断是否需要继续处理
-                $shouldContinue = $this->handleReceivedMessage($messageDTO->getPayload(), $taskContext);
+                $shouldContinue = $this->handleReceivedMessage($messageDTO, $taskContext);
                 if (! $shouldContinue) {
                     $this->logger->info('[任务已经完成] task_id: ' . $taskContext->getTaskId());
                     break; // 如果是终止消息，退出循环
@@ -629,12 +631,21 @@ class TaskAppService extends AbstractAppService
     /**
      * 处理接收到的消息.
      *
-     * @param MessagePayload $payload 消息负载值对象
+     * @param TopicTaskMessageDTO $messageDTO 消息
      * @param TaskContext $taskContext 任务上下文
      * @return bool 是否继续处理消息
      */
-    private function handleReceivedMessage(MessagePayload $payload, TaskContext $taskContext): bool
+    private function handleReceivedMessage(TopicTaskMessageDTO $messageDTO, TaskContext $taskContext): bool
     {
+        $payload = $messageDTO->getPayload();
+        // 触发消息事件
+        AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
+            $taskContext->getCurrentOrganizationCode(),
+            $taskContext->getCurrentUserId(),
+            $taskContext->getTopicId(),
+            $messageDTO
+        ));
+
         // 1. 解析消息基本信息
         $messageType = $payload->getType() ?: 'unknown';
         $content = $payload->getContent();
@@ -723,6 +734,10 @@ class TaskAppService extends AbstractAppService
                 AsyncEventUtil::dispatch(new RunTaskAfterEvent($taskContext->getCurrentOrganizationCode(), $taskContext->getCurrentUserId(), $task->getTopicId(), $task->getId(), $status));
                 return false;
             }
+        } catch (EventException $e) {
+            $this->logger->error(sprintf('处理消息事件回调的过程出现异常: %s', $e->getMessage()));
+            $this->sendErrorMessageToClient($taskContext->getTopicId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $e->getMessage());
+            return true;
         } catch (Exception $e) {
             $this->logger->error(sprintf('处理消息的过程出现异常: %s', $e->getMessage()));
             return true;

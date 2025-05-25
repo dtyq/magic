@@ -28,5 +28,4 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('task.work_dir_not_found')]
     case WORK_DIR_NOT_FOUND = 51201;
-
 }

@@ -7,14 +7,15 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-class RunTaskAfterEvent
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
+
+class RunTaskCallbackEvent
 {
     public function __construct(
         private string $organizationCode,
         private string $userId,
         private int $topicId,
-        private int $taskId,
-        private string $status,
+        private TopicTaskMessageDTO $taskMessage
     ) {
     }
 
@@ -33,13 +34,8 @@ class RunTaskAfterEvent
         return $this->topicId;
     }
 
-    public function getTaskId(): int
+    public function getTaskMessage(): TopicTaskMessageDTO
     {
-        return $this->taskId;
-    }
-
-    public function getStatus(): string
-    {
-        return $this->status;
+        return $this->taskMessage;
     }
 }
