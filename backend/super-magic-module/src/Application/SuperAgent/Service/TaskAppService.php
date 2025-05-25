@@ -639,10 +639,14 @@ class TaskAppService extends AbstractAppService
     {
         $payload = $messageDTO->getPayload();
         // 触发消息事件
+        $topicEntity = $this->topicDomainService->getTopicById($taskContext->getTopicId());
+        $topicName = is_null($topicEntity) ? '' : $topicEntity->getTopicName();
         AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
             $taskContext->getCurrentOrganizationCode(),
             $taskContext->getCurrentUserId(),
             $taskContext->getTopicId(),
+            $topicName,
+            $taskContext->getTask()->getId(),
             $messageDTO
         ));
 

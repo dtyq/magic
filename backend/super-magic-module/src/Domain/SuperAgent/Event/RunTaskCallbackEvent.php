@@ -15,6 +15,8 @@ class RunTaskCallbackEvent
         private string $organizationCode,
         private string $userId,
         private int $topicId,
+        private string $topicName,
+        private int $taskId,
         private TopicTaskMessageDTO $taskMessage
     ) {
     }
@@ -32,6 +34,16 @@ class RunTaskCallbackEvent
     public function getTopicId(): int
     {
         return $this->topicId;
+    }
+
+    public function getTopicName(): string
+    {
+        return $this->topicName;
+    }
+
+    public function getTaskId(): int
+    {
+        return $this->taskId;
     }
 
     public function getTaskMessage(): TopicTaskMessageDTO
