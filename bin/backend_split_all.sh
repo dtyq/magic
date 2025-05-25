@@ -80,9 +80,7 @@ TEMP_DIR="./tmp"
 mkdir -p $TEMP_DIR
 
 # 下载并解压 splitsh-lite
-curl -L https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz -o $TEMP_DIR/lite_linux_amd64.tar.gz
-tar -xzvf $TEMP_DIR/lite_linux_amd64.tar.gz -C $TEMP_DIR
-mv $TEMP_DIR/splitsh-lite $SPLITSH_BIN
+curl -L https://cdn.letsmagic.cn/gitlab/liunx/splitsh-lite  -o  $SPLITSH_BIN
 chmod +x $SPLITSH_BIN
 
 # Clean up
