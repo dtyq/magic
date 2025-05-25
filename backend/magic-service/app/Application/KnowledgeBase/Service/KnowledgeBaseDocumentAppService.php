@@ -9,6 +9,7 @@ namespace App\Application\KnowledgeBase\Service;
 
 use App\Domain\Flow\Entity\ValueObject\Query\KnowledgeBaseDocumentQuery;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
 use App\ErrorCode\PermissionErrorCode;
@@ -101,11 +102,12 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $documents = $this->knowledgeBaseDocumentDomainService->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId);
         $knowledgeEntities = $this->knowledgeBaseDomainService->getByCodes($dataIsolation, array_column($documents, 'knowledge_base_code'));
+        /** @var array<string, KnowledgeBaseEntity> $knowledgeEntities */
         $knowledgeEntities = array_column($knowledgeEntities, null, 'code');
 
         foreach ($documents as $document) {
             $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
-            if ($knowledgeEntity) {
+            if ($knowledgeEntity && $knowledgeEntity->getType() === KnowledgeType::UserKnowledgeBase->value) {
                 $event = new KnowledgeBaseDocumentSavedEvent($knowledgeEntity, $document, false);
                 AsyncEventUtil::dispatch($event);
             }
