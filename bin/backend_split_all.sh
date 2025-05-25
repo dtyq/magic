@@ -23,7 +23,7 @@ set -x  # 重新开启命令回显
 
 
 # Default to GitHub if GIT_REPO_URL is not set
-GIT_REPO_URL=${GIT_REPO_URL:-"git@github.com:dtyq"}
+GIT_REPO_URL="https://git.kkgroup.cn/dtyq/"
 
 
 # Set ORIGIN based on GIT_REPO_URL
