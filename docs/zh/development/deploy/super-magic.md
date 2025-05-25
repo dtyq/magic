@@ -28,7 +28,7 @@ Super Magic 服务依赖于几个关键的配置文件：
 ```bash
 cp config/.env_super_magic.example config/.env_super_magic
 ```
-配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用
+配置超级麦吉环境变量，必须配置任意一种支持 OpenAI 格式的大模型环境变量，才可正常使用。
 
 编辑 `config/.env_super_magic` 文件，配置必要的环境变量：
 
@@ -53,7 +53,7 @@ vim config/.env_super_magic
 5. 如选择远程服务器部署，会检测公网 IP 并更新相关配置
 6. 询问是否安装 Super Magic 服务
 
-在提示"是否安装Super Magic服务?"时，选择"1"以安装 Super Magic 服务。
+在提示「是否安装Super Magic服务?」时，选择 1 以安装 Super Magic 服务。
 
 ## 使用指南
 
@@ -116,42 +116,42 @@ vim config/.env_super_magic
 `config/.env_super_magic` 文件包含以下重要配置项：
 
 #### 基础配置
-- `APP_ENV`: 应用环境设置，可选值如 "test"、"production" 等
-- `LOG_LEVEL`: 日志级别，如 INFO、DEBUG、ERROR 等
-- `STORAGE_PLATFORM`: 存储平台，默认为 "local"
+- `APP_ENV`：应用环境设置，可选值如 test、production 等
+- `LOG_LEVEL`：日志级别，如 INFO、DEBUG、ERROR 等
+- `STORAGE_PLATFORM`：存储平台，默认为 local
 
 #### 工具调用配置
-- `AGENT_ENABLE_MULTI_TOOL_CALLS`: 是否启用多工具调用（True/False）
-- `AGENT_ENABLE_PARALLEL_TOOL_CALLS`: 是否启用并行工具调用（True/False）
+- `AGENT_ENABLE_MULTI_TOOL_CALLS`：是否启用多工具调用（True/False）
+- `AGENT_ENABLE_PARALLEL_TOOL_CALLS`：是否启用并行工具调用（True/False）
 
 #### 大语言模型配置
 
 ##### OpenAI 配置
-- `OPENAI_API_BASE_URL`: OpenAI API 的基础 URL
-- `OPENAI_API_KEY`: OpenAI API 密钥
-- `OPENAI_MODEL`: 默认使用的 OpenAI 模型，如 "gpt-4o-global"
-- `OPENAI_4_1_MODEL`: OpenAI 4.1 模型名称
-- `OPENAI_4_1_MINI_MODEL`: OpenAI 4.1 Mini 模型名称
-- `OPENAI_4_1_NANO_MODEL`: OpenAI 4.1 Nano 模型名称
+- `OPENAI_API_BASE_URL`：OpenAI API 的基础 URL
+- `OPENAI_API_KEY`：OpenAI API 密钥
+- `OPENAI_MODEL`：默认使用的 OpenAI 模型，如 gpt-4o-global
+- `OPENAI_4_1_MODEL`：OpenAI 4.1 模型名称
+- `OPENAI_4_1_MINI_MODEL`：OpenAI 4.1 Mini 模型名称
+- `OPENAI_4_1_NANO_MODEL`：OpenAI 4.1 Nano 模型名称
 
 #### 向量数据库配置
-- `QDRANT_COLLECTION_PREFIX`: Qdrant 集合前缀，默认为 "SUPERMAGIC-"
+- `QDRANT_COLLECTION_PREFIX`：Qdrant 集合前缀，默认为 "SUPERMAGIC-"
 
 #### 浏览器配置
-- `BROWSER_HEADLESS`: 浏览器是否以无头模式运行（True/False）
-- `BROWSER_STORAGE_STATE_TEMPLATE_URL`: 浏览器存储状态模板 URL
+- `BROWSER_HEADLESS`：浏览器是否以无头模式运行（True/False）
+- `BROWSER_STORAGE_STATE_TEMPLATE_URL`：浏览器存储状态模板 URL
 
 #### 搜索配置
-- `BING_SUBSCRIPTION_ENDPOINT`: Bing 搜索 API 端点
-- `BING_SUBSCRIPTION_KEY`: Bing 搜索订阅密钥
+- `BING_SUBSCRIPTION_ENDPOINT`：Bing 搜索 API 端点
+- `BING_SUBSCRIPTION_KEY`：Bing 搜索订阅密钥
 
 
 #### 模型服务配置
 
 ##### OpenAI 服务
-- `OPENAI_API_KEY`: OpenAI API 密钥
-- `OPENAI_API_BASE_URL`: OpenAI API 基础 URL
-- `OPENAI_MODEL`: 使用的 OpenAI 模型
+- `OPENAI_API_KEY`：OpenAI API 密钥
+- `OPENAI_API_BASE_URL`：OpenAI API 基础 URL
+- `OPENAI_MODEL`：使用的 OpenAI 模型
 
 ## 故障排除
 

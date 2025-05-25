@@ -3,9 +3,9 @@
 ## 一、系统要求
 
 - 支持操作系统：macOS、Linux 或 Windows
-- 已安装 Docker 和 Docker Compose（安装 docker 参考3.3）
-- 网络连接（用于拉取镜像和检测公网IP）
-- 已安装git (用于拉取 Magic 代码)
+- 已安装 Docker 和 Docker Compose（安装 Docker 参考 3.3）
+- 网络连接（用于拉取镜像和检测公网 IP）
+- 已安装 Git (用于拉取 Magic 代码)
 
 ## 二、安装步骤
 
@@ -24,20 +24,21 @@ cd magic
 #### 主要配置文件
 - .env：主要环境变量配置文件
 - config/.env_super_magic：Super Magic 服务配置文件（如果选择安装）
-- config/.env_magic_gateway：Magic Gateway 配置文件（如果选择安装Super Magic）
-- config/.env_sandbox_gateway：Sandbox Gateway 配置文件（如果选择安装Super Magic）
--  macOS/Linux 安装过程中，如果不存在文件不存在，会自动复制，windows 需要手动复制修改
-##### 手动配置文件,并修改所需要的值
+- config/.env_magic_gateway：Magic Gateway 配置文件（如果选择安装 Super Magic）
+- config/.env_sandbox_gateway：Sandbox Gateway 配置文件（如果选择安装 Super Magic）
+- macOS/Linux 安装过程中，如果不存在文件不存在，会自动复制，Windows 需要手动复制修改
+
+##### 手动配置文件，并修改所需要的值
 ```bash
-###如需要使用magic，复制 .env.example 到 .env
-sudo cp .env.example  .env
+# 如需要使用 Magic，复制 .env.example 到 .env
+sudo cp .env.example .env
 
 ```
 ##### Magic 环境变量配置参考：
 https://docs.letsmagic.cn/zh/development/deploy/environment.html
 
 ```bash
-###如需使用Super Magic服务，复制以下文件：
+# 如需使用 Super Magic 服务，复制以下文件：
 sudo cp config/.env_super_magic.example  config/.env_super_magic
 sudo cp config/.env_magic_gateway.example  config/.env_magic_gateway
 sudo cp config/.env_sandbox_gateway.example  config/.env_sandbox_gateway
@@ -46,7 +47,7 @@ sudo cp config/.env_sandbox_gateway.example  config/.env_sandbox_gateway
 https://docs.letsmagic.cn/zh/development/deploy/super-magic.html
 
 ##### 配置IP（可选）
-如果是远程服务器部署，编辑.env文件，将以下内容中的localhost替换为服务器IP：
+如果是远程服务器部署，编辑 .env 文件，将以下内容中的 localhost 替换为服务器 IP：
 ```
 MAGIC_SOCKET_BASE_URL=ws://<服务器IP>:9502
 MAGIC_SERVICE_BASE_URL=http://<服务器IP>:9501
@@ -60,7 +61,7 @@ MAGIC_SERVICE_BASE_URL=http://<服务器IP>:9501
 如果 config/.env_super_magic 不存在但有 config/.env_super_magic.example，请按照提示复制并编辑该文件。
 
 
-### 2.3. macOS/Linux启动服务
+### 2.3. macOS/Linux 启动服务
 
 #### macOS/Linux
 运行安装脚本：
@@ -68,9 +69,10 @@ MAGIC_SERVICE_BASE_URL=http://<服务器IP>:9501
 ```bash
 sudo ./bin/magic.sh start
 ```
+
 #### Windows
-Windows系统可以不使用 magic.sh 脚本，直接使用 docker compose命令：
-也可以通过下载 Git [GUI工具](https://git-scm.com/downloads/win) 获得跟 Mac/Liunx 一样的安装体验
+Windows 系统可以不使用 magic.sh 脚本，直接使用 docker compose 命令：
+也可以通过下载 Git [GUI工具](https://git-scm.com/downloads/win) 获得跟 macOS/Linux 一样的安装体验
 
 ```bash
 # 创建必要的网络
@@ -80,7 +82,7 @@ docker network create magic-sandbox-network
 docker compose up
 ```
 
-如需启动Super Magic相关服务：
+如需启动 Super Magic 相关服务：
 
 ```bash
 docker compose --profile magic-gateway --profile sandbox-gateway up
@@ -98,17 +100,17 @@ docker compose --profile magic-gateway --profile sandbox-gateway up
 
 
 ##### 部署方式选择
-- 选择 1 表示本地电脑部署（使用默认localhost配置）
-- 选择 2 表示远程服务器部署（会检测公网IP并询问是否使用）
+- 选择 1 表示本地电脑部署（使用默认 localhost 配置）
+- 选择 2 表示远程服务器部署（会检测公网 IP 并询问是否使用）
 ![部署方式选择](https://public-cdn.letsmagic.cn/static/img/chose_development_method.png)
 
-- 提示: 脚本会判断本地是否已经创建了magic-sandbox-network，如果没有会自动执行一次
+- 提示：脚本会判断本地是否已经创建了 magic-sandbox-network，如果没有会自动执行一次：
 ```bash
 docker network create magic-sandbox-network
 ```
 
 ##### Super Magic 服务安装
-- 选择 1 表示安装 Super Magic 服务(需要提前配置config/目录下的配置文件)
+- 选择 1 表示安装 Super Magic 服务(需要提前配置 config/ 目录下的配置文件)
 - 选择 2 表示不安装 Super Magic 服务
   ![Super Magic 服务安装](https://public-cdn.letsmagic.cn/static/img/super_magic_service_install.png)
 
@@ -137,7 +139,8 @@ sudo ./bin/magic.sh [命令]
 - help：显示帮助信息
 
 #### Windows
-Windows用户直接使用docker compose命令：
+
+Windows 用户直接使用 docker compose 命令：
 
 ```bash
 # 前台启动服务
@@ -158,10 +161,10 @@ docker compose ps
 # 查看日志
 docker compose logs -f
 
-# 使用Super Magic服务（前台）
+# 使用 Super Magic 服务（前台）
 docker compose --profile magic-gateway --profile sandbox-gateway up
 
-# 使用Super Magic服务（后台）
+# 使用 Super Magic 服务（后台）
 docker compose --profile magic-gateway --profile sandbox-gateway up -d
 ```
 
@@ -218,7 +221,7 @@ docker compose logs -f
 2. 下载并安装 Docker Desktop for Mac
 ![下载并安装 Docker Desktop for Mac](https://public-cdn.letsmagic.cn/static/img/install_docker_desktop_for_mac.png)
 
-1. 启动 Docker Desktop 应用程序
+3. 启动 Docker Desktop 应用程序
 ![启动 Docker Desktop 应用程序](https://public-cdn.letsmagic.cn/static/img/start_docker_desktop_application.png)
 
 
@@ -271,9 +274,9 @@ sudo systemctl start docker
 
 1. **Docker 未运行**
    - 确保 Docker 服务已启动
-   - macOS: 打开 Docker Desktop 应用
-   - Linux: 运行 `sudo systemctl start docker`
-   - Windows: 打开 Docker Desktop 应用，检查系统托盘图标
+   - macOS：打开 Docker Desktop 应用
+   - Linux：运行 `sudo systemctl start docker`
+   - Windows：打开 Docker Desktop 应用，检查系统托盘图标
 
 2. **端口冲突**
    - 检查是否有其他服务占用了配置中使用的端口
@@ -287,11 +290,11 @@ sudo systemctl start docker
    - 检查防火墙设置是否阻止了 Docker 的网络访问
 
 5. **Windows特有问题**
-   - 确保开启了WSL 2支持
+   - 确保开启了 WSL 2 支持
    - 如遇到权限问题，尝试以管理员身份运行命令提示符
-   - 检查Windows防火墙是否阻止了Docker网络流量
+   - 检查Windows防火墙是否阻止了 Docker 网络流量
 6. **日志查看**
-   - super-magic 查看sandbox-agent 开头的容器日志
+   - super-magic 查看 sandbox-agent 开头的容器日志
    - 接口问题查看 magic-service 容器日志
    - 前端UI问题查看 magic-web 容器日志
    - 跨域等网络问题查看 magic-caddy 容器日志

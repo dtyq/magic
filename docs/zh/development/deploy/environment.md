@@ -33,16 +33,16 @@ MAGIC_WEB_TAG=latest
 MAGIC_EDITION=COMMUNITY
 ```
 
-#### Git仓库配置
+#### Git 仓库配置
 
 ```
-# Git Repository URL (默认使用GitHub)
+# Git Repository URL (默认使用 GitHub)
 GIT_REPO_URL=git@github.com:dtyq
 ```
 
 ### 2. 数据库配置
 
-#### MySQL配置
+#### MySQL 配置
 
 ```
 # MySQL 配置
@@ -56,7 +56,7 @@ MYSQL_WORK_MEM=4MB
 MYSQL_MAINTENANCE_WORK_MEM=64MB
 MYSQL_EFFECTIVE_CACHE_SIZE=4096MB
 
-# 应用MySQL连接配置
+# 应用 MySQL 连接配置
 DB_DRIVER=mysql
 DB_HOST=db
 DB_PORT=3306
@@ -68,10 +68,10 @@ DB_COLLATION=utf8mb4_unicode_ci
 DB_PREFIX=
 ```
 
-#### Redis配置
+#### Redis 配置
 
 ```
-# Redis配置
+# Redis 配置
 REDIS_HOST=redis
 REDIS_AUTH=magic123456
 REDIS_PORT=6379
@@ -79,10 +79,10 @@ REDIS_DB=0
 REDIS_PASSWORD=magic123456
 ```
 
-#### RabbitMQ配置
+#### RabbitMQ 配置
 
 ```
-# RabbitMQ配置
+# RabbitMQ 配置
 AMQP_HOST=rabbitmq
 AMQP_PORT=5672
 AMQP_USER=admin
@@ -90,10 +90,10 @@ AMQP_PASSWORD=magic123456
 AMQP_VHOST=magic-chat
 ```
 
-#### OpenSearch配置
+#### OpenSearch 配置
 
 ```
-# OpenSearch配置
+# OpenSearch 配置
 OPENSEARCH_DISCOVERY_TYPE=single-node
 OPENSEARCH_BOOTSTRAP_MEMORY_LOCK=true
 OPENSEARCH_JAVA_OPTS_MIN=512m
@@ -105,10 +105,10 @@ OPENSEARCH_NOFILE_SOFT=65536
 OPENSEARCH_NOFILE_HARD=65536
 ```
 
-#### Qdrant配置
+#### Qdrant 配置
 
 ```
-# Qdrant配置
+# Qdrant 配置
 QDRANT_API_KEY=magic123456
 ODIN_QDRANT_BASE_URI=http://qdrant
 ODIN_QDRANT_API_KEY=
@@ -141,7 +141,7 @@ ENABLE_CONSUME=true
 ENABLE_CHAT_MESSAGE=true
 # 启用聊天序列
 ENABLE_CHAT_SEQ=true
-# 启用Magic看门狗（本地开发可禁用）
+# 启用 Magic 看门狗（本地开发可禁用）
 ENABLE_MAGIC_WATCHDOG=false
 
 # 通用开关
@@ -153,9 +153,9 @@ DOUBAO_EMBEDDING_ENABLED=false
 MISC_DMETA_EMBEDDING_ENABLED=false
 ```
 
-### 4. AI模型配置
+### 4. AI 模型配置
 
-#### Azure OpenAI配置
+#### Azure OpenAI 配置
 
 ```
 # Azure OpenAI GPT-4
@@ -181,7 +181,7 @@ AZURE_OPENAI_4O_GLOBAL_DEPLOYMENT_NAME=gpt-4o-global
 #### 豆包模型配置
 
 ```
-# 豆包Pro 32k
+# 豆包 Pro 32k
 DOUBAO_PRO_32K_ENDPOINT=doubao-1.5-pro-32k
 DOUBAO_PRO_32K_API_KEY=
 DOUBAO_PRO_32K_BASE_URL=https://ark.cn-beijing.volces.com
@@ -193,7 +193,7 @@ DOUBAO_EMBEDDING_BASE_URL=https://ark.cn-beijing.volces.com
 DOUBAO_EMBEDDING_VECTOR_SIZE=2048
 ```
 
-#### DeepSeek模型配置
+#### DeepSeek 模型配置
 
 ```
 # DeepSeek R1
@@ -207,7 +207,7 @@ DEEPSEEK_V3_API_KEY=
 DEEPSEEK_V3_BASE_URL=https://api.deepseek.com
 ```
 
-#### 其他AI服务配置
+#### 其他 AI 服务配置
 
 ```
 # dmeta-embedding
@@ -223,13 +223,13 @@ MIRACLE_VISION_SECRET=
 
 ### 5. 外部服务配置
 
-#### Google搜索配置
+#### Google 搜索配置
 
 ```
-# Google搜索所需代理
+# Google 搜索所需代理
 HTTP_PROXY=
 GOOGLE_SEARCH_API_KEY=
-# 使用Google时，请指定搜索cx (GOOGLE_SEARCH_ENGINE_ID)
+# 使用 Google 时，请指定搜索 cx (GOOGLE_SEARCH_ENGINE_ID)
 GOOGLE_SEARCH_CX=
 BACKEND=GOOGLE
 RELATED_QUESTIONS=true
@@ -243,13 +243,13 @@ APP_ID=
 APP_SECRET=
 APP_CODE=
 
-# CODE白名单
+# CODE 白名单
 CODE_WHITE_ACCOUNT_ID=
 
-# 默认magic_environment ID
+# 默认 Magic 环境 ID
 DEFAULT_MAGIC_ENVIRONMENT_ID=
 
-# Magic environment ID
+# Magic 环境 ID
 MAGIC_ENV_ID=1000
 ```
 
@@ -260,7 +260,7 @@ MAGIC_ENV_ID=1000
 
 ```
 # 文件驱动
-FILE_DRIVER=local   # 可选值: local, oss, tos
+FILE_DRIVER=local   # 可选值：local/oss/tos
 ```
 
 #### 本地文件驱动配置
@@ -276,38 +276,38 @@ FILE_LOCAL_WRITE_HOST=    # 文件上传域名，例如：https://upload.example
 
 ```
 # 阿里云文件驱动配置 - 私有 
-FILE_PRIVATE_ALIYUN_ACCESS_ID=      # 阿里云AccessKey ID
-FILE_PRIVATE_ALIYUN_ACCESS_SECRET=  # 阿里云AccessKey Secret
-FILE_PRIVATE_ALIYUN_BUCKET=         # OSS存储桶名称
-FILE_PRIVATE_ALIYUN_ENDPOINT=       # OSS访问域名，例如：oss-cn-hangzhou.aliyuncs.com
-FILE_PRIVATE_ALIYUN_ROLE_ARN=       # 可选，用于STS临时授权的角色ARN
+FILE_PRIVATE_ALIYUN_ACCESS_ID=      # 阿里云 AccessKey ID
+FILE_PRIVATE_ALIYUN_ACCESS_SECRET=  # 阿里云 AccessKey Secret
+FILE_PRIVATE_ALIYUN_BUCKET=         # OSS 存储桶名称
+FILE_PRIVATE_ALIYUN_ENDPOINT=       # OSS 访问域名，例如：oss-cn-hangzhou.aliyuncs.com
+FILE_PRIVATE_ALIYUN_ROLE_ARN=       # 可选，用于 STS 临时授权的角色 ARN
 
 # 阿里云文件驱动配置 - 公有
-FILE_PUBLIC_ALIYUN_ACCESS_ID=       # 阿里云AccessKey ID
-FILE_PUBLIC_ALIYUN_ACCESS_SECRET=   # 阿里云AccessKey Secret
-FILE_PUBLIC_ALIYUN_BUCKET=          # OSS存储桶名称
-FILE_PUBLIC_ALIYUN_ENDPOINT=        # OSS访问域名
-FILE_PUBLIC_ALIYUN_ROLE_ARN=        # 可选，用于STS临时授权的角色ARN
+FILE_PUBLIC_ALIYUN_ACCESS_ID=       # 阿里云 AccessKey ID
+FILE_PUBLIC_ALIYUN_ACCESS_SECRET=   # 阿里云 AccessKey Secret
+FILE_PUBLIC_ALIYUN_BUCKET=          # OSS 存储桶名称
+FILE_PUBLIC_ALIYUN_ENDPOINT=        # OSS 访问域名
+FILE_PUBLIC_ALIYUN_ROLE_ARN=        # 可选，用于 STS 临时授权的角色 ARN
 ```
 
 #### 火山引擎存储配置
 
 ```
 # 火山云文件驱动配置 - 私有
-FILE_PRIVATE_TOS_REGION=     # TOS地域，例如：cn-beijing
-FILE_PRIVATE_TOS_ENDPOINT=   # TOS访问域名
-FILE_PRIVATE_TOS_AK=         # 火山引擎AccessKey
-FILE_PRIVATE_TOS_SK=         # 火山引擎SecretKey
-FILE_PRIVATE_TOS_BUCKET=     # TOS存储桶名称
-FILE_PRIVATE_TOS_TRN=        # 可选，用于STS临时授权的角色ARN
+FILE_PRIVATE_TOS_REGION=     # TOS 地域，例如：cn-beijing
+FILE_PRIVATE_TOS_ENDPOINT=   # TOS 访问域名
+FILE_PRIVATE_TOS_AK=         # 火山引擎 AccessKey
+FILE_PRIVATE_TOS_SK=         # 火山引擎 SecretKey
+FILE_PRIVATE_TOS_BUCKET=     # TOS 存储桶名称
+FILE_PRIVATE_TOS_TRN=        # 可选，用于 STS 临时授权的角色 ARN
 
 # 火山云文件驱动配置 - 公有
-FILE_PUBLIC_TOS_REGION=      # TOS地域
-FILE_PUBLIC_TOS_ENDPOINT=    # TOS访问域名
-FILE_PUBLIC_TOS_AK=          # 火山引擎AccessKey
-FILE_PUBLIC_TOS_SK=          # 火山引擎SecretKey
-FILE_PUBLIC_TOS_BUCKET=      # TOS存储桶名称
-FILE_PUBLIC_TOS_TRN=         # 可选，用于STS临时授权的角色ARN
+FILE_PUBLIC_TOS_REGION=      # TOS 地域
+FILE_PUBLIC_TOS_ENDPOINT=    # TOS 访问域名
+FILE_PUBLIC_TOS_AK=          # 火山引擎 AccessKey
+FILE_PUBLIC_TOS_SK=          # 火山引擎 SecretKey
+FILE_PUBLIC_TOS_BUCKET=      # TOS 存储桶名称
+FILE_PUBLIC_TOS_TRN=         # 可选，用于 STS 临时授权的角色 ARN
 ```
 
 ### 7. Web应用配置
@@ -315,7 +315,7 @@ FILE_PUBLIC_TOS_TRN=         # 可选，用于STS临时授权的角色ARN
 #### 前端服务配置
 
 ```
-# Web应用配置
+# Web 应用配置
 PORT=8080
 MAGIC_SOCKET_BASE_URL=ws://localhost:9502
 MAGIC_SERVICE_BASE_URL=http://localhost:9501
@@ -323,9 +323,9 @@ MAGIC_SERVICE_BASE_URL=http://localhost:9501
 
 ## 配置建议
 
-1. **开发环境**: 复制 `.env.example` 到 `.env`，根据本地环境调整配置
-2. **测试环境**: 使用与生产环境类似但资源较少的配置
-3. **生产环境**: 确保设置强密码，并使用更可靠的外部服务配置
+1. **开发环境**：复制 `.env.example` 到 `.env`，根据本地环境调整配置
+2. **测试环境**：使用与生产环境类似但资源较少的配置
+3. **生产环境**：确保设置强密码，并使用更可靠的外部服务配置
 
 ## 安全建议
 
@@ -336,7 +336,7 @@ MAGIC_SERVICE_BASE_URL=http://localhost:9501
 
 ## 文件驱动特别说明
 
-详细的文件驱动配置和使用方法可参考[文件驱动使用说明](./file-driver.md)。
+详细的文件驱动配置和使用方法可参考[文件驱动使用说明](file-driver.md)。
 
 ## 初次部署注意事项
 
