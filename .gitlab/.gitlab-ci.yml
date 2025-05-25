@@ -55,8 +55,8 @@ stages:
   - echo $CURRENT_BRANCH
   
 
-# 同步到 magic-backend 仓库
-sync-to-backend:
+# 同步到子仓库
+sync-to-sub-repos:
   extends: 
     - .sync-vars
     - .sync-rules
