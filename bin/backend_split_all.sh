@@ -43,11 +43,27 @@ function split()
     SHA1=`./bin/splitsh-lite --prefix=$1`
     # 确保远程分支存在
     git fetch $ORIGIN $CURRENT_BRANCH 2>/dev/null || true
-    # 尝试推送，如果失败则创建新分支
-    if ! git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f; then
-        echo "Failed to push to existing branch, trying to create new branch..."
-        git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f --force-with-lease
-    fi
+    
+    # 设置最大重试次数
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+    
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        # 尝试推送
+        if git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f; then
+            echo "Successfully pushed to $2"
+            return 0
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Push failed, retrying... (Attempt $RETRY_COUNT of $MAX_RETRIES)"
+                sleep 2  # 等待2秒后重试
+            else
+                echo "Failed to push after $MAX_RETRIES attempts"
+                return 1
+            fi
+        fi
+    done
 }
 
 function remote()
