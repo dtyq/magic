@@ -46,6 +46,7 @@ class KnowledgeBaseAssembler
         $dto->setFragmentConfig($entity->getFragmentConfig());
         $dto->setEmbeddingConfig($entity->getEmbeddingConfig());
         $dto->setRetrieveConfig($entity->getRetrieveConfig());
+        $dto->setSourceType($entity->getSourceType());
 
         return $dto;
     }
