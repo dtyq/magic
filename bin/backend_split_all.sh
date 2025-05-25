@@ -74,13 +74,19 @@ fi
 # Download splitsh-lite from GitHub releases
 ARCH=$(uname -m)
 SPLITSH_BIN=./bin/splitsh-lite
+TEMP_DIR="./tmp"
+
+# Create temporary directory
+mkdir -p $TEMP_DIR
 
 # 下载并解压 splitsh-lite
-curl -L https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz -o /tmp/lite_linux_amd64.tar.gz
-tar -xzvf /tmp/lite_linux_amd64.tar.gz -C /tmp
-mv /tmp/splitsh-lite $SPLITSH_BIN
+curl -L https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz -o $TEMP_DIR/lite_linux_amd64.tar.gz
+tar -xzvf $TEMP_DIR/lite_linux_amd64.tar.gz -C $TEMP_DIR
+mv $TEMP_DIR/splitsh-lite $SPLITSH_BIN
 chmod +x $SPLITSH_BIN
 
+# Clean up
+rm -rf $TEMP_DIR
 
 for REPO in $REPOS ; do
     remote $REPO
