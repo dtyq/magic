@@ -41,6 +41,7 @@ class MagicFlowKnowledgeFactory
         $entity->setWordCount($model->word_count);
         $entity->setFragmentConfig($model->fragment_config);
         $entity->setEmbeddingConfig($model->embedding_config);
+        $entity->setSourceType($model->source_type);
 
         // 处理检索配置
         if (! empty($model->retrieve_config)) {
@@ -88,6 +89,7 @@ class MagicFlowKnowledgeFactory
             'fragment_config' => $entity->getFragmentConfig()?->toArray(),
             'embedding_config' => $entity->getEmbeddingConfig(),
             'icon' => $entity->getIcon(),
+            'source_type' => $entity->getSourceType(),
         ];
 
         // 处理检索配置

@@ -11,6 +11,8 @@ use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\WordFileParserDriverInterface;
 use Exception;
+use PhpOffice\PhpWord\Element\Image;
+use PhpOffice\PhpWord\Element\Text;
 use PhpOffice\PhpWord\Element\TextRun;
 use PhpOffice\PhpWord\IOFactory;
 
@@ -33,22 +35,24 @@ class WordFileParserDriver implements WordFileParserDriverInterface
             $content = '';
             foreach ($reader->getSections() as $section) {
                 foreach ($section->getElements() as $element) {
-                    if (method_exists($element, 'getText')) {
-                        $text = $element->getText();
-                        if (is_string($text)) {
-                            $content .= $text;
-                        }
-                        if (is_array($text)) {
-                            foreach ($text as $value) {
-                                if (is_string($value)) {
-                                    $content .= $value;
+                    if ($element instanceof TextRun) {
+                        foreach ($element->getElements() as $subElement) {
+                            if ($subElement instanceof Text) {
+                                $text = $subElement->getText();
+                                if (is_string($text)) {
+                                    $content .= $text;
                                 }
+                            } elseif ($subElement instanceof Image) {
+                                $imageData = $subElement->getImageStringData(true);
+                                $imageType = $subElement->getImageType();
+                                $content .= sprintf("\n![image](data:%s;base64,%s)\n", $imageType, $imageData);
                             }
                         }
-                        if ($text instanceof TextRun) {
-                            $content .= $text->getText();
-                        }
                         $content .= "\r\n";
+                    } elseif ($element instanceof Image) {
+                        $imageData = $element->getImageStringData(true);
+                        $imageType = $element->getImageType();
+                        $content .= sprintf("\n![image](data:%s;base64,%s)\n", $imageType, $imageData);
                     }
                 }
             }

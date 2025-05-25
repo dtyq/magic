@@ -16,7 +16,7 @@ abstract class AbstractDocumentFileDTO extends AbstractDTO implements DocumentFi
 {
     public string $name;
 
-    private DocumentFileType $type;
+    protected DocumentFileType $type;
 
     public function __construct(array $data)
     {

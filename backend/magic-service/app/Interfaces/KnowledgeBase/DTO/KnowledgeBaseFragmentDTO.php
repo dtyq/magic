@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Interfaces\KnowledgeBase\DTO;
 
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Interfaces\Flow\DTO\AbstractFlowDTO;
 
@@ -21,7 +20,7 @@ class KnowledgeBaseFragmentDTO extends AbstractFlowDTO
 
     public string $documentName;
 
-    public DocType $documentType;
+    public int $documentType;
 
     public string $content;
 
@@ -172,14 +171,13 @@ class KnowledgeBaseFragmentDTO extends AbstractFlowDTO
         return $this;
     }
 
-    public function getDocumentType(): DocType
+    public function getDocumentType(): int
     {
         return $this->documentType;
     }
 
-    public function setDocumentType(DocType|int $documentType): static
+    public function setDocumentType(int $documentType): static
     {
-        is_int($documentType) && $documentType = DocType::from($documentType);
         $this->documentType = $documentType;
         return $this;
     }

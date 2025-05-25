@@ -232,6 +232,7 @@ readonly class KnowledgeBaseDocumentDomainService
                 break;
             }
             $res = array_merge($res, $entities);
+            $lastId = $entities[count($entities) - 1]->getId();
         }
         return $res;
     }

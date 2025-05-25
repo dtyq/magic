@@ -7,12 +7,27 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Text\TextPreprocess\Strategy;
 
-class ExcelHeaderConcatTextPreprocessStrategy implements TextPreprocessStrategyInterface
+class FormatExcelTextPreprocessStrategy extends AbstractTextPreprocessStrategy
 {
     public function preprocess(string $content): string
     {
-        // 将内容按行分割
-        $lines = explode("\n", $content);
+        // 转换为csv格式
+        $content = $this->convertToCsv($content);
+        // 删除 ## 开头的行
+        $content = preg_replace('/^##.*\n/', '', $content);
+        // 使用正则表达式匹配不在引号内的换行符
+        return preg_replace('/(?<!")[\r\n]+(?!")/', "\n\n", $content);
+    }
+
+    /**
+     * 将内容转换为CSV格式.
+     * @param string $content 原始内容
+     * @return string 转换后的CSV格式内容
+     */
+    private function convertToCsv(string $content): string
+    {
+        // 将内容按行分割，但保留单元格内的换行符
+        $lines = preg_split('/(?<!")[\r\n]+(?!")/', $content);
         $result = [];
         $headers = [];
 
@@ -57,6 +72,8 @@ class ExcelHeaderConcatTextPreprocessStrategy implements TextPreprocessStrategyI
 
     /**
      * 检测CSV行的分隔符.
+     * @param string $line CSV行内容
+     * @return string 检测到的分隔符
      */
     private function detectSeparator(string $line): string
     {
@@ -75,6 +92,8 @@ class ExcelHeaderConcatTextPreprocessStrategy implements TextPreprocessStrategyI
 
     /**
      * 格式化CSV单元格内容，对特殊内容添加引号.
+     * @param string $value 单元格内容
+     * @return string 格式化后的单元格内容
      */
     private function formatCsvCell(string $value): string
     {

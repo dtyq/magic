@@ -11,6 +11,7 @@ use App\Domain\Authentication\DTO\LoginResponseDTO;
 use App\Domain\Chat\Entity\MagicFriendEntity;
 use App\Domain\Chat\Entity\ValueObject\FriendStatus;
 use App\Domain\Contact\DTO\FriendQueryDTO;
+use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\AccountEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -21,6 +22,7 @@ use App\Domain\OrganizationEnvironment\Entity\MagicEnvironmentEntity;
 use App\Domain\Token\Entity\MagicTokenEntity;
 use App\Domain\Token\Entity\ValueObject\MagicTokenType;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\MagicAccountErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -321,6 +323,43 @@ class MagicUserDomainService extends AbstractContactDomainService
         }
 
         return $account->getPhone();
+    }
+
+    /**
+     * 是否允许更新用户信息.
+     */
+    public function getUserUpdatePermission(DataIsolation $dataIsolation): bool
+    {
+        $userId = $dataIsolation->getCurrentUserId();
+        if (empty($userId)) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 更新用户信息.
+     */
+    public function updateUserInfo(DataIsolation $dataIsolation, UserUpdateDTO $userUpdateDTO): int
+    {
+        if (! $this->getUserUpdatePermission($dataIsolation)) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied);
+        }
+
+        $userId = $dataIsolation->getCurrentUserId();
+        $updateFilter = [];
+
+        // 处理头像URL
+        if ($userUpdateDTO->getAvatarUrl() !== null) {
+            $updateFilter['avatar_url'] = $userUpdateDTO->getAvatarUrl();
+        }
+
+        // 处理昵称
+        if ($userUpdateDTO->getNickname() !== null) {
+            $updateFilter['nickname'] = $userUpdateDTO->getNickname();
+        }
+
+        return $this->userRepository->updateDataById($userId, $updateFilter);
     }
 
     protected function setUserIdsByAiCodes(FriendQueryDTO $friendQueryDTO, DataIsolation $dataIsolation): array
