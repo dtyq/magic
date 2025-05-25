@@ -48,6 +48,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+      magic-service:
+        condition: service_started  
     volumes:
        - ./volumes/storage/files:/opt/www/storage/files
        - ./bin/magic-service/daemon-entrypoint.sh:/opt/www/entrypoint.sh

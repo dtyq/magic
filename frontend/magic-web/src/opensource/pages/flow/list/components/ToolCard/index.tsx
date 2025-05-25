@@ -1,13 +1,14 @@
 import OperateMenu from "@/opensource/pages/flow/components/OperateMenu"
 import { Flex, Switch } from "antd"
-import { memo } from "react"
+import { memo, useMemo } from "react"
 import type { OperationTypes } from "@/opensource/pages/flow/components/AuthControlButton/types"
 import { useTranslation } from "react-i18next"
-import type { FlowTool } from "@/types/flow"
+import { Flow, FlowRouteType, FlowTool } from "@/types/flow"
 import type { MagicFlow } from "@dtyq/magic-flow/dist/MagicFlow/types/flow"
 import type { DrawerItem, DataType } from "../RightDrawer"
 import useStyles from "./style"
 import type { FlowWithTools } from "../../hooks/useFlowList"
+import MCPDesc from "./components/MCPDesc/MCPDesc"
 
 interface ToolCardProps {
 	data: DataType
@@ -17,9 +18,13 @@ interface ToolCardProps {
 	hasEditRight: (operation: OperationTypes) => boolean
 	handlerInnerUpdateEnable: (
 		e: React.MouseEvent<HTMLButtonElement, MouseEvent> | React.KeyboardEvent<HTMLButtonElement>,
-		tool?: FlowTool.Tool,
+		tool?: FlowTool.Tool | Flow.Mcp.ListItem,
 	) => void
-	getDropdownItems: (tool: FlowTool.Tool, flow: MagicFlow.Flow) => React.ReactNode
+	getDropdownItems: (
+		tool: FlowTool.Tool | Flow.Mcp.ListItem,
+		flow: MagicFlow.Flow,
+	) => React.ReactNode
+	flowType: FlowRouteType
 }
 const Card = memo(
 	({
@@ -30,9 +35,11 @@ const Card = memo(
 		hasEditRight,
 		handlerInnerUpdateEnable,
 		getDropdownItems,
+		flowType,
 	}: ToolCardProps) => {
 		const { styles, cx } = useStyles()
 		const { t } = useTranslation("interface")
+		const isMcp = useMemo(() => flowType === FlowRouteType.Mcp, [flowType])
 
 		return (
 			<Flex
@@ -68,6 +75,7 @@ const Card = memo(
 						</Flex>
 					)}
 				</Flex>
+				{isMcp && <MCPDesc item={item?.rawData as Flow.Mcp.Detail} />}
 				<div className={styles.subDesc}>{item.desc}</div>
 			</Flex>
 		)

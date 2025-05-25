@@ -1,3 +1,5 @@
+import i18next from "i18next"
+
 export const v0Template = {
 	node_id: "MAGIC-FLOW-NODE-671a09090ab463-93507489",
 	debug: false,

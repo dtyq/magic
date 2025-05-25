@@ -1,5 +1,4 @@
 import { Form, Flex, Popover, Tooltip } from "antd"
-import JSONSchemaRenderer from "@dtyq/magic-flow/dist/common/BaseUI/JSONSchemaRenderer"
 import type React from "react"
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react"
 import type { UseableToolSet } from "@/types/flow"
@@ -9,6 +8,7 @@ import { useTranslation } from "react-i18next"
 import { useFlowStore } from "@/opensource/stores/flow"
 import { FlowApi } from "@/apis"
 import styles from "./index.module.less"
+import JSONSchemaRenderer from "@/opensource/pages/flow/components/JSONSchemaRenderer"
 
 type ToolAddableCardPopoverProps = React.PropsWithChildren<{
 	tool: UseableToolSet.UsableTool

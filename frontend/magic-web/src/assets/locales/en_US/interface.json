@@ -1003,7 +1003,7 @@
 		},
 		"appAuth": "Application Authorization",
 		"changeInfo": "Modify information",
-		"emptyTips": "No ${title} added yet",
+		"emptyTips": "No {{title}} added yet",
 		"flow": "process",
 		"flowInput": "Process input parameters",
 		"hasToolsNum": "Contains ${num} tools",

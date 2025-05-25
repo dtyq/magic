@@ -11,6 +11,7 @@ import { FlowRouteType } from "@/types/flow"
 import { createStyles } from "antd-style"
 import { useTranslation } from "react-i18next"
 import { replaceRouteParams } from "@/utils/route"
+import IconMcp from "@/assets/logos/mcp.png"
 
 const useStyles = createStyles(({ css }) => {
 	return {
@@ -88,6 +89,17 @@ function FlowSubSider() {
 								background: "#32C436",
 								padding: 6,
 							},
+						},
+						extra: <MagicIcon component={IconChevronRight} />,
+					},
+
+					{
+						id: replaceRouteParams(RoutePath.Flows, {
+							type: FlowRouteType.Mcp,
+						}),
+						title: "MCP",
+						avatar: {
+							src: <img src={IconMcp} alt="" />,
 						},
 						extra: <MagicIcon component={IconChevronRight} />,
 					},

@@ -258,6 +258,41 @@ export const generateFlowApi = (fetch: HttpClient) => ({
 	},
 
 	/**
+	 * 保存 API Key v1
+	 */
+	saveApiKeyV1(params: Flow.ApiKeyRequestParamsV1) {
+		return fetch.post<ApiKey>(genRequestUrl(RequestUrl.saveApiKeyV1), params)
+	},
+
+	/**
+	 * 获取 API Key v1 列表
+	 */
+	getApiKeyListV1(params: Pick<Flow.ApiKeyRequestParamsV1, "rel_type" | "rel_code">) {
+		return fetch.post<WithPage<ApiKey[]>>(genRequestUrl(RequestUrl.getApiKeyListV1), params)
+	},
+
+	/**
+	 * 获取 API Key v1 详情
+	 */
+	getApiKeyDetailV1(code: string) {
+		return fetch.get<ApiKey>(genRequestUrl(RequestUrl.getApiKeyDetailV1, { code }))
+	},
+
+	/**
+	 * 删除 API Key v1
+	 */
+	deleteApiKeyV1(code: string) {
+		return fetch.delete<null>(genRequestUrl(RequestUrl.deleteApiKeyV1, { code }))
+	},
+
+	/**
+	 * 重建 API Key v1
+	 */
+	rebuildApiKeyV1(code: string) {
+		return fetch.post<ApiKey>(genRequestUrl(RequestUrl.rebuildApiKeyV1, { code }))
+	},
+
+	/**
 	 * 获取表格列表
 	 */
 	getSheets(fileId: string) {
@@ -386,5 +421,51 @@ export const generateFlowApi = (fetch: HttpClient) => ({
 			node_type: nodeType,
             node_version: "latest"
 		})
+	},
+
+	/** 创建 / 更新 MCP */
+	saveMcp(params: Flow.Mcp.SaveParams) {
+		return fetch.post<Flow.Mcp.Detail>(genRequestUrl(RequestUrl.saveMcp), params)
+	},
+
+	/** 获取 MCP 列表 */
+	getMcpList(params: Flow.Mcp.GetListParams) {
+		return fetch.post<WithPage<Flow.Mcp.ListItem[]>>(genRequestUrl(RequestUrl.getMcpList), {
+			page: params.page,
+			page_size: params.pageSize,
+			name: params.name,
+		})
+	},
+
+	/** 获取 MCP 详情 */
+	getMcp(id: string) {
+		return fetch.get<Flow.Mcp.Detail>(genRequestUrl(RequestUrl.getMcp, { id }))
+	},
+
+	/** 删除 MCP */
+	deleteMcp(id: string) {
+		return fetch.delete<null>(genRequestUrl(RequestUrl.deleteMcp, { id }))
+	},
+
+	/** 获取 MCP 的工具列表 */
+	getMcpToolList(code: string) {
+		return fetch.post<WithPage<Flow.Mcp.ListItem[]>>(
+			genRequestUrl(RequestUrl.getMcpToolList, { code }),
+		)
+	},
+
+	/** 保存 MCP 的工具（新增，更新，更新版本） */
+	saveMcpTool(params: Flow.Mcp.SaveParams, code: string) {
+		return fetch.post<Flow.Mcp.Detail>(genRequestUrl(RequestUrl.saveMcpTool, { code }), params)
+	},
+
+	/** 删除 MCP 的工具 */
+	deleteMcpTool(id: string, code: string) {
+		return fetch.delete<null>(genRequestUrl(RequestUrl.deleteMcpTool, { id, code }))
+	},
+
+	/** 获取 MCP 的工具详情 */
+	getMcpToolDetail(id: string, code: string) {
+		return fetch.get<Flow.Mcp.Detail>(genRequestUrl(RequestUrl.getMcpToolDetail, { id, code }))
 	},
 })

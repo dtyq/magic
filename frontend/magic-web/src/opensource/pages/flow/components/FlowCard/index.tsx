@@ -6,7 +6,7 @@ import PromptCard from "@/opensource/pages/explore/components/PromptCard"
 import { IconCircleCheckFilled, IconAlertCircleFilled, IconTools } from "@tabler/icons-react"
 import { cx } from "antd-style"
 import type { FlowTool } from "@/types/flow"
-import { FlowRouteType } from "@/types/flow"
+import { FlowRouteType, Flow as FlowScope } from "@/types/flow"
 import { useTranslation } from "react-i18next"
 import { resolveToString } from "@dtyq/es6-template-strings"
 import { colorScales } from "@/opensource/providers/ThemeProvider/colors"
@@ -26,13 +26,13 @@ type Flow = MagicFlow.Flow & {
 }
 
 type FlowCardProps = {
-	data: Flow | Knowledge.KnowledgeItem
+	data: Flow | Knowledge.KnowledgeItem | FlowScope.Mcp.Detail
 	selected: boolean
 	lineCount: number
 	flowType?: FlowRouteType
 	dropdownItems: React.ReactNode
-	onCardClick: (flow: MagicFlow.Flow | Knowledge.KnowledgeItem) => void
-	updateEnable: (flow: Flow | Knowledge.KnowledgeItem) => void
+	onCardClick: (flow: MagicFlow.Flow | Knowledge.KnowledgeItem | FlowScope.Mcp.Detail) => void
+	updateEnable: (flow: Flow | Knowledge.KnowledgeItem | FlowScope.Mcp.Detail) => void
 }
 
 function Card({
@@ -70,13 +70,18 @@ function Card({
 	const tagRender = useMemo(() => {
 		let quote = 0
 		let tools = 0
+		const hasTools = flowType === FlowRouteType.Tools || flowType === FlowRouteType.Mcp
 		switch (flowType) {
+			case FlowRouteType.Mcp:
+				tools = (data as FlowScope.Mcp.Detail).tools_count
+				quote = (data as Flow).agent_used_count ?? 0
+				break
 			case FlowRouteType.Tools:
-				quote = (data as Flow).agent_used_count ? (data as Flow).agent_used_count! : 0
-				tools = (data as Flow).tools ? (data as Flow).tools!.length : 0
+				quote = (data as Flow).agent_used_count ?? 0
+				tools = (data as Flow).tools?.length ?? 0
 				break
 			case FlowRouteType.Sub:
-				quote = (data as Flow).quote ? (data as Flow).quote! : 0
+				quote = (data as Flow).quote ?? 0
 				break
 			// TODO 知识库的引用关系
 			default:
@@ -99,7 +104,7 @@ function Card({
 						},
 				  ]
 
-		return flowType === FlowRouteType.Tools
+		return hasTools
 			? [
 					{
 						key: "tool",

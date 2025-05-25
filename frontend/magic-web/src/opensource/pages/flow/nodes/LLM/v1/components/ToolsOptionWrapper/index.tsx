@@ -1,5 +1,5 @@
 import { Form, Popover } from "antd"
-import JSONSchemaRenderer from "@dtyq/magic-flow/dist/common/BaseUI/JSONSchemaRenderer"
+import JSONSchemaRenderer from "@/opensource/pages/flow/components/JSONSchemaRenderer"
 import type React from "react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"

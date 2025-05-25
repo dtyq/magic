@@ -247,6 +247,8 @@ export type ApiKey = {
 	created_at: string
 	modifier: string
 	updated_at: string
+	rel_code?: string
+	rel_type?: Flow.ApiKeyType
 }
 
 export type NewKeyForm = {
@@ -293,6 +295,7 @@ export enum FlowRouteType {
 	Sub = "sub",
 	Tools = "tools",
 	VectorKnowledge = "knowledge",
+	Mcp = "mcp",
 }
 
 export namespace Flow {
@@ -311,6 +314,82 @@ export namespace Flow {
 		id: string
 		name: string
 		models: VLMModel[]
+	}
+
+	export enum VLMModelType {
+		/** 文生图 */
+		TextToImage = 0,
+		/** 图生图 */
+		ImageToImage = 1,
+		/** 图片增强 */
+		ImageEnhance = 2,
+		/** 大模型 */
+		LLM = 3,
+		/** 嵌入 */
+		Embedding = 4,
+	}
+
+	export namespace Mcp {
+		export type Detail = {
+			created_at: string
+			created_uid: null
+			creator: string
+			creator_info: PlatformItem
+			description: string
+			enabled: boolean
+			id: string
+			mcp_server_code: string
+			modifier: string
+			modifier_info: PlatformItem
+			name: string
+			options: object
+			rel_code: string
+			rel_version_code: string
+			source: number
+			updated_at: string
+			updated_uid: null
+			version: string
+			source_version: {
+				latest_version_code: string
+				latest_version_name: string
+			}
+			[property: string]: any
+		}
+		export type ListItem = Mcp.Detail
+		export type SaveParams = {
+			id?: string
+			source?: Flow.Mcp.ToolSource
+			rel_code?: string
+			rel_version_code?: string
+			name?: string
+			description?: string
+			enabled?: boolean
+			rel_info?: Record<string, any>
+			icon?: string
+		}
+		export type GetListParams = {
+			page: number
+			pageSize: number
+			name: string
+		}
+		export enum ToolSource {
+			/** 工具集 */
+			Toolset = 1,
+		}
+	}
+
+	export enum ApiKeyType {
+		None = 0,
+		Flow = 1,
+		Mcp = 2,
+	}
+
+	export type ApiKeyRequestParamsV1 = {
+		id?: string
+		name?: string
+		description?: string
+		rel_type?: ApiKeyType
+		rel_code?: string
 	}
 }
 

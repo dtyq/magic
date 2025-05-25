@@ -29,8 +29,6 @@ export type ResponseInterceptor = (response: ResponseData) => Promise<any>
 /** 异常拦截器 */
 export type ErrorInterceptor = (error: any) => any
 
-
-
 export interface RequestConfig extends RequestOptions, RequestInit {}
 
 export class HttpClient {
@@ -83,7 +81,7 @@ export class HttpClient {
 		// 解析 JSON 数据（只需执行一次）
 		let jsonData
 		try {
-			jsonData = await responseForStatus.json()
+			jsonData = (await UrlUtils.responseParse(responseForStatus)).data
 		} catch (error) {
 			// 处理 JSON 解析错误
 			console.error("Failed to parse response as JSON:", error)

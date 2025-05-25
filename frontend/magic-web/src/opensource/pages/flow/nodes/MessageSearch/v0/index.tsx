@@ -79,7 +79,15 @@ export default function MessageSearchV0() {
 				</Form.Item>
 
 				<Form.Item label={t("messageSearch.range", { ns: "flow" })} name="time_range">
-					<RangePicker showTime className="nodrag" popupClassName="nowheel" />
+					<RangePicker
+						placeholder={[
+							t("common.startTime", { ns: "flow" }),
+							t("common.endTime", { ns: "flow" }),
+						]}
+						showTime
+						className="nodrag"
+						popupClassName="nowheel"
+					/>
 				</Form.Item>
 			</Form>
 		</NodeOutputWrap>

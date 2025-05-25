@@ -24,6 +24,7 @@ interface ToolAddableCardProps {
 	onClick?: (id: string) => void
 	cardOpen: boolean
 	toolSet: UseableToolSet.Item
+	selectedTools?: ToolSelectedItem[]
 }
 
 const ToolAddableCard = memo(
@@ -35,6 +36,7 @@ const ToolAddableCard = memo(
 		height = 40,
 		onClick,
 		toolSet,
+		selectedTools,
 		...props
 	}: ToolAddableCardProps) => {
 		const { t } = useTranslation()
@@ -90,10 +92,15 @@ const ToolAddableCard = memo(
 		}, [description, keyword])
 
 		const isDisabled = useMemo(() => {
-			return !!currentNode?.params?.option_tools?.find?.(
+			const isNodeSelectedTool = !!currentNode?.params?.option_tools?.find?.(
 				(v: ToolSelectedItem) => v?.tool_id === tool?.code,
 			)
-		}, [currentNode?.params?.option_tools, tool?.code])
+			const isSelectedTool = !!selectedTools?.find?.(
+				(v: ToolSelectedItem) => v?.tool_id === tool?.code,
+			)
+
+			return isNodeSelectedTool || isSelectedTool
+		}, [currentNode?.params?.option_tools, tool?.code, selectedTools])
 
 		const mergedTool = useMemo(() => {
 			const toolWithInputOutput = toolInputOutputMap?.[tool?.code]
@@ -201,6 +208,8 @@ const ToolAddableCard = memo(
 								tool_id: tool.code,
 								tool_set_id: toolSet.id,
 								async: false,
+								name: tool.name,
+								description: tool.description,
 								custom_system_input: {
 									widget: null,
 									form:
