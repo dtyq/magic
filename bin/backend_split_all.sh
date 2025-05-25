@@ -25,7 +25,6 @@ set -x  # 重新开启命令回显
 # Default to GitHub if GIT_REPO_URL is not set
 GIT_REPO_URL=${GIT_REPO_URL:-"git@github.com:dtyq"}
 
-echo "GIT_REPO_URL-1: $GIT_REPO_URL"
 
 # Set ORIGIN based on GIT_REPO_URL
 if [[ $GIT_REPO_URL == *"github.com"* ]]; then
@@ -34,7 +33,6 @@ else
     ORIGIN="gitlab"
 fi
 
-echo "GIT_REPO_URL-2: $GIT_REPO_URL"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 BASEPATH=$(cd `dirname $0`; cd ../backend/; pwd)
@@ -56,8 +54,6 @@ function remote()
 {
     # 检查远程仓库是否已存在
     if ! git remote | grep -q "^$ORIGIN$"; then
-        echo "get remote 3: $1.git"
-        echo "get remote 4: $GIT_REPO_URL/$1.git"
         git remote add $ORIGIN "$GIT_REPO_URL/$1.git" || true
     else
         git remote set-url $ORIGIN "$GIT_REPO_URL/$1.git" || true
@@ -80,3 +76,15 @@ for REPO in $REPOS ; do
     remote $REPO
     split "backend/$REPO" $REPO
 done
+
+# 处理 docs 仓库（添加 magic- 前缀）
+if remote "magic-docs"; then
+    split "docs" "magic-docs"
+fi
+
+# 处理 frontend/magic-web 仓库
+if remote "magic-web"; then
+    split "frontend/magic-web" "magic-web"
+fi
+
+
