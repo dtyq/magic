@@ -44,16 +44,16 @@ function split()
     # 确保远程分支存在
     git fetch $ORIGIN $CURRENT_BRANCH 2>/dev/null || true
     # 尝试推送，如果失败则创建新分支
-    if ! git push $ORIGIN "$SHA1:refs/heads/$CURRENT_BRANCH" -f; then
+    if ! git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f; then
         echo "Failed to push to existing branch, trying to create new branch..."
-        git push $ORIGIN "$SHA1:refs/heads/$CURRENT_BRANCH" -f --force-with-lease
+        git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f --force-with-lease
     fi
 }
 
 function remote()
 {
     # 检查远程仓库是否已存在
-    if ! git remote | grep -q "^$ORIGIN$"; then
+    if ! git remote | grep -q "^$1$"; then
         git remote add $1 "$GIT_REPO_URL/$1.git" || true
     else
         git remote set-url $1 "$GIT_REPO_URL/$1.git" || true
