@@ -36,7 +36,7 @@
         "dtyq/tiptap": "~0.1",
         "facile-it/php-openid-client": "^0.3.5",
         "firebase/php-jwt": "^6.10",
-        "giggsey/libphonenumber-for-php": "9.0.5",
+        "giggsey/libphonenumber-for-php": "8.13.29",
         "google/protobuf": "^4.28",
         "hyperf/amqp": "^3.1",
         "hyperf/cache": "^3.1",
@@ -77,8 +77,8 @@
         "volcengine/volc-sdk-php": "^1.0",
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
-        "dtyq/magic-enterprise-service": "dev-pre-release",
-        "dtyq/super-magic-module": "dev-enterprise-pre-release"
+        "dtyq/super-magic-module": "dev-enterprise-master",
+        "dtyq/magic-enterprise-service": "dev-master"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
@@ -175,8 +175,8 @@
             "url": "https://git.kkgroup.cn/hyperf/odin.git"
         },
         {
-          "type": "gitlab",
-          "url": "https://git.kkgroup.cn/dtyq/super-magic-module.git"
+            "type": "gitlab",
+            "url": "https://git.kkgroup.cn/dtyq/super-magic-module.git"
         },
         {
             "type": "gitlab",
