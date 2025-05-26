@@ -9,9 +9,10 @@ namespace App\Application\ModelGateway\Event;
 
 use Hyperf\Odin\Api\Response\Usage;
 
-class ChatUsageEvent
+class ModelUsageEvent
 {
     public function __construct(
+        public string $modelType,
         public string $modelId,
         public Usage $usage,
         public string $organizationCode,

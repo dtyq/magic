@@ -7,12 +7,13 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Event\Subscribe;
 
-use App\Application\ModelGateway\Event\ChatUsageEvent;
+use App\Application\ModelGateway\Event\ModelUsageEvent;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Odin\Api\Response\Usage;
+use Hyperf\Odin\Constants\ModelType;
 use Hyperf\Odin\Event\AfterChatCompletionsEvent;
 use Hyperf\Odin\Event\AfterChatCompletionsStreamEvent;
 
@@ -51,7 +52,8 @@ class AfterChatCompletionSubscriber implements ListenerInterface
         $modelId = $completionRequest->getModel();
         $businessParams = $completionRequest->getBusinessParams();
 
-        $chatUsageEvent = new ChatUsageEvent(
+        $chatUsageEvent = new ModelUsageEvent(
+            modelType: ModelType::CHAT,
             modelId: $modelId,
             usage: $usage,
             organizationCode: $businessParams['organization_id'] ?? '',
