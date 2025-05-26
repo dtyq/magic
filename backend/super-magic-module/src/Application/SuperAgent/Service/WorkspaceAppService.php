@@ -666,6 +666,7 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->menu = $entity->getMenu() ?? '';
+            $dto->isHidden = $entity->getIsHidden();
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
