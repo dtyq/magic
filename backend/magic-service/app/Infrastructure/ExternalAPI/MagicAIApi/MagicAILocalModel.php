@@ -30,6 +30,8 @@ use Psr\Log\LoggerInterface;
 
 class MagicAILocalModel extends AbstractModel
 {
+    protected bool $includeBusinessParams = true;
+
     private string $accessToken;
 
     private int $vectorSize;
