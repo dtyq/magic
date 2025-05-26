@@ -568,7 +568,8 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileExtension = $entity->getFileExtension();
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
-            
+            $dto->isHidden = $entity->getIsHidden();
+
             // Calculate relative file path by removing workDir from fileKey
             $fileKey = $entity->getFileKey();
             $workDirPos = strpos($fileKey, $workDir);
@@ -577,7 +578,7 @@ class WorkspaceAppService extends AbstractAppService
             } else {
                 $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
             }
-            
+
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {

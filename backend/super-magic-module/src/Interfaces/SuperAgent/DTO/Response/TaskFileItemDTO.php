@@ -58,6 +58,11 @@ class TaskFileItemDTO extends AbstractDTO
     public string $fileUrl;
 
     /**
+     * 是否为隐藏文件：0-否，1-是.
+     */
+    public int $isHidden;
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity): self
@@ -72,6 +77,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileSize = $entity->getFileSize();
         $dto->relativeFilePath = '';
         $dto->fileUrl = $entity->getExternalUrl();
+        $dto->isHidden = $entity->getIsHidden();
 
         return $dto;
     }
@@ -91,6 +97,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileSize = $data['file_size'] ?? 0;
         $dto->relativeFilePath = $data['relative_file_path'] ?? '';
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
+        $dto->isHidden = $data['is_hidden'] ?? 0;
         return $dto;
     }
 
@@ -110,6 +117,7 @@ class TaskFileItemDTO extends AbstractDTO
             'file_size' => $this->fileSize,
             'relative_file_path' => $this->relativeFilePath,
             'file_url' => $this->fileUrl,
+            'is_hidden' => $this->isHidden,
         ];
     }
 }
