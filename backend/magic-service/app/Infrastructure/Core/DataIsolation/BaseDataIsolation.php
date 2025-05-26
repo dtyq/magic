@@ -60,7 +60,7 @@ class BaseDataIsolation implements DataIsolationInterface
         $this->currentOrganizationCode = $currentOrganizationCode;
         $this->currentUserId = $userId;
         $this->magicId = $magicId;
-        $this->thirdPlatformDataIsolationManager = di(ThirdPlatformDataIsolationManagerInterface::class);
+        $this->thirdPlatformDataIsolationManager = \Hyperf\Support\make(ThirdPlatformDataIsolationManagerInterface::class);
 
         if (config('office_organization')) {
             // 目前只有 1 个官方组织
