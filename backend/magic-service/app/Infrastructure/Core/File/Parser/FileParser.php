@@ -18,7 +18,6 @@ use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Infrastructure\Util\Text\TextPreprocess\TextPreprocessUtil;
 use App\Infrastructure\Util\Text\TextPreprocess\ValueObject\TextPreprocessRule;
 use Psr\SimpleCache\CacheInterface;
-use Symfony\Component\Mime\MimeTypes;
 
 class FileParser
 {
@@ -126,15 +125,5 @@ class FileParser
         if (! isset($headers['Content-Length'])) {
             ExceptionBuilder::throw(FlowErrorCode::Error, message: '文件大小未知，禁止下载');
         }
-    }
-
-    /**
-     * 从MIME类型获取文件扩展名.
-     */
-    private static function getExtensionFromMimeType(string $mimeType): ?string
-    {
-        $mimeTypes = new MimeTypes();
-        $extensions = $mimeTypes->getExtensions($mimeType);
-        return $extensions[0] ?? null; // 返回第一个匹配的扩展名
     }
 }
