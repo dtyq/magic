@@ -28,14 +28,14 @@ class TaskContext
      * @param ChatInstruction $instruction 聊天指令
      */
     public function __construct(
-        private readonly TaskEntity $task,
+        private TaskEntity $task,
         private readonly DataIsolation $dataIsolation,
         private readonly string $chatConversationId,
         private readonly string $chatTopicId,
         private readonly string $agentUserId,
-        private readonly string $sandboxId = '',
+        private string $sandboxId = '',
         private string $taskId = '',
-        private readonly ChatInstruction $instruction = ChatInstruction::Normal,
+        private ChatInstruction $instruction = ChatInstruction::Normal,
     ) {
     }
 
@@ -163,6 +163,18 @@ class TaskContext
     public function setTaskId(string $taskId): self
     {
         $this->taskId = $taskId;
+        return $this;
+    }
+
+    public function setSandboxId(string $sandboxId): self
+    {
+        $this->sandboxId = $sandboxId;
+        return $this;
+    }
+
+    public function setInstruction(ChatInstruction $instruction): self
+    {
+        $this->instruction = $instruction;
         return $this;
     }
 }

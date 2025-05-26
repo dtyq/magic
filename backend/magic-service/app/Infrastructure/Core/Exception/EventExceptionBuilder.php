@@ -44,7 +44,7 @@ class EventExceptionBuilder
         if ($eventType !== null) {
             $eventException->setEventType($eventType);
         }
-        
+
         if ($data !== null) {
             $eventException->setData($data);
         }

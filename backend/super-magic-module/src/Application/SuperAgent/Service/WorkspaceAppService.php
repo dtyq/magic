@@ -17,6 +17,7 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -42,6 +43,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
 use Exception;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -141,25 +143,40 @@ class WorkspaceAppService extends AbstractAppService
      */
     public function saveWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
     {
-        // Get user authorization information
-        $userAuthorization = $requestContext->getUserAuthorization();
+        Db::beginTransaction();
+        try {
+            // Get user authorization information
+            $userAuthorization = $requestContext->getUserAuthorization();
 
-        // Create data isolation object
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
+            // Create data isolation object
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // Prepare workspace entity
-        if ($requestDTO->getWorkspaceId()) {
-            // Update, currently only updates workspace name
-            $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
-            return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
+            // Prepare workspace entity
+            if ($requestDTO->getWorkspaceId()) {
+                // Update, currently only updates workspace name
+                $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+                return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
+            }
+
+            // Dispatch event before creating workspace
+            AsyncEventUtil::dispatch(new CreateWorkspaceBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $requestDTO->getWorkspaceName()));
+
+            // 提交事务
+            Db::commit();
+
+            // Create, use provided workspace name if available; otherwise use default name
+            $result = $this->initUserWorkspace($dataIsolation, $requestDTO->getWorkspaceName());
+            return SaveWorkspaceResultDTO::fromId($result['workspace']->getId());
+        } catch (EventException $e) {
+            // 回滚事务
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new workspace event: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, $e->getMessage());
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new workspace: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, 'topic.create_topic_failed');
         }
-
-        // Dispatch event before creating workspace
-        AsyncEventUtil::dispatch(new CreateWorkspaceBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $requestDTO->getWorkspaceName()));
-
-        // Create, use provided workspace name if available; otherwise use default name
-        $result = $this->initUserWorkspace($dataIsolation, $requestDTO->getWorkspaceName());
-        return SaveWorkspaceResultDTO::fromId($result['workspace']->getId());
     }
 
     /**
