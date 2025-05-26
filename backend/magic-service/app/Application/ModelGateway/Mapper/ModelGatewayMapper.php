@@ -83,7 +83,9 @@ class ModelGatewayMapper extends ModelMapper
         if ($odinModel instanceof OdinModel) {
             $odinModel = $odinModel->getModel();
         }
-        // 转换为代理
+        if (! $odinModel instanceof AbstractModel) {
+            throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
+        }
         return $this->createProxy($model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
     }
 
