@@ -87,7 +87,7 @@ readonly class KnowledgeBaseSyncSubscriber implements ListenerInterface
                     ->setRetrieveConfig($knowledge->getRetrieveConfig())
                     ->setVectorDb($knowledge->getVectorDb())
                     ->setDocumentFile($file);
-                $knowledgeBaseDocumentDomainService->create($dataIsolation, $knowledge, $documentEntity);
+                $knowledgeBaseDocumentDomainService->create(clone $dataIsolation, $knowledge, $documentEntity);
             }
         } catch (Throwable $throwable) {
             $logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());
