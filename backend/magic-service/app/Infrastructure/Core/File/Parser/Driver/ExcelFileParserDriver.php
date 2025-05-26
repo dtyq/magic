@@ -19,7 +19,8 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
 {
     public function parse(string $filePath, string $url, string $fileExtension): string
     {
-        if (strtolower($fileExtension) === 'xlsx') {
+        $fileExtension = strtolower($fileExtension);
+        if (in_array($fileExtension, ['xlsx', 'xlsm'])) {
             return $this->parseByXlsWriter($filePath, $fileExtension);
         }
         return $this->parseBySpreedSheet($filePath, $fileExtension);
@@ -67,7 +68,7 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
             $content = '';
 
             foreach ($spreadsheet->getSheetNames() as $sheetName) {
-                $content .= '##' . $sheetName . "\n";
+                $content .= '## ' . $sheetName . "\n";
                 $worksheet = $spreadsheet->getSheetByName($sheetName);
                 $highestRow = $worksheet->getHighestRow();
                 $highestColumn = $worksheet->getHighestColumn();
