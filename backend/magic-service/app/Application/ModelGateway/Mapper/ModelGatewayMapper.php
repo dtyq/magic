@@ -79,8 +79,10 @@ class ModelGatewayMapper extends ModelMapper
      */
     public function getChatModelProxy(string $model, ?string $orgCode = null): MagicAILocalModel
     {
-        /** @var AbstractModel $odinModel */
         $odinModel = $this->getOrganizationChatModel($model, $orgCode);
+        if ($odinModel instanceof OdinModel) {
+            $odinModel = $odinModel->getModel();
+        }
         // 转换为代理
         return $this->createProxy($model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
     }
@@ -102,12 +104,12 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 预期是管理后台的 model_id，过度阶段接受传入 model_version
      */
-    public function getOrganizationChatModel(string $model, ?string $orgCode = null): ModelInterface
+    public function getOrganizationChatModel(string $model, ?string $orgCode = null): ModelInterface|OdinModel
     {
         // 优先从管理后台获取模型配置
         $odinModel = $this->getByAdmin($model, $orgCode);
         if ($odinModel) {
-            return $odinModel->getModel();
+            return $odinModel;
         }
         // 最后一次尝试，从被预加载的模型中获取。注意，被预加载的模型是即将被废弃，后续需要迁移到管理后台
         return $this->getChatModel($model);
@@ -426,6 +428,7 @@ class ModelGatewayMapper extends ModelMapper
                 createdAt: $providerEntity->getCreatedAt(),
                 owner: 'MagicAI',
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
+                providerModelId: (string) $providerModelEntity->getId(),
             )
         );
     }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
@@ -215,6 +216,8 @@ class LLMAppService extends AbstractLLMAppService
                 $modeId = $proxyModelRequest->getModel();
             }
 
+            $modelAttributes = null;
+
             $model = match ($proxyModelRequest->getType()) {
                 'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode),
                 'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode),
@@ -222,6 +225,10 @@ class LLMAppService extends AbstractLLMAppService
             };
             if (! $model) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
+            }
+            if ($model instanceof OdinModel) {
+                $modelAttributes = $model->getAttributes();
+                $model = $model->getModel();
             }
 
             // 尝试使用 model_name 再次获取真实数据
@@ -232,7 +239,12 @@ class LLMAppService extends AbstractLLMAppService
                     'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode),
                     default => null
                 };
+                if ($model instanceof OdinModel) {
+                    $modelAttributes = $model->getAttributes();
+                    $model = $model->getModel();
+                }
             }
+
             // 防止死循环
             if (! $model || $model instanceof MagicAILocalModel) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
@@ -244,6 +256,9 @@ class LLMAppService extends AbstractLLMAppService
 
             // 记录开始时间
             $startTime = microtime(true);
+
+            $proxyModelRequest->addBusinessParam('app_id', $contextData['app_code'] ?? '');
+            $proxyModelRequest->addBusinessParam('service_provider_model_id', $modelAttributes?->getProviderModelId() ?? '');
 
             // 调用 LLM 模型获取响应
             /** @var ResponseInterface $response */
@@ -549,6 +564,7 @@ class LLMAppService extends AbstractLLMAppService
                 stop: $sendMsgDTO->getStop() ?? [],
                 frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
                 presencePenalty: $sendMsgDTO->getPresencePenalty(),
+                businessParams: $sendMsgDTO->getBusinessParams(),
             ),
             AbstractRequestDTO::METHOD_CHAT_COMPLETIONS => match ($sendMsgDTO->isStream()) {
                 true => $odinModel->chatStream(
@@ -559,6 +575,7 @@ class LLMAppService extends AbstractLLMAppService
                     tools: $tools,
                     frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
                     presencePenalty: $sendMsgDTO->getPresencePenalty(),
+                    businessParams: $sendMsgDTO->getBusinessParams(),
                 ),
                 default => $odinModel->chat(
                     messages: $messages,
@@ -568,6 +585,7 @@ class LLMAppService extends AbstractLLMAppService
                     tools: $tools,
                     frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
                     presencePenalty: $sendMsgDTO->getPresencePenalty(),
+                    businessParams: $sendMsgDTO->getBusinessParams(),
                 ),
             },
             default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
