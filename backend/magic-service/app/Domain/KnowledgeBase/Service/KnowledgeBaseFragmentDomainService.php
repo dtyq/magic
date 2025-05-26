@@ -158,6 +158,15 @@ readonly class KnowledgeBaseFragmentDomainService
     }
 
     /**
+     * 根据 point_id 获取所有相关片段，按 version 倒序排序.
+     * @return array<KnowledgeBaseFragmentEntity>
+     */
+    public function getFragmentsByPointId(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeCode, string $pointId, bool $lock = false): array
+    {
+        return $this->knowledgeBaseFragmentRepository->getFragmentsByPointId($dataIsolation, $knowledgeCode, $pointId, $lock);
+    }
+
+    /**
      * @return array<string, KnowledgeSyncStatus>
      */
     public function getFinalSyncStatusByDocumentCodes(KnowledgeBaseDataIsolation $dataIsolation, array $documentCodes): array

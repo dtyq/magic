@@ -7,9 +7,10 @@ declare(strict_types=1);
 
 namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile;
 
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 
-class ExternalDocumentFile extends AbstractDocumentFile
+class ExternalDocumentFile extends AbstractDocumentFile implements ExternalDocumentFileInterface
 {
     public string $key;
 
