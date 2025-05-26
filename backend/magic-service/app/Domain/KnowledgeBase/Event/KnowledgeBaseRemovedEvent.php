@@ -8,10 +8,12 @@ declare(strict_types=1);
 namespace App\Domain\KnowledgeBase\Event;
 
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 
 class KnowledgeBaseRemovedEvent
 {
     public function __construct(
+        public KnowledgeBaseDataIsolation $dataIsolation,
         public KnowledgeBaseEntity $magicFlowKnowledgeEntity,
     ) {
     }

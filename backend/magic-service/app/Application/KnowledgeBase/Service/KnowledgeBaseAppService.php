@@ -105,6 +105,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $knowledgeBaseEntity->setUserOperation($operation->value);
         $iconFileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $knowledgeBaseEntity->getIcon());
         $knowledgeBaseEntity->setIcon($iconFileLink?->getUrl() ?? '');
+        $knowledgeBaseEntity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledgeBaseEntity));
         return $knowledgeBaseEntity;
     }
 
@@ -137,7 +138,9 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $query->setBusinessId($businessId);
         $query->setType($type);
         $result = $this->knowledgeBaseDomainService->queries($dataIsolation, $query, new Page(1, 1));
-        return $result['list'][0] ?? null;
+        $entity = $result['list'][0] ?? null;
+        $entity && $entity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($entity));
+        return $entity;
     }
 
     /**

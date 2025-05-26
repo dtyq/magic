@@ -108,7 +108,7 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         foreach ($documents as $document) {
             $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
             if ($knowledgeEntity && $knowledgeEntity->getType() === KnowledgeType::UserKnowledgeBase->value) {
-                $event = new KnowledgeBaseDocumentSavedEvent($knowledgeEntity, $document, false);
+                $event = new KnowledgeBaseDocumentSavedEvent($dataIsolation, $knowledgeEntity, $document, false);
                 AsyncEventUtil::dispatch($event);
             }
         }
@@ -136,9 +136,10 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $this->checkKnowledgeBaseOperation($dataIsolation, 'del', $knowledgeBaseCode, $documentCode);
+        $knowledgeBaseEntity = $this->knowledgeBaseDomainService->show($dataIsolation, $knowledgeBaseCode);
 
         // 调用领域服务删除文档
-        $this->knowledgeBaseDocumentDomainService->destroy($dataIsolation, $knowledgeBaseCode, $documentCode);
+        $this->knowledgeBaseDocumentDomainService->destroy($dataIsolation, $knowledgeBaseEntity, $documentCode);
     }
 
     /**
@@ -158,6 +159,7 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         }
         // 分发事件，重新向量化
         $documentSavedEvent = new KnowledgeBaseDocumentSavedEvent(
+            $dataIsolation,
             $knowledgeBaseEntity,
             $documentEntity,
             false,

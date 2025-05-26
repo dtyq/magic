@@ -407,6 +407,7 @@ class MagicFlowAppService extends AbstractFlowAppService
             } else {
                 $knowledge->setUserOperation(($resources[$knowledge->getCode()] ?? Operation::None)->value);
             }
+            $knowledge->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledge));
         }
         $knowledgeData['users'] = $this->magicUserDomainService->getByUserIds($this->createContactDataIsolation($dataIsolation), $userIds);
 
