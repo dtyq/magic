@@ -1,7 +1,7 @@
 ## 一、功能预览
 如果是组织超管角色，从左上角点头像》进入管理后台
 
-![Fi-lguvpG_yCUWav8wIsw6lfvoYp.png](https://cdn.letsmagic.cn/static/img/Fi-lguvpG_yCUWav8wIsw6lfvoYp.png)
+![model_admin.png](https://cdn.letsmagic.cn/static/img/model_admin.png?v=2)
 
 
 
