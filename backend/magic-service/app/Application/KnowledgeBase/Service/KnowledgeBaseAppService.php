@@ -138,7 +138,9 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $query->setBusinessId($businessId);
         $query->setType($type);
         $result = $this->knowledgeBaseDomainService->queries($dataIsolation, $query, new Page(1, 1));
-        return $result['list'][0] ?? null;
+        $entity = $result['list'][0] ?? null;
+        $entity && $entity->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($entity));
+        return $entity;
     }
 
     /**
