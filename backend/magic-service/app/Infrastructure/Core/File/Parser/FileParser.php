@@ -10,32 +10,28 @@ namespace App\Infrastructure\Core\File\Parser;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\ExcelFileParserDriverInterface;
-use App\Infrastructure\Core\File\Parser\Driver\Interfaces\FileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\OcrFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\TextFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\WordFileParserDriverInterface;
-use App\Infrastructure\Util\SSRF\Exception\SSRFException;
+use App\Infrastructure\Util\FileType;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Infrastructure\Util\Text\TextPreprocess\TextPreprocessUtil;
 use App\Infrastructure\Util\Text\TextPreprocess\ValueObject\TextPreprocessRule;
-use Hyperf\Redis\Redis;
+use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Mime\MimeTypes;
 
 class FileParser
 {
-    public function __construct(protected Redis $redis)
+    public function __construct(protected CacheInterface $cache)
     {
     }
 
-    /**
-     * @throws SSRFException
-     */
     public function parse(string $fileUrl, bool $textPreprocess = false): string
     {
         // 使用md5作为缓存key
         $cacheKey = 'file_parser:parse_' . md5($fileUrl) . '_' . ($textPreprocess ? 1 : 0);
         // 检查缓存,如果存在则返回缓存内容
-        $cachedContent = $this->redis->get($cacheKey);
+        $cachedContent = $this->cache->get($cacheKey);
         if ($cachedContent !== false) {
             return $cachedContent;
         }
@@ -46,21 +42,12 @@ class FileParser
 
             $this->downloadFile($safeUrl, $tempFile, 50 * 1024 * 1024);
 
-            // 检查文件的MIME类型
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mimeType = finfo_file($finfo, $tempFile);
-            finfo_close($finfo);
+            $extension = FileType::getType($fileUrl);
 
-            $extension = self::getExtensionFromMimeType($mimeType);
-            if (! $extension) {
-                ExceptionBuilder::throw(FlowErrorCode::Error, message: "无法从MIME类型 '{$mimeType}' 确定文件扩展名");
-            }
-
-            /** @var FileParserDriverInterface $interface */
             $interface = match ($extension) {
                 // 更多的文件类型支持
                 'pdf', 'png', 'jpeg', 'jpg' => di(OcrFileParserDriverInterface::class),
-                'xlsx','xls' => di(ExcelFileParserDriverInterface::class),
+                'xlsx', 'xls', 'xlsm' => di(ExcelFileParserDriverInterface::class),
                 'txt', 'json', 'csv', 'md', 'mdx',
                 'py', 'java', 'php', 'js', 'html', 'htm', 'css', 'xml', 'yaml', 'yml', 'sql' => di(TextFileParserDriverInterface::class),
                 'docx', 'doc' => di(WordFileParserDriverInterface::class),
@@ -73,7 +60,7 @@ class FileParser
             }
 
             // 设置缓存
-            $this->redis->set($cacheKey, $res, 600);
+            $this->cache->set($cacheKey, $res, 600);
             return $res;
         } finally {
             if (isset($tempFile) && file_exists($tempFile)) {
