@@ -21,5 +21,7 @@ interface ProxyModelRequestInterface
 
     public function getBusinessParam(string $key, bool $checkExists = false): mixed;
 
+    public function addBusinessParam(string $key, mixed $value): void;
+
     public function getHeaderConfig(string $key, mixed $default = null): mixed;
 }

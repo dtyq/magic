@@ -43,6 +43,11 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
         return $value;
     }
 
+    public function addBusinessParam(string $key, mixed $value): void
+    {
+        $this->businessParams[$key] = $value;
+    }
+
     public function setBusinessParams(array $businessParams): void
     {
         $this->businessParams = $businessParams;
