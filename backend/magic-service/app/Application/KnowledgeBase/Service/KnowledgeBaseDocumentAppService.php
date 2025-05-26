@@ -9,8 +9,6 @@ namespace App\Application\KnowledgeBase\Service;
 
 use App\Domain\Flow\Entity\ValueObject\Query\KnowledgeBaseDocumentQuery;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
-use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
 use App\ErrorCode\PermissionErrorCode;
@@ -108,7 +106,7 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         foreach ($documents as $document) {
             $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
             if ($knowledgeEntity) {
-                $event = new KnowledgeBaseDocumentSavedEvent($knowledgeEntity, $document, false);
+                $event = new KnowledgeBaseDocumentSavedEvent($dataIsolation, $knowledgeEntity, $document, false);
                 AsyncEventUtil::dispatch($event);
             }
         }
@@ -136,9 +134,10 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $this->checkKnowledgeBaseOperation($dataIsolation, 'del', $knowledgeBaseCode, $documentCode);
+        $knowledgeBaseEntity = $this->knowledgeBaseDomainService->show($dataIsolation, $knowledgeBaseCode);
 
         // 调用领域服务删除文档
-        $this->knowledgeBaseDocumentDomainService->destroy($dataIsolation, $knowledgeBaseCode, $documentCode);
+        $this->knowledgeBaseDocumentDomainService->destroy($dataIsolation, $knowledgeBaseEntity, $documentCode);
     }
 
     /**
@@ -158,6 +157,7 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         }
         // 分发事件，重新向量化
         $documentSavedEvent = new KnowledgeBaseDocumentSavedEvent(
+            $dataIsolation,
             $knowledgeBaseEntity,
             $documentEntity,
             false,

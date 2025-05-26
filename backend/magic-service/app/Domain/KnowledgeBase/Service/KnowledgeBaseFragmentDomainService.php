@@ -106,7 +106,7 @@ readonly class KnowledgeBaseFragmentDomainService
             $this->updateWordCount($dataIsolation, $knowledgeBaseFragmentEntity, $deltaWordCount);
         });
 
-        $event = new KnowledgeBaseFragmentSavedEvent($knowledgeBaseEntity, $knowledgeBaseFragmentEntity);
+        $event = new KnowledgeBaseFragmentSavedEvent($dataIsolation, $knowledgeBaseEntity, $knowledgeBaseFragmentEntity);
         AsyncEventUtil::dispatch($event);
 
         return $knowledgeBaseFragmentEntity;
@@ -141,7 +141,7 @@ readonly class KnowledgeBaseFragmentDomainService
             $this->updateWordCount($dataIsolation, $oldKnowledgeBaseFragmentEntity, $deltaWordCount);
         });
 
-        AsyncEventUtil::dispatch(new KnowledgeBaseFragmentRemovedEvent($knowledgeBaseEntity, $knowledgeBaseFragmentEntity));
+        AsyncEventUtil::dispatch(new KnowledgeBaseFragmentRemovedEvent($dataIsolation, $knowledgeBaseEntity, $knowledgeBaseFragmentEntity));
     }
 
     public function batchDestroyByPointIds(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $knowledgeEntity, array $pointIds): void

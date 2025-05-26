@@ -40,7 +40,7 @@ readonly class KnowledgeBaseDocumentDomainService
         $entity = $this->knowledgeBaseDocumentRepository->create($dataIsolation, $documentEntity);
         // 如果有文件，同步文件
         if ($documentEntity->getDocumentFile()) {
-            $event = new KnowledgeBaseDocumentSavedEvent($knowledgeBaseEntity, $entity, true);
+            $event = new KnowledgeBaseDocumentSavedEvent($dataIsolation, $knowledgeBaseEntity, $entity, true);
             AsyncEventUtil::dispatch($event);
         }
         return $entity;
@@ -96,10 +96,11 @@ readonly class KnowledgeBaseDocumentDomainService
     /**
      * 删除知识库文档.
      */
-    public function destroy(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeBaseCode, string $documentCode): void
+    public function destroy(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $knowledgeBaseEntity, string $documentCode): void
     {
         $documentEntity = null;
-        Db::transaction(function () use ($dataIsolation, $documentCode, $knowledgeBaseCode) {
+        Db::transaction(function () use ($dataIsolation, $documentCode, $knowledgeBaseEntity) {
+            $knowledgeBaseCode = $knowledgeBaseEntity->getCode();
             // 首先删除文档下的所有片段
             $this->destroyFragments($dataIsolation, $knowledgeBaseCode, $documentCode);
             $documentEntity = $this->show($dataIsolation, $knowledgeBaseCode, $documentCode, true);
@@ -110,7 +111,7 @@ readonly class KnowledgeBaseDocumentDomainService
             $this->updateWordCount($dataIsolation, $knowledgeBaseCode, $documentEntity->getCode(), $deltaWordCount);
         });
         // 异步删除向量数据库片段
-        ! is_null($documentEntity) && AsyncEventUtil::dispatch(new KnowledgeBaseDocumentRemovedEvent($documentEntity));
+        ! is_null($documentEntity) && AsyncEventUtil::dispatch(new KnowledgeBaseDocumentRemovedEvent($dataIsolation, $knowledgeBaseEntity, $documentEntity));
     }
 
     /**
@@ -186,7 +187,7 @@ readonly class KnowledgeBaseDocumentDomainService
             ->setWordCount(0)
             ->setVectorDb(VectorStoreDriver::default()->value);
         $res = $this->knowledgeBaseDocumentRepository->restoreOrCreate($dataIsolation, $documentEntity);
-        $event = new KnowledgeBaseDefaultDocumentSavedEvent($knowledgeBaseEntity, $documentEntity);
+        $event = new KnowledgeBaseDefaultDocumentSavedEvent($dataIsolation, $knowledgeBaseEntity, $documentEntity);
         AsyncEventUtil::dispatch($event);
         return $res;
     }
@@ -209,7 +210,7 @@ readonly class KnowledgeBaseDocumentDomainService
         foreach ($documents as $document) {
             $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
             if ($knowledgeEntity) {
-                $event = new KnowledgeBaseDocumentSavedEvent($knowledgeEntity, $document, false);
+                $event = new KnowledgeBaseDocumentSavedEvent($dataIsolation, $knowledgeEntity, $document, false);
                 AsyncEventUtil::dispatch($event);
             }
         }
