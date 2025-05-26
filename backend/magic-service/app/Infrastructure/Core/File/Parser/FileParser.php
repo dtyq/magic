@@ -31,9 +31,8 @@ class FileParser
         // 使用md5作为缓存key
         $cacheKey = 'file_parser:parse_' . md5($fileUrl) . '_' . ($textPreprocess ? 1 : 0);
         // 检查缓存,如果存在则返回缓存内容
-        $cachedContent = $this->cache->get($cacheKey);
-        if ($cachedContent !== false) {
-            return $cachedContent;
+        if ($this->cache->has($cacheKey)) {
+            return $this->cache->get($cacheKey, '');
         }
         try {
             // / 检测文件安全性
