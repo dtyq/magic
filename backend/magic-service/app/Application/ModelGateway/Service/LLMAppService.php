@@ -347,7 +347,7 @@ class LLMAppService extends AbstractLLMAppService
      */
     protected function callEmbeddingsModel(EmbeddingInterface $embedding, EmbeddingsDTO $proxyModelRequest): EmbeddingResponse
     {
-        return $embedding->embeddings(input: $proxyModelRequest->getInput(), user: $proxyModelRequest->getUser());
+        return $embedding->embeddings(input: $proxyModelRequest->getInput(), user: $proxyModelRequest->getUser(), businessParams: $proxyModelRequest->getBusinessParams());
     }
 
     /**
