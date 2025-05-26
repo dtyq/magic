@@ -9,7 +9,7 @@ namespace App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver;
 
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 

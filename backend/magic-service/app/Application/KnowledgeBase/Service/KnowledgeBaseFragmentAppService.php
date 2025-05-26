@@ -10,7 +10,7 @@ namespace App\Application\KnowledgeBase\Service;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityFilter;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityManager;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseFragmentEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\FragmentConfig;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeRetrievalResult;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;

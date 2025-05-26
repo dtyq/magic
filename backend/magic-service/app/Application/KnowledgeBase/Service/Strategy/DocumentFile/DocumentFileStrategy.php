@@ -11,9 +11,9 @@ use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interface
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFile;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\Logger\LoggerFactory;
@@ -192,9 +192,9 @@ class DocumentFileStrategy
 
     private function getImplement(?DocumentFileInterface $documentFile): ?BaseDocumentFileStrategyInterface
     {
-        $interface = match (get_class($documentFile)) {
-            ExternalDocumentFile::class => ExternalFileDocumentFileStrategyInterface::class,
-            ThirdPlatformDocumentFile::class => ThirdPlatformDocumentFileStrategyInterface::class,
+        $interface = match (true) {
+            $documentFile instanceof ExternalDocumentFileInterface => ExternalFileDocumentFileStrategyInterface::class,
+            $documentFile instanceof ThirdPlatformDocumentFileInterface => ThirdPlatformDocumentFileStrategyInterface::class,
             default => null,
         };
 

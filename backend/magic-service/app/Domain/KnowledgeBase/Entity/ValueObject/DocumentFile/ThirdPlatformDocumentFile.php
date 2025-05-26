@@ -8,8 +8,9 @@ declare(strict_types=1);
 namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile;
 
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 
-class ThirdPlatformDocumentFile extends AbstractDocumentFile
+class ThirdPlatformDocumentFile extends AbstractDocumentFile implements ThirdPlatformDocumentFileInterface
 {
     public string $thirdFileId;
 

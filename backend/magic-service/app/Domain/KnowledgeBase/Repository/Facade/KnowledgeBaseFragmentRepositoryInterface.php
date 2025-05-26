@@ -26,6 +26,11 @@ interface KnowledgeBaseFragmentRepositoryInterface
 
     public function getByPointId(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeCode, string $pointId): ?KnowledgeBaseFragmentEntity;
 
+    /**
+     * @return array<KnowledgeBaseFragmentEntity>
+     */
+    public function getFragmentsByPointId(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeCode, string $pointId, bool $selectForUpdate = false): array;
+
     public function save(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseFragmentEntity $magicFlowKnowledgeFragmentEntity): KnowledgeBaseFragmentEntity;
 
     /**

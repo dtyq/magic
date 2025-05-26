@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces;
 
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 
 interface BaseDocumentFileStrategyInterface

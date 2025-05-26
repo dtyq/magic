@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile;
 
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Infrastructure\Core\AbstractValueObject;
 
 abstract class AbstractDocumentFile extends AbstractValueObject implements DocumentFileInterface
@@ -70,8 +73,8 @@ abstract class AbstractDocumentFile extends AbstractValueObject implements Docum
         $documentFileType = isset($data['type']) ? DocumentFileType::tryFrom($data['type']) : DocumentFileType::EXTERNAL;
         $data['type'] = $documentFileType;
         return match ($documentFileType) {
-            DocumentFileType::EXTERNAL => new ExternalDocumentFile($data),
-            DocumentFileType::THIRD_PLATFORM => new ThirdPlatformDocumentFile($data),
+            DocumentFileType::EXTERNAL => make(ExternalDocumentFileInterface::class, [$data]),
+            DocumentFileType::THIRD_PLATFORM => make(ThirdPlatformDocumentFileInterface::class, [$data]),
             default => null,
         };
     }
