@@ -38,6 +38,11 @@ class ResponseMiddleware implements MiddlewareInterface
         '/intelligence-rename',
     ];
 
+    private array $ignoreUris = [
+        '/heartbeat',
+        '/favicon.ico',
+    ];
+
     public function __construct(
         protected ContainerInterface $container,
         LoggerFactory $loggerFactory,
@@ -61,8 +66,12 @@ class ResponseMiddleware implements MiddlewareInterface
             $endTime = microtime(true);
             // 避免阻塞响应
             defer(function () use ($request, $response, $startTime, $endTime) {
+                $path = $request->getUri()->getPath();
+                if (in_array($path, $this->ignoreUris, true)) {
+                    return;
+                }
                 // 临时加一下敏感过滤
-                if (! str_contains($request->getUri()->getPath(), 'aes')) {
+                if (! str_contains($path, 'aes')) {
                     $this->logger->info('请求跟踪信息', $this->formatMessage($request, $response, $startTime, $endTime));
                 }
             });
