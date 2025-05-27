@@ -528,17 +528,14 @@ class MagicFlowExportImportAppService
                 $this->updateExpressionReferences($nodeData['params'], $idMapping);
             }
 
-            // 特殊处理子流程节点（类型11）和意图识别节点（类型24）的input/output字段
-            if ($nodeType === NodeType::Sub->value || $nodeType === NodeType::IntentRecognition->value) {
-                // 处理input字段中的表达式引用 - 递归处理整个input结构
-                if (isset($nodeData['input']) && is_array($nodeData['input'])) {
-                    $this->processSpecialNodeFieldValue($nodeData['input'], $idMapping);
-                }
+            // 通用处理 input 字段 (如果存在且为数组)
+            if (isset($nodeData['input']) && is_array($nodeData['input'])) {
+                $this->processSpecialNodeFieldValue($nodeData['input'], $idMapping);
+            }
 
-                // 处理output字段中的表达式引用 - 递归处理整个output结构
-                if (isset($nodeData['output']) && is_array($nodeData['output'])) {
-                    $this->processSpecialNodeFieldValue($nodeData['output'], $idMapping);
-                }
+            // 通用处理 output 字段 (如果存在且为数组)
+            if (isset($nodeData['output']) && is_array($nodeData['output'])) {
+                $this->processSpecialNodeFieldValue($nodeData['output'], $idMapping);
             }
 
             // 更新前置节点引用
