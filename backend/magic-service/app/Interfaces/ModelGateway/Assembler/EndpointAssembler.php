@@ -40,46 +40,23 @@ class EndpointAssembler
     /**
      * 将多个ServiceProviderModelsEntity转换为EndpointEntity数组.
      *
-     * @param ServiceProviderModelsEntity[] $providerModelsEntities 服务商模型实体数组
-     * @param array<int,ServiceProviderConfigEntity> $configMap 服务商配置ID到配置实体的映射数组
-     * @param bool $isDelete 是否为删除操作
+     * @param ServiceProviderModelsEntity[] $providerModelEntities 服务商模型实体数组
      * @return EndpointEntity[]
      */
-    public static function toEndpointEntities(
-        array $providerModelsEntities,
-        array $configMap,
-        bool $isDelete = false
-    ): array {
-        if (empty($providerModelsEntities) || empty($configMap)) {
+    public static function toEndpointEntities(array $providerModelEntities): array
+    {
+        if (empty($providerModelEntities)) {
             return [];
         }
         $endpoints = [];
-        foreach ($providerModelsEntities as $entity) {
-            $configId = $entity->getServiceProviderConfigId();
-
-            // 如果找不到对应的服务商配置，则跳过该模型
-            if (! isset($configMap[$configId])) {
-                continue;
-            }
-            // 模型 id 不能为空
-            if (empty($entity->getModelId())) {
-                continue;
-            }
-            $endpointConfigEntity = $configMap[$configId];
+        foreach ($providerModelEntities as $providerModelEntity) {
             $endpoint = new EndpointEntity();
-
             // 设置标识信息以便在高可用服务中唯一标识该端点
-            $endpoint->setType(self::getEndpointTypeByModelIdAndOrgCode($entity->getModelId(), $entity->getOrganizationCode()));
-            $endpoint->setName((string) $entity->getId());
-            $endpoint->setProvider((string) $endpointConfigEntity->getServiceProviderId());
-
-            // 如果不是删除操作，设置启用状态
-            if (! $isDelete) {
-                // 状态需要根据服务商+模型状态双重确定，必须要同时开启，接入点才被启用
-                $endpoint->setEnabled($entity->getStatus() === 1 && $endpointConfigEntity->getStatus() === 1);
-                $endpoint->setCircuitBreakerStatus(CircuitBreakerStatus::CLOSED);
-            }
-
+            $endpoint->setType($providerModelEntity->getModelId());
+            $endpoint->setName($providerModelEntity->getModelVersion());
+            $endpoint->setProvider((string) $providerModelEntity->getServiceProviderConfigId());
+            $endpoint->setCircuitBreakerStatus(CircuitBreakerStatus::CLOSED);
+            $endpoint->setEnabled(true);
             $endpoints[] = $endpoint;
         }
 
