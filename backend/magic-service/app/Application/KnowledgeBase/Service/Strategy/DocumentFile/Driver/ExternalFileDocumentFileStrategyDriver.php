@@ -10,8 +10,8 @@ namespace App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFile;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Infrastructure\Core\File\Parser\FileParser;
 use App\Infrastructure\Util\FileType;
@@ -27,18 +27,18 @@ class ExternalFileDocumentFileStrategyDriver implements ExternalFileDocumentFile
     public function parseContent(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): string
     {
         $fileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $documentFile->getKey());
-        return di(FileParser::class)->parse($fileLink->getUrl());
+        return di(FileParser::class)->parse($fileLink->getUrl(), true);
     }
 
     /**
      * @param ExternalDocumentFile $documentFile
      */
-    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): DocType
+    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): int
     {
         if (! $documentFile->getDocType()) {
             $fileLink = $this->getFileLink($dataIsolation->getCurrentOrganizationCode(), $documentFile->getKey());
             $extension = FileType::getType($fileLink->getUrl());
-            $documentFile->setDocType(DocType::fromExtension($extension));
+            $documentFile->setDocType(DocType::fromExtension($extension)->value);
         }
         return $documentFile->getDocType();
     }

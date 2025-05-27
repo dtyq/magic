@@ -23,4 +23,16 @@ enum KnowledgeType: int
      * 用户会话
      */
     case UserConversation = 5;
+
+    /**
+     * @return array<int>
+     */
+    public static function getAll(): array
+    {
+        return [
+            self::UserKnowledgeBase->value,
+            self::UserTopic->value,
+            self::UserConversation->value,
+        ];
+    }
 }

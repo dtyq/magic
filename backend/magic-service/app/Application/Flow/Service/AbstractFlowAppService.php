@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Flow\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\KnowledgeBase\Service\Strategy\KnowledgeBase\KnowledgeBaseStrategyInterface;
 use App\Application\Permission\Service\OperationPermissionAppService;
 use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Agent\Service\MagicAgentVersionDomainService;
@@ -65,6 +66,7 @@ abstract class AbstractFlowAppService extends AbstractKernelAppService
         protected readonly MagicAccountDomainService $magicAccountDomainService,
         protected readonly ServiceProviderDomainService $serviceProviderDomainService,
         protected readonly KnowledgeBaseDocumentDomainService $magicFlowDocumentDomainService,
+        protected readonly KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
     ) {
     }
 

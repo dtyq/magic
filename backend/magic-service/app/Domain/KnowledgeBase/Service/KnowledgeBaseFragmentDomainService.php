@@ -106,7 +106,7 @@ readonly class KnowledgeBaseFragmentDomainService
             $this->updateWordCount($dataIsolation, $knowledgeBaseFragmentEntity, $deltaWordCount);
         });
 
-        $event = new KnowledgeBaseFragmentSavedEvent($knowledgeBaseEntity, $knowledgeBaseFragmentEntity);
+        $event = new KnowledgeBaseFragmentSavedEvent($dataIsolation, $knowledgeBaseEntity, $knowledgeBaseFragmentEntity);
         AsyncEventUtil::dispatch($event);
 
         return $knowledgeBaseFragmentEntity;
@@ -141,7 +141,7 @@ readonly class KnowledgeBaseFragmentDomainService
             $this->updateWordCount($dataIsolation, $oldKnowledgeBaseFragmentEntity, $deltaWordCount);
         });
 
-        AsyncEventUtil::dispatch(new KnowledgeBaseFragmentRemovedEvent($knowledgeBaseEntity, $knowledgeBaseFragmentEntity));
+        AsyncEventUtil::dispatch(new KnowledgeBaseFragmentRemovedEvent($dataIsolation, $knowledgeBaseEntity, $knowledgeBaseFragmentEntity));
     }
 
     public function batchDestroyByPointIds(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $knowledgeEntity, array $pointIds): void
@@ -155,6 +155,15 @@ readonly class KnowledgeBaseFragmentDomainService
     public function getByIds(KnowledgeBaseDataIsolation $dataIsolation, array $ids): array
     {
         return $this->knowledgeBaseFragmentRepository->getByIds($dataIsolation, $ids);
+    }
+
+    /**
+     * 根据 point_id 获取所有相关片段，按 version 倒序排序.
+     * @return array<KnowledgeBaseFragmentEntity>
+     */
+    public function getFragmentsByPointId(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeCode, string $pointId, bool $lock = false): array
+    {
+        return $this->knowledgeBaseFragmentRepository->getFragmentsByPointId($dataIsolation, $knowledgeCode, $pointId, $lock);
     }
 
     /**

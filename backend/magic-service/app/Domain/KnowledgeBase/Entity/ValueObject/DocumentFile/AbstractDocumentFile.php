@@ -7,25 +7,34 @@ declare(strict_types=1);
 
 namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile;
 
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Infrastructure\Core\AbstractValueObject;
 
 abstract class AbstractDocumentFile extends AbstractValueObject implements DocumentFileInterface
 {
-    public string $name;
+    public string $name = '未命名文档';
 
-    public DocumentFileType $type;
+    public ?int $docType = null;
 
-    public ?DocType $docType = null;
+    protected DocumentFileType $type;
+
+    public function __construct(?array $data = null)
+    {
+        parent::__construct($data);
+        $this->type = $this->initType();
+    }
 
     public function getName(): string
     {
         return $this->name;
     }
 
-    public function setName(string $name): void
+    public function setName(string $name): static
     {
         $this->name = $name;
+        return $this;
     }
 
     public function setType(mixed $type): static
@@ -38,19 +47,18 @@ abstract class AbstractDocumentFile extends AbstractValueObject implements Docum
         return $this->type;
     }
 
-    public function getDocType(): ?DocType
+    public function getDocType(): ?int
     {
         return $this->docType;
     }
 
-    public function setDocType(null|DocType|int $docType): static
+    public function setDocType(?int $docType): static
     {
-        is_int($docType) && $docType = DocType::from($docType);
         $this->docType = $docType;
         return $this;
     }
 
-    public function getThirdPlatformType(): ?string
+    public function getPlatformType(): ?string
     {
         return null;
     }
@@ -65,9 +73,14 @@ abstract class AbstractDocumentFile extends AbstractValueObject implements Docum
         $documentFileType = isset($data['type']) ? DocumentFileType::tryFrom($data['type']) : DocumentFileType::EXTERNAL;
         $data['type'] = $documentFileType;
         return match ($documentFileType) {
-            DocumentFileType::EXTERNAL => new ExternalDocumentFile($data),
-            DocumentFileType::THIRD_PLATFORM => new ThirdPlatformDocumentFile($data),
+            DocumentFileType::EXTERNAL => make(ExternalDocumentFileInterface::class, [$data]),
+            DocumentFileType::THIRD_PLATFORM => make(ThirdPlatformDocumentFileInterface::class, [$data]),
             default => null,
         };
     }
+
+    /**
+     * 初始化文档类型.
+     */
+    abstract protected function initType(): DocumentFileType;
 }

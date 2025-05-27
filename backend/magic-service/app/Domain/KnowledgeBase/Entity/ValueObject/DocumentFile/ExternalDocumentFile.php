@@ -7,12 +7,11 @@ declare(strict_types=1);
 
 namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile;
 
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 
-class ExternalDocumentFile extends AbstractDocumentFile
+class ExternalDocumentFile extends AbstractDocumentFile implements ExternalDocumentFileInterface
 {
-    public DocumentFileType $type = DocumentFileType::EXTERNAL;
-
     public string $key;
 
     public ?FileLink $fileLink = null;
@@ -37,5 +36,10 @@ class ExternalDocumentFile extends AbstractDocumentFile
         is_array($fileLink) && $fileLink = new FileLink($fileLink['path'] ?? '', $fileLink['url'] ?? '', $fileLink['expires'] ?? 0, $fileLink['download_name'] ?? '');
         $this->fileLink = $fileLink;
         return $this;
+    }
+
+    protected function initType(): DocumentFileType
+    {
+        return DocumentFileType::EXTERNAL;
     }
 }

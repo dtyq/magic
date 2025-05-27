@@ -12,6 +12,7 @@ use App\Application\Permission\Service\OperationPermissionAppService;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
+use App\Domain\KnowledgeBase\Entity\ValueObject\SourceType;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -60,5 +61,21 @@ class BaseKnowledgeBaseStrategy extends AbstractKernelAppService implements Know
     public function getOrCreateDefaultDocument(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $knowledgeBaseEntity): void
     {
         $this->knowledgeBaseDocumentDomainService->getOrCreateDefaultDocument($dataIsolation, $knowledgeBaseEntity);
+    }
+
+    /**
+     * 获取或创建默认知识库数据源类型.
+     *
+     * @param KnowledgeBaseEntity $knowledgeBaseEntity 知识库实体
+     *
+     * @return null|int 数据源类型
+     */
+    public function getOrCreateDefaultSourceType(KnowledgeBaseEntity $knowledgeBaseEntity): ?int
+    {
+        // 如果source_type为null，则设置为从外部文件导入
+        if ($knowledgeBaseEntity->getSourceType() === null) {
+            return SourceType::EXTERNAL_FILE->value;
+        }
+        return $knowledgeBaseEntity->getSourceType();
     }
 }

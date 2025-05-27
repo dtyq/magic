@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace App\Interfaces\KnowledgeBase\Assembler;
 
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFile;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -73,9 +75,9 @@ class KnowledgeBaseDocumentAssembler
         if ($documentFile === null) {
             return null;
         }
-        return match (get_class($documentFile)) {
-            ExternalDocumentFile::class => new ExternalDocumentFileDTO($documentFile->toArray()),
-            ThirdPlatformDocumentFile::class => new ThirdPlatformDocumentFileDTO($documentFile->toArray()),
+        return match (true) {
+            $documentFile instanceof ExternalDocumentFileInterface => new ExternalDocumentFileDTO($documentFile->toArray()),
+            $documentFile instanceof ThirdPlatformDocumentFileInterface => new ThirdPlatformDocumentFileDTO($documentFile->toArray()),
             default => ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed),
         };
     }

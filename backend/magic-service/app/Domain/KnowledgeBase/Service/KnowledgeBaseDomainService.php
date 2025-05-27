@@ -10,7 +10,7 @@ namespace App\Domain\KnowledgeBase\Service;
 use App\Domain\Flow\Entity\ValueObject\Code;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseFragmentEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
@@ -66,7 +66,7 @@ readonly class KnowledgeBaseDomainService
 
         $magicFlowKnowledgeEntity = $this->magicFlowKnowledgeRepository->save($dataIsolation, $magicFlowKnowledgeEntity);
 
-        $event = new KnowledgeBaseSavedEvent($magicFlowKnowledgeEntity, $create, $files);
+        $event = new KnowledgeBaseSavedEvent($dataIsolation, $magicFlowKnowledgeEntity, $create, $files);
         AsyncEventUtil::dispatch($event);
 
         return $magicFlowKnowledgeEntity;
@@ -149,7 +149,7 @@ readonly class KnowledgeBaseDomainService
     {
         $this->magicFlowKnowledgeRepository->destroy($dataIsolation, $magicFlowKnowledgeEntity);
         $this->magicFlowKnowledgeFragmentRepository->destroyByKnowledgeCode($dataIsolation, $magicFlowKnowledgeEntity->getCode());
-        AsyncEventUtil::dispatch(new KnowledgeBaseRemovedEvent($magicFlowKnowledgeEntity));
+        AsyncEventUtil::dispatch(new KnowledgeBaseRemovedEvent($dataIsolation, $magicFlowKnowledgeEntity));
     }
 
     /**

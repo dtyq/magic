@@ -9,7 +9,7 @@ namespace App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver;
 
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 
@@ -21,20 +21,20 @@ class ThirdPlatformDocumentFileStrategyDriver implements ThirdPlatformDocumentFi
         return '';
     }
 
-    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): DocType
+    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): int
     {
         // 这里实现第三方文档文件的文本格式解析逻辑
-        return DocType::UNKNOWN;
+        return DocType::UNKNOWN->value;
     }
 
     public function parseThirdPlatformType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): ?string
     {
-        return null;
+        return $documentFile->getPlatformType();
     }
 
     public function parseThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): ?string
     {
-        return null;
+        return $documentFile->getThirdFileId();
     }
 
     public function preProcessDocumentFiles(KnowledgeBaseDataIsolation $dataIsolation, array $documentFiles): array
@@ -57,7 +57,7 @@ class ThirdPlatformDocumentFileStrategyDriver implements ThirdPlatformDocumentFi
         $thirdPlatformType = $this->parseThirdPlatformType($dataIsolation, $cloneDocumentFile);
         $thirdPlatformId = $this->parseThirdFileId($dataIsolation, $cloneDocumentFile);
         return $cloneDocumentFile->setDocType($docType)
-            ->setThirdPlatformType($thirdPlatformType)
+            ->setPlatformType($thirdPlatformType)
             ->setThirdFileId($thirdPlatformId);
     }
 

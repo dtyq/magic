@@ -10,8 +10,8 @@ namespace App\Application\KnowledgeBase\Event\Subscribe;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\DocumentFileStrategy;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseSavedEvent;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
@@ -41,7 +41,11 @@ readonly class KnowledgeBaseSyncSubscriber implements ListenerInterface
             return;
         }
         $knowledge = $event->magicFlowKnowledgeEntity;
-        $dataIsolation = KnowledgeBaseDataIsolation::create($knowledge->getOrganizationCode(), $knowledge->getCreator());
+        $dataIsolation = $event->dataIsolation;
+        // 如果是基础知识库类型，则传知识库创建者，避免权限不足
+        if (in_array($knowledge->getType(), KnowledgeType::getAll())) {
+            $dataIsolation->setCurrentUserId($knowledge->getCreator())->setCurrentOrganizationCode($knowledge->getOrganizationCode());
+        }
         /** @var KnowledgeBaseDomainService $knowledgeBaseDomainService */
         $knowledgeBaseDomainService = $this->container->get(KnowledgeBaseDomainService::class);
 
@@ -83,7 +87,7 @@ readonly class KnowledgeBaseSyncSubscriber implements ListenerInterface
                     ->setRetrieveConfig($knowledge->getRetrieveConfig())
                     ->setVectorDb($knowledge->getVectorDb())
                     ->setDocumentFile($file);
-                $knowledgeBaseDocumentDomainService->create($dataIsolation, $knowledge, $documentEntity);
+                $knowledgeBaseDocumentDomainService->create(clone $dataIsolation, $knowledge, $documentEntity);
             }
         } catch (Throwable $throwable) {
             $logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());

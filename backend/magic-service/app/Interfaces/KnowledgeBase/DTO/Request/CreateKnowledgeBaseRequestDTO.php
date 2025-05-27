@@ -34,6 +34,8 @@ class CreateKnowledgeBaseRequestDTO extends AbstractRequestDTO
 
     public string $businessId = '';
 
+    public int $sourceType;
+
     public function getName(): string
     {
         return $this->name;
@@ -132,11 +134,23 @@ class CreateKnowledgeBaseRequestDTO extends AbstractRequestDTO
         $this->businessId = $businessId;
     }
 
+    public function getSourceType(): int
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(int $sourceType): self
+    {
+        $this->sourceType = $sourceType;
+        return $this;
+    }
+
     protected static function getHyperfValidationRules(): array
     {
         return [
             'name' => 'required|string|max:255',
             'description' => 'string|max:255',
+            'source_type' => 'required|integer',
             'icon' => 'string|max:255',
             'enabled' => 'required|boolean',
             'embedding_config' => 'array',

@@ -91,7 +91,7 @@ class KnowledgeBaseVectorAppService extends AbstractKnowledgeAppService
         $documentEntity->setSyncStatus(KnowledgeSyncStatus::Syncing->value);
         $this->knowledgeBaseDocumentDomainService->changeSyncStatus($dataIsolation, $documentEntity);
         $this->logger->info('正在解析文件，文件名：' . $documentFile->getName());
-        $content = $this->documentFileStrategy->parseContent($dataIsolation, $documentFile);
+        $content = $this->documentFileStrategy->parseContent($dataIsolation, $documentFile, $knowledgeBaseEntity->getCode());
         $this->logger->info('解析文件完成，正在文件分段，文件名：' . $documentFile->getName());
         $splitText = $this->knowledgeBaseFragmentDomainService->processFragmentsByContent($dataIsolation, $content, $documentEntity->getFragmentConfig());
         $this->logger->info('文件分段完成，文件名：' . $documentFile->getName() . '，分段数量:' . count($splitText));

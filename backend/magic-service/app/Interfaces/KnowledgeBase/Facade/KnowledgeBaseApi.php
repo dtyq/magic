@@ -10,6 +10,9 @@ namespace App\Interfaces\KnowledgeBase\Facade;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
+use App\ErrorCode\AuthenticationErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Kernel\DTO\PageDTO;
 use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseAssembler;
@@ -17,6 +20,7 @@ use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseDocumentAssembler;
 use App\Interfaces\KnowledgeBase\DTO\Request\CreateKnowledgeBaseRequestDTO;
 use App\Interfaces\KnowledgeBase\DTO\Request\UpdateKnowledgeBaseRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Hyperf\HttpServer\Contract\RequestInterface;
 
 #[ApiResponse(version: 'low_code')]
 class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
@@ -72,5 +76,34 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
     public function destroy(string $code)
     {
         $this->knowledgeBaseAppService->destroy($this->getAuthorization(), $code);
+    }
+
+    /**
+     * 根据 file_key 获取知识库文件链接.
+     */
+    public function getFileLink(RequestInterface $request): array
+    {
+        $fileKey = $request->input('key');
+        if (empty($fileKey)) {
+            return [];
+        }
+        // 校验file_key格式，必须以组织/应用id/knowledge-base/开头
+        if (! preg_match('/^[a-zA-Z0-9]+\/[0-9]+\/knowledge-base\/.*$/', $fileKey)) {
+            ExceptionBuilder::throw(AuthenticationErrorCode::ValidateFailed);
+        }
+
+        /**
+         * @var MagicUserAuthorization $authorization
+         */
+        $authorization = $this->getAuthorization();
+        $fileLink = $this->fileAppService->getLink($authorization->getOrganizationCode(), $fileKey, StorageBucketType::Private);
+
+        return [
+            'url' => $fileLink?->getUrl() ?? '',
+            'expires' => $fileLink?->getExpires() ?? 0,
+            'name' => $fileLink?->getDownloadName() ?? '',
+            'uid' => $fileLink->getPath(),
+            'key' => $fileKey,
+        ];
     }
 }

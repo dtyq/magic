@@ -7,8 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces;
 
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 
 interface BaseDocumentFileStrategyInterface
@@ -17,7 +16,7 @@ interface BaseDocumentFileStrategyInterface
 
     public function parseContent(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): string;
 
-    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): DocType;
+    public function parseDocType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): int;
 
     public function parseThirdPlatformType(KnowledgeBaseDataIsolation $dataIsolation, DocumentFileInterface $documentFile): ?string;
 
