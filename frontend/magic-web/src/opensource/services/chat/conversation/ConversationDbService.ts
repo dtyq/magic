@@ -11,13 +11,14 @@ class ConversationDbServices {
 	 * @param organizationCode 组织编码
 	 * @returns 会话列表
 	 */
-	loadNormalConversationsFromDB(organizationCode: string) {
+	loadNormalConversationsFromDB(organizationCode: string, userId: string) {
 		return chatDb
 			.getConversationTable()
 			?.where({
 				user_organization_code: organizationCode,
 				receive_organization_code: organizationCode,
 				status: ConversationStatus.Normal,
+				user_id: userId,
 			})
 			.toArray()
 	}
