@@ -218,7 +218,7 @@ EOT;
     {
         $text = <<<'EOT'
 测试word
-<MagicCompressibleContent Type="Image">magic_file_DT001/588417216353927169/DT001/open/2c17c6393771ee3048ae34d6b380c5ec/682ea88b4a2b5.png</MagicCompressibleContent>
+<MagicCompressibleContent Type="Image">magic_file_org/open/2c17c6393771ee3048ae34d6b380c5ec/682ea88b4a2b5.png</MagicCompressibleContent>
 测试缓存
 EOT;
 
