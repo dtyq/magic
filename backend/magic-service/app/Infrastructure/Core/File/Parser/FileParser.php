@@ -44,16 +44,11 @@ class FileParser
 
             $extension = FileType::getType($fileUrl);
 
-            $extension = self::getExtensionFromMimeType($mimeType);
-            if (! $extension) {
-                ExceptionBuilder::throw(FlowErrorCode::Error, message: "无法从MIME类型 '{$mimeType}' 确定文件扩展名");
-            }
-
             $interface = match ($extension) {
                 // 更多的文件类型支持
                 'png', 'jpeg', 'jpg' => OcrFileParserDriverInterface::class,
                 'pdf' => PdfFileParserDriverInterface::class,
-                'xlsx','xls', 'xlsm' => ExcelFileParserDriverInterface::class,
+                'xlsx', 'xls', 'xlsm' => ExcelFileParserDriverInterface::class,
                 'txt', 'json', 'csv', 'md', 'mdx',
                 'py', 'java', 'php', 'js', 'html', 'htm', 'css', 'xml', 'yaml', 'yml', 'sql' => TextFileParserDriverInterface::class,
                 'docx', 'doc' => WordFileParserDriverInterface::class,
