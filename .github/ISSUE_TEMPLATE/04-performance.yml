@@ -1,0 +1,212 @@
+name: ⚡ Performance Issue
+description: Report performance issues or suggest optimizations
+title: "[Performance]: "
+labels: ["performance", "needs-investigation"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping us identify performance issues! Performance is crucial for a great user experience.
+        
+        **Before submitting a performance issue:**
+        - Try to reproduce the issue multiple times
+        - Check if the issue persists with the latest version
+        - Consider if this might be related to your specific environment or configuration
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component/module is experiencing performance issues?
+      options:
+        - Super Magic
+        - Magic IM (Chat System)
+        - Magic Flow (Workflow System)
+        - Magic Service (Backend API)
+        - Magic Web (Frontend)
+        - Magic Gateway
+        - Database queries
+        - File operations
+        - Network/API calls
+        - AI model inference
+        - Memory usage
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: performance-type
+    attributes:
+      label: Performance Issue Type
+      description: What type of performance issue are you experiencing?
+      options:
+        - Slow response times
+        - High memory usage
+        - High CPU usage
+        - Database query performance
+        - Frontend rendering/loading
+        - API endpoint performance
+        - File upload/download speed
+        - AI model response time
+        - Workflow execution time
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: performance-description
+    attributes:
+      label: Performance Issue Description
+      description: Describe the performance issue you're experiencing
+      placeholder: |
+        - What specific operation or functionality is slow?
+        - When did you first notice this issue?
+        - How often does this occur?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-performance
+    attributes:
+      label: Expected Performance
+      description: What performance would you expect for this operation?
+      placeholder: |
+        - Expected response time
+        - Expected resource usage
+        - Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-performance
+    attributes:
+      label: Actual Performance
+      description: What is the actual performance you're experiencing?
+      placeholder: |
+        - Actual response time (e.g., 5-10 seconds)
+        - Actual resource usage (e.g., 80% CPU, 2GB RAM)
+        - Any error messages or timeouts
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the performance issue
+      placeholder: |
+        1. Go to '...'
+        2. Perform action '...'
+        3. Wait for response
+        4. Observe slow performance
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Please provide detailed environment information
+      placeholder: |
+        - OS: [e.g. macOS 14.0, Ubuntu 22.04, Windows 11]
+        - Hardware: [e.g. CPU, RAM, Storage type]
+        - Docker Version: [e.g. 24.0.7]
+        - Magic Version: [e.g. v1.0.0]
+        - Deployment: [e.g. Docker Compose, K8s, Local]
+        - Database: [e.g. MySQL 8.0, PostgreSQL 15]
+        - Model Provider: [e.g. OpenAI GPT-4, Claude, Local LLM]
+        - Network: [e.g. Local network, Cloud deployment]
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Performance Metrics
+      description: If you have any performance metrics, please share them
+      placeholder: |
+        - Response times (avg, min, max)
+        - Resource usage (CPU, Memory, Disk I/O)
+        - Request rates or throughput
+        - Error rates
+        - Any monitoring data or logs
+    validations:
+      required: false
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Please share relevant configuration that might affect performance
+      placeholder: |
+        - Relevant environment variables
+        - Database configuration
+        - Resource limits/allocations
+        - Model settings (if AI-related)
+        - Workflow complexity (if Flow-related)
+    validations:
+      required: false
+
+  - type: dropdown
+    id: data-size
+    attributes:
+      label: Data/Load Size
+      description: What is the approximate size of data or load when the issue occurs?
+      options:
+        - Small (< 1MB, < 100 records)
+        - Medium (1-100MB, 100-10K records)
+        - Large (100MB-1GB, 10K-1M records)
+        - Very Large (> 1GB, > 1M records)
+        - Not applicable
+        - Unknown
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this performance issue?
+      options:
+        - Low - Minor inconvenience
+        - Medium - Noticeable delay
+        - High - Significantly impacts usability
+        - Critical - Makes feature unusable
+    validations:
+      required: true
+
+  - type: textarea
+    id: workarounds
+    attributes:
+      label: Workarounds
+      description: Have you found any workarounds for this performance issue?
+      placeholder: Any temporary solutions or optimizations you've tried
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the performance issue
+      placeholder: |
+        - Screenshots of performance monitoring
+        - Logs showing slow operations
+        - Comparison with expected behavior
+        - Related issues or patterns
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for existing performance issues before creating this report
+          required: true
+        - label: I have provided detailed performance metrics and environment information
+          required: true
+        - label: I have tried to reproduce this issue multiple times
+          required: true 

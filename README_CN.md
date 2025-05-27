@@ -193,7 +193,7 @@ cp config/.env_super_magic.example .env_super_magic
 
 ## 安全漏洞
 
-如果您发现 Magic 中存在安全漏洞，请发送电子邮件至 Magic 官方团队，电子邮件地址为 dev@dtyq.com ，所有安全漏洞都会被及时的解决。
+如果您发现 Magic 中存在安全漏洞，请发送电子邮件至 Magic 官方团队，电子邮件地址为 [team@dtyq.com](mailto:team@dtyq.com) ，所有安全漏洞都会被及时的解决。
 
 ## 📄 许可证
 

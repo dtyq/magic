@@ -1,0 +1,166 @@
+name: 📚 Documentation
+description: Report documentation issues or suggest improvements
+title: "[Docs]: "
+labels: ["documentation", "needs-review"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Magic's documentation! Clear documentation is crucial for project success.
+        
+        **Before submitting a documentation issue:**
+        - Check if the documentation issue has already been reported
+        - Browse our current [documentation](https://docs.letsmagic.cn/en)
+        - Consider if your suggestion would help other users
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation issue is this?
+      options:
+        - Missing documentation
+        - Incorrect/outdated information
+        - Unclear explanation
+        - API documentation
+        - Tutorial/guide improvement
+        - Code examples
+        - Installation/setup guide
+        - Troubleshooting guide
+        - Translation issue
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component/module does this documentation relate to?
+      options:
+        - Super Magic
+        - Magic IM (Chat System)
+        - Magic Flow (Workflow System)
+        - Magic Service (Backend API)
+        - Magic Web (Frontend)
+        - Magic Gateway
+        - Agentlang Framework
+        - Installation/Deployment
+        - Getting Started
+        - API Reference
+        - Developer Guide
+        - General/Overview
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: doc-url
+    attributes:
+      label: Documentation URL
+      description: If applicable, provide the URL of the documentation page
+      placeholder: https://docs.letsmagic.cn/en/...
+    validations:
+      required: false
+
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: Issue Description
+      description: Describe the documentation issue or improvement needed
+      placeholder: |
+        - What is missing, incorrect, or unclear?
+        - What specific information should be added or corrected?
+        - How does this affect user understanding?
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-content
+    attributes:
+      label: Current Content (if applicable)
+      description: Quote the current documentation content that needs improvement
+      placeholder: |
+        ```
+        Current documentation content...
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggested-content
+    attributes:
+      label: Suggested Content
+      description: Provide your suggested content or improvements
+      placeholder: |
+        Your suggested documentation content or improvements...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: target-audience
+    attributes:
+      label: Target Audience
+      description: Who is the primary audience for this documentation?
+      options:
+        - Beginners/New users
+        - Intermediate users
+        - Advanced users
+        - Developers/Integrators
+        - System administrators
+        - All users
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this documentation improvement?
+      options:
+        - Low - Minor improvement
+        - Medium - Helpful addition
+        - High - Important for user experience
+        - Critical - Blocking user success
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-impact
+    attributes:
+      label: User Impact
+      description: How would this documentation improvement help users?
+      placeholder: |
+        - What problems would this solve for users?
+        - What user scenarios would benefit?
+        - How would this improve the overall user experience?
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or examples
+      placeholder: |
+        - Screenshots of confusing UI
+        - Examples of what other projects do well
+        - Links to related discussions
+        - Technical details that should be documented
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for existing documentation issues before creating this one
+          required: true
+        - label: I have provided specific details about the documentation improvement needed
+          required: true
+        - label: I understand that documentation improvements help the entire community
+          required: true 
