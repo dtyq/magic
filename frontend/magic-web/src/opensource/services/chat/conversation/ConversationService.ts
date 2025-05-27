@@ -366,38 +366,38 @@ class ConversationService {
 	 * @param calcSidebarConversations 是否计算侧边栏会话
 	 */
 	loadConversationsFromDB(calcSidebarConversations = true) {
-		if (!this.organizationCode) return
-		return ConversationDbServices.loadNormalConversationsFromDB(this.organizationCode).then(
-			(conversations) => {
-				console.log("loadConversationsFromDB ====> ", conversations)
+		const userId = userStore.user.userInfo?.user_id
+		if (!this.organizationCode || !userId) return
+		return ConversationDbServices.loadNormalConversationsFromDB(
+			this.organizationCode,
+			userId,
+		).then((conversations) => {
+			const conversationList = conversations.map((item) => new Conversation(item))
 
-				const conversationList = conversations.map((item) => new Conversation(item))
+			conversationStore.setConversations(conversationList)
 
-				conversationStore.setConversations(conversationList)
+			// 如果当前会话为空,或者不是当前组织的会话，则设置当前会话
+			if (
+				!conversationStore.currentConversation ||
+				conversationStore.currentConversation.user_organization_code !==
+					this.organizationCode
+			) {
+				const lastConversation = conversationStore.getConversation(
+					LastConversationService.getLastConversation(
+						this.magicId,
+						this.organizationCode,
+					) ?? conversationList?.[0]?.id,
+				)
+				this.switchConversation(lastConversation)
+			}
 
-				// 如果当前会话为空,或者不是当前组织的会话，则设置当前会话
-				if (
-					!conversationStore.currentConversation ||
-					conversationStore.currentConversation.user_organization_code !==
-						this.organizationCode
-				) {
-					const lastConversation = conversationStore.getConversation(
-						LastConversationService.getLastConversation(
-							this.magicId,
-							this.organizationCode,
-						) ?? conversationList?.[0]?.id,
-					)
-					this.switchConversation(lastConversation)
-				}
+			if (calcSidebarConversations) {
+				this.calcSidebarConversations()
+			}
 
-				if (calcSidebarConversations) {
-					this.calcSidebarConversations()
-				}
-
-				// 刷新会话数据
-				this.refreshConversationData(conversationList)
-			},
-		)
+			// 刷新会话数据
+			this.refreshConversationData(conversationList)
+		})
 	}
 
 	/**

@@ -1,5 +1,7 @@
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
+import { useTableStyles } from "./styles"
+import { useTableI18n } from "./useTableI18n"
 
 // 超长文本字符阈值
 const LONG_TEXT_THRESHOLD = 50
@@ -7,27 +9,16 @@ const LONG_TEXT_THRESHOLD = 50
 // 判断文本是否超长
 const isLongText = (text: string): boolean => {
 	if (!text) return false
-	// 如果没有空格且长度超过阈值，或字符串总长度超过阈值的两倍，则视为超长文本
-	const hasNoSpace = !text.includes(" ")
-	return (
-		(hasNoSpace && text.length > LONG_TEXT_THRESHOLD) || text.length > LONG_TEXT_THRESHOLD * 2
-	)
+	// 如果文本长度超过阈值，则视为超长文本
+	return text.length > LONG_TEXT_THRESHOLD
 }
 
 // 超长文本包装器组件
 const LongTextWrapper: React.FC<{ text: string }> = ({ text }) => {
+	const i18n = useTableI18n()
+	const { styles, cx } = useTableStyles()
 	const [expanded, setExpanded] = useState(false)
 	const textRef = useRef<HTMLDivElement>(null)
-
-	useEffect(() => {
-		// 检查文本是否真的需要省略
-		if (textRef.current) {
-			const { scrollWidth, clientWidth } = textRef.current
-			if (scrollWidth <= clientWidth) {
-				setExpanded(true) // 如果不需要省略，则直接展开
-			}
-		}
-	}, [])
 
 	const toggleExpand = () => {
 		setExpanded(!expanded)
@@ -36,9 +27,9 @@ const LongTextWrapper: React.FC<{ text: string }> = ({ text }) => {
 	return (
 		<div
 			ref={textRef}
-			className={`long-text ${expanded ? "expanded" : ""}`}
+			className={cx(styles.longText, { expanded })}
 			onClick={toggleExpand}
-			title={expanded ? "" : "点击展开完整内容"}
+			title={expanded ? "" : i18n.clickToExpand}
 		>
 			{text}
 		</div>

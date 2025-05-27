@@ -1331,6 +1331,14 @@
 	"workspaces": {
 		"alwayUsedApplication": "常用应用",
 		"collapse": "收起",
-		"noCollapse": "展开"
+		"noCollapse": "展开余下"
+	},
+	"markdownTable": {
+		"showMore": "详情",
+		"rowDetails": "行详细信息",
+		"clickToExpand": "点击展开完整内容",
+		"showAllColumns": "显示全部",
+		"hideAllColumns": "隐藏",
+		"defaultColumn": "列"
 	}
 }

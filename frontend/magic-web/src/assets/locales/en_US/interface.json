@@ -1332,5 +1332,13 @@
 		"alwayUsedApplication": "Common applications",
 		"collapse": "close",
 		"noCollapse": "Expand"
+	},
+	"markdownTable": {
+		"showMore": "Detail",
+		"rowDetails": "Row Details",
+		"clickToExpand": "Click to expand full content",
+		"showAllColumns": "Show All",
+		"hideAllColumns": "Hide",
+		"defaultColumn": "Column"
 	}
 }

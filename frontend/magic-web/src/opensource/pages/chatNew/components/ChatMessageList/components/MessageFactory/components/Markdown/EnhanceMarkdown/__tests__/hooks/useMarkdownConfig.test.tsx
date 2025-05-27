@@ -23,11 +23,11 @@ vi.mock("../../components/Sup", () => ({
 	default: vi.fn().mockReturnValue(null),
 }))
 
-vi.mock("../../components/TableCell", () => ({
+vi.mock("../../components/Table/TableCell", () => ({
 	default: vi.fn().mockReturnValue(null),
 }))
 
-vi.mock("../../components/TableWrapper", () => ({
+vi.mock("../../components/Table/TableWrapper", () => ({
 	default: vi.fn().mockReturnValue(null),
 }))
 

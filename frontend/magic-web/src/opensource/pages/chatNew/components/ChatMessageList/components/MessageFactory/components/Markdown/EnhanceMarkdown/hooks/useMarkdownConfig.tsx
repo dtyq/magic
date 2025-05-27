@@ -10,8 +10,8 @@ import { A as a } from "../components/A"
 import Code from "../components/Code"
 import Pre from "../components/Pre"
 import Sup from "../components/Sup"
-import TableCell from "../components/TableCell"
-import TableWrapper from "../components/TableWrapper"
+import TableCell from "../components/Table/TableCell"
+import TableWrapper from "../components/Table/TableWrapper"
 import type { MarkdownProps } from "../types"
 
 /**
