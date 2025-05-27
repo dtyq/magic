@@ -803,7 +803,7 @@ class TaskAppService extends AbstractAppService
             }
             if (in_array($taskStatus, [TaskStatus::FINISHED, TaskStatus::ERROR, TaskStatus::Suspended])) {
                 $this->logger->info(sprintf('任务完成，任务信息: %s', json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE)));
-                AsyncEventUtil::dispatch(new RunTaskAfterEvent($taskContext->getCurrentOrganizationCode(), $taskContext->getCurrentUserId(), $task->getTopicId(), $task->getId(), $status));
+                AsyncEventUtil::dispatch(new RunTaskAfterEvent($taskContext->getCurrentOrganizationCode(), $taskContext->getCurrentUserId(), $task->getTopicId(), $task->getId(), $status, $messageDTO->getTokenUsageDetails()));
                 return false;
             }
             return true;

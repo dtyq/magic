@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
+
 class RunTaskAfterEvent
 {
     public function __construct(
@@ -15,6 +17,7 @@ class RunTaskAfterEvent
         private int $topicId,
         private int $taskId,
         private string $status,
+        private ?TokenUsageDetails $tokenUsageDetails,
     ) {
     }
 
@@ -41,5 +44,10 @@ class RunTaskAfterEvent
     public function getStatus(): string
     {
         return $this->status;
+    }
+
+    public function getTokenUsageDetails(): ?TokenUsageDetails
+    {
+        return $this->tokenUsageDetails;
     }
 }
