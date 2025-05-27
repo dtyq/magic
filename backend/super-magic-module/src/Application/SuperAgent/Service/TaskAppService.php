@@ -227,51 +227,6 @@ class TaskAppService extends AbstractAppService
             return;
         }
 
-        // 检查环境变量，如果是开源版本则跳过白名单和任务数量限制检查
-        $magicEdition = env('MAGIC_EDITION', 'commercial');
-        if ($magicEdition === 'open-source') {
-            $this->logger->info('开源版本，跳过白名单和任务数量限制检查');
-            return;
-        }
-
-        $userId = $dataIsolation->getCurrentUserId();
-        $this->logger->info(sprintf(
-            '检查用户userId: %s',
-            $userId
-        ));
-
-        // 检查用户是否在白名单中
-        $userPhoneNumber = $this->userDomainService->getUserPhoneByUserId($userId);
-        $this->logger->info(sprintf(
-            '检查用户手机号: %s',
-            $userPhoneNumber
-        ));
-
-        $isOrganizationAdmin = false;
-        $isInviteUser = false;
-        $isSuperMagicBoardManager = false;
-        $isSuperMagicBoardOperator = false;
-
-        // 检查是否是组织拥有者或者管理员
-        if (class_exists(PermissionChecker::class)) {
-            $permissionChecker = make(PermissionChecker::class);
-            $isOrganizationAdmin = $permissionChecker->isOrganizationAdmin($dataIsolation->getCurrentOrganizationCode(), $userPhoneNumber);
-
-            // 检查是否是邀请用户
-            $isInviteUser = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_INVITE_USER);
-
-            // 检查是否是超级麦吉看板管理人员
-            $isSuperMagicBoardManager = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_MAGIC_BOARD_ADMIN);
-
-            // 检查是否是超级麦吉看板运营人员
-            $isSuperMagicBoardOperator = PermissionChecker::mobileHasPermission($userPhoneNumber, SuperPermissionEnum::SUPER_MAGIC_BOARD_OPERATOR);
-        }
-
-        if (! $isOrganizationAdmin && ! $isInviteUser && ! $isSuperMagicBoardManager && ! $isSuperMagicBoardOperator) {
-            // 根据header 判断返回中文还是英文
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, '十分抱歉，目前您暂未获得内测资格。还请您密切留意我们发布的邀请内测相关信息，以便及时获取内测资格。');
-        }
-
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
         AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound));
         $this->logger->info(sprintf('投递任务开始事件，话题id：%s, round: %d', $topicEntity->getId(), $taskRound));
