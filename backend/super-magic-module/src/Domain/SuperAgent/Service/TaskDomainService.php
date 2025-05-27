@@ -655,7 +655,7 @@ class TaskDomainService
 
     /**
      * 判断文件是否为隐藏文件
-     * 
+     *
      * @param string $fileKey 文件路径
      * @return bool 是否为隐藏文件：true-是，false-否
      */
@@ -663,17 +663,17 @@ class TaskDomainService
     {
         // 移除开头的斜杠，统一处理
         $fileKey = ltrim($fileKey, '/');
-        
+
         // 分割路径为各个部分
         $pathParts = explode('/', $fileKey);
-        
+
         // 检查每个路径部分是否以 . 开头
         foreach ($pathParts as $part) {
             if (!empty($part) && str_starts_with($part, '.')) {
                 return true; // 是隐藏文件
             }
         }
-        
+
         return false; // 不是隐藏文件
     }
 

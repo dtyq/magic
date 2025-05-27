@@ -221,7 +221,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
     {
         try {
             // Query task information through TaskDomainService to get sandbox_id
-            $task = $this->taskDomainService->getById($taskId);
+            $task = $this->taskDomainService->getTaskById($taskId);
             return $task?->getSandboxId();
         } catch (Throwable $e) {
             $this->logger->warning('Failed to get sandbox ID', [
@@ -231,4 +231,4 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
             return null;
         }
     }
-} 
+}

@@ -170,4 +170,4 @@ class TokenUsageRecordRepository implements TokenUsageRecordRepositoryInterface
 
         return $entity;
     }
-} 
+}

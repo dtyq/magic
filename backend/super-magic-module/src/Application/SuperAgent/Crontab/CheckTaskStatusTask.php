@@ -108,7 +108,7 @@ readonly class CheckTaskStatusTask
                 $this->topicDomainService->updateTopicStatus($topic->getId(), $taskId, TaskStatus::ERROR);
 
                 // 触发完成事件
-                AsyncEventUtil::dispatch(new RunTaskAfterEvent($topic->getUserOrganizationCode(), $topic->getUserId(), $topic->getId(), $taskId, TaskStatus::ERROR->value));
+                AsyncEventUtil::dispatch(new RunTaskAfterEvent($topic->getUserOrganizationCode(), $topic->getUserId(), $topic->getId(), $taskId, TaskStatus::ERROR->value, null));
                 ++$updatedToErrorCount;
             }
 

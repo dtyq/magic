@@ -60,4 +60,4 @@ class TokenUsageRecordModel extends AbstractModel
         'reasoning_tokens' => 'integer',
         'usage_details' => 'json',
     ];
-} 
+}

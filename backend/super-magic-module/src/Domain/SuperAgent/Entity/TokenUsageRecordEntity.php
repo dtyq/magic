@@ -315,4 +315,4 @@ class TokenUsageRecordEntity extends AbstractEntity
             'usage_details' => $this->usageDetails,
         ];
     }
-} 
+}

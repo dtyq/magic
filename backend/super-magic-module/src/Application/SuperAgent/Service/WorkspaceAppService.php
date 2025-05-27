@@ -800,66 +800,6 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 更新话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 更新结果
-     * @throws BusinessException 如果更新失败则抛出异常
-     */
-    private function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 更新话题名称
-        $result = $this->workspaceDomainService->updateTopicName(
-            $dataIsolation,
-            (int) $requestDTO->getId(), // 传递主键ID
-            $requestDTO->getTopicName()
-        );
-
-        if (! $result) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
-        }
-
-        return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
-    }
-
-    /**
-     * 创建新话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 创建结果
-     * @throws BusinessException|Throwable 如果创建失败则抛出异常
-     */
-    private function createNewTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 创建新话题，使用事务确保原子性
-        Db::beginTransaction();
-        try {
-            // 1. 初始化 chat 的会话和话题
-            [$chatConversationId, $chatConversationTopicId] = $this->initMagicChatConversation($dataIsolation);
-
-            // 2. 创建话题
-            $topicEntity = $this->workspaceDomainService->createTopic(
-                $dataIsolation,
-                (int) $requestDTO->getWorkspaceId(),
-                $chatConversationTopicId, // 会话的话题ID
-                $requestDTO->getTopicName()
-            );
-
-            // 提交事务
-            Db::commit();
-
-            // 返回结果
-            return SaveTopicResultDTO::fromId((int) $topicEntity->getId());
-        } catch (Throwable $e) {
-            // 回滚事务
-            Db::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
      * 初始化用户工作区.
      *
      * @param DataIsolation $dataIsolation 数据隔离对象

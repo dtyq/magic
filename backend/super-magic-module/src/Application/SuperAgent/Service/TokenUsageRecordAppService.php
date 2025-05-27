@@ -40,10 +40,10 @@ class TokenUsageRecordAppService
         try {
             // Create data isolation context based on organization code
             $dataIsolation = DataIsolation::create($entity->getOrganizationCode(), $entity->getUserId());
-            
+
             // Create the record through domain service
             $createdEntity = $this->tokenUsageRecordDomainService->create($dataIsolation, $entity);
-            
+
             $this->logger->info('Token usage record created successfully', [
                 'id' => $createdEntity->getId(),
                 'task_id' => $createdEntity->getTaskId(),
@@ -51,7 +51,7 @@ class TokenUsageRecordAppService
                 'total_tokens' => $createdEntity->getTotalTokens(),
                 'usage_type' => $createdEntity->getUsageType(),
             ]);
-            
+
             return $createdEntity;
         } catch (Throwable $e) {
             $this->logger->error('Failed to create token usage record', [
@@ -60,7 +60,7 @@ class TokenUsageRecordAppService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             throw $e;
         }
     }
@@ -99,7 +99,7 @@ class TokenUsageRecordAppService
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return null;
         }
     }
@@ -124,7 +124,7 @@ class TokenUsageRecordAppService
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return [];
         }
     }
@@ -149,7 +149,7 @@ class TokenUsageRecordAppService
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return [];
         }
     }
@@ -186,7 +186,7 @@ class TokenUsageRecordAppService
                 'end_date' => $endDate,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return [];
         }
     }
@@ -211,7 +211,7 @@ class TokenUsageRecordAppService
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return [
                 'total_input_tokens' => 0,
                 'total_output_tokens' => 0,
@@ -223,4 +223,4 @@ class TokenUsageRecordAppService
             ];
         }
     }
-} 
+}

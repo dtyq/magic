@@ -112,14 +112,14 @@ class TokenUsageRecordDomainService
     public function calculateTaskTokens(DataIsolation $dataIsolation, string $taskId): array
     {
         $records = $this->getByTaskId($dataIsolation, $taskId);
-        
+
         $totalInputTokens = 0;
         $totalOutputTokens = 0;
         $totalTokens = 0;
         $totalCachedTokens = 0;
         $totalCacheWriteTokens = 0;
         $totalReasoningTokens = 0;
-        
+
         foreach ($records as $record) {
             $totalInputTokens += $record->getTotalInputTokens();
             $totalOutputTokens += $record->getTotalOutputTokens();
@@ -128,7 +128,7 @@ class TokenUsageRecordDomainService
             $totalCacheWriteTokens += $record->getCacheWriteTokens();
             $totalReasoningTokens += $record->getReasoningTokens();
         }
-        
+
         return [
             'total_input_tokens' => $totalInputTokens,
             'total_output_tokens' => $totalOutputTokens,
@@ -226,4 +226,4 @@ class TokenUsageRecordDomainService
             throw new \InvalidArgumentException('Total tokens cannot be negative');
         }
     }
-} 
+}

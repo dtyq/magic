@@ -87,4 +87,4 @@ interface TokenUsageRecordRepositoryInterface
      * @return null|TokenUsageRecordEntity Existing record or null if not found
      */
     public function findByUniqueKey(int $topicId, string $taskId, ?string $sandboxId, ?string $modelId): ?TokenUsageRecordEntity;
-} 
+}
