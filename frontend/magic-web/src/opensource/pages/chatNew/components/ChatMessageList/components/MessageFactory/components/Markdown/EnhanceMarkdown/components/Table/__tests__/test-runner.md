@@ -1,121 +1,121 @@
-# Table 组件测试运行指南
+# Table Component Test Runner Guide
 
-## 📋 测试命令
+## 📋 Test Commands
 
-### 运行单个测试文件
+### Run Individual Test Files
 
 ```bash
-# 测试国际化 Hook
+# Test internationalization Hook
 npm test -- useTableI18n.test.tsx
 
-# 测试表格单元格组件
+# Test table cell component
 npm test -- TableCell.test.tsx
 
-# 测试行详细抽屉组件
+# Test row detail drawer component
 npm test -- RowDetailDrawer.test.tsx
 
-# 测试表格包装器组件
+# Test table wrapper component
 npm test -- TableWrapper.test.tsx
 
-# 测试样式 Hook
+# Test style Hook
 npm test -- styles.test.tsx
 
-# 测试集成测试
+# Test integration tests
 npm test -- index.test.tsx
 ```
 
-### 运行所有 Table 组件测试
+### Run All Table Component Tests
 
 ```bash
-# 运行所有包含 "Table" 的测试
+# Run all tests containing "Table"
 npm test -- Table
 
-# 或者运行整个测试目录
+# Or run entire test directory
 npm test -- __tests__
 ```
 
-### 生成覆盖率报告
+### Generate Coverage Report
 
 ```bash
-# 生成测试覆盖率报告
+# Generate test coverage report
 npm test -- --coverage Table
 ```
 
-### 监听模式运行测试
+### Run Tests in Watch Mode
 
 ```bash
-# 在监听模式下运行测试（开发时使用）
+# Run tests in watch mode (for development)
 npm test -- --watch Table
 ```
 
-## 🎯 测试验证检查清单
+## 🎯 Test Verification Checklist
 
-在提交代码前，请确保以下测试都通过：
+Before submitting code, ensure all the following tests pass:
 
-- [ ] ✅ useTableI18n Hook 测试 (3个测试用例)
-- [ ] ✅ TableCell 组件测试 (9个测试用例)
-- [ ] ✅ RowDetailDrawer 组件测试 (9个测试用例)
-- [ ] ✅ TableWrapper 组件测试 (13个测试用例)
-- [ ] ✅ useTableStyles Hook 测试 (5个测试用例)
-- [ ] ✅ 集成测试 (10个测试用例)
+- [ ] ✅ useTableI18n Hook tests (3 test cases)
+- [ ] ✅ TableCell component tests (9 test cases)
+- [ ] ✅ RowDetailDrawer component tests (9 test cases)
+- [ ] ✅ TableWrapper component tests (13 test cases)
+- [ ] ✅ useTableStyles Hook tests (5 test cases)
+- [ ] ✅ Integration tests (10 test cases)
 
-**总计：49个测试用例**
+**Total: 49 test cases**
 
-## 🐛 常见问题解决
+## 🐛 Common Issue Solutions
 
-### 1. 测试文件找不到
+### 1. Test File Not Found
 ```bash
 Error: No test suite found in file
 ```
-**解决方案**: 确保测试文件包含有效的测试内容，检查文件是否为空。
+**Solution**: Ensure test file contains valid test content, check if file is empty.
 
-### 2. Mock 依赖问题
+### 2. Mock Dependency Issues
 ```bash
 TypeError: Cannot read property of undefined
 ```
-**解决方案**: 检查 vi.mock() 的配置是否正确，确保所有外部依赖都被正确模拟。
+**Solution**: Check if vi.mock() configuration is correct, ensure all external dependencies are properly mocked.
 
-### 3. 样式类找不到
+### 3. Style Class Not Found
 ```bash
 Expected element to have class 'xxx' but it didn't
 ```
-**解决方案**: 检查样式 Mock 配置，确保返回正确的类名。
+**Solution**: Check style Mock configuration, ensure correct class names are returned.
 
-### 4. TypeScript 类型错误
+### 4. TypeScript Type Errors
 ```bash
 Type 'xxx' is not assignable to type 'yyy'
 ```
-**解决方案**: 检查 TypeScript 配置和类型定义，确保测试代码类型正确。
+**Solution**: Check TypeScript configuration and type definitions, ensure test code types are correct.
 
-## 🏃‍♂️ 快速开始
+## 🏃‍♂️ Quick Start
 
-1. **运行基础测试**: `npm test -- useTableI18n.test.tsx`
-2. **确认测试环境**: 检查是否有测试通过
-3. **运行全部测试**: `npm test -- Table`
-4. **查看覆盖率**: `npm test -- --coverage Table`
+1. **Run Basic Tests**: `npm test -- useTableI18n.test.tsx`
+2. **Verify Test Environment**: Check if any tests pass
+3. **Run All Tests**: `npm test -- Table`
+4. **View Coverage**: `npm test -- --coverage Table`
 
-## 📈 性能指标
+## 📈 Performance Metrics
 
-- **测试执行时间**: < 2秒
-- **代码覆盖率目标**: > 90%
-- **测试文件数量**: 6个
-- **测试用例总数**: 49个
+- **Test Execution Time**: < 2 seconds
+- **Code Coverage Target**: > 90%
+- **Number of Test Files**: 6
+- **Total Test Cases**: 49
 
-## 🔍 调试测试
+## 🔍 Debugging Tests
 
-如果测试失败，可以使用以下方法调试：
+If tests fail, you can use the following methods to debug:
 
 ```bash
-# 增加详细输出
+# Increase verbose output
 npm test -- --reporter=verbose Table
 
-# 只运行失败的测试
+# Only run failed tests
 npm test -- --run --reporter=verbose Table
 
-# 使用调试模式
+# Use debug mode
 npm test -- --inspect-brk Table
 ```
 
 ---
 
-**注意**: 请确保在提交代码前运行完整的测试套件，保证所有功能正常工作。 
+**Note**: Please ensure you run the complete test suite before submitting code to guarantee all functionality works properly. 

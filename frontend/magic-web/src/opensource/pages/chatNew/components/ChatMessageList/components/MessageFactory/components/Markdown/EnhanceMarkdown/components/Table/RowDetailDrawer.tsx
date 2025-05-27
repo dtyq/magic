@@ -19,7 +19,7 @@ const RowDetailDrawer: React.FC<RowDetailDrawerProps> = ({
 	onClose,
 	rowData,
 	headers,
-	title = "详细信息",
+	title = "Details",
 }) => {
 	const { styles } = useTableStyles()
 	return (

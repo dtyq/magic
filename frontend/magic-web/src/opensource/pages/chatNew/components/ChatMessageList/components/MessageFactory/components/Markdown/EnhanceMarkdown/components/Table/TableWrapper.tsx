@@ -12,10 +12,10 @@ import RowDetailDrawer from "./RowDetailDrawer"
 import { useTableStyles } from "./styles"
 import { useTableI18n } from "./useTableI18n"
 
-// 表格列数限制配置
-const DEFAULT_MAX_COLUMNS = 5 // 默认最大列数
+// Table column limit configuration
+const DEFAULT_MAX_COLUMNS = 5 // Default maximum columns
 
-// 提取表格数据的工具函数
+// Utility function to extract table data
 const extractTableData = (children: React.ReactNode, i18n: ReturnType<typeof useTableI18n>) => {
 	const rows: React.ReactNode[][] = []
 	let headers: string[] = []
@@ -23,14 +23,14 @@ const extractTableData = (children: React.ReactNode, i18n: ReturnType<typeof use
 	const processChildren = (child: React.ReactNode) => {
 		if (!isValidElement(child)) return
 
-		// 处理React Fragment
+		// Handle React Fragment
 		if (child.type === React.Fragment || typeof child.type === "symbol") {
 			React.Children.forEach(child.props.children, processChildren)
 			return
 		}
 
 		if (child.type === "thead") {
-			// 处理表头
+			// Handle table header
 			const headRows = React.Children.toArray(child.props.children)
 			headRows.forEach((headRow) => {
 				if (isValidElement(headRow) && headRow.type === "tr") {
@@ -47,7 +47,7 @@ const extractTableData = (children: React.ReactNode, i18n: ReturnType<typeof use
 				}
 			})
 		} else if (child.type === "tbody") {
-			// 处理表体
+			// Handle table body
 			const bodyRows = React.Children.toArray(child.props.children)
 			bodyRows.forEach((bodyRow) => {
 				if (isValidElement(bodyRow) && bodyRow.type === "tr") {
@@ -68,7 +68,7 @@ const extractTableData = (children: React.ReactNode, i18n: ReturnType<typeof use
 	return { headers, rows }
 }
 
-// 自定义Hook：动态计算可见列数
+// Custom Hook: Dynamic calculation of visible columns
 const useDynamicColumnCount = (
 	headers: string[],
 	containerRef: React.RefObject<HTMLDivElement>,
@@ -85,12 +85,12 @@ const useDynamicColumnCount = (
 			return DEFAULT_MAX_COLUMNS
 		}
 
-		// 如果列数较少，直接显示所有列
+		// If there are fewer columns, display all columns directly
 		if (headers.length <= DEFAULT_MAX_COLUMNS) {
 			return headers.length
 		}
 
-		// 确保不少于最小列数，但要为"更多"列留出至少1列的空间
+		// Ensure no less than minimum columns, but reserve space for at least 1 "more" column
 		const finalMaxColumns = DEFAULT_MAX_COLUMNS
 
 		return finalMaxColumns
@@ -102,10 +102,10 @@ const useDynamicColumnCount = (
 			setMaxVisibleColumns(newMaxColumns)
 		}
 
-		// 初始计算
+		// Initial calculation
 		updateColumnCount()
 
-		// 监听容器大小变化
+		// Listen for container size changes
 		const resizeObserver = new ResizeObserver(() => {
 			updateColumnCount()
 		})
@@ -114,9 +114,9 @@ const useDynamicColumnCount = (
 			resizeObserver.observe(containerRef.current)
 		}
 
-		// 监听窗口大小变化（作为备用）
+		// Listen for window size changes (as backup)
 		const handleResize = () => {
-			setTimeout(updateColumnCount, 100) // 延迟执行，确保DOM更新完成
+			setTimeout(updateColumnCount, 100) // Delayed execution to ensure DOM update completion
 		}
 
 		window.addEventListener("resize", handleResize)
@@ -130,7 +130,7 @@ const useDynamicColumnCount = (
 	return maxVisibleColumns
 }
 
-// 修改表格以添加"显示更多"列
+// Modify table to add "Show More" column
 const enhanceTableWithMoreColumn = (
 	children: React.ReactNode,
 	onShowMore: (rowIndex: number) => void,
@@ -146,7 +146,7 @@ const enhanceTableWithMoreColumn = (
 	return React.Children.map(children, (child) => {
 		if (!isValidElement(child)) return child
 
-		// 处理React Fragment
+		// Handle React Fragment
 		if (child.type === React.Fragment || typeof child.type === "symbol") {
 			return cloneElement(
 				child,
@@ -167,13 +167,13 @@ const enhanceTableWithMoreColumn = (
 		}
 
 		if (child.type === "thead") {
-			// 修改表头，添加"显示更多"列
+			// Modify table header to add "Show More" column
 			const headRows = React.Children.map(child.props.children, (headRow) => {
 				if (!isValidElement(headRow) || headRow.type !== "tr") return headRow
 
 				const cells = React.Children.toArray((headRow as any).props.children)
 
-				// 当显示所有列时，显示所有原始列
+				// When showing all columns, display all original columns
 				const visibleCells = showAllColumns ? cells : cells.slice(0, maxVisibleColumns)
 
 				if (cells.length > maxVisibleColumns) {
@@ -201,13 +201,13 @@ const enhanceTableWithMoreColumn = (
 		}
 
 		if (child.type === "tbody") {
-			// 修改表体，添加"显示更多"按钮
+			// Modify table body to add "Show More" button
 			const bodyRows = React.Children.map(child.props.children, (bodyRow, rowIndex) => {
 				if (!isValidElement(bodyRow) || bodyRow.type !== "tr") return bodyRow
 
 				const cells = React.Children.toArray((bodyRow as any).props.children)
 
-				// 当显示所有列时，显示所有原始列
+				// When showing all columns, display all original columns
 				const visibleCells = showAllColumns ? cells : cells.slice(0, maxVisibleColumns)
 
 				if (cells.length > maxVisibleColumns) {
@@ -235,7 +235,7 @@ const enhanceTableWithMoreColumn = (
 	})
 }
 
-// 自定义表格组件，添加水平滚动容器和动态列数限制功能
+// Custom table component with horizontal scroll container and dynamic column limit functionality
 const TableWrapper = ({ node, ...props }: any) => {
 	const i18n = useTableI18n()
 	const { styles, cx } = useTableStyles()
@@ -249,10 +249,10 @@ const TableWrapper = ({ node, ...props }: any) => {
 		[props.children, i18n],
 	)
 
-	// 使用动态列数计算Hook
+	// Use dynamic column count calculation Hook
 	const maxVisibleColumns = useDynamicColumnCount(headers, containerRef)
 
-	// 检查是否需要显示"更多"列（当总列数超过最大可见列数时就需要）
+	// Check if "More" column is needed (when total columns exceed maximum visible columns)
 	const needsMoreColumn = headers.length > maxVisibleColumns
 
 	const handleShowMore = (rowIndex: number) => {

@@ -22,7 +22,7 @@ beforeEach(() => {
 	Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
 		writable: true,
 		configurable: true,
-		value: 800, // 默认宽度，足够显示6列
+		value: 800, // Default width, enough to display 6 columns
 	})
 })
 
@@ -31,12 +31,12 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string) => {
 			const translations: Record<string, string> = {
-				"markdownTable.showMore": "显示更多",
-				"markdownTable.rowDetails": "行详细信息",
-				"markdownTable.clickToExpand": "点击展开完整内容",
-				"markdownTable.showAllColumns": "显示所有列",
-				"markdownTable.hideAllColumns": "隐藏",
-				"markdownTable.defaultColumn": "列",
+				"markdownTable.showMore": "Show More",
+				"markdownTable.rowDetails": "Row Details",
+				"markdownTable.clickToExpand": "Click to expand full content",
+				"markdownTable.showAllColumns": "Show All Columns",
+				"markdownTable.hideAllColumns": "Hide",
+				"markdownTable.defaultColumn": "Column",
 			}
 			return translations[key] || key
 		},
@@ -50,7 +50,7 @@ vi.mock("antd", () => ({
 			<div data-testid="drawer">
 				<div data-testid="drawer-title">{title}</div>
 				<button data-testid="drawer-close" onClick={onClose}>
-					关闭
+					Close
 				</button>
 				{children}
 			</div>
@@ -90,8 +90,8 @@ vi.mock("antd-style", () => ({
 	}),
 }))
 
-describe("Table 模块集成测试", () => {
-	it("应该正确导出所有组件和hooks", () => {
+describe("Table Module Integration Tests", () => {
+	it("should correctly export all components and hooks", () => {
 		expect(TableWrapper).toBeDefined()
 		expect(TableCell).toBeDefined()
 		expect(RowDetailDrawer).toBeDefined()
@@ -99,21 +99,21 @@ describe("Table 模块集成测试", () => {
 		expect(useTableStyles).toBeDefined()
 	})
 
-	it("TableWrapper 和 TableCell 应该协同工作", () => {
+	it("TableWrapper and TableCell should work together", () => {
 		const tableContent = (
 			<>
 				<thead>
 					<tr>
-						<TableCell isHeader>标题1</TableCell>
-						<TableCell isHeader>标题2</TableCell>
-						<TableCell isHeader>标题3</TableCell>
+						<TableCell isHeader>Title 1</TableCell>
+						<TableCell isHeader>Title 2</TableCell>
+						<TableCell isHeader>Title 3</TableCell>
 					</tr>
 				</thead>
 				<tbody>
 					<tr>
-						<TableCell>数据1</TableCell>
-						<TableCell>数据2</TableCell>
-						<TableCell>数据3</TableCell>
+						<TableCell>Data 1</TableCell>
+						<TableCell>Data 2</TableCell>
+						<TableCell>Data 3</TableCell>
 					</tr>
 				</tbody>
 			</>
@@ -121,19 +121,19 @@ describe("Table 模块集成测试", () => {
 
 		render(<TableWrapper>{tableContent}</TableWrapper>)
 
-		expect(screen.getByText("标题1")).toBeDefined()
-		expect(screen.getByText("数据1")).toBeDefined()
+		expect(screen.getByText("Title 1")).toBeDefined()
+		expect(screen.getByText("Data 1")).toBeDefined()
 	})
 
-	it("完整的表格功能流程测试", () => {
-		// 创建一个有很多列的表格来测试完整流程
+	it("complete table functionality flow test", () => {
+		// Create a table with many columns to test complete flow
 		const manyColumnsTable = (
 			<>
 				<thead>
 					<tr>
 						{Array.from({ length: 8 }, (_, i) => (
 							<TableCell key={i} isHeader>
-								列{i + 1}
+								Column {i + 1}
 							</TableCell>
 						))}
 					</tr>
@@ -141,7 +141,7 @@ describe("Table 模块集成测试", () => {
 				<tbody>
 					<tr>
 						{Array.from({ length: 8 }, (_, i) => (
-							<TableCell key={i}>数据{i + 1}</TableCell>
+							<TableCell key={i}>Content {i + 1}</TableCell>
 						))}
 					</tr>
 				</tbody>
@@ -150,33 +150,33 @@ describe("Table 模块集成测试", () => {
 
 		render(<TableWrapper>{manyColumnsTable}</TableWrapper>)
 
-		// 验证只显示前5列
-		expect(screen.getByText("列1")).toBeDefined()
-		expect(screen.getByText("列5")).toBeDefined()
-		expect(screen.queryByText("列6")).toBeNull()
-		expect(screen.queryByText("列7")).toBeNull()
-		expect(screen.queryByText("列8")).toBeNull()
+		// Verify only first 5 columns are displayed
+		expect(screen.getByText("Column 1")).toBeDefined()
+		expect(screen.getByText("Column 5")).toBeDefined()
+		expect(screen.queryByText("Column 6")).toBeNull()
+		expect(screen.queryByText("Column 7")).toBeNull()
+		expect(screen.queryByText("Column 8")).toBeNull()
 
-		// 验证有"显示更多"按钮
-		expect(screen.getByText("显示更多")).toBeDefined() // 数据行
+		// Verify "Show More" button exists
+		expect(screen.getByText("Show More")).toBeDefined() // Data row
 
-		// 点击"显示更多"
-		fireEvent.click(screen.getByText("显示更多"))
+		// Click "Show More"
+		fireEvent.click(screen.getByText("Show More"))
 
-		// 验证抽屉打开并显示完整数据
+		// Verify drawer opens and displays complete data
 		expect(screen.getByTestId("drawer")).toBeDefined()
-		expect(screen.getByTestId("drawer-title").textContent).toBe("行详细信息")
+		expect(screen.getByTestId("drawer-title").textContent).toBe("Row Details")
 
-		// 验证抽屉中显示所有数据
+		// Verify drawer displays all data
 		const formItems = screen.getAllByTestId("form-item")
-		expect(formItems).toHaveLength(8) // 应该显示所有8列的数据
+		expect(formItems).toHaveLength(8) // Should display all 8 columns of data
 
-		// 关闭抽屉
+		// Close drawer
 		fireEvent.click(screen.getByTestId("drawer-close"))
 		expect(screen.queryByTestId("drawer")).toBeNull()
 	})
 
-	it("TableCell 长文本功能应该正常工作", () => {
+	it("TableCell long text functionality should work properly", () => {
 		const longText =
 			"这是一个非常长的文本内容，超过了50个字符的阈值，应该被包装在长文本组件中进行处理，点击可以展开，这样就能确保超过50个字符了"
 
@@ -190,18 +190,18 @@ describe("Table 模块集成测试", () => {
 			</table>,
 		)
 
-		// 验证长文本有点击提示
-		const longTextElement = screen.getByTitle("点击展开完整内容")
+		// Verify long text has click hint
+		const longTextElement = screen.getByTitle("Click to expand full content")
 		expect(longTextElement).toBeDefined()
 
-		// 点击展开
+		// Click to expand
 		fireEvent.click(longTextElement)
 
-		// 展开后应该没有title
+		// Should not have title after expansion
 		expect(longTextElement.title).toBe("")
 	})
 
-	it("国际化hook应该正常工作", () => {
+	it("internationalization hook should work properly", () => {
 		const TestComponent = () => {
 			const i18n = useTableI18n()
 			return (
@@ -216,16 +216,16 @@ describe("Table 模块集成测试", () => {
 
 		render(<TestComponent />)
 
-		expect(screen.getByTestId("show-more").textContent).toBe("显示更多")
-		expect(screen.getByTestId("row-details").textContent).toBe("行详细信息")
-		expect(screen.getByTestId("click-to-expand").textContent).toBe("点击展开完整内容")
-		expect(screen.getByTestId("show-all-columns").textContent).toBe("显示所有列")
+		expect(screen.getByTestId("show-more").textContent).toBe("Show More")
+		expect(screen.getByTestId("row-details").textContent).toBe("Row Details")
+		expect(screen.getByTestId("click-to-expand").textContent).toBe("Click to expand full content")
+		expect(screen.getByTestId("show-all-columns").textContent).toBe("Show All Columns")
 	})
 
-	it("样式hook应该正常工作", () => {
+	it("style hook should work properly", () => {
 		const TestComponent = () => {
 			const { styles, cx } = useTableStyles()
-			return <div className={cx(styles.tableContainer, styles.mobileTable)}>测试样式</div>
+			return <div className={cx(styles.tableContainer, styles.mobileTable)}>Test Style</div>
 		}
 
 		const { container } = render(<TestComponent />)
@@ -233,12 +233,12 @@ describe("Table 模块集成测试", () => {
 		expect(styledDiv).toBeDefined()
 	})
 
-	it("RowDetailDrawer 应该独立正常工作", () => {
+	it("RowDetailDrawer should work independently", () => {
 		const rowData = {
-			0: "第一列",
-			1: "第二列",
-			名称: "第一列",
-			描述: "第二列",
+			0: "First Column",
+			1: "Second Column",
+			"First Column": "First Column",
+			"Second Column": "Second Column",
 		}
 
 		const headers = ["名称", "描述"]
@@ -249,62 +249,62 @@ describe("Table 模块集成测试", () => {
 				onClose={vi.fn()}
 				rowData={rowData}
 				headers={headers}
-				title="测试抽屉"
+				title="Test Drawer"
 			/>,
 		)
 
 		expect(screen.getByTestId("drawer")).toBeDefined()
-		expect(screen.getByTestId("drawer-title").textContent).toBe("测试抽屉")
+		expect(screen.getByTestId("drawer-title").textContent).toBe("Test Drawer")
 
 		const formItems = screen.getAllByTestId("form-item")
 		expect(formItems).toHaveLength(2)
 	})
 
-	it("所有组件应该支持空props", () => {
+	it("all components should support empty props", () => {
 		expect(() => {
 			render(<TableCell />)
 			render(<RowDetailDrawer visible={false} onClose={vi.fn()} rowData={{}} headers={[]} />)
 		}).not.toThrow()
 	})
 
-	it("复杂表格结构的完整测试", () => {
-		// 模拟真实的markdown表格内容
+	it("complex table structure complete test", () => {
+		// Simulate real markdown table content
 		const complexTable = (
 			<>
 				<thead>
 					<tr>
-						<TableCell isHeader>姓名</TableCell>
-						<TableCell isHeader>年龄</TableCell>
-						<TableCell isHeader>职位</TableCell>
-						<TableCell isHeader>部门</TableCell>
-						<TableCell isHeader>邮箱</TableCell>
-						<TableCell isHeader>电话</TableCell>
-						<TableCell isHeader>地址</TableCell>
-						<TableCell isHeader>备注</TableCell>
+						<TableCell isHeader>Name</TableCell>
+						<TableCell isHeader>Age</TableCell>
+						<TableCell isHeader>Position</TableCell>
+						<TableCell isHeader>Department</TableCell>
+						<TableCell isHeader>Email</TableCell>
+						<TableCell isHeader>Phone</TableCell>
+						<TableCell isHeader>Address</TableCell>
+						<TableCell isHeader>Note</TableCell>
 					</tr>
 				</thead>
 				<tbody>
 					<tr>
-						<TableCell>张三</TableCell>
+						<TableCell>Zhang San</TableCell>
 						<TableCell>28</TableCell>
 						<TableCell>
-							这是一个非常长的职位描述信息，包含了很多详细的描述内容，用于测试长文本的处理功能，这样就能确保超过50个字符了
+							This is a very long position description information, containing many detailed description content, used to test the long text processing function, so that it can ensure more than 50 characters
 						</TableCell>
-						<TableCell>技术部</TableCell>
+						<TableCell>Technology Department</TableCell>
 						<TableCell>zhangsan@example.com</TableCell>
 						<TableCell>13800138000</TableCell>
-						<TableCell>北京市海淀区中关村大街1号</TableCell>
-						<TableCell>简短备注</TableCell>
+						<TableCell>Beijing Haidian District Zhongguancun Street 1</TableCell>
+						<TableCell>Short Note</TableCell>
 					</tr>
 					<tr>
-						<TableCell>李四</TableCell>
+						<TableCell>Li Si</TableCell>
 						<TableCell>32</TableCell>
-						<TableCell>后端工程师</TableCell>
-						<TableCell>技术部</TableCell>
+						<TableCell>Backend Engineer</TableCell>
+						<TableCell>Technology Department</TableCell>
 						<TableCell>lisi@example.com</TableCell>
 						<TableCell>13900139000</TableCell>
-						<TableCell>上海市浦东新区陆家嘴环路1000号</TableCell>
-						<TableCell>简短备注</TableCell>
+						<TableCell>Shanghai Pudong New Area Lujiazui Ring Road 1000</TableCell>
+						<TableCell>Short Note</TableCell>
 					</tr>
 				</tbody>
 			</>
@@ -312,25 +312,25 @@ describe("Table 模块集成测试", () => {
 
 		render(<TableWrapper>{complexTable}</TableWrapper>)
 
-		// 验证表格基本功能
-		expect(screen.getByText("姓名")).toBeDefined()
-		expect(screen.getByText("张三")).toBeDefined()
+		// Verify table basic functionality
+		expect(screen.getByText("Name")).toBeDefined()
+		expect(screen.getByText("Zhang San")).toBeDefined()
 
-		// 验证长文本处理
-		const longTextElement = screen.getByTitle("点击展开完整内容")
+		// Verify long text processing
+		const longTextElement = screen.getByTitle("Click to expand full content")
 		expect(longTextElement).toBeDefined()
 
-		// 验证"显示更多"功能
-		const showMoreButtons = screen.getAllByText("显示更多")
-		expect(showMoreButtons).toHaveLength(2) // 两行数据
+		// Verify "Show More" functionality
+		const showMoreButtons = screen.getAllByText("Show More")
+		expect(showMoreButtons).toHaveLength(2) // Two rows of data
 
-		// 点击第一行的"显示更多"
+		// Click "Show More" on the first row
 		fireEvent.click(showMoreButtons[0])
 
-		// 验证抽屉显示的是第一行数据
+		// Verify drawer displays the first row data
 		expect(screen.getByTestId("drawer")).toBeDefined()
 		const formContents = screen.getAllByTestId("form-content")
-		expect(formContents[0].textContent).toBe("张三")
+		expect(formContents[0].textContent).toBe("Zhang San")
 		expect(formContents[1].textContent).toBe("28")
 	})
 })

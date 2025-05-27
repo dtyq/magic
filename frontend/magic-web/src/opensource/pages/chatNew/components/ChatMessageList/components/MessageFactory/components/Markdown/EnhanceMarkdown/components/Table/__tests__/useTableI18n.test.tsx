@@ -20,7 +20,7 @@ vi.mock("react-i18next", () => ({
 }))
 
 describe("useTableI18n", () => {
-	it("应该返回正确的翻译文本", () => {
+	it("should return correct translation text", () => {
 		const { result } = renderHook(() => useTableI18n())
 
 		expect(result.current.showMore).toBe("显示更多")
@@ -31,7 +31,7 @@ describe("useTableI18n", () => {
 		expect(result.current.defaultColumn).toBe("列")
 	})
 
-	it("应该包含所有必需的翻译键", () => {
+	it("should contain all required translation keys", () => {
 		const { result } = renderHook(() => useTableI18n())
 
 		expect(result.current).toHaveProperty("showMore")
@@ -42,7 +42,7 @@ describe("useTableI18n", () => {
 		expect(result.current).toHaveProperty("defaultColumn")
 	})
 
-	it("应该返回字符串类型的翻译值", () => {
+	it("should return string type translation values", () => {
 		const { result } = renderHook(() => useTableI18n())
 
 		expect(typeof result.current.showMore).toBe("string")

@@ -1,148 +1,148 @@
-# Table 组件单元测试
+# Table Component Unit Tests
 
-## 测试文件概览
+## Test Files Overview
 
-### 📁 测试文件结构
+### 📁 Test File Structure
 ```
 __tests__/
-├── useTableI18n.test.tsx       # 国际化 hook 测试
-├── TableCell.test.tsx          # 表格单元格组件测试
-├── RowDetailDrawer.test.tsx    # 行详细抽屉组件测试
-├── TableWrapper.test.tsx       # 表格包装器组件测试
-├── styles.test.tsx             # 样式 hook 测试
-├── index.test.tsx              # 集成测试
-└── README.md                   # 测试说明文档
+├── useTableI18n.test.tsx       # Internationalization hook tests
+├── TableCell.test.tsx          # Table cell component tests
+├── RowDetailDrawer.test.tsx    # Row detail drawer component tests
+├── TableWrapper.test.tsx       # Table wrapper component tests
+├── styles.test.tsx             # Style hook tests
+├── index.test.tsx              # Integration tests
+└── README.md                   # Test documentation
 ```
 
-## 🧪 测试覆盖范围
+## 🧪 Test Coverage
 
-### useTableI18n Hook 测试
-- ✅ 返回正确的翻译文本
-- ✅ 包含所有必需的翻译键
-- ✅ 返回字符串类型的翻译值
+### useTableI18n Hook Tests
+- ✅ Returns correct translation text
+- ✅ Contains all required translation keys
+- ✅ Returns string type translation values
 
-### TableCell 组件测试
-- ✅ 渲染普通表格数据单元格
-- ✅ 渲染表头单元格
-- ✅ 处理短文本内容
-- ✅ 长文本包装器功能
-- ✅ 长文本点击展开功能
-- ✅ 自动文本对齐（左对齐、右对齐、居中对齐）
-- ✅ 处理数组形式的子元素
-- ✅ 保持空格和特殊字符样式
-- ✅ 处理空内容
+### TableCell Component Tests
+- ✅ Renders normal table data cells
+- ✅ Renders table header cells
+- ✅ Handles short text content
+- ✅ Long text wrapper functionality
+- ✅ Long text click to expand functionality
+- ✅ Automatic text alignment (left, right, center)
+- ✅ Handles array form child elements
+- ✅ Preserves whitespace and special character styles
+- ✅ Handles empty content
 
-### RowDetailDrawer 组件测试
-- ✅ 根据 visible 状态控制渲染
-- ✅ 使用默认标题
-- ✅ 正确渲染表单项
-- ✅ 处理缺失的数据
-- ✅ onClose 回调函数调用
-- ✅ 处理空的 headers 数组
-- ✅ 处理 React 节点作为值
-- ✅ 优先使用索引键获取数据
+### RowDetailDrawer Component Tests
+- ✅ Controls rendering based on visible state
+- ✅ Uses default title
+- ✅ Correctly renders form items
+- ✅ Handles missing data
+- ✅ onClose callback function calls
+- ✅ Handles empty headers array
+- ✅ Handles React nodes as values
+- ✅ Prioritizes index keys for data retrieval
 
-### TableWrapper 组件测试
-- ✅ 渲染基本表格结构
-- ✅ 列数限制功能（≤6列不显示更多按钮）
-- ✅ 超过6列显示"显示更多"按钮
-- ✅ 正确限制显示的列数
-- ✅ 点击"显示更多"打开抽屉
-- ✅ 抽屉显示完整行数据
-- ✅ 不同行数据正确显示
-- ✅ 抽屉关闭功能
-- ✅ 处理没有 thead 的表格
-- ✅ 处理没有 tbody 的表格
-- ✅ 应用正确的 CSS 类
-- ✅ 复杂表格结构数据提取
+### TableWrapper Component Tests
+- ✅ Renders basic table structure
+- ✅ Column limit functionality (≤6 columns don't show more button)
+- ✅ Shows "Show More" button for >6 columns
+- ✅ Correctly limits displayed columns
+- ✅ Clicking "Show More" opens drawer
+- ✅ Drawer displays complete row data
+- ✅ Different row data displays correctly
+- ✅ Drawer close functionality
+- ✅ Handles tables without thead
+- ✅ Handles tables without tbody
+- ✅ Applies correct CSS classes
+- ✅ Complex table structure data extraction
 
-### useTableStyles Hook 测试
-- ✅ 返回样式对象
-- ✅ 包含所有必需的样式类
-- ✅ cx 函数正确合并类名
-- ✅ 返回正确的类型
+### useTableStyles Hook Tests
+- ✅ Returns style object
+- ✅ Contains all required style classes
+- ✅ cx function correctly merges class names
+- ✅ Returns correct types
 
-### 集成测试
-- ✅ 正确导出所有组件和 hooks
-- ✅ TableWrapper 和 TableCell 协同工作
-- ✅ 完整表格功能流程
-- ✅ TableCell 长文本功能
-- ✅ 国际化 hook 功能
-- ✅ 样式 hook 功能
-- ✅ RowDetailDrawer 独立功能
-- ✅ 空 props 支持
-- ✅ 复杂表格结构完整测试
+### Integration Tests
+- ✅ Correctly exports all components and hooks
+- ✅ TableWrapper and TableCell work together
+- ✅ Complete table functionality flow
+- ✅ TableCell long text functionality
+- ✅ Internationalization hook functionality
+- ✅ Style hook functionality
+- ✅ RowDetailDrawer independent functionality
+- ✅ Empty props support
+- ✅ Complex table structure complete testing
 
-## 🎯 核心功能测试
+## 🎯 Core Functionality Tests
 
-### 1. 列数限制与展开功能
-测试表格在超过6列时自动隐藏多余列，并提供"显示更多"按钮来查看完整数据。
+### 1. Column Limit and Expand Functionality
+Tests table automatically hiding excess columns when exceeding 6 columns, and providing "Show More" button to view complete data.
 
-### 2. 长文本处理
-测试 TableCell 组件对超长文本的智能处理，包括自动检测、点击展开等功能。
+### 2. Long Text Handling
+Tests TableCell component's intelligent handling of extra-long text, including automatic detection and click to expand functionality.
 
-### 3. 智能文本对齐
-测试根据内容自动判断文本对齐方式（左对齐、右对齐、居中对齐）的功能。
+### 3. Smart Text Alignment
+Tests automatic text alignment determination based on content (left, right, center alignment).
 
-### 4. 国际化支持
-测试所有用户可见文本的国际化翻译功能。
+### 4. Internationalization Support
+Tests internationalization translation functionality for all user-visible text.
 
-### 5. 响应式设计
-测试移动端适配和响应式布局功能。
+### 5. Responsive Design
+Tests mobile adaptation and responsive layout functionality.
 
-### 6. 样式系统
-测试 antd-style 的 CSS-in-JS 样式系统集成。
+### 6. Style System
+Tests antd-style CSS-in-JS style system integration.
 
-## 🚀 运行测试
+## 🚀 Running Tests
 
 ```bash
-# 运行所有表格组件测试
+# Run all table component tests
 npm test -- Table
 
-# 运行特定测试文件
+# Run specific test file
 npm test -- TableWrapper.test.tsx
 
-# 运行测试并生成覆盖率报告
+# Run tests and generate coverage report
 npm test -- --coverage Table
 ```
 
-## 📊 测试数据
+## 📊 Test Data
 
-### Mock 数据示例
-- **简单表格**: 3列2行的基础数据
-- **复杂表格**: 8列多行的完整数据
-- **长文本**: 超过50字符的测试文本
-- **特殊符号**: 数学符号和特殊字符
-- **React 节点**: JSX 元素作为单元格内容
+### Mock Data Examples
+- **Simple Table**: 3 columns, 2 rows basic data
+- **Complex Table**: 8 columns, multiple rows complete data
+- **Long Text**: Test text exceeding 50 characters
+- **Special Symbols**: Mathematical symbols and special characters
+- **React Nodes**: JSX elements as cell content
 
-### Mock 组件
-- **antd 组件**: Drawer、Form.Item
+### Mock Components
+- **antd Components**: Drawer, Form.Item
 - **react-i18next**: useTranslation hook
 - **antd-style**: createStyles function
-- **样式系统**: 完整的样式类和 cx 函数
+- **Style System**: Complete style classes and cx function
 
-## ✨ 最佳实践
+## ✨ Best Practices
 
-### 1. 组件隔离测试
-每个组件都有独立的测试文件，确保测试的独立性和可维护性。
+### 1. Component Isolation Testing
+Each component has independent test files, ensuring test independence and maintainability.
 
-### 2. Mock 外部依赖
-合理 mock 外部依赖（antd、react-i18next、antd-style），确保测试的稳定性。
+### 2. Mock External Dependencies
+Properly mock external dependencies (antd, react-i18next, antd-style) to ensure test stability.
 
-### 3. 用户行为模拟
-通过 fireEvent 模拟真实的用户交互，如点击、展开等操作。
+### 3. User Behavior Simulation
+Simulate real user interactions through fireEvent, such as clicking and expanding operations.
 
-### 4. 边界情况测试
-测试空数据、缺失数据、异常数据等边界情况。
+### 4. Edge Case Testing
+Test edge cases such as empty data, missing data, and abnormal data.
 
-### 5. 集成测试
-通过集成测试验证组件间的协同工作效果。
+### 5. Integration Testing
+Verify collaborative effects between components through integration testing.
 
-## 🔧 测试工具
+## 🔧 Testing Tools
 
-- **Vitest**: 现代化的测试框架
-- **React Testing Library**: React 组件测试库
-- **@testing-library/jest-dom**: DOM 断言扩展
-- **用户事件模拟**: fireEvent 和用户交互测试
+- **Vitest**: Modern testing framework
+- **React Testing Library**: React component testing library
+- **@testing-library/jest-dom**: DOM assertion extensions
+- **User Event Simulation**: fireEvent and user interaction testing
 
-这套测试覆盖了 Table 组件的所有核心功能，确保了代码质量和功能的可靠性。 
+This test suite covers all core functionality of the Table component, ensuring code quality and feature reliability. 

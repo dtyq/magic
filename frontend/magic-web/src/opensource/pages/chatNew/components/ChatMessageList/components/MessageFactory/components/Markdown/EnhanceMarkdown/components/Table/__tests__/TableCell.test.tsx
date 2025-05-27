@@ -7,16 +7,16 @@ vi.mock("react-i18next", () => ({
 	useTranslation: vi.fn(() => ({
 		t: (key: string) => {
 			const translations: Record<string, string> = {
-				"markdownTable.clickToExpand": "点击展开完整内容",
+				"markdownTable.clickToExpand": "Click to expand full content",
 			}
 			return translations[key] || key
 		},
 	})),
 }))
 
-// Mock styles
-vi.mock("../styles", () => ({
-	useTableStyles: () => ({
+// Mock antd-style
+vi.mock("antd-style", () => ({
+	createStyles: () => () => ({
 		styles: {
 			longText: "long-text-class",
 		},
@@ -27,100 +27,100 @@ vi.mock("../styles", () => ({
 // Mock useTableI18n
 vi.mock("../useTableI18n", () => ({
 	useTableI18n: () => ({
-		clickToExpand: "点击展开完整内容",
+		clickToExpand: "Click to expand full content",
 	}),
 }))
 
 describe("TableCell", () => {
-	it("应该渲染普通的表格数据单元格", () => {
-		render(<TableCell>普通文本</TableCell>)
+	it("should render normal table data cell", () => {
+		render(<TableCell>Normal Text</TableCell>)
 		const cell = screen.getByRole("cell")
 		expect(cell).toBeDefined()
-		expect(cell.textContent).toBe("普通文本")
+		expect(cell.textContent).toBe("Normal Text")
 	})
 
-	it("应该渲染表头单元格", () => {
-		render(<TableCell isHeader>表头文本</TableCell>)
+	it("should render table header cell", () => {
+		render(<TableCell isHeader>Table Header Text</TableCell>)
 		const headerCell = screen.getByRole("columnheader")
 		expect(headerCell).toBeDefined()
-		expect(headerCell.textContent).toBe("表头文本")
+		expect(headerCell.textContent).toBe("Table Header Text")
 	})
 
-	it("应该正确处理短文本内容", () => {
-		render(<TableCell>短文本</TableCell>)
+	it("should handle short text content correctly", () => {
+		render(<TableCell>Short Text</TableCell>)
 		const cell = screen.getByRole("cell")
-		expect(cell.textContent).toBe("短文本")
-		// 短文本不应该有长文本包装器
+		expect(cell.textContent).toBe("Short Text")
+		// Short text should not have long text wrapper
 		expect(cell.querySelector(".long-text-class")).toBeNull()
 	})
 
-	it("应该为超长文本添加长文本包装器", () => {
+	it("should add long text wrapper for extra long text", () => {
 		const longText =
-			"这是一个非常长的文本内容，超过了50个字符的阈值，应该被包装在长文本组件中进行处理，这样就能确保超过50个字符了"
+			"This is a very long text content, exceeding the threshold of 50 characters, should be wrapped in a long text component for processing, so that it can ensure more than 50 characters"
 		render(<TableCell>{longText}</TableCell>)
 
-		const longTextWrapper = screen.getByTitle("点击展开完整内容")
+		const longTextWrapper = screen.getByTitle("Click to expand full content")
 		expect(longTextWrapper).toBeDefined()
 		expect(longTextWrapper.textContent).toBe(longText)
 	})
 
-	it("应该支持长文本的点击展开功能", () => {
+	it("should support click to expand functionality for long text", () => {
 		const longText =
-			"这是一个非常长的文本内容，超过了50个字符的阈值，应该被包装在长文本组件中进行处理，这样就能确保超过50个字符了"
+			"This is a very long text content, exceeding the threshold of 50 characters, should be wrapped in a long text component for processing, so that it can ensure more than 50 characters"
 		render(<TableCell>{longText}</TableCell>)
 
-		const longTextWrapper = screen.getByTitle("点击展开完整内容")
+		const longTextWrapper = screen.getByTitle("Click to expand full content")
 		expect(longTextWrapper).toBeDefined()
 
-		// 点击展开
+		// Click to expand
 		fireEvent.click(longTextWrapper)
 
-		// 展开后应该没有title属性
+		// After expansion, should not have title attribute
 		expect(longTextWrapper.title).toBe("")
 	})
 
-	it("应该根据内容自动设置文本对齐方式", () => {
-		// 测试左对齐（默认）
+	it("should automatically set text alignment based on content", () => {
+		// Test left alignment (default)
 		const { unmount: unmount1 } = render(<TableCell>普通文本</TableCell>)
 		let cell = screen.getByRole("cell")
 		expect(cell.style.textAlign).toBe("left")
 		unmount1()
 
-		// 测试右对齐（数字）
+		// Test right alignment (numbers)
 		const { unmount: unmount2 } = render(<TableCell>12345</TableCell>)
 		cell = screen.getByRole("cell")
 		expect(cell.style.textAlign).toBe("right")
 		unmount2()
 
-		// 测试居中对齐（特殊符号）
+		// Test center alignment (special symbols)
 		const { unmount: unmount3 } = render(<TableCell>→</TableCell>)
 		cell = screen.getByRole("cell")
 		expect(cell.style.textAlign).toBe("center")
 		unmount3()
 	})
 
-	it("应该处理数组形式的子元素", () => {
+	it("should handle array form child elements", () => {
 		render(
 			<TableCell>
 				{[
-					"文本1",
-					"这是一个非常长的文本内容，超过了50个字符的阈值，应该被包装在长文本组件中进行处理，这样就能确保超过50个字符了",
+					"Text 1",
+					"This is a very long text content, exceeding the threshold of 50 characters, should be wrapped in a long text component for processing, so that it can ensure more than 50 characters",
 				]}
 			</TableCell>,
 		)
 
 		const cell = screen.getByRole("cell")
-		expect(cell.textContent).toContain("文本1")
-		expect(cell.textContent).toContain("这是一个非常长的文本内容")
+		expect(cell.textContent).toContain("Text 1")
+		expect(cell.textContent).toContain("This is a very long text content")
 	})
 
-	it("应该保持空格和特殊字符的样式", () => {
-		render(<TableCell>文本 带空格</TableCell>)
+	it("should preserve whitespace and special character styles", () => {
+		render(<TableCell>Text with space</TableCell>)
 		const cell = screen.getByRole("cell")
 		expect(cell.style.whiteSpace).toBe("pre-wrap")
 	})
 
-	it("应该正确处理空内容", () => {
+	it("should handle empty content correctly", () => {
 		render(<TableCell>{""}</TableCell>)
 		const cell = screen.getByRole("cell")
 		expect(cell).toBeDefined()

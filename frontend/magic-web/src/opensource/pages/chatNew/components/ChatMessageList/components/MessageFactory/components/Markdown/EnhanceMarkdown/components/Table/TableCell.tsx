@@ -3,17 +3,17 @@ import { useState, useRef, useEffect } from "react"
 import { useTableStyles } from "./styles"
 import { useTableI18n } from "./useTableI18n"
 
-// 超长文本字符阈值
+// Long text character threshold
 const LONG_TEXT_THRESHOLD = 50
 
-// 判断文本是否超长
+// Check if text is too long
 const isLongText = (text: string): boolean => {
 	if (!text) return false
-	// 如果文本长度超过阈值，则视为超长文本
+	// If text length exceeds threshold, consider it as long text
 	return text.length > LONG_TEXT_THRESHOLD
 }
 
-// 超长文本包装器组件
+// Long text wrapper component
 const LongTextWrapper: React.FC<{ text: string }> = ({ text }) => {
 	const i18n = useTableI18n()
 	const { styles, cx } = useTableStyles()
@@ -36,9 +36,9 @@ const LongTextWrapper: React.FC<{ text: string }> = ({ text }) => {
 	)
 }
 
-// 处理表格单元格内容
+// Process table cell content
 const processTableCellContent = (children: React.ReactNode): React.ReactNode => {
-	// 如果子元素是字符串，检查是否为超长文本
+	// If child element is string, check if it's long text
 	if (typeof children === "string") {
 		if (isLongText(children)) {
 			return <LongTextWrapper text={children} />
@@ -46,7 +46,7 @@ const processTableCellContent = (children: React.ReactNode): React.ReactNode => 
 		return children
 	}
 
-	// 如果是React元素数组，递归处理每个元素
+	// If it's an array of React elements, process each element recursively
 	if (Array.isArray(children)) {
 		return children.map((child, idx) => {
 			if (typeof child === "string" && isLongText(child)) {
@@ -57,25 +57,25 @@ const processTableCellContent = (children: React.ReactNode): React.ReactNode => 
 		})
 	}
 
-	// 其他情况直接返回
+	// Return directly for other cases
 	return children
 }
 
-// 判断是否包含特殊符号
+// Check if contains special symbols
 const hasSpecialSymbols = (text: string): boolean => {
-	// 检查常见的特殊符号
+	// Check common special symbols
 	const specialSymbols = ["→", "↓", "←", "↑", "≤", "≥", "≠", "≈", "∞", "∑", "∫", "∏"]
 	return specialSymbols.some((symbol) => text.includes(symbol))
 }
 
-// 判断文本对齐方式
+// Determine text alignment
 const getTextAlignment = (text: string | React.ReactNode): string => {
 	if (typeof text !== "string") return "left"
 
-	// 清理文本内容
+	// Clean text content
 	const cleanText = text.trim()
 
-	// 特殊符号通常居中显示
+	// Special symbols are usually centered
 	if (
 		hasSpecialSymbols(cleanText) ||
 		cleanText === "→↓←" ||
@@ -85,7 +85,7 @@ const getTextAlignment = (text: string | React.ReactNode): string => {
 		return "center"
 	}
 
-	// 左对齐标识
+	// Left alignment markers
 	if (
 		cleanText.startsWith(":左对齐<<") ||
 		cleanText.startsWith("<<") ||
@@ -95,7 +95,7 @@ const getTextAlignment = (text: string | React.ReactNode): string => {
 		return "left"
 	}
 
-	// 居中对齐标识
+	// Center alignment markers
 	if (
 		cleanText.startsWith(">>居中<<") ||
 		(cleanText.startsWith(">>") && cleanText.endsWith("<<")) ||
@@ -105,7 +105,7 @@ const getTextAlignment = (text: string | React.ReactNode): string => {
 		return "center"
 	}
 
-	// 右对齐标识
+	// Right alignment markers
 	if (
 		cleanText.startsWith(">>右对齐:") ||
 		cleanText.endsWith(">>") ||
@@ -116,16 +116,16 @@ const getTextAlignment = (text: string | React.ReactNode): string => {
 		return "right"
 	}
 
-	// 纯数字或以数字结尾通常右对齐
+	// Pure numbers or ending with numbers are usually right-aligned
 	if (/^\d+$/.test(cleanText) || cleanText.endsWith("%") || /\d+$/.test(cleanText)) {
 		return "right"
 	}
 
-	// 默认左对齐
+	// Default left alignment
 	return "left"
 }
 
-// 表格单元格组件
+// Table cell component
 const TableCell: React.FC<{
 	isHeader?: boolean
 	children?: React.ReactNode
@@ -135,7 +135,7 @@ const TableCell: React.FC<{
 
 	const style = {
 		textAlign: textAlign as "left" | "center" | "right",
-		// 添加保留空格和特殊字符的样式
+		// Add styles to preserve spaces and special characters
 		whiteSpace: "pre-wrap" as const,
 	}
 

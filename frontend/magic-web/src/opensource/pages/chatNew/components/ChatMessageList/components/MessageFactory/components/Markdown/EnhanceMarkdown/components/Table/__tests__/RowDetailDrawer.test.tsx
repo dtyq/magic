@@ -9,7 +9,7 @@ vi.mock("antd", () => ({
 			<div data-testid="drawer">
 				<div data-testid="drawer-title">{title}</div>
 				<button data-testid="drawer-close" onClick={onClose}>
-					关闭
+					Close
 				</button>
 				{children}
 			</div>
@@ -47,7 +47,7 @@ describe("RowDetailDrawer", () => {
 
 	const mockHeaders = ["名称", "描述", "状态"]
 
-	it("应该在visible为true时渲染抽屉", () => {
+	it("should render drawer when visible is true", () => {
 		render(
 			<RowDetailDrawer
 				visible={true}
@@ -63,7 +63,7 @@ describe("RowDetailDrawer", () => {
 		expect(screen.getByTestId("drawer-title").textContent).toBe("行详情")
 	})
 
-	it("应该在visible为false时不渲染抽屉", () => {
+	it("should not render drawer when visible is false", () => {
 		render(
 			<RowDetailDrawer
 				visible={false}
@@ -76,7 +76,7 @@ describe("RowDetailDrawer", () => {
 		expect(screen.queryByTestId("drawer")).toBeNull()
 	})
 
-	it("应该使用默认标题", () => {
+	it("should use default title", () => {
 		render(
 			<RowDetailDrawer
 				visible={true}
@@ -86,10 +86,10 @@ describe("RowDetailDrawer", () => {
 			/>,
 		)
 
-		expect(screen.getByTestId("drawer-title").textContent).toBe("详细信息")
+		expect(screen.getByTestId("drawer-title").textContent).toBe("Details")
 	})
 
-	it("应该正确渲染表单项", () => {
+	it("should correctly render form items", () => {
 		render(
 			<RowDetailDrawer
 				visible={true}
@@ -113,7 +113,7 @@ describe("RowDetailDrawer", () => {
 		expect(contents[2].textContent).toBe("第三列数据")
 	})
 
-	it("应该处理缺失的数据", () => {
+	it("should handle missing data", () => {
 		const incompleteRowData = {
 			0: "第一列数据",
 			名称: "第一列数据",
@@ -130,11 +130,11 @@ describe("RowDetailDrawer", () => {
 
 		const contents = screen.getAllByTestId("form-content")
 		expect(contents[0].textContent).toBe("第一列数据")
-		expect(contents[1].textContent).toBe("") // 缺失数据显示为空
-		expect(contents[2].textContent).toBe("") // 缺失数据显示为空
+		expect(contents[1].textContent).toBe("") // Missing data displays as empty
+		expect(contents[2].textContent).toBe("") // Missing data displays as empty
 	})
 
-	it("应该正确调用onClose回调", () => {
+	it("should correctly call onClose callback", () => {
 		const mockOnClose = vi.fn()
 
 		render(
@@ -152,7 +152,7 @@ describe("RowDetailDrawer", () => {
 		expect(mockOnClose).toHaveBeenCalledTimes(1)
 	})
 
-	it("应该处理空的headers数组", () => {
+	it("should handle empty headers array", () => {
 		render(
 			<RowDetailDrawer visible={true} onClose={vi.fn()} rowData={mockRowData} headers={[]} />,
 		)
@@ -161,7 +161,7 @@ describe("RowDetailDrawer", () => {
 		expect(formItems).toHaveLength(0)
 	})
 
-	it("应该处理React节点作为值", () => {
+	it("should handle React nodes as values", () => {
 		const rowDataWithJSX = {
 			0: <span>JSX内容</span>,
 			名称: <span>JSX内容</span>,
@@ -179,7 +179,7 @@ describe("RowDetailDrawer", () => {
 		expect(screen.getByText("JSX内容")).toBeDefined()
 	})
 
-	it("应该优先使用索引键获取数据", () => {
+	it("should prioritize index keys for data retrieval", () => {
 		const conflictRowData = {
 			0: "索引数据",
 			名称: "名称数据",
@@ -195,6 +195,6 @@ describe("RowDetailDrawer", () => {
 		)
 
 		const content = screen.getByTestId("form-content")
-		expect(content.textContent).toBe("索引数据") // 应该优先使用索引0的值
+		expect(content.textContent).toBe("索引数据") // Should prioritize index 0 value
 	})
 })

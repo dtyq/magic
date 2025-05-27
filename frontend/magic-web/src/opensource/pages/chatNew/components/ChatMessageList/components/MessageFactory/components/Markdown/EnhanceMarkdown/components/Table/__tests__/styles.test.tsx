@@ -5,7 +5,7 @@ import { useTableStyles } from "../styles"
 // Mock antd-style
 vi.mock("antd-style", () => ({
 	createStyles: (styleFunction: () => any) => {
-		// 创建一个简单的mock函数来模拟createStyles的行为
+		// Create a simple mock function to simulate createStyles behavior
 		return () => ({
 			styles: {
 				tableContainer: "table-container-style",
@@ -21,14 +21,14 @@ vi.mock("antd-style", () => ({
 }))
 
 describe("useTableStyles", () => {
-	it("应该返回样式对象", () => {
+	it("should return style object", () => {
 		const { result } = renderHook(() => useTableStyles())
 
 		expect(result.current.styles).toBeDefined()
 		expect(result.current.cx).toBeDefined()
 	})
 
-	it("应该包含所有必需的样式类", () => {
+	it("should contain all required style classes", () => {
 		const { result } = renderHook(() => useTableStyles())
 		const { styles } = result.current
 
@@ -40,7 +40,7 @@ describe("useTableStyles", () => {
 		expect(styles.mobileTable).toBe("mobile-table-style")
 	})
 
-	it("cx函数应该正确合并类名", () => {
+	it("cx function should correctly merge class names", () => {
 		const { result } = renderHook(() => useTableStyles())
 		const { cx } = result.current
 
@@ -50,7 +50,7 @@ describe("useTableStyles", () => {
 		expect(cx("class1", undefined, "class2")).toBe("class1 class2")
 	})
 
-	it("styles对象应该是对象类型", () => {
+	it("styles object should be object type", () => {
 		const { result } = renderHook(() => useTableStyles())
 		const { styles } = result.current
 
@@ -58,7 +58,7 @@ describe("useTableStyles", () => {
 		expect(styles).not.toBeNull()
 	})
 
-	it("cx函数应该是函数类型", () => {
+	it("cx function should be function type", () => {
 		const { result } = renderHook(() => useTableStyles())
 		const { cx } = result.current
 
