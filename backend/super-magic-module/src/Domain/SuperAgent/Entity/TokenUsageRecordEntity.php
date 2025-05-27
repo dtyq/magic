@@ -100,6 +100,16 @@ class TokenUsageRecordEntity extends AbstractEntity
      */
     protected ?array $usageDetails = null;
 
+    /**
+     * @var null|string 创建时间
+     */
+    protected ?string $createdAt = null;
+
+    /**
+     * @var null|string 更新时间
+     */
+    protected ?string $updatedAt = null;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -293,6 +303,28 @@ class TokenUsageRecordEntity extends AbstractEntity
         return $this;
     }
 
+    public function getCreatedAt(): ?string
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(?string $createdAt): self
+    {
+        $this->createdAt = $createdAt;
+        return $this;
+    }
+
+    public function getUpdatedAt(): ?string
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(?string $updatedAt): self
+    {
+        $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
     public function toArray(): array
     {
         return [
@@ -313,6 +345,8 @@ class TokenUsageRecordEntity extends AbstractEntity
             'cache_write_tokens' => $this->cacheWriteTokens,
             'reasoning_tokens' => $this->reasoningTokens,
             'usage_details' => $this->usageDetails,
+            'created_at' => $this->createdAt,
+            'updated_at' => $this->updatedAt,
         ];
     }
 } 
