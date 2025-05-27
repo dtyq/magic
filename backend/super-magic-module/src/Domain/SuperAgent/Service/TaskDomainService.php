@@ -657,9 +657,9 @@ class TaskDomainService
      * 判断文件是否为隐藏文件
      * 
      * @param string $fileKey 文件路径
-     * @return int 是否为隐藏文件：0-否，1-是
+     * @return bool 是否为隐藏文件：true-是，false-否
      */
-    private function isHiddenFile(string $fileKey): int
+    private function isHiddenFile(string $fileKey): bool
     {
         // 移除开头的斜杠，统一处理
         $fileKey = ltrim($fileKey, '/');
@@ -670,11 +670,11 @@ class TaskDomainService
         // 检查每个路径部分是否以 . 开头
         foreach ($pathParts as $part) {
             if (!empty($part) && str_starts_with($part, '.')) {
-                return 1; // 是隐藏文件
+                return true; // 是隐藏文件
             }
         }
         
-        return 0; // 不是隐藏文件
+        return false; // 不是隐藏文件
     }
 
     /**

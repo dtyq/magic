@@ -48,4 +48,11 @@ class TaskFileModel extends AbstractModel
         'storage_type' => 'workspace', // 默认存储类型为workspace
         'is_hidden' => 0, // 默认不是隐藏文件：0-否，1-是
     ];
+
+    /**
+     * 类型转换
+     */
+    protected array $casts = [
+        'is_hidden' => 'boolean', // 自动将数据库中的0/1转换为false/true
+    ];
 }

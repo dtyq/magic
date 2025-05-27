@@ -35,7 +35,7 @@ class TaskFileEntity extends AbstractEntity
 
     protected string $storageType = 'workspace';
 
-    protected int $isHidden = 0;
+    protected bool $isHidden = false;
 
     protected string $createdAt = '';
 
@@ -163,12 +163,12 @@ class TaskFileEntity extends AbstractEntity
         $this->storageType = $storageType;
     }
 
-    public function getIsHidden(): int
+    public function getIsHidden(): bool
     {
         return $this->isHidden;
     }
 
-    public function setIsHidden(int $isHidden): void
+    public function setIsHidden(bool $isHidden): void
     {
         $this->isHidden = $isHidden;
     }

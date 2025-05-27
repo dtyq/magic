@@ -58,9 +58,9 @@ class TaskFileItemDTO extends AbstractDTO
     public string $fileUrl;
 
     /**
-     * 是否为隐藏文件：0-否，1-是.
+     * 是否为隐藏文件：true-是，false-否.
      */
-    public int $isHidden;
+    public bool $isHidden;
 
     /**
      * 从实体创建DTO.
@@ -88,8 +88,8 @@ class TaskFileItemDTO extends AbstractDTO
     public static function fromArray(array $data): self
     {
         $dto = new self();
-        $dto->fileId = (string) ($data['file_id'] ?? '0');
-        $dto->taskId = (string) ($data['task_id'] ?? '0');
+        $dto->fileId = (string) ($data['file_id'] ?? '');
+        $dto->taskId = (string) ($data['task_id'] ?? '');
         $dto->fileType = $data['file_type'] ?? '';
         $dto->fileName = $data['file_name'] ?? '';
         $dto->fileExtension = $data['file_extension'] ?? '';
@@ -97,7 +97,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileSize = $data['file_size'] ?? 0;
         $dto->relativeFilePath = $data['relative_file_path'] ?? '';
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
-        $dto->isHidden = $data['is_hidden'] ?? 0;
+        $dto->isHidden = $data['is_hidden'] ?? false;
         return $dto;
     }
 

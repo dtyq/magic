@@ -640,6 +640,7 @@ class WorkspaceAppService extends AbstractAppService
         $root = [
             'type' => 'root',
             'is_directory' => true,
+            'is_hidden' => false,
             'children' => [],
         ];
 
@@ -734,6 +735,7 @@ class WorkspaceAppService extends AbstractAppService
                 // 逐级构建目录
                 $currentPath = '';
                 $parent = &$root;
+                $parentIsHidden = false; // 父级是否为隐藏目录
 
                 foreach ($pathParts as $dirName) {
                     if (empty($dirName)) {
@@ -745,12 +747,16 @@ class WorkspaceAppService extends AbstractAppService
 
                     // 如果当前路径的目录不存在，创建它
                     if (! isset($directoryMap[$currentPath])) {
+                        // 判断当前目录是否为隐藏目录
+                        $isHiddenDir = $this->isHiddenDirectory($dirName) || $parentIsHidden;
+
                         // 创建新目录节点
                         $newDir = [
                             'name' => $dirName,
                             'path' => $currentPath,
                             'type' => 'directory',
                             'is_directory' => true,
+                            'is_hidden' => $isHiddenDir,
                             'children' => [],
                         ];
 
@@ -763,6 +769,13 @@ class WorkspaceAppService extends AbstractAppService
 
                     // 更新父目录引用为当前目录
                     $parent = &$directoryMap[$currentPath];
+                    // 更新父级隐藏状态，如果当前目录是隐藏的，那么其子级都应该是隐藏的
+                    $parentIsHidden = $parent['is_hidden'] ?? false;
+                }
+
+                // 如果父目录是隐藏的，那么文件也应该被标记为隐藏
+                if ($parentIsHidden) {
+                    $fileNode['is_hidden'] = true;
                 }
 
                 // 将文件添加到最终目录的子项中
@@ -772,6 +785,78 @@ class WorkspaceAppService extends AbstractAppService
 
         // 返回根目录的子项作为结果
         return $root['children'];
+    }
+
+    /**
+     * 判断目录名是否为隐藏目录
+     * 隐藏目录的判断规则：目录名以 . 开头
+     *
+     * @param string $dirName 目录名
+     * @return bool true-隐藏目录，false-普通目录
+     */
+    private function isHiddenDirectory(string $dirName): bool
+    {
+        return str_starts_with($dirName, '.');
+    }
+
+    /**
+     * 更新话题.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param SaveTopicRequestDTO $requestDTO 请求DTO
+     * @return SaveTopicResultDTO 更新结果
+     * @throws BusinessException 如果更新失败则抛出异常
+     */
+    private function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
+    {
+        // 更新话题名称
+        $result = $this->workspaceDomainService->updateTopicName(
+            $dataIsolation,
+            (int) $requestDTO->getId(), // 传递主键ID
+            $requestDTO->getTopicName()
+        );
+
+        if (! $result) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
+        }
+
+        return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
+    }
+
+    /**
+     * 创建新话题.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param SaveTopicRequestDTO $requestDTO 请求DTO
+     * @return SaveTopicResultDTO 创建结果
+     * @throws BusinessException|Throwable 如果创建失败则抛出异常
+     */
+    private function createNewTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
+    {
+        // 创建新话题，使用事务确保原子性
+        Db::beginTransaction();
+        try {
+            // 1. 初始化 chat 的会话和话题
+            [$chatConversationId, $chatConversationTopicId] = $this->initMagicChatConversation($dataIsolation);
+
+            // 2. 创建话题
+            $topicEntity = $this->workspaceDomainService->createTopic(
+                $dataIsolation,
+                (int) $requestDTO->getWorkspaceId(),
+                $chatConversationTopicId, // 会话的话题ID
+                $requestDTO->getTopicName()
+            );
+
+            // 提交事务
+            Db::commit();
+
+            // 返回结果
+            return SaveTopicResultDTO::fromId((int) $topicEntity->getId());
+        } catch (Throwable $e) {
+            // 回滚事务
+            Db::rollBack();
+            throw $e;
+        }
     }
 
     /**
