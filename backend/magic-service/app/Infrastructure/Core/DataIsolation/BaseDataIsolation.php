@@ -95,7 +95,7 @@ class BaseDataIsolation implements DataIsolationInterface
 
         $this->thirdPlatformOrganizationCode = $parentDataIsolation->getThirdPlatformOrganizationCode();
         $this->thirdPlatformUserId = $parentDataIsolation->getThirdPlatformUserId();
-        $this->thirdPlatformDataIsolationManager->extends($this);
+        $this->thirdPlatformDataIsolationManager->extends($parentDataIsolation);
     }
 
     public function getOrganizationCodes(): array
