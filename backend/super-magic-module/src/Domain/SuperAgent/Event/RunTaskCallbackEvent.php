@@ -50,4 +50,19 @@ class RunTaskCallbackEvent
     {
         return $this->taskMessage;
     }
+
+    /**
+     * Convert the event object to array format
+     */
+    public function toArray(): array
+    {
+        return [
+            'organizationCode' => $this->organizationCode,
+            'userId' => $this->userId,
+            'topicId' => $this->topicId,
+            'topicName' => $this->topicName,
+            'taskId' => $this->taskId,
+            'taskMessage' => $this->taskMessage->toArray() ?? $this->taskMessage,
+        ];
+    }
 }
