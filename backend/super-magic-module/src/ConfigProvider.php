@@ -20,11 +20,13 @@ use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
@@ -81,6 +83,7 @@ class ConfigProvider
                 TopicShareableResource::class => TopicShareableResource::class,
                 ResourceShareRepositoryInterface::class => ResourceShareRepository::class,
                 ResourceShareAppService::class => ResourceShareAppService::class,
+                TokenUsageRecordRepositoryInterface::class => TokenUsageRecordRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,
