@@ -32,7 +32,6 @@ use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Exception;
 use Hyperf\Context\ApplicationContext;
@@ -346,7 +345,7 @@ class LLMAppService extends AbstractLLMAppService
             return null;
         }
         // 获取可用的接入点
-        $highAvailableEndpoint = $highAvailable->getAvailableEndpoint(EndpointAssembler::getEndpointTypeByModelIdAndOrgCode($modelType, $orgCode));
+        $highAvailableEndpoint = $highAvailable->getAvailableEndpoint($modelType, $orgCode);
         if (! $highAvailableEndpoint || ! $highAvailableEndpoint->getName()) {
             return null;
         }

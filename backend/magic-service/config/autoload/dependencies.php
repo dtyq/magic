@@ -158,6 +158,8 @@ use App\Infrastructure\Core\File\Parser\Driver\Interfaces\WordFileParserDriverIn
 use App\Infrastructure\Core\File\Parser\Driver\OcrFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\TextFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\WordFileParserDriver;
+use App\Infrastructure\Core\HighAvailability\Interface\EndpointProviderInterface;
+use App\Infrastructure\Core\HighAvailability\Service\ModelGatewayEndpointProvider;
 use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
@@ -326,6 +328,9 @@ $dependencies = [
     // broadcast
     SubscriberInterface::class => AmqpSubscriber::class,
     PublisherInterface::class => AmqpPublisher::class,
+
+    // high-availability
+    EndpointProviderInterface::class => ModelGatewayEndpointProvider::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并

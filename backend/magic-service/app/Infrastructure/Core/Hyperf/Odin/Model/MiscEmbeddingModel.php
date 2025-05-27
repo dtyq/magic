@@ -20,7 +20,7 @@ use Throwable;
 
 class MiscEmbeddingModel extends OpenAIModel
 {
-    public function embeddings(array|string $input, ?string $encoding_format = 'float', ?string $user = null): EmbeddingResponse
+    public function embeddings(array|string $input, ?string $encoding_format = 'float', ?string $user = null, array $businessParams = []): EmbeddingResponse
     {
         try {
             // 检查模型是否支持嵌入功能

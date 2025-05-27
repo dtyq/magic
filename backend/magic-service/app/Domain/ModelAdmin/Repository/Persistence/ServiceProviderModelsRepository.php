@@ -149,18 +149,21 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     public function getOrganizationActiveModelsByIdOrType(string $key, ?string $orgCode = null): array
     {
         # 提升索引命中，先根据id查询，再根据model_id查询
-        // 第一次查询：根据id查询
-        $idQuery = $this->serviceProviderModelsModel::query()
-            ->where('id', $key)
-            ->where('status', Status::ACTIVE->value);
+        $resultById = [];
+        if (is_numeric($key)) {
+            // 第一次查询：根据id查询
+            $idQuery = $this->serviceProviderModelsModel::query()
+                ->where('id', $key)
+                ->where('status', Status::ACTIVE->value);
 
-        if ($orgCode) {
-            $idQuery->where('organization_code', $orgCode);
+            if ($orgCode) {
+                $idQuery->where('organization_code', $orgCode);
+            }
+
+            $resultById = Db::select($idQuery->toSql(), $idQuery->getBindings());
         }
 
-        $resultById = Db::select($idQuery->toSql(), $idQuery->getBindings());
-
-        // 第二次查询：根据model_id查询
+        // 第二次查询：根据 model_id 查询
         $modelIdQuery = $this->serviceProviderModelsModel::query()
             ->where('model_id', $key)
             ->where('status', Status::ACTIVE->value);
