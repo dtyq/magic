@@ -73,7 +73,7 @@ sync-to-sub-repos:
     - ls -la
     - cd magic
     - git checkout $CURRENT_BRANCH
-    - export GIT_REPO_URL="${GIT_REPO_URL}"
+    - export GIT_REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@${GITLAB_DOMAIN}/dtyq"
 
     # 同步代码
     - chmod +x ./bin/backend_split_all.sh
