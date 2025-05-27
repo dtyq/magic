@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -84,9 +85,6 @@ class TopicAppService extends AbstractAppService
         if ($requestDTO->isUpdate()) {
             return $this->updateTopic($dataIsolation, $requestDTO);
         }
-
-        // 触发话题创建前事件
-        AsyncEventUtil::dispatch(new CreateTopicBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), (int) $requestDTO->getWorkspaceId(), $requestDTO->getTopicName()));
 
         return $this->createNewTopic($dataIsolation, $requestDTO);
     }
@@ -189,6 +187,9 @@ class TopicAppService extends AbstractAppService
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();
         try {
+            // 触发话题创建前事件
+            AsyncEventUtil::dispatch(new CreateTopicBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), (int) $requestDTO->getWorkspaceId(), $requestDTO->getTopicName()));
+
             // 1. 初始化 chat 的会话和话题
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
@@ -205,6 +206,11 @@ class TopicAppService extends AbstractAppService
 
             // 返回结果
             return SaveTopicResultDTO::fromId((int) $topicEntity->getId());
+        } catch (EventException $e) {
+            // 回滚事务
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new topic event: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, $e->getMessage());
         } catch (Throwable $e) {
             // 回滚事务
             Db::rollBack();

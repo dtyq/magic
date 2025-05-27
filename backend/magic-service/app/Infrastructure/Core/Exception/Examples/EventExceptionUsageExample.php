@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\Exception\Examples;
 
-use App\ErrorCode\EventErrorCode;
 use App\Infrastructure\Core\Exception\EventExceptionBuilder;
 use Exception;
 use Hyperf\Amqp\Message\ConsumerMessage;
