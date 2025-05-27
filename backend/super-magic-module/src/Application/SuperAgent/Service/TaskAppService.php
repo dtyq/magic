@@ -228,7 +228,7 @@ class TaskAppService extends AbstractAppService
         }
 
         // 检查环境变量，如果是开源版本则跳过白名单和任务数量限制检查
-        $magicEdition = env('MAGIC_EDITION', 'open-source');
+        $magicEdition = env('MAGIC_EDITION', 'commercial');
         if ($magicEdition === 'open-source') {
             $this->logger->info('开源版本，跳过白名单和任务数量限制检查');
             return;
