@@ -1,0 +1,243 @@
+name: 🚀 Deployment / Installation Issue
+description: Report issues with deployment, installation, or setup
+title: "[Deployment]: "
+labels: ["deployment", "installation", "setup"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a deployment or installation issue! This helps us improve the Magic setup experience.
+        
+        **Before submitting a deployment issue:**
+        - Check the [installation documentation](https://docs.letsmagic.cn/en)
+        - Verify system requirements are met
+        - Try the installation steps in a clean environment if possible
+
+  - type: dropdown
+    id: deployment-type
+    attributes:
+      label: Deployment Type
+      description: What type of deployment are you attempting?
+      options:
+        - Docker Compose (Recommended)
+        - Source installation
+        - Kubernetes
+        - Cloud deployment (AWS/GCP/Azure)
+        - Local development setup
+        - Production deployment
+        - Update/Upgrade process
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation-stage
+    attributes:
+      label: Installation Stage
+      description: At what stage are you encountering the issue?
+      options:
+        - System requirements check
+        - Initial setup/clone
+        - Environment configuration
+        - Docker container startup
+        - Database initialization
+        - Service startup
+        - First-time access
+        - Configuration validation
+        - Service integration
+        - Post-installation testing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: Issue Description
+      description: Describe the deployment/installation issue you're experiencing
+      placeholder: |
+        - What specific step is failing?
+        - What error messages are you seeing?
+        - When in the process does this occur?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps you followed that led to the issue
+      placeholder: |
+        1. Download Magic from [source]
+        2. Run command: [command]
+        3. Configure [component]
+        4. Observe error: [error]
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Please provide detailed environment information
+      placeholder: |
+        - Operating System: [e.g. macOS 14.0, Ubuntu 22.04, Windows 11]
+        - Architecture: [e.g. x86_64, arm64/M1]
+        - Docker Version: [e.g. 24.0.7]
+        - Docker Compose Version: [e.g. 2.21.0]
+        - Available RAM: [e.g. 16GB]
+        - Available Disk Space: [e.g. 100GB]
+        - Network Configuration: [e.g. Corporate firewall, proxy]
+        - Magic Version: [e.g. v1.0.0, latest, commit hash]
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Share your configuration (please redact sensitive information)
+      placeholder: |
+        Environment Variables (.env file):
+        ```
+        MAGIC_API_URL=http://localhost:9501
+        DATABASE_HOST=mysql
+        # [other relevant configs - please redact API keys and passwords]
+        ```
+        
+        Docker Compose overrides:
+        ```yaml
+        # Any custom docker-compose configurations
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: Error Logs
+      description: Include relevant error logs, stack traces, or error messages
+      placeholder: |
+        ```
+        [timestamp] ERROR: Container failed to start
+        [timestamp] STDERR: Permission denied accessing /var/lib/magic
+        [timestamp] EXIT CODE: 1
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: system-status
+    attributes:
+      label: System Status
+      description: Provide output from relevant system status commands
+      placeholder: |
+        Docker Status:
+        ```bash
+        $ docker --version
+        $ docker-compose --version
+        $ docker ps
+        $ docker logs magic-service
+        ```
+        
+        System Resources:
+        ```bash
+        $ df -h
+        $ free -h
+        $ ulimit -a
+        ```
+    validations:
+      required: false
+
+  - type: dropdown
+    id: first-time
+    attributes:
+      label: Installation Type
+      description: Is this your first time installing Magic?
+      options:
+        - First-time installation
+        - Reinstallation after previous success
+        - Update from previous version
+        - Migration from different setup
+        - Trying different deployment method
+    validations:
+      required: true
+
+  - type: textarea
+    id: previous-attempts
+    attributes:
+      label: Previous Attempts
+      description: Have you tried any troubleshooting steps or alternative approaches?
+      placeholder: |
+        - Cleared Docker volumes and restarted
+        - Tried different Magic version
+        - Changed environment variables
+        - Checked firewall settings
+        - [other troubleshooting steps]
+    validations:
+      required: false
+
+  - type: dropdown
+    id: blocking-severity
+    attributes:
+      label: Severity
+      description: How much is this blocking you?
+      options:
+        - Critical - Cannot proceed with Magic at all
+        - High - Major functionality not working
+        - Medium - Some features not working
+        - Low - Minor inconvenience
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-outcome
+    attributes:
+      label: Expected Outcome
+      description: What should happen when the installation/deployment succeeds?
+      placeholder: |
+        - All services should start successfully
+        - Web interface should be accessible at http://localhost:8080
+        - API should respond at http://localhost:9501
+        - Should be able to create first user account
+    validations:
+      required: true
+
+  - type: textarea
+    id: workarounds
+    attributes:
+      label: Workarounds
+      description: Have you found any temporary workarounds?
+      placeholder: Any temporary solutions that allowed you to proceed
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other relevant information
+      placeholder: |
+        - Screenshots of error messages
+        - Network topology details
+        - Corporate security policies affecting installation
+        - Previous successful installations
+        - Comparison with working environments
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have read the installation documentation
+          required: true
+        - label: I have verified that my system meets the minimum requirements
+          required: true
+        - label: I have provided complete error logs and environment details
+          required: true
+        - label: I have redacted any sensitive information from my report
+          required: true 

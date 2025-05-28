@@ -188,7 +188,7 @@ Also, please consider supporting Magic through social media, events, and confere
 
 ## Security Vulnerabilities
 
-If you discover a security vulnerability in Magic, please send an email to the Magic official team at dev@dtyq.com. All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability in Magic, please send an email to the Magic official team at [team@dtyq.com](mailto:team@dtyq.com). All security vulnerabilities will be promptly addressed.
 
 ## 📄 License
 

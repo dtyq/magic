@@ -1,0 +1,159 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement for Magic
+title: "[Feature]: "
+labels: ["enhancement", "needs-review"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature! We value community input in shaping Magic's future.
+        
+        **Before submitting a feature request:**
+        - Check if the feature has already been requested in [existing issues](https://github.com/dtyq/magic/issues)
+        - Review our [roadmap](https://github.com/dtyq/magic/discussions) if available
+        - Consider if this feature aligns with Magic's core philosophy
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component/module would this feature affect?
+      options:
+        - Super Magic
+        - Magic IM (Chat System)
+        - Magic Flow (Workflow System)
+        - Magic Service (Backend API)
+        - Magic Web (Frontend)
+        - Magic Gateway
+        - Agentlang Framework
+        - Documentation
+        - Deployment/Installation
+        - Developer Experience
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature-type
+    attributes:
+      label: Feature Type
+      description: What type of feature is this?
+      options:
+        - New functionality
+        - Enhancement to existing feature
+        - Performance improvement
+        - Developer experience improvement
+        - API enhancement
+        - UI/UX improvement
+        - Integration with external service
+        - Security enhancement
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: Problem Description
+      description: Is your feature request related to a problem? Please describe the pain point.
+      placeholder: A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution-description
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented
+      placeholder: A clear and concise description of what you want to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Describe specific use cases where this feature would be valuable
+      placeholder: |
+        1. As a [user type], I want to [action] so that [benefit]
+        2. When [scenario], this feature would help by [benefit]
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered
+      placeholder: What other approaches have you thought about? Why would this solution be better?
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation-suggestions
+    attributes:
+      label: Implementation Suggestions
+      description: If you have ideas about how this could be implemented, please share them
+      placeholder: |
+        - Technical approach suggestions
+        - API design ideas
+        - UI/UX mockups or descriptions
+        - Integration points
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you/your use case?
+      options:
+        - Low - Nice to have
+        - Medium - Would be helpful
+        - High - Important for my use case
+        - Critical - Blocking my use case
+    validations:
+      required: true
+
+  - type: dropdown
+    id: user-type
+    attributes:
+      label: User Type
+      description: What type of user would benefit from this feature?
+      options:
+        - End user (using Magic products)
+        - Developer (integrating/extending Magic)
+        - System administrator
+        - Enterprise/team admin
+        - All users
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, mockups, or examples about the feature request
+      placeholder: |
+        - Screenshots or mockups
+        - Links to similar features in other tools
+        - Additional technical details
+        - Business impact or metrics
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for existing feature requests before creating this one
+          required: true
+        - label: I have provided a clear description of the proposed feature
+          required: true
+        - label: I understand this is a request and may not be implemented immediately
+          required: true 

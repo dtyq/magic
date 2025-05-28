@@ -1,0 +1,268 @@
+name: 🔌 API / Integration Issue
+description: Report issues with APIs, integrations, or third-party connections
+title: "[API]: "
+labels: ["api", "integration", "needs-review"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an API or integration issue! This helps us improve Magic's connectivity and extensibility.
+        
+        **Before submitting an API/integration issue:**
+        - Check the [API documentation](https://docs.letsmagic.cn/en) for correct usage
+        - Verify your API credentials and configuration
+        - Test with different API endpoints if applicable
+
+  - type: dropdown
+    id: api-type
+    attributes:
+      label: API/Integration Type
+      description: What type of API or integration is affected?
+      options:
+        - Magic Service REST API
+        - Magic Gateway API
+        - WebSocket connections
+        - Third-party AI model integration
+        - Database integration
+        - File storage integration
+        - Authentication/OAuth integration
+        - Webhook integration
+        - External service API
+        - SDK/Library integration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which Magic component is involved?
+      options:
+        - Super Magic
+        - Magic IM (Chat System)
+        - Magic Flow (Workflow System)
+        - Magic Service (Backend API)
+        - Magic Web (Frontend)
+        - Magic Gateway
+        - Agentlang Framework
+        - Authentication system
+        - File management
+        - Model management
+        - Workflow execution
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What type of API/integration issue are you experiencing?
+      options:
+        - API endpoint not working
+        - Authentication/authorization failure
+        - Incorrect response format
+        - Missing API documentation
+        - Rate limiting issues
+        - Connection timeouts
+        - Integration configuration issues
+        - Third-party service compatibility
+        - SDK/Library bug
+        - WebSocket connection issues
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-endpoint
+    attributes:
+      label: API Endpoint/Integration Details
+      description: Specify the API endpoint or integration details
+      placeholder: |
+        - API Endpoint: POST /api/v1/chat/messages
+        - Integration: OpenAI GPT-4 API
+        - SDK Version: magic-sdk v1.0.0
+        - Third-party service: [Service name and version]
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: Issue Description
+      description: Describe the API/integration issue you're experiencing
+      placeholder: |
+        - What specific API call or integration is failing?
+        - What error messages are you receiving?
+        - When did this issue start occurring?
+    validations:
+      required: true
+
+  - type: textarea
+    id: request-details
+    attributes:
+      label: Request Details
+      description: Provide details about the API request or integration attempt
+      placeholder: |
+        HTTP Method: POST
+        Headers:
+        ```
+        Content-Type: application/json
+        Authorization: Bearer <token>
+        ```
+        
+        Request Body:
+        ```json
+        {
+          "message": "Hello",
+          "user_id": "12345"
+        }
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: response-details
+    attributes:
+      label: Response Details
+      description: Provide details about the API response or error
+      placeholder: |
+        Status Code: 500
+        
+        Response Headers:
+        ```
+        Content-Type: application/json
+        ```
+        
+        Response Body:
+        ```json
+        {
+          "error": "Internal server error",
+          "message": "Database connection failed"
+        }
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What should the API/integration do?
+      placeholder: |
+        - Expected status code
+        - Expected response format
+        - Expected integration behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the API/integration issue
+      placeholder: |
+        1. Configure integration with [service]
+        2. Make API call to [endpoint]
+        3. Provide [parameters]
+        4. Observe error response
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Provide relevant configuration information (redact sensitive data)
+      placeholder: |
+        Environment Variables:
+        - MAGIC_API_URL=https://api.example.com
+        - MODEL_PROVIDER=openai
+        - [other relevant configs]
+        
+        Integration Settings:
+        - [relevant settings]
+        
+        Note: Please redact sensitive information like API keys
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide environment details
+      placeholder: |
+        - Magic Version: [e.g. v1.0.0]
+        - Deployment: [e.g. Docker, Cloud, Self-hosted]
+        - Programming Language/SDK: [e.g. Python 3.9, magic-sdk v1.0.0]
+        - Operating System: [e.g. macOS 14.0, Ubuntu 22.04]
+        - Network: [e.g. Corporate firewall, VPN, etc.]
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Messages
+      description: Include relevant logs, error messages, or debug information
+      placeholder: |
+        ```
+        [2024-01-01 10:00:00] ERROR: Failed to connect to API
+        [2024-01-01 10:00:01] DEBUG: Retry attempt 1 of 3
+        ```
+    validations:
+      required: false
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Issue Frequency
+      description: How often does this issue occur?
+      options:
+        - Always - Every API call fails
+        - Frequently - Most API calls fail
+        - Sometimes - Intermittent failures
+        - Rarely - Occasional failures
+        - Once - Single occurrence
+    validations:
+      required: true
+
+  - type: textarea
+    id: workarounds
+    attributes:
+      label: Workarounds
+      description: Have you found any workarounds for this issue?
+      placeholder: Any temporary solutions or alternative approaches you've tried
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the API/integration issue
+      placeholder: |
+        - Network architecture details
+        - Related third-party service issues
+        - Timeline of when the issue started
+        - Impact on your application/workflow
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have checked the API documentation for correct usage
+          required: true
+        - label: I have verified my configuration and credentials
+          required: true
+        - label: I have provided sufficient details to reproduce the issue
+          required: true
+        - label: I have redacted sensitive information from my report
+          required: true 

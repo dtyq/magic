@@ -1,0 +1,135 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior in Magic
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out this form as completely as possible.
+        
+        **Before submitting a bug report:**
+        - Check if the issue has already been reported in [existing issues](https://github.com/dtyq/magic/issues)
+        - Read our [documentation](https://docs.letsmagic.cn/en)
+        - Try reproducing the issue with the latest version
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component/module is affected?
+      options:
+        - Super Magic (Super Magic)
+        - Magic IM (Chat System)
+        - Magic Flow (AI Workflow)
+        - Magic Service (Backend API)
+        - Magic Web (Frontend)
+        - Magic Gateway
+        - Documentation
+        - Deployment/Installation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment Type
+      description: How are you running Magic?
+      options:
+        - Self-hosted (Docker)
+        - Self-hosted (Source)
+        - Chinese Site (https://www.letsmagic.cn)
+        - International Site (https://www.letsmagic.ai)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe what happened and what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen
+      placeholder: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Describe the actual behavior or error message
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide environment details
+      placeholder: |
+        - OS: [e.g. macOS 14.0, Ubuntu 22.04, Windows 11]
+        - Docker Version: [e.g. 24.0.7]
+        - Magic Version: [e.g. v1.0.0]
+        - Browser: [e.g. Chrome 119.0, Safari 17.0] (if frontend related)
+        - Model Provider: [e.g. OpenAI GPT-4, Claude, Local LLM] (if AI related)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Messages
+      description: Please include relevant logs, error messages, or screenshots
+      placeholder: |
+        ```
+        Paste logs here...
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
+      placeholder: Any additional information that might help us understand the issue
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for existing issues before creating this report
+          required: true
+        - label: I have provided all the required information above
+          required: true
+        - label: This issue is reproducible
+          required: true 

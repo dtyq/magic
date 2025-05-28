@@ -1,0 +1,198 @@
+name: 🔒 Security Issue
+description: Report a security vulnerability (use private disclosure for critical issues)
+title: "[Security]: "
+labels: ["security", "high-priority"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **⚠️ IMPORTANT SECURITY NOTICE ⚠️**
+        
+        If you believe you have found a **critical security vulnerability**, please **DO NOT** create a public issue.
+        Instead, please send an email to **team@dtyq.com** with the subject line "[SECURITY] Vulnerability Report".
+        
+        This template is for **non-critical security issues** or security enhancement suggestions that can be discussed publicly.
+        
+        **Examples of non-critical security issues:**
+        - Missing security headers
+        - Outdated dependencies
+        - Security best practice improvements
+        - Documentation security issues
+        
+        **Examples of critical security issues (use private email):**
+        - Authentication bypass
+        - SQL injection
+        - Remote code execution
+        - Data exposure vulnerabilities
+
+  - type: checkboxes
+    id: security-severity
+    attributes:
+      label: Security Issue Severity
+      description: Please confirm this is NOT a critical security vulnerability
+      options:
+        - label: This is NOT a critical security vulnerability that could compromise user data or system security
+          required: true
+        - label: I understand that critical vulnerabilities should be reported privately to team@dtyq.com
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component/module does this security issue affect?
+      options:
+        - Super Magic
+        - Magic IM (Chat System)
+        - Magic Flow (Workflow System)
+        - Magic Service (Backend API)
+        - Magic Web (Frontend)
+        - Magic Gateway
+        - Authentication system
+        - Authorization/Permissions
+        - Data storage/handling
+        - API endpoints
+        - File upload/handling
+        - Dependencies
+        - Documentation
+        - Deployment/Configuration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: security-type
+    attributes:
+      label: Security Issue Type
+      description: What type of security issue or improvement is this?
+      options:
+        - Missing security headers
+        - Outdated dependencies
+        - Insecure default configuration
+        - Insufficient input validation
+        - Information disclosure (non-sensitive)
+        - Cross-site scripting (XSS) - minor
+        - Security documentation missing
+        - Security best practice improvement
+        - Rate limiting issues
+        - Session management improvement
+        - Other security enhancement
+    validations:
+      required: true
+
+  - type: textarea
+    id: security-description
+    attributes:
+      label: Security Issue Description
+      description: Describe the security issue or improvement needed
+      placeholder: |
+        - What is the security concern?
+        - What could be the potential impact?
+        - What security improvement do you suggest?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce (if applicable)
+      description: If this is a demonstrable security issue, provide steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Perform action '...'
+        3. Observe security issue
+        
+        Note: Please do not include actual exploitation steps for critical vulnerabilities
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact-assessment
+    attributes:
+      label: Impact Assessment
+      description: What is the potential impact of this security issue?
+      placeholder: |
+        - Who could be affected?
+        - What data or functionality could be at risk?
+        - What is the likelihood of exploitation?
+        - What are the potential consequences?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-fix
+    attributes:
+      label: Suggested Fix
+      description: If you have suggestions for how to fix this security issue, please share them
+      placeholder: |
+        - Recommended security measures
+        - Configuration changes
+        - Code improvements
+        - Best practices to implement
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide environment details where this security issue was observed
+      placeholder: |
+        - Magic Version: [e.g. v1.0.0]
+        - Deployment: [e.g. Docker, Cloud, Self-hosted]
+        - Configuration: [relevant security settings]
+        - Browser: [if frontend related]
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Security References
+      description: Include any relevant security references or standards
+      placeholder: |
+        - OWASP guidelines
+        - CVE references
+        - Security best practice documents
+        - Similar security issues in other projects
+    validations:
+      required: false
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency
+      description: How urgent is this security issue?
+      options:
+        - Low - Security enhancement for future consideration
+        - Medium - Should be addressed in upcoming releases
+        - High - Should be prioritized for security
+        - Urgent - Needs immediate attention (but not critical)
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the security issue
+      placeholder: |
+        - Screenshots (with sensitive information redacted)
+        - Related security discussions
+        - Industry standards or compliance requirements
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Final Checklist
+      description: Please confirm the following
+      options:
+        - label: I have confirmed this is NOT a critical security vulnerability
+          required: true
+        - label: I have provided sufficient details about the security concern
+          required: true
+        - label: I understand that security issues are taken seriously and will be addressed appropriately
+          required: true 
