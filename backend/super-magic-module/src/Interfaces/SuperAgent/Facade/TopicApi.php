@@ -61,7 +61,7 @@ class TopicApi extends AbstractApi
         $requestDTO = SaveTopicRequestDTO::fromRequest($this->request);
 
         // 调用应用服务层处理业务逻辑
-        return $this->workspaceAppService->saveTopic($requestContext, $requestDTO)->toArray();
+        return $this->topicAppService->saveTopic($requestContext, $requestDTO)->toArray();
     }
 
     /**
@@ -82,7 +82,7 @@ class TopicApi extends AbstractApi
         $requestDTO = DeleteTopicRequestDTO::fromRequest($this->request);
 
         // 调用应用服务层处理业务逻辑
-        return $this->workspaceAppService->deleteTopic($requestContext, $requestDTO)->toArray();
+        return $this->topicAppService->deleteTopic($requestContext, $requestDTO)->toArray();
     }
 
     /**
@@ -99,7 +99,7 @@ class TopicApi extends AbstractApi
         $topicId = $this->request->input('id', 0);
         $userQuestion = $this->request->input('user_question', '');
 
-        return $this->workspaceAppService->renameTopic($authorization, (int) $topicId, $userQuestion);
+        return $this->topicAppService->renameTopic($authorization, (int) $topicId, $userQuestion);
     }
 
     /**

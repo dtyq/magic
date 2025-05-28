@@ -9,12 +9,15 @@ namespace Dtyq\SuperMagic\Application\Share\Service;
 
 use App\ErrorCode\ShareErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Constant\ShareAccessType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
+use Dtyq\SuperMagic\Domain\Share\Event\CreateShareBeforeEvent;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
@@ -65,6 +68,11 @@ class ResourceShareAppService extends AbstractShareAppService
         // 1. 获取对应类型的资源工厂
         try {
             $factory = $this->resourceFactory->create($resourceType);
+
+            // 发送创建分享事件
+            AsyncEventUtil::dispatch(new CreateShareBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $dto->getResourceId(), $dto->getResourceType()->value));
+        } catch (EventException $e) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, $e->getMessage());
         } catch (RuntimeException $e) {
             // 使用 ExceptionBuilder 抛出不支持的资源类型异常
             ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported', [$resourceType->name]);

@@ -8,6 +8,7 @@ use App\ErrorCode\AgentErrorCode;
 use App\ErrorCode\AsrErrorCode;
 use App\ErrorCode\AuthenticationErrorCode;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\EventErrorCode;
 use App\ErrorCode\FlowErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\HttpErrorCode;
@@ -33,6 +34,7 @@ return [
         MagicApiErrorCode::class => [4000, 4100],
         MagicAccountErrorCode::class => [4100, 4300],
         GenericErrorCode::class => [5000, 9000],
+        EventErrorCode::class => [6000, 6999],
         TokenErrorCode::class => [9000, 10000],
         FlowErrorCode::class => [31000, 31999],
         AgentErrorCode::class => [32000, 32999],

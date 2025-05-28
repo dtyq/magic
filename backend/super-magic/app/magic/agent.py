@@ -1043,8 +1043,13 @@ class Agent(BaseAgent):
         if self.is_agent_running():
             self.set_agent_state(AgentState.FINISHED)
 
-        # 记录token使用情况 - 只在非流模式下打印
+        # 记录token使用情况 - 只在非流模式下记录和打印
         if not self.stream_mode:
+            # 获取token使用报告
+            token_report = self.get_token_usage_report()
+            # 保存token使用报告到context中
+            self.agent_context.set_token_usage_report(token_report)
+            # 打印token使用报告
             self.print_token_usage()
 
         return final_response

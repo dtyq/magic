@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
-use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Chat\Service\MagicTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -18,29 +17,29 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\CreateWorkspaceBeforeEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DeleteWorkspaceAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceListRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageItemDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveTopicResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveWorkspaceResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
 use Exception;
@@ -65,6 +64,7 @@ class WorkspaceAppService extends AbstractAppService
         protected AccountAppService $accountAppService,
         protected SandboxService $sandboxService,
         protected LockerInterface $locker,
+        protected ChatAppService $chatAppService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -136,29 +136,47 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 保存工作区（创建或更新）.
-     * @return SaveWorkspaceResultDTO 操作结果，包含工作区ID
-     * @throws BusinessException 如果保存失败则抛出异常
+     * Save workspace (create or update).
+     * @return SaveWorkspaceResultDTO Operation result, including workspace ID
+     * @throws BusinessException Throws an exception if saving fails
      * @throws Throwable
      */
     public function saveWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
     {
-        // 获取用户授权信息
-        $userAuthorization = $requestContext->getUserAuthorization();
+        Db::beginTransaction();
+        try {
+            // Get user authorization information
+            $userAuthorization = $requestContext->getUserAuthorization();
 
-        // 创建数据隔离对象
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
+            // Create data isolation object
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 准备工作区实体
-        if ($requestDTO->getWorkspaceId()) {
-            // 更新, 目前只更新工作区名称
-            $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
-            return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
+            // Prepare workspace entity
+            if ($requestDTO->getWorkspaceId()) {
+                // Update, currently only updates workspace name
+                $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+                return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
+            }
+
+            // Dispatch event before creating workspace
+            AsyncEventUtil::dispatch(new CreateWorkspaceBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $requestDTO->getWorkspaceName()));
+
+            // 提交事务
+            Db::commit();
+
+            // Create, use provided workspace name if available; otherwise use default name
+            $result = $this->initUserWorkspace($dataIsolation, $requestDTO->getWorkspaceName());
+            return SaveWorkspaceResultDTO::fromId($result['workspace']->getId());
+        } catch (EventException $e) {
+            // 回滚事务
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new workspace event: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, $e->getMessage());
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new workspace: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, 'topic.create_topic_failed');
         }
-
-        // 创建，如果有提供工作区名称，则使用；否则使用默认名称
-        $result = $this->initUserWorkspace($dataIsolation, $requestDTO->getWorkspaceName());
-        return SaveWorkspaceResultDTO::fromId($result['workspace']->getId());
     }
 
     /**
@@ -289,100 +307,12 @@ class WorkspaceAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 调用领域服务执行删除
-        return $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
-    }
+        $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
 
-    public function getTopic(RequestContext $requestContext, int $id): TopicItemDTO
-    {
-        // 获取话题内容
-        $topicEntity = $this->workspaceDomainService->getTopicById($id);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.not_found');
-        }
+        // Dispatch event after delete workspace
+        AsyncEventUtil::dispatch(new DeleteWorkspaceAfterEvent($workspaceId, $userAuthorization->getOrganizationCode(), $userAuthorization->getId()));
 
-        return TopicItemDTO::fromEntity($topicEntity);
-    }
-
-    /**
-     * 保存话题（创建或更新）.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 保存结果
-     * @throws BusinessException|Exception 如果保存失败则抛出异常
-     */
-    public function saveTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 获取用户授权信息
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 创建数据隔离对象
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-        // 如果有ID，表示更新；否则是创建
-        if ($requestDTO->isUpdate()) {
-            return $this->updateTopic($dataIsolation, $requestDTO);
-        }
-
-        return $this->createNewTopic($dataIsolation, $requestDTO);
-    }
-
-    /**
-     * 删除话题.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param DeleteTopicRequestDTO $requestDTO 请求DTO
-     * @return DeleteTopicResultDTO 删除结果
-     * @throws BusinessException|Exception 如果用户无权限、话题不存在或任务正在运行
-     */
-    public function deleteTopic(RequestContext $requestContext, DeleteTopicRequestDTO $requestDTO): DeleteTopicResultDTO
-    {
-        // 获取用户授权信息
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 创建数据隔离对象
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-        // 获取话题ID
-        $topicId = $requestDTO->getId();
-
-        // 调用领域服务执行删除
-        $result = $this->workspaceDomainService->deleteTopic($dataIsolation, (int) $topicId);
-
-        // 如果删除失败，抛出异常
-        if (! $result) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.delete_failed');
-        }
-
-        // 返回删除结果
-        return DeleteTopicResultDTO::fromId((int) $topicId);
-    }
-
-    public function renameTopic(MagicUserAuthorization $authorization, int $topicId, string $userQuestion): array
-    {
-        // 获取话题内容
-        $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.not_found');
-        }
-
-        // 如果当前话题已经被命名，则不进行重命名
-        if ($topicEntity->getTopicName() !== AgentConstant::DEFAULT_TOPIC_NAME) {
-            return ['topic_name' => $topicEntity->getTopicName()];
-        }
-
-        // 调用领域服务执行重命名（这一步与magic-service进行绑定）
-        try {
-            $text = $this->magicChatMessageAppService->summarizeText($authorization, $userQuestion);
-            // 更新话题名称
-            $dataIsolation = $this->createDataIsolation($authorization);
-            $this->workspaceDomainService->updateTopicName($dataIsolation, $topicId, $text);
-        } catch (Exception $e) {
-            $this->logger->error('rename topic error: ' . $e->getMessage());
-            $text = $topicEntity->getTopicName();
-        }
-
-        return ['topic_name' => $text];
+        return true;
     }
 
     /**
@@ -408,24 +338,6 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         return $taskEntity->toArray();
-    }
-
-    /**
-     * 获取话题下的任务列表.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $topicId 话题ID
-     * @param int $page 页码
-     * @param int $pageSize 每页数量
-     * @return array 任务列表
-     */
-    public function getTasksByTopicId(RequestContext $requestContext, string $topicId, int $page = 1, int $pageSize = 10): array
-    {
-        // 创建数据隔离对象
-        $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
-
-        // 获取任务列表
-        return $this->workspaceDomainService->getTasksByTopicId((int) $topicId, $page, $pageSize, $dataIsolation);
     }
 
     /**
@@ -862,66 +774,6 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 更新话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 更新结果
-     * @throws BusinessException 如果更新失败则抛出异常
-     */
-    private function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 更新话题名称
-        $result = $this->workspaceDomainService->updateTopicName(
-            $dataIsolation,
-            (int) $requestDTO->getId(), // 传递主键ID
-            $requestDTO->getTopicName()
-        );
-
-        if (! $result) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
-        }
-
-        return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
-    }
-
-    /**
-     * 创建新话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 创建结果
-     * @throws BusinessException|Throwable 如果创建失败则抛出异常
-     */
-    private function createNewTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 创建新话题，使用事务确保原子性
-        Db::beginTransaction();
-        try {
-            // 1. 初始化 chat 的会话和话题
-            [$chatConversationId, $chatConversationTopicId] = $this->initMagicChatConversation($dataIsolation);
-
-            // 2. 创建话题
-            $topicEntity = $this->workspaceDomainService->createTopic(
-                $dataIsolation,
-                (int) $requestDTO->getWorkspaceId(),
-                $chatConversationTopicId, // 会话的话题ID
-                $requestDTO->getTopicName()
-            );
-
-            // 提交事务
-            Db::commit();
-
-            // 返回结果
-            return SaveTopicResultDTO::fromId((int) $topicEntity->getId());
-        } catch (Throwable $e) {
-            // 回滚事务
-            Db::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
      * 初始化用户工作区.
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
@@ -936,7 +788,7 @@ class WorkspaceAppService extends AbstractAppService
     ): array {
         $this->logger->info('开始初始化用户工作区');
         // 获取超级麦吉用户
-        [$chatConversationId, $chatConversationTopicId] = $this->initMagicChatConversation($dataIsolation);
+        [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
         $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
         // 新建工作区，绑定会话id
         $result = $this->workspaceDomainService->createWorkspace(
@@ -960,32 +812,5 @@ class WorkspaceAppService extends AbstractAppService
             'topic' => $topicEntity,  // 直接返回实体对象
             'auto_create' => true,  // 添加auto_create字段
         ];
-    }
-
-    /**
-     * 初始化麦吉聊天记录.
-     * @throws Throwable
-     */
-    private function initMagicChatConversation(DataIsolation $dataIsolation): array
-    {
-        $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
-        if (empty($aiUserEntity)) {
-            // 手动做一次初始化
-            $this->accountAppService->initAccount($dataIsolation->getCurrentOrganizationCode());
-            // 再查一次
-            $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
-            if (empty($aiUserEntity)) {
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.super_magic_user_not_found');
-            }
-        }
-        // 为用户初始化会话和话题
-        $senderConversationEntity = $this->magicConversationDomainService->getOrCreateConversation(
-            $dataIsolation->getCurrentUserId(),
-            $aiUserEntity->getUserId(),
-            ConversationType::Ai
-        );
-        // 为收发双方创建相同的话题 id
-        $topicId = $this->topicDomainService->agentSendMessageGetTopicId($senderConversationEntity, 3);
-        return [$senderConversationEntity->getId(), $topicId];
     }
 }

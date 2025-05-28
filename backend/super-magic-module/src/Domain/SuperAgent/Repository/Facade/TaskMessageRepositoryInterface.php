@@ -40,7 +40,8 @@ interface TaskMessageRepositoryInterface
      * @param int $pageSize 每页大小
      * @param bool $shouldPage 是否需要分页
      * @param string $sortDirection 排序方向，支持asc和desc
+     * @param bool $showInUi 是否只显示UI可见的消息
      * @return array 返回包含消息列表和总数的数组 ['list' => TaskMessageEntity[], 'total' => int]
      */
-    public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc'): array;
+    public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array;
 }

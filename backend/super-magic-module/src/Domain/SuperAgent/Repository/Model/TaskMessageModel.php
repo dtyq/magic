@@ -34,6 +34,7 @@ class TaskMessageModel extends AbstractModel
         'attachments',
         'event',
         'send_timestamp',
+        'show_in_ui',
         'created_at',
         'updated_at',
         'deleted_at',
@@ -46,5 +47,6 @@ class TaskMessageModel extends AbstractModel
         'event' => 'string',
         'send_timestamp' => 'integer',
         'topic_id' => 'integer',
+        'show_in_ui' => 'boolean',
     ];
 }

@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Crontab;
 
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
@@ -104,6 +106,9 @@ readonly class CheckTaskStatusTask
 
                 // 更新话题状态
                 $this->topicDomainService->updateTopicStatus($topic->getId(), $taskId, TaskStatus::ERROR);
+
+                // 触发完成事件
+                AsyncEventUtil::dispatch(new RunTaskAfterEvent($topic->getUserOrganizationCode(), $topic->getUserId(), $topic->getId(), $taskId, TaskStatus::ERROR->value, null));
                 ++$updatedToErrorCount;
             }
 

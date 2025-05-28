@@ -13,6 +13,10 @@ class SandboxResult
 
     public const Normal = 1000;
 
+    public const SandboxRunnig = 'running';
+
+    public const SandboxExited = 'exited';
+
     public function __construct(
         private bool $success = false,
         private ?string $message = null,
