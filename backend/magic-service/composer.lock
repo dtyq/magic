@@ -1972,7 +1972,7 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.0"
             },
             "time": "2025-05-28T01:59:20+08:00"
         },
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "6c9280a0fd4afbfbd517bc26d7570ba946c54edf"
+                "reference": "11208b7e555c49e18a5666813b144f34066da302"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=6c9280a0fd4afbfbd517bc26d7570ba946c54edf",
-                "reference": "6c9280a0fd4afbfbd517bc26d7570ba946c54edf",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=11208b7e555c49e18a5666813b144f34066da302",
+                "reference": "11208b7e555c49e18a5666813b144f34066da302",
                 "shasum": ""
             },
             "require": {
@@ -2300,7 +2300,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-05-28T12:31:46+00:00"
+            "time": "2025-05-28T13:24:06+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
