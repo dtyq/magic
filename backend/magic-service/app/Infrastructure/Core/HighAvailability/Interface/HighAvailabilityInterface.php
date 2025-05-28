@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\HighAvailability\Interface;
 
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
-use App\Infrastructure\Core\HighAvailability\Entity\EndpointEntity;
 use App\Infrastructure\Core\HighAvailability\ValueObject\LoadBalancingType;
 use App\Infrastructure\Core\HighAvailability\ValueObject\StatisticsLevel;
 
@@ -19,14 +19,14 @@ interface HighAvailabilityInterface
      *
      * Query endpoint list from business side for load balancing and high availability selection
      *
-     * @param string $modelId Model ID
+     * @param string $endpointType Model ID
      * @param string $orgCode Organization code
      * @param null|string $provider Service provider, e.g., Microsoft | Volcano | Alibaba Cloud, optional
      * @param null|string $endpointName Endpoint name (optional), e.g., East US, Japan for Microsoft provider
-     * @return EndpointEntity[] Endpoint list
+     * @return EndpointDTO[] Endpoint list
      */
     public function getEndpointList(
-        string $modelId,
+        string $endpointType,
         string $orgCode,
         ?string $provider = null,
         ?string $endpointName = null
@@ -48,7 +48,7 @@ interface HighAvailabilityInterface
      * @param StatisticsLevel $statisticsLevel Statistics level
      * @param int $timeRange Statistics time range in minutes, default 30 minutes
      * @note Multiple endpoints of the same type and provider are allowed.
-     * @return null|EndpointEntity Available endpoint, returns null if no available endpoint
+     * @return null|EndpointDTO Available endpoint, returns null if no available endpoint
      */
     public function getAvailableEndpoint(
         string $endpointType,
@@ -58,7 +58,7 @@ interface HighAvailabilityInterface
         LoadBalancingType $balancingType = LoadBalancingType::RANDOM,
         StatisticsLevel $statisticsLevel = StatisticsLevel::LEVEL_MINUTE,
         int $timeRange = 30
-    ): ?EndpointEntity;
+    ): ?EndpointDTO;
 
     /**
      * 记录接入点的响应并自动处理成功/失败状态，以及用于后续的数据分析。

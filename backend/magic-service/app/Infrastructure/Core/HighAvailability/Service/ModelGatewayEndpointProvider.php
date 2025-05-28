@@ -9,7 +9,8 @@ namespace App\Infrastructure\Core\HighAvailability\Service;
 
 use App\Domain\ModelAdmin\Entity\ServiceProviderModelsEntity;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
-use App\Infrastructure\Core\HighAvailability\Entity\EndpointEntity;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
+use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\EndpointProviderInterface;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 
@@ -32,7 +33,7 @@ readonly class ModelGatewayEndpointProvider implements EndpointProviderInterface
      * @param string $orgCode Organization code
      * @param null|string $provider Service provider config ID
      * @param null|string $endpointName Endpoint name (ServiceProviderModelsEntity ID)
-     * @return EndpointEntity[] Endpoint list
+     * @return EndpointDTO[] Endpoint list
      */
     public function getEndpoints(
         string $modelId,
@@ -44,9 +45,12 @@ readonly class ModelGatewayEndpointProvider implements EndpointProviderInterface
             return [];
         }
 
+        // 如果 modelId 包含格式化前缀，则还原为原始的 modelId
+        $originalModelId = EndpointAssembler::extractOriginalModelId($modelId);
+
         // Get service provider models by model ID and organization code
         $serviceProviderModels = $this->serviceProviderDomainService->getOrganizationActiveModelsByIdOrType(
-            $modelId,
+            $originalModelId,
             $orgCode
         );
 
@@ -71,6 +75,6 @@ readonly class ModelGatewayEndpointProvider implements EndpointProviderInterface
             return [];
         }
         // Convert to EndpointEntity array
-        return EndpointAssembler::toEndpointEntities($serviceProviderModels);
+        return EndpointAssembler::toEndpointEntities($serviceProviderModels, HighAvailabilityAppType::MODEL_GATEWAY);
     }
 }

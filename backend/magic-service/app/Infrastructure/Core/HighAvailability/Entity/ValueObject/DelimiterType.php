@@ -15,9 +15,9 @@ use InvalidArgumentException;
 enum DelimiterType: string
 {
     /**
-     * 模型类型+组织编码的分隔符.
+     * 高可用应用类型+模型类型+组织编码的分隔符.
      */
-    case MODEL = '||';
+    case HIGH_AVAILABILITY = '||';
 
     /**
      * 获取所有分隔符类型值数组.
@@ -25,7 +25,7 @@ enum DelimiterType: string
     public static function values(): array
     {
         return [
-            self::MODEL->value,
+            self::HIGH_AVAILABILITY->value,
         ];
     }
 
@@ -43,7 +43,7 @@ enum DelimiterType: string
     public static function fromString(string $type): self
     {
         return match ($type) {
-            self::MODEL->value => self::MODEL,
+            self::HIGH_AVAILABILITY->value => self::HIGH_AVAILABILITY,
             default => throw new InvalidArgumentException("无效的分隔符类型: {$type}"),
         };
     }

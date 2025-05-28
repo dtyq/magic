@@ -20,7 +20,9 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
+use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -32,6 +34,7 @@ use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Exception;
 use Hyperf\Context\ApplicationContext;
@@ -196,7 +199,8 @@ class LLMAppService extends AbstractLLMAppService
      */
     protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction): ResponseInterface
     {
-        $endpointResponseDTO = null;
+        /** @var null|EndpointDTO $endpointDTO */
+        $endpointDTO = null;
         try {
             // 验证访问令牌与模型权限
             $accessToken = $this->validateAccessToken($proxyModelRequest);
@@ -209,7 +213,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // 尝试获取高可用模型配置
             $orgCode = $contextData['organization_code'] ?? null;
-            $modeId = $this->getHighAvailableModelId($proxyModelRequest->getModel(), $endpointResponseDTO, $orgCode);
+            $modeId = $this->getHighAvailableModelId($proxyModelRequest->getModel(), $endpointDTO, $orgCode);
             if (empty($modeId)) {
                 $modeId = $proxyModelRequest->getModel();
             }
@@ -266,7 +270,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // 如果拿到了接入点，那么进行正常情况的高可用数据上报
             $this->reportHighAvailabilityResponse(
-                $endpointResponseDTO,
+                $endpointDTO,
                 $responseTime,
                 200, // 正常情况使用 200 状态码
                 0,   // 业务状态码标记为成功
@@ -285,7 +289,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // 如果拿到了接入点，那么进行异常情况的高可用数据上报
             $this->reportHighAvailabilityResponse(
-                $endpointResponseDTO,
+                $endpointDTO,
                 $responseTime,
                 400, // 业务异常使用 400 状态码
                 $exception->getCode(), // 业务状态码
@@ -301,7 +305,7 @@ class LLMAppService extends AbstractLLMAppService
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
             // 如果拿到了接入点，那么进行异常情况的高可用数据上报
             $this->reportHighAvailabilityResponse(
-                $endpointResponseDTO,
+                $endpointDTO,
                 $responseTime,
                 500, // 异常情况默认使用 500 状态码
                 $throwable->getCode(), // 业务状态码标记为失败
@@ -338,25 +342,21 @@ class LLMAppService extends AbstractLLMAppService
      * 获取高可用模型配置
      * 尝试从HighAvailabilityInterface获取可用的模型接入点.
      */
-    protected function getHighAvailableModelId(string $modelType, ?EndpointResponseDTO &$endpointResponseDTO, ?string $orgCode = null): ?string
+    protected function getHighAvailableModelId(string $modelType, ?EndpointDTO &$endpointDTO, ?string $orgCode = null): ?string
     {
         $highAvailable = $this->getHighAvailabilityService();
         if ($highAvailable === null) {
             return null;
         }
+        // 使用 EndpointAssembler 来生成标准化的端点类型标识
+        $formattedModelType = EndpointAssembler::generateEndpointType(
+            HighAvailabilityAppType::MODEL_GATEWAY,
+            $modelType
+        );
         // 获取可用的接入点
-        $highAvailableEndpoint = $highAvailable->getAvailableEndpoint($modelType, $orgCode);
-        if (! $highAvailableEndpoint || ! $highAvailableEndpoint->getName()) {
-            return null;
-        }
-        $endpointResponseDTO = new EndpointResponseDTO();
-        // 后续高可用的数据统计分析，需要传入高可用表自己的 id
-        $endpointResponseDTO->setEndpointId($highAvailableEndpoint->getId());
+        $endpointDTO = $highAvailable->getAvailableEndpoint($formattedModelType, $orgCode);
         // 模型的配置 id
-        $modelEndpointId = $highAvailableEndpoint->getName();
-        $serviceProviderModel = $this->serviceProviderDomainService->getModelById($modelEndpointId);
-
-        return (string) $serviceProviderModel->getId();
+        return $endpointDTO?->getBusinessId() ?: null;
     }
 
     /**
@@ -387,7 +387,6 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * 向高可用服务上报响应数据.
      *
-     * @param ?EndpointResponseDTO $endpointResponseDTO 接入点响应DTO
      * @param int $responseTime 响应时间（毫秒）
      * @param int $httpStatusCode HTTP状态码
      * @param int $businessStatusCode 业务状态码
@@ -395,7 +394,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param ?Throwable $throwable 异常信息（如果有）
      */
     private function reportHighAvailabilityResponse(
-        ?EndpointResponseDTO $endpointResponseDTO,
+        ?EndpointDTO $endpointDTO,
         int $responseTime,
         int $httpStatusCode,
         int $businessStatusCode,
@@ -403,9 +402,10 @@ class LLMAppService extends AbstractLLMAppService
         ?Throwable $throwable = null
     ): void {
         $highAvailable = $this->getHighAvailabilityService();
-        if ($highAvailable === null || $endpointResponseDTO === null) {
+        if ($highAvailable === null || $endpointDTO === null || ! $endpointDTO->getEndpointId()) {
             return;
         }
+        $endpointResponseDTO = new EndpointResponseDTO();
         // 构建接入点响应DTO
         $endpointResponseDTO
             ->setRequestId((string) CoContext::getOrSetRequestId())

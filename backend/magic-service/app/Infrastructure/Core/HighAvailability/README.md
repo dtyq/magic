@@ -44,7 +44,7 @@ Concrete implementation class that gets endpoint list from ModelGateway business
 ### 1. Basic Usage
 
 ```php
-use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
+use Dtyq\MagicEnterprise\Domain\HighAvailability\HighAvailabilityInterface;
 
 class YourService 
 {

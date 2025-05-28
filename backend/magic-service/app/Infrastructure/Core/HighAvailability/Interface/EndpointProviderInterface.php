@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\HighAvailability\Interface;
 
-use App\Infrastructure\Core\HighAvailability\Entity\EndpointEntity;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 
 /**
  * Endpoint provider interface.
@@ -20,12 +20,12 @@ interface EndpointProviderInterface
      * Get available endpoint list.
      *
      * Query endpoint list from business side for load balancing and high availability selection
-     *
+     *`
      * @param string $modelId Model ID
      * @param string $orgCode Organization code
      * @param null|string $provider Service provider config id
      * @param null|string $endpointName Endpoint name (optional), e.g., East US, Japan for Microsoft provider
-     * @return EndpointEntity[] Endpoint list
+     * @return EndpointDTO[] Endpoint list
      */
     public function getEndpoints(
         string $modelId,
