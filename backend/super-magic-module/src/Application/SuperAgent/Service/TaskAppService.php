@@ -123,7 +123,7 @@ class TaskAppService extends AbstractAppService
                 $conversationId,
                 $chatTopicId,
                 $agentUserId,
-                '',
+                $topicEntity->getSandboxId(),
                 $taskId,
                 $instruction,
             );
