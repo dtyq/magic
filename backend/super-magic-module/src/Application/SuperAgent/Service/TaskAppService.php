@@ -259,7 +259,10 @@ class TaskAppService extends AbstractAppService
             throw new BusinessException('获取沙箱websocket客户端失败', 500);
         }
         try {
-            $this->sendErrorMessageToClient($topicEntity->getId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $text);
+            // 如果 message 为空，就不发送，因为你触发沙箱的关闭，会有回调消息，避免重复发的情况
+            if (!empty($msg)) {
+                $this->sendErrorMessageToClient($topicEntity->getId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $msg);
+            }
             // 设置打断指令
             $taskContext->getTask()->setPrompt('终止任务');
             $taskContext->setInstruction(ChatInstruction::Interrupted);
