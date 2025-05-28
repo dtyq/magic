@@ -445,16 +445,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.343.19",
+            "version": "3.343.20",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "00b44b1a9d570bc945d223b20886c1ac13b54641"
+                "reference": "bf40b00d2e1cbd2a5d8c903743073440d8ebb5dc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/00b44b1a9d570bc945d223b20886c1ac13b54641",
-                "reference": "00b44b1a9d570bc945d223b20886c1ac13b54641",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/bf40b00d2e1cbd2a5d8c903743073440d8ebb5dc",
+                "reference": "bf40b00d2e1cbd2a5d8c903743073440d8ebb5dc",
                 "shasum": ""
             },
             "require": {
@@ -536,9 +536,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.19"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.20"
             },
-            "time": "2025-05-27T18:10:12+00:00"
+            "time": "2025-05-28T18:10:03+00:00"
         },
         {
             "name": "brick/math",
@@ -1722,16 +1722,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.1",
+            "version": "1.0.2",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "e7c528ad9365188ca63036366f13eaf944992d7e"
+                "reference": "b4f7da90ead48a927cb17f86e6b342ccd1cd08d2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e7c528ad9365188ca63036366f13eaf944992d7e",
-                "reference": "e7c528ad9365188ca63036366f13eaf944992d7e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=b4f7da90ead48a927cb17f86e6b342ccd1cd08d2",
+                "reference": "b4f7da90ead48a927cb17f86e6b342ccd1cd08d2",
                 "shasum": ""
             },
             "require": {
@@ -1807,9 +1807,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.1"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.2"
             },
-            "time": "2025-05-29T01:44:59+08:00"
+            "time": "2025-05-29T02:32:39+08:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -16688,12 +16688,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "931737c9e3d23e90904065a4c86ebd6c19cc98f6"
+                "reference": "ee2528399ca30fe65a23165183190be42c0b109a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/931737c9e3d23e90904065a4c86ebd6c19cc98f6",
-                "reference": "931737c9e3d23e90904065a4c86ebd6c19cc98f6",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/ee2528399ca30fe65a23165183190be42c0b109a",
+                "reference": "ee2528399ca30fe65a23165183190be42c0b109a",
                 "shasum": ""
             },
             "conflict": {
@@ -17105,7 +17105,7 @@
                 "marcwillmann/turn": "<0.3.3",
                 "matomo/matomo": "<1.11",
                 "matyhtf/framework": "<3.0.6",
-                "mautic/core": "<5.2.3",
+                "mautic/core": "<5.2.6|>=6.0.0.0-alpha,<6.0.2",
                 "mautic/core-lib": ">=1.0.0.0-beta,<4.4.13|>=5.0.0.0-alpha,<5.1.1",
                 "maximebf/debugbar": "<1.19",
                 "mdanter/ecc": "<2",
@@ -17623,7 +17623,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-28T17:05:52+00:00"
+            "time": "2025-05-28T18:06:42+00:00"
         },
         {
             "name": "sebastian/cli-parser",
