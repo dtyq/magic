@@ -349,4 +349,4 @@ class TokenUsageRecordEntity extends AbstractEntity
             'updated_at' => $this->updatedAt,
         ];
     }
-} 
+}

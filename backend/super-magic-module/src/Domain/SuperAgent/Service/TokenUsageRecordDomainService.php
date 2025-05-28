@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TokenUsageRecordEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordRepositoryInterface;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -112,14 +113,14 @@ class TokenUsageRecordDomainService
     public function calculateTaskTokens(DataIsolation $dataIsolation, string $taskId): array
     {
         $records = $this->getByTaskId($dataIsolation, $taskId);
-        
+
         $totalInputTokens = 0;
         $totalOutputTokens = 0;
         $totalTokens = 0;
         $totalCachedTokens = 0;
         $totalCacheWriteTokens = 0;
         $totalReasoningTokens = 0;
-        
+
         foreach ($records as $record) {
             $totalInputTokens += $record->getTotalInputTokens();
             $totalOutputTokens += $record->getTotalOutputTokens();
@@ -128,7 +129,7 @@ class TokenUsageRecordDomainService
             $totalCacheWriteTokens += $record->getCacheWriteTokens();
             $totalReasoningTokens += $record->getReasoningTokens();
         }
-        
+
         return [
             'total_input_tokens' => $totalInputTokens,
             'total_output_tokens' => $totalOutputTokens,
@@ -202,28 +203,28 @@ class TokenUsageRecordDomainService
      * Validate token usage record entity.
      *
      * @param TokenUsageRecordEntity $entity Entity to validate
-     * @throws \InvalidArgumentException If validation fails
+     * @throws InvalidArgumentException If validation fails
      */
     private function validateEntity(TokenUsageRecordEntity $entity): void
     {
         if (empty($entity->getTopicId())) {
-            throw new \InvalidArgumentException('Topic ID is required');
+            throw new InvalidArgumentException('Topic ID is required');
         }
 
         if (empty($entity->getTaskId())) {
-            throw new \InvalidArgumentException('Task ID is required');
+            throw new InvalidArgumentException('Task ID is required');
         }
 
         if (empty($entity->getOrganizationCode())) {
-            throw new \InvalidArgumentException('Organization code is required');
+            throw new InvalidArgumentException('Organization code is required');
         }
 
         if (empty($entity->getUserId())) {
-            throw new \InvalidArgumentException('User ID is required');
+            throw new InvalidArgumentException('User ID is required');
         }
 
         if ($entity->getTotalTokens() < 0) {
-            throw new \InvalidArgumentException('Total tokens cannot be negative');
+            throw new InvalidArgumentException('Total tokens cannot be negative');
         }
     }
-} 
+}

@@ -57,7 +57,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
     public function process(object $event): void
     {
         // Type check
-        if (!$event instanceof RunTaskAfterEvent) {
+        if (! $event instanceof RunTaskAfterEvent) {
             return;
         }
 
@@ -112,7 +112,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
 
             // Process each usage separately
             foreach ($usages as $usage) {
-                if (!$usage instanceof TokenUsage) {
+                if (! $usage instanceof TokenUsage) {
                     continue;
                 }
 
@@ -135,7 +135,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
                         'model_id' => $modelId,
                         'existing_record_id' => $existingRecord->getId(),
                     ]);
-                    $recordsSkipped++;
+                    ++$recordsSkipped;
                     continue;
                 }
 
@@ -189,7 +189,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
                     'usage_type' => $tokenUsageDetails->getType(),
                 ]);
 
-                $recordsCreated++;
+                ++$recordsCreated;
             }
 
             $this->logger->info('Token usage records processing completed', [
@@ -231,4 +231,4 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
             return null;
         }
     }
-} 
+}

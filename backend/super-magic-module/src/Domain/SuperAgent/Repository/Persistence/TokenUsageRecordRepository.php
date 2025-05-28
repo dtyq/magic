@@ -28,7 +28,7 @@ class TokenUsageRecordRepository implements TokenUsageRecordRepositoryInterface
     public function getById(DataIsolation $dataIsolation, int $id): ?TokenUsageRecordEntity
     {
         $record = $this->model::query()->find($id);
-        if (!$record) {
+        if (! $record) {
             return null;
         }
         return new TokenUsageRecordEntity($record->toArray());
@@ -170,4 +170,4 @@ class TokenUsageRecordRepository implements TokenUsageRecordRepositoryInterface
 
         return $entity;
     }
-} 
+}

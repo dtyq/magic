@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
-use App\Application\Kernel\SuperPermissionEnum;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
@@ -23,7 +22,6 @@ use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -260,7 +258,7 @@ class TaskAppService extends AbstractAppService
         }
         try {
             // 如果 message 为空，就不发送，因为你触发沙箱的关闭，会有回调消息，避免重复发的情况
-            if (!empty($msg)) {
+            if (! empty($msg)) {
                 $this->sendErrorMessageToClient($topicEntity->getId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $msg);
             }
             // 设置打断指令
