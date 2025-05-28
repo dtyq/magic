@@ -322,4 +322,15 @@ class TaskRepository implements TaskRepositoryInterface
 
         return $result;
     }
+
+    /**
+     * 获取指定话题下的任务数量.
+     */
+    public function getTaskCountByTopicId(int $topicId): int
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->whereNull('deleted_at')
+            ->count();
+    }
 }

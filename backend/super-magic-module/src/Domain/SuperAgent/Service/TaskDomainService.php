@@ -664,4 +664,14 @@ class TaskDomainService
     {
         return $this->taskRepository->getTasksExceedingUpdateTime($timeThreshold, $limit);
     }
+
+    public function getTaskNumByTopicId(int $topicId): int
+    {
+        return $this->taskRepository->getTaskCountByTopicId($topicId);
+    }
+
+    public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity
+    {
+        return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
+    }
 }
