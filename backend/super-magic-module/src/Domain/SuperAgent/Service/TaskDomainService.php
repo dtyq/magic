@@ -693,4 +693,9 @@ class TaskDomainService
     {
         return $this->taskRepository->getTaskCountByTopicId($topicId);
     }
+
+    public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity
+    {
+        return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
+    }
 }
