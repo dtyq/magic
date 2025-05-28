@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Provider\Entity\ValueObject\Query;
 
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\Status;
 
 class ProviderModelQuery extends Query
@@ -15,6 +16,8 @@ class ProviderModelQuery extends Query
     protected ?Status $status = null;
 
     protected ?Category $category = null;
+
+    protected ?ModelType $modelType = null;
 
     public function getCategory(): ?Category
     {
@@ -35,5 +38,15 @@ class ProviderModelQuery extends Query
     {
         $this->status = $status;
         return $this;
+    }
+
+    public function getModelType(): ?ModelType
+    {
+        return $this->modelType;
+    }
+
+    public function setModelType(?ModelType $modelType): void
+    {
+        $this->modelType = $modelType;
     }
 }

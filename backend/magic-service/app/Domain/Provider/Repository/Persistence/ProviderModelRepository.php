@@ -87,6 +87,9 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
         if ($query->getCategory()) {
             $builder->where('category', $query->getCategory()->value);
         }
+        if ($query->getModelType()) {
+            $builder->where('model_type', $query->getModelType()->value);
+        }
 
         $result = $this->getByPage($builder, $page, $query);
 
