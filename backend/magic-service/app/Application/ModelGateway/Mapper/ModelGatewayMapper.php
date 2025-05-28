@@ -15,6 +15,7 @@ use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -137,7 +138,7 @@ class ModelGatewayMapper extends ModelMapper
      */
     public function getChatModels(string $organizationCode): array
     {
-        return $this->getModelsByType($organizationCode, 'chat');
+        return $this->getModelsByType($organizationCode, 'chat', ModelType::LLM);
     }
 
     /**
@@ -146,7 +147,7 @@ class ModelGatewayMapper extends ModelMapper
      */
     public function getEmbeddingModels(string $organizationCode): array
     {
-        return $this->getModelsByType($organizationCode, 'embedding');
+        return $this->getModelsByType($organizationCode, 'embedding', ModelType::EMBEDDING);
     }
 
     protected function loadEnvModels(): void
@@ -331,13 +332,28 @@ class ModelGatewayMapper extends ModelMapper
      * @param string $type 模型类型(chat|embedding)
      * @return OdinModel[]
      */
-    private function getModelsByType(string $organizationCode, string $type): array
+    private function getModelsByType(string $organizationCode, string $type, ?ModelType $modelType = null): array
     {
         $list = [];
 
         // 获取已持久化的配置
         $models = $this->getModels($type);
         foreach ($models as $name => $model) {
+            switch ($modelType) {
+                case ModelType::LLM:
+                    if ($model instanceof AbstractModel && ! $model->getModelOptions()->isChat()) {
+                        continue 2;
+                    }
+                    break;
+                case ModelType::EMBEDDING:
+                    if ($model instanceof AbstractModel && ! $model->getModelOptions()->isEmbedding()) {
+                        continue 2;
+                    }
+                    break;
+                default:
+                    // 如果没有指定类型，则全部添加
+                    break;
+            }
             $list[$name] = new OdinModel(key: $name, model: $model, attributes: $this->attributes[$name]);
         }
 
@@ -346,6 +362,7 @@ class ModelGatewayMapper extends ModelMapper
         $providerModelQuery = new ProviderModelQuery();
         $providerModelQuery->setStatus(Status::Enabled);
         $providerModelQuery->setCategory(Category::LLM);
+        $providerModelQuery->setModelType($modelType);
         $providerModelData = di(ProviderModelDomainService::class)->queries($providerDataIsolation, $providerModelQuery, Page::createNoPage());
         $providerConfigIds = [];
         foreach ($providerModelData['list'] as $providerModel) {
