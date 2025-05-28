@@ -5,19 +5,15 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace Dtyq\MagicEnterprise\Domain\HighAvailability\DTO;
+namespace App\Infrastructure\Core\HighAvailability\DTO;
 
-use App\Infrastructure\Core\AbstractEntity;
-use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
+use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\CircuitBreakerStatus;
 
 /**
- * 增强的接入点 DTO.
- *
- * 复制 EndpointDTO 的所有字段，并新增 endpointId 和 businessId 字段
- * 用于在业务流程中同时保存业务ID和高可用组件接入点数据库ID
+ * 用于在业务流程中同时保存业务ID和高可用组件接入点数据库ID.
  */
-class EnhancedEndpointDTO extends AbstractEntity
+class EndpointDTO extends AbstractDTO
 {
     /**
      * getEndpointList 接口返回的 id。
@@ -208,8 +204,11 @@ class EnhancedEndpointDTO extends AbstractEntity
     /**
      * 设置数据库接入点ID.
      */
-    public function setEndpointId(?string $endpointId): static
+    public function setEndpointId(null|int|string $endpointId): static
     {
+        if (is_int($endpointId)) {
+            $endpointId = (string) $endpointId;
+        }
         $this->endpointId = $endpointId;
         return $this;
     }
@@ -225,8 +224,11 @@ class EnhancedEndpointDTO extends AbstractEntity
     /**
      * 设置业务ID.
      */
-    public function setBusinessId(?string $businessId): static
+    public function setBusinessId(null|int|string $businessId): static
     {
+        if (is_int($businessId)) {
+            $businessId = (string) $businessId;
+        }
         $this->businessId = $businessId;
         return $this;
     }

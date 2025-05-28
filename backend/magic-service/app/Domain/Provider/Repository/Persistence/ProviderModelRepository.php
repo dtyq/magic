@@ -36,17 +36,29 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
     }
 
     /**
-     * 通过ID或ModelID查询模型，在id和model_id字段上使用OR条件.
+     * 通过ID或ModelID查询模型，拆分为两次查询以有效利用索引.
      */
     public function getByIdOrModelId(ProviderDataIsolation $dataIsolation, string $id): ?ProviderModelEntity
     {
-        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        // 先尝试按数字ID查询（如果$id是数字）
+        if (is_numeric($id)) {
+            $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+            /** @var null|ProviderModelModel $model */
+            $model = $builder->where('id', (int) $id)
+                ->where('status', Status::Enabled->value)
+                ->first();
 
+            if ($model) {
+                return ProviderModelFactory::modelToEntity($model);
+            }
+        }
+
+        // 如果按ID没找到，再按model_id查询
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
         /** @var null|ProviderModelModel $model */
-        $model = $builder->where(function ($query) use ($id) {
-            $query->where('id', $id)
-                ->orWhere('model_id', $id);
-        })->where('status', Status::Enabled->value)->first();
+        $model = $builder->where('model_id', $id)
+            ->where('status', Status::Enabled->value)
+            ->first();
 
         if (! $model) {
             return null;
