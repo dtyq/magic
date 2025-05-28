@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "40158bc569b1f65795d3b1403633d34c",
+    "content-hash": "6a232e10f69601c2c9f1bcc41a302b6e",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -343,170 +343,6 @@
                 "source": "https://github.com/alibabacloud-sdk-php/sts"
             },
             "time": "2019-05-30T05:03:57+00:00"
-        },
-        {
-            "name": "alibabacloud/tea",
-            "version": "3.2.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/aliyun/tea-php.git",
-                "reference": "1619cb96c158384f72b873e1f85de8b299c9c367"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/aliyun/tea-php/zipball/1619cb96c158384f72b873e1f85de8b299c9c367",
-                "reference": "1619cb96c158384f72b873e1f85de8b299c9c367",
-                "shasum": ""
-            },
-            "require": {
-                "adbario/php-dot-notation": "^2.4",
-                "ext-curl": "*",
-                "ext-json": "*",
-                "ext-libxml": "*",
-                "ext-mbstring": "*",
-                "ext-openssl": "*",
-                "ext-simplexml": "*",
-                "ext-xmlwriter": "*",
-                "guzzlehttp/guzzle": "^6.3|^7.0",
-                "php": ">=5.5"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "*",
-                "symfony/dotenv": "^3.4",
-                "symfony/var-dumper": "^3.4"
-            },
-            "suggest": {
-                "ext-sockets": "To use client-side monitoring"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "AlibabaCloud\\Tea\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "Apache-2.0"
-            ],
-            "authors": [
-                {
-                    "name": "Alibaba Cloud SDK",
-                    "email": "sdk-team@alibabacloud.com",
-                    "homepage": "http://www.alibabacloud.com"
-                }
-            ],
-            "description": "Client of Tea for PHP",
-            "homepage": "https://www.alibabacloud.com/",
-            "keywords": [
-                "alibabacloud",
-                "client",
-                "cloud",
-                "tea"
-            ],
-            "support": {
-                "issues": "https://github.com/aliyun/tea-php/issues",
-                "source": "https://github.com/aliyun/tea-php"
-            },
-            "time": "2023-05-16T06:43:41+00:00"
-        },
-        {
-            "name": "alibabacloud/tea-fileform",
-            "version": "0.3.4",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/alibabacloud-sdk-php/tea-fileform.git",
-                "reference": "4bf0c75a045c8115aa8cb1a394bd08d8bb833181"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/alibabacloud-sdk-php/tea-fileform/zipball/4bf0c75a045c8115aa8cb1a394bd08d8bb833181",
-                "reference": "4bf0c75a045c8115aa8cb1a394bd08d8bb833181",
-                "shasum": ""
-            },
-            "require": {
-                "alibabacloud/tea": "^3.0",
-                "php": ">5.5"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^4.8.35|^5.4.3"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "AlibabaCloud\\Tea\\FileForm\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "Apache-2.0"
-            ],
-            "authors": [
-                {
-                    "name": "Alibaba Cloud SDK",
-                    "email": "sdk-team@alibabacloud.com"
-                }
-            ],
-            "description": "Alibaba Cloud Tea File Library for PHP",
-            "support": {
-                "issues": "https://github.com/alibabacloud-sdk-php/tea-fileform/issues",
-                "source": "https://github.com/alibabacloud-sdk-php/tea-fileform/tree/0.3.4"
-            },
-            "time": "2020-12-01T07:24:35+00:00"
-        },
-        {
-            "name": "alipaysdk/easysdk",
-            "version": "2.2.3",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/alipay/alipay-easysdk.git",
-                "reference": "c6008839a22a5fca08e9f8536730f7abfed522d5"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/alipay/alipay-easysdk/zipball/c6008839a22a5fca08e9f8536730f7abfed522d5",
-                "reference": "c6008839a22a5fca08e9f8536730f7abfed522d5",
-                "shasum": ""
-            },
-            "require": {
-                "alibabacloud/tea": "^3.1",
-                "alibabacloud/tea-fileform": "^0.3.2",
-                "ext-ctype": "*",
-                "ext-curl": "*",
-                "ext-dom": "*",
-                "ext-fileinfo": "*",
-                "ext-json": "*",
-                "ext-libxml": "*",
-                "ext-mbstring": "*",
-                "ext-openssl": "*",
-                "ext-simplexml": "*",
-                "ext-xmlwriter": "*",
-                "guzzlehttp/guzzle": ">=6.3",
-                "php": ">=7.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^7.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Alipay\\EasySDK\\": "php/src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "Apache-2.0"
-            ],
-            "authors": [
-                {
-                    "name": "junying.wjy",
-                    "email": "junying.wjy@antfin.com"
-                }
-            ],
-            "description": "支付宝官方 Alipay Easy SDK",
-            "support": {
-                "source": "https://github.com/alipay/alipay-easysdk/tree/v2.2.3"
-            },
-            "time": "2022-11-28T14:04:57+00:00"
         },
         {
             "name": "aliyuncs/oss-sdk-php",
@@ -1886,16 +1722,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "c0c90ef520b163a385ec2a2a469e759f62391c18"
+                "reference": "e7c528ad9365188ca63036366f13eaf944992d7e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=c0c90ef520b163a385ec2a2a469e759f62391c18",
-                "reference": "c0c90ef520b163a385ec2a2a469e759f62391c18",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e7c528ad9365188ca63036366f13eaf944992d7e",
+                "reference": "e7c528ad9365188ca63036366f13eaf944992d7e",
                 "shasum": ""
             },
             "require": {
@@ -1971,9 +1807,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.0"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.1"
             },
-            "time": "2025-05-28T01:59:20+08:00"
+            "time": "2025-05-29T01:44:59+08:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2188,21 +2024,19 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.23",
+            "version": "0.0.22",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "352fe17f09979d67eee97fc6ecf887a6d971cad8"
+                "reference": "41327b389c92f72ccdbcc9b0f07aa4d653859011"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=352fe17f09979d67eee97fc6ecf887a6d971cad8",
-                "reference": "352fe17f09979d67eee97fc6ecf887a6d971cad8",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=41327b389c92f72ccdbcc9b0f07aa4d653859011",
+                "reference": "41327b389c92f72ccdbcc9b0f07aa4d653859011",
                 "shasum": ""
             },
             "require": {
-                "alipaysdk/easysdk": "^2.2",
-                "dtyq/billing-manager": "1.0.0",
                 "ext-openssl": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
@@ -2230,8 +2064,7 @@
                 "kkguan-service/keewood-service-open-sdk": "^3.2",
                 "kkguan-service/token-sdk": "3.0.8",
                 "kkguan-service/user": "6.0.38",
-                "overtrue/chinese-calendar": "^1.0",
-                "stripe/stripe-php": "^17.2"
+                "overtrue/chinese-calendar": "^1.0"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
@@ -2297,9 +2130,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.23"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.22"
             },
-            "time": "2025-05-28T16:43:45+00:00"
+            "time": "2025-05-27T11:38:03+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -11729,65 +11562,6 @@
             "time": "2025-04-25T15:57:13+00:00"
         },
         {
-            "name": "stripe/stripe-php",
-            "version": "v17.2.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/stripe/stripe-php.git",
-                "reference": "a84ec46e82e2d1f1dbd04cf332317923ade82ba6"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/a84ec46e82e2d1f1dbd04cf332317923ade82ba6",
-                "reference": "a84ec46e82e2d1f1dbd04cf332317923ade82ba6",
-                "shasum": ""
-            },
-            "require": {
-                "ext-curl": "*",
-                "ext-json": "*",
-                "ext-mbstring": "*",
-                "php": ">=5.6.0"
-            },
-            "require-dev": {
-                "friendsofphp/php-cs-fixer": "3.72.0",
-                "phpstan/phpstan": "^1.2",
-                "phpunit/phpunit": "^5.7 || ^9.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "2.0-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Stripe\\": "lib/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Stripe and contributors",
-                    "homepage": "https://github.com/stripe/stripe-php/contributors"
-                }
-            ],
-            "description": "Stripe PHP Library",
-            "homepage": "https://stripe.com/",
-            "keywords": [
-                "api",
-                "payment processing",
-                "stripe"
-            ],
-            "support": {
-                "issues": "https://github.com/stripe/stripe-php/issues",
-                "source": "https://github.com/stripe/stripe-php/tree/v17.2.1"
-            },
-            "time": "2025-05-19T19:03:41+00:00"
-        },
-        {
             "name": "swow/swow",
             "version": "v1.5.3",
             "source": {
@@ -16914,12 +16688,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "af51c1a7b91dee6d4b920498946bf1de6a4efe86"
+                "reference": "931737c9e3d23e90904065a4c86ebd6c19cc98f6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/af51c1a7b91dee6d4b920498946bf1de6a4efe86",
-                "reference": "af51c1a7b91dee6d4b920498946bf1de6a4efe86",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/931737c9e3d23e90904065a4c86ebd6c19cc98f6",
+                "reference": "931737c9e3d23e90904065a4c86ebd6c19cc98f6",
                 "shasum": ""
             },
             "conflict": {
@@ -17019,6 +16793,7 @@
                 "centreon/centreon": "<22.10.15",
                 "cesnet/simplesamlphp-module-proxystatistics": "<3.1",
                 "chriskacerguis/codeigniter-restserver": "<=2.7.1",
+                "chrome-php/chrome": "<1.14",
                 "civicrm/civicrm-core": ">=4.2,<4.2.9|>=4.3,<4.3.3",
                 "ckeditor/ckeditor": "<4.25",
                 "clickstorm/cs-seo": ">=6,<6.8|>=7,<7.5|>=8,<8.4|>=9,<9.3",
@@ -17848,7 +17623,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-27T20:05:51+00:00"
+            "time": "2025-05-28T17:05:52+00:00"
         },
         {
             "name": "sebastian/cli-parser",
