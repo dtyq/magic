@@ -11,24 +11,6 @@ stages:
   - deploy
   - sync
 
-# 公共规则配置，适用于下面的三个同步任务 
-.sync-rules:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
-      when: always
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-master"
-      changes:
-        - "backend/magic-service/**/*"
-      when: always
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-pre-release"
-      changes:
-        - "backend/magic-service/**/*"
-      when: always
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-released"
-      changes:
-        - "backend/magic-service/**/*"
-      when: always
-
 # 公共变量配置
 .sync-vars:
   stage: sync
@@ -73,12 +55,28 @@ stages:
 sync-to-sub-repos:
   extends: 
     - .sync-vars
-    - .sync-rules
   needs:
     - job: "analyse-job"
       optional: true
     - job: "cs-fix-job"
       optional: true
+  rules:
+    # master分支：任何变更都触发同步，但如果有magic-service变更则必须等待analyse和cs-fix成功
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+      when: always
+    # enterprise分支：只有magic-service变更才触发，且必须analyse和cs-fix成功
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-master"
+      changes:
+        - "backend/magic-service/**/*"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-pre-release"
+      changes:
+        - "backend/magic-service/**/*"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-released"
+      changes:
+        - "backend/magic-service/**/*"
+      when: on_success
   before_script: *common-before-script
   script:
     # 创建工作目录并清理已存在的git配置

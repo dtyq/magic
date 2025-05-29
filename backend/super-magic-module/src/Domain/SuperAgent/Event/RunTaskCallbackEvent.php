@@ -52,7 +52,7 @@ class RunTaskCallbackEvent
     }
 
     /**
-     * Convert the event object to array format
+     * Convert the event object to array format.
      */
     public function toArray(): array
     {
