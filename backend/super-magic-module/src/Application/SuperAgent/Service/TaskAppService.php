@@ -375,7 +375,7 @@ class TaskAppService extends AbstractAppService
     }
 
     /**
-     * 处理WebSocket通信
+     * 获取 websocket 客户端廉价.
      */
     private function getSandboxWebsocketClient(TaskContext $taskContext): ?WebSocketSession
     {
