@@ -78,8 +78,7 @@
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
         "dtyq/super-magic-module": "dev-enterprise-master",
-        "dtyq/magic-enterprise-service": "dev-master",
-        "dtyq/billing-manager": "dev-master"
+        "dtyq/magic-enterprise-service": "dev-master"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
