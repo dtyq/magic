@@ -2188,16 +2188,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.27",
+            "version": "0.0.28",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "a83a27c6fe99ba2daa5b453e764d093af8863da7"
+                "reference": "3749389ca3af1de6d0e064afce86609602aaed72"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=a83a27c6fe99ba2daa5b453e764d093af8863da7",
-                "reference": "a83a27c6fe99ba2daa5b453e764d093af8863da7",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=3749389ca3af1de6d0e064afce86609602aaed72",
+                "reference": "3749389ca3af1de6d0e064afce86609602aaed72",
                 "shasum": ""
             },
             "require": {
@@ -2297,9 +2297,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.27"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.28"
             },
-            "time": "2025-05-29T20:09:40+08:00"
+            "time": "2025-05-29T16:46:54+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2501,16 +2501,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.33",
+            "version": "v0.0.34",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "b424b706e8872bcbe3945cbee43699789fefdf39"
+                "reference": "05dbb47254ea8cc66011b011636b0ef8acb424ea"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/b424b706e8872bcbe3945cbee43699789fefdf39",
-                "reference": "b424b706e8872bcbe3945cbee43699789fefdf39",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/05dbb47254ea8cc66011b011636b0ef8acb424ea",
+                "reference": "05dbb47254ea8cc66011b011636b0ef8acb424ea",
                 "shasum": ""
             },
             "require": {
@@ -2602,10 +2602,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.33",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.34",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-05-28T16:18:21+00:00"
+            "time": "2025-05-29T14:40:49+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -14200,16 +14200,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.147",
+            "version": "v1.0.148",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "cf19c9cbf550a15dd805e4e469186b048c08b765"
+                "reference": "56c7e138af7227e0438256ed53e5c3c7895ea2b3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/cf19c9cbf550a15dd805e4e469186b048c08b765",
-                "reference": "cf19c9cbf550a15dd805e4e469186b048c08b765",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/56c7e138af7227e0438256ed53e5c3c7895ea2b3",
+                "reference": "56c7e138af7227e0438256ed53e5c3c7895ea2b3",
                 "shasum": ""
             },
             "require": {
@@ -14244,9 +14244,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.147"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.148"
             },
-            "time": "2025-05-22T12:05:25+00:00"
+            "time": "2025-05-29T12:30:12+00:00"
         },
         {
             "name": "w7corp/easywechat",
