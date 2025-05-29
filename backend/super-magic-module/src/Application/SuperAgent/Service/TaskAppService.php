@@ -22,7 +22,6 @@ use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -51,6 +50,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 // use Dtyq\BillingManager\Service\QuotaService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
+use Dtyq\SuperMagic\Infrastructure\Utils\ToolFileIdMatcher;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Error;
 use Exception;
@@ -70,6 +70,11 @@ class TaskAppService extends AbstractAppService
      */
     private MessageBuilderDomainService $messageBuilder;
 
+    /**
+     * 工具文件ID匹配器
+     */
+    private ToolFileIdMatcher $toolFileIdMatcher;
+
     public function __construct(
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly TopicDomainService $topicDomainService,
@@ -86,6 +91,7 @@ class TaskAppService extends AbstractAppService
     ) {
         $this->messageBuilder = new MessageBuilderDomainService();
         $this->logger = $loggerFactory->get(get_class($this));
+        $this->toolFileIdMatcher = new ToolFileIdMatcher($this->logger);
     }
 
     /**
@@ -259,7 +265,7 @@ class TaskAppService extends AbstractAppService
         }
         try {
             // 如果 message 为空，就不发送，因为你触发沙箱的关闭，会有回调消息，避免重复发的情况
-            if (!empty($msg)) {
+            if (! empty($msg)) {
                 $this->sendErrorMessageToClient($topicEntity->getId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $msg);
             }
             // 设置打断指令
@@ -376,7 +382,7 @@ class TaskAppService extends AbstractAppService
     }
 
     /**
-     * 获取 websocket 客户端连接.
+     * 获取 websocket 客户端廉价.
      */
     private function getSandboxWebsocketClient(TaskContext $taskContext): ?WebSocketSession
     {
@@ -705,8 +711,8 @@ class TaskAppService extends AbstractAppService
         try {
             if ($tool !== null && ! empty($tool['attachments'])) {
                 $this->processToolAttachments($tool, $taskContext);
-                // 处理完附件后，检查是否需要特殊处理browser工具
-                $this->matchFileIdForBrowserTool($tool);
+                // 使用工具文件ID匹配器处理各种工具类型
+                $this->toolFileIdMatcher->matchFileIdForTools($tool);
             }
 
             // 处理消息附件
@@ -1217,33 +1223,6 @@ class TaskAppService extends AbstractAppService
         }
 
         return $attachment;
-    }
-
-    /**
-     * 为浏览器工具匹配file_id
-     * 特殊处理：当工具类型为browser且有file_key但没有file_id时(兼容前端的情况).
-     */
-    private function matchFileIdForBrowserTool(?array &$tool): void
-    {
-        // 如果工具为空、不是浏览器类型、没有附件，或已有file_id，则不处理
-        if (empty($tool) || empty($tool['attachments'])) {
-            return;
-        }
-        if (empty($tool['detail']) || empty($tool['detail']['type']) || $tool['detail']['type'] !== 'browser' || empty($tool['detail']['data'])) {
-            return;
-        }
-        if (empty($tool['detail']['data']['file_key'])) {
-            return;
-        }
-
-        // 从附件中查找匹配file_key的file_id
-        $fileKey = $tool['detail']['data']['file_key'];
-        foreach ($tool['attachments'] as $attachment) {
-            if (! empty($attachment['file_key']) && $attachment['file_key'] === $fileKey && ! empty($attachment['file_id'])) {
-                $tool['detail']['data']['file_id'] = $attachment['file_id'];
-                break; // 找到匹配项后立即退出循环
-            }
-        }
     }
 
     /**
