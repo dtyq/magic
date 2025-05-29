@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -16,18 +15,11 @@ use Throwable;
  */
 class ToolFileIdMatcher
 {
-    private ?LoggerInterface $logger;
-
-    public function __construct(?LoggerInterface $logger = null)
-    {
-        $this->logger = $logger;
-    }
-
     /**
      * Match file_id for various tool types
      * Handles special processing for different tool types that need file_id matching from attachments.
      */
-    public function matchFileIdForTools(?array &$tool): void
+    public static function matchFileIdForTools(?array &$tool): void
     {
         if (empty($tool) || empty($tool['attachments']) || empty($tool['detail'])) {
             return;
@@ -39,26 +31,31 @@ class ToolFileIdMatcher
         }
 
         try {
-            $matcher = $this->getToolFileIdMatcher($toolType);
+            $matcher = self::getToolFileIdMatcher($toolType);
             if ($matcher !== null) {
-                $this->log('debug', "Processing file ID matching for tool type: {$toolType}");
                 $matcher($tool);
-            } else {
-                $this->log('debug', "No file ID matcher found for tool type: {$toolType}");
             }
         } catch (Throwable $e) {
-            $this->log('error', "Error matching file ID for tool type {$toolType}: " . $e->getMessage());
+            // Silent fail for utility methods
         }
+    }
+
+    /**
+     * Get all supported tool types.
+     */
+    public static function getSupportedToolTypes(): array
+    {
+        return ['browser', 'image'];
     }
 
     /**
      * Get the appropriate file ID matcher for the given tool type.
      */
-    private function getToolFileIdMatcher(string $toolType): ?callable
+    private static function getToolFileIdMatcher(string $toolType): ?callable
     {
         $matchers = [
-            'browser' => [$this, 'matchBrowserToolFileId'],
-            'image' => [$this, 'matchImageToolFileId'],
+            'browser' => [self::class, 'matchBrowserToolFileId'],
+            'image' => [self::class, 'matchImageToolFileId'],
         ];
 
         return $matchers[$toolType] ?? null;
@@ -68,7 +65,7 @@ class ToolFileIdMatcher
      * Match file_id for browser tool
      * Special handling: when tool type is browser and has file_key but no file_id (for frontend compatibility).
      */
-    private function matchBrowserToolFileId(array &$tool): void
+    private static function matchBrowserToolFileId(array &$tool): void
     {
         if (empty($tool['detail']['data']['file_key'])) {
             return;
@@ -76,9 +73,8 @@ class ToolFileIdMatcher
 
         $fileKey = $tool['detail']['data']['file_key'];
         foreach ($tool['attachments'] as $attachment) {
-            if ($this->isFileKeyMatch($attachment, $fileKey)) {
+            if (self::isFileKeyMatch($attachment, $fileKey)) {
                 $tool['detail']['data']['file_id'] = $attachment['file_id'];
-                $this->log('debug', "Browser tool file ID matched: {$attachment['file_id']} for file_key: {$fileKey}");
                 break; // Exit loop immediately after finding match
             }
         }
@@ -88,7 +84,7 @@ class ToolFileIdMatcher
      * Match file_id for image tool
      * Fuzzy matching: match attachments by file_name using fuzzy matching against file_key.
      */
-    private function matchImageToolFileId(array &$tool): void
+    private static function matchImageToolFileId(array &$tool): void
     {
         if (empty($tool['detail']['data']['file_name'])) {
             return;
@@ -96,9 +92,8 @@ class ToolFileIdMatcher
 
         $fileName = $tool['detail']['data']['file_name'];
         foreach ($tool['attachments'] as $attachment) {
-            if ($this->isFileNameMatch($attachment, $fileName)) {
+            if (self::isFileNameMatch($attachment, $fileName)) {
                 $tool['detail']['data']['file_id'] = $attachment['file_id'];
-                $this->log('debug', "Image tool file ID matched: {$attachment['file_id']} for file_name: {$fileName}");
                 break; // Exit loop immediately after finding match
             }
         }
@@ -107,18 +102,18 @@ class ToolFileIdMatcher
     /**
      * Check if attachment matches the given file key.
      */
-    private function isFileKeyMatch(array $attachment, string $fileKey): bool
+    private static function isFileKeyMatch(array $attachment, string $fileKey): bool
     {
-        return !empty($attachment['file_key']) 
-            && $attachment['file_key'] === $fileKey 
-            && !empty($attachment['file_id']);
+        return ! empty($attachment['file_key'])
+            && $attachment['file_key'] === $fileKey
+            && ! empty($attachment['file_id']);
     }
 
     /**
      * Check if attachment matches the given file name using fuzzy matching.
      * Supports multiple matching strategies for better compatibility.
      */
-    private function isFileNameMatch(array $attachment, string $fileName): bool
+    private static function isFileNameMatch(array $attachment, string $fileName): bool
     {
         if (empty($attachment['file_key']) || empty($attachment['file_id'])) {
             return false;
@@ -126,7 +121,7 @@ class ToolFileIdMatcher
 
         // Extract filename from file_key path
         $attachmentFileName = basename($attachment['file_key']);
-        
+
         // Strategy 1: Exact match
         if ($attachmentFileName === $fileName) {
             return true;
@@ -153,34 +148,4 @@ class ToolFileIdMatcher
 
         return false;
     }
-
-    /**
-     * Add support for new tool types by registering custom matchers.
-     * 
-     * @param string $toolType The tool type identifier
-     * @param callable $matcher The matcher function that takes array &$tool as parameter
-     */
-    public function registerToolMatcher(string $toolType, callable $matcher): void
-    {
-        // This could be implemented if dynamic registration is needed in the future
-        // For now, matchers are statically defined in getToolFileIdMatcher()
-    }
-
-    /**
-     * Get all supported tool types.
-     */
-    public function getSupportedToolTypes(): array
-    {
-        return ['browser', 'image'];
-    }
-
-    /**
-     * Log message if logger is available.
-     */
-    private function log(string $level, string $message): void
-    {
-        if ($this->logger !== null) {
-            $this->logger->{$level}($message);
-        }
-    }
-} 
+}

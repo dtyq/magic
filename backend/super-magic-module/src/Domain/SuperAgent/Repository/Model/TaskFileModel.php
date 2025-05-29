@@ -50,7 +50,7 @@ class TaskFileModel extends AbstractModel
     ];
 
     /**
-     * 类型转换
+     * 类型转换.
      */
     protected array $casts = [
         'is_hidden' => 'boolean', // 自动将数据库中的0/1转换为false/true

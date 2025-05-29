@@ -222,9 +222,10 @@ class TaskDomainService
         ?int $topicId = null,
         ?string $event = null,
         ?array $attachments = null,
-        bool $showInUi = true
+        bool $showInUi = true,
+        ?string $messageId = null
     ): TaskMessageEntity {
-        $message = new TaskMessageEntity([
+        $messageData = [
             'task_id' => $taskId,
             'sender_type' => $role,
             'sender_uid' => $senderUid,
@@ -238,7 +239,14 @@ class TaskDomainService
             'topic_id' => $topicId,
             'event' => $event,
             'show_in_ui' => $showInUi,
-        ]);
+        ];
+
+        // Add message_id if provided
+        if ($messageId !== null) {
+            $messageData['message_id'] = $messageId;
+        }
+
+        $message = new TaskMessageEntity($messageData);
 
         $this->messageRepository->save($message);
         return $message;
@@ -256,7 +264,8 @@ class TaskDomainService
         ?int $topicId = null,
         ?string $event = null,
         ?array $attachments = null,
-        bool $showInUi = true
+        bool $showInUi = true,
+        ?string $messageId = null
     ): TaskMessageEntity {
         return $this->recordTaskMessage(
             $taskId,
@@ -271,7 +280,8 @@ class TaskDomainService
             $topicId,
             $event,
             $attachments,
-            $showInUi
+            $showInUi,
+            $messageId
         );
     }
 
@@ -290,7 +300,8 @@ class TaskDomainService
         ?int $topicId = null,
         ?string $event = null,
         ?array $attachments = null,
-        bool $showInUi = true
+        bool $showInUi = true,
+        ?string $messageId = null
     ): TaskMessageEntity {
         return $this->recordTaskMessage(
             $taskId,
@@ -305,7 +316,8 @@ class TaskDomainService
             $topicId,
             $event,
             $attachments,
-            $showInUi
+            $showInUi,
+            $messageId
         );
     }
 
@@ -654,30 +666,6 @@ class TaskDomainService
     }
 
     /**
-     * 判断文件是否为隐藏文件
-     *
-     * @param string $fileKey 文件路径
-     * @return bool 是否为隐藏文件：true-是，false-否
-     */
-    private function isHiddenFile(string $fileKey): bool
-    {
-        // 移除开头的斜杠，统一处理
-        $fileKey = ltrim($fileKey, '/');
-
-        // 分割路径为各个部分
-        $pathParts = explode('/', $fileKey);
-
-        // 检查每个路径部分是否以 . 开头
-        foreach ($pathParts as $part) {
-            if (!empty($part) && str_starts_with($part, '.')) {
-                return true; // 是隐藏文件
-            }
-        }
-
-        return false; // 不是隐藏文件
-    }
-
-    /**
      * 获取最近更新时间超过指定时间的任务列表.
      *
      * @param string $timeThreshold 时间阈值，如果任务的更新时间早于此时间，则会被包含在结果中
@@ -697,5 +685,29 @@ class TaskDomainService
     public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity
     {
         return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
+    }
+
+    /**
+     * 判断文件是否为隐藏文件.
+     *
+     * @param string $fileKey 文件路径
+     * @return bool 是否为隐藏文件：true-是，false-否
+     */
+    private function isHiddenFile(string $fileKey): bool
+    {
+        // 移除开头的斜杠，统一处理
+        $fileKey = ltrim($fileKey, '/');
+
+        // 分割路径为各个部分
+        $pathParts = explode('/', $fileKey);
+
+        // 检查每个路径部分是否以 . 开头
+        foreach ($pathParts as $part) {
+            if (! empty($part) && str_starts_with($part, '.')) {
+                return true; // 是隐藏文件
+            }
+        }
+
+        return false; // 不是隐藏文件
     }
 }

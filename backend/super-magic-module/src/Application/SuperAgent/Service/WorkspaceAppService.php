@@ -789,7 +789,7 @@ class WorkspaceAppService extends AbstractAppService
 
     /**
      * 判断目录名是否为隐藏目录
-     * 隐藏目录的判断规则：目录名以 . 开头
+     * 隐藏目录的判断规则：目录名以 . 开头.
      *
      * @param string $dirName 目录名
      * @return bool true-隐藏目录，false-普通目录

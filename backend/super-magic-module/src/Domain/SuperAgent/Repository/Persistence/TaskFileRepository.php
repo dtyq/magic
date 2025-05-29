@@ -11,7 +11,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
 use Exception;
-use Hyperf\DbConnection\Db;
 
 class TaskFileRepository implements TaskFileRepositoryInterface
 {

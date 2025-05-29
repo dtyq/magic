@@ -92,7 +92,7 @@ class TaskMessageEntity extends AbstractEntity
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
-        $this->messageId = (string) IdGenerator::getSnowId();
+        $this->messageId = isset($data['message_id']) ? (string) $data['message_id'] : (string) IdGenerator::getSnowId();
         $this->sendTimestamp = time();
         $this->initProperty($data);
     }
