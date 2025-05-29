@@ -11,7 +11,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
 use Exception;
-use Hyperf\DbConnection\Db;
 
 class TaskFileRepository implements TaskFileRepositoryInterface
 {
@@ -76,16 +75,15 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 先获取总数
         $total = $query->count();
 
-        // 获取分页数据
-        $query = $query->skip($offset)
+        // 获取分页数据，使用Eloquent的get()方法让$casts生效
+        $models = $query->skip($offset)
             ->take($pageSize)
-            ->orderBy('file_id', 'desc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
+            ->orderBy('file_id', 'desc')
+            ->get();
 
         $list = [];
-        foreach ($result as $item) {
-            $list[] = new TaskFileEntity((array) $item);
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
         }
 
         return [
@@ -111,18 +109,17 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->where('task_id', $taskId)
             ->count();
 
-        // 获取分页数据
-        $query = $this->model::query()
+        // 获取分页数据，使用Eloquent的get()方法让$casts生效
+        $models = $this->model::query()
             ->where('task_id', $taskId)
             ->skip($offset)
             ->take($pageSize)
-            ->orderBy('file_id', 'desc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
+            ->orderBy('file_id', 'desc')
+            ->get();
 
         $list = [];
-        foreach ($result as $item) {
-            $list[] = new TaskFileEntity((array) $item);
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
         }
 
         return [

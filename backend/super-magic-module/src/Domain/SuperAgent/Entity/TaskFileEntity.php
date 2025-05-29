@@ -35,6 +35,8 @@ class TaskFileEntity extends AbstractEntity
 
     protected string $storageType = 'workspace';
 
+    protected bool $isHidden = false;
+
     protected string $createdAt = '';
 
     protected string $updatedAt = '';
@@ -161,6 +163,16 @@ class TaskFileEntity extends AbstractEntity
         $this->storageType = $storageType;
     }
 
+    public function getIsHidden(): bool
+    {
+        return $this->isHidden;
+    }
+
+    public function setIsHidden(bool $isHidden): void
+    {
+        $this->isHidden = $isHidden;
+    }
+
     public function getCreatedAt(): string
     {
         return $this->createdAt;
@@ -206,6 +218,7 @@ class TaskFileEntity extends AbstractEntity
             'file_size' => $this->fileSize,
             'external_url' => $this->externalUrl,
             'storage_type' => $this->storageType,
+            'is_hidden' => $this->isHidden,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,

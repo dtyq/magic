@@ -155,7 +155,21 @@ class MagicChatMessageAppService extends MagicSeqAppService
     public function getConversations(MagicUserAuthorization $userAuthorization, ConversationListQueryDTO $queryDTO): ConversationsPageResponseDTO
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        return $this->magicConversationDomainService->getConversations($dataIsolation, $queryDTO);
+        $result = $this->magicConversationDomainService->getConversations($dataIsolation, $queryDTO);
+        $filterAccountEntity = $this->magicUserDomainService->getByAiCode($dataIsolation, 'SUPER_MAGIC');
+        if (! empty($filterAccountEntity) && count($result->getItems()) > 0) {
+            $filterItems = [];
+            foreach ($result->getItems() as $item) {
+                /**
+                 * @var MagicConversationEntity $item
+                 */
+                if ($item->getReceiveId() !== $filterAccountEntity->getUserId()) {
+                    $filterItems[] = $item;
+                }
+            }
+            $result->setItems($filterItems);
+        }
+        return $result;
     }
 
     public function getUserGroupConversation(UserGroupConversationQueryDTO $queryDTO): ?MagicConversationEntity

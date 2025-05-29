@@ -48,8 +48,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
-// use Dtyq\BillingManager\Service\QuotaService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
+use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Error;
 use Exception;
@@ -683,6 +683,7 @@ class TaskAppService extends AbstractAppService
         $attachments = $payload->getAttachments() ?? [];
         $projectArchive = $payload->getProjectArchive() ?? [];
         $showInUi = $payload->getShowInUi() ?? true;
+        $messageId = $payload->getMessageId();
 
         // 2. 处理未知消息类型
         if (! MessageType::isValid($messageType)) {
@@ -704,8 +705,8 @@ class TaskAppService extends AbstractAppService
         try {
             if ($tool !== null && ! empty($tool['attachments'])) {
                 $this->processToolAttachments($tool, $taskContext);
-                // 处理完附件后，检查是否需要特殊处理browser工具
-                $this->matchFileIdForBrowserTool($tool);
+                // 使用工具处理器处理文件ID匹配
+                ToolProcessor::processToolAttachments($tool);
             }
 
             // 处理消息附件
@@ -715,7 +716,11 @@ class TaskAppService extends AbstractAppService
             if ($status === TaskStatus::Suspended->value) {
                 $this->pauseTaskSteps($steps);
             } elseif ($status === TaskStatus::FINISHED->value) {
-                $this->getOutputContent($taskContext, $attachments, $tool);
+                // 使用工具处理器生成输出内容工具
+                $outputTool = ToolProcessor::generateOutputContentTool($attachments);
+                if ($outputTool !== null) {
+                    $tool = $outputTool;
+                }
             }
 
             // 4. 记录AI消息
@@ -732,7 +737,8 @@ class TaskAppService extends AbstractAppService
                 $task->getTopicId(),
                 $event,
                 $attachments,
-                $showInUi
+                $showInUi,
+                $messageId
             );
 
             // 5. 发送消息到客户端
@@ -780,80 +786,6 @@ class TaskAppService extends AbstractAppService
                 // 前端暂停的样式
                 $steps[$key]['status'] = TaskStatus::Suspended->value;
             }
-        }
-    }
-
-    private function getOutputContent(TaskContext $taskContext, array $attachments, ?array &$tool)
-    {
-        if (empty($attachments)) {
-            return;
-        }
-
-        $file = [];
-        $htmlFiles = [];
-        $mdFiles = [];
-
-        // 首先将文件按类型分组
-        foreach ($attachments as $attachment) {
-            $extension = strtolower($attachment['file_extension'] ?? '');
-            if ($extension === 'html') {
-                $htmlFiles[] = $attachment;
-            } elseif ($extension === 'md') {
-                $mdFiles[] = $attachment;
-            }
-        }
-
-        // 优先处理HTML文件
-        if (! empty($htmlFiles)) {
-            // 检查是否有包含关键词的HTML文件
-            $finalHtmlFiles = array_filter($htmlFiles, function ($item) {
-                $filename = strtolower($item['filename']);
-                return strpos($filename, 'final') !== false || strpos($filename, 'report') !== false;
-            });
-
-            if (! empty($finalHtmlFiles)) {
-                // 如果有多个包含关键词的文件，选择最大的
-                $file = $this->getMaxSizeFile($finalHtmlFiles);
-            } else {
-                // 如果没有包含关键词的文件，选择最大的HTML文件
-                $file = $this->getMaxSizeFile($htmlFiles);
-            }
-        }
-        // 如果没有HTML文件，处理MD文件
-        elseif (! empty($mdFiles)) {
-            // 检查是否有包含关键词的MD文件
-            $finalMdFiles = array_filter($mdFiles, function ($item) {
-                $filename = strtolower($item['filename']);
-                return strpos($filename, 'final') !== false || strpos($filename, 'report') !== false;
-            });
-
-            if (! empty($finalMdFiles)) {
-                // 如果有多个包含关键词的文件，选择最大的
-                $file = $this->getMaxSizeFile($finalMdFiles);
-            } else {
-                // 如果没有包含关键词的文件，选择最大的MD文件
-                $file = $this->getMaxSizeFile($mdFiles);
-            }
-        }
-
-        if (! empty($file)) {
-            $tool = [
-                'id' => (string) IdGenerator::getSnowId(),
-                'name' => 'finish_task',
-                'action' => '已完成结果文件的输出',
-                'detail' => [
-                    // 如果文件类型是 html 就使用 html , 如果文件类型是 md 就使用 md, 其他为 text
-                    'type' => $file['file_extension'] === 'html' ? 'html' : ($file['file_extension'] === 'md' ? 'md' : 'text'),
-                    'data' => [
-                        'file_name' => $file['filename'],
-                        'content' => '',
-                        'file_id' => $file['file_id'],
-                    ],
-                ],
-                'remark' => '',
-                'status' => 'finished',
-                'attachments' => [],
-            ];
         }
     }
 
@@ -1219,33 +1151,6 @@ class TaskAppService extends AbstractAppService
     }
 
     /**
-     * 为浏览器工具匹配file_id
-     * 特殊处理：当工具类型为browser且有file_key但没有file_id时(兼容前端的情况).
-     */
-    private function matchFileIdForBrowserTool(?array &$tool): void
-    {
-        // 如果工具为空、不是浏览器类型、没有附件，或已有file_id，则不处理
-        if (empty($tool) || empty($tool['attachments'])) {
-            return;
-        }
-        if (empty($tool['detail']) || empty($tool['detail']['type']) || $tool['detail']['type'] !== 'browser' || empty($tool['detail']['data'])) {
-            return;
-        }
-        if (empty($tool['detail']['data']['file_key'])) {
-            return;
-        }
-
-        // 从附件中查找匹配file_key的file_id
-        $fileKey = $tool['detail']['data']['file_key'];
-        foreach ($tool['attachments'] as $attachment) {
-            if (! empty($attachment['file_key']) && $attachment['file_key'] === $fileKey && ! empty($attachment['file_id'])) {
-                $tool['detail']['data']['file_id'] = $attachment['file_id'];
-                break; // 找到匹配项后立即退出循环
-            }
-        }
-    }
-
-    /**
      * 从WebSocket接收到的消息转换为统一消息格式.
      *
      * @param array $message WebSocket接收到的消息
@@ -1261,25 +1166,5 @@ class TaskAppService extends AbstractAppService
 
         // 创建DTO
         return new TopicTaskMessageDTO($metadata, $payload);
-    }
-
-    /**
-     * 从文件数组中获取最大尺寸的文件.
-     *
-     * @param array $files 文件数组
-     * @return null|array 最大尺寸的文件，如果数组为空则返回null
-     */
-    private function getMaxSizeFile(array $files)
-    {
-        if (empty($files)) {
-            return null;
-        }
-
-        return array_reduce($files, function ($carry, $item) {
-            if ($carry === null || (int) ($item['file_size'] ?? 0) > (int) ($carry['file_size'] ?? 0)) {
-                return $item;
-            }
-            return $carry;
-        });
     }
 }

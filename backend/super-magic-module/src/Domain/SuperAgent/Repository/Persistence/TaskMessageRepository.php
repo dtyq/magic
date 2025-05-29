@@ -105,4 +105,20 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             'total' => $total,
         ];
     }
+
+    public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity
+    {
+        // 构建基础查询
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('sender_type', 'user')
+            ->where('sender_uid', $userId)
+            ->orderBy('id', 'asc');
+        $record = $query->first();
+
+        if (! $record) {
+            return null;
+        }
+        return new TaskMessageEntity($record->toArray());
+    }
 }

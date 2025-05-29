@@ -35,6 +35,7 @@ class TaskFileModel extends AbstractModel
         'external_url',
         'menu',
         'storage_type', // 存储类型，由FileProcessAppService.processAttachmentsArray方法传入
+        'is_hidden', // 是否为隐藏文件
         'created_at',
         'updated_at',
         'deleted_at',
@@ -45,5 +46,13 @@ class TaskFileModel extends AbstractModel
      */
     protected array $attributes = [
         'storage_type' => 'workspace', // 默认存储类型为workspace
+        'is_hidden' => 0, // 默认不是隐藏文件：0-否，1-是
+    ];
+
+    /**
+     * 类型转换.
+     */
+    protected array $casts = [
+        'is_hidden' => 'boolean', // 自动将数据库中的0/1转换为false/true
     ];
 }
