@@ -1046,82 +1046,6 @@
             "time": "2024-09-19T14:15:21+00:00"
         },
         {
-            "name": "doctrine/annotations",
-            "version": "1.14.4",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/doctrine/annotations.git",
-                "reference": "253dca476f70808a5aeed3a47cc2cc88c5cab915"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/doctrine/annotations/zipball/253dca476f70808a5aeed3a47cc2cc88c5cab915",
-                "reference": "253dca476f70808a5aeed3a47cc2cc88c5cab915",
-                "shasum": ""
-            },
-            "require": {
-                "doctrine/lexer": "^1 || ^2",
-                "ext-tokenizer": "*",
-                "php": "^7.1 || ^8.0",
-                "psr/cache": "^1 || ^2 || ^3"
-            },
-            "require-dev": {
-                "doctrine/cache": "^1.11 || ^2.0",
-                "doctrine/coding-standard": "^9 || ^12",
-                "phpstan/phpstan": "~1.4.10 || ^1.10.28",
-                "phpunit/phpunit": "^7.5 || ^8.5 || ^9.5",
-                "symfony/cache": "^4.4 || ^5.4 || ^6.4 || ^7",
-                "vimeo/psalm": "^4.30 || ^5.14"
-            },
-            "suggest": {
-                "php": "PHP 8.0 or higher comes with attributes, a native replacement for annotations"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Doctrine\\Common\\Annotations\\": "lib/Doctrine/Common/Annotations"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Guilherme Blanco",
-                    "email": "guilhermeblanco@gmail.com"
-                },
-                {
-                    "name": "Roman Borschel",
-                    "email": "roman@code-factory.org"
-                },
-                {
-                    "name": "Benjamin Eberlei",
-                    "email": "kontakt@beberlei.de"
-                },
-                {
-                    "name": "Jonathan Wage",
-                    "email": "jonwage@gmail.com"
-                },
-                {
-                    "name": "Johannes Schmitt",
-                    "email": "schmittjoh@gmail.com"
-                }
-            ],
-            "description": "Docblock Annotations Parser",
-            "homepage": "https://www.doctrine-project.org/projects/annotations.html",
-            "keywords": [
-                "annotations",
-                "docblock",
-                "parser"
-            ],
-            "support": {
-                "issues": "https://github.com/doctrine/annotations/issues",
-                "source": "https://github.com/doctrine/annotations/tree/1.14.4"
-            },
-            "time": "2024-09-05T10:15:52+00:00"
-        },
-        {
             "name": "doctrine/cache",
             "version": "1.13.0",
             "source": {
@@ -1885,98 +1809,6 @@
             "time": "2025-04-09T07:48:29+00:00"
         },
         {
-            "name": "dtyq/billing-manager",
-            "version": "dev-master",
-            "source": {
-                "type": "git",
-                "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "2daa7e411a432836860cced27f4b5f286be48cb2"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=2daa7e411a432836860cced27f4b5f286be48cb2",
-                "reference": "2daa7e411a432836860cced27f4b5f286be48cb2",
-                "shasum": ""
-            },
-            "require": {
-                "doctrine/annotations": "~1.0",
-                "dragonmantank/cron-expression": "^3.3",
-                "ext-bcmath": "*",
-                "hyperf/async-queue": "~3.1.0",
-                "hyperf/cache": "~3.1.0",
-                "hyperf/command": "~3.1.0",
-                "hyperf/config": "~3.1.0",
-                "hyperf/crontab": "~3.1.0",
-                "hyperf/db": "~3.1.0",
-                "hyperf/db-connection": "~3.1.0",
-                "hyperf/di": "~3.1.0",
-                "hyperf/event": "~3.1.0",
-                "hyperf/framework": "~3.1.0",
-                "hyperf/http-server": "~3.1.0",
-                "hyperf/logger": "~3.1.0",
-                "hyperf/model-cache": "~3.1.0",
-                "hyperf/snowflake": "^3.1",
-                "hyperf/validation": "~3.1.0",
-                "php": ">=8.3",
-                "symfony/console": "^7.1",
-                "yethee/tiktoken": "^0.1.2"
-            },
-            "require-dev": {
-                "friendsofphp/php-cs-fixer": "^3.0",
-                "hyperf/testing": "^3.1",
-                "mockery/mockery": "^1.0",
-                "phpstan/phpstan": "^1.0",
-                "phpunit/phpunit": "^10.0"
-            },
-            "default-branch": true,
-            "type": "library",
-            "extra": {
-                "hyperf": {
-                    "config": "Dtyq\\BillingManager\\ConfigProvider",
-                    "migrate": {
-                        "paths": [
-                            "migrations"
-                        ]
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Dtyq\\BillingManager\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Dtyq\\BillingManager\\Test\\": "tests/"
-                }
-            },
-            "scripts": {
-                "analyse": [
-                    "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/phpstan analyse --memory-limit 1G -c phpstan.neon"
-                ],
-                "cs-fix": [
-                    "php-cs-fixer fix $1"
-                ],
-                "fix": [
-                    "php-cs-fixer fix $1"
-                ]
-            },
-            "license": [
-                "MIT"
-            ],
-            "description": "计费管理组件，用于管理用户和组织的配额限制",
-            "keywords": [
-                "billing",
-                "hyperf",
-                "php",
-                "quota"
-            ],
-            "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
-            },
-            "time": "2025-05-29T17:16:46+08:00"
-        },
-        {
             "name": "dtyq/cloudfile",
             "version": "v0.1.3",
             "source": {
@@ -2193,17 +2025,16 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "dd0764323f91adb6f7772741761c4c24b05d1df5"
+                "reference": "cd01e15bd6ba995975711188d1d90d773e492229"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=dd0764323f91adb6f7772741761c4c24b05d1df5",
-                "reference": "dd0764323f91adb6f7772741761c4c24b05d1df5",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=cd01e15bd6ba995975711188d1d90d773e492229",
+                "reference": "cd01e15bd6ba995975711188d1d90d773e492229",
                 "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
-                "dtyq/billing-manager": "dev-master",
                 "ext-openssl": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
@@ -2301,7 +2132,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-05-29T16:55:02+08:00"
+            "time": "2025-05-29T11:43:24+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2507,12 +2338,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "ed02c673fb15f695120f340d912e126517375a4d"
+                "reference": "68813bed47fc3b0029d3e96427db0bf0c703a827"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=ed02c673fb15f695120f340d912e126517375a4d",
-                "reference": "ed02c673fb15f695120f340d912e126517375a4d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=68813bed47fc3b0029d3e96427db0bf0c703a827",
+                "reference": "68813bed47fc3b0029d3e96427db0bf0c703a827",
                 "shasum": ""
             },
             "require": {
@@ -2606,7 +2437,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-05-28T21:52:57+08:00"
+            "time": "2025-05-29T18:44:09+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -4072,83 +3903,6 @@
             "time": "2025-01-08T08:57:09+00:00"
         },
         {
-            "name": "hyperf/async-queue",
-            "version": "v3.1.51",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/hyperf/async-queue.git",
-                "reference": "29f49ba266dd0a5763e2c4d8edfe5a448f944ff0"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/async-queue/zipball/29f49ba266dd0a5763e2c4d8edfe5a448f944ff0",
-                "reference": "29f49ba266dd0a5763e2c4d8edfe5a448f944ff0",
-                "shasum": ""
-            },
-            "require": {
-                "hyperf/codec": "~3.1.0",
-                "hyperf/collection": "~3.1.0",
-                "hyperf/command": "~3.1.0",
-                "hyperf/contract": "~3.1.0",
-                "hyperf/support": "~3.1.0",
-                "hyperf/utils": "~3.1.0",
-                "php": ">=8.1",
-                "psr/container": "^1.0 || ^2.0",
-                "psr/event-dispatcher": "^1.0"
-            },
-            "suggest": {
-                "hyperf/di": "Required to use annotations.",
-                "hyperf/event": "Required to dispatch a event.",
-                "hyperf/logger": "Required to use QueueHandleListener.",
-                "hyperf/process": "Auto register the consumer process for server."
-            },
-            "type": "library",
-            "extra": {
-                "hyperf": {
-                    "config": "Hyperf\\AsyncQueue\\ConfigProvider"
-                },
-                "branch-alias": {
-                    "dev-master": "3.1-dev"
-                }
-            },
-            "autoload": {
-                "files": [
-                    "src/Functions.php"
-                ],
-                "psr-4": {
-                    "Hyperf\\AsyncQueue\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "description": "A async queue component for hyperf.",
-            "homepage": "https://hyperf.io",
-            "keywords": [
-                "async-queue",
-                "hyperf",
-                "php"
-            ],
-            "support": {
-                "docs": "https://hyperf.wiki",
-                "issues": "https://github.com/hyperf/hyperf/issues",
-                "pull-request": "https://github.com/hyperf/hyperf/pulls",
-                "source": "https://github.com/hyperf/hyperf"
-            },
-            "funding": [
-                {
-                    "url": "https://hyperf.wiki/#/zh-cn/donate",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://opencollective.com/hyperf",
-                    "type": "open_collective"
-                }
-            ],
-            "time": "2025-01-14T06:55:15+00:00"
-        },
-        {
             "name": "hyperf/cache",
             "version": "v3.1.43",
             "source": {
@@ -5073,70 +4827,6 @@
                 }
             ],
             "time": "2025-04-14T01:39:13+00:00"
-        },
-        {
-            "name": "hyperf/db",
-            "version": "v3.1.53",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/hyperf/db.git",
-                "reference": "79c57b30eb44c9a4842a2a83b747cceb95822be5"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/db/zipball/79c57b30eb44c9a4842a2a83b747cceb95822be5",
-                "reference": "79c57b30eb44c9a4842a2a83b747cceb95822be5",
-                "shasum": ""
-            },
-            "require": {
-                "hyperf/config": "~3.1.0",
-                "hyperf/contract": "~3.1.0",
-                "hyperf/pool": "~3.1.0",
-                "hyperf/support": "~3.1.0",
-                "hyperf/utils": "~3.1.0",
-                "php": ">=8.1",
-                "psr/container": "^1.0 || ^2.0"
-            },
-            "suggest": {
-                "ext-swoole": "Required to use Swoole Coroutine MySQL."
-            },
-            "type": "library",
-            "extra": {
-                "hyperf": {
-                    "config": "Hyperf\\DB\\ConfigProvider"
-                },
-                "branch-alias": {
-                    "dev-master": "3.1-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Hyperf\\DB\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "keywords": [
-                "hyperf",
-                "php"
-            ],
-            "support": {
-                "issues": "https://github.com/hyperf/db/issues",
-                "source": "https://github.com/hyperf/db/tree/v3.1.53"
-            },
-            "funding": [
-                {
-                    "url": "https://hyperf.wiki/#/zh-cn/donate",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://opencollective.com/hyperf",
-                    "type": "open_collective"
-                }
-            ],
-            "time": "2025-03-21T02:27:17+00:00"
         },
         {
             "name": "hyperf/db-connection",
@@ -6116,76 +5806,6 @@
                 }
             ],
             "time": "2024-09-25T02:54:12+00:00"
-        },
-        {
-            "name": "hyperf/model-cache",
-            "version": "v3.1.51",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/hyperf/model-cache.git",
-                "reference": "70d1c97364cccef852c505a7eb1fcbfd8a62c1ec"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/model-cache/zipball/70d1c97364cccef852c505a7eb1fcbfd8a62c1ec",
-                "reference": "70d1c97364cccef852c505a7eb1fcbfd8a62c1ec",
-                "shasum": ""
-            },
-            "require": {
-                "hyperf/codec": "~3.1.0",
-                "hyperf/contract": "~3.1.0",
-                "hyperf/db-connection": "~3.1.0",
-                "hyperf/support": "~3.1.0",
-                "hyperf/utils": "~3.1.0",
-                "php": ">=8.1",
-                "psr/container": "^1.0 || ^2.0",
-                "psr/simple-cache": "^1.0 || ^2.0 || ^3.0"
-            },
-            "suggest": {
-                "hyperf/event": "Required to use DeleteCacheListener."
-            },
-            "type": "library",
-            "extra": {
-                "hyperf": {
-                    "config": "Hyperf\\ModelCache\\ConfigProvider"
-                },
-                "branch-alias": {
-                    "dev-master": "3.1-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Hyperf\\ModelCache\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "description": "A model cache component for hyperf.",
-            "homepage": "https://hyperf.io",
-            "keywords": [
-                "hyperf",
-                "model-cache",
-                "php"
-            ],
-            "support": {
-                "docs": "https://hyperf.wiki",
-                "issues": "https://github.com/hyperf/hyperf/issues",
-                "pull-request": "https://github.com/hyperf/hyperf/pulls",
-                "source": "https://github.com/hyperf/hyperf"
-            },
-            "funding": [
-                {
-                    "url": "https://hyperf.wiki/#/zh-cn/donate",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://opencollective.com/hyperf",
-                    "type": "open_collective"
-                }
-            ],
-            "time": "2025-02-06T07:02:37+00:00"
         },
         {
             "name": "hyperf/model-listener",
