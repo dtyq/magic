@@ -16,4 +16,6 @@ interface DocumentFileInterface
     public function getPlatformType(): ?string;
 
     public function getThirdFileId(): ?string;
+
+    public function toArray(): array;
 }
