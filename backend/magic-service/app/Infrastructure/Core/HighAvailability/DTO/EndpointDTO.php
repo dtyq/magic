@@ -5,15 +5,27 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Infrastructure\Core\HighAvailability\Entity;
+namespace App\Infrastructure\Core\HighAvailability\DTO;
 
-use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\CircuitBreakerStatus;
 
-class EndpointEntity extends AbstractEntity
+/**
+ * 用于在业务流程中同时保存业务ID和高可用组件接入点数据库ID.
+ */
+class EndpointDTO extends AbstractDTO
 {
-    // 前端可能不支持 bigint，所以这里用 string
-    protected string $id;
+    /**
+     * getEndpointList 接口返回的 id。
+     * 不同的业务含义不同。对于模型网关来说，这里的 id 是 service_provider_models 表的 id。
+     * 前端可能不支持 bigint，所以这里用 string.
+     */
+    protected ?string $businessId = null;
+
+    /**
+     * 数据库接入点ID（高可用表主键）.
+     */
+    protected ?string $endpointId = null;
 
     /**
      * 接入点类型.
@@ -37,9 +49,9 @@ class EndpointEntity extends AbstractEntity
 
     /**
      * 资源的消耗的 id 列表. 一次请求可能会消耗多个资源。
-     * @var string[]
+     * @var null|string[]
      */
-    protected array $resources = [];
+    protected ?array $resources = null;
 
     /**
      * 接入点是否启用.
@@ -66,30 +78,18 @@ class EndpointEntity extends AbstractEntity
         parent::__construct($data);
     }
 
-    public function getResources(): array
+    // 原有 EndpointDTO 的所有方法
+    public function getResources(): ?array
     {
-        return $this->resources;
+        return $this->resources ?? null;
     }
 
     public function setResources(null|array|string $resources): static
     {
         if (is_string($resources)) {
             $resources = json_decode($resources, true);
-        } elseif (! is_array($resources)) {
-            $resources = [];
         }
         $this->resources = $resources;
-        return $this;
-    }
-
-    public function getId(): string
-    {
-        return $this->id ?? '';
-    }
-
-    public function setId(null|int|string $id): static
-    {
-        $this->id = (string) $id;
         return $this;
     }
 
@@ -190,5 +190,54 @@ class EndpointEntity extends AbstractEntity
             $this->enabled = $enabled;
         }
         return $this;
+    }
+
+    // 新增的增强字段方法
+    /**
+     * 获取数据库接入点ID.
+     */
+    public function getEndpointId(): ?string
+    {
+        return $this->endpointId;
+    }
+
+    /**
+     * 设置数据库接入点ID.
+     */
+    public function setEndpointId(null|int|string $endpointId): static
+    {
+        if (is_int($endpointId)) {
+            $endpointId = (string) $endpointId;
+        }
+        $this->endpointId = $endpointId;
+        return $this;
+    }
+
+    /**
+     * 获取业务ID.
+     */
+    public function getBusinessId(): ?string
+    {
+        return $this->businessId;
+    }
+
+    /**
+     * 设置业务ID.
+     */
+    public function setBusinessId(null|int|string $businessId): static
+    {
+        if (is_int($businessId)) {
+            $businessId = (string) $businessId;
+        }
+        $this->businessId = $businessId;
+        return $this;
+    }
+
+    /**
+     * 检查是否存在于数据库中.
+     */
+    public function hasEndpointId(): bool
+    {
+        return $this->endpointId !== null && $this->endpointId !== '';
     }
 }
