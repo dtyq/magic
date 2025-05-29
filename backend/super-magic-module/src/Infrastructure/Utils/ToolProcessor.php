@@ -173,7 +173,16 @@ class ToolProcessor
      */
     private static function determineFileType(string $extension): string
     {
-        return match (strtolower($extension)) {
+        $extension = strtolower($extension);
+
+        // Image formats
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'];
+
+        if (in_array($extension, $imageExtensions)) {
+            return 'image';
+        }
+
+        return match ($extension) {
             'html' => 'html',
             'md' => 'md',
             default => 'text'
