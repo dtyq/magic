@@ -19,17 +19,18 @@ build-job:
 
   before_script:
     - |
-      sh .ci/clear_containers.sh
+      sh backend/magic-service/.ci/clear_containers.sh
   script:
     # 先构建个镜像
     - |
       docker buildx build \
         --progress plain \
         --force-rm \
-        -f .ci/Dockerfile \
+        -f backend/magic-service/.ci/Dockerfile \
         --build-arg CI_JOB_TOKEN=$CI_JOB_TOKEN \
         --secret id=composer,src="$COMPOSER_AUTH_JSON" \
-        -t brd/magic-service-test:$CI_COMMIT_SHA .
+        -t brd/magic-service-test:$CI_COMMIT_SHA \
+        backend/magic-service/
   interruptible: true
 
 analyse-job:
