@@ -44,4 +44,6 @@ interface TaskMessageRepositoryInterface
      * @return array 返回包含消息列表和总数的数组 ['list' => TaskMessageEntity[], 'total' => int]
      */
     public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array;
+
+    public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity;
 }
