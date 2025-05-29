@@ -423,6 +423,7 @@ class LLMAppService extends AbstractLLMAppService
         $endpointResponseDTO = new EndpointResponseDTO();
         // 构建接入点响应DTO
         $endpointResponseDTO
+            ->setEndpointId($endpointDTO->getEndpointId())
             ->setRequestId((string) CoContext::getOrSetRequestId())
             ->setResponseTime($responseTime)
             ->setHttpStatusCode($httpStatusCode)
