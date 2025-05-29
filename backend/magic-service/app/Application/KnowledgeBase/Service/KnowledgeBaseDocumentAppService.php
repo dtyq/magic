@@ -9,6 +9,8 @@ namespace App\Application\KnowledgeBase\Service;
 
 use App\Domain\Flow\Entity\ValueObject\Query\KnowledgeBaseDocumentQuery;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
+use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
 use App\ErrorCode\PermissionErrorCode;

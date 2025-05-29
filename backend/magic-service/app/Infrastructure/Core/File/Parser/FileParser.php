@@ -10,6 +10,7 @@ namespace App\Infrastructure\Core\File\Parser;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\ExcelFileParserDriverInterface;
+use App\Infrastructure\Core\File\Parser\Driver\Interfaces\FileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\OcrFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\PdfFileParserDriverInterface;
 use App\Infrastructure\Core\File\Parser\Driver\Interfaces\TextFileParserDriverInterface;
