@@ -1,6 +1,14 @@
 # GitLab CI/CD 配置文件，用于从GitHub同步代码
 
+# 包含子项目的CI配置
+include:
+  - local: 'backend/magic-service/.ci/.gitlab-ci.yml'
+
 stages:
+  - build
+  - test
+  - coverage
+  - deploy
   - sync
 
 # 公共规则配置，适用于下面的三个同步任务 
@@ -9,10 +17,16 @@ stages:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
       when: always
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-master"
+      changes:
+        - "backend/magic-service/**/*"
       when: always
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-pre-release"
+      changes:
+        - "backend/magic-service/**/*"
       when: always
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-released"
+      changes:
+        - "backend/magic-service/**/*"
       when: always
 
 # 公共变量配置
@@ -60,6 +74,11 @@ sync-to-sub-repos:
   extends: 
     - .sync-vars
     - .sync-rules
+  needs:
+    - job: "analyse-job"
+      optional: true
+    - job: "cs-fix-job"
+      optional: true
   before_script: *common-before-script
   script:
     # 创建工作目录并清理已存在的git配置
