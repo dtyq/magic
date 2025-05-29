@@ -2507,12 +2507,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "d45d93cb46f36f91307eab1b5ad709479f71642d"
+                "reference": "53e58372d320e49205873cd39526ce75cd47a449"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=d45d93cb46f36f91307eab1b5ad709479f71642d",
-                "reference": "d45d93cb46f36f91307eab1b5ad709479f71642d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=53e58372d320e49205873cd39526ce75cd47a449",
+                "reference": "53e58372d320e49205873cd39526ce75cd47a449",
                 "shasum": ""
             },
             "require": {
@@ -2606,7 +2606,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-05-29T19:50:45+08:00"
+            "time": "2025-05-29T22:13:06+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -14265,16 +14265,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.147",
+            "version": "v1.0.148",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "cf19c9cbf550a15dd805e4e469186b048c08b765"
+                "reference": "56c7e138af7227e0438256ed53e5c3c7895ea2b3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/cf19c9cbf550a15dd805e4e469186b048c08b765",
-                "reference": "cf19c9cbf550a15dd805e4e469186b048c08b765",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/56c7e138af7227e0438256ed53e5c3c7895ea2b3",
+                "reference": "56c7e138af7227e0438256ed53e5c3c7895ea2b3",
                 "shasum": ""
             },
             "require": {
@@ -14309,9 +14309,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.147"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.148"
             },
-            "time": "2025-05-22T12:05:25+00:00"
+            "time": "2025-05-29T12:30:12+00:00"
         },
         {
             "name": "w7corp/easywechat",
