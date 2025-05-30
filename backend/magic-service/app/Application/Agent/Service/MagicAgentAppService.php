@@ -841,8 +841,11 @@ class MagicAgentAppService extends AbstractAppService
     public function initChatAgent(Authenticatable $authorization): void
     {
         $service = di(MagicFlowAIModelAppService::class);
-        $model = $service->getEnabled($authorization);
-        $modelName = $model['list'][0]->getModelName();
+        $models = $service->getEnabled($authorization);
+        $modelName = '';
+        if (! empty($models['list'])) {
+            $modelName = $models['list'][0]->getModelName();
+        }
 
         $loadPresetConfig = $this->loadPresetConfig('chat', ['modelName' => $modelName]);
         // 准备基本配置
@@ -867,7 +870,7 @@ class MagicAgentAppService extends AbstractAppService
     {
         $service = di(MagicFlowAIModelAppService::class);
         $models = $service->getEnabled($authorization);
-        $modelName = 'gtp4o';
+        $modelName = '';
         if (! empty($models['list'])) {
             $modelName = $models['list'][0]->getModelName();
         }
@@ -896,7 +899,7 @@ class MagicAgentAppService extends AbstractAppService
     {
         $service = di(MagicFlowAIModelAppService::class);
         $models = $service->getEnabled($authorization);
-        $modelName = 'gtp4o';
+        $modelName = '';
         if (! empty($models['list'])) {
             $modelName = $models['list'][0]->getModelName();
         }
