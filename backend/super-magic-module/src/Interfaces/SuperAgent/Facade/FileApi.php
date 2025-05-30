@@ -14,6 +14,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
 #[ApiResponse('low_code')]
@@ -85,5 +86,37 @@ class FileApi extends AbstractApi
         $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
 
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
+    }
+
+    /**
+     * 保存文件内容.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 保存结果
+     */
+    public function saveFileContent(RequestContext $requestContext): array
+    {
+        // 获取请求参数
+        $fileId = (int) $this->request->input('file_id', 0);
+        $content = $this->request->input('content', '');
+
+        // 参数验证
+        if ($fileId <= 0) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file.file_id_required');
+        }
+
+        if (empty($content)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file.content_required');
+        }
+
+        // 创建DTO
+        $saveFileContentDTO = new SaveFileContentRequestDTO($fileId, $content);
+        $saveFileContentDTO->validate();
+
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        return $this->fileProcessAppService->saveFileContent($saveFileContentDTO, $userAuthorization);
     }
 }

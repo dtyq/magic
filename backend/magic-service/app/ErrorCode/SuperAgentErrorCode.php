@@ -10,7 +10,7 @@ namespace App\ErrorCode;
 use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
 
 /**
- * 错误码范围:51000-51200.
+ * 错误码范围:51000-51300.
  */
 enum SuperAgentErrorCode: int
 {
@@ -31,4 +31,20 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('task.work_dir_not_found')]
     case WORK_DIR_NOT_FOUND = 51201;
+
+    // File save related error codes
+    #[ErrorMessage('file.permission_denied')]
+    case FILE_PERMISSION_DENIED = 51102;
+
+    #[ErrorMessage('file.content_too_large')]
+    case FILE_CONTENT_TOO_LARGE = 51103;
+
+    #[ErrorMessage('file.concurrent_modification')]
+    case FILE_CONCURRENT_MODIFICATION = 51104;
+
+    #[ErrorMessage('file.save_rate_limit')]
+    case FILE_SAVE_RATE_LIMIT = 51105;
+
+    #[ErrorMessage('file.upload_failed')]
+    case FILE_UPLOAD_FAILED = 51106;
 }

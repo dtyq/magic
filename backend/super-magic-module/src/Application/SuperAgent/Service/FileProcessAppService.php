@@ -10,17 +10,25 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Chat\Service\MagicChatFileAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\RateLimit\Annotation\RateLimit;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -36,6 +44,8 @@ class FileProcessAppService extends AbstractAppService
         private readonly MagicChatFileAppService $magicChatFileAppService,
         private readonly TaskDomainService $taskDomainService,
         private readonly FileAppService $fileAppService,
+        private readonly LockerInterface $locker,
+        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -374,5 +384,220 @@ class FileProcessAppService extends AbstractAppService
             ));
             ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
         }
+    }
+
+    /**
+     * Save file content to object storage.
+     *
+     * @param SaveFileContentRequestDTO $requestDTO Request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Response data
+     */
+    #[RateLimit(create: 30, consume: 1, capacity: 10, waitTimeout: 3)]
+    public function saveFileContent(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        $fileId = $requestDTO->getFileId();
+        $lockKey = 'file_save_lock:' . $fileId;
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockExpireSeconds = 30;
+        $lockAcquired = false;
+
+        try {
+            // Try to acquire distributed mutex lock
+            $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+
+            if ($lockAcquired) {
+                $this->logger->debug(sprintf('File save lock acquired for file %d by %s', $fileId, $lockOwner));
+
+                // Execute file save logic
+                $result = $this->performFileSave($requestDTO, $authorization);
+
+                $this->logger->debug(sprintf('File save completed for file %d by %s', $fileId, $lockOwner));
+
+                return $result;
+            }
+            $this->logger->warning(sprintf('Failed to acquire mutex lock for file %d. It might be held by another instance.', $fileId));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONCURRENT_MODIFICATION, 'file.concurrent_modification');
+        } finally {
+            // Release lock if acquired
+            if ($lockAcquired) {
+                if ($this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->debug(sprintf('File save lock released for file %d by %s', $fileId, $lockOwner));
+                } else {
+                    $this->logger->error(sprintf('Failed to release file save lock for file %d held by %s. Manual intervention may be required.', $fileId, $lockOwner));
+                }
+            }
+        }
+    }
+
+    /**
+     * Perform actual file save logic.
+     *
+     * @param SaveFileContentRequestDTO $requestDTO Request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Response data
+     */
+    private function performFileSave(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        // 1. Validate file permission
+        $taskFileEntity = $this->validateFilePermission($requestDTO->getFileId(), $authorization);
+
+        // 2. Process content (decode shadow if enabled)
+        $content = $requestDTO->getContent();
+        if ($requestDTO->getEnableShadow()) {
+            $content = ShadowCode::unShadow($content);
+            $this->logger->info(sprintf(
+                'Shadow decoding enabled for file %d, original content size: %d, decoded content size: %d',
+                $requestDTO->getFileId(),
+                strlen($requestDTO->getContent()),
+                strlen($content)
+            ));
+        }
+
+        // 3. Upload file content (replace existing content using file_key)
+        $result = $this->uploadFileContent($taskFileEntity, $content, $authorization);
+
+        // 4. Update file metadata
+        $this->updateFileMetadata($taskFileEntity, $result);
+
+        return [
+            'file_id' => $requestDTO->getFileId(),
+            'size' => $result['size'],
+            'updated_at' => date('Y-m-d H:i:s'),
+            'shadow_decoded' => $requestDTO->getEnableShadow(),
+        ];
+    }
+
+    /**
+     * Validate file permission.
+     *
+     * @param int $fileId File ID
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return TaskFileEntity Task file entity
+     */
+    private function validateFilePermission(int $fileId, MagicUserAuthorization $authorization): TaskFileEntity
+    {
+        // Get TaskFileEntity by file_id
+        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
+
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        // Check if current user is the file owner
+        if ($taskFileEntity->getUserId() !== $authorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+        }
+
+        return $taskFileEntity;
+    }
+
+    /**
+     * Upload file content to object storage.
+     *
+     * @param TaskFileEntity $taskFileEntity Task file entity
+     * @param string $content File content
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Upload result
+     */
+    private function uploadFileContent(TaskFileEntity $taskFileEntity, string $content, MagicUserAuthorization $authorization): array
+    {
+        try {
+            // Log debug information
+            $this->logger->info(sprintf(
+                'Starting file upload - file_id: %d, file_key: %s, file_name: %s, file_extension: %s, organization: %s, content_size: %d',
+                $taskFileEntity->getFileId(),
+                $taskFileEntity->getFileKey(),
+                $taskFileEntity->getFileName(),
+                $taskFileEntity->getFileExtension(),
+                $authorization->getOrganizationCode(),
+                strlen($content)
+            ));
+
+            // Step 1: Save upload content to temporary file with correct file extension
+            $tempFile = tempnam(sys_get_temp_dir(), 'file_save_');
+
+            // Ensure temporary file has correct extension
+            $fileExtension = $taskFileEntity->getFileExtension();
+            if (! empty($fileExtension)) {
+                $tempFileWithExt = $tempFile . '.' . $fileExtension;
+                rename($tempFile, $tempFileWithExt);
+                $tempFile = $tempFileWithExt;
+            }
+
+            file_put_contents($tempFile, $content);
+
+            $this->logger->info(sprintf(
+                'Created temporary file with correct extension: %s, size: %d bytes',
+                $tempFile,
+                filesize($tempFile)
+            ));
+
+            // Step 2: Build UploadFile object
+            $appId = config('kk_brd_service.app_id');
+            $md5Key = md5(StorageBucketType::Private->value);
+            $uploadKeyPrefix = "{$authorization->getOrganizationCode()}/{$appId}";
+            $uploadFileKey = str_replace($uploadKeyPrefix, '', $taskFileEntity->getFileKey());
+            $uploadFile = new UploadFile($tempFile, '', $uploadFileKey, false);
+
+            $this->logger->info(sprintf(
+                'Created UploadFile object with file_key: %s',
+                $uploadFile->getKey()
+            ));
+
+            // Step 3: Upload using FileDomainService uploadByCredential method
+            $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Private, false);
+
+            $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $taskFileEntity->getFileKey(), StorageBucketType::Private);
+
+            $this->logger->info(sprintf(
+                'Successfully uploaded file using uploadByCredential with key: %s, file_link: %s',
+                $uploadFile->getKey(),
+                $fileLink->getUrl()
+            ));
+
+            // Clean up temporary file
+            unlink($tempFile);
+
+            $this->logger->info(sprintf(
+                'Cleaned up temporary file: %s',
+                $tempFile
+            ));
+
+            // Step 4: Return upload result
+            return [
+                'size' => strlen($content),
+                'key' => $taskFileEntity->getFileKey(), // Keep original file_key unchanged
+            ];
+        } catch (Throwable $e) {
+            // Clean up temporary file if it exists
+            if (isset($tempFile) && file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+
+            $this->logger->error(sprintf(
+                'File upload failed: %s, file_id: %d, user_id: %s',
+                $e->getMessage(),
+                $taskFileEntity->getFileId(),
+                $authorization->getId()
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED, 'file.upload_failed');
+        }
+    }
+
+    /**
+     * Update file metadata.
+     *
+     * @param TaskFileEntity $taskFileEntity Task file entity
+     * @param array $result Upload result
+     */
+    private function updateFileMetadata(TaskFileEntity $taskFileEntity, array $result): void
+    {
+        // Update file size and modification time
+        $taskFileEntity->setFileSize($result['size']);
+        $taskFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        // Save updated entity
+        $this->taskDomainService->updateTaskFile($taskFileEntity);
     }
 }

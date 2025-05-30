@@ -358,6 +358,14 @@ class TaskDomainService
     }
 
     /**
+     * 更新任务文件.
+     */
+    public function updateTaskFile(TaskFileEntity $taskFileEntity): TaskFileEntity
+    {
+        return $this->taskFileRepository->updateById($taskFileEntity);
+    }
+
+    /**
      * 通过文件key和taskId获取任务文件.
      */
     public function getTaskFileByFileKey(string $fileKey): ?TaskFileEntity

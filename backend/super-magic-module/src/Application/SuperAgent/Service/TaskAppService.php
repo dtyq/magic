@@ -55,6 +55,7 @@ use Error;
 use Exception;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Coroutine;
+use Hyperf\Coroutine\Parallel;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -225,9 +226,90 @@ class TaskAppService extends AbstractAppService
             return;
         }
 
+        $topicEntities = $this->topicDomainService->getUserRunningTopics($dataIsolation);
+        $currentTaskRunCount = count($topicEntities); // 原始数量，假设都在运行
+
+        if ($currentTaskRunCount > 0) {
+            // Use coroutines to concurrently check real sandbox status
+            $parallel = new Parallel(10);
+            $requestId = CoContext::getOrSetRequestId();
+
+            foreach ($topicEntities as $index => $topicEntityItem) {
+                $parallel->add(function () use ($topicEntityItem, $requestId) {
+                    CoContext::setRequestId($requestId);
+                    // Check real sandbox status and return 1 if not running (need to subtract)
+                    $realStatus = $this->updateTaskStatusFromSandbox($topicEntityItem);
+                    return $realStatus !== TaskStatus::RUNNING ? 1 : 0;
+                }, (string) $index);
+            }
+
+            try {
+                $results = $parallel->wait();
+                // Subtract non-running topics from total count
+                foreach ($results as $needSubtract) {
+                    $currentTaskRunCount -= $needSubtract;
+                }
+            } catch (Throwable $e) {
+                $this->logger->error(sprintf('Failed to check real task status concurrently: %s', $e->getMessage()));
+                // Fallback: use original count without real status check
+            }
+        }
+
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound));
-        $this->logger->info(sprintf('投递任务开始事件，话题id：%s, round: %d', $topicEntity->getId(), $taskRound));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+        $this->logger->info(sprintf('投递任务开始事件，话题id：%s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+    }
+
+    public function updateTaskStatusFromSandbox(TopicEntity $topicEntity): TaskStatus
+    {
+        $this->logger->info(sprintf('开始检查任务状态: topic_id=%s', $topicEntity->getId()));
+        if (! $topicEntity->getSandboxId()) {
+            return TaskStatus::WAITING;
+        }
+
+        // 调用SandboxService的getStatus接口获取容器状态
+        $result = $this->sandboxService->getStatus($topicEntity->getSandboxId());
+
+        // 如果沙箱存在且状态为 running，直接返回该沙箱
+        if ($result->getCode() === SandboxResult::Normal
+            && $result->getSandboxData()->getStatus() === SandboxResult::SandboxRunnig) {
+            $this->logger->info(sprintf('沙箱状态正常(running): sandboxId=%s', $topicEntity->getSandboxId()));
+            return TaskStatus::RUNNING;
+        }
+
+        // 记录需要创建新沙箱的原因
+        if ($result->getCode() === SandboxResult::NotFound) {
+            $errMsg = '沙箱不存在';
+        } elseif ($result->getCode() === SandboxResult::Normal
+            && $result->getSandboxData()->getStatus() === 'exited') {
+            $errMsg = '沙箱已经退出';
+        } else {
+            $errMsg = '沙箱异常';
+        }
+
+        // 获取当前任务
+        $taskId = $topicEntity->getCurrentTaskId();
+        if ($taskId) {
+            // 更新任务状态
+            $this->taskDomainService->updateTaskStatusByTaskId($taskId, TaskStatus::ERROR, $errMsg);
+        }
+
+        // 更新话题状态
+        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, TaskStatus::ERROR);
+
+        // 触发完成事件
+        AsyncEventUtil::dispatch(new RunTaskAfterEvent(
+            $topicEntity->getUserOrganizationCode(),
+            $topicEntity->getUserId(),
+            $topicEntity->getId(),
+            $taskId,
+            TaskStatus::ERROR->value,
+            null
+        ));
+
+        $this->logger->info(sprintf('结束检查任务状态: topic_id=%s, status=%s, error_msg=%s', $topicEntity->getId(), TaskStatus::ERROR->value, $errMsg));
+
+        return TaskStatus::ERROR;
     }
 
     /**

@@ -53,6 +53,10 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/init', [AccountApi::class, 'initAccount']);
     });
 
+    Router::addGroup('/file', static function () {
+        // 保存文件内容
+        Router::post('/save', [FileApi::class, 'saveFileContent']);
+    });
 },
     ['middleware' => [RequestContextMiddlewareV2::class]]
 );
