@@ -17,7 +17,6 @@ build-job:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
       changes:
         - "backend/magic-service/**/*"
-
   before_script:
     - |
       sh backend/magic-service/.ci/clear_containers.sh
@@ -97,25 +96,30 @@ test-job:
     - docker rm -f magic-service-rabbitmq-$CI_COMMIT_SHA || true
     - docker rm -f magic-service-redis-$CI_COMMIT_SHA || true
   script:
-    # 启动mysql容器
+    # 启动mysql容器 - 使用AWS ECR公共镜像
     - |
       docker run \
       --name magic-service-mysql-$CI_COMMIT_SHA \
-      -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic -d mysql:8.0.32
-    # 启动rabbitmq容器
+      -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic \
+      -d public.ecr.aws/docker/library/mysql:8.0.32
+    # 启动rabbitmq容器 - 使用AWS ECR公共镜像
     - |
       docker run \
       --name magic-service-rabbitmq-$CI_COMMIT_SHA \
       -e RABBITMQ_DEFAULT_USER=guest \
       -e RABBITMQ_DEFAULT_PASS=guest \
-      -d rabbitmq:3-management
-    # 启动redis容器
+      -d public.ecr.aws/docker/library/rabbitmq:3-management
+    # 启动redis容器 - 使用AWS ECR公共镜像
     - |
       docker run \
       --name magic-service-redis-$CI_COMMIT_SHA \
-      -d redis:6.2.5
+      -d public.ecr.aws/docker/library/redis:6.2.5
     # 等待mysql启动
-    - sleep 10
+    - sleep 15
+    # 检查容器状态
+    - docker ps | grep magic-service-mysql-$CI_COMMIT_SHA
+    - docker ps | grep magic-service-rabbitmq-$CI_COMMIT_SHA
+    - docker ps | grep magic-service-redis-$CI_COMMIT_SHA
     # 执行迁移
     - |
       docker run \
