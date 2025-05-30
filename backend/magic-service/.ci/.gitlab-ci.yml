@@ -98,14 +98,12 @@ test-job:
   script:
     # 启动mysql容器 - 使用AWS ECR公共镜像
     - |
-      echo "Using AWS ECR MySQL image: public.ecr.aws/docker/library/mysql:8.0.32"
       docker run \
       --name magic-service-mysql-$CI_COMMIT_SHA \
       -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic \
       -d public.ecr.aws/docker/library/mysql:8.0.32
     # 启动rabbitmq容器 - 使用AWS ECR公共镜像
     - |
-      echo "Using AWS ECR RabbitMQ image: public.ecr.aws/docker/library/rabbitmq:3-management"
       docker run \
       --name magic-service-rabbitmq-$CI_COMMIT_SHA \
       -e RABBITMQ_DEFAULT_USER=guest \
@@ -113,7 +111,6 @@ test-job:
       -d public.ecr.aws/docker/library/rabbitmq:3-management
     # 启动redis容器 - 使用AWS ECR公共镜像
     - |
-      echo "Using AWS ECR Redis image: public.ecr.aws/docker/library/redis:6.2.5"
       docker run \
       --name magic-service-redis-$CI_COMMIT_SHA \
       -d public.ecr.aws/docker/library/redis:6.2.5
@@ -141,7 +138,7 @@ test-job:
       --link magic-service-redis-$CI_COMMIT_SHA:magic-service-redis \
       -v "$DOT_ENV":/opt/www/.env:ro,z \
       brd/magic-service-test:$CI_COMMIT_SHA \
-      sh -c 'php bin/hyperf.php start & sleep 2; php bin/hyperf.php init-magic:data; exec php -dextension=pcov -dopcache.enable_cli=0 `which composer` test-library-with-pcov'
+      sh -c 'php bin/hyperf.php start & sleep 2; php bin/hyperf.php init-magic:data; cd /opt/www && exec php -dextension=pcov -dopcache.enable_cli=0 `which composer` test-library-with-pcov'
   after_script:
     - |
       docker cp magic-service-test-$CI_COMMIT_SHA:/opt/www/coverage $(pwd)/coverage
