@@ -396,15 +396,21 @@ class ModelGatewayMapper extends ModelMapper
             }
 
             // 创建配置
-            $model = $this->createModelByProvider($providerModel, $providerConfig, $provider);
+            $model = $this->createModelByProvider($organizationCode, $providerModel, $providerConfig, $provider);
+            if (! $model) {
+                continue;
+            }
             $list[$model->getAttributes()->getKey()] = $model;
         }
 
         return $list;
     }
 
-    private function createModelByProvider(ProviderModelEntity $providerModelEntity, ProviderConfigEntity $providerConfigEntity, ProviderEntity $providerEntity): OdinModel
+    private function createModelByProvider(string $organizationCode, ProviderModelEntity $providerModelEntity, ProviderConfigEntity $providerConfigEntity, ProviderEntity $providerEntity): ?OdinModel
     {
+        if ($providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations())) {
+            return null;
+        }
         $chat = false;
         $functionCall = false;
         $multiModal = false;
@@ -483,7 +489,7 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
 
-        return $this->createModelByProvider($providerModel, $providerConfig, $provider);
+        return $this->createModelByProvider($orgCode, $providerModel, $providerConfig, $provider);
     }
 
     private function addAttributes(string $key, OdinModelAttributes $attributes): void
