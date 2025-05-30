@@ -118,7 +118,7 @@ test-job:
     - sleep 15
     # 检查容器状态
     - docker ps | grep magic-service-mysql-$CI_COMMIT_SHA
-    - docker ps | grep magic-service-rabbitmq-$CI_COMMIT_SHA  
+    - docker ps | grep magic-service-rabbitmq-$CI_COMMIT_SHA
     - docker ps | grep magic-service-redis-$CI_COMMIT_SHA
     # 执行迁移
     - |
