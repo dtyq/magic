@@ -15,6 +15,8 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('magic_mcp_server_tools', function (Blueprint $table) {
+
+
             $table->string('version', 255)->default('')->comment('工具版本')->change();
         });
     }
