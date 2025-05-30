@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.343.20",
+            "version": "3.343.21",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "bf40b00d2e1cbd2a5d8c903743073440d8ebb5dc"
+                "reference": "4bee288751c58598625ea2e8f30258404dd98757"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/bf40b00d2e1cbd2a5d8c903743073440d8ebb5dc",
-                "reference": "bf40b00d2e1cbd2a5d8c903743073440d8ebb5dc",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/4bee288751c58598625ea2e8f30258404dd98757",
+                "reference": "4bee288751c58598625ea2e8f30258404dd98757",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.20"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.21"
             },
-            "time": "2025-05-28T18:10:03+00:00"
+            "time": "2025-05-29T18:11:11+00:00"
         },
         {
             "name": "brick/math",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.6",
+            "version": "1.0.7",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "ba4f32f9be5d59bc3857557884712d8910d8f621"
+                "reference": "1f4784f0fd758495ff9225168769eaa5aaf23def"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=ba4f32f9be5d59bc3857557884712d8910d8f621",
-                "reference": "ba4f32f9be5d59bc3857557884712d8910d8f621",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=1f4784f0fd758495ff9225168769eaa5aaf23def",
+                "reference": "1f4784f0fd758495ff9225168769eaa5aaf23def",
                 "shasum": ""
             },
             "require": {
@@ -1915,6 +1915,7 @@
                 "hyperf/http-server": "~3.1.0",
                 "hyperf/logger": "~3.1.0",
                 "hyperf/model-cache": "~3.1.0",
+                "hyperf/redis": "~3.1.0",
                 "hyperf/snowflake": "^3.1",
                 "hyperf/validation": "~3.1.0",
                 "php": ">=8.3",
@@ -1971,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.6"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.7"
             },
-            "time": "2025-05-30T01:40:59+08:00"
+            "time": "2025-05-30T15:03:02+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -8208,6 +8209,67 @@
             "time": "2024-06-14T17:23:18+08:00"
         },
         {
+            "name": "laminas/laminas-escaper",
+            "version": "2.17.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laminas/laminas-escaper.git",
+                "reference": "df1ef9503299a8e3920079a16263b578eaf7c3ba"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/laminas/laminas-escaper/zipball/df1ef9503299a8e3920079a16263b578eaf7c3ba",
+                "reference": "df1ef9503299a8e3920079a16263b578eaf7c3ba",
+                "shasum": ""
+            },
+            "require": {
+                "ext-ctype": "*",
+                "ext-mbstring": "*",
+                "php": "~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0"
+            },
+            "conflict": {
+                "zendframework/zend-escaper": "*"
+            },
+            "require-dev": {
+                "infection/infection": "^0.29.8",
+                "laminas/laminas-coding-standard": "~3.0.1",
+                "phpunit/phpunit": "^10.5.45",
+                "psalm/plugin-phpunit": "^0.19.2",
+                "vimeo/psalm": "^6.6.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Laminas\\Escaper\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "description": "Securely and safely escape HTML, HTML attributes, JavaScript, CSS, and URLs",
+            "homepage": "https://laminas.dev",
+            "keywords": [
+                "escaper",
+                "laminas"
+            ],
+            "support": {
+                "chat": "https://laminas.dev/chat",
+                "docs": "https://docs.laminas.dev/laminas-escaper/",
+                "forum": "https://discourse.laminas.dev",
+                "issues": "https://github.com/laminas/laminas-escaper/issues",
+                "rss": "https://github.com/laminas/laminas-escaper/releases.atom",
+                "source": "https://github.com/laminas/laminas-escaper"
+            },
+            "funding": [
+                {
+                    "url": "https://funding.communitybridge.org/projects/laminas-project",
+                    "type": "community_bridge"
+                }
+            ],
+            "time": "2025-05-06T19:29:36+00:00"
+        },
+        {
             "name": "laminas/laminas-mime",
             "version": "2.12.0",
             "source": {
@@ -10005,58 +10067,6 @@
             "time": "2024-10-02T11:20:13+00:00"
         },
         {
-            "name": "phpoffice/math",
-            "version": "0.2.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/PHPOffice/Math.git",
-                "reference": "fc2eb6d1a61b058d5dac77197059db30ee3c8329"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/PHPOffice/Math/zipball/fc2eb6d1a61b058d5dac77197059db30ee3c8329",
-                "reference": "fc2eb6d1a61b058d5dac77197059db30ee3c8329",
-                "shasum": ""
-            },
-            "require": {
-                "ext-dom": "*",
-                "ext-xml": "*",
-                "php": "^7.1|^8.0"
-            },
-            "require-dev": {
-                "phpstan/phpstan": "^0.12.88 || ^1.0.0",
-                "phpunit/phpunit": "^7.0 || ^9.0"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "PhpOffice\\Math\\": "src/Math/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Progi1984",
-                    "homepage": "https://lefevre.dev"
-                }
-            ],
-            "description": "Math - Manipulate Math Formula",
-            "homepage": "https://phpoffice.github.io/Math/",
-            "keywords": [
-                "MathML",
-                "officemathml",
-                "php"
-            ],
-            "support": {
-                "issues": "https://github.com/PHPOffice/Math/issues",
-                "source": "https://github.com/PHPOffice/Math/tree/0.2.0"
-            },
-            "time": "2024-08-12T07:30:45+00:00"
-        },
-        {
             "name": "phpoffice/phpspreadsheet",
             "version": "2.3.8",
             "source": {
@@ -10163,24 +10173,24 @@
         },
         {
             "name": "phpoffice/phpword",
-            "version": "1.3.0",
+            "version": "1.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHPOffice/PHPWord.git",
-                "reference": "8392134ce4b5dba65130ba956231a1602b848b7f"
+                "reference": "90a55955e6a772bb4cd9b1ef6a7e88c8976c2561"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHPOffice/PHPWord/zipball/8392134ce4b5dba65130ba956231a1602b848b7f",
-                "reference": "8392134ce4b5dba65130ba956231a1602b848b7f",
+                "url": "https://api.github.com/repos/PHPOffice/PHPWord/zipball/90a55955e6a772bb4cd9b1ef6a7e88c8976c2561",
+                "reference": "90a55955e6a772bb4cd9b1ef6a7e88c8976c2561",
                 "shasum": ""
             },
             "require": {
                 "ext-dom": "*",
                 "ext-json": "*",
                 "ext-xml": "*",
-                "php": "^7.1|^8.0",
-                "phpoffice/math": "^0.2"
+                "laminas/laminas-escaper": ">=2.6",
+                "php": "^7.1|^8.0"
             },
             "require-dev": {
                 "dompdf/dompdf": "^2.0",
@@ -10190,9 +10200,8 @@
                 "friendsofphp/php-cs-fixer": "^3.3",
                 "mpdf/mpdf": "^8.1",
                 "phpmd/phpmd": "^2.13",
-                "phpstan/phpstan-phpunit": "@stable",
                 "phpunit/phpunit": ">=7.0",
-                "symfony/process": "^4.4 || ^5.0",
+                "symfony/process": "^4.4",
                 "tecnickcom/tcpdf": "^6.5"
             },
             "suggest": {
@@ -10238,7 +10247,7 @@
                 }
             ],
             "description": "PHPWord - A pure PHP library for reading and writing word processing documents (OOXML, ODF, RTF, HTML, PDF)",
-            "homepage": "https://phpoffice.github.io/PHPWord/",
+            "homepage": "https://phpword.readthedocs.io/",
             "keywords": [
                 "ISO IEC 29500",
                 "OOXML",
@@ -10266,9 +10275,9 @@
             ],
             "support": {
                 "issues": "https://github.com/PHPOffice/PHPWord/issues",
-                "source": "https://github.com/PHPOffice/PHPWord/tree/1.3.0"
+                "source": "https://github.com/PHPOffice/PHPWord/tree/1.1.0"
             },
-            "time": "2024-08-30T18:03:42+00:00"
+            "time": "2023-05-30T07:59:14+00:00"
         },
         {
             "name": "phpoption/phpoption",
@@ -16916,12 +16925,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "ee2528399ca30fe65a23165183190be42c0b109a"
+                "reference": "c6007a53027047b08044448c57571988ac9b6e93"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/ee2528399ca30fe65a23165183190be42c0b109a",
-                "reference": "ee2528399ca30fe65a23165183190be42c0b109a",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/c6007a53027047b08044448c57571988ac9b6e93",
+                "reference": "c6007a53027047b08044448c57571988ac9b6e93",
                 "shasum": ""
             },
             "conflict": {
@@ -17455,6 +17464,7 @@
                 "phpmyadmin/phpmyadmin": "<5.2.2",
                 "phpmyfaq/phpmyfaq": "<3.2.5|==3.2.5|>=3.2.10,<=4.0.1",
                 "phpoffice/common": "<0.2.9",
+                "phpoffice/math": "<=0.2",
                 "phpoffice/phpexcel": "<=1.8.2",
                 "phpoffice/phpspreadsheet": "<1.29.9|>=2,<2.1.8|>=2.2,<2.3.7|>=3,<3.9",
                 "phpseclib/phpseclib": "<2.0.47|>=3,<3.0.36",
@@ -17851,7 +17861,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-28T18:06:42+00:00"
+            "time": "2025-05-29T18:07:06+00:00"
         },
         {
             "name": "sebastian/cli-parser",
