@@ -138,7 +138,7 @@ test-job:
       --link magic-service-redis-$CI_COMMIT_SHA:magic-service-redis \
       -v "$DOT_ENV":/opt/www/.env:ro,z \
       brd/magic-service-test:$CI_COMMIT_SHA \
-      sh -c 'php bin/hyperf.php start & sleep 2; php bin/hyperf.php init-magic:data; cd /opt/www && exec php -dextension=pcov -dopcache.enable_cli=0 `which composer` test-library-with-pcov'
+      sh -c 'php bin/hyperf.php start & sleep 2; php bin/hyperf.php init-magic:data; exec php -dextension=pcov -dopcache.enable_cli=0 `which composer` test-library-with-pcov'
   after_script:
     - |
       docker cp magic-service-test-$CI_COMMIT_SHA:/opt/www/coverage $(pwd)/coverage
