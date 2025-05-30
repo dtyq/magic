@@ -17,7 +17,6 @@ build-job:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
       changes:
         - "backend/magic-service/**/*"
-
   before_script:
     - |
       sh backend/magic-service/.ci/clear_containers.sh
@@ -97,14 +96,11 @@ test-job:
     - docker rm -f magic-service-rabbitmq-$CI_COMMIT_SHA || true
     - docker rm -f magic-service-redis-$CI_COMMIT_SHA || true
   script:
-    # 调试：打印DOCKER_MIRROR变量
-    - echo "Debug - DOCKER_MIRROR value: '$DOCKER_MIRROR'"
-    - echo "Debug - DOCKER_MIRROR length: ${#DOCKER_MIRROR}"
     - |
       if [ -n "$DOCKER_MIRROR" ]; then
         echo "Debug - DOCKER_MIRROR is set, will use: ${DOCKER_MIRROR}/mysql:8.0.32"
       else
-        echo "Debug - DOCKER_MIRROR is empty or not set, will use: mysql:8.0.32"
+        echo "Debug - DOCKER_MIRROR is empty or not set, will use: mysql:8.0.32 DOCKER_MIRROR: ${DOCKER_MIRROR}"
       fi
     # 启动mysql容器 - 使用配置的镜像源
     - |
