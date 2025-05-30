@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "904d7e412b459c971b0b223094844c26",
+    "content-hash": "3b01d5980bea7d5da2b86f05aae31f9e",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "34280bbcca87024cd41915385c673805ed7a2e2d"
+                "reference": "754e09f247983da4a15b77c06e7bf0bbfaea0e8b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=34280bbcca87024cd41915385c673805ed7a2e2d",
-                "reference": "34280bbcca87024cd41915385c673805ed7a2e2d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=754e09f247983da4a15b77c06e7bf0bbfaea0e8b",
+                "reference": "754e09f247983da4a15b77c06e7bf0bbfaea0e8b",
                 "shasum": ""
             },
             "require": {
@@ -2301,7 +2301,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-05-30T02:49:56+00:00"
+            "time": "2025-05-30T15:56:10+08:00"
         },
         {
             "name": "dtyq/rule-engine-core",
