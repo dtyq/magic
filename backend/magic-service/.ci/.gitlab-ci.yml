@@ -97,25 +97,63 @@ test-job:
     - docker rm -f magic-service-rabbitmq-$CI_COMMIT_SHA || true
     - docker rm -f magic-service-redis-$CI_COMMIT_SHA || true
   script:
-    # 启动mysql容器
+    # 启动mysql容器 - 使用配置的镜像源
     - |
-      docker run \
-      --name magic-service-mysql-$CI_COMMIT_SHA \
-      -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic -d mysql:8.0.32
-    # 启动rabbitmq容器
+      if [ -n "$DOCKER_MIRROR" ]; then
+        docker run \
+        --name magic-service-mysql-$CI_COMMIT_SHA \
+        -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic \
+        -d ${DOCKER_MIRROR}/mysql:8.0.32 || \
+        docker run \
+        --name magic-service-mysql-$CI_COMMIT_SHA \
+        -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic \
+        -d mysql:8.0.32
+      else
+        docker run \
+        --name magic-service-mysql-$CI_COMMIT_SHA \
+        -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic \
+        -d mysql:8.0.32
+      fi
+    # 启动rabbitmq容器 - 使用配置的镜像源
     - |
-      docker run \
-      --name magic-service-rabbitmq-$CI_COMMIT_SHA \
-      -e RABBITMQ_DEFAULT_USER=guest \
-      -e RABBITMQ_DEFAULT_PASS=guest \
-      -d rabbitmq:3-management
-    # 启动redis容器
+      if [ -n "$DOCKER_MIRROR" ]; then
+        docker run \
+        --name magic-service-rabbitmq-$CI_COMMIT_SHA \
+        -e RABBITMQ_DEFAULT_USER=guest \
+        -e RABBITMQ_DEFAULT_PASS=guest \
+        -d ${DOCKER_MIRROR}/rabbitmq:3-management || \
+        docker run \
+        --name magic-service-rabbitmq-$CI_COMMIT_SHA \
+        -e RABBITMQ_DEFAULT_USER=guest \
+        -e RABBITMQ_DEFAULT_PASS=guest \
+        -d rabbitmq:3-management
+      else
+        docker run \
+        --name magic-service-rabbitmq-$CI_COMMIT_SHA \
+        -e RABBITMQ_DEFAULT_USER=guest \
+        -e RABBITMQ_DEFAULT_PASS=guest \
+        -d rabbitmq:3-management
+      fi
+    # 启动redis容器 - 使用配置的镜像源
     - |
-      docker run \
-      --name magic-service-redis-$CI_COMMIT_SHA \
-      -d redis:6.2.5
+      if [ -n "$DOCKER_MIRROR" ]; then
+        docker run \
+        --name magic-service-redis-$CI_COMMIT_SHA \
+        -d ${DOCKER_MIRROR}/redis:6.2.5 || \
+        docker run \
+        --name magic-service-redis-$CI_COMMIT_SHA \
+        -d redis:6.2.5
+      else
+        docker run \
+        --name magic-service-redis-$CI_COMMIT_SHA \
+        -d redis:6.2.5
+      fi
     # 等待mysql启动
-    - sleep 10
+    - sleep 15
+    # 检查容器状态
+    - docker ps | grep magic-service-mysql-$CI_COMMIT_SHA
+    - docker ps | grep magic-service-rabbitmq-$CI_COMMIT_SHA  
+    - docker ps | grep magic-service-redis-$CI_COMMIT_SHA
     # 执行迁移
     - |
       docker run \
