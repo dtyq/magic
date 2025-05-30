@@ -1,4 +1,7 @@
 ## I. Feature Preview
+
+> **⚠️ Notice**: Admin backend is in beta testing. Please temporarily configure LLMs via [environment variables](../../../development/deploy/environment.md#_4-ai-model-configuration).
+
 If you have an organization admin role, click on your avatar in the upper left corner to enter the admin backend.
 
 ![Fi-lguvpG_yCUWav8wIsw6lfvoYp.png](https://cdn.letsmagic.cn/static/img/Fi-lguvpG_yCUWav8wIsw6lfvoYp.png)

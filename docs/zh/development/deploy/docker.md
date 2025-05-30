@@ -1,7 +1,6 @@
 
 ## 快速开始
-支持Mac os 和Liunx 操作系统,
-window 系统可以通过docker-compose运行
+支持 macOS 和 Linux 操作系统。Windows 系统可以通过 docker compose 运行
 ### 1. 克隆项目
 ```bash
 git clone https://github.com/dtyq/magic.git
@@ -9,7 +8,8 @@ cd magic
 ```
 
 ### 2. 配置环境变量
-配置magic 环境变量, 必须配置任意一种大模型的环境变量才可正常使用magic
+配置 Magic 环境变量，必须配置任意一种大模型的环境变量才可正常使用 Magic。
+
 复制 `.env.example` 文件为 `.env`，并根据需要修改配置：
 ```bash
 cp .env.example .env
@@ -48,10 +48,10 @@ cp .env.example .env
 ```
 
 ### 4. 访问服务
-- API 服务: http://localhost:9501
-- Web 应用: http://localhost:8080
+- API 服务：http://localhost:9501
+- Web 应用：http://localhost:8080
   - 账号 `13812345678`：密码为 `letsmagic.ai`
   - 账号 `13912345678`：密码为 `letsmagic.ai`
-- RabbitMQ 管理界面: http://localhost:15672
-  - 用户名: admin
-  - 密码: magic123456
+- RabbitMQ 管理界面：http://localhost:15672
+  - 用户名：admin
+  - 密码：magic123456
