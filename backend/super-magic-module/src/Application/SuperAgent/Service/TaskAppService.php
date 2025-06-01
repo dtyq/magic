@@ -108,12 +108,12 @@ class TaskAppService extends AbstractAppService
             if (is_null($topicEntity)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
+            $topicId = $topicEntity->getId();
             // 检查用户任务数量限制和白名单
             $this->beforeInitTask($dataIsolation, $instruction, $topicEntity);
             // 初始化任务
             $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $instruction, $taskMode, $prompt, $attachments);
-            $topicId = $taskEntity->getTopicId();
-            $taskId = $taskEntity->getTaskId();
+            $taskId = (string) $taskEntity->getId();
 
             // 初始化上下文
             $taskContext = new TaskContext(
@@ -202,7 +202,7 @@ class TaskAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // 发送消息给客户端
-            $this->sendErrorMessageToClient($topicId, (string) $taskId, $chatTopicId, $conversationId, $e->getMessage());
+            $this->sendErrorMessageToClient($topicId, $taskId, $chatTopicId, $conversationId, $e->getMessage());
             throw new BusinessException('初始化任务, 事件处理失败', 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
