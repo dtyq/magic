@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Share\Service;
 
-use App\ErrorCode\ShareErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
 use Dtyq\SuperMagic\Infrastructure\Utils\ShareCodeGenerator;
 use Exception;
@@ -41,7 +41,7 @@ class ResourceShareDomainService
 
         // 2. 验证分享是否存在
         if (! $shareEntity) {
-            ExceptionBuilder::throw(ShareErrorCode::SHARE_NOT_FOUND, 'share.not_found', [$shareId]);
+            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND, 'share.not_found', [$shareId]);
         }
 
         // 3. 验证是否有权限取消分享（只有分享创建者或管理员可以取消）

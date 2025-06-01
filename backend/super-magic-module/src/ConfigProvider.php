@@ -29,9 +29,12 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
+use Dtyq\SuperMagic\Listener\I18nLoadListener;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
@@ -87,6 +90,13 @@ class ConfigProvider
             ],
             'listeners' => [
                 AddRouteListener::class,
+                I18nLoadListener::class,
+            ],
+            'error_message' => [
+                'error_code_mapper' => [
+                    SuperAgentErrorCode::class => [51000, 51300],
+                    ShareErrorCode::class => [51300, 51400],
+                ],
             ],
             'commands' => [],
             'annotations' => [

@@ -9,7 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
 
-class RunTaskAfterEvent
+class RunTaskAfterEvent extends AbstractEvent
 {
     public function __construct(
         private string $organizationCode,
@@ -19,6 +19,8 @@ class RunTaskAfterEvent
         private string $status,
         private ?TokenUsageDetails $tokenUsageDetails,
     ) {
+        // Call parent constructor to generate snowflake ID
+        parent::__construct();
     }
 
     public function getOrganizationCode(): string

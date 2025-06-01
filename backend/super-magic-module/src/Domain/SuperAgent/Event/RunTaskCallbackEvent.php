@@ -9,7 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 
-class RunTaskCallbackEvent
+class RunTaskCallbackEvent extends AbstractEvent
 {
     public function __construct(
         private string $organizationCode,
@@ -19,6 +19,8 @@ class RunTaskCallbackEvent
         private int $taskId,
         private TopicTaskMessageDTO $taskMessage
     ) {
+        // Call parent constructor to generate snowflake ID
+        parent::__construct();
     }
 
     public function getOrganizationCode(): string

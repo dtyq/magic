@@ -58,4 +58,21 @@ class TopicDomainService
 
         return $result['list'][0];
     }
+
+    /**
+     * @return array<TopicEntity>
+     */
+    public function getUserRunningTopics(DataIsolation $dataIsolation): array
+    {
+        $conditions = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'current_task_status' => TaskStatus::RUNNING,
+        ];
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return [];
+        }
+
+        return $result['list'];
+    }
 }
