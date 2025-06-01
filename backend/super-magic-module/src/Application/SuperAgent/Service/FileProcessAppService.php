@@ -53,7 +53,6 @@ class FileProcessAppService extends AbstractAppService
 
     /**
      * 根据file_key查找文件是否存在，如果存在则更新，不存在则创建
-     * 此方法同时处理两个不同领域（MagicChat和Task）的文件实体.
      *
      * @param string $fileKey 文件key
      * @param DataIsolation $dataIsolation 数据隔离对象
@@ -71,23 +70,16 @@ class FileProcessAppService extends AbstractAppService
         int $taskId,
         string $fileType = TaskFileType::PROCESS->value
     ): array {
-        // 1. 保存或更新聊天文件（通过Application层协调）
-        $savedChatFile = $this->magicChatFileAppService->saveOrUpdateByFileKey($fileKey, $dataIsolation, $fileData);
-
-        // 2. 获取文件外部URL
-        $fileId = $savedChatFile['file_id'] ?? '';
-
-        // 3. 准备任务文件实体
-        $taskFileEntity = $this->taskDomainService->saveOrCreateTaskFileByFileId(
-            fileId: (int) $fileId,
-            fileKey: $fileKey,
+        $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
             dataIsolation: $dataIsolation,
+            fileKey: $fileKey,
             fileData: $fileData,
             topicId: $topicId,
             taskId: $taskId,
-            fileType: $fileType
+            fileType: $fileType,
+            isUpdate: true
         );
-        return [$fileId, $taskFileEntity];
+        return [$taskFileEntity->getFileId(), $taskFileEntity];
     }
 
     /**
@@ -215,7 +207,7 @@ class FileProcessAppService extends AbstractAppService
      * @param array $attachments 附件数组
      * @param string $sandboxId 沙箱ID
      * @param string $organizationCode 组织编码
-     * @param int $topicId 话题ID，如果未提供将从任务记录中获取
+     * @param int | null $topicId 话题ID，如果未提供将从任务记录中获取
      * @return array 处理结果统计
      */
     public function processAttachmentsArray(array $attachments, string $sandboxId, string $organizationCode, ?int $topicId = null): array
@@ -291,14 +283,13 @@ class FileProcessAppService extends AbstractAppService
                     continue;
                 }
                 // 如果不存在，则保存
-                $taskFileEntity = $this->taskDomainService->saveOrCreateTaskFileByFileKey(
-                    $attachment['file_key'],
-                    $dataIsolation,
-                    $attachment,
-                    $topicId,
-                    $sandboxId,
-                    $task->getId(),
-                    $attachment['file_type'] ?? 'system_auto_upload'
+                $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
+                    dataIsolation: $dataIsolation,
+                    fileKey: $attachment['file_key'],
+                    fileData: $attachment,
+                    topicId: $topicId,
+                    taskId: $task->getId(),
+                    fileType: $attachment['file_type'] ?? 'system_auto_upload'
                 );
                 ++$stats['success'];
                 $stats['files'][] = [

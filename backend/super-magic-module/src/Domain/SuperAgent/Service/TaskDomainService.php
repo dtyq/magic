@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -63,6 +64,8 @@ class TaskDomainService
         if ($instruction == ChatInstruction::Interrupted) {
             $taskList = $this->taskRepository->getTasksByTopicId($topicId, 1, 1, ['task_status' => TaskStatus::RUNNING]);
             if (empty($taskList['list'])) {
+                // 优化一下，如果没有需要暂停的任务，请不要进行错误的输出
+                // 前端传，或者找最新的话题下的任务是哪个
                 ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
             }
             return $taskList['list'][0];
@@ -373,17 +376,33 @@ class TaskDomainService
         return $this->taskFileRepository->getByFileKey($fileKey);
     }
 
-    public function saveOrCreateTaskFileByFileId(
-        int $fileId,
-        string $fileKey,
+    /**
+     * insert or update task file entity by file key
+     * @param DataIsolation $dataIsolation
+     * @param string $fileKey
+     * @param array $fileData
+     * @param int $topicId
+     * @param int $taskId
+     * @param string $fileType
+     * @param bool $isUpdate
+     * @return TaskFileEntity
+     */
+    public function saveTaskFileByFileKey(
         DataIsolation $dataIsolation,
+        string $fileKey,
         array $fileData,
         int $topicId,
         int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
+        string $fileType = TaskFileType::PROCESS->value,
+        bool $isUpdate = false
     ): TaskFileEntity {
-        // 先通过fileId检查是否已存在文件
+        // 先通过 fileKey 检查是否已存在文件
         $taskFileEntity = $this->getTaskFileByFileKey($fileKey);
+
+        // 如果存在，并且不需要更新，则直接返回
+        if ($taskFileEntity && ! $isUpdate) {
+            return $taskFileEntity;
+        }
 
         // 如果已存在，则更新并返回
         if ($taskFileEntity) {
@@ -407,7 +426,7 @@ class TaskDomainService
 
         // 如果不存在，则创建新实体
         $taskFileEntity = new TaskFileEntity();
-        $taskFileEntity->setFileId($fileId);
+        $taskFileEntity->setFileId(IdGenerator::getSnowId());
         $taskFileEntity->setFileKey($fileKey);
 
         // 处理用户ID: 优先使用DataIsolation中的用户ID，如果为null则从任务中获取
@@ -420,7 +439,6 @@ class TaskDomainService
             }
         }
         $taskFileEntity->setUserId($userId !== null ? $userId : 'system');
-
         $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $taskFileEntity->setTopicId($topicId);
         $taskFileEntity->setTaskId($taskId);
@@ -428,69 +446,6 @@ class TaskDomainService
         $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
         $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
         $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
-        // 判断并设置是否为隐藏文件
-        $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
-        // 设置存储类型，默认为workspace
-        $taskFileEntity->setStorageType($fileData['storage_type'] ?? 'workspace');
-
-        // 使用insertOrIgnore方法，如果已存在相同file_key和topic_id的记录，则返回已存在的实体
-        $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);
-        return $result ?: $taskFileEntity;
-    }
-
-    /**
-     * 根据fileKey保存或创建任务文件.
-     * 如果文件已存在则跳过，不存在则创建.
-     *
-     * @param string $fileKey 文件key
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param array $fileData 文件数据
-     * @param int $topicId 话题ID
-     * @param string $sandboxId 沙箱ID
-     * @param int $taskId 任务ID
-     * @param string $fileType 文件类型
-     * @return TaskFileEntity 任务文件实体
-     */
-    public function saveOrCreateTaskFileByFileKey(
-        string $fileKey,
-        DataIsolation $dataIsolation,
-        array $fileData,
-        int $topicId,
-        string $sandboxId,
-        int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
-    ): TaskFileEntity {
-        // 使用sandboxId获取任务ID
-        $taskEntity = $this->taskRepository->getTaskBySandboxId($sandboxId);
-        $taskId = $taskEntity ? $taskEntity->getId() : $taskId;
-
-        // 先检查是否已存在相同fileKey的记录
-        $taskFileEntity = $this->getTaskFileByFileKey($fileKey);
-
-        // 如果已存在，直接返回
-        if ($taskFileEntity) {
-            return $taskFileEntity;
-        }
-
-        // 创建新实体
-        $taskFileEntity = new TaskFileEntity();
-        $taskFileEntity->setFileKey($fileKey);
-
-        // 处理用户ID: 优先使用DataIsolation中的用户ID，如果为null则从任务中获取
-        $userId = $dataIsolation->getCurrentUserId();
-        if ($userId === null && $taskEntity) {
-            $userId = $taskEntity->getUserId();
-        }
-        $taskFileEntity->setUserId($userId !== null ? $userId : 'system');
-
-        $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $taskFileEntity->setTopicId($topicId);
-        $taskFileEntity->setTaskId($taskId);
-        $taskFileEntity->setFileType($fileType);
-        $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
-        $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
-        $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
-        $taskFileEntity->setExternalUrl($fileData['external_url'] ?? '');
         // 判断并设置是否为隐藏文件
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         // 设置存储类型，默认为workspace
