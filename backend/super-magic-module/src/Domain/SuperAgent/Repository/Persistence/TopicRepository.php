@@ -62,6 +62,9 @@ class TopicRepository implements TopicRepositoryInterface
         foreach ($conditions as $field => $value) {
             if (is_array($value)) {
                 $query->whereIn($field, $value);
+            } elseif ($field === 'topic_name') {
+                // topic_name 字段使用 like 操作进行模糊匹配
+                $query->where($field, 'like', '%' . $value . '%');
             } else {
                 $query->where($field, $value);
             }
