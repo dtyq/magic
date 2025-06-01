@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\ErrorCode;
+namespace Dtyq\SuperMagic\ErrorCode;
 
 use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
 

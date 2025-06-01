@@ -377,15 +377,7 @@ class TaskDomainService
     }
 
     /**
-     * insert or update task file entity by file key
-     * @param DataIsolation $dataIsolation
-     * @param string $fileKey
-     * @param array $fileData
-     * @param int $topicId
-     * @param int $taskId
-     * @param string $fileType
-     * @param bool $isUpdate
-     * @return TaskFileEntity
+     * insert or update task file entity by file key.
      */
     public function saveTaskFileByFileKey(
         DataIsolation $dataIsolation,

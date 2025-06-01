@@ -12,7 +12,6 @@ use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
-use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -24,6 +23,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Hyperf\Codec\Json;
@@ -52,7 +52,7 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
-     * 根据file_key查找文件是否存在，如果存在则更新，不存在则创建
+     * 根据file_key查找文件是否存在，如果存在则更新，不存在则创建.
      *
      * @param string $fileKey 文件key
      * @param DataIsolation $dataIsolation 数据隔离对象
@@ -207,7 +207,7 @@ class FileProcessAppService extends AbstractAppService
      * @param array $attachments 附件数组
      * @param string $sandboxId 沙箱ID
      * @param string $organizationCode 组织编码
-     * @param int | null $topicId 话题ID，如果未提供将从任务记录中获取
+     * @param null|int $topicId 话题ID，如果未提供将从任务记录中获取
      * @return array 处理结果统计
      */
     public function processAttachmentsArray(array $attachments, string $sandboxId, string $organizationCode, ?int $topicId = null): array
