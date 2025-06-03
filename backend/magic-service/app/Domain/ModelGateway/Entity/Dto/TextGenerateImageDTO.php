@@ -7,15 +7,17 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+use App\ErrorCode\MagicApiErrorCode;
+use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+
 class TextGenerateImageDTO extends AbstractRequestDTO
 {
-    protected string $model;
+    protected string $prompt = '';
 
-    protected string $prompt;
+    protected string $size = '';
 
-    protected string $size;
-
-    protected int $n;
+    protected int $n = 1;
 
     public function getPrompt(): string
     {
@@ -50,5 +52,20 @@ class TextGenerateImageDTO extends AbstractRequestDTO
     public function getType(): string
     {
         return 'image';
+    }
+
+    public function valid()
+    {
+        if ($this->model === ''){
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'model_field']);
+        }
+
+        if ($this->size === ''){
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'size_filed']);
+        }
+
+        if ($this->n < 1 || $this->n > 4){
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.invalid_range', ['label' => 'Number of images', 'min' => 1, 'max' => 4]);
+        }
     }
 }
