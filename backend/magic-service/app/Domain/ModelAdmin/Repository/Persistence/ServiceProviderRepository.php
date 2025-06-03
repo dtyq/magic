@@ -11,6 +11,7 @@ use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelAdmin\Entity\ServiceProviderEntity;
 use App\Domain\ModelAdmin\Factory\ServiceProviderEntityFactory;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -169,5 +170,19 @@ class ServiceProviderRepository extends AbstractModelRepository
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
         return ServiceProviderEntityFactory::toEntity($model->toArray());
+    }
+
+    /**
+     * @param ServiceProviderCategory $LLM
+     * @return ServiceProviderEntity[]
+     */
+    public function getByCategory(ServiceProviderCategory $LLM): array
+    {
+        $model = $this->serviceProviderModel::query()->where('category', $LLM->value)
+            ->where('provider_code','!=',ProviderCode::Official->value)->get();
+        if (! $model) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
+        }
+        return ServiceProviderEntityFactory::toEntities($model->toArray());
     }
 }

@@ -11,6 +11,7 @@ namespace App\Domain\ModelAdmin\Repository\Persistence;
 use App\Domain\ModelAdmin\Constant\Status;
 use App\Domain\ModelAdmin\Entity\ServiceProviderConfigEntity;
 use App\Domain\ModelAdmin\Factory\ServiceProviderConfigEntityFactory;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Aes\AesUtil;
@@ -87,6 +88,18 @@ class ServiceProviderConfigRepository extends AbstractModelRepository
     public function getsByServiceProviderId(int $serviceProviderId): array
     {
         $query = $this->configModel::query()->where('service_provider_id', $serviceProviderId);
+        $result = Db::select($query->toSql(), $query->getBindings());
+        return ServiceProviderConfigEntityFactory::toEntities($result);
+    }
+
+    /**
+     * @param array $serviceProviderIds
+     * @return ServiceProviderConfigEntity[]
+     */
+    public function getsByServiceProviderIdsAndOffice(array $serviceProviderIds): array
+    {
+        $query = $this->configModel::query()->whereIn('service_provider_id', $serviceProviderIds)
+            ->where('organization_code', config('service_provider.office_organization'));
         $result = Db::select($query->toSql(), $query->getBindings());
         return ServiceProviderConfigEntityFactory::toEntities($result);
     }

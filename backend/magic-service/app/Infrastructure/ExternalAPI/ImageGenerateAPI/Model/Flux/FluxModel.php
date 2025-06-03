@@ -46,13 +46,51 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
+        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        
+        // 从原生结果中提取图片URL
+        $imageUrls = [];
+        foreach ($rawResults as $index => $result) {
+            if (!empty($result['data']['imageUrl'])) {
+                $imageUrls[$index] = $result['data']['imageUrl'];
+            }
+        }
+
+        // 检查是否至少有一张图片生成成功
+        if (empty($imageUrls)) {
+            $this->logger->error('Flux文生图：所有图片生成均失败', ['rawResults' => $rawResults]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::NO_VALID_IMAGE);
+        }
+
+        // 按索引排序结果
+        ksort($imageUrls);
+        $imageUrls = array_values($imageUrls);
+
+        $this->logger->info('Flux文生图：生成结束', [
+            'totalImages' => count($imageUrls),
+            'requestedImages' => $imageGenerateRequest->getGenerateNum(),
+        ]);
+
+        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageInternal($imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
         if (! $imageGenerateRequest instanceof FluxModelRequest) {
             $this->logger->error('Flux文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
 
         $count = $imageGenerateRequest->getGenerateNum();
-        $imageUrls = [];
+        $rawResults = [];
         $errors = [];
 
         // 使用 Parallel 并行处理
@@ -63,7 +101,7 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
                 CoContext::copy($fromCoroutineId);
                 try {
                     $jobId = $this->requestImageGeneration($imageGenerateRequest);
-                    $result = $this->pollTaskResult($jobId);
+                    $result = $this->pollTaskResultForRaw($jobId);
                     return [
                         'success' => true,
                         'data' => $result,
@@ -86,37 +124,30 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
         // 获取所有并行任务的结果
         $results = $parallel->wait();
 
-        // 处理结果
+        // 处理结果，保持原生格式
         foreach ($results as $result) {
             if ($result['success']) {
-                foreach ($result['data']->getData() as $url) {
-                    $imageUrls[$result['index']] = $url;
-                }
+                $rawResults[$result['index']] = $result['data'];
             } else {
                 $errors[] = $result['error'];
             }
         }
 
         // 检查是否至少有一张图片生成成功
-        if (empty($imageUrls)) {
+        if (empty($rawResults)) {
             $errorMessage = implode('; ', $errors);
             $this->logger->error('Flux文生图：所有图片生成均失败', ['errors' => $errors]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::NO_VALID_IMAGE, $errorMessage);
         }
 
         // 按索引排序结果
-        ksort($imageUrls);
-        $imageUrls = array_values($imageUrls);
+        ksort($rawResults);
+        $rawResults = array_values($rawResults);
 
         // 异步检查余额
         $this->monitorBalance();
 
-        $this->logger->info('Flux文生图：生成结束', [
-            'totalImages' => count($imageUrls),
-            'requestedImages' => $count,
-        ]);
-
-        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+        return $rawResults;
     }
 
     public function setAK(string $ak)
@@ -187,6 +218,26 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
     )]
     protected function pollTaskResult(string $jobId): ImageGenerateResponse
     {
+        $rawResult = $this->pollTaskResultForRaw($jobId);
+        
+        if (!empty($rawResult['data']['imageUrl'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, [$rawResult['data']['imageUrl']]);
+        }
+
+        $this->logger->error('Flux文生图：未获取到图片URL', ['response' => $rawResult]);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
+    }
+
+    /**
+     * 轮询任务结果并返回原生数据.
+     */
+    #[RateLimit(create: 40, consume: 1, capacity: 40, key: ImageGenerate::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
+    #[Retry(
+        maxAttempts: self::GENERATE_RETRY_COUNT,
+        base: self::GENERATE_RETRY_TIME
+    )]
+    protected function pollTaskResultForRaw(string $jobId): array
+    {
         $retryCount = 0;
 
         while ($retryCount < self::MAX_RETRIES) {
@@ -194,12 +245,8 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
                 $result = $this->api->getTaskResult($jobId);
 
                 if ($result['status'] === 'SUCCESS') {
-                    if (! empty($result['data']['imageUrl'])) {
-                        return new ImageGenerateResponse(ImageGenerateType::URL, [$result['data']['imageUrl']]);
-                    }
-
-                    $this->logger->error('Flux文生图：未获取到图片URL', ['response' => $result]);
-                    ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
+                    // 直接返回完整的原生数据
+                    return $result;
                 }
 
                 if ($result['status'] === 'FAILED') {
