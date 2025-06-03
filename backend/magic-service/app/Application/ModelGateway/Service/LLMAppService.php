@@ -84,8 +84,8 @@ class LLMAppService extends AbstractLLMAppService
             $model = $odinModel->getModel();
 
             $modelConfigEntity = new ModelConfigEntity();
-            
-            // Determine object type based on model type
+
+            // Determine object type based on model class name
             $isImageModel = $model instanceof ImageGenerationModel;
             $objectType = $isImageModel ? 'image' : 'model';
 
@@ -98,7 +98,7 @@ class LLMAppService extends AbstractLLMAppService
             $modelConfigEntity->setObject($objectType);
 
             // Only set info for non-image models when withInfo is true
-            if ($withInfo && !$isImageModel) {
+            if ($withInfo && ! $isImageModel) {
                 $modelConfigEntity->setInfo([
                     'attributes' => $odinModel->getAttributes()->toArray(),
                     'options' => $model->getModelOptions()->toArray(),
@@ -150,7 +150,7 @@ class LLMAppService extends AbstractLLMAppService
             $data['model'] = $modelVersion;
         }
 
-        if (!is_array($data['reference_images'])){
+        if (! is_array($data['reference_images'])) {
             $data['reference_images'] = [$data['reference_images']];
         }
 
