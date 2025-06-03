@@ -11,7 +11,6 @@ namespace App\Domain\ModelAdmin\Repository\Persistence;
 use App\Domain\ModelAdmin\Constant\Status;
 use App\Domain\ModelAdmin\Entity\ServiceProviderConfigEntity;
 use App\Domain\ModelAdmin\Factory\ServiceProviderConfigEntityFactory;
-use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Aes\AesUtil;
@@ -93,7 +92,6 @@ class ServiceProviderConfigRepository extends AbstractModelRepository
     }
 
     /**
-     * @param array $serviceProviderIds
      * @return ServiceProviderConfigEntity[]
      */
     public function getsByServiceProviderIdsAndOffice(array $serviceProviderIds): array

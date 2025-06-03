@@ -173,13 +173,12 @@ class ServiceProviderRepository extends AbstractModelRepository
     }
 
     /**
-     * @param ServiceProviderCategory $LLM
      * @return ServiceProviderEntity[]
      */
     public function getByCategory(ServiceProviderCategory $LLM): array
     {
         $model = $this->serviceProviderModel::query()->where('category', $LLM->value)
-            ->where('provider_code','!=',ProviderCode::Official->value)->get();
+            ->where('provider_code', '!=', ProviderCode::Official->value)->get();
         if (! $model) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
