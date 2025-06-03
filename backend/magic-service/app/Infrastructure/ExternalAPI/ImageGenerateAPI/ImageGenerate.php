@@ -25,12 +25,12 @@ interface ImageGenerate
     public const IMAGE_GENERATE_POLL_KEY_PREFIX = 'poll:';
 
     /**
-     * 生成图像并返回标准格式的响应
+     * 生成图像并返回标准格式的响应.
      */
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse;
 
     /**
-     * 生成图像并返回第三方原生格式的数据
+     * 生成图像并返回第三方原生格式的数据.
      */
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array;
 

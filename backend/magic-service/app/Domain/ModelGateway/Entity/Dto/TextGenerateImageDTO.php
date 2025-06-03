@@ -1,8 +1,13 @@
 <?php
 
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
 namespace App\Domain\ModelGateway\Entity\Dto;
 
-class TextGenerateImageDTO extends  AbstractRequestDTO
+class TextGenerateImageDTO extends AbstractRequestDTO
 {
     protected string $model;
 
@@ -11,7 +16,6 @@ class TextGenerateImageDTO extends  AbstractRequestDTO
     protected string $size;
 
     protected int $n;
-
 
     public function getPrompt(): string
     {
@@ -42,7 +46,6 @@ class TextGenerateImageDTO extends  AbstractRequestDTO
     {
         $this->n = $n;
     }
-
 
     public function getType(): string
     {
