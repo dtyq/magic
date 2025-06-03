@@ -40,9 +40,35 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
         $this->balanceThreshold = 100;
     }
 
-    // mj 每次生成 4 张图片，不好控制生成数量，因此不用管，如果有需在实现：
-    // 实现方案：取生成数量和 4 的倍数进行相比进行获取即可 TODO:xhy
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResult = $this->generateImageInternal($imageGenerateRequest);
+        
+        // 从原生结果中提取图片URL
+        if (!empty($rawResult['data']['images']) && is_array($rawResult['data']['images'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, $rawResult['data']['images']);
+        }
+
+        // 如果没有 images 数组，尝试使用 cdnImage
+        if (!empty($rawResult['data']['cdnImage'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, [$rawResult['data']['cdnImage']]);
+        }
+
+        $this->logger->error('MJ文生图：未获取到图片URL', [
+            'rawResult' => $rawResult,
+        ]);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageInternal($imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
             $this->logger->error('MJ文生图：无效的请求类型', [
@@ -75,17 +101,16 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
 
             $jobId = $this->submitAsyncTask($prompt, $imageGenerateRequest->getModel());
 
-            $response = $this->pollTaskResult($jobId);
+            $rawResult = $this->pollTaskResultForRaw($jobId);
 
             $this->logger->info('MJ文生图：生成结束', [
                 'jobId' => $jobId,
-                'imageCount' => count($response->getData()),
             ]);
 
             // 异步检查余额
             $this->monitorBalance();
 
-            return $response;
+            return $rawResult;
         } catch (Exception $e) {
             $this->logger->error('MJ文生图：失败', [
                 'error' => $e->getMessage(),
@@ -94,6 +119,66 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * 轮询任务结果并返回原生数据.
+     * @throws Exception
+     */
+    protected function pollTaskResultForRaw(string $jobId): array
+    {
+        $retryCount = 0;
+
+        while ($retryCount < self::MAX_RETRIES) {
+            try {
+                $result = $this->api->getTaskResult($jobId);
+
+                if (! isset($result['status'])) {
+                    $this->logger->error('MJ文生图：轮询响应格式错误', [
+                        'jobId' => $jobId,
+                        'response' => $result,
+                    ]);
+                    ExceptionBuilder::throw(ImageGenerateErrorCode::RESPONSE_FORMAT_ERROR);
+                }
+
+                $this->logger->info('MJ文生图：轮询状态', [
+                    'jobId' => $jobId,
+                    'status' => $result['status'],
+                    'retryCount' => $retryCount,
+                ]);
+
+                if ($result['status'] === 'SUCCESS') {
+                    // 直接返回完整的原生数据
+                    return $result;
+                }
+
+                if ($result['status'] === 'FAILED') {
+                    $this->logger->error('MJ文生图：任务执行失败', [
+                        'jobId' => $jobId,
+                        'message' => $result['message'] ?? '未知错误',
+                    ]);
+                    ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+                }
+
+                // 如果是其他状态（如 PENDING_QUEUE 或 ON_QUEUE），继续等待
+                ++$retryCount;
+                sleep(self::RETRY_INTERVAL);
+            } catch (Exception $e) {
+                $this->logger->error('MJ文生图：轮询任务结果失败', [
+                    'jobId' => $jobId,
+                    'error' => $e->getMessage(),
+                    'retryCount' => $retryCount,
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::POLLING_FAILED);
+            }
+        }
+
+        $this->logger->error('MJ文生图：任务执行超时', [
+            'jobId' => $jobId,
+            'maxRetries' => self::MAX_RETRIES,
+            'totalTime' => self::MAX_RETRIES * self::RETRY_INTERVAL,
+        ]);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
     }
 
     public function setAK(string $ak)
@@ -181,79 +266,6 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
             ]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::PROMPT_CHECK_FAILED);
         }
-    }
-
-    /**
-     * 轮询任务结果.
-     * @throws Exception
-     */
-    protected function pollTaskResult(string $jobId): ImageGenerateResponse
-    {
-        $retryCount = 0;
-
-        while ($retryCount < self::MAX_RETRIES) {
-            try {
-                $result = $this->api->getTaskResult($jobId);
-
-                if (! isset($result['status'])) {
-                    $this->logger->error('MJ文生图：轮询响应格式错误', [
-                        'jobId' => $jobId,
-                        'response' => $result,
-                    ]);
-                    ExceptionBuilder::throw(ImageGenerateErrorCode::RESPONSE_FORMAT_ERROR);
-                }
-
-                $this->logger->info('MJ文生图：轮询状态', [
-                    'jobId' => $jobId,
-                    'status' => $result['status'],
-                    'retryCount' => $retryCount,
-                ]);
-
-                if ($result['status'] === 'SUCCESS') {
-                    // 优先使用 images 数组
-                    if (! empty($result['data']['images']) && is_array($result['data']['images'])) {
-                        return new ImageGenerateResponse(ImageGenerateType::URL, $result['data']['images']);
-                    }
-
-                    // 如果没有 images 数组，尝试使用 cdnImage
-                    if (! empty($result['data']['cdnImage'])) {
-                        return new ImageGenerateResponse(ImageGenerateType::URL, [$result['data']['cdnImage']]);
-                    }
-
-                    $this->logger->error('MJ文生图：未获取到图片URL', [
-                        'jobId' => $jobId,
-                        'response' => $result,
-                    ]);
-                    ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
-                }
-
-                if ($result['status'] === 'FAILED') {
-                    $this->logger->error('MJ文生图：任务执行失败', [
-                        'jobId' => $jobId,
-                        'message' => $result['message'] ?? '未知错误',
-                    ]);
-                    ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
-                }
-
-                // 如果是其他状态（如 PENDING_QUEUE 或 ON_QUEUE），继续等待
-                ++$retryCount;
-                sleep(self::RETRY_INTERVAL);
-            } catch (Exception $e) {
-                $this->logger->error('MJ文生图：轮询任务结果失败', [
-                    'jobId' => $jobId,
-                    'error' => $e->getMessage(),
-                    'retryCount' => $retryCount,
-                ]);
-                ExceptionBuilder::throw(ImageGenerateErrorCode::POLLING_FAILED);
-            }
-        }
-
-        $this->logger->error('MJ文生图：任务执行超时', [
-            'jobId' => $jobId,
-            'maxRetries' => self::MAX_RETRIES,
-            'totalTime' => self::MAX_RETRIES * self::RETRY_INTERVAL,
-        ]);
-        ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
     }
 
     /**

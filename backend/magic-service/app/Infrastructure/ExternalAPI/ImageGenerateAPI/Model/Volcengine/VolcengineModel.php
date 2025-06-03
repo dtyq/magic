@@ -55,6 +55,32 @@ class VolcengineModel implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
+        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        
+        // 从原生结果中提取图片URL
+        $imageUrls = [];
+        foreach ($rawResults as $index => $result) {
+            $data = $result['data'];
+            if (! empty($data['binary_data_base64'])) {
+                $imageUrls[$index] = $data['binary_data_base64'][0];
+            } elseif (! empty($data['image_urls'])) {
+                $imageUrls[$index] = $data['image_urls'][0];
+            }
+        }
+
+        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageInternal($imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
         if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
             $this->logger->error('火山文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
@@ -108,18 +134,13 @@ class VolcengineModel implements ImageGenerate
 
         // 获取所有并行任务的结果
         $results = $parallel->wait();
-        $imageUrls = [];
+        $rawResults = [];
         $errors = [];
 
-        // 处理结果
+        // 处理结果，保持原生格式
         foreach ($results as $result) {
             if ($result['success']) {
-                $data = $result['data'];
-                if (! empty($data['binary_data_base64'])) {
-                    $imageUrls[$result['index']] = $data['binary_data_base64'][0];
-                } elseif (! empty($data['image_urls'])) {
-                    $imageUrls[$result['index']] = $data['image_urls'][0];
-                }
+                $rawResults[$result['index']] = $result;
             } else {
                 $errors[] = [
                     'code' => $result['error_code'] ?? ImageGenerateErrorCode::GENERAL_ERROR->value,
@@ -128,7 +149,7 @@ class VolcengineModel implements ImageGenerate
             }
         }
 
-        if (empty($imageUrls)) {
+        if (empty($rawResults)) {
             // 优先使用具体的错误码，如果都是通用错误则使用 NO_VALID_IMAGE
             $finalErrorCode = ImageGenerateErrorCode::NO_VALID_IMAGE;
             $finalErrorMsg = '';
@@ -151,15 +172,14 @@ class VolcengineModel implements ImageGenerate
         }
 
         // 按索引排序结果
-        ksort($imageUrls);
-        $imageUrls = array_values($imageUrls);
+        ksort($rawResults);
+        $rawResults = array_values($rawResults);
 
         $this->logger->info('火山文生图：生成结束', [
-            '生成图片' => $imageUrls,
             '图片数量' => $count,
         ]);
 
-        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+        return $rawResults;
     }
 
     public function setAK(string $ak)

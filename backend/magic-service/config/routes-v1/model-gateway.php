@@ -15,6 +15,7 @@ Router::addGroup('/v1', function () {
     Router::post('/chat/completions', [OpenAIProxyApi::class, 'chatCompletions']);
     Router::post('/embeddings', [OpenAIProxyApi::class, 'embeddings']);
     Router::get('/models', [OpenAIProxyApi::class, 'models']);
+    Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImage']);
 });
 
 Router::addGroup('/api/v1', static function () {
