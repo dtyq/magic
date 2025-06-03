@@ -10,6 +10,8 @@ namespace App\Application\ModelGateway\Mapper;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\Query\MagicFlowAIModelQuery;
 use App\Domain\Flow\Service\MagicFlowAIModelDomainService;
+use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
+use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
@@ -23,6 +25,7 @@ use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
+use App\Infrastructure\Core\Model\ImageGenerationModel;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use DateTime;
@@ -148,6 +151,52 @@ class ModelGatewayMapper extends ModelMapper
     public function getEmbeddingModels(string $organizationCode): array
     {
         return $this->getModelsByType($organizationCode, 'embedding', ModelType::EMBEDDING);
+    }
+
+    /**
+     * 获取当前组织下的所有可用 image 模型.
+     * @return OdinModel[]
+     */
+    public function getImageModels(string $organizationCode = ''): array
+    {
+        $serviceProviderDomainService = di(ServiceProviderDomainService::class);
+        $officeModels = $serviceProviderDomainService->getOfficeModels(ServiceProviderCategory::VLM);
+
+        $odinModels = [];
+        foreach ($officeModels as $model) {
+            $key = $model->getModelVersion();
+            
+            // Create virtual image generation model
+            $imageModel = new ImageGenerationModel(
+                $model->getModelVersion(),
+                new ModelOptions([
+                    'chat' => false,
+                    'function_call' => false,
+                    'embedding' => false,
+                    'multi_modal' => true,
+                    'vector_size' => 0,
+                ])
+            );
+            
+            // Create model attributes
+            $attributes = new OdinModelAttributes(
+                key: $key,
+                name: $model->getModelVersion(),
+                label: $model->getName() ?: 'Image Generation',
+                icon: $model->getIcon() ?: '',
+                tags: [['type' => 1, 'value' => 'Image Generation']],
+                createdAt: new \DateTime($model->getCreatedAt()),
+                owner: 'MagicAI',
+                providerAlias: '',
+                providerModelId: (string) $model->getId()
+            );
+            
+            // Create OdinModel
+            $odinModel = new OdinModel($key, $imageModel, $attributes);
+            $odinModels[$key] = $odinModel;
+        }
+
+        return $odinModels;
     }
 
     protected function loadEnvModels(): void

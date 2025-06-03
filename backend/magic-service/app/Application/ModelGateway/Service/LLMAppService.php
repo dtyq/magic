@@ -27,6 +27,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
+use App\Infrastructure\Core\Model\ImageGenerationModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
@@ -73,8 +74,9 @@ class LLMAppService extends AbstractLLMAppService
 
         $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode());
         $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode());
+        $imageModels = $this->modelGatewayMapper->getImageModels($accessTokenEntity->getOrganizationCode());
 
-        $models = array_merge($chatModels, $embeddingModels);
+        $models = array_merge($chatModels, $embeddingModels, $imageModels);
 
         $list = [];
         foreach ($models as $name => $odinModel) {
@@ -82,14 +84,21 @@ class LLMAppService extends AbstractLLMAppService
             $model = $odinModel->getModel();
 
             $modelConfigEntity = new ModelConfigEntity();
-            // 服务商的接入点
+            
+            // Determine object type based on model type
+            $isImageModel = $model instanceof ImageGenerationModel;
+            $objectType = $isImageModel ? 'image' : 'model';
+
+            // Set common fields
             $modelConfigEntity->setModel($model->getModelName());
-            // 模型类型
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());
             $modelConfigEntity->setCreatedAt($odinModel->getAttributes()->getCreatedAt());
-            if ($withInfo) {
+            $modelConfigEntity->setObject($objectType);
+
+            // Only set info for non-image models when withInfo is true
+            if ($withInfo && !$isImageModel) {
                 $modelConfigEntity->setInfo([
                     'attributes' => $odinModel->getAttributes()->toArray(),
                     'options' => $model->getModelOptions()->toArray(),

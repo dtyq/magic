@@ -57,11 +57,11 @@ class TextGenerateImageDTO extends AbstractRequestDTO
     public function valid()
     {
         if ($this->model === ''){
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'model_field']);
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'Model']);
         }
 
         if ($this->size === ''){
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'size_filed']);
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'Size']);
         }
 
         if ($this->n < 1 || $this->n > 4){
