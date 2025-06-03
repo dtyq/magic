@@ -144,7 +144,7 @@ class TopicAppService extends AbstractAppService
             ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.delete_failed');
         }
 
-        // 触发删除事件
+        // 触发删除后事件
         AsyncEventUtil::dispatch(new DeleteTopicAfterEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), (int) $requestDTO->getId()));
 
         // 返回删除结果
