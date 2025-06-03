@@ -535,12 +535,23 @@ class TaskDomainService
         return $result;
     }
 
-    public function handleInterruptInstruction(TaskEntity $taskEntity): bool
+    public function handleInterruptInstruction(DataIsolation $dataIsolation, TaskEntity $taskEntity): bool
     {
         // 判断沙箱id 是否为空
         if (empty($taskEntity->getSandboxId())) {
             return false;
         }
+
+        // 更新任务状态
+        $this->updateTaskStatus(
+            $dataIsolation,
+            $taskEntity->getTopicId(),
+            TaskStatus::Suspended,
+            $taskEntity->getId(),
+            $taskEntity->getTaskId(),
+            $taskEntity->getSandboxId(),
+            '话题删除，任务终止'
+        );
 
         // 通过沙箱id ，判断容器是否存在
         // 检查沙箱是否存在

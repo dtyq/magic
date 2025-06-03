@@ -47,24 +47,7 @@ class ChatAppService extends AbstractAppService
      */
     public function initMagicChatConversation(DataIsolation $dataIsolation): array
     {
-        $this->logger->info(sprintf('Attempting to get AI user with code: %s for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
-        $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
-
-        if (empty($aiUserEntity)) {
-            $this->logger->info(sprintf('AI user with code %s not found, attempting to initialize account for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
-            // Manually perform initialization if AI user is not found
-            $this->accountAppService->initAccount($dataIsolation->getCurrentOrganizationCode());
-            // Query again
-            $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
-            if (empty($aiUserEntity)) {
-                $this->logger->error(sprintf('AI user with code %s still not found after attempting initialization for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.super_magic_user_not_found');
-            }
-            $this->logger->info(sprintf('AI user with code %s found after initialization for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
-        } else {
-            $this->logger->info(sprintf('AI user with code %s found for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
-        }
-
+        $aiUserEntity = $this->getOrCreateSuperMagicUser($dataIsolation);
         $currentUserId = $dataIsolation->getCurrentUserId();
         $aiUserId = $aiUserEntity->getUserId();
         $this->logger->info(sprintf('Getting or creating conversation for user ID: %s with AI user ID: %s in organization: %s', $currentUserId, $aiUserId, $dataIsolation->getCurrentOrganizationCode()));
@@ -83,5 +66,51 @@ class ChatAppService extends AbstractAppService
         $this->logger->info(sprintf('Topic ID obtained/created for conversation ID %s: %s', $senderConversationEntity->getId(), $topicId));
 
         return [$senderConversationEntity->getId(), $topicId];
+    }
+
+    /**
+     * Get the Super Magic agent user ID for the given organization.
+     * This method retrieves the AI user entity for the Super Magic agent
+     * and returns its user ID.
+     *
+     * @param DataIsolation $dataIsolation data isolation context
+     * @return string the agent user ID
+     * @throws Throwable if the agent user is not found
+     */
+    public function getSuperMagicAgentUserId(DataIsolation $dataIsolation): string
+    {
+        $aiUserEntity = $this->getOrCreateSuperMagicUser($dataIsolation);
+        return $aiUserEntity->getUserId();
+    }
+
+    /**
+     * Get or create the Super Magic AI user entity.
+     * This is a private method to avoid code duplication between different public methods.
+     *
+     * @param DataIsolation $dataIsolation data isolation context
+     * @return object the AI user entity
+     * @throws Throwable if the agent user is not found after initialization attempts
+     */
+    private function getOrCreateSuperMagicUser(DataIsolation $dataIsolation): object
+    {
+        $this->logger->info(sprintf('Attempting to get AI user with code: %s for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
+        $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
+
+        if (empty($aiUserEntity)) {
+            $this->logger->info(sprintf('AI user with code %s not found, attempting to initialize account for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
+            // Manually perform initialization if AI user is not found
+            $this->accountAppService->initAccount($dataIsolation->getCurrentOrganizationCode());
+            // Query again
+            $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
+            if (empty($aiUserEntity)) {
+                $this->logger->error(sprintf('AI user with code %s still not found after attempting initialization for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.super_magic_user_not_found');
+            }
+            $this->logger->info(sprintf('AI user with code %s found after initialization for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
+        } else {
+            $this->logger->info(sprintf('AI user with code %s found for organization: %s', AgentConstant::SUPER_MAGIC_CODE, $dataIsolation->getCurrentOrganizationCode()));
+        }
+
+        return $aiUserEntity;
     }
 }

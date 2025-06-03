@@ -358,7 +358,7 @@ class FileProcessAppService extends AbstractAppService
 
             // 获取STS临时凭证
             $storageType = StorageBucketType::Private->value;
-            $expires = 7200; // 凭证有效期2小时
+            $expires = 3600; // 凭证有效期1小时
 
             // 创建用户授权对象
             $userAuthorization = new MagicUserAuthorization();
