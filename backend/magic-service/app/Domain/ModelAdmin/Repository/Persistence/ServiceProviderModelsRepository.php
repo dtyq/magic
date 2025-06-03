@@ -553,7 +553,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * @param array $configIds
      * @return ServiceProviderModelsEntity[]
      */
     public function getActiveModelsByConfigIds(array $configIds): array
@@ -569,7 +568,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
 
         return $this->executeQueryAndToEntities($query);
     }
-
 
     /**
      * 执行查询并转换为实体数组.

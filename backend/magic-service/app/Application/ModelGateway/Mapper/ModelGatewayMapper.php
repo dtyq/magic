@@ -165,19 +165,14 @@ class ModelGatewayMapper extends ModelMapper
         $odinModels = [];
         foreach ($officeModels as $model) {
             $key = $model->getModelVersion();
-            
+
             // Create virtual image generation model
             $imageModel = new ImageGenerationModel(
                 $model->getModelVersion(),
-                new ModelOptions([
-                    'chat' => false,
-                    'function_call' => false,
-                    'embedding' => false,
-                    'multi_modal' => true,
-                    'vector_size' => 0,
-                ])
+                [], // Empty config array
+                $this->logger
             );
-            
+
             // Create model attributes
             $attributes = new OdinModelAttributes(
                 key: $key,
@@ -185,12 +180,12 @@ class ModelGatewayMapper extends ModelMapper
                 label: $model->getName() ?: 'Image Generation',
                 icon: $model->getIcon() ?: '',
                 tags: [['type' => 1, 'value' => 'Image Generation']],
-                createdAt: new \DateTime($model->getCreatedAt()),
+                createdAt: new DateTime($model->getCreatedAt()),
                 owner: 'MagicAI',
                 providerAlias: '',
                 providerModelId: (string) $model->getId()
             );
-            
+
             // Create OdinModel
             $odinModel = new OdinModel($key, $imageModel, $attributes);
             $odinModels[$key] = $odinModel;
