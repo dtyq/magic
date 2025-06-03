@@ -297,48 +297,24 @@ class LLMAppService extends AbstractLLMAppService
 
             return $response;
         } catch (BusinessException $exception) {
-            $startTime = $startTime ?? microtime(true);
-            // 业务异常直接抛出，避免异常码转换
-            // 计算响应耗时
-            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
-
-            // 如果拿到了接入点，那么进行异常情况的高可用数据上报
-            $this->reportHighAvailabilityResponse(
-                $endpointDTO,
-                $responseTime,
-                400, // 业务异常使用 400 状态码
-                $exception->getCode(), // 业务状态码
-                0,
-                $exception
-            );
-
-            $this->logModelCallFailure($proxyModelRequest->getModel(), $exception);
+            // Business exceptions should be distinguished from endpoint exceptions for high availability
+            // This helps the HA system differentiate between client-side errors (400) and server-side errors (500)
+            // which improves the effectiveness of endpoint health monitoring and failover decisions
+            $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $exception, 400);
             throw $exception;
         } catch (Throwable $throwable) {
-            $startTime = $startTime ?? microtime(true);
-            // 计算响应耗时
-            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
-            // 如果拿到了接入点，那么进行异常情况的高可用数据上报
-            $this->reportHighAvailabilityResponse(
-                $endpointDTO,
-                $responseTime,
-                500, // 异常情况默认使用 500 状态码
-                $throwable->getCode(), // 业务状态码标记为失败
-                0,
-                $throwable
-            );
+            $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
             if ($throwable instanceof LLMException) {
                 $message = $throwable->getMessage();
             }
-            $this->logModelCallFailure($proxyModelRequest->getModel(), $throwable);
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, $message, throwable: $throwable);
         }
     }
 
     /**
-     * 调用 LLM 模型获取响应.
+     * Call LLM model to get response.
      */
     protected function callChatModel(ModelInterface $model, CompletionDTO $proxyModelRequest): ResponseInterface
     {
@@ -346,7 +322,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 调用嵌入模型.
+     * Call embedding model.
      */
     protected function callEmbeddingsModel(EmbeddingInterface $embedding, EmbeddingsDTO $proxyModelRequest): EmbeddingResponse
     {
@@ -354,8 +330,8 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 获取高可用模型配置
-     * 尝试从HighAvailabilityInterface获取可用的模型接入点.
+     * Get high availability model configuration.
+     * Try to get available model endpoints from HighAvailabilityInterface.
      */
     protected function getHighAvailableModelId(string $modelType, ?EndpointDTO &$endpointDTO, ?string $orgCode = null): ?string
     {
@@ -363,20 +339,46 @@ class LLMAppService extends AbstractLLMAppService
         if ($highAvailable === null) {
             return null;
         }
-        // 使用 EndpointAssembler 来生成标准化的端点类型标识
+        // Use EndpointAssembler to generate standardized endpoint type identifier
         $formattedModelType = EndpointAssembler::generateEndpointType(
             HighAvailabilityAppType::MODEL_GATEWAY,
             $modelType
         );
-        // 获取可用的接入点
+        // Get available endpoint
         $endpointDTO = $highAvailable->getAvailableEndpoint($formattedModelType, $orgCode);
-        // 模型的配置 id
+        // Model configuration id
         return $endpointDTO?->getBusinessId() ?: null;
     }
 
     /**
-     * 获取高可用服务实例
-     * 如果高可用服务不存在或无法获取，则返回null.
+     * Handle common exception logic for requests.
+     */
+    private function handleRequestException(
+        ?EndpointDTO $endpointDTO,
+        float $startTime,
+        ProxyModelRequestInterface $proxyModelRequest,
+        Throwable $throwable,
+        int $httpStatusCode
+    ): void {
+        // Calculate response time
+        $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+        // Report to high availability service if endpoint is available
+        $this->reportHighAvailabilityResponse(
+            $endpointDTO,
+            $responseTime,
+            $httpStatusCode,
+            $throwable->getCode(),
+            0,
+            $throwable
+        );
+
+        $this->logModelCallFailure($proxyModelRequest->getModel(), $throwable);
+    }
+
+    /**
+     * Get high availability service instance.
+     * Returns null if the high availability service does not exist or cannot be obtained.
      */
     private function getHighAvailabilityService(): ?HighAvailabilityInterface
     {
@@ -400,13 +402,13 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 向高可用服务上报响应数据.
+     * Report response data to high availability service.
      *
-     * @param int $responseTime 响应时间（毫秒）
-     * @param int $httpStatusCode HTTP状态码
-     * @param int $businessStatusCode 业务状态码
-     * @param int $isSuccess 是否成功
-     * @param ?Throwable $throwable 异常信息（如果有）
+     * @param int $responseTime Response time (milliseconds)
+     * @param int $httpStatusCode HTTP status code
+     * @param int $businessStatusCode Business status code
+     * @param int $isSuccess Whether successful
+     * @param ?Throwable $throwable Exception information (if any)
      */
     private function reportHighAvailabilityResponse(
         ?EndpointDTO $endpointDTO,
@@ -421,7 +423,7 @@ class LLMAppService extends AbstractLLMAppService
             return;
         }
         $endpointResponseDTO = new EndpointResponseDTO();
-        // 构建接入点响应DTO
+        // Build endpoint response DTO
         $endpointResponseDTO
             ->setEndpointId($endpointDTO->getEndpointId())
             ->setRequestId((string) CoContext::getOrSetRequestId())
@@ -430,19 +432,19 @@ class LLMAppService extends AbstractLLMAppService
             ->setBusinessStatusCode($businessStatusCode)
             ->setIsSuccess($isSuccess);
 
-        // 如果有异常信息，添加异常相关数据
+        // Add exception related data if there is exception information
         if ($throwable !== null) {
             $endpointResponseDTO
                 ->setExceptionType(get_class($throwable))
                 ->setExceptionMessage($throwable->getMessage());
         }
 
-        // 记录高可用响应
+        // Record high availability response
         $highAvailable->recordResponse($endpointResponseDTO);
     }
 
     /**
-     * 验证访问令牌.
+     * Validate access token.
      */
     private function validateAccessToken(ProxyModelRequestInterface $proxyModelRequest): AccessTokenEntity
     {
@@ -459,7 +461,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 解析业务上下文数据.
+     * Parse business context data.
      */
     private function parseBusinessContext(
         LLMDataIsolation $dataIsolation,
@@ -483,11 +485,11 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($accessToken->getType()->isUser()) {
             $context['user_id'] = $accessToken->getRelationId();
-            // 个人用户也有创建 token时候所在的组织。
+            // Personal users also have the organization they were in when creating the token
             $context['organization_code'] = $accessToken->getOrganizationCode();
         }
 
-        // 组织级别的 token
+        // Organization level token
         if ($accessToken->getType()->isOrganization()) {
             $context['organization_code'] = $accessToken->getRelationId();
         }
