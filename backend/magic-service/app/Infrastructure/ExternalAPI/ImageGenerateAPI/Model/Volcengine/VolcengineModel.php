@@ -219,6 +219,8 @@ class VolcengineModel implements ImageGenerate
                     $this->logger->error('火山图生图：缺少源图片');
                     ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA, 'image_generate.image_to_image_missing_source');
                 }
+                $this->validateImageToImageAspectRatio($request->getReferenceImage());
+
                 $body['image_urls'] = $request->getReferenceImage();
                 $body['req_key'] = $this->imageToImageReqKey;
             } else {
@@ -366,5 +368,76 @@ class VolcengineModel implements ImageGenerate
 
         $this->logger->error('火山文生图：任务查询超时', ['taskId' => $taskId]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    private function validateImageToImageAspectRatio(array $referenceImages)
+    {
+        if (empty($referenceImages)) {
+            $this->logger->error('火山图生图：参考图片列表为空');
+            ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA, '缺少参考图片');
+        }
+
+        // Get dimensions of the first reference image
+        $referenceImageUrl = $referenceImages[0];
+        $imageDimensions = $this->getImageDimensions($referenceImageUrl);
+
+        if (! $imageDimensions) {
+            $this->logger->warning('火山图生图：无法获取参考图尺寸，跳过长宽比例校验', ['image_url' => $referenceImageUrl]);
+            return; // Skip validation and continue execution
+        }
+
+        $width = $imageDimensions['width'];
+        $height = $imageDimensions['height'];
+
+        // Image-to-image aspect ratio limit: long side to short side ratio cannot exceed 3:1
+        $maxAspectRatio = 3.0;
+        $minDimension = min($width, $height);
+        $maxDimension = max($width, $height);
+
+        if ($minDimension <= 0) {
+            $this->logger->warning('火山图生图：图片尺寸无效，跳过长宽比例校验', ['width' => $width, 'height' => $height]);
+            return; // Skip validation and continue execution
+        }
+
+        $aspectRatio = $maxDimension / $minDimension;
+
+        if ($aspectRatio > $maxAspectRatio) {
+            $this->logger->error('火山图生图：长宽比例超出限制', [
+                'width' => $width,
+                'height' => $height,
+                'aspect_ratio' => $aspectRatio,
+                'max_allowed' => $maxAspectRatio,
+                'image_url' => $referenceImageUrl,
+            ]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::INVALID_ASPECT_RATIO);
+        }
+    }
+
+    /**
+     * Get image dimension information.
+     * @param string $imageUrl Image URL
+     * @return null|array ['width' => int, 'height' => int] or null
+     */
+    private function getImageDimensions(string $imageUrl): ?array
+    {
+        try {
+            // Get image information
+            $imageInfo = getimagesize($imageUrl);
+
+            if ($imageInfo === false) {
+                return null;
+            }
+
+            return [
+                'width' => $imageInfo[0],
+                'height' => $imageInfo[1],
+            ];
+        } catch (Exception $e) {
+            $this->logger->warning('火山图生图：获取图片尺寸失败', [
+                'image_url' => $imageUrl,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 }
