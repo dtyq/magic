@@ -30,6 +30,7 @@ node_modules
 bin/splitsh-lite
 bin/user_lang
 bin/use_super_magic
+bin/magic.lock
 backend/magic-service/vendor/
 backend/magic-service/runtime/
 
