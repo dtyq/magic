@@ -39,6 +39,41 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
+        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        
+        // 从原生结果中提取图片URL
+        $imageUrls = [];
+        foreach ($rawResults as $index => $result) {
+            $data = $result['data'];
+            if (! empty($data['binary_data_base64'])) {
+                $imageUrls[$index] = $data['binary_data_base64'][0];
+            } elseif (! empty($data['image_urls'])) {
+                $imageUrls[$index] = $data['image_urls'][0];
+            }
+        }
+
+        // 按索引排序结果
+        ksort($imageUrls);
+        $imageUrls = array_values($imageUrls);
+
+        $this->logger->info('火山文生图：生成结束', [
+            '生成图片' => $imageUrls,
+            '图片数量' => count($rawResults),
+        ]);
+
+        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageInternal($imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
         if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
             $this->logger->error('火山文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
@@ -56,7 +91,9 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         ]);
 
         // 使用同步方式处理
-        $results = [];
+        $rawResults = [];
+        $errors = [];
+
         for ($i = 0; $i < $count; ++$i) {
             try {
                 // 提交任务（带重试）
@@ -64,7 +101,7 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
                 // 轮询结果（带重试）
                 $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel());
 
-                $results[] = [
+                $rawResults[] = [
                     'success' => true,
                     'data' => $result['data'],
                     'index' => $i,
@@ -74,36 +111,14 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
                     'error' => $e->getMessage(),
                     'index' => $i,
                 ]);
-                $results[] = [
-                    'success' => false,
-                    'error_code' => $e->getCode(),
-                    'error_msg' => $e->getMessage(),
-                    'index' => $i,
-                ];
-            }
-        }
-
-        $imageUrls = [];
-        $errors = [];
-
-        // 处理结果
-        foreach ($results as $result) {
-            if ($result['success']) {
-                $data = $result['data'];
-                if (! empty($data['binary_data_base64'])) {
-                    $imageUrls[$result['index']] = $data['binary_data_base64'][0];
-                } elseif (! empty($data['image_urls'])) {
-                    $imageUrls[$result['index']] = $data['image_urls'][0];
-                }
-            } else {
                 $errors[] = [
-                    'code' => $result['error_code'] ?? ImageGenerateErrorCode::GENERAL_ERROR->value,
-                    'message' => $result['error_msg'] ?? '',
+                    'code' => $e->getCode(),
+                    'message' => $e->getMessage(),
                 ];
             }
         }
 
-        if (empty($imageUrls)) {
+        if (empty($rawResults)) {
             // 优先使用具体的错误码，如果都是通用错误则使用 NO_VALID_IMAGE
             $finalErrorCode = ImageGenerateErrorCode::NO_VALID_IMAGE;
             $finalErrorMsg = '';
@@ -126,15 +141,10 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         }
 
         // 按索引排序结果
-        ksort($imageUrls);
-        $imageUrls = array_values($imageUrls);
+        ksort($rawResults);
+        $rawResults = array_values($rawResults);
 
-        $this->logger->info('火山文生图：生成结束', [
-            '生成图片' => $imageUrls,
-            '图片数量' => $count,
-        ]);
-
-        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+        return $rawResults;
     }
 
     public function setAK(string $ak)
