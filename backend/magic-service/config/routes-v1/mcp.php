@@ -6,7 +6,7 @@ declare(strict_types=1);
  */
 use App\Interfaces\MCP\Facade\Admin\MCPServerAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPServerToolAdminApi;
-use App\Interfaces\MCP\Facade\SSE\MCPServerSSEApi;
+use Dtyq\PhpMcp\Server\Framework\Hyperf\HyperfMcpServer;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/mcp', function () {
@@ -23,7 +23,8 @@ Router::addGroup('/api/v1/mcp', function () {
     });
 
     Router::addGroup('/sse', function () {
-        Router::get('/{code}', [MCPServerSSEApi::class, 'register']);
-        Router::post('/{code}', [MCPServerSSEApi::class, 'handle']);
+        Router::post('/{code}', function () {
+            return di(HyperfMcpServer::class)->handler();
+        });
     });
 });

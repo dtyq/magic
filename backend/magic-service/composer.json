@@ -77,7 +77,8 @@
         "volcengine/volc-sdk-php": "^1.0",
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
-        "dtyq/super-magic-module": "^v0.0"
+        "dtyq/super-magic-module": "^v0.0",
+        "dtyq/php-mcp": "^v0.0"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
