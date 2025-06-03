@@ -542,17 +542,6 @@ class TaskDomainService
             return false;
         }
 
-        // 更新任务状态
-        $this->updateTaskStatus(
-            $dataIsolation,
-            $taskEntity->getTopicId(),
-            TaskStatus::Suspended,
-            $taskEntity->getId(),
-            $taskEntity->getTaskId(),
-            $taskEntity->getSandboxId(),
-            '话题删除，任务终止'
-        );
-
         // 通过沙箱id ，判断容器是否存在
         // 检查沙箱是否存在
         $result = $this->sandboxService->checkSandboxExists($taskEntity->getSandboxId());
