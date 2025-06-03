@@ -57,6 +57,7 @@ use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Tool\Definition\ToolDefinition;
 use Hyperf\Odin\Utils\MessageUtil;
 use Hyperf\Odin\Utils\ToolUtil;
+use InvalidArgumentException;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
@@ -376,7 +377,7 @@ class LLMAppService extends AbstractLLMAppService
             );
 
             $message = '';
-            if ($throwable instanceof LLMException) {
+            if ($throwable instanceof LLMException || $throwable instanceof InvalidArgumentException) {
                 $message = $throwable->getMessage();
             }
             $this->logModelCallFailure($proxyModelRequest->getModel(), $throwable);
