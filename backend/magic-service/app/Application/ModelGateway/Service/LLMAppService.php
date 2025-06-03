@@ -8,15 +8,19 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Mapper\OdinModel;
+use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
+use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
+use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -190,6 +194,49 @@ class LLMAppService extends AbstractLLMAppService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getServiceProviderConfig());
         return $imageGenerateService->queryTask($taskId);
+    }
+
+    public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): array
+    {
+        $this->validateAccessToken($textGenerateImageDTO);
+
+        $modelVersion = $textGenerateImageDTO->getModel();
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
+        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+
+        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
+        $imageGenerateParamsVO->setModel($modelVersion);
+        $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
+        $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
+
+        $size = $textGenerateImageDTO->getSize();
+        [$width, $height] = explode('x', $size);
+
+        // 计算字符串格式的比例，如 "1:1", "3:4"
+        $ratio = $this->calculateRatio((int) $width, (int) $height);
+        $imageGenerateParamsVO->setRatio($ratio);
+        $imageGenerateParamsVO->setWidth($width);
+        $imageGenerateParamsVO->setHeight($height);
+
+        // 从服务商配置数组中取第一个进行处理
+        if (empty($serviceProviderConfigs)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
+        }
+
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
+
+        foreach ($serviceProviderConfigs as $serviceProviderConfig) {
+            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
+            try {
+                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                if (! empty($generateImageRaw)) {
+                    return $generateImageRaw;
+                }
+            } catch (Exception $e) {
+                $this->logger->warning('text generate image error:' . $e->getMessage());
+            }
+        }
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
     }
 
     /**
@@ -735,5 +782,31 @@ class LLMAppService extends AbstractLLMAppService
                 'refresh_point_min_tokens' => $refreshPointMinTokens,
             ],
         ];
+    }
+
+    /**
+     * 计算宽高比例的字符串格式.
+     * @param int $width 宽度
+     * @param int $height 高度
+     * @return string 比例字符串，如"1:1", "3:4", "16:9"
+     */
+    private function calculateRatio(int $width, int $height): string
+    {
+        // 计算最大公约数
+        $gcd = $this->gcd($width, $height);
+
+        // 计算简化后的比例
+        $ratioWidth = $width / $gcd;
+        $ratioHeight = $height / $gcd;
+
+        return $ratioWidth . ':' . $ratioHeight;
+    }
+
+    /**
+     * 计算最大公约数（辗转相除法）.
+     */
+    private function gcd(int $a, int $b): int
+    {
+        return $b === 0 ? $a : $this->gcd($b, $a % $b);
     }
 }

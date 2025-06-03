@@ -48,75 +48,37 @@ class GPT4oModel extends AbstractDingTalkAlert implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
-        if (! $imageGenerateRequest instanceof GPT4oModelRequest) {
-            $this->logger->error('GPT4o文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
-        }
+        $rawResults = $this->generateImageInternal($imageGenerateRequest);
 
-        $count = $imageGenerateRequest->getGenerateNum();
+        // 从原生结果中提取图片URL
         $imageUrls = [];
-        $errors = [];
-
-        // 使用 Parallel 并行处理
-        $parallel = new Parallel();
-        $fromCoroutineId = Coroutine::id();
-        for ($i = 0; $i < $count; ++$i) {
-            $parallel->add(function () use ($imageGenerateRequest, $i, $fromCoroutineId) {
-                CoContext::copy($fromCoroutineId);
-                try {
-                    $jobId = $this->requestImageGeneration($imageGenerateRequest);
-                    $result = $this->pollTaskResult($jobId);
-                    return [
-                        'success' => true,
-                        'data' => $result,
-                        'index' => $i,
-                    ];
-                } catch (Exception $e) {
-                    $this->logger->error('GPT4o文生图：图片生成失败', [
-                        'error' => $e->getMessage(),
-                        'index' => $i,
-                    ]);
-                    return [
-                        'success' => false,
-                        'error' => $e->getMessage(),
-                        'index' => $i,
-                    ];
-                }
-            });
-        }
-
-        // 获取所有并行任务的结果
-        $results = $parallel->wait();
-
-        // 处理结果
-        foreach ($results as $result) {
-            if ($result['success'] && isset($result['data']['imageUrl'])) {
-                $imageUrls[$result['index']] = $result['data']['imageUrl'];
-            } else {
-                $errors[] = $result['error'] ?? '未知错误';
+        foreach ($rawResults as $index => $result) {
+            if (! empty($result['data']['imageUrl'])) {
+                $imageUrls[$index] = $result['data']['imageUrl'];
             }
         }
 
         // 检查是否至少有一张图片生成成功
         if (empty($imageUrls)) {
-            $errorMessage = implode('; ', $errors);
-            $this->logger->error('GPT4o文生图：所有图片生成均失败', ['errors' => $errors]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::NO_VALID_IMAGE, $errorMessage);
+            $this->logger->error('GPT4o文生图：所有图片生成均失败', ['rawResults' => $rawResults]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::NO_VALID_IMAGE);
         }
 
         // 按索引排序结果
         ksort($imageUrls);
         $imageUrls = array_values($imageUrls);
 
-        // 异步检查余额
-        $this->monitorBalance();
-
         $this->logger->info('GPT4o文生图：生成结束', [
             'totalImages' => count($imageUrls),
-            'requestedImages' => $count,
+            'requestedImages' => $imageGenerateRequest->getGenerateNum(),
         ]);
 
         return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageInternal($imageGenerateRequest);
     }
 
     public function setAK(string $ak)
@@ -241,5 +203,122 @@ class GPT4oModel extends AbstractDingTalkAlert implements ImageGenerate
         }
 
         throw new Exception('任务轮询超时');
+    }
+
+    /**
+     * 轮询任务结果，返回原生数据格式.
+     */
+    #[Retry(
+        maxAttempts: self::GENERATE_RETRY_COUNT,
+        base: self::GENERATE_RETRY_TIME
+    )]
+    protected function pollTaskResultForRaw(string $jobId): array
+    {
+        $attempts = 0;
+        while ($attempts < self::MAX_POLL_ATTEMPTS) {
+            try {
+                $result = $this->api->getGPT4oTaskResult($jobId);
+
+                if ($result['status'] === 'FAILED') {
+                    throw new Exception($result['message'] ?? '任务执行失败');
+                }
+
+                if ($result['status'] === 'SUCCESS' && ! empty($result['data']['imageUrl'])) {
+                    return $result['data'];
+                }
+
+                // 如果任务还在进行中，等待后继续轮询
+                if ($result['status'] === 'ON_QUEUE') {
+                    $this->logger->info('GPT4o文生图：任务处理中', [
+                        'jobId' => $jobId,
+                        'attempt' => $attempts + 1,
+                    ]);
+                    sleep(self::POLL_INTERVAL);
+                    ++$attempts;
+                    continue;
+                }
+
+                throw new Exception('未知的任务状态：' . $result['status']);
+            } catch (Exception $e) {
+                $this->logger->error('GPT4o文生图：轮询任务失败', [
+                    'jobId' => $jobId,
+                    'error' => $e->getMessage(),
+                ]);
+                throw $e;
+            }
+        }
+
+        throw new Exception('任务轮询超时');
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果.
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        if (! $imageGenerateRequest instanceof GPT4oModelRequest) {
+            $this->logger->error('GPT4o文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        }
+
+        $count = $imageGenerateRequest->getGenerateNum();
+        $rawResults = [];
+        $errors = [];
+
+        // 使用 Parallel 并行处理
+        $parallel = new Parallel();
+        $fromCoroutineId = Coroutine::id();
+        for ($i = 0; $i < $count; ++$i) {
+            $parallel->add(function () use ($imageGenerateRequest, $i, $fromCoroutineId) {
+                CoContext::copy($fromCoroutineId);
+                try {
+                    $jobId = $this->requestImageGeneration($imageGenerateRequest);
+                    $result = $this->pollTaskResultForRaw($jobId);
+                    return [
+                        'success' => true,
+                        'data' => $result,
+                        'index' => $i,
+                    ];
+                } catch (Exception $e) {
+                    $this->logger->error('GPT4o文生图：图片生成失败', [
+                        'error' => $e->getMessage(),
+                        'index' => $i,
+                    ]);
+                    return [
+                        'success' => false,
+                        'error' => $e->getMessage(),
+                        'index' => $i,
+                    ];
+                }
+            });
+        }
+
+        // 获取所有并行任务的结果
+        $results = $parallel->wait();
+
+        // 处理结果，保持原生格式
+        foreach ($results as $result) {
+            if ($result['success']) {
+                $rawResults[$result['index']] = $result['data'];
+            } else {
+                $errors[] = $result['error'] ?? '未知错误';
+            }
+        }
+
+        // 检查是否至少有一张图片生成成功
+        if (empty($rawResults)) {
+            $errorMessage = implode('; ', $errors);
+            $this->logger->error('GPT4o文生图：所有图片生成均失败', ['errors' => $errors]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::NO_VALID_IMAGE, $errorMessage);
+        }
+
+        // 按索引排序结果
+        ksort($rawResults);
+        $rawResults = array_values($rawResults);
+
+        // 异步检查余额
+        $this->monitorBalance();
+
+        return $rawResults;
     }
 }

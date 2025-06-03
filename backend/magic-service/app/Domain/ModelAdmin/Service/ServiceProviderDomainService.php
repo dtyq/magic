@@ -510,6 +510,9 @@ class ServiceProviderDomainService
                     $this->batchSyncServiceProviderModels($officialAndVlmProviders, $organizationCode);
                 }
 
+                // Special handling: Initialize models for new organization's Magic service provider from all LLM service providers in official organization
+                $this->initMagicServiceProviderModels($organizationCode);
+
                 // 构建返回结果
                 foreach ($configEntities as $configEntity) {
                     $serviceProviderId = $configEntity->getServiceProviderId();
@@ -1067,6 +1070,51 @@ class ServiceProviderDomainService
     }
 
     /**
+     * 获取官方的激活模型配置（支持返回多个）.
+     * @param string $modelVersion 模型
+     * @return ServiceProviderConfig[] 服务商配置数组
+     */
+    public function getOfficeAndActiveModel(string $modelVersion, ServiceProviderCategory $category): array
+    {
+        // 获取文生图官方服务商
+        $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
+        // 获取官方文生图所有服务商配置
+        $serviceProviderConfigEntities = $this->serviceProviderConfigRepository->getsByServiceProviderIdsAndOffice(array_column($serviceProviderEntities, 'id'));
+
+        // 提取所有服务商配置ID
+        $serviceProviderConfigIds = array_column($serviceProviderConfigEntities, 'id');
+
+        // 根据服务商配置IDs、modelId和激活状态查找对应的模型（可能有多个）
+        $activeModels = $this->serviceProviderModelsRepository->getActiveModelsByConfigIdsAndModelId($serviceProviderConfigIds, $modelVersion);
+
+        if (empty($activeModels)) {
+            // 如果没有找到激活的模型，返回空数组
+            return [];
+        }
+
+        // 创建配置ID到配置实体的映射，便于快速查找
+        $configMap = [];
+        foreach ($serviceProviderConfigEntities as $configEntity) {
+            $configMap[$configEntity->getId()] = $configEntity;
+        }
+
+        // 收集所有匹配的服务商配置
+        $result = [];
+        foreach ($activeModels as $activeModel) {
+            $targetConfigId = $activeModel->getServiceProviderConfigId();
+            if (isset($configMap[$targetConfigId])) {
+                $config = $configMap[$targetConfigId]->getConfig();
+                if ($config) {
+                    $result[] = $config;
+                }
+            }
+        }
+
+        // 如果没有找到任何有效配置，返回空数组
+        return $result;
+    }
+
+    /**
      * 提取模型的配置ID.
      * @param ServiceProviderModelsEntity[] $models
      * @return array 模型配置ID数组
@@ -1569,5 +1617,86 @@ class ServiceProviderDomainService
     {
         $officeOrganization = config('service_provider.office_organization');
         return $organizationCode === $officeOrganization;
+    }
+
+    /**
+     * Initialize models for new organization's Magic service provider
+     * Magic service provider's models come from all LLM type service providers in official organization.
+     *
+     * @param string $organizationCode New organization code
+     * @return bool Whether initialization is successful
+     */
+    private function initMagicServiceProviderModels(string $organizationCode): bool
+    {
+        // If it's official organization, no need to process
+        if ($this->isOfficial($organizationCode)) {
+            return true;
+        }
+
+        // 1. Get Magic official service provider
+        $magicServiceProvider = $this->serviceProviderRepository->getOfficial(ServiceProviderCategory::LLM);
+        if (! $magicServiceProvider) {
+            return false;
+        }
+
+        // 2. Get Magic service provider configuration for new organization
+        $newOrgConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
+            [$magicServiceProvider->getId()],
+            $organizationCode
+        );
+        if (empty($newOrgConfigs)) {
+            return false;
+        }
+        $magicConfigId = $newOrgConfigs[0]->getId();
+
+        // 3. Get all LLM type service provider configurations in official organization (exclude Magic itself)
+        $officeOrganization = config('service_provider.office_organization');
+        $officeLLMProviders = $this->serviceProviderRepository->getAllByCategory(1, 1000, ServiceProviderCategory::LLM);
+
+        $officeLLMProviderIds = [];
+        foreach ($officeLLMProviders as $provider) {
+            // Exclude Magic itself, only collect other LLM service providers
+            if ($provider->getId() !== $magicServiceProvider->getId()) {
+                $officeLLMProviderIds[] = $provider->getId();
+            }
+        }
+
+        if (empty($officeLLMProviderIds)) {
+            return true;
+        }
+
+        // 4. Get configurations of these LLM service providers in official organization
+        $officeConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
+            $officeLLMProviderIds,
+            $officeOrganization
+        );
+
+        if (empty($officeConfigs)) {
+            return true;
+        }
+
+        // 5. Get all models under these configurations
+        $officeConfigIds = array_column($officeConfigs, 'id');
+        $allModels = $this->serviceProviderModelsRepository->getModelsByConfigIds($officeConfigIds);
+
+        if (empty($allModels)) {
+            return true;
+        }
+
+        // 6. Create model copies for new organization's Magic service provider
+        $modelsToSave = [];
+        foreach ($allModels as $baseModel) {
+            $newModel = clone $baseModel;
+            $newModel->setServiceProviderConfigId($magicConfigId);
+            $newModel->setOrganizationCode($organizationCode);
+            $newModel->setIsOffice(true); // Mark as official model
+            $modelsToSave[] = $newModel;
+        }
+
+        // 7. Batch save models
+        $this->serviceProviderModelsRepository->batchSaveModels($modelsToSave);
+        $this->logger->info(sprintf('Initialized %d models for organization %s Magic service provider', count($modelsToSave), $organizationCode));
+
+        return true;
     }
 }

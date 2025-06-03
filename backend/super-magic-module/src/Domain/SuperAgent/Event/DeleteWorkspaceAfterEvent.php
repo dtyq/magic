@@ -7,13 +7,15 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-class DeleteWorkspaceAfterEvent
+class DeleteWorkspaceAfterEvent extends AbstractEvent
 {
     public function __construct(
         private int $workspaceId,
         private string $organizationCode,
         private string $userId,
     ) {
+        // Call parent constructor to generate snowflake ID
+        parent::__construct();
     }
 
     public function getWorkspaceId(): int

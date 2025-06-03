@@ -663,7 +663,9 @@ class WorkspaceDomainService
             $conditions,
             true,
             $query->getPageSize(),
-            $query->getPage()
+            $query->getPage(),
+            $query->getOrderBy(),
+            $query->getOrder()
         );
     }
 

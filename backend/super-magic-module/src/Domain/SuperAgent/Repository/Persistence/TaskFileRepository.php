@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
@@ -179,19 +180,16 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         // 不存在则创建新记录
         $date = date('Y-m-d H:i:s');
+        if (empty($entity->getFileId())) {
+            $entity->setFileId(IdGenerator::getSnowId());
+        }
         $entity->setCreatedAt($date);
         $entity->setUpdatedAt($date);
 
         $entityArray = $entity->toArray();
 
         try {
-            $model = $this->model::query()->create($entityArray);
-
-            // 设置数据库生成的ID
-            if (! empty($model->file_id)) {
-                $entity->setFileId($model->file_id);
-            }
-
+            $this->model::query()->create($entityArray);
             return $entity;
         } catch (Exception $e) {
             // 如果在尝试创建时出现异常（如唯一键冲突），再次查询尝试获取

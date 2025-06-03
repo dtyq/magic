@@ -168,10 +168,6 @@
         },
         {
             "type": "gitlab",
-            "url": "https://git.kkgroup.cn/magic/magic-api-premium.git"
-        },
-        {
-            "type": "gitlab",
             "url": "https://git.kkgroup.cn/hyperf/odin.git"
         },
         {

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "904d7e412b459c971b0b223094844c26",
+    "content-hash": "3b01d5980bea7d5da2b86f05aae31f9e",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.343.21",
+            "version": "3.343.23",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "4bee288751c58598625ea2e8f30258404dd98757"
+                "reference": "010869992129557cfbf2740d94d82ef3b5228462"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/4bee288751c58598625ea2e8f30258404dd98757",
-                "reference": "4bee288751c58598625ea2e8f30258404dd98757",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/010869992129557cfbf2740d94d82ef3b5228462",
+                "reference": "010869992129557cfbf2740d94d82ef3b5228462",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.21"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.343.23"
             },
-            "time": "2025-05-29T18:11:11+00:00"
+            "time": "2025-06-02T18:04:47+00:00"
         },
         {
             "name": "brick/math",
@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "5a7f434a83feb5697aeb46a07d7fa3680152e33b"
+                "reference": "25b56c9fd1781ce01415d2d772d27d855206c0a8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=5a7f434a83feb5697aeb46a07d7fa3680152e33b",
-                "reference": "5a7f434a83feb5697aeb46a07d7fa3680152e33b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=25b56c9fd1781ce01415d2d772d27d855206c0a8",
+                "reference": "25b56c9fd1781ce01415d2d772d27d855206c0a8",
                 "shasum": ""
             },
             "require": {
@@ -1915,6 +1915,7 @@
                 "hyperf/http-server": "~3.1.0",
                 "hyperf/logger": "~3.1.0",
                 "hyperf/model-cache": "~3.1.0",
+                "hyperf/redis": "~3.1.0",
                 "hyperf/snowflake": "^3.1",
                 "hyperf/validation": "~3.1.0",
                 "php": ">=8.3",
@@ -1974,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-05-30T03:22:15+00:00"
+            "time": "2025-06-03T11:45:35+08:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2194,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "34280bbcca87024cd41915385c673805ed7a2e2d"
+                "reference": "7daae8a8859af804001b758049f3dbb117bd6ecd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=34280bbcca87024cd41915385c673805ed7a2e2d",
-                "reference": "34280bbcca87024cd41915385c673805ed7a2e2d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=7daae8a8859af804001b758049f3dbb117bd6ecd",
+                "reference": "7daae8a8859af804001b758049f3dbb117bd6ecd",
                 "shasum": ""
             },
             "require": {
@@ -2301,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-05-30T02:49:56+00:00"
+            "time": "2025-06-03T11:33:49+08:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2507,12 +2508,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "6c3fcf37e04848eca41d320378f2e3241cb9eba7"
+                "reference": "289356cd0f1290357f1dec42d8bccf5d62970487"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=6c3fcf37e04848eca41d320378f2e3241cb9eba7",
-                "reference": "6c3fcf37e04848eca41d320378f2e3241cb9eba7",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=289356cd0f1290357f1dec42d8bccf5d62970487",
+                "reference": "289356cd0f1290357f1dec42d8bccf5d62970487",
                 "shasum": ""
             },
             "require": {
@@ -2606,7 +2607,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-05-29T22:43:27+08:00"
+            "time": "2025-06-02T01:10:11+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -11318,20 +11319,20 @@
         },
         {
             "name": "ramsey/uuid",
-            "version": "4.7.6",
+            "version": "4.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/ramsey/uuid.git",
-                "reference": "91039bc1faa45ba123c4328958e620d382ec7088"
+                "reference": "fdf4dd4e2ff1813111bd0ad58d7a1ddbb5b56c28"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ramsey/uuid/zipball/91039bc1faa45ba123c4328958e620d382ec7088",
-                "reference": "91039bc1faa45ba123c4328958e620d382ec7088",
+                "url": "https://api.github.com/repos/ramsey/uuid/zipball/fdf4dd4e2ff1813111bd0ad58d7a1ddbb5b56c28",
+                "reference": "fdf4dd4e2ff1813111bd0ad58d7a1ddbb5b56c28",
                 "shasum": ""
             },
             "require": {
-                "brick/math": "^0.8.8 || ^0.9 || ^0.10 || ^0.11 || ^0.12",
+                "brick/math": "^0.8.8 || ^0.9 || ^0.10 || ^0.11 || ^0.12 || ^0.13",
                 "ext-json": "*",
                 "php": "^8.0",
                 "ramsey/collection": "^1.2 || ^2.0"
@@ -11340,26 +11341,23 @@
                 "rhumsaa/uuid": "self.version"
             },
             "require-dev": {
-                "captainhook/captainhook": "^5.10",
+                "captainhook/captainhook": "^5.25",
                 "captainhook/plugin-composer": "^5.3",
-                "dealerdirect/phpcodesniffer-composer-installer": "^0.7.0",
-                "doctrine/annotations": "^1.8",
-                "ergebnis/composer-normalize": "^2.15",
-                "mockery/mockery": "^1.3",
+                "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+                "ergebnis/composer-normalize": "^2.47",
+                "mockery/mockery": "^1.6",
                 "paragonie/random-lib": "^2",
-                "php-mock/php-mock": "^2.2",
-                "php-mock/php-mock-mockery": "^1.3",
-                "php-parallel-lint/php-parallel-lint": "^1.1",
-                "phpbench/phpbench": "^1.0",
-                "phpstan/extension-installer": "^1.1",
-                "phpstan/phpstan": "^1.8",
-                "phpstan/phpstan-mockery": "^1.1",
-                "phpstan/phpstan-phpunit": "^1.1",
-                "phpunit/phpunit": "^8.5 || ^9",
-                "ramsey/composer-repl": "^1.4",
-                "slevomat/coding-standard": "^8.4",
-                "squizlabs/php_codesniffer": "^3.5",
-                "vimeo/psalm": "^4.9"
+                "php-mock/php-mock": "^2.6",
+                "php-mock/php-mock-mockery": "^1.5",
+                "php-parallel-lint/php-parallel-lint": "^1.4.0",
+                "phpbench/phpbench": "^1.2.14",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-mockery": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^9.6",
+                "slevomat/coding-standard": "^8.18",
+                "squizlabs/php_codesniffer": "^3.13"
             },
             "suggest": {
                 "ext-bcmath": "Enables faster math with arbitrary-precision integers using BCMath.",
@@ -11394,19 +11392,9 @@
             ],
             "support": {
                 "issues": "https://github.com/ramsey/uuid/issues",
-                "source": "https://github.com/ramsey/uuid/tree/4.7.6"
+                "source": "https://github.com/ramsey/uuid/tree/4.8.1"
             },
-            "funding": [
-                {
-                    "url": "https://github.com/ramsey",
-                    "type": "github"
-                },
-                {
-                    "url": "https://tidelift.com/funding/github/packagist/ramsey/uuid",
-                    "type": "tidelift"
-                }
-            ],
-            "time": "2024-04-27T21:32:50+00:00"
+            "time": "2025-06-01T06:28:46+00:00"
         },
         {
             "name": "scrivo/highlight.php",
@@ -16989,12 +16977,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "c6007a53027047b08044448c57571988ac9b6e93"
+                "reference": "e4637c0239d5cc7d5a7c51e7c1cfd5b7d274ce95"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/c6007a53027047b08044448c57571988ac9b6e93",
-                "reference": "c6007a53027047b08044448c57571988ac9b6e93",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e4637c0239d5cc7d5a7c51e7c1cfd5b7d274ce95",
+                "reference": "e4637c0239d5cc7d5a7c51e7c1cfd5b7d274ce95",
                 "shasum": ""
             },
             "conflict": {
@@ -17059,6 +17047,7 @@
                 "baserproject/basercms": "<=5.1.1",
                 "bassjobsen/bootstrap-3-typeahead": ">4.0.2",
                 "bbpress/bbpress": "<2.6.5",
+                "bcit-ci/codeigniter": "<3.1.3",
                 "bcosca/fatfree": "<3.7.2",
                 "bedita/bedita": "<4",
                 "bednee/cooluri": "<1.0.30",
@@ -17925,7 +17914,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-29T18:07:06+00:00"
+            "time": "2025-06-02T17:06:15+00:00"
         },
         {
             "name": "sebastian/cli-parser",

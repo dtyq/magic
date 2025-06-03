@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+
 /**
  * 话题查询值对象，封装查询条件.
  */
@@ -51,6 +53,13 @@ class TopicQuery
      * @var int 每页条数
      */
     private int $pageSize = 20;
+
+    /**
+     * @var string 排序字段
+     */
+    private string $orderBy = 'id';
+
+    private string $order = 'desc';
 
     /**
      * 获取话题ID.
@@ -188,6 +197,28 @@ class TopicQuery
         return $this;
     }
 
+    public function setOrderBy(string $orderBy): self
+    {
+        $this->orderBy = $orderBy;
+        return $this;
+    }
+
+    public function getOrderBy(): string
+    {
+        return $this->orderBy;
+    }
+
+    public function setOrder(string $order): self
+    {
+        $this->order = $order;
+        return $this;
+    }
+
+    public function getOrder(): string
+    {
+        return $this->order;
+    }
+
     /**
      * 转换为条件数组.
      */
@@ -205,6 +236,8 @@ class TopicQuery
 
         if ($this->topicStatus !== null) {
             $conditions['current_task_status'] = $this->topicStatus;
+        } else {
+            $conditions['current_task_status'] = [TaskStatus::RUNNING, TaskStatus::FINISHED, TaskStatus::ERROR, TaskStatus::Suspended, TaskStatus::Stopped];
         }
 
         if ($this->sandboxId !== null) {
