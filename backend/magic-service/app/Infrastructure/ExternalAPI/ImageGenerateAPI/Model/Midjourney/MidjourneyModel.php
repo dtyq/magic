@@ -43,14 +43,14 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         $rawResult = $this->generateImageInternal($imageGenerateRequest);
-        
+
         // 从原生结果中提取图片URL
-        if (!empty($rawResult['data']['images']) && is_array($rawResult['data']['images'])) {
+        if (! empty($rawResult['data']['images']) && is_array($rawResult['data']['images'])) {
             return new ImageGenerateResponse(ImageGenerateType::URL, $rawResult['data']['images']);
         }
 
         // 如果没有 images 数组，尝试使用 cdnImage
-        if (!empty($rawResult['data']['cdnImage'])) {
+        if (! empty($rawResult['data']['cdnImage'])) {
             return new ImageGenerateResponse(ImageGenerateType::URL, [$rawResult['data']['cdnImage']]);
         }
 
@@ -65,60 +65,19 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
         return $this->generateImageInternal($imageGenerateRequest);
     }
 
-    /**
-     * 生成图像的核心逻辑，返回原生结果
-     */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    public function setAK(string $ak)
     {
-        if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
-            $this->logger->error('MJ文生图：无效的请求类型', [
-                'class' => get_class($imageGenerateRequest),
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
-        }
+        // TODO: Implement setAK() method.
+    }
 
-        // 构建 prompt
-        $prompt = $imageGenerateRequest->getPrompt();
-        if ($imageGenerateRequest->getRatio()) {
-            $prompt .= ' --ar ' . $imageGenerateRequest->getRatio();
-        }
-        if ($imageGenerateRequest->getNegativePrompt()) {
-            $prompt .= ' --no ' . $imageGenerateRequest->getNegativePrompt();
-        }
+    public function setSK(string $sk)
+    {
+        // TODO: Implement setSK() method.
+    }
 
-        $prompt .= ' --v 7.0';
-
-        // 记录请求开始
-        $this->logger->info('MJ文生图：开始生图', [
-            'prompt' => $prompt,
-            'ratio' => $imageGenerateRequest->getRatio(),
-            'negativePrompt' => $imageGenerateRequest->getNegativePrompt(),
-            'mode' => $imageGenerateRequest->getModel(),
-        ]);
-
-        try {
-            $this->checkPrompt($prompt);
-
-            $jobId = $this->submitAsyncTask($prompt, $imageGenerateRequest->getModel());
-
-            $rawResult = $this->pollTaskResultForRaw($jobId);
-
-            $this->logger->info('MJ文生图：生成结束', [
-                'jobId' => $jobId,
-            ]);
-
-            // 异步检查余额
-            $this->monitorBalance();
-
-            return $rawResult;
-        } catch (Exception $e) {
-            $this->logger->error('MJ文生图：失败', [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            throw $e;
-        }
+    public function setApiKey(string $apiKey)
+    {
+        $this->api->setApiKey($apiKey);
     }
 
     /**
@@ -179,21 +138,6 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
             'totalTime' => self::MAX_RETRIES * self::RETRY_INTERVAL,
         ]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
-    }
-
-    public function setAK(string $ak)
-    {
-        // TODO: Implement setAK() method.
-    }
-
-    public function setSK(string $sk)
-    {
-        // TODO: Implement setSK() method.
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        $this->api->setApiKey($apiKey);
     }
 
     protected function submitAsyncTask(string $prompt, string $mode = 'fast'): string
@@ -294,5 +238,61 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
     protected function getAlertPrefix(): string
     {
         return 'TT API';
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果.
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
+            $this->logger->error('MJ文生图：无效的请求类型', [
+                'class' => get_class($imageGenerateRequest),
+            ]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        }
+
+        // 构建 prompt
+        $prompt = $imageGenerateRequest->getPrompt();
+        if ($imageGenerateRequest->getRatio()) {
+            $prompt .= ' --ar ' . $imageGenerateRequest->getRatio();
+        }
+        if ($imageGenerateRequest->getNegativePrompt()) {
+            $prompt .= ' --no ' . $imageGenerateRequest->getNegativePrompt();
+        }
+
+        $prompt .= ' --v 7.0';
+
+        // 记录请求开始
+        $this->logger->info('MJ文生图：开始生图', [
+            'prompt' => $prompt,
+            'ratio' => $imageGenerateRequest->getRatio(),
+            'negativePrompt' => $imageGenerateRequest->getNegativePrompt(),
+            'mode' => $imageGenerateRequest->getModel(),
+        ]);
+
+        try {
+            $this->checkPrompt($prompt);
+
+            $jobId = $this->submitAsyncTask($prompt, $imageGenerateRequest->getModel());
+
+            $rawResult = $this->pollTaskResultForRaw($jobId);
+
+            $this->logger->info('MJ文生图：生成结束', [
+                'jobId' => $jobId,
+            ]);
+
+            // 异步检查余额
+            $this->monitorBalance();
+
+            return $rawResult;
+        } catch (Exception $e) {
+            $this->logger->error('MJ文生图：失败', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            throw $e;
+        }
     }
 }

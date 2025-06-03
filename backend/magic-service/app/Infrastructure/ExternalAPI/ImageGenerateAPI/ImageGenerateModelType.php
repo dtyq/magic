@@ -60,7 +60,7 @@ enum ImageGenerateModelType: string
      */
     public static function getVolcengineModes(): array
     {
-        return ['Volcengine', 'high_aes_general_v21_L', 'byteedit_v2.0','Volcengine_byteedit_v2','Volcengine_high_aes_general_v21_L'];
+        return ['Volcengine', 'high_aes_general_v21_L', 'byteedit_v2.0', 'Volcengine_byteedit_v2', 'Volcengine_high_aes_general_v21_L'];
     }
 
     public static function getVolcengineImageGenerateV3Modes(): array

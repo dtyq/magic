@@ -40,7 +40,7 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         $rawResults = $this->generateImageInternal($imageGenerateRequest);
-        
+
         // 从原生结果中提取图片URL
         $imageUrls = [];
         foreach ($rawResults as $index => $result) {
@@ -69,8 +69,23 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         return $this->generateImageInternal($imageGenerateRequest);
     }
 
+    public function setAK(string $ak)
+    {
+        $this->api->setAk($ak);
+    }
+
+    public function setSK(string $sk)
+    {
+        $this->api->setSk($sk);
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        // TODO: Implement setApiKey() method.
+    }
+
     /**
-     * 生成图像的核心逻辑，返回原生结果
+     * 生成图像的核心逻辑，返回原生结果.
      */
     private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
@@ -142,24 +157,7 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
 
         // 按索引排序结果
         ksort($rawResults);
-        $rawResults = array_values($rawResults);
-
-        return $rawResults;
-    }
-
-    public function setAK(string $ak)
-    {
-        $this->api->setAk($ak);
-    }
-
-    public function setSK(string $sk)
-    {
-        $this->api->setSk($sk);
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        // TODO: Implement setApiKey() method.
+        return array_values($rawResults);
     }
 
     private function submitAsyncTask(VolcengineModelRequest $request): string
