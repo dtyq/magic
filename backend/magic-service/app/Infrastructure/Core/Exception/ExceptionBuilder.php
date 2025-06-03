@@ -35,7 +35,7 @@ class ExceptionBuilder
     {
         $this->error = $error;
         $this->code = (int) $error->value;
-        $this->config = array_merge($this->config, ApplicationContext::getContainer()->get(ConfigInterface::class)->get('error_message'));
+        $this->config = array_merge($this->config, ApplicationContext::getContainer()->get(ConfigInterface::class)?->get('error_message'));
     }
 
     public function getCode(): int
@@ -51,7 +51,7 @@ class ExceptionBuilder
     {
         if ($throwable) {
             // 记录原始异常信息
-            $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(__CLASS__);
+            $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(__CLASS__);
             $logger->error(sprintf(
                 '记录原始的 throwable 异常 message:%s, code:%d, file:%s, line:%s, trace:%s',
                 $throwable->getMessage(),
