@@ -15,4 +15,5 @@ return [
     'access' => ':label access denied',
     'disabled' => ':label is disabled',
     'invalid_token' => 'Invalid token',
+    'invalid_range' => ':label must be between :min and :max',
 ];

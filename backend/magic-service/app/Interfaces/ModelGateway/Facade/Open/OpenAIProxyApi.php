@@ -79,6 +79,9 @@ class OpenAIProxyApi extends AbstractOpenApi
         $textGenerateImageDTO = new TextGenerateImageDTO($requestData);
         $textGenerateImageDTO->setAccessToken($this->getAccessToken());
         $textGenerateImageDTO->setIps($this->getClientIps());
+
+        $textGenerateImageDTO->valid();
+
         return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
     }
 }
