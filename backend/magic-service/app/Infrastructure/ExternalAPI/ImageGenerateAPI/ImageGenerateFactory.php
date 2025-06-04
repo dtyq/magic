@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
-use App\ErrorCode\ImageGenerateErrorCode;
+use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
@@ -88,7 +88,7 @@ class ImageGenerateFactory
     {
         $model = $data['model'];
         if (! in_array($model, ImageGenerateModelType::getFluxModes())) {
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, '模型不支持');
+            ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
         $model = strtolower($model);
 

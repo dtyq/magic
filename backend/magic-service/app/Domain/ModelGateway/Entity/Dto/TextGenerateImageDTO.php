@@ -60,11 +60,15 @@ class TextGenerateImageDTO extends AbstractRequestDTO
         }
 
         if ($this->size === '') {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'size_filed']);
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'size_field']);
         }
 
         if ($this->n < 1 || $this->n > 4) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.invalid_range', ['label' => 'Number of images', 'min' => 1, 'max' => 4]);
+        }
+
+        if ($this->prompt === '') {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'prompt_field']);
         }
     }
 }
