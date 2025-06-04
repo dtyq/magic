@@ -27,6 +27,7 @@ class MCPServerAssembler
         $DTO->setIcon(FileAssembler::getUrl($icons[$mcpServerEntity->getIcon()] ?? null));
         $DTO->setType($mcpServerEntity->getType()->value);
         $DTO->setEnabled($mcpServerEntity->isEnabled());
+        $DTO->setExternalSseUrl($mcpServerEntity->getExternalSseUrl());
         $DTO->setCreator($mcpServerEntity->getCreator());
         $DTO->setCreatedAt($mcpServerEntity->getCreatedAt());
         $DTO->setModifier($mcpServerEntity->getModifier());
@@ -53,6 +54,8 @@ class MCPServerAssembler
         if ($mcpServerDTO->getEnabled() !== null) {
             $mcpServerEntity->setEnabled($mcpServerDTO->getEnabled());
         }
+
+        $mcpServerEntity->setExternalSseUrl($mcpServerDTO->getExternalSseUrl());
 
         return $mcpServerEntity;
     }

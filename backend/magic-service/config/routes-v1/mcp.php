@@ -13,6 +13,7 @@ Router::addGroup('/api/v1/mcp', function () {
     Router::addGroup('/server', function () {
         Router::post('', [MCPServerAdminApi::class, 'save']);
         Router::post('/queries', [MCPServerAdminApi::class, 'queries']);
+        Router::get('/{code}/status', [MCPServerAdminApi::class, 'checkStatus']);
         Router::get('/{code}', [MCPServerAdminApi::class, 'show']);
         Router::delete('/{code}', [MCPServerAdminApi::class, 'destroy']);
 
