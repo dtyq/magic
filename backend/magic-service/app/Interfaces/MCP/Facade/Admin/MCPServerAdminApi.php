@@ -65,4 +65,11 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $authorization = $this->getAuthorization();
         return $this->mcpServerAppService->destroy($authorization, $code);
     }
+
+    public function checkStatus(string $code)
+    {
+        $authorization = $this->getAuthorization();
+
+        return $this->mcpServerAppService->checkStatus($authorization, $code);
+    }
 }
