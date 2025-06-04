@@ -59,6 +59,8 @@ class ModelConfigEntity extends AbstractEntity
 
     private string $ownerBy = '';
 
+    private string $object = 'model';  // Default to 'model', can be 'image' for image generation models
+
     public function __construct(?array $data = null)
     {
         parent::__construct($data);
@@ -290,5 +292,15 @@ class ModelConfigEntity extends AbstractEntity
             $configs[$index] = $value;
         }
         return $configs;
+    }
+
+    public function getObject(): string
+    {
+        return $this->object;
+    }
+
+    public function setObject(string $object): void
+    {
+        $this->object = $object;
     }
 }

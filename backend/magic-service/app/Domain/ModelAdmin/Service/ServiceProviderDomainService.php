@@ -1115,6 +1115,18 @@ class ServiceProviderDomainService
     }
 
     /**
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getOfficeModels(ServiceProviderCategory $category): array
+    {
+        $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
+        $serviceProviderConfigEntities = $this->serviceProviderConfigRepository->getsByServiceProviderIdsAndOffice(array_column($serviceProviderEntities, 'id'));
+        $serviceProviderConfigIds = array_column($serviceProviderConfigEntities, 'id');
+
+        return $this->serviceProviderModelsRepository->getActiveModelsByConfigIds($serviceProviderConfigIds);
+    }
+
+    /**
      * 提取模型的配置ID.
      * @param ServiceProviderModelsEntity[] $models
      * @return array 模型配置ID数组

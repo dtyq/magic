@@ -15,4 +15,5 @@ return [
     'access' => ':label 访问被拒绝',
     'disabled' => ':label 是禁用的',
     'invalid_token' => 'token无效',
+    'invalid_range' => ':label 必须在 :min 和 :max 之间',
 ];
