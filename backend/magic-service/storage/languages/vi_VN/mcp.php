@@ -14,4 +14,4 @@ return [
         'created_at' => 'Tạo lúc',
         'updated_at' => 'Cập nhật lúc',
     ],
-]; 
+];
