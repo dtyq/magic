@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\Util\Context\CoContext;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 use Exception;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Di\Annotation\Inject;
@@ -422,6 +423,7 @@ class VolcengineModel implements ImageGenerate
     {
         try {
             // Get image information
+            $imageUrl = SSRFUtil::getSafeUrl($imageUrl, replaceIp: false);
             $imageInfo = getimagesize($imageUrl);
 
             if ($imageInfo === false) {
