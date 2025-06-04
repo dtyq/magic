@@ -41,6 +41,11 @@ class MCPServerDTO extends AbstractDTO
      */
     public ?bool $enabled = null;
 
+    /**
+     * External SSE service URL.
+     */
+    public string $externalSseUrl = '';
+
     public int $userOperation = 0;
 
     public int $toolsCount = 0;
@@ -93,6 +98,16 @@ class MCPServerDTO extends AbstractDTO
     public function setEnabled(?bool $enabled): void
     {
         $this->enabled = $enabled;
+    }
+
+    public function getExternalSseUrl(): string
+    {
+        return $this->externalSseUrl;
+    }
+
+    public function setExternalSseUrl(?string $externalSseUrl): void
+    {
+        $this->externalSseUrl = $externalSseUrl ?? '';
     }
 
     public function getUserOperation(): int

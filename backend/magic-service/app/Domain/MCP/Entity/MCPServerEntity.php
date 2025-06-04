@@ -50,6 +50,11 @@ class MCPServerEntity extends AbstractEntity
      */
     protected ?bool $enabled = null;
 
+    /**
+     * External SSE service URL.
+     */
+    protected string $externalSseUrl = '';
+
     protected string $creator;
 
     protected DateTime $createdAt;
@@ -88,6 +93,12 @@ class MCPServerEntity extends AbstractEntity
         $this->type = $this->type ?? ServiceType::SSE;
         $this->enabled = $this->enabled ?? false;
         $this->id = null;
+
+        if ($this->type === ServiceType::ExternalSSE) {
+            if (empty($this->externalSseUrl)) {
+                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.external_sse_url']);
+            }
+        }
     }
 
     public function prepareForModification(MCPServerEntity $mcpServerEntity): void
@@ -102,6 +113,7 @@ class MCPServerEntity extends AbstractEntity
         $mcpServerEntity->setName($this->name);
         $mcpServerEntity->setDescription($this->description);
         $mcpServerEntity->setIcon($this->icon);
+        $mcpServerEntity->setExternalSseUrl($this->externalSseUrl);
         $mcpServerEntity->setModifier($this->creator);
 
         if (isset($this->type)) {
@@ -199,6 +211,16 @@ class MCPServerEntity extends AbstractEntity
     public function setEnabled(bool $enabled): void
     {
         $this->enabled = $enabled;
+    }
+
+    public function getExternalSseUrl(): string
+    {
+        return $this->externalSseUrl;
+    }
+
+    public function setExternalSseUrl(string $externalSseUrl): void
+    {
+        $this->externalSseUrl = $externalSseUrl;
     }
 
     public function getCreator(): string
