@@ -397,15 +397,6 @@ class TaskAppService extends AbstractAppService
         );
 
         try {
-            AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
-                $taskContext->getCurrentOrganizationCode(),
-                $taskContext->getCurrentUserId(),
-                $taskContext->getTopicId(),
-                $topicEntity->getTopicName(),
-                $taskContext->getTask()->getId(),
-                $messageDTO
-            ));
-
             // 处理接收到的消息
             $this->handleReceivedMessage($messageDTO, $taskContext);
 
@@ -415,10 +406,15 @@ class TaskAppService extends AbstractAppService
             if (TaskStatus::tryFrom($status)) {
                 $this->updateTaskStatus($taskContext->getTask(), $taskContext->getDataIsolation(), $taskContext->getTaskId(), $taskStatus);
             }
-            if (in_array($taskStatus, [TaskStatus::FINISHED, TaskStatus::ERROR, TaskStatus::Suspended])) {
-                $this->logger->info(sprintf('任务完成，任务信息: %s', json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE)));
-                AsyncEventUtil::dispatch(new RunTaskAfterEvent($taskContext->getCurrentOrganizationCode(), $taskContext->getCurrentUserId(), $taskContext->getTask()->getTopicId(), $taskContext->getTask()->getId(), $status, $messageDTO->getTokenUsageDetails()));
-            }
+
+            AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
+                $taskContext->getCurrentOrganizationCode(),
+                $taskContext->getCurrentUserId(),
+                $taskContext->getTopicId(),
+                $topicEntity->getTopicName(),
+                $taskContext->getTask()->getId(),
+                $messageDTO
+            ));
 
             $this->logger->info(sprintf(
                 '处理话题任务消息完成，message_id: %s',
