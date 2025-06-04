@@ -532,10 +532,10 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 根据服务商配置IDs、modelVersion和激活状态查找对应的模型.
-     * @param array $configIds 服务商配置ID数组
-     * @param string $modelVersion 模型
-     * @return ServiceProviderModelsEntity[] 找到的激活模型数组
+     * find active models by config ids, model version and status.
+     * @param array $configIds provider config ids
+     * @param string $modelVersion model version
+     * @return ServiceProviderModelsEntity[] found active models
      */
     public function getActiveModelsByConfigIdsAndModelVersion(array $configIds, string $modelVersion): array
     {
@@ -547,7 +547,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->whereIn('service_provider_config_id', $configIds)
             ->where('model_version', $modelVersion)
             ->where('status', Status::ACTIVE->value)
-            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
+            ->orderBy('created_at', 'desc'); // order by created at desc
 
         return $this->executeQueryAndToEntities($query);
     }
