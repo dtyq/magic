@@ -25,6 +25,7 @@ Router::addGroup('/api/v1', static function () {
         Router::post('/queries', [MagicFlowFlowAdminApi::class, 'queries']);
         Router::post('/queries/tools', [MagicFlowFlowAdminApi::class, 'queryTools']);
         Router::post('/queries/tool-sets', [MagicFlowFlowAdminApi::class, 'queryToolSets']);
+        Router::post('/queries/mcp-list', [MagicFlowFlowAdminApi::class, 'queryMCPList']);
         Router::post('/queries/knowledge', [MagicFlowFlowAdminApi::class, 'queryKnowledge']);
         Router::get('/{flowId}', [MagicFlowFlowAdminApi::class, 'show']);
         Router::get('/{flowId}/params', [MagicFlowFlowAdminApi::class, 'showParams']);
