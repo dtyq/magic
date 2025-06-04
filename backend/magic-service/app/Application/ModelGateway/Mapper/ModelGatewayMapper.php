@@ -154,7 +154,7 @@ class ModelGatewayMapper extends ModelMapper
     }
 
     /**
-     * 获取当前组织下的所有可用 image 模型.
+     * get all available image models under the current organization.
      * @return OdinModel[]
      */
     public function getImageModels(string $organizationCode = ''): array
