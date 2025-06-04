@@ -9,8 +9,7 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
 
-class AddIsHiddenToMagicSuperAgentTaskFilesTable extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -30,4 +29,4 @@ class AddIsHiddenToMagicSuperAgentTaskFilesTable extends Migration
             $table->dropColumn('is_hidden');
         });
     }
-} 
+}; 
