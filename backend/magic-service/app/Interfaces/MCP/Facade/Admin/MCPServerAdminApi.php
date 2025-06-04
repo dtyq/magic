@@ -40,6 +40,7 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
 
         $query = new MCPServerQuery($this->request->all());
         $query->setOrder(['id' => 'desc']);
+        $query->setWithToolCount(true);
         $result = $this->mcpServerAppService->queries($authorization, $query, $page);
 
         return MCPServerAssembler::createPageListDTO(
