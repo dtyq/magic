@@ -16,6 +16,7 @@ Router::addGroup('/v1', function () {
     Router::post('/embeddings', [OpenAIProxyApi::class, 'embeddings']);
     Router::get('/models', [OpenAIProxyApi::class, 'models']);
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImage']);
+    Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEdit']);
 });
 
 Router::addGroup('/api/v1', static function () {
