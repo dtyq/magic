@@ -425,13 +425,13 @@ class LLMAppService extends AbstractLLMAppService
         // Get available endpoints
         $endpointDTO = $highAvailable->getAvailableEndpoint($endpointRequest);
 
-        // If there's a remembered endpoint ID, log it
-        if ($rememberedEndpointId) {
+        // Log only when remembered endpoint ID matches the current endpoint ID
+        if ($rememberedEndpointId && $endpointDTO && $rememberedEndpointId === $endpointDTO->getEndpointId()) {
             $this->logger->info('Detected conversation continuation with remembered endpoint ID', [
                 'remembered_endpoint_id' => $rememberedEndpointId,
-                'current_endpoint_id' => $endpointDTO?->getEndpointId(),
+                'current_endpoint_id' => $endpointDTO->getEndpointId(),
                 'model' => $modelType,
-                'is_same_endpoint' => $rememberedEndpointId === $endpointDTO?->getEndpointId(),
+                'is_same_endpoint' => true,
             ]);
         }
 
