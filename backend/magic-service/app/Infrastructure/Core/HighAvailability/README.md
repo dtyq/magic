@@ -44,7 +44,8 @@ Concrete implementation class that gets endpoint list from ModelGateway business
 ### 1. Basic Usage
 
 ```php
-use Dtyq\MagicEnterprise\Domain\HighAvailability\HighAvailabilityInterface;
+use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 
 class YourService 
 {
@@ -54,8 +55,11 @@ class YourService
     
     public function callModel(string $modelId, string $orgCode) 
     {
+        // Create endpoint request DTO
+        $request = EndpointRequestDTO::create($modelId, $orgCode);
+        
         // Get available endpoint
-        $endpoint = $this->highAvailability->getAvailableEndpoint($modelId, $orgCode);
+        $endpoint = $this->highAvailability->getAvailableEndpoint($request);
         
         if (!$endpoint) {
             throw new Exception('No available endpoints');
@@ -85,33 +89,39 @@ Multiple load balancing strategies are supported:
 
 ```php
 use App\Infrastructure\Core\HighAvailability\ValueObject\LoadBalancingType;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 
 // Random selection
-$endpoint = $highAvailability->getAvailableEndpoint(
-    $modelId, 
-    $orgCode,
-    null, 
-    null, 
-    LoadBalancingType::RANDOM
+$request = EndpointRequestDTO::create(
+    endpointType: $modelId,
+    orgCode: $orgCode,
+    balancingType: LoadBalancingType::RANDOM
 );
+$endpoint = $highAvailability->getAvailableEndpoint($request);
 
 // Round-robin selection
-$endpoint = $highAvailability->getAvailableEndpoint(
-    $modelId, 
-    $orgCode,
-    null, 
-    null, 
-    LoadBalancingType::ROUND_ROBIN
+$request = EndpointRequestDTO::create(
+    endpointType: $modelId,
+    orgCode: $orgCode,
+    balancingType: LoadBalancingType::ROUND_ROBIN
 );
+$endpoint = $highAvailability->getAvailableEndpoint($request);
 
 // Weighted round-robin (based on performance statistics)
-$endpoint = $highAvailability->getAvailableEndpoint(
-    $modelId, 
-    $orgCode,
-    null, 
-    null, 
-    LoadBalancingType::WEIGHTED_ROUND_ROBIN
+$request = EndpointRequestDTO::create(
+    endpointType: $modelId,
+    orgCode: $orgCode,
+    balancingType: LoadBalancingType::WEIGHTED_ROUND_ROBIN
 );
+$endpoint = $highAvailability->getAvailableEndpoint($request);
+
+// With conversation continuation (prioritize last selected endpoint)
+$request = EndpointRequestDTO::create(
+    endpointType: $modelId,
+    orgCode: $orgCode,
+    lastSelectedEndpointId: $rememberedEndpointId
+);
+$endpoint = $highAvailability->getAvailableEndpoint($request);
 ```
 
 ## Configuration

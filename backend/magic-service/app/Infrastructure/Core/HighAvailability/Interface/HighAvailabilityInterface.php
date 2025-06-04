@@ -8,9 +8,8 @@ declare(strict_types=1);
 namespace App\Infrastructure\Core\HighAvailability\Interface;
 
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
-use App\Infrastructure\Core\HighAvailability\ValueObject\LoadBalancingType;
-use App\Infrastructure\Core\HighAvailability\ValueObject\StatisticsLevel;
 
 interface HighAvailabilityInterface
 {
@@ -39,26 +38,12 @@ interface HighAvailabilityInterface
      * Selection criteria:
      * 1. Highest success rate
      * 2. Shortest response time
+     * 3. If lastSelectedEndpointId is provided, prioritize that endpoint (for conversation continuation)
      *
-     * @param string $endpointType Model ID,like GPT-4o
-     * @param string $orgCode Organization code
-     * @param null|string $provider Service provider, e.g., Microsoft | Volcano | Alibaba Cloud, optional
-     * @param null|string $endpointName Endpoint name (optional), e.g., East US, Japan for Microsoft provider
-     * @param LoadBalancingType $balancingType Load balancing type: random/round-robin/weighted-round-robin
-     * @param StatisticsLevel $statisticsLevel Statistics level
-     * @param int $timeRange Statistics time range in minutes, default 30 minutes
-     * @note Multiple endpoints of the same type and provider are allowed.
+     * @param EndpointRequestDTO $request 接入点请求参数
      * @return null|EndpointDTO Available endpoint, returns null if no available endpoint
      */
-    public function getAvailableEndpoint(
-        string $endpointType,
-        string $orgCode,
-        ?string $provider = null,
-        ?string $endpointName = null,
-        LoadBalancingType $balancingType = LoadBalancingType::RANDOM,
-        StatisticsLevel $statisticsLevel = StatisticsLevel::LEVEL_MINUTE,
-        int $timeRange = 30
-    ): ?EndpointDTO;
+    public function getAvailableEndpoint(EndpointRequestDTO $request): ?EndpointDTO;
 
     /**
      * 记录接入点的响应并自动处理成功/失败状态，以及用于后续的数据分析。
