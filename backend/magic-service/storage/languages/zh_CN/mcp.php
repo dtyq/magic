@@ -10,6 +10,7 @@ return [
         'name' => '名称',
         'description' => '描述',
         'status' => '状态',
+        'external_sse_url' => 'MCP 服务地址',
         'created_at' => '创建时间',
         'updated_at' => '更新时间',
     ],
