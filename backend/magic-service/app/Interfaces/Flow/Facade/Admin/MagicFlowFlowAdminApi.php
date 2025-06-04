@@ -9,12 +9,15 @@ namespace App\Interfaces\Flow\Facade\Admin;
 
 use App\Application\Flow\Service\MagicFlowAppService;
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
+use App\Application\MCP\Service\MCPServerAppService;
 use App\Domain\Flow\Entity\ValueObject\Query\MagicFLowQuery;
+use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Flow\Assembler\Flow\MagicFlowAssembler;
 use App\Interfaces\Flow\Assembler\Knowledge\MagicFlowKnowledgeAssembler;
 use App\Interfaces\Flow\Assembler\Node\MagicFlowNodeAssembler;
 use App\Interfaces\Flow\Assembler\ToolSet\MagicFlowToolSetAssembler;
+use App\Interfaces\MCP\Assembler\MCPServerAssembler;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
@@ -26,6 +29,9 @@ class MagicFlowFlowAdminApi extends AbstractFlowAdminApi
 
     #[Inject]
     protected MagicFlowExecuteAppService $magicFlowExecuteAppService;
+
+    #[Inject]
+    protected MCPServerAppService $mcpServerAppService;
 
     /**
      * 获取所有节点的版本.
@@ -133,6 +139,25 @@ class MagicFlowFlowAdminApi extends AbstractFlowAdminApi
     {
         $result = $this->magicFlowAppService->queryToolSets($this->getAuthorization());
         return MagicFlowToolSetAssembler::createPageListDTO($result['total'], $result['list'], Page::createNoPage(), $result['users'], $result['icons']);
+    }
+
+    public function queryMCPList()
+    {
+        $authorization = $this->getAuthorization();
+        $page = $this->createPage();
+
+        $query = new MCPServerQuery($this->request->all());
+        $query->setOrder(['id' => 'desc']);
+        $query->setEnabled(true);
+        $result = $this->mcpServerAppService->queries($authorization, $query, $page);
+
+        return MCPServerAssembler::createPageListDTO(
+            total: $result['total'],
+            list: $result['list'],
+            page: $page,
+            users: $result['users'],
+            icons: $result['icons'],
+        );
     }
 
     /**

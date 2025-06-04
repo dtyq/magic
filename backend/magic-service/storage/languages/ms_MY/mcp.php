@@ -14,4 +14,4 @@ return [
         'created_at' => 'Dicipta Pada',
         'updated_at' => 'Dikemas kini Pada',
     ],
-]; 
+];
