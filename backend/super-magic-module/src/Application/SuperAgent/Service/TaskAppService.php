@@ -339,17 +339,19 @@ class TaskAppService extends AbstractAppService
             throw new BusinessException('获取沙箱websocket客户端失败', 500);
         }
         try {
-            // 如果 message 为空，就不发送，因为你触发沙箱的关闭，会有回调消息，避免重复发的情况
-            if (! empty($msg)) {
-                $this->sendErrorMessageToClient($topicEntity->getId(), (string) $taskContext->getTask()->getId(), $taskContext->getChatTopicId(), $taskContext->getChatConversationId(), $msg);
-            }
             // 设置打断指令
             $taskContext->getTask()->setPrompt('终止任务');
             $taskContext->setInstruction(ChatInstruction::Interrupted);
-            $this->sendMessageToSandbox($websocketSession, $taskContext);
+            $message = $this->messageBuilder->buildInterruptMessage(
+                $taskContext->getCurrentUserId(),
+                $taskContext->getTask()->getId(),
+                $taskContext->getTask()->getTaskMode(),
+                $msg
+            );
+            $this->sendMessageToSandbox($websocketSession, $taskContext->getTask()->getId(), $message);
         } catch (Exception $e) {
             $this->logger->error(sprintf('终止沙箱任务信息失败，错误内容为: %s', $e->getMessage()));
-            throw new BusinessException('发生终止任务失败', 500);
+            throw new BusinessException('发送终止任务失败', 500);
         } finally {
             $websocketSession->disconnect();
         }
@@ -517,7 +519,18 @@ class TaskAppService extends AbstractAppService
                 $this->initTaskMessageToSandbox($session, $taskContext, $isFirstTaskMessage);
             }
             // 发送聊天消息
-            $taskId = $this->sendMessageToSandbox($session, $taskContext);
+            $dataIsolation = $taskContext->getDataIsolation();
+            $task = $taskContext->getTask();
+            $attachmentUrls = $this->getAttachmentUrls($task->getAttachments(), $dataIsolation->getCurrentOrganizationCode());
+            $chatMessage = $this->messageBuilder->buildChatMessage(
+                $dataIsolation->getCurrentUserId(),
+                $task->getId(),
+                $taskContext->getInstruction()->value,
+                $task->getPrompt(),
+                $attachmentUrls,
+                $task->getTaskMode()
+            );
+            $taskId = $this->sendMessageToSandbox($session, $task->getId(), $chatMessage);
             // 初始化成功后，更新状态为 running
             $taskContext->getTask()->setTaskId($taskId);
             // 更新任务为执行状态
@@ -621,22 +634,10 @@ class TaskAppService extends AbstractAppService
         return $payload->getTaskId();
     }
 
-    private function sendMessageToSandbox(WebSocketSession $session, TaskContext $taskContext): string
+    private function sendMessageToSandbox(WebSocketSession $session, int $taskId,  array $chatMessage): string
     {
-        $dataIsolation = $taskContext->getDataIsolation();
-        $task = $taskContext->getTask();
-
-        $attachmentUrls = $this->getAttachmentUrls($task->getAttachments(), $dataIsolation->getCurrentOrganizationCode());
-        $chatMessage = $this->messageBuilder->buildChatMessage(
-            $dataIsolation->getCurrentUserId(),
-            $task->getId(),
-            $taskContext->getInstruction()->value,
-            $task->getPrompt(),
-            $attachmentUrls,
-            $task->getTaskMode()
-        );
         $session->send($chatMessage);
-        $this->logger->info(sprintf('[Send to Sandbox Chat Message] task_id: %s, data: %s', $task->getTaskId(), json_encode($chatMessage, JSON_UNESCAPED_UNICODE)));
+        $this->logger->info(sprintf('[Send to Sandbox Chat Message] task_id: %d, data: %s', $taskId,  json_encode($chatMessage, JSON_UNESCAPED_UNICODE)));
 
         // 等待响应
         $message = $session->receive(60);
@@ -645,8 +646,8 @@ class TaskAppService extends AbstractAppService
         }
 
         $this->logger->info(sprintf(
-            '[Receive from Sandbox Chat Message] task_id: %s, data: %s',
-            $task->getTaskId(),
+            '[Receive from Sandbox Chat Message] task_id: %d, data: %s',
+            $taskId,
             json_encode($message, JSON_UNESCAPED_UNICODE)
         ));
 

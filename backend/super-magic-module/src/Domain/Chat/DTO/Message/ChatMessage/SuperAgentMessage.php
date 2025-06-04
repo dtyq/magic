@@ -40,6 +40,8 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
 
     protected ?array $attachments = null;
 
+    protected ?string $remark = '';
+
     public function __construct(?array $messageStruct = null)
     {
         parent::__construct();
@@ -175,6 +177,17 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
         return $this;
     }
 
+    public function getRemark(): ?string
+    {
+        return $this->remark;
+    }
+
+    public function setRemark(?string $remark): self
+    {
+        $this->remark = $remark;
+        return $this;
+    }
+
     public function toArray(bool $filterNull = false): array
     {
         $data = array_merge(parent::toArray($filterNull), [
@@ -195,6 +208,7 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
             'role' => $this->role,
             'send_timestamp' => $this->sendTimestamp ?? time(),
             'attachments' => $this->attachments,
+            'remark' => $this->remark,
         ]);
 
         if ($filterNull) {

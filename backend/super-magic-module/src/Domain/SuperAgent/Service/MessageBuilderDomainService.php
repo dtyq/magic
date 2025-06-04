@@ -101,7 +101,7 @@ class MessageBuilderDomainService
         ];
     }
 
-    public function buildInterruptMessage(string $userId, int $taskId, string $taskMode = 'chat')
+    public function buildInterruptMessage(string $userId, int $taskId, string $taskMode = 'chat', string $remark = '')
     {
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
@@ -112,6 +112,7 @@ class MessageBuilderDomainService
             'prompt' => '',
             'attachments' => [],
             'task_mode' => $taskMode,
+            'remark' => $remark,
         ];
     }
 

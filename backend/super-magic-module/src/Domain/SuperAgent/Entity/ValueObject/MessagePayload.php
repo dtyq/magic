@@ -27,6 +27,7 @@ class MessagePayload
      * @param array $attachments 附件列表
      * @param null|array $projectArchive 项目归档数据
      * @param bool $showInUi 是否在UI中显示
+     * @param string $remark 备注
      */
     public function __construct(
         private string $messageId = '',
@@ -41,6 +42,7 @@ class MessagePayload
         private array $attachments = [],
         private ?array $projectArchive = null,
         private bool $showInUi = true,
+        private string $remark = '',
     ) {
     }
 
@@ -64,6 +66,7 @@ class MessagePayload
             $data['attachments'] ?? [],
             $data['project_archive'] ?? null,
             $data['show_in_ui'] ?? true,
+            $data['remark'] ?? '',
         );
     }
 
@@ -87,6 +90,7 @@ class MessagePayload
             'attachments' => $this->attachments,
             'project_archive' => $this->projectArchive,
             'show_in_ui' => $this->showInUi,
+            'remark' => $this->remark,
         ];
     }
 
@@ -152,6 +156,11 @@ class MessagePayload
     public function getShowInUi(): bool
     {
         return $this->showInUi;
+    }
+
+    public function getRemark(): string
+    {
+        return $this->remark;
     }
 
     // Withers for immutability
