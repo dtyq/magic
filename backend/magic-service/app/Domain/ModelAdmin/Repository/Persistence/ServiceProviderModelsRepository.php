@@ -527,28 +527,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * Remove immutable fields from entity array.
-     */
-    private function removeImmutableFields(array &$entityArray): void
-    {
-        unset($entityArray['id'], $entityArray['model_parent_id']);
-    }
-
-    /**
-     * Remove immutable fields for office model updates.
-     */
-    private function removeOfficeImmutableFields(array &$entityArray): void
-    {
-        unset(
-            $entityArray['id'],
-            $entityArray['organization_code'],
-            $entityArray['service_provider_config_id'],
-            $entityArray['status'],
-            $entityArray['model_parent_id'],
-        );
-    }
-
-    /**
      * 根据服务商配置IDs、modelId和激活状态查找对应的模型.
      * @param array $configIds 服务商配置ID数组
      * @param string $modelVersion 模型ID

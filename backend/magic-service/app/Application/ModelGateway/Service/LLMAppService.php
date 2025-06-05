@@ -1101,24 +1101,4 @@ class LLMAppService extends AbstractLLMAppService
     {
         return $b === 0 ? $a : $this->gcd($b, $a % $b);
     }
-
-    /**
-     * Generate conversation endpoint cache key (based on messages hash + model).
-     * Now reuses the optimized calculateMultipleMessagesHashes method.
-     *
-     * @param array $messages Messages array
-     * @param string $model Model name
-     * @return string Cache key
-     */
-    private function generateEndpointCacheKey(array $messages, string $model): string
-    {
-        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
-        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
-        $messagesHash = $hashes[0];
-
-        // Generate cache key using messages hash + model
-        $cacheKey = $messagesHash . ':' . $model;
-
-        return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
-    }
 }
