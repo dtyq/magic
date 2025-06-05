@@ -44,6 +44,13 @@ analyse-job:
         - "backend/magic-service/**/*"
   needs: ["build-job"]
   script:
+    # 检查 DOT_ENV 是否存在且为文件
+    - |
+      if [ ! -f "$DOT_ENV" ]; then
+        echo "错误: DOT_ENV 变量指向的文件不存在或不是文件: $DOT_ENV"
+        echo "请检查 GitLab CI/CD 变量配置"
+        exit 1
+      fi
     # 再运行它
     # 设置下容器名字防止多个实例一起跑，可以去掉--name那个参数来允许并行
     - |
@@ -66,6 +73,13 @@ cs-fix-job:
         - "backend/magic-service/**/*"
   needs: ["build-job"]
   script:
+    # 检查 DOT_ENV 是否存在且为文件
+    - |
+      if [ ! -f "$DOT_ENV" ]; then
+        echo "错误: DOT_ENV 变量指向的文件不存在或不是文件: $DOT_ENV"
+        echo "请检查 GitLab CI/CD 变量配置"
+        exit 1
+      fi
     # 再运行它
     # 设置下容器名字防止多个实例一起跑，可以去掉--name那个参数来允许并行
     - |
@@ -96,6 +110,13 @@ test-job:
     - docker rm -f magic-service-rabbitmq-$CI_COMMIT_SHA || true
     - docker rm -f magic-service-redis-$CI_COMMIT_SHA || true
   script:
+    # 检查 DOT_ENV 是否存在且为文件
+    - |
+      if [ ! -f "$DOT_ENV" ]; then
+        echo "错误: DOT_ENV 变量指向的文件不存在或不是文件: $DOT_ENV"
+        echo "请检查 GitLab CI/CD 变量配置"
+        exit 1
+      fi
     # 启动mysql容器 - 使用AWS ECR公共镜像
     - |
       docker run \
