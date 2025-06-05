@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.32",
+            "version": "0.0.33",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "5a337b688dd72c05136f4b73fbd12696908af1d2"
+                "reference": "75dc39e62b18ff18653244a8f0858298ef214cde"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=5a337b688dd72c05136f4b73fbd12696908af1d2",
-                "reference": "5a337b688dd72c05136f4b73fbd12696908af1d2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=75dc39e62b18ff18653244a8f0858298ef214cde",
+                "reference": "75dc39e62b18ff18653244a8f0858298ef214cde",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.32"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.33"
             },
-            "time": "2025-06-05T16:29:39+08:00"
+            "time": "2025-06-05T16:17:44+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2503,16 +2503,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.35",
+            "version": "v0.0.36",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "0bbe6efe0e982001d938b3c4720b92dbc0acd1df"
+                "reference": "68a331249ae1a637b437f996d87ef790bb1cf9b2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/0bbe6efe0e982001d938b3c4720b92dbc0acd1df",
-                "reference": "0bbe6efe0e982001d938b3c4720b92dbc0acd1df",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/68a331249ae1a637b437f996d87ef790bb1cf9b2",
+                "reference": "68a331249ae1a637b437f996d87ef790bb1cf9b2",
                 "shasum": ""
             },
             "require": {
@@ -2604,10 +2604,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.35",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.36",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-06-01T16:40:15+00:00"
+            "time": "2025-06-05T16:26:01+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
