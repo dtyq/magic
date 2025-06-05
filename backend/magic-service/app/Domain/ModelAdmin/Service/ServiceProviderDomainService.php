@@ -1561,6 +1561,7 @@ class ServiceProviderDomainService
             $updateConsumerModel->setIcon($serviceProviderModelsEntity->getIcon());
             $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
             $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
+            $updateConsumerModel->setModelId($serviceProviderModelsEntity->getModelId());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }

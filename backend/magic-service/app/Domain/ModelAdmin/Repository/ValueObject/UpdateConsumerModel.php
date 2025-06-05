@@ -19,6 +19,18 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleOrganizations;
 
+    protected string $modelId;
+
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(string $modelId): void
+    {
+        $this->modelId = $modelId;
+    }
+
     public function getName(): string
     {
         return $this->name;
