@@ -45,8 +45,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray = $this->prepareEntityForSave($serviceProviderModelsEntity, $isNew);
 
         if ($isNew) {
-            $snowId = IdGenerator::getSnowId();
-            $entityArray['model_parent_id'] = $snowId;
+            $entityArray['model_parent_id'] = 0;
             $this->serviceProviderModelsModel::query()->insert($entityArray);
             $serviceProviderModelsEntity->setId($entityArray['id']);
         } else {

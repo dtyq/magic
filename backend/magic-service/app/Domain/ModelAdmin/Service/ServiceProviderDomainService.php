@@ -161,8 +161,8 @@ class ServiceProviderDomainService
             if ($isOfficialProvider || ServiceProviderCategory::from($serviceProviderEntity->getCategory()) === ServiceProviderCategory::VLM) {
                 ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter);
             }
+            $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         }
-        $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         return $serviceProviderModelsEntity;
     }
 
@@ -894,10 +894,8 @@ class ServiceProviderDomainService
                 $models = $this->serviceProviderModelsRepository->getModelsByServiceProviderId((int) $serviceProviderConfigId);
                 $modelParentIds = array_column($models, 'model_parent_id');
                 $this->syncDeleteModelsToOtherServiceProvider($modelParentIds);
-            } else {
-                // 删除服务商下所有的模型
-                $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
             }
+            $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
         } catch (Exception $exception) {
             Db::rollBack();
             $this->logger->error('删除服务商失败: ' . $exception->getMessage());
