@@ -37,7 +37,6 @@ use Hyperf\Snowflake\Concern\Snowflake;
  */
 class ProviderModelModel extends AbstractModel
 {
-    use SoftDeletes;
     use Snowflake;
 
     protected ?string $table = 'service_provider_models';

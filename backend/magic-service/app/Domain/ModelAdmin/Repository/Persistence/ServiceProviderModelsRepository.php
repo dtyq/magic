@@ -50,6 +50,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             $this->serviceProviderModelsModel::query()->insert($entityArray);
             $serviceProviderModelsEntity->setId($entityArray['id']);
         } else {
+            $this->removeImmutableFields($entityArray);
             $this->serviceProviderModelsModel::query()->where('id', $serviceProviderModelsEntity->getId())->update($entityArray);
         }
 
@@ -63,6 +64,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     public function updateModelById(ServiceProviderModelsEntity $entity): void
     {
         $entityArray = $this->prepareEntityForSave($entity);
+        $this->removeImmutableFields($entityArray);
         $this->serviceProviderModelsModel::query()->where('id', $entity->getId())->update($entityArray);
 
         $this->handleModelsChangeAndDispatch([$entity->getId()]);
@@ -342,7 +344,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         if ($disabledBy !== null) {
             $data['disabled_by'] = $disabledBy->value;
         }
-
+        $this->removeImmutableFields($data);
         $this->serviceProviderModelsModel::query()
             ->where('model_version', $modelVersion)
             ->where('category', ServiceProviderCategory::VLM->value)
@@ -357,7 +359,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         if ($disabledBy !== null) {
             $data['disabled_by'] = $disabledBy->value;
         }
-
+        $this->removeImmutableFields($data);
         $this->serviceProviderModelsModel::query()
             ->where('model_version', $modelVersion)
             ->where('category', ServiceProviderCategory::VLM->value)
@@ -421,7 +423,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
 
     public function updateOfficeModel(int $id, array $entityArray): void
     {
-        unset($entityArray['id'], $entityArray['organization_code'], $entityArray['service_provider_config_id'], $entityArray['status']);
+        $this->removeOfficeImmutableFields($entityArray);
         $entityArray['config'] = Json::encode($entityArray['config'] ?: []);
         $entityArray['translate'] = Json::encode($entityArray['translate'] ?: []);
         $entityArray['visible_organizations'] = Json::encode($entityArray['visible_organizations'] ?: []);
@@ -433,6 +435,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray = $updateConsumerModel->toArray();
         $modelArray['translate'] = Json::encode($modelArray['translate'] ?: []);
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
+        $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
     }
@@ -453,7 +456,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         } else {
             $data['disabled_by'] = '';
         }
-
+        $this->removeImmutableFields($data);
         $this->serviceProviderModelsModel::query()
             ->where('model_parent_id', $modelId)
             ->update($data);
@@ -473,7 +476,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         if ($disabledBy !== null) {
             $data['disabled_by'] = $disabledBy->value;
         }
-
+        $this->removeImmutableFields($data);
         $this->serviceProviderModelsModel::query()
             ->where('model_parent_id', $modelId)
             ->where('id', '!=', $modelId) // 排除自身ID
@@ -529,6 +532,28 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $query = $this->serviceProviderModelsModel::query()->where('service_provider_config_id', $serviceProviderConfigId);
         $result = Db::select($query->toSql(), $query->getBindings());
         return ServiceProviderModelsEntityFactory::toEntities($result);
+    }
+
+    /**
+     * 移除不可变更字段.
+     */
+    private function removeImmutableFields(array &$entityArray): void
+    {
+        unset($entityArray['id'], $entityArray['model_parent_id']);
+    }
+
+    /**
+     * 移除官方模型的不可变更字段.
+     */
+    private function removeOfficeImmutableFields(array &$entityArray): void
+    {
+        unset(
+            $entityArray['id'],
+            $entityArray['organization_code'],
+            $entityArray['service_provider_config_id'],
+            $entityArray['status'],
+            $entityArray['model_parent_id'],
+        );
     }
 
     /**
