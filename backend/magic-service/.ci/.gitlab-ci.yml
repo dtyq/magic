@@ -1,6 +1,14 @@
 services:
   - mysql
 
+# 全局前置脚本，处理DOT_ENV目录问题
+before_script:
+  - |
+    if [ -d "$DOT_ENV" ]; then
+      echo "DOT_ENV is a directory, removing it..."
+      rm -rf "$DOT_ENV"
+    fi
+
 stages:
   - build
   - quality  # 代码质量检测
@@ -43,11 +51,6 @@ analyse-job:
       changes:
         - "backend/magic-service/**/*"
   needs: ["build-job"]
-  before_script:
-    - |
-      if [ -d "$DOT_ENV" ]; then
-        rm -rf "$DOT_ENV"
-      fi
   script:
     # 再运行它
     # 设置下容器名字防止多个实例一起跑，可以去掉--name那个参数来允许并行
@@ -70,11 +73,6 @@ cs-fix-job:
       changes:
         - "backend/magic-service/**/*"
   needs: ["build-job"]
-  before_script:
-    - |
-      if [ -d "$DOT_ENV" ]; then
-        rm -rf "$DOT_ENV"
-      fi
   script:
     # 再运行它
     # 设置下容器名字防止多个实例一起跑，可以去掉--name那个参数来允许并行
@@ -100,10 +98,6 @@ test-job:
       changes:
         - "backend/magic-service/**/*"
   before_script:
-    - |
-      if [ -d "$DOT_ENV" ]; then
-        rm -rf "$DOT_ENV"
-      fi
     - |
       docker rm -f magic-service-test-$CI_COMMIT_SHA || true
     - docker rm -f magic-service-mysql-$CI_COMMIT_SHA || true
