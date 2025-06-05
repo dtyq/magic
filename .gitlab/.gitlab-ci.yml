@@ -1,5 +1,13 @@
 # GitLab CI/CD 配置文件，用于从GitHub同步代码
 
+# 全局前置脚本，处理DOT_ENV目录问题
+before_script:
+  - |
+    if [ -d "$DOT_ENV" ]; then
+      echo "DOT_ENV is a directory, removing it..."
+      rm -rf "$DOT_ENV"
+    fi
+
 # 包含子项目的CI配置
 include:
   - local: 'backend/magic-service/.ci/.gitlab-ci.yml'
