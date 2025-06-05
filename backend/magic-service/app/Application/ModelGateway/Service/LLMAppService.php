@@ -255,18 +255,7 @@ class LLMAppService extends AbstractLLMAppService
             // Process results in order (removeCount 1, 2, 3)
             foreach ($cacheKeys as $index => $endpointCacheKey) {
                 $endpointId = $endpointIds[$index] ?? null;
-                $removeCount = $removeCountMapping[$endpointCacheKey];
                 $isContinuation = ! empty($endpointId);
-
-                $this->logger->info('endpointHighAvailability Conversation continuation check', [
-                    'endpoint_cache_key' => $endpointCacheKey,
-                    'endpoint_id' => $endpointId,
-                    'is_continuation' => $isContinuation,
-                    'messages_count' => count($messages),
-                    'messages_for_check_count' => count($messages) - $removeCount,
-                    'remove_count' => $removeCount,
-                ]);
-
                 // Return endpoint ID if this is a continuation
                 if ($isContinuation) {
                     return $endpointId;
@@ -514,12 +503,6 @@ class LLMAppService extends AbstractLLMAppService
             $model = $completionDTO->getModel();
             $cacheKey = $this->generateEndpointCacheKey($messages, $model);
             $redis->setex($cacheKey, self::CONVERSATION_ENDPOINT_TTL, $endpointId);
-
-            $this->logger->info('endpointHighAvailability Remembered conversation endpoint ID', [
-                'cache_key' => $cacheKey,
-                'endpoint_id' => $endpointId,
-                'model' => $model,
-            ]);
         } catch (Throwable $e) {
             $this->logger->warning('endpointHighAvailability Failed to remember endpoint ID', [
                 'endpoint_id' => $endpointId,
