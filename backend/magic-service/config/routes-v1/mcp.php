@@ -24,7 +24,7 @@ Router::addGroup('/api/v1/mcp', function () {
     });
 
     Router::addGroup('/sse', function () {
-        Router::post('/{code}', function () {
+        Router::addRoute(['POST', 'GET', 'DELETE'], '/{code}', function () {
             return di(HyperfMcpServer::class)->handler();
         });
     });
