@@ -19,14 +19,17 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Hyperf\Codec\Json;
+use Hyperf\Coroutine\Parallel;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Psr\Log\LoggerInterface;
@@ -419,6 +422,163 @@ class FileProcessAppService extends AbstractAppService
                 }
             }
         }
+    }
+
+    /**
+     * Batch save file content with concurrent processing.
+     *
+     * @param BatchSaveFileContentRequestDTO $requestDTO Batch request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Batch response data
+     */
+    #[RateLimit(create: 30, consume: 5, capacity: 20, waitTimeout: 5)]
+    public function batchSaveFileContent(BatchSaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        $files = $requestDTO->getFiles();
+        $stats = [
+            'total' => count($files),
+            'success' => 0,
+            'error' => 0,
+            'results' => [],
+            'errors' => [],
+        ];
+
+        $this->logger->info(sprintf(
+            'Starting concurrent batch file save operation - user: %s, organization: %s, file_count: %d',
+            $authorization->getId(),
+            $authorization->getOrganizationCode(),
+            $stats['total']
+        ));
+
+        // 记录去重信息
+        $deduplicatedCount = $requestDTO->getDeduplicatedCount();
+        if ($deduplicatedCount > 0) {
+            $this->logger->info(sprintf(
+                'File deduplication applied - original_count: %d, after_dedup: %d, deduplicated: %d',
+                $requestDTO->getOriginalCount(),
+                $stats['total'],
+                $deduplicatedCount
+            ));
+        }
+
+        // 根据配置和文件数量动态调整并发策略
+        $fileCount = count($files);
+        $enableConcurrency = BatchProcessConfig::shouldEnableConcurrency($fileCount);
+        $maxConcurrency = BatchProcessConfig::getMaxConcurrency($fileCount);
+        $startTime = microtime(true);
+
+        $this->logger->info(sprintf(
+            'Batch processing strategy - concurrent: %s, max_concurrency: %d, file_count: %d',
+            $enableConcurrency ? 'enabled' : 'disabled',
+            $maxConcurrency,
+            $fileCount
+        ));
+
+        // 创建并发任务
+        $tasks = [];
+        foreach ($files as $index => $fileDTO) {
+            $tasks[$index] = function () use ($fileDTO, $authorization, $index) {
+                // 记录任务开始时间
+                $taskStartTime = microtime(true);
+
+                try {
+                    // Use existing single file save logic
+                    $result = $this->saveFileContent($fileDTO, $authorization);
+
+                    $taskDuration = round((microtime(true) - $taskStartTime) * 1000, 2);
+
+                    $this->logger->debug(sprintf(
+                        'Concurrent save - file %d completed successfully, file_id: %d, duration: %sms',
+                        $index + 1,
+                        $fileDTO->getFileId(),
+                        $taskDuration
+                    ));
+
+                    return [
+                        'index' => $index,
+                        'file_id' => $fileDTO->getFileId(),
+                        'status' => 'success',
+                        'data' => $result,
+                        'duration_ms' => $taskDuration,
+                    ];
+                } catch (Throwable $e) {
+                    $taskDuration = round((microtime(true) - $taskStartTime) * 1000, 2);
+
+                    $this->logger->error(sprintf(
+                        'Concurrent save - file %d failed, file_id: %d, error: %s, duration: %sms',
+                        $index + 1,
+                        $fileDTO->getFileId(),
+                        $e->getMessage(),
+                        $taskDuration
+                    ));
+
+                    return [
+                        'index' => $index,
+                        'file_id' => $fileDTO->getFileId(),
+                        'status' => 'error',
+                        'error' => $e->getMessage(),
+                        'error_code' => method_exists($e, 'getCode') ? $e->getCode() : 0,
+                        'duration_ms' => $taskDuration,
+                    ];
+                }
+            };
+        }
+
+        // 根据策略执行任务
+        if ($enableConcurrency) {
+            // 并发执行任务
+            $parallel = new Parallel($maxConcurrency);
+            foreach ($tasks as $index => $task) {
+                $parallel->add($task, $index);
+            }
+            $results = $parallel->wait();
+        } else {
+            // 串行执行任务（适合少量文件）
+            $results = [];
+            foreach ($tasks as $index => $task) {
+                $results[$index] = $task();
+            }
+        }
+
+        // 处理结果
+        foreach ($results as $result) {
+            if ($result['status'] === 'success') {
+                $stats['results'][] = $result;
+                ++$stats['success'];
+            } else {
+                $stats['errors'][] = $result;
+                ++$stats['error'];
+            }
+        }
+
+        $totalDuration = round((microtime(true) - $startTime) * 1000, 2);
+
+        $this->logger->info(sprintf(
+            'Concurrent batch file save operation completed - user: %s, total: %d, success: %d, error: %d, total_duration: %sms, avg_duration: %sms',
+            $authorization->getId(),
+            $stats['total'],
+            $stats['success'],
+            $stats['error'],
+            $totalDuration,
+            $stats['total'] > 0 ? round($totalDuration / $stats['total'], 2) : 0
+        ));
+
+        return [
+            'batch_id' => IdGenerator::getUniqueId32(),
+            'total' => $stats['total'],
+            'success' => $stats['success'],
+            'error' => $stats['error'],
+            'success_files' => $stats['results'],
+            'error_files' => $stats['errors'],
+            'performance' => [
+                'total_duration_ms' => $totalDuration,
+                'avg_duration_ms' => $stats['total'] > 0 ? round($totalDuration / $stats['total'], 2) : 0,
+                'max_concurrency' => $maxConcurrency,
+                'concurrent_enabled' => $enableConcurrency,
+                'processing_strategy' => $enableConcurrency ? 'concurrent' : 'sequential',
+            ],
+            'completed_at' => date('Y-m-d H:i:s'),
+        ];
     }
 
     /**

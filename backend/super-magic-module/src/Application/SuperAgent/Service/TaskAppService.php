@@ -634,10 +634,10 @@ class TaskAppService extends AbstractAppService
         return $payload->getTaskId();
     }
 
-    private function sendMessageToSandbox(WebSocketSession $session, int $taskId,  array $chatMessage): string
+    private function sendMessageToSandbox(WebSocketSession $session, int $taskId, array $chatMessage): string
     {
         $session->send($chatMessage);
-        $this->logger->info(sprintf('[Send to Sandbox Chat Message] task_id: %d, data: %s', $taskId,  json_encode($chatMessage, JSON_UNESCAPED_UNICODE)));
+        $this->logger->info(sprintf('[Send to Sandbox Chat Message] task_id: %d, data: %s', $taskId, json_encode($chatMessage, JSON_UNESCAPED_UNICODE)));
 
         // 等待响应
         $message = $session->receive(60);
