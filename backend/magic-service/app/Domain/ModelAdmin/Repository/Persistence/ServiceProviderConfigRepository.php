@@ -72,24 +72,12 @@ class ServiceProviderConfigRepository extends AbstractModelRepository
             // 更新数据
             $this->configModel::query()
                 ->where('id', $serviceProviderConfigEntity->getId())
-                ->where('organization_code', $serviceProviderConfigEntity->getOrganizationCode())
-                ->forceIndex('id')
                 ->update([
-                    'config' => $this->encryptionConfig($serviceProviderConfigEntity->getConfig()?->toArray(), (string) $serviceProviderConfigEntity->getId()),
+                    'config' => $this->encryptionConfig($serviceProviderConfigEntity->getConfig() ? $serviceProviderConfigEntity->getConfig()->toArray() : [], (string) $serviceProviderConfigEntity->getId()),
                     'status' => $serviceProviderConfigEntity->getStatus(),
                     'alias' => $serviceProviderConfigEntity->getAlias(),
                     'translate' => Json::encode($serviceProviderConfigEntity->getTranslate() ?: []),
                 ]);
-
-            // 检查状态是否发生变化
-            if ($oldEntity->getStatus() !== $serviceProviderConfigEntity->getStatus()) {
-                // 获取该服务商下的所有模型
-                $providerModelsEntities = $this->getModelsByServiceProviderConfigIds([$serviceProviderConfigEntity->getId()]);
-                // 触发接入点状态改变事件
-                if (! empty($providerModelsEntities)) {
-                    $this->handleModelsChangeAndDispatch($providerModelsEntities);
-                }
-            }
         });
     }
 
@@ -186,16 +174,9 @@ class ServiceProviderConfigRepository extends AbstractModelRepository
             if (empty($configs)) {
                 return;
             }
-            // 获取所有关联的模型
-            $models = $this->getModelsByServiceProviderConfigIds($configs);
 
             // 删除服务商配置
             $this->configModel::query()->where('service_provider_id', $id)->delete();
-
-            // 触发模型删除事件
-            if (! empty($models)) {
-                $this->handleModelsChangeAndDispatch($models, true);
-            }
         });
     }
 

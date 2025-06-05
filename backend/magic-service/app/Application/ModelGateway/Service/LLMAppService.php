@@ -21,7 +21,10 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
+use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -52,12 +55,23 @@ use Hyperf\Odin\Tool\Definition\ToolDefinition;
 use Hyperf\Odin\Utils\MessageUtil;
 use Hyperf\Odin\Utils\ToolUtil;
 use InvalidArgumentException;
+use Hyperf\Redis\Redis;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
 
 class LLMAppService extends AbstractLLMAppService
 {
+    /**
+     * Conversation endpoint memory cache prefix.
+     */
+    private const string CONVERSATION_ENDPOINT_PREFIX = 'conversation_endpoint:';
+
+    /**
+     * Conversation endpoint memory cache expiration time (seconds).
+     */
+    private const int CONVERSATION_ENDPOINT_TTL = 3600; // 1 hour
+
     /**
      * @return array<ModelConfigEntity>
      */
@@ -79,9 +93,9 @@ class LLMAppService extends AbstractLLMAppService
             $model = $odinModel->getModel();
 
             $modelConfigEntity = new ModelConfigEntity();
-            // 服务商的接入点
+            // Service provider endpoint
             $modelConfigEntity->setModel($model->getModelName());
-            // 模型类型
+            // Model type
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());
@@ -100,7 +114,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 聊天补全.
+     * Chat completion.
      */
     public function chatCompletion(CompletionDTO $sendMsgDTO): ResponseInterface
     {
@@ -110,7 +124,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 处理嵌入请求.
+     * Process embedding requests.
      */
     public function embeddings(EmbeddingsDTO $proxyModelRequest): ResponseInterface
     {
@@ -146,7 +160,7 @@ class LLMAppService extends AbstractLLMAppService
         }
         $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
 
-        // 收集配置信息并处理敏感数据
+        // Collect configuration information and handle sensitive data
         $configInfo = [
             'model' => $data['model'] ?? '',
             'apiKey' => $this->serviceProviderDomainService->maskString($serviceProviderConfig->getApiKey()),
@@ -154,7 +168,7 @@ class LLMAppService extends AbstractLLMAppService
             'sk' => $this->serviceProviderDomainService->maskString($serviceProviderConfig->getSk()),
         ];
 
-        $this->logger->info('图像生成服务配置信息', $configInfo);
+        $this->logger->info('Image generation service configuration', $configInfo);
 
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
         $images = $imageGenerateResponse->getData();
@@ -192,27 +206,96 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 通用请求处理流程.
+     * Get remembered endpoint ID for conversation.
+     * Returns historical endpoint ID if conversation continuation detected, otherwise null.
+     * Uses messages array minus the last message to generate cache key.
      *
-     * @param ProxyModelRequestInterface $proxyModelRequest 请求对象
-     * @param callable $modelCallFunction 模型调用函数，接收模型配置和请求对象，返回响应
+     * @param CompletionDTO $completionDTO Chat completion request DTO
+     * @return null|string Returns endpoint ID if continuation detected, otherwise null
+     */
+    public function getRememberedEndpointId(CompletionDTO $completionDTO): ?string
+    {
+        $messages = $completionDTO->getMessages();
+
+        // Must have at least 2 messages to be a continuation
+        if (count($messages) < 2) {
+            return null;
+        }
+
+        $model = $completionDTO->getModel();
+
+        try {
+            $redis = $this->getRedisInstance();
+            if (! $redis) {
+                return null;
+            }
+
+            // Calculate multiple hashes at once to optimize performance
+            $hashes = $this->calculateMultipleMessagesHashes($messages, 3);
+
+            // Prepare cache keys for batch query (skip removeCount=0)
+            $cacheKeys = [];
+            $removeCountMapping = [];
+            foreach ($hashes as $removeCount => $messagesHash) {
+                // Skip removeCount=0 (full array) since we only check conversation continuation
+                if ($removeCount === 0) {
+                    continue;
+                }
+
+                // Generate cache key using the pre-calculated hash
+                $cacheKey = $messagesHash . ':' . $model;
+                $endpointCacheKey = self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
+
+                $cacheKeys[] = $endpointCacheKey;
+                $removeCountMapping[$endpointCacheKey] = $removeCount;
+            }
+
+            // Batch query Redis for all cache keys at once
+            $endpointIds = $redis->mget($cacheKeys);
+
+            // Process results in order (removeCount 1, 2, 3)
+            foreach ($cacheKeys as $index => $endpointCacheKey) {
+                $endpointId = $endpointIds[$index] ?? null;
+                $isContinuation = ! empty($endpointId);
+                // Return endpoint ID if this is a continuation
+                if ($isContinuation) {
+                    return $endpointId;
+                }
+            }
+
+            // No match found after trying all available hashes
+            return null;
+        } catch (Throwable $e) {
+            $this->logger->warning('endpointHighAvailability failed to check conversation continuation', [
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * General request processing workflow.
+     *
+     * @param ProxyModelRequestInterface $proxyModelRequest Request object
+     * @param callable $modelCallFunction Model calling function that receives model configuration and request object, returns response
      */
     protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction): ResponseInterface
     {
-        $endpointResponseDTO = null;
+        /** @var null|EndpointDTO $endpointDTO */
+        $endpointDTO = null;
         try {
-            // 验证访问令牌与模型权限
+            // Validate access token and model permissions
             $accessToken = $this->validateAccessToken($proxyModelRequest);
 
-            // 数据隔离处理
+            // Data isolation handling
             $dataIsolation = LLMDataIsolation::create()->disabled();
 
-            // 解析业务参数
+            // Parse business parameters
             $contextData = $this->parseBusinessContext($dataIsolation, $accessToken, $proxyModelRequest);
 
-            // 尝试获取高可用模型配置
+            // Try to get high availability model configuration
             $orgCode = $contextData['organization_code'] ?? null;
-            $modeId = $this->getHighAvailableModelId($proxyModelRequest->getModel(), $endpointResponseDTO, $orgCode);
+            $modeId = $this->getHighAvailableModelId($proxyModelRequest, $endpointDTO, $orgCode);
             if (empty($modeId)) {
                 $modeId = $proxyModelRequest->getModel();
             }
@@ -232,7 +315,7 @@ class LLMAppService extends AbstractLLMAppService
                 $model = $model->getModel();
             }
 
-            // 尝试使用 model_name 再次获取真实数据
+            // Try to use model_name to get real data again
             if ($model instanceof MagicAILocalModel) {
                 $modelId = $model->getModelName();
                 $model = match ($proxyModelRequest->getType()) {
@@ -246,7 +329,7 @@ class LLMAppService extends AbstractLLMAppService
                 }
             }
 
-            // 防止死循环
+            // Prevent infinite loop
             if (! $model || $model instanceof MagicAILocalModel) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
             }
@@ -255,22 +338,22 @@ class LLMAppService extends AbstractLLMAppService
                 $model->setConfig(array_merge($model->getConfig(), $this->createAwsAutoCacheConfig($proxyModelRequest)));
             }
 
-            // 记录开始时间
+            // Record start time
             $startTime = microtime(true);
 
             $proxyModelRequest->addBusinessParam('app_id', $contextData['app_code'] ?? '');
             $proxyModelRequest->addBusinessParam('service_provider_model_id', $modelAttributes?->getProviderModelId() ?? '');
 
-            // 调用 LLM 模型获取响应
+            // Call LLM model to get response
             /** @var ResponseInterface $response */
             $response = $modelCallFunction($model, $proxyModelRequest);
 
-            // 计算响应耗时（毫秒）
+            // Calculate response time (milliseconds)
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
             $usageData = [
                 'tokens' => $response->getUsage()?->getTotalTokens() ?? 0,
-                'amount' => 0, // todo 计费系统
+                'amount' => 0, // todo billing system
             ];
 
             $this->logger->info('ModelCallSuccess', [
@@ -281,62 +364,38 @@ class LLMAppService extends AbstractLLMAppService
                 'response_time' => $responseTime,
             ]);
 
-            // 如果拿到了接入点，那么进行正常情况的高可用数据上报
+            // If endpoint is obtained, report high availability data in normal cases
             $this->reportHighAvailabilityResponse(
-                $endpointResponseDTO,
+                $endpointDTO,
                 $responseTime,
-                200, // 正常情况使用 200 状态码
-                0,   // 业务状态码标记为成功
+                200, // Use 200 status code in normal cases
+                0,   // Business status code marked as success
                 1
             );
 
-            // 异步处理使用记录和计费
+            // Asynchronous processing of usage records and billing
             $this->scheduleUsageRecording($dataIsolation, $proxyModelRequest, $contextData, $usageData);
 
             return $response;
         } catch (BusinessException $exception) {
-            $startTime = $startTime ?? microtime(true);
-            // 业务异常直接抛出，避免异常码转换
-            // 计算响应耗时
-            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
-
-            // 如果拿到了接入点，那么进行异常情况的高可用数据上报
-            $this->reportHighAvailabilityResponse(
-                $endpointResponseDTO,
-                $responseTime,
-                400, // 业务异常使用 400 状态码
-                $exception->getCode(), // 业务状态码
-                0,
-                $exception
-            );
-
-            $this->logModelCallFailure($proxyModelRequest->getModel(), $exception);
+            // Business exceptions should be distinguished from endpoint exceptions for high availability
+            // This helps the HA system differentiate between client-side errors (400) and server-side errors (500)
+            // which improves the effectiveness of endpoint health monitoring and failover decisions
+            $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $exception, 400);
             throw $exception;
         } catch (Throwable $throwable) {
-            $startTime = $startTime ?? microtime(true);
-            // 计算响应耗时
-            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
-            // 如果拿到了接入点，那么进行异常情况的高可用数据上报
-            $this->reportHighAvailabilityResponse(
-                $endpointResponseDTO,
-                $responseTime,
-                500, // 异常情况默认使用 500 状态码
-                $throwable->getCode(), // 业务状态码标记为失败
-                0,
-                $throwable
-            );
+            $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
             if ($throwable instanceof LLMException || $throwable instanceof InvalidArgumentException) {
                 $message = $throwable->getMessage();
             }
-            $this->logModelCallFailure($proxyModelRequest->getModel(), $throwable);
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, $message, throwable: $throwable);
         }
     }
 
     /**
-     * 调用 LLM 模型获取响应.
+     * Call LLM model to get response.
      */
     protected function callChatModel(ModelInterface $model, CompletionDTO $proxyModelRequest): ResponseInterface
     {
@@ -344,7 +403,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 调用嵌入模型.
+     * Call embedding model.
      */
     protected function callEmbeddingsModel(EmbeddingInterface $embedding, EmbeddingsDTO $proxyModelRequest): EmbeddingResponse
     {
@@ -352,33 +411,196 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 获取高可用模型配置
-     * 尝试从HighAvailabilityInterface获取可用的模型接入点.
+     * Get high availability model configuration.
+     * Try to get available model endpoints from HighAvailabilityInterface.
+     * For conversation continuation, prioritize using remembered endpoint ID.
      */
-    protected function getHighAvailableModelId(string $modelType, ?EndpointResponseDTO &$endpointResponseDTO, ?string $orgCode = null): ?string
+    protected function getHighAvailableModelId(ProxyModelRequestInterface $proxyModelRequest, ?EndpointDTO &$endpointDTO, ?string $orgCode = null): ?string
     {
         $highAvailable = $this->getHighAvailabilityService();
         if ($highAvailable === null) {
             return null;
         }
-        // 获取可用的接入点
-        $highAvailableEndpoint = $highAvailable->getAvailableEndpoint(EndpointAssembler::getEndpointTypeByModelIdAndOrgCode($modelType, $orgCode));
-        if (! $highAvailableEndpoint || ! $highAvailableEndpoint->getName()) {
-            return null;
-        }
-        $endpointResponseDTO = new EndpointResponseDTO();
-        // 后续高可用的数据统计分析，需要传入高可用表自己的 id
-        $endpointResponseDTO->setEndpointId($highAvailableEndpoint->getId());
-        // 模型的配置 id
-        $modelEndpointId = $highAvailableEndpoint->getName();
-        $serviceProviderModel = $this->serviceProviderDomainService->getModelById($modelEndpointId);
 
-        return (string) $serviceProviderModel->getId();
+        // If it's a chat request, try to get remembered endpoint ID (conversation continuation already checked internally)
+        $rememberedEndpointId = null;
+        if ($proxyModelRequest instanceof CompletionDTO) {
+            $rememberedEndpointId = $this->getRememberedEndpointId($proxyModelRequest);
+        }
+
+        // Use EndpointAssembler to generate standardized endpoint type identifier
+        $modelType = $proxyModelRequest->getModel();
+        $formattedModelType = EndpointAssembler::generateEndpointType(
+            HighAvailabilityAppType::MODEL_GATEWAY,
+            $modelType
+        );
+
+        // Create endpoint request DTO
+        $endpointRequest = EndpointRequestDTO::create(
+            endpointType: $formattedModelType,
+            orgCode: $orgCode ?? '',
+            lastSelectedEndpointId: $rememberedEndpointId
+        );
+
+        // Get available endpoints
+        $endpointDTO = $highAvailable->getAvailableEndpoint($endpointRequest);
+
+        // Log only when remembered endpoint ID matches the current endpoint ID
+        if ($rememberedEndpointId && $endpointDTO && $rememberedEndpointId === $endpointDTO->getEndpointId()) {
+            $this->logger->info('endpointHighAvailability sameConversationEndpoint', [
+                'remembered_endpoint_id' => $rememberedEndpointId,
+                'current_endpoint_id' => $endpointDTO->getEndpointId(),
+                'model' => $modelType,
+                'is_same_endpoint' => true,
+            ]);
+        }
+
+        // If it's a chat request and got a new endpoint, remember this endpoint ID
+        if ($proxyModelRequest instanceof CompletionDTO && $endpointDTO && $endpointDTO->getEndpointId()) {
+            $this->rememberEndpointId($proxyModelRequest, $endpointDTO->getEndpointId());
+        }
+
+        // Model configuration id
+        return $endpointDTO?->getBusinessId() ?: null;
     }
 
     /**
-     * 获取高可用服务实例
-     * 如果高可用服务不存在或无法获取，则返回null.
+     * Get Redis instance.
+     *
+     * @return null|Redis Redis instance
+     */
+    protected function getRedisInstance(): ?Redis
+    {
+        try {
+            $container = ApplicationContext::getContainer();
+            if (! $container->has(Redis::class)) {
+                return null;
+            }
+
+            $redis = $container->get(Redis::class);
+            return $redis instanceof Redis ? $redis : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Remember the endpoint ID used for conversation.
+     * Uses complete messages array to generate cache key.
+     *
+     * @param CompletionDTO $completionDTO Chat completion request DTO
+     * @param string $endpointId Endpoint ID
+     */
+    protected function rememberEndpointId(CompletionDTO $completionDTO, string $endpointId): void
+    {
+        try {
+            $redis = $this->getRedisInstance();
+            if (! $redis) {
+                return;
+            }
+
+            // Use complete messages array
+            $messages = $completionDTO->getMessages();
+            $model = $completionDTO->getModel();
+            $cacheKey = $this->generateEndpointCacheKey($messages, $model);
+            $redis->setex($cacheKey, self::CONVERSATION_ENDPOINT_TTL, $endpointId);
+        } catch (Throwable $e) {
+            $this->logger->warning('endpointHighAvailability Failed to remember endpoint ID', [
+                'endpoint_id' => $endpointId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Calculate multiple hash values by removing 0 to N messages from the end.
+     * Optimized to use string concatenation instead of array operations for better performance.
+     *
+     * @param array $messages Complete messages array
+     * @param int $maxRemoveCount Maximum number of messages to remove (0 means include full array)
+     * @return array Array of hash values indexed by remove count (0, 1, 2, ...)
+     */
+    private function calculateMultipleMessagesHashes(array $messages, int $maxRemoveCount): array
+    {
+        $messageCount = count($messages);
+        $hashes = [];
+        $cumulativeHashString = '';
+
+        // Handle empty array case for removeCount=0
+        if ($messageCount === 0 && $maxRemoveCount >= 0) {
+            $hashes[0] = hash('sha256', '');
+        }
+
+        // Single loop: build cumulative hash string and calculate hashes as we go
+        foreach ($messages as $index => $message) {
+            // Extract and concatenate parts for current message directly to string
+            $cumulativeHashString .= $message['role'] ?? '';
+            $cumulativeHashString .= $message['content'] ?? '';
+            $cumulativeHashString .= $message['name'] ?? '';
+            $cumulativeHashString .= $message['tool_call_id'] ?? '';
+
+            // Handle tool_calls
+            if (isset($message['tool_calls']) && is_array($message['tool_calls'])) {
+                foreach ($message['tool_calls'] as $toolCall) {
+                    $cumulativeHashString .= $toolCall['id'] ?? '';
+                    $cumulativeHashString .= $toolCall['type'] ?? '';
+                    if (isset($toolCall['function'])) {
+                        $cumulativeHashString .= $toolCall['function']['name'] ?? '';
+                        $cumulativeHashString .= $toolCall['function']['arguments'] ?? '';
+                    }
+                }
+            }
+
+            // Check if current position matches any target length for removeCount calculation
+            $currentMessageCount = $index + 1; // Messages processed so far
+
+            // Handle removeCount = 0 (full array) - calculate when we reach the end
+            if ($maxRemoveCount >= 0 && $currentMessageCount === $messageCount) {
+                $hashes[0] = hash('sha256', $cumulativeHashString);
+            }
+
+            // Handle removeCount > 0 (removing messages from the end)
+            for ($removeCount = 1; $removeCount <= $maxRemoveCount; ++$removeCount) {
+                $targetMessageCount = $messageCount - $removeCount;
+                if ($currentMessageCount === $targetMessageCount) {
+                    // We've reached the target number of messages for this removeCount
+                    $hashes[$removeCount] = hash('sha256', $cumulativeHashString);
+                }
+            }
+        }
+
+        return $hashes;
+    }
+
+    /**
+     * Handle common exception logic for requests.
+     */
+    private function handleRequestException(
+        ?EndpointDTO $endpointDTO,
+        float $startTime,
+        ProxyModelRequestInterface $proxyModelRequest,
+        Throwable $throwable,
+        int $httpStatusCode
+    ): void {
+        // Calculate response time
+        $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+        // Report to high availability service if endpoint is available
+        $this->reportHighAvailabilityResponse(
+            $endpointDTO,
+            $responseTime,
+            $httpStatusCode,
+            $throwable->getCode(),
+            0,
+            $throwable
+        );
+
+        $this->logModelCallFailure($proxyModelRequest->getModel(), $throwable);
+    }
+
+    /**
+     * Get high availability service instance.
+     * Returns null if the high availability service does not exist or cannot be obtained.
      */
     private function getHighAvailabilityService(): ?HighAvailabilityInterface
     {
@@ -402,17 +624,16 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 向高可用服务上报响应数据.
+     * Report response data to high availability service.
      *
-     * @param ?EndpointResponseDTO $endpointResponseDTO 接入点响应DTO
-     * @param int $responseTime 响应时间（毫秒）
-     * @param int $httpStatusCode HTTP状态码
-     * @param int $businessStatusCode 业务状态码
-     * @param int $isSuccess 是否成功
-     * @param ?Throwable $throwable 异常信息（如果有）
+     * @param int $responseTime Response time (milliseconds)
+     * @param int $httpStatusCode HTTP status code
+     * @param int $businessStatusCode Business status code
+     * @param int $isSuccess Whether successful
+     * @param ?Throwable $throwable Exception information (if any)
      */
     private function reportHighAvailabilityResponse(
-        ?EndpointResponseDTO $endpointResponseDTO,
+        ?EndpointDTO $endpointDTO,
         int $responseTime,
         int $httpStatusCode,
         int $businessStatusCode,
@@ -420,30 +641,32 @@ class LLMAppService extends AbstractLLMAppService
         ?Throwable $throwable = null
     ): void {
         $highAvailable = $this->getHighAvailabilityService();
-        if ($highAvailable === null || $endpointResponseDTO === null) {
+        if ($highAvailable === null || $endpointDTO === null || ! $endpointDTO->getEndpointId()) {
             return;
         }
-        // 构建接入点响应DTO
+        $endpointResponseDTO = new EndpointResponseDTO();
+        // Build endpoint response DTO
         $endpointResponseDTO
+            ->setEndpointId($endpointDTO->getEndpointId())
             ->setRequestId((string) CoContext::getOrSetRequestId())
             ->setResponseTime($responseTime)
             ->setHttpStatusCode($httpStatusCode)
             ->setBusinessStatusCode($businessStatusCode)
             ->setIsSuccess($isSuccess);
 
-        // 如果有异常信息，添加异常相关数据
+        // Add exception related data if there is exception information
         if ($throwable !== null) {
             $endpointResponseDTO
                 ->setExceptionType(get_class($throwable))
                 ->setExceptionMessage($throwable->getMessage());
         }
 
-        // 记录高可用响应
+        // Record high availability response
         $highAvailable->recordResponse($endpointResponseDTO);
     }
 
     /**
-     * 验证访问令牌.
+     * Validate access token.
      */
     private function validateAccessToken(ProxyModelRequestInterface $proxyModelRequest): AccessTokenEntity
     {
@@ -460,7 +683,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 解析业务上下文数据.
+     * Parse business context data.
      */
     private function parseBusinessContext(
         LLMDataIsolation $dataIsolation,
@@ -484,11 +707,11 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($accessToken->getType()->isUser()) {
             $context['user_id'] = $accessToken->getRelationId();
-            // 个人用户也有创建 token时候所在的组织。
+            // Personal users also have the organization they were in when creating the token
             $context['organization_code'] = $accessToken->getOrganizationCode();
         }
 
-        // 组织级别的 token
+        // Organization level token
         if ($accessToken->getType()->isOrganization()) {
             $context['organization_code'] = $accessToken->getRelationId();
         }
@@ -508,7 +731,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 处理应用级别的上下文数据.
+     * Handle application-level context data.
      */
     private function handleApplicationContext(
         LLMDataIsolation $dataIsolation,
@@ -516,7 +739,7 @@ class LLMAppService extends AbstractLLMAppService
         ProxyModelRequestInterface $proxyModelRequest,
         array &$context
     ): void {
-        // 组织 ID、用户 ID 必填
+        // Organization ID and user ID are required
         $organizationId = $proxyModelRequest->getBusinessParam('organization_id', true);
         $context['user_id'] = $proxyModelRequest->getBusinessParam('user_id', true);
         $context['business_id'] = $proxyModelRequest->getBusinessParam('business_id') ?? '';
@@ -534,7 +757,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 使用 Odin 调用模型.
+     * Call model using Odin.
      */
     private function callWithOdinChat(ModelInterface $odinModel, CompletionDTO $sendMsgDTO): ChatCompletionResponse|ChatCompletionStreamResponse|TextCompletionResponse
     {
@@ -594,22 +817,22 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 安排使用记录和计费.
+     * Schedule usage recording and billing.
      */
     private function scheduleUsageRecording(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
     {
-        // 记录日志
+        // Record logs
         defer(function () use ($dataIsolation, $proxyModelRequest, $contextData, $usageData) {
             try {
                 $this->recordMessageLog($dataIsolation, $proxyModelRequest, $contextData, $usageData);
 
-                // 处理计费
+                // Process billing
                 if ($usageData['amount'] > 0) {
                     $this->processUsageBilling($dataIsolation, $proxyModelRequest, $contextData, $usageData);
                 }
             } catch (Throwable $e) {
-                // 记录使用记录失败不应该影响用户请求响应
-                $this->logger->error('处理使用记录失败', [
+                // Usage record failure should not affect user request response
+                $this->logger->error('Failed to process usage records', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
@@ -618,7 +841,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 记录消息日志.
+     * Record message log.
      */
     private function recordMessageLog(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
     {
@@ -637,7 +860,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 处理使用计费.
+     * Process usage billing.
      */
     private function processUsageBilling(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
     {
@@ -651,18 +874,18 @@ class LLMAppService extends AbstractLLMAppService
         $amount = (float) $usageData['amount'];
 
         Db::transaction(function () use ($dataIsolation, $modelConfig, $contextData, $accessToken, $amount) {
-            // 模型额度追加
+            // Add model quota
             $this->modelConfigDomainService->incrementUseAmount($dataIsolation, $modelConfig, $amount);
 
-            // AccessToken 的额度
+            // AccessToken quota
             $this->accessTokenDomainService->incrementUseAmount($dataIsolation, $accessToken, $amount);
 
-            // 个人额度
+            // Personal quota
             if ($contextData['user_config']) {
                 $this->userConfigDomainService->incrementUseAmount($dataIsolation, $contextData['user_config'], $amount);
             }
 
-            // 应用版 组织的额度
+            // Organization quota for application version
             if ($contextData['organization_config'] && $accessToken?->getType()->isApplication()) {
                 $this->organizationConfigDomainService->incrementUseAmount($dataIsolation, $contextData['organization_config'], $amount);
             }
@@ -670,7 +893,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 记录模型调用失败日志.
+     * Log model call failure.
      */
     private function logModelCallFailure(string $model, Throwable $throwable): void
     {
@@ -684,11 +907,11 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 记录文生图日志.
+     * Record text-to-image generation log.
      */
     private function recordImageGenerateMessageLog(string $modelVersion, string $userId, string $organizationCode): void
     {
-        // 记录日志
+        // Record logs
         defer(function () use ($modelVersion, $userId, $organizationCode) {
             $LLMDataIsolation = LLMDataIsolation::create($userId, $organizationCode);
 
@@ -728,13 +951,33 @@ class LLMAppService extends AbstractLLMAppService
         return [
             'auto_cache' => $autoCache,
             'auto_cache_config' => [
-                // 最大缓存点数量
+                // Maximum number of cache points
                 'max_cache_points' => $maxCachePoints,
-                // 缓存点最小生效 tokens 阈值。tools+system 的最小缓存 tokens
+                // Minimum effective tokens threshold for cache points. Minimum cache tokens for tools+system
                 'min_cache_tokens' => $minCacheTokens,
-                // 刷新缓存点的最小 tokens 阈值。messages 的最小缓存 tokens
+                // Minimum tokens threshold for refreshing cache points. Minimum cache tokens for messages
                 'refresh_point_min_tokens' => $refreshPointMinTokens,
             ],
         ];
+    }
+
+    /**
+     * Generate conversation endpoint cache key (based on messages hash + model).
+     * Now reuses the optimized calculateMultipleMessagesHashes method.
+     *
+     * @param array $messages Messages array
+     * @param string $model Model name
+     * @return string Cache key
+     */
+    private function generateEndpointCacheKey(array $messages, string $model): string
+    {
+        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
+        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
+        $messagesHash = $hashes[0];
+
+        // Generate cache key using messages hash + model
+        $cacheKey = $messagesHash . ':' . $model;
+
+        return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
     }
 }

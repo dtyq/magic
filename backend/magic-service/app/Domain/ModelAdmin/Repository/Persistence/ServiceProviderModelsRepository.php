@@ -54,8 +54,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             $this->serviceProviderModelsModel::query()->where('id', $serviceProviderModelsEntity->getId())->update($entityArray);
         }
 
-        $this->handleModelsChangeAndDispatch([$serviceProviderModelsEntity]);
-
         return $serviceProviderModelsEntity;
     }
 
@@ -66,8 +64,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray = $this->prepareEntityForSave($entity);
         $this->removeImmutableFields($entityArray);
         $this->serviceProviderModelsModel::query()->where('id', $entity->getId())->update($entityArray);
-
-        $this->handleModelsChangeAndDispatch([$entity->getId()]);
     }
 
     // 删除模型
@@ -89,8 +85,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->where('id', $modelId)
             ->where('service_provider_config_id', $serviceProviderId)
             ->update(['status' => $status]);
-
-        $this->handleModelsChangeAndDispatch([$modelId]);
     }
 
     public function deleteByModelIdAndOrganizationCode(string $modelId, string $organizationCode): void
@@ -121,7 +115,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->where('id', $id)
             ->where('organization_code', $organizationCode)
             ->update(['status' => $status->value]);
-        $this->handleModelsChangeAndDispatch([$id]);
     }
 
     /**
@@ -158,18 +151,21 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     public function getOrganizationActiveModelsByIdOrType(string $key, ?string $orgCode = null): array
     {
         # 提升索引命中，先根据id查询，再根据model_id查询
-        // 第一次查询：根据id查询
-        $idQuery = $this->serviceProviderModelsModel::query()
-            ->where('id', $key)
-            ->where('status', Status::ACTIVE->value);
+        $resultById = [];
+        if (is_numeric($key)) {
+            // 第一次查询：根据id查询
+            $idQuery = $this->serviceProviderModelsModel::query()
+                ->where('id', $key)
+                ->where('status', Status::ACTIVE->value);
 
-        if ($orgCode) {
-            $idQuery->where('organization_code', $orgCode);
+            if ($orgCode) {
+                $idQuery->where('organization_code', $orgCode);
+            }
+
+            $resultById = Db::select($idQuery->toSql(), $idQuery->getBindings());
         }
 
-        $resultById = Db::select($idQuery->toSql(), $idQuery->getBindings());
-
-        // 第二次查询：根据model_id查询
+        // 第二次查询：根据 model_id 查询
         $modelIdQuery = $this->serviceProviderModelsModel::query()
             ->where('model_id', $key)
             ->where('status', Status::ACTIVE->value);
@@ -241,8 +237,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         }
 
         $this->serviceProviderModelsModel::query()->insert($data);
-
-        $this->handleModelsChangeAndDispatch($serviceProviderModelsEntities);
     }
 
     /**
@@ -272,8 +266,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         }
 
         $this->serviceProviderModelsModel::query()->insert($dataToInsert);
-
-        $this->handleModelsChangeAndDispatch($modelEntities);
     }
 
     /**
@@ -601,7 +593,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 先查询再删除并触发事件的通用模式.
+     * 先查询再删除的通用模式.
      */
     #[Transactional]
     private function queryThenDeleteAndDispatch(ModelBuilder|QueryBuilder $query): void
@@ -610,8 +602,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
 
         if (! empty($models)) {
             $query->delete();
-
-            $this->handleModelsChangeAndDispatch($models, true);
         }
     }
 }

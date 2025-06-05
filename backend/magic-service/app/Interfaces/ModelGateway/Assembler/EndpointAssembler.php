@@ -7,89 +7,92 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Assembler;
 
-use App\Domain\ModelAdmin\Entity\ServiceProviderConfigEntity;
 use App\Domain\ModelAdmin\Entity\ServiceProviderModelsEntity;
-use App\Infrastructure\Core\HighAvailability\Entity\EndpointEntity;
+use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\CircuitBreakerStatus;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\DelimiterType;
+use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 
 class EndpointAssembler
 {
     /**
-     * 将单个ServiceProviderModelsEntity转换为EndpointEntity.
+     * 生成标准化的端点类型标识.
+     *
+     * @param HighAvailabilityAppType $appType 高可用应用类型
+     * @param string $modelId 模型ID
+     * @return string 标准化的端点类型标识
      */
-    public static function toEndpointEntity(
-        ServiceProviderModelsEntity $entity,
-        ?ServiceProviderConfigEntity $serviceProviderConfigEntity
-    ): ?EndpointEntity {
-        if (empty($serviceProviderConfigEntity)) {
-            return null;
-        }
-
-        $endpoint = new EndpointEntity();
-        $endpoint->setType($entity->getModelId());
-        $endpoint->setName((string) $entity->getId());
-        $endpoint->setProvider((string) $serviceProviderConfigEntity->getServiceProviderId());
-        $endpoint->setEnabled($entity->getStatus() === 1);
-        $endpoint->setCircuitBreakerStatus(CircuitBreakerStatus::CLOSED);
-        $endpoint->setConfig('');
-
-        return $endpoint;
+    public static function generateEndpointType(HighAvailabilityAppType $appType, string $modelId): string
+    {
+        return $appType->value . DelimiterType::HIGH_AVAILABILITY->value . $modelId;
     }
 
     /**
-     * 将多个ServiceProviderModelsEntity转换为EndpointEntity数组.
+     * 从格式化的端点类型标识中还原原始的模型ID.
      *
-     * @param ServiceProviderModelsEntity[] $providerModelsEntities 服务商模型实体数组
-     * @param array<int,ServiceProviderConfigEntity> $configMap 服务商配置ID到配置实体的映射数组
-     * @param bool $isDelete 是否为删除操作
-     * @return EndpointEntity[]
+     * @param string $formattedModelId 可能包含格式化前缀的模型ID
+     * @return string 原始的模型ID
      */
-    public static function toEndpointEntities(
-        array $providerModelsEntities,
-        array $configMap,
-        bool $isDelete = false
-    ): array {
-        if (empty($providerModelsEntities) || empty($configMap)) {
+    public static function extractOriginalModelId(string $formattedModelId): string
+    {
+        // 遍历所有的 HighAvailabilityAppType 枚举值
+        foreach (HighAvailabilityAppType::cases() as $appType) {
+            $prefix = $appType->value . DelimiterType::HIGH_AVAILABILITY->value;
+
+            // 如果匹配到前缀，则移除前缀返回原始 modelId
+            if (str_starts_with($formattedModelId, $prefix)) {
+                return substr($formattedModelId, strlen($prefix));
+            }
+        }
+
+        // 如果没有匹配到任何前缀，则直接返回原始值
+        return $formattedModelId;
+    }
+
+    /**
+     * 检查给定的字符串是否为格式化的端点类型标识.
+     *
+     * @param string $modelId 待检查的模型ID
+     * @return bool 是否为格式化的端点类型标识
+     */
+    public static function isFormattedEndpointType(string $modelId): bool
+    {
+        // 遍历所有的 HighAvailabilityAppType 枚举值
+        foreach (HighAvailabilityAppType::cases() as $appType) {
+            $prefix = $appType->value . DelimiterType::HIGH_AVAILABILITY->value;
+            if (str_starts_with($modelId, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Convert multiple ServiceProviderModelsEntity to EndpointDTO array.
+     *
+     * @param ServiceProviderModelsEntity[] $providerModelEntities Service provider model entity array
+     * @param HighAvailabilityAppType $appType High availability application type
+     * @return EndpointDTO[]
+     */
+    public static function toEndpointEntities(array $providerModelEntities, HighAvailabilityAppType $appType): array
+    {
+        if (empty($providerModelEntities)) {
             return [];
         }
         $endpoints = [];
-        foreach ($providerModelsEntities as $entity) {
-            $configId = $entity->getServiceProviderConfigId();
-
-            // 如果找不到对应的服务商配置，则跳过该模型
-            if (! isset($configMap[$configId])) {
-                continue;
-            }
-            // 模型 id 不能为空
-            if (empty($entity->getModelId())) {
-                continue;
-            }
-            $endpointConfigEntity = $configMap[$configId];
-            $endpoint = new EndpointEntity();
-
-            // 设置标识信息以便在高可用服务中唯一标识该端点
-            $endpoint->setType(self::getEndpointTypeByModelIdAndOrgCode($entity->getModelId(), $entity->getOrganizationCode()));
-            $endpoint->setName((string) $entity->getId());
-            $endpoint->setProvider((string) $endpointConfigEntity->getServiceProviderId());
-
-            // 如果不是删除操作，设置启用状态
-            if (! $isDelete) {
-                // 状态需要根据服务商+模型状态双重确定，必须要同时开启，接入点才被启用
-                $endpoint->setEnabled($entity->getStatus() === 1 && $endpointConfigEntity->getStatus() === 1);
-                $endpoint->setCircuitBreakerStatus(CircuitBreakerStatus::CLOSED);
-            }
-
+        foreach ($providerModelEntities as $providerModelEntity) {
+            $endpoint = new EndpointDTO();
+            // Set identification information to uniquely identify the endpoint in high availability service
+            $endpoint->setBusinessId($providerModelEntity->getId());
+            $endpoint->setType(self::generateEndpointType($appType, $providerModelEntity->getModelId()));
+            $endpoint->setName($providerModelEntity->getModelVersion());
+            $endpoint->setProvider((string) $providerModelEntity->getServiceProviderConfigId());
+            $endpoint->setCircuitBreakerStatus(CircuitBreakerStatus::CLOSED);
+            $endpoint->setEnabled(true);
             $endpoints[] = $endpoint;
         }
 
         return $endpoints;
-    }
-
-    public static function getEndpointTypeByModelIdAndOrgCode(
-        string $modelId,
-        string $orgCode
-    ): string {
-        return $modelId . DelimiterType::MODEL->value . $orgCode;
     }
 }

@@ -73,7 +73,7 @@ class WebUserGuard extends AbstractAuthGuard
             }
 
             Context::set($contextKey, $user);
-            $logger->info('UserAuthorization', ['uid' => $user->getId(), 'name' => $user->getRealName(), 'organization' => $user->getOrganizationCode(), 'env' => $user->getMagicEnvId()]);
+            $logger->info('WebUserGuard UserAuthorization', ['uid' => $user->getId(), 'name' => $user->getRealName(), 'organization' => $user->getOrganizationCode(), 'env' => $user->getMagicEnvId()]);
             return $user;
         } catch (Throwable $exception) {
             $errMsg = [

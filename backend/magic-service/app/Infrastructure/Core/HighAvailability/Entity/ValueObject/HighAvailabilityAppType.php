@@ -10,27 +10,27 @@ namespace App\Infrastructure\Core\HighAvailability\Entity\ValueObject;
 use InvalidArgumentException;
 
 /**
- * 分隔符类型枚举.
+ * 高可用应用类型枚举.
  */
-enum DelimiterType: string
+enum HighAvailabilityAppType: string
 {
     /**
-     * 高可用应用类型+模型类型+组织编码的分隔符.
+     * 模型网关类型.
      */
-    case HIGH_AVAILABILITY = '||';
+    case MODEL_GATEWAY = 'modelGateway';
 
     /**
-     * 获取所有分隔符类型值数组.
+     * 获取所有应用类型值数组.
      */
     public static function values(): array
     {
         return [
-            self::HIGH_AVAILABILITY->value,
+            self::MODEL_GATEWAY->value,
         ];
     }
 
     /**
-     * 检查是否是有效的分隔符类型.
+     * 检查是否是有效的应用类型.
      */
     public static function isValid(string $type): bool
     {
@@ -43,8 +43,18 @@ enum DelimiterType: string
     public static function fromString(string $type): self
     {
         return match ($type) {
-            self::HIGH_AVAILABILITY->value => self::HIGH_AVAILABILITY,
-            default => throw new InvalidArgumentException("无效的分隔符类型: {$type}"),
+            self::MODEL_GATEWAY->value => self::MODEL_GATEWAY,
+            default => throw new InvalidArgumentException("无效的高可用应用类型: {$type}"),
+        };
+    }
+
+    /**
+     * 获取应用类型的描述文本.
+     */
+    public function getDescription(): string
+    {
+        return match ($this) {
+            self::MODEL_GATEWAY => '模型网关',
         };
     }
 }
