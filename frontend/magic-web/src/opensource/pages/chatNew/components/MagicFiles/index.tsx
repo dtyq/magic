@@ -1,17 +1,16 @@
 import { useTranslation } from "react-i18next"
 import { Flex, Skeleton } from "antd"
-import { IconDownload } from "@tabler/icons-react"
+import { IconDownload, IconEye } from "@tabler/icons-react"
 import MagicButton from "@/opensource/components/base/MagicButton"
 import { calculateRelativeSize } from "@/utils/styles"
 import MagicIcon from "@/opensource/components/base/MagicIcon"
 import type { ConversationMessageAttachment } from "@/types/chat/conversation_message"
 import FileIcon from "@/opensource/components/business/FileIcon"
-import { useMemo, memo } from "react"
+import { useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
 import { formatFileSize } from "@/utils/string"
 import { downloadFile } from "@/utils/file"
 import { IMAGE_EXTENSIONS } from "@/const/file"
-import type { FileTypeResult } from "file-type"
 import { useConversationMessage } from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageItem/components/ConversationMessageProvider/hooks"
 import useChatFileUrls from "@/opensource/hooks/chat/useChatFileUrls"
 import MessageFilePreviewService from "@/opensource/services/chat/message/MessageFilePreview"
@@ -48,6 +47,10 @@ const MagicFiles = observer(({ data, messageId, display = true }: MagicFileProps
 		),
 	)
 
+	/**
+	 * 下载文件
+	 * @param fileId 文件ID
+	 */
 	const onDownload = useMemoizedFn((fileId: string) => {
 		const fileUrl = fileUrls?.[fileId]?.url
 		console.log("fileUrls?.[fileId]?.download_name =======> ", fileUrls)
@@ -56,17 +59,16 @@ const MagicFiles = observer(({ data, messageId, display = true }: MagicFileProps
 		}
 	})
 
+	/**
+	 * 预览文件
+	 * @param fileInfo 文件信息
+	 */
 	const onPreview = useMemoizedFn((fileInfo: ConversationMessageAttachment) => {
-		MessageFilePreviewService.setPreviewInfo({
-			fileId: fileInfo.file_id,
-			url: fileUrls?.[fileInfo.file_id]?.url,
-			messageId,
-			conversationId: ConversationStore.currentConversation?.id,
-			ext: {
-				ext: fileInfo.file_extension as FileTypeResult["ext"],
-			},
-			fileName: fileInfo.file_name,
-			fileSize: fileInfo.file_size,
+		console.log("fileInfo =======> ", fileInfo)
+		MessageFilePreviewService.openPreview({
+			message_id: messageId,
+			conversation_id: ConversationStore.currentConversation?.id,
+			...fileInfo,
 		})
 	})
 
@@ -129,9 +131,10 @@ const MagicFiles = observer(({ data, messageId, display = true }: MagicFileProps
 				</Flex>
 			</Flex>
 			<Flex className={styles.footer}>
-				{/* <MagicButton
+				<MagicButton
 					type="text"
 					block
+					hidden={!MessageFilePreviewService.canPreview(dataFirst)}
 					className={styles.button}
 					size={buttonSize}
 					disabled={loading}
@@ -145,7 +148,7 @@ const MagicFiles = observer(({ data, messageId, display = true }: MagicFileProps
 						/>
 						{t("chat.file.preview")}
 					</Flex>
-				</MagicButton> */}
+				</MagicButton>
 				<MagicButton
 					type="text"
 					block

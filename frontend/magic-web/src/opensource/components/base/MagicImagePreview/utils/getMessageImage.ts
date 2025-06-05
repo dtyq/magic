@@ -3,7 +3,7 @@ import { ConversationMessageType } from "@/types/chat/conversation_message"
 import type { JSONContent } from "@tiptap/core"
 import { memoize } from "lodash-es"
 import { MAX_RECURSION_DEPTH } from "@/const/other"
-import type { PreviewFileInfo } from "@/opensource/services/chat/message/MessageFilePreview"
+import type { ImagePreviewInfo } from "@/types/chat/preview"
 
 /**
  * 收集 markdown 中的图片
@@ -58,7 +58,7 @@ export const collectRichTextNodes = memoize(
 	},
 )
 
-type MessageImageInfo = Omit<PreviewFileInfo, "conversationId">
+type MessageImageInfo = Omit<ImagePreviewInfo, "conversationId">
 
 const map = new Map<string, MessageImageInfo[]>()
 
@@ -78,7 +78,7 @@ export const getConversationMessageImages = async (
 		return map.get(messageId) ?? []
 	}
 
-	let result = [] as Omit<PreviewFileInfo, "conversationId">[]
+	let result = [] as Omit<ImagePreviewInfo, "conversationId">[]
 
 	switch (message?.type) {
 		case ConversationMessageType.Text:

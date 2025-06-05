@@ -358,6 +358,7 @@
 		"filePreview": {
 			"notFoundFile": "The file was not found",
 			"notSupport": "Preview is not supported yet",
+			"notSupportFileType": "This file type is not supported yet",
 			"title": "File preview"
 		},
 		"floatButton": {

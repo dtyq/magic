@@ -7,7 +7,7 @@ import {
 } from "@/types/chat/conversation_message"
 import type { FullMessage } from "@/types/chat/message"
 import { getRichMessagePasteText } from "@/opensource/pages/chatNew/components/ChatSubSider/utils"
-import MessageFilePreviewService from "@/opensource/services/chat/message/MessageFilePreview"
+import MessageFilePreviewService from "@/opensource/services/chat/message/MessageImagePreview"
 import { t } from "i18next"
 import { CitationRegexes } from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageFactory/components/Markdown/EnhanceMarkdown/remarkPlugins/remarkCitation"
 

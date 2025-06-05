@@ -1,17 +1,21 @@
 import { useMessageRenderContext } from "@/opensource/components/business/MessageRenderProvider/hooks"
-import { useBoolean, useMemoizedFn } from "ahooks"
+import { useBoolean, useMemoizedFn, useUpdateEffect } from "ahooks"
 import type React from "react"
 import { useState, memo, useMemo, useRef, useEffect } from "react"
 import { isString } from "lodash-es"
 import { useTranslation } from "react-i18next"
-import { Skeleton } from "antd"
+import { Skeleton, Tooltip } from "antd"
+import MessageFilePreviewService from "@/opensource/services/chat/message/MessageImagePreview"
+import MessageFilePreviewStore from "@/opensource/stores/chatNew/messagePreview/ImagePreviewStore"
 import useChatFileUrls from "@/opensource/hooks/chat/useChatFileUrls"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
 import { observer } from "mobx-react-lite"
-import type { PreviewFileInfo } from "@/opensource/services/chat/message/MessageFilePreview"
-import NetworkErrorContent from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageFactory/components/NetworkErrorContent"
+import type { ImagePreviewInfo } from "@/types/chat/preview"
 import useImageSize from "../../hooks/useImageSize"
 import { useStyles } from "./styles"
+import { IconPhotoX } from "@tabler/icons-react"
+import MagicButton from "@/opensource/components/base/MagicButton"
+import MagicIcon from "@/opensource/components/base/MagicIcon"
 
 type HTMLImageElementProps = JSX.IntrinsicElements["img"]
 
@@ -38,6 +42,10 @@ interface ImageWrapperProps extends HTMLImageElementProps {
 	fileSize?: number
 	/** 图片加载中的占位符 */
 	loader?: (cls?: string) => React.ReactNode
+	/** 是否正在加载 */
+	isLoading?: boolean
+	/** 是否 Error */
+	isError?: boolean
 }
 
 const ImageWrapper = observer((props: ImageWrapperProps) => {
@@ -58,13 +66,15 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 		imgExtension,
 		fileSize,
 		loader,
+		isLoading: loading = false,
+		isError: isError = false,
 		...rest
 	} = props
 	const { t } = useTranslation("interface")
 	const { styles, cx } = useStyles()
 	const { hiddenDetail } = useMessageRenderContext()
 	const imageRef = useRef<HTMLImageElement>(null)
-	const [fileInfo, setFileInfo] = useState<PreviewFileInfo>()
+	const [fileInfo, setFileInfo] = useState<ImagePreviewInfo>()
 	const isLongImage = useImageSize(fileInfo?.url)
 
 	const [error, { setTrue, setFalse }] = useBoolean(false)
@@ -134,6 +144,14 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 		useHDImage,
 	])
 
+	useUpdateEffect(() => {
+		const { previewInfo, open } = MessageFilePreviewStore
+		// 如果预览弹窗开启状态, 并且旧文件 id 和当前预览文件 id 相同, 并且使用高清图, 重新设置预览信息
+		if (open && previewInfo?.fileId === fileInfo?.oldFileId && fileInfo?.useHDImage) {
+			MessageFilePreviewService.setPreviewInfo(fileInfo)
+		}
+	}, [fileInfo, MessageFilePreviewStore.previewInfo])
+
 	const handleReloadImage = useMemoizedFn(() => {
 		reload?.()
 		setFalse()
@@ -163,7 +181,6 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 				>
 					<div
 						className={styles.image}
-						data-file-info={fileInfoBase64}
 						// eslint-disable-next-line react/no-danger
 						dangerouslySetInnerHTML={{ __html: fileInfo?.url }}
 					/>
@@ -171,7 +188,7 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 			)
 		}
 
-		if (isLoading || !fileInfo?.url) {
+		if (loading || isLoading || !fileInfo?.url) {
 			return loader ? (
 				loader?.(className)
 			) : (
@@ -213,6 +230,7 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 		isLoading,
 		isLongImage,
 		loader,
+		loading,
 		onError,
 		onLoad,
 		rest,
@@ -228,12 +246,19 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 		return t("chat.message.placeholder.image")
 	}
 
-	if (error) {
+	if (isError || error) {
 		return (
-			<NetworkErrorContent
-				className={cx(styles.networkError, containerClassName)}
-				onReload={handleReloadImage}
-			/>
+			<Tooltip title={t("chat.message.networkError.reload")}>
+				<div className={styles.imageLoadError} onClick={handleReloadImage}>
+					<MagicIcon component={IconPhotoX} size={16} />
+					{t("chat.message.imageLoadFailed")}
+					<MagicButton
+						className="reload-button"
+						size="small"
+						onClick={handleReloadImage}
+					/>
+				</div>
+			</Tooltip>
 		)
 	}
 

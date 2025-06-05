@@ -3,9 +3,8 @@ import { resolveToString } from "@dtyq/es6-template-strings"
 import { Flex, Progress } from "antd"
 import useStyles from "../../styles"
 import ImageCompareSlider from "../ImageCompareSlider"
-import MessageFilePreview, {
-	PreviewFileInfo,
-} from "@/opensource/services/chat/message/MessageFilePreview"
+import MessageImagePreview from "@/opensource/services/chat/message/MessageImagePreview"
+import { ImagePreviewInfo } from "@/types/chat/preview"
 import useCurrentImageSwitcher from "@/opensource/components/base/MagicImagePreview/hooks/useCurrentImageSwitcher"
 import useImageAction from "../../hooks/useImageAction"
 import { memo, useMemo, useRef } from "react"
@@ -19,11 +18,16 @@ import MagicIcon from "@/opensource/components/base/MagicIcon"
 import { IconCopy } from "@tabler/icons-react"
 
 interface ImagePreviewMainProps {
-	info: PreviewFileInfo | undefined
+	info: ImagePreviewInfo | undefined
+	loading: boolean
+	progress: number
 	containerClassName?: string
 }
 
-const ImagePreviewMain = memo(({ info, containerClassName }: ImagePreviewMainProps) => {
+const ImagePreviewMain = memo(function ImagePreviewMain({
+	info,
+	containerClassName,
+}: ImagePreviewMainProps) {
 	const { styles } = useStyles()
 	const { t } = useTranslation("interface")
 
@@ -92,7 +96,7 @@ const ImagePreviewMain = memo(({ info, containerClassName }: ImagePreviewMainPro
 				),
 				onClick: () => {
 					if (imageRef.current) {
-						MessageFilePreview.copy(imageRef.current)
+						MessageImagePreview.copy(imageRef.current)
 					}
 				},
 			},
@@ -158,6 +162,7 @@ const ImagePreviewMain = memo(({ info, containerClassName }: ImagePreviewMainPro
 			</div>
 		</MagicDropdown>
 	)
-}, isEqual)
+},
+isEqual)
 
 export default ImagePreviewMain

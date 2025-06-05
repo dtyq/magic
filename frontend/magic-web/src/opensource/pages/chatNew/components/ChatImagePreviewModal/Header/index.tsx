@@ -17,7 +17,7 @@ import type { MouseEvent } from "react"
 import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from "@/const/file"
 import useUserInfo from "@/opensource/hooks/chat/useUserInfo"
 import { getUserName } from "@/utils/modules/chat"
-import type { PreviewFileInfo } from "@/opensource/services/chat/message/MessageFilePreview"
+import type { ImagePreviewInfo } from "@/types/chat/preview"
 import { useStyles } from "./styles"
 
 interface ChatImagePreviewHeader {
@@ -28,7 +28,7 @@ interface ChatImagePreviewHeader {
 	onHighDefinition?: () => void
 	navigateToMessage?: () => void
 	message?: SeqResponse<ConversationMessage> | ConversationMessageSend
-	info?: PreviewFileInfo
+	info?: ImagePreviewInfo
 	className?: string
 }
 

@@ -9,10 +9,10 @@ import { useTranslation } from "react-i18next"
 import { CompareViewType } from "@/opensource/components/base/MagicImagePreview/constants"
 import ChatFileService from "@/opensource/services/chat/file/ChatFileService"
 import MessageService from "@/opensource/services/chat/message/MessageService"
-import type { PreviewFileInfo } from "@/opensource/services/chat/message/MessageFilePreview"
+import type { ImagePreviewInfo } from "@/types/chat/preview"
 import { convertSvgToPng } from "@/utils/image"
 
-const useImageAction = (info?: PreviewFileInfo) => {
+const useImageAction = (info?: ImagePreviewInfo) => {
 	const { t } = useTranslation("interface")
 
 	const [loading, { setTrue: setLoadingTrue, setFalse: setLoadingFalse }] = useBoolean(false)

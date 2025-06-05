@@ -4,7 +4,7 @@ import { useMemoizedFn } from "ahooks"
 import MessageStore from "@/opensource/stores/chatNew/message"
 import MessageService from "@/opensource/services/chat/message/MessageService"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
-import MessageFilePreview from "@/opensource/services/chat/message/MessageFilePreview"
+import MessageImagePreview from "@/opensource/services/chat/message/MessageImagePreview"
 import MagicDropdown from "@/opensource/components/base/MagicDropdown"
 import MessageDropdownService from "@/opensource/services/chat/message/MessageDropdownService"
 import MessageDropdownStore from "@/opensource/stores/chatNew/messageUI/Dropdown"
@@ -434,7 +434,7 @@ const ChatMessageList = observer(() => {
 				try {
 					const fileInfoObj = JSON.parse(atob(fileInfo))
 					// 如果是同一张图片，先重置状态
-					MessageFilePreview.setPreviewInfo({
+					MessageImagePreview.setPreviewInfo({
 						...fileInfoObj,
 						messageId,
 						conversationId: conversationStore.currentConversation?.id,

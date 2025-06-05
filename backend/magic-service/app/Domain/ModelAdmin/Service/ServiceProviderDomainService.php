@@ -1070,6 +1070,148 @@ class ServiceProviderDomainService
     }
 
     /**
+     * 提取模型的配置ID.
+     * @param ServiceProviderModelsEntity[] $models
+     * @return array 模型配置ID数组
+     */
+    private function extractModelConfigIds(array $models): array
+    {
+        $modelConfigIds = [];
+        foreach ($models as $model) {
+            $modelConfigIds[] = $model->getServiceProviderConfigId();
+        }
+        return array_unique($modelConfigIds);
+    }
+
+    /**
+     * 提取模型的父模型ID.
+     * @param ServiceProviderModelsEntity[] $models
+     * @return array 父模型ID数组
+     */
+    private function extractParentModelIds(array $models): array
+    {
+        $parentModelIds = [];
+        foreach ($models as $model) {
+            // 收集需要查询的 model_parent_id（重点是model_parent_id存在，且不等于 id）
+            $modelParentId = $model->getModelParentId();
+            if ($modelParentId > 0 && $modelParentId !== $model->getId()) {
+                $parentModelIds[] = $modelParentId;
+            }
+        }
+        return array_unique($parentModelIds);
+    }
+
+    /**
+     * 构建父模型映射.
+     * @return array 父模型ID到父模型实体的映射
+     */
+    private function buildParentModelMap(array $parentModelIds): array
+    {
+        if (empty($parentModelIds)) {
+            return [];
+        }
+
+        $parentModels = $this->serviceProviderModelsRepository->getModelsByIds($parentModelIds);
+
+        $parentModelMap = [];
+        foreach ($parentModels as $parentModel) {
+            $parentModelMap[$parentModel->getId()] = $parentModel;
+        }
+
+        return $parentModelMap;
+    }
+
+    /**
+     * 合并所有需要查询的配置ID.
+     * @param array $modelConfigIds 模型的配置ID
+     * @param array $parentModelMap 父模型映射
+     * @return array 所有需要查询的配置ID
+     */
+    private function mergeAllConfigIds(array $modelConfigIds, array $parentModelMap): array
+    {
+        $allConfigIds = $modelConfigIds;
+
+        // 添加父模型的配置ID
+        foreach ($parentModelMap as $parentModel) {
+            $allConfigIds[] = $parentModel->getServiceProviderConfigId();
+        }
+
+        return array_unique($allConfigIds);
+    }
+
+    /**
+     * 获取激活的配置映射.
+     * @return array 配置ID到配置实体的映射
+     */
+    private function getActiveConfigMap(array $configIds): array
+    {
+        if (empty($configIds)) {
+            return [];
+        }
+
+        $configEntities = $this->serviceProviderConfigRepository->getByIds($configIds);
+
+        $activeConfigMap = [];
+        foreach ($configEntities as $config) {
+            if ($config->getStatus() === Status::ACTIVE->value) {
+                $activeConfigMap[$config->getId()] = $config;
+            }
+        }
+
+        return $activeConfigMap;
+    }
+
+    /**
+     * 检查模型是否激活（模型状态和服务商配置都激活）.
+     */
+    private function isModelActive(ServiceProviderModelsEntity $model, array $configMap): bool
+    {
+        return $model->getStatus() === Status::ACTIVE->value
+            && isset($configMap[$model->getServiceProviderConfigId()]);
+    }
+
+    /**
+     * 筛选活跃的模型并处理父模型关系（同时过滤父模型的激活状态）.
+     * @param ServiceProviderModelsEntity[] $models
+     * @return ServiceProviderModelsEntity[]
+     */
+    private function filterActiveModels(array $models, array $activeConfigMap, array $parentModelMap): array
+    {
+        $activeModels = [];
+
+        foreach ($models as $model) {
+            // 检查当前模型的服务商配置是否激活
+            if (! isset($activeConfigMap[$model->getServiceProviderConfigId()])) {
+                continue;
+            }
+
+            $modelParentId = $model->getModelParentId();
+
+            // 处理有父模型关系的情况
+            if ($modelParentId > 0 && $modelParentId !== $model->getId()) {
+                // 检查父模型是否存在
+                if (! isset($parentModelMap[$modelParentId])) {
+                    continue;
+                }
+
+                // 检查父模型是否激活（模型状态和服务商配置都激活）
+                $parentModel = $parentModelMap[$modelParentId];
+                if (! $this->isModelActive($parentModel, $activeConfigMap)) {
+                    // 父模型不激活，跳过此模型
+                    continue;
+                }
+
+                // 还原接入点真实的ProviderConfigId（使用父模型的配置ID）
+                $model->setServiceProviderConfigId($parentModel->getServiceProviderConfigId());
+            }
+
+            $activeModels[] = $model;
+        }
+
+        return $activeModels;
+    }
+
+    /**
      * 获取官方的激活模型配置（支持返回多个）.
      * @param string $modelVersion 模型
      * @return ServiceProviderConfig[] 服务商配置数组

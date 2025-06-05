@@ -1,0 +1,46 @@
+{
+  "magicPdfRender": {
+    "toolbar": {
+      "prevPage": "Previous Page (←)",
+      "nextPage": "Next Page (→)",
+      "zoomOut": "Zoom Out (-)",
+      "zoomIn": "Zoom In (+)",
+      "rotateLeft": "Rotate Left",
+      "rotateRight": "Rotate Right",
+      "reload": "Reload",
+      "download": "Download",
+      "fullscreen": "Fullscreen (F11)",
+      "moreActions": "More Actions"
+    },
+    "pageInfo": {
+      "currentPage": "Page {{current}}",
+      "totalPages": "of {{total}}",
+      "pageNumber": "Page",
+      "scale": "Scale"
+    },
+    "status": {
+      "loading": "Loading...",
+      "loadingProgress": "Loading Progress",
+      "noFile": "Please select a PDF file to preview",
+      "loadFailed": "Failed to load, please try again",
+      "pageLoadFailed": "Page failed to load",
+      "downloadUnavailable": "Unable to download this document",
+      "retry": "Retry"
+    },
+    "placeholders": {
+      "pageNumber": "Page {{number}}",
+      "scrollToLoad": "Scroll here to load"
+    },
+    "dropdown": {
+      "pageNav": "Page:",
+      "zoom": "Zoom:",
+      "zoomOut": "Zoom Out",
+      "zoomIn": "Zoom In",
+      "rotateLeft": "Rotate Left",
+      "rotateRight": "Rotate Right",
+      "reload": "Reload",
+      "download": "Download",
+      "fullscreen": "Fullscreen"
+    }
+  }
+} 
