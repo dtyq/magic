@@ -892,7 +892,7 @@ class ServiceProviderDomainService
             if ($this->isOfficial($organizationCode)) {
                 // 获取服务商下的所有模型
                 $models = $this->serviceProviderModelsRepository->getModelsByServiceProviderId((int) $serviceProviderConfigId);
-                $modelParentIds = array_column($models, 'model_parent_id');
+                $modelParentIds = array_column($models, 'id');
                 $this->syncDeleteModelsToOtherServiceProvider($modelParentIds);
             }
             $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
