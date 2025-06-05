@@ -64,12 +64,12 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * Conversation endpoint memory cache prefix.
      */
-    private const CONVERSATION_ENDPOINT_PREFIX = 'conversation_endpoint:';
+    private const string CONVERSATION_ENDPOINT_PREFIX = 'conversation_endpoint:';
 
     /**
      * Conversation endpoint memory cache expiration time (seconds).
      */
-    private const CONVERSATION_ENDPOINT_TTL = 3600; // 1 hour
+    private const int CONVERSATION_ENDPOINT_TTL = 3600; // 1 hour
 
     /**
      * @return array<ModelConfigEntity>
@@ -221,10 +221,7 @@ class LLMAppService extends AbstractLLMAppService
             return null;
         }
 
-        // Use messages array minus the last message
-        $messagesWithoutLast = array_slice($messages, 0, -1);
         $model = $completionDTO->getModel();
-        $endpointCacheKey = $this->generateEndpointCacheKey($messagesWithoutLast, $model);
 
         try {
             $redis = $this->getRedisInstance();
@@ -232,21 +229,54 @@ class LLMAppService extends AbstractLLMAppService
                 return null;
             }
 
-            // Check if endpoint cache key exists in Redis and get endpoint ID
-            $endpointId = $redis->get($endpointCacheKey);
-            $isContinuation = ! empty($endpointId);
+            // Calculate multiple hashes at once to optimize performance
+            $hashes = $this->calculateMultipleMessagesHashes($messages, 3);
 
-            $this->logger->info('Conversation continuation check', [
-                'endpoint_cache_key' => $endpointCacheKey,
-                'endpoint_id' => $endpointId,
-                'is_continuation' => $isContinuation,
-                'messages_count' => count($messages),
-            ]);
+            // Prepare cache keys for batch query (skip removeCount=0)
+            $cacheKeys = [];
+            $removeCountMapping = [];
+            foreach ($hashes as $removeCount => $messagesHash) {
+                // Skip removeCount=0 (full array) since we only check conversation continuation
+                if ($removeCount === 0) {
+                    continue;
+                }
 
-            // Return endpoint ID if this is a continuation
-            return $isContinuation ? $endpointId : null;
+                // Generate cache key using the pre-calculated hash
+                $cacheKey = $messagesHash . ':' . $model;
+                $endpointCacheKey = self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
+
+                $cacheKeys[] = $endpointCacheKey;
+                $removeCountMapping[$endpointCacheKey] = $removeCount;
+            }
+
+            // Batch query Redis for all cache keys at once
+            $endpointIds = $redis->mget($cacheKeys);
+
+            // Process results in order (removeCount 1, 2, 3)
+            foreach ($cacheKeys as $index => $endpointCacheKey) {
+                $endpointId = $endpointIds[$index] ?? null;
+                $removeCount = $removeCountMapping[$endpointCacheKey];
+                $isContinuation = ! empty($endpointId);
+
+                $this->logger->info('endpointHighAvailability Conversation continuation check', [
+                    'endpoint_cache_key' => $endpointCacheKey,
+                    'endpoint_id' => $endpointId,
+                    'is_continuation' => $isContinuation,
+                    'messages_count' => count($messages),
+                    'messages_for_check_count' => count($messages) - $removeCount,
+                    'remove_count' => $removeCount,
+                ]);
+
+                // Return endpoint ID if this is a continuation
+                if ($isContinuation) {
+                    return $endpointId;
+                }
+            }
+
+            // No match found after trying all available hashes
+            return null;
         } catch (Throwable $e) {
-            $this->logger->warning('Failed to check conversation continuation', [
+            $this->logger->warning('endpointHighAvailability failed to check conversation continuation', [
                 'error' => $e->getMessage(),
             ]);
             return null;
@@ -427,7 +457,7 @@ class LLMAppService extends AbstractLLMAppService
 
         // Log only when remembered endpoint ID matches the current endpoint ID
         if ($rememberedEndpointId && $endpointDTO && $rememberedEndpointId === $endpointDTO->getEndpointId()) {
-            $this->logger->info('Detected conversation continuation with remembered endpoint ID', [
+            $this->logger->info('endpointHighAvailability sameConversationEndpoint', [
                 'remembered_endpoint_id' => $rememberedEndpointId,
                 'current_endpoint_id' => $endpointDTO->getEndpointId(),
                 'model' => $modelType,
@@ -485,13 +515,13 @@ class LLMAppService extends AbstractLLMAppService
             $cacheKey = $this->generateEndpointCacheKey($messages, $model);
             $redis->setex($cacheKey, self::CONVERSATION_ENDPOINT_TTL, $endpointId);
 
-            $this->logger->info('Remembered conversation endpoint ID', [
+            $this->logger->info('endpointHighAvailability Remembered conversation endpoint ID', [
                 'cache_key' => $cacheKey,
                 'endpoint_id' => $endpointId,
                 'model' => $model,
             ]);
         } catch (Throwable $e) {
-            $this->logger->warning('Failed to remember endpoint ID', [
+            $this->logger->warning('endpointHighAvailability Failed to remember endpoint ID', [
                 'endpoint_id' => $endpointId,
                 'error' => $e->getMessage(),
             ]);
@@ -499,36 +529,63 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * Calculate hash value for messages array.
+     * Calculate multiple hash values by removing 0 to N messages from the end.
+     * Optimized to use string concatenation instead of array operations for better performance.
      *
-     * @param array $messages Messages array
-     * @return string Hash value
+     * @param array $messages Complete messages array
+     * @param int $maxRemoveCount Maximum number of messages to remove (0 means include full array)
+     * @return array Array of hash values indexed by remove count (0, 1, 2, ...)
      */
-    private function calculateMessagesHash(array $messages): string
+    private function calculateMultipleMessagesHashes(array $messages, int $maxRemoveCount): array
     {
-        $hashParts = [];
+        $messageCount = count($messages);
+        $hashes = [];
+        $cumulativeHashString = '';
 
-        foreach ($messages as $message) {
-            // Collect core fields in fixed order
-            $hashParts[] = $message['role'] ?? '';
-            $hashParts[] = $message['content'] ?? '';
-            $hashParts[] = $message['name'] ?? '';
-            $hashParts[] = $message['tool_call_id'] ?? '';
+        // Handle empty array case for removeCount=0
+        if ($messageCount === 0 && $maxRemoveCount >= 0) {
+            $hashes[0] = hash('sha256', '');
+        }
+
+        // Single loop: build cumulative hash string and calculate hashes as we go
+        foreach ($messages as $index => $message) {
+            // Extract and concatenate parts for current message directly to string
+            $cumulativeHashString .= $message['role'] ?? '';
+            $cumulativeHashString .= $message['content'] ?? '';
+            $cumulativeHashString .= $message['name'] ?? '';
+            $cumulativeHashString .= $message['tool_call_id'] ?? '';
 
             // Handle tool_calls
             if (isset($message['tool_calls']) && is_array($message['tool_calls'])) {
                 foreach ($message['tool_calls'] as $toolCall) {
-                    $hashParts[] = $toolCall['id'] ?? '';
-                    $hashParts[] = $toolCall['type'] ?? '';
+                    $cumulativeHashString .= $toolCall['id'] ?? '';
+                    $cumulativeHashString .= $toolCall['type'] ?? '';
                     if (isset($toolCall['function'])) {
-                        $hashParts[] = $toolCall['function']['name'] ?? '';
-                        $hashParts[] = $toolCall['function']['arguments'] ?? '';
+                        $cumulativeHashString .= $toolCall['function']['name'] ?? '';
+                        $cumulativeHashString .= $toolCall['function']['arguments'] ?? '';
                     }
+                }
+            }
+
+            // Check if current position matches any target length for removeCount calculation
+            $currentMessageCount = $index + 1; // Messages processed so far
+
+            // Handle removeCount = 0 (full array) - calculate when we reach the end
+            if ($maxRemoveCount >= 0 && $currentMessageCount === $messageCount) {
+                $hashes[0] = hash('sha256', $cumulativeHashString);
+            }
+
+            // Handle removeCount > 0 (removing messages from the end)
+            for ($removeCount = 1; $removeCount <= $maxRemoveCount; ++$removeCount) {
+                $targetMessageCount = $messageCount - $removeCount;
+                if ($currentMessageCount === $targetMessageCount) {
+                    // We've reached the target number of messages for this removeCount
+                    $hashes[$removeCount] = hash('sha256', $cumulativeHashString);
                 }
             }
         }
 
-        return hash('sha256', implode('', $hashParts));
+        return $hashes;
     }
 
     /**
@@ -922,6 +979,7 @@ class LLMAppService extends AbstractLLMAppService
 
     /**
      * Generate conversation endpoint cache key (based on messages hash + model).
+     * Now reuses the optimized calculateMultipleMessagesHashes method.
      *
      * @param array $messages Messages array
      * @param string $model Model name
@@ -929,7 +987,9 @@ class LLMAppService extends AbstractLLMAppService
      */
     private function generateEndpointCacheKey(array $messages, string $model): string
     {
-        $messagesHash = $this->calculateMessagesHash($messages);
+        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
+        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
+        $messagesHash = $hashes[0];
 
         // Generate cache key using messages hash + model
         $cacheKey = $messagesHash . ':' . $model;
