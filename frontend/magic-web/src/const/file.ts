@@ -16,6 +16,11 @@ export const DRIVE_SPACE_KEY_MAP = {
 	[DriveSpaceType.Shared]: DriveSpaceKey.Shared,
 }
 
+/**
+ * 可预览文件扩展名
+ */
+export const PREVIEW_EXTENSIONS = ["pdf", "xls", "xlsx"]
+
 /** 图片扩展名 */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "svg", "gif", "webp", "svg", "svg+xml"]
 /** 视频扩展名 */

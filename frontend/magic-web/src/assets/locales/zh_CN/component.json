@@ -1,0 +1,46 @@
+{
+  "magicPdfRender": {
+    "toolbar": {
+      "prevPage": "上一页 (←)",
+      "nextPage": "下一页 (→)",
+      "zoomOut": "缩小 (-)",
+      "zoomIn": "放大 (+)",
+      "rotateLeft": "逆时针旋转",
+      "rotateRight": "顺时针旋转",
+      "reload": "重新加载",
+      "download": "下载",
+      "fullscreen": "全屏 (F11)",
+      "moreActions": "更多操作"
+    },
+    "pageInfo": {
+      "currentPage": "第 {{current}} 页",
+      "totalPages": "共 {{total}} 页",
+      "pageNumber": "页码",
+      "scale": "缩放"
+    },
+    "status": {
+      "loading": "正在加载...",
+      "loadingProgress": "加载进度",
+      "noFile": "请选择要预览的 PDF 文件",
+      "loadFailed": "加载失败，请重试",
+      "pageLoadFailed": "页面加载失败",
+      "downloadUnavailable": "无法下载该文档",
+      "retry": "重试"
+    },
+    "placeholders": {
+      "pageNumber": "页面 {{number}}",
+      "scrollToLoad": "滚动到此处加载"
+    },
+    "dropdown": {
+      "pageNav": "页面:",
+      "zoom": "缩放:",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "rotateLeft": "逆时针旋转",
+      "rotateRight": "顺时针旋转",
+      "reload": "重新加载",
+      "download": "下载",
+      "fullscreen": "全屏"
+    }
+  }
+} 

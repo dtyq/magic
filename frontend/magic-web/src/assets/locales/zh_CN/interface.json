@@ -358,6 +358,7 @@
 		"filePreview": {
 			"notFoundFile": "未找到该文件",
 			"notSupport": "暂不支持预览",
+			"notSupportFileType": "暂不支持该文件类型",
 			"title": "文件预览"
 		},
 		"floatButton": {

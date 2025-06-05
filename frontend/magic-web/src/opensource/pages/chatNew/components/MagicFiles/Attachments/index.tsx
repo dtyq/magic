@@ -1,18 +1,21 @@
-import type { ConversationMessageAttachment } from "@/types/chat/conversation_message"
-import { resolveToString } from "@dtyq/es6-template-strings"
-
-import { Flex, Skeleton } from "antd"
 import type { MouseEventHandler } from "react"
+import type { ConversationMessageAttachment } from "@/types/chat/conversation_message"
+
 import { useMemo, useState } from "react"
-import { useTranslation } from "react-i18next"
-import FileIcon from "@/opensource/components/business/FileIcon"
+import { Flex, Skeleton } from "antd"
 import { useMemoizedFn } from "ahooks"
-import { formatFileSize } from "@/utils/string"
+import { useTranslation } from "react-i18next"
+import { resolveToString } from "@dtyq/es6-template-strings"
+import { IconCloudDownload, IconEye } from "@tabler/icons-react"
+
+import FileIcon from "@/opensource/components/business/FileIcon"
 import MagicButton from "@/opensource/components/base/MagicButton"
 import MagicIcon from "@/opensource/components/base/MagicIcon"
-import { IconCloudDownload } from "@tabler/icons-react"
-import { useConversationMessage } from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageItem/components/ConversationMessageProvider/hooks"
 import useChatFileUrls from "@/opensource/hooks/chat/useChatFileUrls"
+import { useConversationMessage } from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageItem/components/ConversationMessageProvider/hooks"
+import MessageFilePreviewService from "@/opensource/services/chat/message/MessageFilePreview"
+import { formatFileSize } from "@/utils/string"
+
 import { FILE_ITEM_GAP, useStyles } from "./styles"
 import { getListHeight } from "./utils"
 
@@ -104,14 +107,15 @@ const Attachments = ({
 						</Flex>
 
 						<Flex gap={4}>
-							{/* <MagicButton
+							<MagicButton
 								className={styles.controlButton}
 								type="text"
 								size="small"
+								hidden={!MessageFilePreviewService.canPreview(file)}
 								onClick={() => onPreview?.(file)}
 							>
 								<MagicIcon component={IconEye} size={18} />
-							</MagicButton> */}
+							</MagicButton>
 							<MagicButton
 								className={styles.controlButton}
 								type="text"

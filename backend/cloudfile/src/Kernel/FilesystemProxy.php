@@ -129,7 +129,9 @@ class FilesystemProxy extends Filesystem
             'temporary_credential' => $temporaryCredential,
             'expires' => (int) $expires,
         ];
-        $this->setCache($cacheKey, $data, $credentialPolicy->getExpires() - 60);
+        $cacheTtl = max(0, (int) ($expires - time() - 60));
+        $cacheTtl = max($cacheTtl, 1);
+        $this->setCache($cacheKey, $data, $cacheTtl);
         return $data;
     }
 

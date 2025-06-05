@@ -5,13 +5,13 @@ import { Flex } from "antd"
 
 import { useTranslation } from "react-i18next"
 import { CompareViewType } from "@/opensource/components/base/MagicImagePreview/constants"
-import type { PreviewFileInfo } from "@/opensource/services/chat/message/MessageFilePreview"
+import type { ImagePreviewInfo } from "@/types/chat/preview"
 import { useStyles } from "./styles"
 
 interface ImageCompareSliderProps {
 	isPressing?: boolean
 	viewType?: CompareViewType
-	info?: PreviewFileInfo
+	info?: ImagePreviewInfo
 }
 
 function ImageCompareSlider(props: ImageCompareSliderProps) {
@@ -71,7 +71,7 @@ function ImageCompareSlider(props: ImageCompareSliderProps) {
 					viewType === CompareViewType.PULL
 						? {
 								width: `${sliderPosition}%`,
-							}
+						  }
 						: {}
 				}
 			>

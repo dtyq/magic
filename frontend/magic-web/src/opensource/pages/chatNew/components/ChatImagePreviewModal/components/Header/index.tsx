@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { MouseEvent } from "react"
 import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from "@/const/file"
 import { getUserName } from "@/utils/modules/chat"
-import type { PreviewFileInfo } from "@/opensource/services/chat/message/MessageFilePreview"
+import type { ImagePreviewInfo } from "@/types/chat/preview"
 import { useStyles } from "./styles"
 import { SeqResponse } from "@/types/request"
 import { FullMessage } from "@/types/chat/message"
@@ -26,7 +26,7 @@ interface ChatImagePreviewHeader {
 	onHighDefinition?: () => void
 	navigateToMessage?: () => void
 	message?: SeqResponse<ConversationMessage> | FullMessage<ConversationMessage>
-	info?: PreviewFileInfo
+	info?: ImagePreviewInfo
 	loading?: boolean
 	className?: string
 }

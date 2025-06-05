@@ -49,8 +49,8 @@ ENV MAGIC_GATEWAY_DEBUG=false
 EXPOSE 8000
 
 # 添加健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q -O- http://localhost:${PORT}/status || exit 1
+#HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+#  CMD wget -q -O- http://localhost:${PORT}/status || exit 1
 
 # 启动服务
 CMD ["./api-gateway"] 

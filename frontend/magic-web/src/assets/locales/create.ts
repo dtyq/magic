@@ -19,7 +19,9 @@ export function createI18nNext(defaultLang?: string) {
 			resourcesToBackend(async (lng: string, namespace: string) => {
 				if (namespace === "magicFlow") {
 					return import(
-						`../../../node_modules/@dtyq/magic-flow/dist/common/locales/${normalizeLocale(lng)}/${namespace}.json`
+						`../../../node_modules/@dtyq/magic-flow/dist/common/locales/${normalizeLocale(
+							lng,
+						)}/${namespace}.json`
 					)
 				}
 				return import(`./${normalizeLocale(lng)}/${namespace}.json`)
@@ -30,7 +32,15 @@ export function createI18nNext(defaultLang?: string) {
 		init: () => {
 			return instance.init({
 				defaultNS: ["translation", "common", "interface"],
-				ns: ["translation", "common", "interface", "message", "flow", "magicFlow"],
+				ns: [
+					"translation",
+					"common",
+					"interface",
+					"message",
+					"flow",
+					"magicFlow",
+					"component",
+				],
 				// the translations
 				// (tip move them in a JSON file and import them,
 				// or even better, manage them via a UI: https://react.i18next.com/guides/multiple-translation-files#manage-your-translations-with-a-management-gui)

@@ -49,10 +49,10 @@ services:
       rabbitmq:
         condition: service_started
       magic-service:
-        condition: service_started  
+        condition: service_started
     volumes:
        - ./volumes/storage/files:/opt/www/storage/files
-       - ./bin/magic-service/daemon-entrypoint.sh:/opt/www/entrypoint.sh
+       - ./bin/magic-service/daemon-entrypoint.sh:/opt/www/start.sh
     env_file:
       - .env
     deploy:
@@ -125,7 +125,7 @@ services:
     profiles:
       - sandbox-gateway
     environment:
-      SUPER_MAGIC_CONFIG_FILE_PATH: ${SUPER_MAGIC_CONFIG_FILE_PATH-${PWD}/config/config.yaml}
+      SUPER_MAGIC_CONFIG_FILE_PATH: ${SUPER_MAGIC_CONFIG_FILE_PATH:-${PWD}/config/config.yaml}
     depends_on:
       qdrant:
         condition: service_started
@@ -135,7 +135,7 @@ services:
       - "39003:39003"
     volumes:
       - ./config/.env_super_magic:/app/.env.agent
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SANDBOX_DOCKER_RUNTIME}:/var/run/docker.sock
       - ./config/config.yaml:/app/config/config.yaml
     env_file:
       - config/.env_sandbox_gateway
