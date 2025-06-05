@@ -9,7 +9,6 @@ namespace App\Domain\Provider\Repository\Persistence\Model;
 
 use App\Infrastructure\Core\AbstractModel;
 use DateTime;
-use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\Snowflake\Concern\Snowflake;
 
 /**

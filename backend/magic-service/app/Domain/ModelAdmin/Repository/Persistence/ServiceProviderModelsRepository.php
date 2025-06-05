@@ -535,7 +535,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 移除不可变更字段.
+     * Remove immutable fields from entity array.
      */
     private function removeImmutableFields(array &$entityArray): void
     {
@@ -543,7 +543,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 移除官方模型的不可变更字段.
+     * Remove immutable fields for office model updates.
      */
     private function removeOfficeImmutableFields(array &$entityArray): void
     {
