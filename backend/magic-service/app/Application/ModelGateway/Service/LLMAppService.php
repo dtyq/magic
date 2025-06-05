@@ -850,10 +850,27 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 计算最大公约数（辗转相除法）.
+     * Calculate the greatest common divisor using Euclidean algorithm.
+     * Improved version with proper error handling and edge case management.
      */
     private function gcd(int $a, int $b): int
     {
-        return $b === 0 ? $a : $this->gcd($b, $a % $b);
+        // Handle edge case where both numbers are zero
+        if ($a === 0 && $b === 0) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed);
+        }
+
+        // Use absolute values to ensure positive result
+        $a = abs($a);
+        $b = abs($b);
+
+        // Iterative approach to avoid stack overflow for large numbers
+        while ($b !== 0) {
+            $temp = $b;
+            $b = $a % $b;
+            $a = $temp;
+        }
+
+        return $a;
     }
 }
