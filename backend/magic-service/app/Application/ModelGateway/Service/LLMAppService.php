@@ -622,11 +622,7 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         if (is_array($value) || is_object($value)) {
-            try {
-                return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
-            } catch (Throwable) {
-                return serialize($value);
-            }
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
         }
 
         if (is_scalar($value)) {
