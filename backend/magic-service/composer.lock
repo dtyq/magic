@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.0",
+            "version": "3.344.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "787a8ec6301657d9cbdb389db4fa92243c68666a"
+                "reference": "7ff4b73f2d6550949be14b8822e100963e068705"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/787a8ec6301657d9cbdb389db4fa92243c68666a",
-                "reference": "787a8ec6301657d9cbdb389db4fa92243c68666a",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/7ff4b73f2d6550949be14b8822e100963e068705",
+                "reference": "7ff4b73f2d6550949be14b8822e100963e068705",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.1"
             },
-            "time": "2025-06-04T18:36:41+00:00"
+            "time": "2025-06-05T18:09:40+00:00"
         },
         {
             "name": "brick/math",
@@ -2302,6 +2302,70 @@
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.33"
             },
             "time": "2025-06-05T16:17:44+00:00"
+        },
+        {
+            "name": "dtyq/php-mcp",
+            "version": "0.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/dtyq/php-mcp.git",
+                "reference": "edd7b70371a62fb9cc761f6139fc3a89c494c513"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/edd7b70371a62fb9cc761f6139fc3a89c494c513",
+                "reference": "edd7b70371a62fb9cc761f6139fc3a89c494c513",
+                "shasum": ""
+            },
+            "require": {
+                "adbario/php-dot-notation": "^3.3|^2.4",
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-openssl": "*",
+                "ext-pcntl": "*",
+                "guzzlehttp/guzzle": "^6.0|^7.0",
+                "opis/closure": "^3.0|^4.0",
+                "php": ">=7.4",
+                "psr/container": "^1.0|^2.0",
+                "psr/event-dispatcher": "^1.0",
+                "psr/log": "^1.0|^2.0|^3.0",
+                "psr/simple-cache": "^1.0|^2.0|^3.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "mockery/mockery": "^1.0",
+                "phpstan/phpstan": "^1.0",
+                "phpstan/phpstan-deprecation-rules": "*",
+                "phpunit/phpunit": "^9.0",
+                "squizlabs/php_codesniffer": "^3.6"
+            },
+            "suggest": {
+                "hyperf/config": "^2.2 || ^3.0",
+                "hyperf/di": "^2.2 || ^3.0",
+                "hyperf/framework": "^2.2 || ^3.0",
+                "hyperf/logger": "^2.2 || ^3.0"
+            },
+            "type": "library",
+            "extra": {
+                "hyperf": {
+                    "config": "Dtyq\\PhpMcp\\Server\\Framework\\Hyperf\\ConfigProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Dtyq\\PhpMcp\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "PHP implementation of MCP server and client",
+            "support": {
+                "issues": "https://github.com/dtyq/php-mcp/issues",
+                "source": "https://github.com/dtyq/php-mcp/tree/0.0.3"
+            },
+            "time": "2025-06-05T09:40:43+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -6262,23 +6326,24 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.8",
+            "version": "v1.1.9",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "bf655a2565cf0b352d8012dcee7e54610fd5be82"
+                "reference": "87a8916178270d5bd7aa23f54f0ae854cd56d450"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=bf655a2565cf0b352d8012dcee7e54610fd5be82",
-                "reference": "bf655a2565cf0b352d8012dcee7e54610fd5be82",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=87a8916178270d5bd7aa23f54f0ae854cd56d450",
+                "reference": "87a8916178270d5bd7aa23f54f0ae854cd56d450",
                 "shasum": ""
             },
             "require": {
                 "aws/aws-sdk-php": "^3.0",
+                "dtyq/php-mcp": "^0.0",
                 "ext-bcmath": "*",
                 "ext-mbstring": "*",
-                "guzzlehttp/guzzle": "^7.0",
+                "guzzlehttp/guzzle": "^7.0|^6.0",
                 "hyperf/cache": "~2.2.0 || 3.0.* || 3.1.*",
                 "hyperf/config": "~2.2.0 || 3.0.* || 3.1.*",
                 "hyperf/di": "~2.2.0 || 3.0.* || 3.1.*",
@@ -6333,9 +6398,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.8"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.9"
             },
-            "time": "2025-05-26T09:41:40+00:00"
+            "time": "2025-06-06T03:14:41+00:00"
         },
         {
             "name": "hyperf/phar",
@@ -9473,6 +9538,70 @@
                 }
             ],
             "time": "2023-11-08T09:30:43+00:00"
+        },
+        {
+            "name": "opis/closure",
+            "version": "4.3.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/opis/closure.git",
+                "reference": "9b6ef5f622b4b29cf98bdc144f2a370c3a40d4df"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/opis/closure/zipball/9b6ef5f622b4b29cf98bdc144f2a370c3a40d4df",
+                "reference": "9b6ef5f622b4b29cf98bdc144f2a370c3a40d4df",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "4.x-dev"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/functions.php"
+                ],
+                "psr-4": {
+                    "Opis\\Closure\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Marius Sarca",
+                    "email": "marius.sarca@gmail.com"
+                },
+                {
+                    "name": "Sorin Sarca",
+                    "email": "sarca_sorin@hotmail.com"
+                }
+            ],
+            "description": "A library that can be used to serialize closures (anonymous functions) and arbitrary data.",
+            "homepage": "https://opis.io/closure",
+            "keywords": [
+                "anonymous functions",
+                "closure",
+                "function",
+                "serializable",
+                "serialization",
+                "serialize"
+            ],
+            "support": {
+                "issues": "https://github.com/opis/closure/issues",
+                "source": "https://github.com/opis/closure/tree/4.3.1"
+            },
+            "time": "2025-01-10T20:42:24+00:00"
         },
         {
             "name": "overtrue/chinese-calendar",
@@ -16972,12 +17101,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "e4637c0239d5cc7d5a7c51e7c1cfd5b7d274ce95"
+                "reference": "6ca443cead7d0cd731610a12fd47028c7e28edb3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e4637c0239d5cc7d5a7c51e7c1cfd5b7d274ce95",
-                "reference": "e4637c0239d5cc7d5a7c51e7c1cfd5b7d274ce95",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/6ca443cead7d0cd731610a12fd47028c7e28edb3",
+                "reference": "6ca443cead7d0cd731610a12fd47028c7e28edb3",
                 "shasum": ""
             },
             "conflict": {
@@ -17830,7 +17959,7 @@
                 "yiisoft/yii2-elasticsearch": "<2.0.5",
                 "yiisoft/yii2-gii": "<=2.2.4",
                 "yiisoft/yii2-jui": "<2.0.4",
-                "yiisoft/yii2-redis": "<2.0.8",
+                "yiisoft/yii2-redis": "<2.0.20",
                 "yikesinc/yikes-inc-easy-mailchimp-extender": "<6.8.6",
                 "yoast-seo-for-typo3/yoast_seo": "<7.2.3",
                 "yourls/yourls": "<=1.8.2",
@@ -17909,7 +18038,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-02T17:06:15+00:00"
+            "time": "2025-06-05T17:04:40+00:00"
         },
         {
             "name": "sebastian/cli-parser",
