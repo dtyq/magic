@@ -46,6 +46,7 @@ use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Exception;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Context\Context;
 use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
@@ -1037,6 +1038,14 @@ class LLMAppService extends AbstractLLMAppService
 
         $refreshPointMinTokens = (int) $proxyModelRequest->getHeaderConfig('AWS-RefreshPointMinTokens', 5000);
         $refreshPointMinTokens = max($refreshPointMinTokens, 2048);
+
+        $response = Context::get(\Psr\Http\Message\ResponseInterface::class);
+        $response = $response
+            ->withHeader('AWS-AutoCache', $autoCache ? 'true' : 'false')
+            ->withHeader('AWS-MaxCachePoints', (string) $maxCachePoints)
+            ->withHeader('AWS-MinCacheTokens', (string) $minCacheTokens)
+            ->withHeader('AWS-RefreshPointMinTokens', (string) $refreshPointMinTokens);
+        Context::set(\Psr\Http\Message\ResponseInterface::class, $response);
 
         return [
             'auto_cache' => $autoCache,
