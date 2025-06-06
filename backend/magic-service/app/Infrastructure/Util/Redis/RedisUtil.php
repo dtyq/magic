@@ -13,30 +13,30 @@ use RuntimeException;
 class RedisUtil
 {
     /**
-     * 使用SCAN命令替代KEYS命令，返回匹配模式的所有键.
+     * Use SCAN command instead of KEYS command to return all keys matching the pattern.
      *
-     * @param string $pattern 匹配模式 (例如: 'user:*')
-     * @param int $count 每次 SCAN 返回的元素数量
-     * @param int $maxIterations 最大迭代次数，防止死循环
-     * @param int $timeout 超时时间（秒），防止长时间阻塞
-     * @return array 匹配模式的所有键
-     * @throws RuntimeException 当超过最大迭代次数或超时时抛出异常
+     * @param string $pattern Matching pattern (e.g., 'user:*')
+     * @param int $count Number of elements returned per SCAN
+     * @param int $maxIterations Maximum iterations to prevent infinite loops
+     * @param int $timeout Timeout in seconds to prevent long blocking
+     * @return array All keys matching the pattern
+     * @throws RuntimeException When maximum iterations are exceeded or timeout occurs
      */
     public static function scanKeys(string $pattern, int $count = 100, int $maxIterations = 1000, int $timeout = 3): array
     {
         $redis = di(Redis::class);
         $keys = [];
-        $iterator = 0; // PhpRedis 使用 0 作为初始迭代器
+        $iterator = 0; // PhpRedis uses 0 as initial iterator
         $iterations = 0;
         $startTime = time();
 
         while (true) {
-            // 检查超时
+            // Check timeout
             if (time() - $startTime > $timeout) {
                 throw new RuntimeException("Redis scan operation timeout after {$timeout} seconds");
             }
 
-            // 检查最大迭代次数
+            // Check maximum iterations
             if (++$iterations > $maxIterations) {
                 throw new RuntimeException("Redis scan operation exceeded maximum iterations ({$maxIterations})");
             }
@@ -46,7 +46,7 @@ class RedisUtil
                 $keys[] = $batchKeys;
             }
 
-            // 当迭代器为 0 时，说明扫描完成
+            // When iterator is 0, scanning is complete
             /* @phpstan-ignore-next-line */
             if ($iterator == 0) {
                 break;
