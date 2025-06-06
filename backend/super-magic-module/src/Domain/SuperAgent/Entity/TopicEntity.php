@@ -77,6 +77,11 @@ class TopicEntity extends AbstractEntity
     protected string $taskMode = 'chat';
 
     /**
+     * @var float 话题成本
+     */
+    protected float $cost = 0.0;
+
+    /**
      * @var null|int 当前任务ID
      */
     protected ?int $currentTaskId = null;
@@ -134,6 +139,7 @@ class TopicEntity extends AbstractEntity
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
             'task_mode' => $this->taskMode ?? 'chat',
+            'cost' => $this->cost ?? 0.0,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,
             'created_at' => $this->createdAt,
@@ -432,6 +438,28 @@ class TopicEntity extends AbstractEntity
     public function setTaskMode(string $taskMode): self
     {
         $this->taskMode = $taskMode;
+        return $this;
+    }
+
+    /**
+     * 获取话题成本.
+     */
+    public function getCost(): float
+    {
+        return $this->cost;
+    }
+
+    /**
+     * 设置话题成本.
+     */
+    public function setCost($cost): self
+    {
+        // 当输入不是浮点数时进行转换
+        if (!is_float($cost)) {
+            $cost = (float) $cost;
+        }
+
+        $this->cost = $cost;
         return $this;
     }
 }

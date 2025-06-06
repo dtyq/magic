@@ -161,8 +161,8 @@ class ServiceProviderDomainService
             if ($isOfficialProvider || ServiceProviderCategory::from($serviceProviderEntity->getCategory()) === ServiceProviderCategory::VLM) {
                 ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter);
             }
+            $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         }
-        $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         return $serviceProviderModelsEntity;
     }
 
@@ -892,12 +892,10 @@ class ServiceProviderDomainService
             if ($this->isOfficial($organizationCode)) {
                 // 获取服务商下的所有模型
                 $models = $this->serviceProviderModelsRepository->getModelsByServiceProviderId((int) $serviceProviderConfigId);
-                $modelParentIds = array_column($models, 'model_parent_id');
+                $modelParentIds = array_column($models, 'id');
                 $this->syncDeleteModelsToOtherServiceProvider($modelParentIds);
-            } else {
-                // 删除服务商下所有的模型
-                $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
             }
+            $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
         } catch (Exception $exception) {
             Db::rollBack();
             $this->logger->error('删除服务商失败: ' . $exception->getMessage());
@@ -1620,6 +1618,7 @@ class ServiceProviderDomainService
             $updateConsumerModel->setIcon($serviceProviderModelsEntity->getIcon());
             $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
             $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
+            $updateConsumerModel->setModelId($serviceProviderModelsEntity->getModelId());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }
