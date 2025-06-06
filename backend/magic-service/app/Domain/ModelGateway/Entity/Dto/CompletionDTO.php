@@ -27,6 +27,8 @@ class CompletionDTO extends AbstractRequestDTO
 
     protected float $presencePenalty = 0.0;
 
+    protected ?array $thinking = null;
+
     public function __construct(?array $data = null)
     {
         parent::__construct($data);
@@ -125,5 +127,15 @@ class CompletionDTO extends AbstractRequestDTO
     public function setPresencePenalty(float $presencePenalty): void
     {
         $this->presencePenalty = $presencePenalty;
+    }
+
+    public function getThinking(): ?array
+    {
+        return $this->thinking;
+    }
+
+    public function setThinking(?array $thinking): void
+    {
+        $this->thinking = $thinking;
     }
 }

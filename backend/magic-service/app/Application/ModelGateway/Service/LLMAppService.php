@@ -40,7 +40,9 @@ use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Exception;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Context\Context;
 use Hyperf\DbConnection\Db;
+use Hyperf\Odin\Api\Request\ChatCompletionRequest;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
@@ -780,6 +782,18 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
 
+        $chatRequest = new ChatCompletionRequest(
+            messages: $messages,
+            temperature: $sendMsgDTO->getTemperature(),
+            maxTokens: $sendMsgDTO->getMaxTokens(),
+            stop: $sendMsgDTO->getStop() ?? [],
+            tools: $tools,
+        );
+        $chatRequest->setFrequencyPenalty($sendMsgDTO->getFrequencyPenalty());
+        $chatRequest->setPresencePenalty($sendMsgDTO->getPresencePenalty());
+        $chatRequest->setBusinessParams($sendMsgDTO->getBusinessParams());
+        $chatRequest->setThinking($sendMsgDTO->getThinking());
+
         return match ($sendMsgDTO->getCallMethod()) {
             AbstractRequestDTO::METHOD_COMPLETIONS => $odinModel->completions(
                 prompt: $sendMsgDTO->getPrompt(),
@@ -791,26 +805,8 @@ class LLMAppService extends AbstractLLMAppService
                 businessParams: $sendMsgDTO->getBusinessParams(),
             ),
             AbstractRequestDTO::METHOD_CHAT_COMPLETIONS => match ($sendMsgDTO->isStream()) {
-                true => $odinModel->chatStream(
-                    messages: $messages,
-                    temperature: $sendMsgDTO->getTemperature(),
-                    maxTokens: $sendMsgDTO->getMaxTokens(),
-                    stop: $sendMsgDTO->getStop() ?? [],
-                    tools: $tools,
-                    frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
-                    presencePenalty: $sendMsgDTO->getPresencePenalty(),
-                    businessParams: $sendMsgDTO->getBusinessParams(),
-                ),
-                default => $odinModel->chat(
-                    messages: $messages,
-                    temperature: $sendMsgDTO->getTemperature(),
-                    maxTokens: $sendMsgDTO->getMaxTokens(),
-                    stop: $sendMsgDTO->getStop() ?? [],
-                    tools: $tools,
-                    frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
-                    presencePenalty: $sendMsgDTO->getPresencePenalty(),
-                    businessParams: $sendMsgDTO->getBusinessParams(),
-                ),
+                true => $odinModel->chatStreamWithRequest($chatRequest),
+                default => $odinModel->chatWithRequest($chatRequest),
             },
             default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
         };
@@ -947,6 +943,14 @@ class LLMAppService extends AbstractLLMAppService
 
         $refreshPointMinTokens = (int) $proxyModelRequest->getHeaderConfig('AWS-RefreshPointMinTokens', 5000);
         $refreshPointMinTokens = max($refreshPointMinTokens, 2048);
+
+        $response = Context::get(\Psr\Http\Message\ResponseInterface::class);
+        $response = $response
+            ->withHeader('AWS-AutoCache', $autoCache ? 'true' : 'false')
+            ->withHeader('AWS-MaxCachePoints', (string) $maxCachePoints)
+            ->withHeader('AWS-MinCacheTokens', (string) $minCacheTokens)
+            ->withHeader('AWS-RefreshPointMinTokens', (string) $refreshPointMinTokens);
+        Context::set(\Psr\Http\Message\ResponseInterface::class, $response);
 
         return [
             'auto_cache' => $autoCache,
