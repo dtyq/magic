@@ -530,7 +530,7 @@ class SandboxService:
             logger.error(error_msg)
             raise ContainerOperationError(error_msg)
 
-    async def _wait_for_qdrant_ready(self, container_info: ContainerInfo, max_attempts: int = 20, sleep_time: int = 1) -> bool:
+    async def _wait_for_qdrant_ready(self, container_info: ContainerInfo, max_attempts: int = 30, sleep_time: int = 1) -> bool:
         """
         通过请求Qdrant健康检查端点确定Qdrant容器是否已完全启动
 
@@ -959,7 +959,7 @@ class SandboxService:
                 logger.error(f"清理容器过程中出错: {e}")
                 await asyncio.sleep(60)
 
-    async def _wait_for_container_ready(self, container_info: ContainerInfo, max_attempts: int = 10, sleep_time: int = 1) -> bool:
+    async def _wait_for_container_ready(self, container_info: ContainerInfo, max_attempts: int = 30, sleep_time: int = 1) -> bool:
         """
         通过请求容器的健康检查端点确定容器是否已完全启动
 
