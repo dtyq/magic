@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Interfaces\MCP\Facade\HttpTransportHandler;
 
 use App\Application\MCP\Service\MCPServerStreamableAppService;
-use App\Domain\Authentication\Entity\ApiKeyProviderEntity;
 use Dtyq\PhpMcp\Server\Transports\Http\Event\HttpTransportAuthenticatedEvent;
 use Dtyq\PhpMcp\Shared\Exceptions\AuthenticationError;
 use Hyperf\Event\Annotation\Listener;
@@ -44,12 +43,12 @@ class HttpTransportInitTransportMetadataListener implements ListenerInterface
         if (! $authorization instanceof Authenticatable) {
             throw new AuthenticationError('authorization metadata is required');
         }
-        $apiKeyProvider = $authInfo->getMetadata('api_key_provider');
-        if (! $apiKeyProvider instanceof ApiKeyProviderEntity) {
-            throw new AuthenticationError('api_key_provider metadata is required');
+        $serverCode = $authInfo->getMetadata('server_code');
+        if (! $serverCode) {
+            throw new AuthenticationError('server_code metadata is required');
         }
 
-        $tools = $this->container->get(MCPServerStreamableAppService::class)->getTools($authorization, $apiKeyProvider->getRelCode());
+        $tools = $this->container->get(MCPServerStreamableAppService::class)->getTools($authorization, $serverCode);
         foreach ($tools as $tool) {
             $transportMetadata->getToolManager()->register($tool);
         }

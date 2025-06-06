@@ -22,6 +22,7 @@ parameters:
     - message: '#Static call to instance method Dtyq\\ObjectGenerator\\ObjectGeneratorFactory::dto\(\)\.#'
     - message: '#Static call to instance method Dtyq\\ObjectGenerator\\ObjectGeneratorFactory::object\(\)\.#'
     - message: '#Constant BASE_PATH not found#'
+    - message: '#Constant LOCAL_HTTP_URL not found#'
     - message: '#Call to an undefined static method .*::insert\(\)#'
     - message: '#Call to an undefined static method .*::updateOrCreate\(\)#'
     - message: '#Access to an undefined property .*Model.*#'

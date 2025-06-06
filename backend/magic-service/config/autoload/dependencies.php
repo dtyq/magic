@@ -166,6 +166,8 @@ use App\Infrastructure\Core\File\Parser\Driver\TextFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\WordFileParserDriver;
 use App\Infrastructure\Core\HighAvailability\Interface\EndpointProviderInterface;
 use App\Infrastructure\Core\HighAvailability\Service\ModelGatewayEndpointProvider;
+use App\Infrastructure\Core\TempAuth\RedisTempAuth;
+use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
@@ -198,6 +200,7 @@ $dependencies = [
     // core
     ThirdPlatformDataIsolationManagerInterface::class => BaseThirdPlatformDataIsolationManager::class,
     DocumentSplitterInterface::class => OdinRecursiveCharacterTextSplitter::class,
+    TempAuthInterface::class => RedisTempAuth::class,
     HandleDataIsolationInterface::class => BaseHandleDataIsolation::class,
     FlowOpenApiCheckInterface::class => BaseFlowOpenApiCheck::class,
     MessageAttachmentHandlerInterface::class => BaseMessageAttachmentHandler::class,

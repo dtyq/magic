@@ -8,11 +8,11 @@ declare(strict_types=1);
 namespace App\Interfaces\MCP\Facade\HttpTransportHandler;
 
 use App\Application\Authentication\Service\ApiKeyProviderAppService;
-use App\Domain\Authentication\Entity\ApiKeyProviderEntity;
 use App\Domain\Authentication\Entity\ValueObject\ApiKeyProviderType;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\PhpMcp\Shared\Auth\AuthenticatorInterface;
 use Dtyq\PhpMcp\Shared\Exceptions\AuthenticationError;
@@ -25,6 +25,7 @@ class ApiKeyProviderAuthenticator implements AuthenticatorInterface
     public function __construct(
         protected RequestInterface $request,
         protected ApiKeyProviderAppService $apiKeyProviderAppService,
+        protected TempAuthInterface $tempAuth,
     ) {
     }
 
@@ -35,16 +36,25 @@ class ApiKeyProviderAuthenticator implements AuthenticatorInterface
             throw new AuthenticationError('No API key provided');
         }
 
-        $apiKeyProviderEntity = $this->apiKeyProviderAppService->verifySecretKey($apiKey);
-        if ($apiKeyProviderEntity->getRelType() !== ApiKeyProviderType::MCP) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'api_key']);
+        if ($this->tempAuth->is($apiKey)) {
+            $data = $this->tempAuth->get($apiKey);
+            if (empty($data['organization_code']) || empty($data['user_id']) || empty($data['server_code'])) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'api_key']);
+            }
+            $authorization = $this->createAuthenticatable($data['organization_code'], $data['user_id']);
+            $serverCode = $data['server_code'];
+        } else {
+            $apiKeyProviderEntity = $this->apiKeyProviderAppService->verifySecretKey($apiKey);
+            if ($apiKeyProviderEntity->getRelType() !== ApiKeyProviderType::MCP) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'api_key']);
+            }
+            $authorization = $this->createAuthenticatable($apiKeyProviderEntity->getOrganizationCode(), $apiKeyProviderEntity->getCreator());
+            $serverCode = $apiKeyProviderEntity->getRelCode();
         }
-
-        $authorization = $this->createAuthenticatable($apiKeyProviderEntity);
 
         return AuthInfo::create($apiKey, ['*'], [
             'authorization' => $authorization,
-            'api_key_provider' => $apiKeyProviderEntity,
+            'server_code' => $serverCode,
         ]);
     }
 
@@ -60,11 +70,11 @@ class ApiKeyProviderAuthenticator implements AuthenticatorInterface
         return $apiKey;
     }
 
-    private function createAuthenticatable(ApiKeyProviderEntity $apiKeyProviderEntity): Authenticatable
+    private function createAuthenticatable($organizationCode, string $operator): Authenticatable
     {
         $authorization = new MagicUserAuthorization();
-        $authorization->setId($apiKeyProviderEntity->getCreator());
-        $authorization->setOrganizationCode($apiKeyProviderEntity->getOrganizationCode());
+        $authorization->setId($operator);
+        $authorization->setOrganizationCode($organizationCode);
         $authorization->setUserType(UserType::Human);
         return $authorization;
     }
