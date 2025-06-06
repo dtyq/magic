@@ -64,6 +64,7 @@ use Hyperf\Odin\Utils\MessageUtil;
 use Hyperf\Odin\Utils\ToolUtil;
 use Hyperf\Redis\Redis;
 use InvalidArgumentException;
+use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
@@ -1039,13 +1040,15 @@ class LLMAppService extends AbstractLLMAppService
         $refreshPointMinTokens = (int) $proxyModelRequest->getHeaderConfig('AWS-RefreshPointMinTokens', 5000);
         $refreshPointMinTokens = max($refreshPointMinTokens, 2048);
 
-        $response = Context::get(\Psr\Http\Message\ResponseInterface::class);
-        $response = $response
-            ->withHeader('AWS-AutoCache', $autoCache ? 'true' : 'false')
-            ->withHeader('AWS-MaxCachePoints', (string) $maxCachePoints)
-            ->withHeader('AWS-MinCacheTokens', (string) $minCacheTokens)
-            ->withHeader('AWS-RefreshPointMinTokens', (string) $refreshPointMinTokens);
-        Context::set(\Psr\Http\Message\ResponseInterface::class, $response);
+        if (Context::has(PsrResponseInterface::class)) {
+            $response = Context::get(PsrResponseInterface::class);
+            $response = $response
+                ->withHeader('AWS-AutoCache', $autoCache ? 'true' : 'false')
+                ->withHeader('AWS-MaxCachePoints', (string) $maxCachePoints)
+                ->withHeader('AWS-MinCacheTokens', (string) $minCacheTokens)
+                ->withHeader('AWS-RefreshPointMinTokens', (string) $refreshPointMinTokens);
+            Context::set(PsrResponseInterface::class, $response);
+        }
 
         return [
             'auto_cache' => $autoCache,
