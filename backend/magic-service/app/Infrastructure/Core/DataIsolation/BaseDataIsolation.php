@@ -231,4 +231,9 @@ class BaseDataIsolation implements DataIsolationInterface
     {
         $this->officialOrganizationCodes = $officialOrganizationCodes;
     }
+
+    public function isOfficialOrganization(): bool
+    {
+        return in_array($this->currentOrganizationCode, $this->officialOrganizationCodes, true);
+    }
 }
