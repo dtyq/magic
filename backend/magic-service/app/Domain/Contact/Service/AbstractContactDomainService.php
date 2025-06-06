@@ -38,7 +38,6 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
 use Hyperf\Snowflake\IdGeneratorInterface;
-use Hyperf\SocketIOServer\SocketIO;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -56,7 +55,6 @@ abstract class AbstractContactDomainService
         protected MagicMessageRepositoryInterface $magicMessageRepository,
         protected MagicChatSeqRepositoryInterface $magicSeqRepository,
         protected MagicAccountRepositoryInterface $magicAccountRepository,
-        protected SocketIO $socketIO,
         protected MagicChatConversationRepositoryInterface $magicConversationRepository,
         protected RedisLocker $redisLocker,
         protected Producer $producer,

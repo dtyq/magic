@@ -68,7 +68,6 @@ use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Message\UserMessage;
 use Hyperf\Redis\Redis;
 use Hyperf\SocketIOServer\Socket;
-use Hyperf\SocketIOServer\SocketIO;
 use Hyperf\WebSocketServer\Context as WebSocketContext;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -90,7 +89,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         protected readonly MagicChatFileDomainService $magicChatFileDomainService,
         protected MagicSeqDomainService $magicSeqDomainService,
         protected FileDomainService $fileDomainService,
-        protected SocketIO $socketIO,
         protected CacheInterface $cache,
         protected MagicUserDomainService $magicUserDomainService,
         protected Redis $redis,

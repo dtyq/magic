@@ -17,7 +17,6 @@ use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\Common\MagicContext;
 use App\Domain\Chat\DTO\Request\ControlRequest;
 use App\Domain\Chat\DTO\Request\StreamRequest;
-use App\Domain\Chat\Entity\ValueObject\ChatSocketIoNameSpace;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessagePriority;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
@@ -29,6 +28,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\Guard\WebsocketChatUserGuard;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -44,7 +44,6 @@ use Hyperf\SocketIOServer\Annotation\SocketIONamespace;
 use Hyperf\SocketIOServer\BaseNamespace;
 use Hyperf\SocketIOServer\SidProvider\SidProviderInterface;
 use Hyperf\SocketIOServer\Socket;
-use Hyperf\SocketIOServer\SocketIO;
 use Hyperf\SocketIOServer\SocketIOConfig;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use Hyperf\WebSocketServer\Sender;
@@ -71,7 +70,6 @@ class MagicChatWebSocketApi extends BaseNamespace
         private readonly ValidatorFactoryInterface $validatorFactory,
         private readonly StdoutLoggerInterface $logger,
         private readonly SocketIOConfig $config,
-        private readonly SocketIO $socketIO,
         private readonly Redis $redis,
         private readonly Timer $timer,
         private readonly AuthManager $authManager,
@@ -346,7 +344,8 @@ class MagicChatWebSocketApi extends BaseNamespace
                     if (! $this->redis->set('magic-im:subscribe:keepalive', '1', ['ex' => 5, 'nx'])) {
                         return;
                     }
-                    $this->socketIO->of(ChatSocketIoNameSpace::Im->value)->to('magic-im:subscribe:keepalive')->emit(SocketEventType::Chat->value, ControlMessageType::Ping->value);
+                    SocketIOUtil::sendIntermediate(SocketEventType::Chat, 'magic-im:subscribe:keepalive', ControlMessageType::Ping->value);
+
                     $producer = ApplicationContext::getContainer()->get(Producer::class);
                     // 对所有队列投一条消息,以保活链接/队列
                     $messagePriorities = MessagePriority::cases();

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Hyperf\SocketIOServer\Room;
 
 use App\Domain\Chat\Event\Device\DeviceDisconnectEvent;
+use App\Domain\Chat\Service\MessageContentProviderInterface;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Coordinator\Constants;
@@ -42,9 +43,21 @@ class RedisAdapter implements AdapterInterface, EphemeralInterface
 
     protected int $ttl = 0;
 
+    protected ?MessageContentProviderInterface $messageContentProvider = null;
+
     public function __construct(RedisFactory $redis, protected Sender $sender, protected NamespaceInterface $nsp, protected SidProviderInterface $sidProvider)
     {
         $this->redis = $redis->get($this->connection);
+
+        // Try to get message content provider (optional dependency)
+        try {
+            $container = ApplicationContext::getContainer();
+            if ($container->has(MessageContentProviderInterface::class)) {
+                $this->messageContentProvider = $container->get(MessageContentProviderInterface::class);
+            }
+        } catch (Throwable) {
+            // Ignore errors, maintain backward compatibility
+        }
     }
 
     public function add(string $sid, string ...$rooms)
@@ -181,7 +194,7 @@ class RedisAdapter implements AdapterInterface, EphemeralInterface
 
         if (! empty($sids)) {
             foreach ($sids as $sid) {
-                // 说明服务端的 redis 房间已经将该 sid或者 magic_id移除，触发断链
+                // Indicates that the server's redis room has removed the sid or magic_id, trigger disconnection
                 event_dispatch(new DeviceDisconnectEvent($sid));
                 $this->del($sid);
             }
@@ -199,10 +212,10 @@ class RedisAdapter implements AdapterInterface, EphemeralInterface
     public function renew(string $sid): void
     {
         if ($this->ttl > 0) {
-            // 对 sid 和房间保活
+            // Keep alive for sid and rooms
             $rooms = $this->clientRooms($sid);
             if (count($rooms) < 2) {
-                // 说明服务端的 redis 房间已经将该 sid或者 magic_id移除，触发断链
+                // Indicates that the server's redis room has removed the sid or magic_id, trigger disconnection
                 event_dispatch(new DeviceDisconnectEvent($sid));
             }
             ! empty($rooms) && $this->add($sid, ...$rooms);
@@ -305,8 +318,16 @@ class RedisAdapter implements AdapterInterface, EphemeralInterface
         if (in_array($sid, $except)) {
             return;
         }
+
+        // Optimization: if packet contains seq_id instead of complete message, get real message content
+        if ($this->messageContentProvider !== null) {
+            $actualPacket = $this->messageContentProvider->resolveActualPacket($packet);
+        } else {
+            $actualPacket = $packet;
+        }
+
         if ($this->isLocal($sid) && ! isset($pushed[$fd])) {
-            $this->sender->pushFrame($fd, new Frame(payloadData: $packet));
+            $this->sender->pushFrame($fd, new Frame(payloadData: $actualPacket));
             $pushed[$fd] = true;
             $this->shouldClose($opts) && $this->close($fd);
         }

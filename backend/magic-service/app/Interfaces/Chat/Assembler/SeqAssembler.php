@@ -22,6 +22,7 @@ use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\MessageOptionsEnum;
+use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Constants\Order;
@@ -239,6 +240,17 @@ class SeqAssembler
             });
         }
         return $clientSequenceResponses;
+    }
+
+    /**
+     * Get corresponding Socket event type based on sequence entity.
+     */
+    public static function getSocketEventType(MagicSeqEntity $seqEntity): SocketEventType
+    {
+        if ($seqEntity->getSeqType() instanceof ControlMessageType) {
+            return SocketEventType::Control;
+        }
+        return SocketEventType::Chat;
     }
 
     private static function getClientSequence(MagicSeqEntity $seqEntity, ?MagicMessageEntity $messageEntity = null): ClientSequence
