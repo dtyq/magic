@@ -9,7 +9,7 @@ namespace App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure;
 
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
 
-class MCPServerConfig
+class MCPServerItem
 {
     public function __construct(
         protected string $id,

@@ -13,6 +13,8 @@ use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use DateTime;
+use Hyperf\Odin\Mcp\McpServerConfig;
+use Hyperf\Odin\Mcp\McpType;
 
 class MCPServerEntity extends AbstractEntity
 {
@@ -130,6 +132,32 @@ class MCPServerEntity extends AbstractEntity
     public function prepareForChangeEnable(): void
     {
         $this->enabled = ! $this->enabled;
+    }
+
+    public function createMcpServerConfig(): ?McpServerConfig
+    {
+        if (! $this->isEnabled()) {
+            return null;
+        }
+        switch ($this->type) {
+            case ServiceType::SSE:
+                return new McpServerConfig(
+                    type: McpType::Http,
+                    name: $this->name,
+                    url: LOCAL_HTTP_URL . '/api/v1/mcp/sse/' . $this->code,
+                );
+            case ServiceType::ExternalSSE:
+                if (empty($this->externalSseUrl)) {
+                    return null;
+                }
+                return new McpServerConfig(
+                    type: McpType::Http,
+                    name: $this->name,
+                    url: $this->externalSseUrl,
+                );
+            default:
+                return null;
+        }
     }
 
     // Getters and Setters...
