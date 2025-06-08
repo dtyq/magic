@@ -1160,19 +1160,98 @@ class TaskAppService extends AbstractAppService
      */
     private function processToolAttachments(?array &$tool, TaskContext $taskContext): void
     {
-        if (empty($tool) || empty($tool['attachments'])) {
+        if (empty($tool)) {
             return;
         }
 
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
 
-        for ($i = 0; $i < count($tool['attachments']); ++$i) {
-            $tool['attachments'][$i] = $this->processSingleAttachment(
-                $tool['attachments'][$i],
-                $task,
-                $dataIsolation
+        // 处理工具内容存储到对象存储
+        $this->processToolContentStorage($tool, $taskContext);
+
+        // 处理工具附件
+        if (!empty($tool['attachments'])) {
+            for ($i = 0; $i < count($tool['attachments']); ++$i) {
+                $tool['attachments'][$i] = $this->processSingleAttachment(
+                    $tool['attachments'][$i],
+                    $task,
+                    $dataIsolation
+                );
+            }
+        }
+    }
+
+    /**
+     * 处理工具内容存储到对象存储
+     *
+     * @param array $tool 工具数组（引用传递）
+     * @param TaskContext $taskContext 任务上下文
+     */
+    private function processToolContentStorage(array &$tool, TaskContext $taskContext): void
+    {
+        // 检查是否启用对象存储
+        $objectStorageEnabled = config('super-magic.task.tool_message.object_storage_enabled', true);
+        if (!$objectStorageEnabled) {
+            return;
+        }
+
+        // 检查工具内容
+        $content = $tool['detail']['data']['content'] ?? '';
+        if (empty($content)) {
+            return;
+        }
+
+        // 检查内容长度是否达到阈值
+        $minContentLength = config('super-magic.task.tool_message.min_content_length', 200);
+        if (strlen($content) < $minContentLength) {
+            return;
+        }
+
+        $this->logger->info(sprintf(
+            '开始处理工具内容存储，工具ID: %s，内容长度: %d',
+            $tool['id'] ?? 'unknown',
+            strlen($content)
+        ));
+
+        try {
+            // 构建参数
+            $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
+            $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
+            $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
+            $task = $taskContext->getTask();
+            $workDir = rtrim($task->getWorkdir(), '/') . '/task_' . $task->getId() . '/.chat/';
+
+            // 调用FileProcessAppService保存内容
+            $fileId = $this->fileProcessAppService->saveToolMessageContent(
+                fileName: $fileName,
+                workDir: $workDir,
+                fileKey: $fileKey,
+                content: $content,
+                dataIsolation: $taskContext->getDataIsolation(),
+                topicId: $task->getTopicId(),
+                taskId: (int) $task->getId()
             );
+
+            // 修改工具数据结构
+            $tool['detail']['data']['file_id'] = (string) $fileId;
+            $tool['detail']['data']['content'] = ''; // 清空内容
+
+            $this->logger->info(sprintf(
+                '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d',
+                $tool['id'] ?? 'unknown',
+                $fileId,
+                strlen($content)
+            ));
+
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                '工具内容存储失败: %s，工具ID: %s，内容长度: %d',
+                $e->getMessage(),
+                $tool['id'] ?? 'unknown',
+                strlen($content)
+            ));
+            // 存储失败不影响主流程，只记录错误
         }
     }
 
