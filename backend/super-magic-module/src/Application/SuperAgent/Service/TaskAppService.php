@@ -1171,7 +1171,7 @@ class TaskAppService extends AbstractAppService
         $this->processToolContentStorage($tool, $taskContext);
 
         // 处理工具附件
-        if (!empty($tool['attachments'])) {
+        if (! empty($tool['attachments'])) {
             for ($i = 0; $i < count($tool['attachments']); ++$i) {
                 $tool['attachments'][$i] = $this->processSingleAttachment(
                     $tool['attachments'][$i],
@@ -1183,7 +1183,7 @@ class TaskAppService extends AbstractAppService
     }
 
     /**
-     * 处理工具内容存储到对象存储
+     * 处理工具内容存储到对象存储.
      *
      * @param array $tool 工具数组（引用传递）
      * @param TaskContext $taskContext 任务上下文
@@ -1192,7 +1192,7 @@ class TaskAppService extends AbstractAppService
     {
         // 检查是否启用对象存储
         $objectStorageEnabled = config('super-magic.task.tool_message.object_storage_enabled', true);
-        if (!$objectStorageEnabled) {
+        if (! $objectStorageEnabled) {
             return;
         }
 
@@ -1243,7 +1243,6 @@ class TaskAppService extends AbstractAppService
                 $fileId,
                 strlen($content)
             ));
-
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 '工具内容存储失败: %s，工具ID: %s，内容长度: %d',

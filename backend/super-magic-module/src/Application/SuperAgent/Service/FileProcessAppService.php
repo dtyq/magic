@@ -582,7 +582,7 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
-     * Save tool message content to object storage
+     * Save tool message content to object storage.
      *
      * @param string $fileName File name
      * @param string $workDir Working directory
@@ -611,8 +611,10 @@ class FileProcessAppService extends AbstractAppService
 
         try {
             // Construct complete file path
-            $fullFileKey = rtrim($workDir, '/') . '/' . ltrim($fileKey, '/');
-            
+            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+            $appId = config('kk_brd_service.app_id');
+            $fullFileKey = "{$organizationCode}/{$appId}" . '/' . trim($workDir, '/') . '/' . ltrim($fileKey, '/');
+
             // 1. Check if file already exists
             $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey);
             if ($existingFile) {
@@ -667,7 +669,6 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             return $taskFileEntity->getFileId();
-
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to save tool message content: %s, File name: %s, Task ID: %d',
@@ -678,8 +679,6 @@ class FileProcessAppService extends AbstractAppService
             throw $e;
         }
     }
-
-
 
     /**
      * Perform actual file save logic.
@@ -758,7 +757,7 @@ class FileProcessAppService extends AbstractAppService
      * @param string $fileName File name
      * @param string $fileExtension File extension
      * @param string $organizationCode Organization code
-     * @param int|null $fileId File ID (optional, for logging)
+     * @param null|int $fileId File ID (optional, for logging)
      * @return array Upload result
      */
     private function uploadFileContent(string $content, string $fileKey, string $fileName, string $fileExtension, string $organizationCode, ?int $fileId = null): array
