@@ -17,6 +17,8 @@ interface TopicRepositoryInterface
      */
     public function getTopicById(int $id): ?TopicEntity;
 
+    public function getTopicBySandboxId(string $sandboxId): ?TopicEntity;
+
     /**
      * 根据条件获取话题列表.
      * 支持过滤、分页和排序.

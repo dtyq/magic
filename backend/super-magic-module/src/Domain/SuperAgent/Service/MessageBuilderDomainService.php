@@ -101,6 +101,20 @@ class MessageBuilderDomainService
         ];
     }
 
+    public function buildContinueMessage(string $userId, string $taskId): array
+    {
+        return [
+            'message_id' => (string) IdGenerator::getSnowId(),
+            'user_id' => $userId,
+            'task_id' => $taskId,
+            'type' => MessageType::Chat->value,
+            'context_type' => ChatInstruction::FollowUp,
+            'prompt' => '继续',
+            'attachments' => [],
+            'task_mode' => 'chat',
+        ];
+    }
+
     public function buildInterruptMessage(string $userId, int $taskId, string $taskMode = 'chat', string $remark = '')
     {
         return [

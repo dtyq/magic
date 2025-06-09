@@ -7,4 +7,5 @@ declare(strict_types=1);
 return [
     'not_found' => 'Task not found',
     'work_dir_not_found' => 'Work directory not found',
+    'continue' => 'Continue',
 ];
