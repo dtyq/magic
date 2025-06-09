@@ -43,30 +43,32 @@ class MessageContentProvider implements MessageContentProviderInterface
             }
             $parserPacket = di(Decoder::class)->decode($packet);
 
-            if (is_array($parserPacket->data)) {
-                $sequenceData = $parserPacket->data[1] ?? null;
-                $sequenceId = $sequenceData['seq_id'] ?? null;
+            if (! is_array($parserPacket->data)) {
+                return $packet;
+            }
+            $sequenceData = $parserPacket->data[1] ?? null;
+            $sequenceId = $sequenceData['seq_id'] ?? null;
 
-                // Check if it's a pure seq_id packet (contains only seq_id field)
-                if (is_numeric($sequenceId) && is_array($sequenceData) && count($sequenceData) === 1) {
-                    $fullMessageData = $this->getFullMessageDataBySeqId($sequenceId);
-                    if ($fullMessageData !== null) {
-                        // Replace the data[1] part in the original packet
-                        $parserPacket->data[1] = $fullMessageData;
+            // Check if it's a pure seq_id packet (contains only seq_id field)
+            if (! is_numeric($sequenceId)) {
+                return $packet;
+            }
+            $fullMessageData = $this->getFullMessageDataBySeqId($sequenceId);
+            if ($fullMessageData !== null) {
+                // Replace the data[1] part in the original packet
+                $parserPacket->data[1] = $fullMessageData;
 
-                        // Re-encode the Socket.IO part
-                        $newPacket = Packet::create([
-                            'type' => $parserPacket->type,
-                            'nsp' => $parserPacket->nsp,
-                            'id' => $parserPacket->id,
-                            'data' => $parserPacket->data,
-                        ]);
-                        $encodedSocketIO = di(Encoder::class)->encode($newPacket);
+                // Re-encode the Socket.IO part
+                $newPacket = Packet::create([
+                    'type' => $parserPacket->type,
+                    'nsp' => $parserPacket->nsp,
+                    'id' => $parserPacket->id,
+                    'data' => $parserPacket->data,
+                ]);
+                $encodedSocketIO = di(Encoder::class)->encode($newPacket);
 
-                        // Return with Engine.IO MESSAGE prefix
-                        return Engine::MESSAGE . $encodedSocketIO;
-                    }
-                }
+                // Return with Engine.IO MESSAGE prefix
+                return Engine::MESSAGE . $encodedSocketIO;
             }
         } catch (Throwable $e) {
             // Fallback to original packet when parsing fails
