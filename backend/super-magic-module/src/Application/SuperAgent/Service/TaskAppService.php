@@ -462,6 +462,56 @@ class TaskAppService extends AbstractAppService
         return $this->locker->release($lockKey, $lockOwner);
     }
 
+    public function sendContinueMessageToSandbox(string $sandboxId, bool $isInit = false): bool
+    {
+        // 通过沙箱id
+        $topicEntity = $this->topicDomainService->getTopicBySandboxId($sandboxId);
+        if (is_null($topicEntity)) {
+            throw new RuntimeException(sprintf('根据沙箱 id: %s 未找到话题信息', $sandboxId));
+        }
+
+        // 创建数据隔离对象
+        $dataIsolation = DataIsolation::create(
+            $topicEntity->getUserOrganizationCode(),
+            $topicEntity->getUserId(),
+        );
+
+        // 获取任务信息
+        $taskEntity = $this->taskDomainService->getTaskById($topicEntity->getCurrentTaskId());
+        if (is_null($taskEntity)) {
+            throw new RuntimeException(sprintf('根据任务 id: %s 未找到任务信息', $topicEntity->getCurrentTaskId() ?? ''));
+        }
+
+        $taskContext = new TaskContext(
+            task: $taskEntity,
+            dataIsolation: $dataIsolation,
+            chatConversationId: $topicEntity->getChatConversationId(),
+            chatTopicId: $topicEntity->getChatTopicId(),
+            agentUserId: '',
+            sandboxId: $sandboxId,
+            taskId: (string) $taskEntity->getId(),
+            instruction: ChatInstruction::FollowUp
+        );
+        // 通过沙箱 id 查询当前
+        $session = $this->getSandboxWebsocketClient($taskContext);
+        if (is_null($session)) {
+            throw new BusinessException('获取沙箱websocket客户端失败');
+        }
+
+        // 发送初始化消息
+        if ($isInit) {
+            $this->initTaskMessageToSandbox($session, $taskContext, false);
+        }
+        $chatMessage = $this->messageBuilder->buildContinueMessage(
+            $dataIsolation->getCurrentUserId(),
+            $taskContext->getChatConversationId(),
+        );
+
+        $this->sendMessageToSandbox($session, $taskEntity->getId(), $chatMessage);
+
+        return true;
+    }
+
     /**
      * 获取 websocket 客户端廉价.
      */

@@ -32,6 +32,17 @@ class TopicRepository implements TopicRepositoryInterface
         return new TopicEntity($data);
     }
 
+    public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
+    {
+        $model = $this->model::query()->whereNull('deleted_at')->where('sandbox_id', $sandboxId)->first();
+        if (! $model) {
+            return null;
+        }
+
+        $data = $this->convertModelToEntityData($model->toArray());
+        return new TopicEntity($data);
+    }
+
     /**
      * 根据条件获取话题列表.
      * 支持过滤、分页和排序.
