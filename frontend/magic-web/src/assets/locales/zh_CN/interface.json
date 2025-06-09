@@ -1124,7 +1124,9 @@
 			"NotSupport": "暂不支持",
 			"groupDisbanded": {
 				"content": "该群已解散"
-			}
+			},
+			"loadingMoreMessages": "加载更多消息...",
+			"switchingConversation": "切换会话中..."
 		},
 		"drive": {
 			"modal": {}

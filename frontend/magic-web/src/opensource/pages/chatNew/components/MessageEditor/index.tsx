@@ -12,6 +12,7 @@ import type { ReportFileUploadsResponse } from "@/opensource/apis/modules/file"
 import { InstructionGroupType, SystemInstructType } from "@/types/bot"
 import MagicEmojiNodeExtension from "@/opensource/components/base/MagicRichEditor/extensions/magicEmoji"
 import {
+	FileError,
 	fileToBase64,
 	isOnlyText,
 	transformJSONContent,
@@ -772,6 +773,31 @@ const MessageEditor = observer(function MessageEditor({
 
 	const onClick = useMemoizedFn(() => editorRef.current?.editor?.chain().focus().run())
 
+	const handlePasteFileFail = useMemoizedFn((errors: FileError[]) => {
+		const fileList: FileData[] = []
+		errors.forEach((error) => {
+			switch (error.reason) {
+				case "size":
+					message.error(t("richEditor.fileTooLarge"))
+					break
+				case "invalidBase64":
+					message.error(t("richEditor.invalidBase64"))
+					break
+				case "type":
+					if (error.file && error.file instanceof File) {
+						fileList.push(genFileData(error.file as File))
+					}
+					break
+				default:
+					break
+			}
+		})
+
+		if (fileList.length) {
+			setFiles((prev) => [...prev, ...fileList])
+		}
+	})
+
 	const ChildrenRender = useMemoizedFn(({ className: inputClassName }) => {
 		return (
 			<>
@@ -787,6 +813,7 @@ const MessageEditor = observer(function MessageEditor({
 					onCompositionEnd={AiCompletionService.onCompositionEnd}
 					editorProps={editorProps}
 					enterBreak={sendWhenEnter}
+					onPasteFileFail={handlePasteFileFail}
 				/>
 				{openAiCompletion && <AiCompletionTip />}
 			</>

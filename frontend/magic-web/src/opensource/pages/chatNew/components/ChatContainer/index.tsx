@@ -40,10 +40,10 @@ const ChatContainer = observer(function ChatContainer({
 		<Flex flex={1} className={styles.chat} id={ChatDomId.ChatContainer}>
 			<MagicSplitter onResize={onSiderResize}>
 				<MagicSplitter.Panel
-					min="10%"
+					min={200}
 					defaultSize={interfaceStore.chatSiderDefaultWidth}
 					size={sizes[0]}
-					max="20%"
+					max={300}
 				>
 					<ChatSubSider />
 				</MagicSplitter.Panel>

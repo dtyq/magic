@@ -24,7 +24,7 @@ interface UserConversationItemProps {
 }
 
 const UserConversationItem = observer(({ conversationId, onClick }: UserConversationItemProps) => {
-	const conversation = conversationStore.conversations[conversationId]
+	const conversation = conversationStore.getConversation(conversationId)
 	const { userInfo } = useUserInfo(conversation.receive_id)
 
 	const active = conversationStore.currentConversation?.id === conversationId
@@ -71,11 +71,9 @@ const UserConversationItem = observer(({ conversationId, onClick }: UserConversa
 				<Flex vertical flex={1} justify="space-between" className={styles.mainWrapper}>
 					<Flex align="center" justify="space-between" className={styles.top}>
 						<span className={styles.title}>{getUserName(userInfo)}</span>
-						{lastMessage && (
-							<span className={styles.time}>
-								{formatRelativeTime(language)(lastMessage?.time)}
-							</span>
-						)}
+						<span className={styles.time}>
+							{formatRelativeTime(language)(conversation.last_receive_message_time)}
+						</span>
 					</Flex>
 					<LastMessageRender message={lastMessage} className={styles.content} />
 				</Flex>

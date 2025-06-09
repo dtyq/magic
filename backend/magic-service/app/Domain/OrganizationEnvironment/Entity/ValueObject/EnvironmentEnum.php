@@ -13,4 +13,9 @@ enum EnvironmentEnum: string
     case Pre = 'pre';
     case Production = 'production';
     case Unknown = 'unknown';
+
+    public function isProduction(): bool
+    {
+        return $this === self::Production;
+    }
 }

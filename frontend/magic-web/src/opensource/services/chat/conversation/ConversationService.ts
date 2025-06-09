@@ -702,6 +702,10 @@ class ConversationService {
 		// 如果消息没有文本，则不更新 (大概率是流式消息，最开始没有内容，在流式结束完之后会再次更新)
 		if (!message.text) return
 
+		const time = conversationStore
+			.getConversation(conversationId)
+			?.getLastMessageTime(message.time)
+
 		if (conversationStore.hasConversation(conversationId)) {
 			const conversation = conversationStore.getConversation(conversationId)
 
@@ -714,9 +718,10 @@ class ConversationService {
 				messageTopicId !== conversationTopicId
 			) {
 				conversationStore.updateConversationCurrentTopicId(conversationId, messageTopicId)
-				conversation.setLastReceiveMessage(message)
+				conversation.setLastReceiveMessageAndLastReceiveTime(message)
 				// 更新数据库
 				ConversationDbServices.updateConversation(conversationId, {
+					last_receive_message_time: time,
 					current_topic_id: messageTopicId,
 					last_receive_message: message,
 				})
@@ -726,9 +731,10 @@ class ConversationService {
 				conversationId === conversationStore.currentConversation?.id &&
 				messageTopicId === conversationTopicId
 			) {
-				conversation.setLastReceiveMessage(message)
+				conversation.setLastReceiveMessageAndLastReceiveTime(message)
 				// 更新数据库
 				ConversationDbServices.updateConversation(conversationId, {
+					last_receive_message_time: time,
 					last_receive_message: message,
 				})
 			}

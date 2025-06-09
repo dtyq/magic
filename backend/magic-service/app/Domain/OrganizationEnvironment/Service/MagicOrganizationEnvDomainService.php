@@ -79,7 +79,7 @@ class MagicOrganizationEnvDomainService
     public function getMagicEnvironmentById(int $envId): ?MagicEnvironmentEntity
     {
         // 组织所在的环境
-        return $this->magicEnvironmentsRepository->getMagicEnvironmentById($envId);
+        return $this->magicEnvironmentsRepository->getEnvById((string) $envId);
     }
 
     public function getOrganizationsEnvironmentDTO(string $magicOrganizationCode): ?MagicOrganizationEnvDTO

@@ -115,7 +115,7 @@ readonly class MagicEnvironmentsRepository implements EnvironmentRepositoryInter
         return new MagicEnvironmentEntity($magicOrganizationEnv->toArray());
     }
 
-    #[Cacheable(prefix: 'magic_environment', ttl: 60, value: '_#{id}')]
+    #[Cacheable(prefix: 'magic_environment', value: '_#{id}', ttl: 60)]
     private function getEnvByIdArray(string $id): ?array
     {
         $env = $this->magicEnvironmentModel::query()->find($id)?->toArray();

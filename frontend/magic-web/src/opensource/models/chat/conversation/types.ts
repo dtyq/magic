@@ -27,4 +27,5 @@ export type ConversationObject = {
 	unread_dots: number
 	topic_unread_dots: Map<string, number>
 	receive_inputing: boolean
+	last_receive_message_time: number
 }
