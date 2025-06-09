@@ -100,6 +100,9 @@ class MCPServerEntity extends AbstractEntity
             if (empty($this->externalSseUrl)) {
                 ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.external_sse_url']);
             }
+            if (! is_url($this->externalSseUrl)) {
+                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.external_sse_url']);
+            }
         }
     }
 
@@ -110,6 +113,9 @@ class MCPServerEntity extends AbstractEntity
         }
         if (empty($this->name)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'name']);
+        }
+        if ($this->externalSseUrl && ! is_url($this->externalSseUrl)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.external_sse_url']);
         }
 
         $mcpServerEntity->setName($this->name);
