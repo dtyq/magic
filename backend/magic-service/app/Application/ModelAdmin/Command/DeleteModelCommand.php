@@ -7,8 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelAdmin\Command;
 
-use App\Application\ModelAdmin\Service\ServiceProviderAppService;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
+use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderModelsRepository;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Psr\Container\ContainerInterface;
@@ -26,15 +25,12 @@ class DeleteModelCommand extends HyperfCommand
      */
     protected $container;
 
-    /**
-     * @var ServiceProviderAppService
-     */
-    protected $serviceProviderDomainService;
+    protected ServiceProviderModelsRepository $serviceProviderModelsRepository;
 
     public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
-        $this->serviceProviderDomainService = $container->get(ServiceProviderDomainService::class);
+        $this->serviceProviderModelsRepository = $container->get(ServiceProviderModelsRepository::class);
 
         parent::__construct('model:delete');
     }
@@ -64,7 +60,9 @@ class DeleteModelCommand extends HyperfCommand
         }
 
         try {
-            $this->serviceProviderDomainService->deleteModel($modelId, $organizationCode);
+            $this->serviceProviderModelsRepository->deleteByModelIdAndOrganizationCode($modelId, $organizationCode);
+            $this->serviceProviderModelsRepository->deleteByModelParentId([$modelId]);
+
             $this->output->success(sprintf('成功删除模型 [%s]', $modelId));
             return 0;
         } catch (Throwable $e) {

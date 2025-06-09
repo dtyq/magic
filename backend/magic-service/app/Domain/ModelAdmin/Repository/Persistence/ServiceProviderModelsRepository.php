@@ -413,6 +413,11 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $this->serviceProviderModelsModel::query()->whereIn('model_parent_id', $modelParentIds)->where('is_office', true)->delete();
     }
 
+    public function deleteByModelParentId(array $modelParentIds): void
+    {
+        $this->serviceProviderModelsModel::query()->whereIn('model_parent_id', $modelParentIds)->delete();
+    }
+
     public function updateOfficeModel(int $id, array $entityArray): void
     {
         $this->removeOfficeImmutableFields($entityArray);
