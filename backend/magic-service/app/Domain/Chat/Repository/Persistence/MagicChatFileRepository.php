@@ -63,10 +63,26 @@ class MagicChatFileRepository implements MagicChatFileRepositoryInterface
             $query->limit($limit);
         }
         $files = Db::select($query->toSql(), $query->getBindings());
-        $fileEntities = [];
+
+        // Sort by fileIds order in PHP
+        $fileMap = [];
         foreach ($files as $file) {
-            $fileEntities[] = new MagicChatFileEntity($file);
+            $fileMap[$file->file_id] = new MagicChatFileEntity($file);
         }
+
+        $fileEntities = [];
+        if (is_null($order)) {
+            // If no order specified, return in fileIds order
+            foreach ($fileIds as $fileId) {
+                if (isset($fileMap[$fileId])) {
+                    $fileEntities[] = $fileMap[$fileId];
+                }
+            }
+        } else {
+            // If order specified, return database sorted results
+            $fileEntities = array_values($fileMap);
+        }
+
         return $fileEntities;
     }
 
