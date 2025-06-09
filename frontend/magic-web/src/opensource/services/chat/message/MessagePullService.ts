@@ -27,6 +27,8 @@ import {
 import DotsService from "../dots/DotsService"
 import { userStore } from "@/opensource/models/user"
 import AiSearchApplyService from "./MessageApplyServices/ChatMessageApplyServices/AiSearchApplyService"
+import Logger from "@/utils/log/Logger"
+import OrganizationDotsService from "../dots/OrganizationDotsService"
 
 interface PullMessagesFromServerOptions {
 	conversationId: string
@@ -35,6 +37,8 @@ interface PullMessagesFromServerOptions {
 	withoutSeqId?: boolean
 	loadHistory?: boolean
 }
+
+const logger = new Logger("MessagePullService")
 
 class MessagePullService {
 	/** 消息拉取循环 */
@@ -57,7 +61,11 @@ class MessagePullService {
 		}
 
 		this.pullMessageInterval = setInterval(() => {
-			this.pullOfflineMessages()
+			logger.log("pullMessageInterval: 拉取离线消息")
+			const organizationSeqId = MessageSeqIdService.getOrganizationRenderSeqId(
+				userStore.user.userInfo?.organization_code ?? "",
+			)
+			this.pullOfflineMessages(organizationSeqId)
 		}, this.messagePullFrequency)
 	}
 
@@ -292,24 +300,6 @@ class MessagePullService {
 	}
 
 	/**
-	 * 获取消息列表并反转顺序
-	 *
-	 * @returns 消息列表
-	 */
-	private async pullOfficeMessages({ pageToken }: { pageToken: string }) {
-		return fetchPaddingData(
-			(p) =>
-				// ChatApi.messagePull(p).then((res) => ({
-				// 	...res,
-				// 	items: res.items.reverse(),
-				// })),
-				ChatApi.messagePull(p),
-			[],
-			pageToken,
-		)
-	}
-
-	/**
 	 * 获取最近消息列表
 	 * @returns 消息列表
 	 */
@@ -327,6 +317,7 @@ class MessagePullService {
 
 	/**
 	 * 拉取离线消息
+	 * 逐页拉取消息并立即应用，提升消息显示的及时性
 	 */
 	public async pullOfflineMessages(triggerSeqId?: string) {
 		if (triggerSeqId) {
@@ -337,43 +328,88 @@ class MessagePullService {
 		console.log("this.triggerPromise ====> ", this.triggerPromise)
 		// 如果正在拉取，则不重复拉取
 		if (this.triggerPromise) {
+			logger.log("pullOfflineMessages: 正在拉取，不重复拉取")
 			return
 		}
 
-		console.log("this.pullTriggerList.length ====> ", this.pullTriggerList.length)
-
-		const organizationCode = userStore.user.userInfo?.organization_code ?? ""
-
-		if (!organizationCode) {
-			console.warn("pullOfflineMessages: 当前组织为空")
-			return
+		try {
+			this.triggerPromise = this.doPullOfflineMessages()
+			await this.triggerPromise
+		} finally {
+			logger.log("pullOfflineMessages: 拉取完成，重置拉取触发列表")
+			this.triggerPromise = undefined
 		}
+	}
 
-		const globalPullSeqId = MessageSeqIdService.getOrganizationRenderSeqId(organizationCode)
-		this.triggerPromise = this.pullOfficeMessages({ pageToken: globalPullSeqId })
-			.then((items) => {
-				if (items.length) {
-					const sorted = items
+	/**
+	 * 执行离线消息拉取的核心逻辑
+	 */
+	private async doPullOfflineMessages() {
+		// 使用循环而不是递归，避免调用栈过深
+		while (this.pullTriggerList.length > 0) {
+			const organizationCode = userStore.user.userInfo?.organization_code ?? ""
+
+			if (!organizationCode) {
+				logger.warn("pullOfflineMessages: 当前组织为空")
+				return
+			}
+
+			const globalPullSeqId = MessageSeqIdService.getOrganizationRenderSeqId(organizationCode)
+			await this.pullMessagesFromPageToken(globalPullSeqId)
+		}
+	}
+
+	/**
+	 * 从指定页面令牌开始拉取消息
+	 */
+	private async pullMessagesFromPageToken(pageToken: string) {
+		let currentPageToken = pageToken
+		let hasMore = true
+		let totalProcessed = 0
+
+		while (hasMore) {
+			try {
+				const res = await ChatApi.messagePull({ page_token: currentPageToken })
+
+				logger.log("pullMessagesFromPageToken: 拉取消息", res)
+
+				// 立即处理当前页的消息
+				if (res.items && res.items.length > 0) {
+					const sorted = res.items
 						.map((item) => item.seq)
 						.sort((a, b) => bigNumCompare(a.seq_id ?? "", b.seq_id ?? ""))
-					console.log("sorted ====> ", sorted)
+
+					logger.log(`Processing page with ${sorted.length} messages`)
 					this.applyMessages(sorted)
 					MessageSeqIdService.updateGlobalPullSeqId(last(sorted)?.seq_id ?? "")
 
 					this.pullTriggerList = this.pullTriggerList.filter(
 						(item) => bigNumCompare(item, last(sorted)?.seq_id ?? "") > 0,
 					)
-				}
-				this.triggerPromise = undefined
 
-				if (this.pullTriggerList.length > 0) {
-					// 还有未拉取的消息，继续拉取
-					this.pullOfflineMessages()
+					totalProcessed += sorted.length
+				} else {
+					this.pullTriggerList = this.pullTriggerList.filter(
+						(item) => bigNumCompare(item, pageToken) > 0,
+					)
 				}
-			})
-			.catch(() => {
-				this.triggerPromise = undefined
-			})
+
+				// 检查是否还有更多数据
+				hasMore = res.has_more
+				currentPageToken = res.page_token || ""
+
+				// 添加小延迟避免过于频繁的请求
+				if (hasMore) {
+					await new Promise((resolve) => setTimeout(resolve, 50))
+				}
+			} catch (error) {
+				logger.error("pullMessagesFromPageToken error:", error)
+				// 出错时中断拉取过程
+				throw error
+			}
+		}
+
+		logger.log(`Total messages processed: ${totalProcessed}`)
 	}
 
 	/**
@@ -382,7 +418,7 @@ class MessagePullService {
 	 */
 	public async pullMessageOnFirstLoad(magicId: string, organizationCode: string) {
 		if (!organizationCode) {
-			console.warn("pullOfflineMessages: 当前组织为空")
+			logger.warn("pullOfflineMessages: 当前组织为空")
 			return
 		}
 
@@ -463,7 +499,7 @@ class MessagePullService {
 				}
 			}
 		} catch (error) {
-			console.error("pullMessageOnFirstLoad error =======> ", error)
+			logger.error("pullMessageOnFirstLoad error =======> ", error)
 		}
 	}
 
@@ -481,7 +517,7 @@ class MessagePullService {
 		const currentOrganization = userStore.user.userInfo?.organization_code
 
 		if (!currentOrganization) {
-			console.warn("applyMessages: 当前组织为空")
+			logger.warn("applyMessages: 当前组织为空")
 			return
 		}
 
@@ -506,7 +542,7 @@ class MessagePullService {
 				// const magicAccount = useUserStore
 				// 	.getState()
 				// 	.accounts.find((account) => account.magic_id === message.magic_id)
-				
+
 				const organization = userStore.user.magicOrganizationMap?.[m.organization_code]
 
 				const isSelf = organization?.magic_user_id === m.message.sender_id
@@ -516,35 +552,67 @@ class MessagePullService {
 					ChatMessageApplyServices.isChatHistoryMessage(message) &&
 					// 消息未读
 					m.message.status === ConversationMessageStatus.Unread &&
-					// 消息的seq_id大于当前组织的渲染序列号
-					bigNumCompare(message.seq_id, MessageSeqIdService.getOrganizationRenderSeqId(message.organization_code)) > 0 &&
 					// 不是自己发送的消息
 					!isSelf
 				) {
-					console.log("添加组织未读点", message)
-					DotsService.addConversationUnreadDots(
-						message.organization_code,
-						message.conversation_id,
-						m.message.topic_id ?? "",
-						message.seq_id,
-						1,
-					)
-					// }
-				} else {
-					console.log("不是该组织的信息，但已应用", {
-						seqId: message.seq_id,
-						// organizationSeqId,
-						organizationCode: message.organization_code,
-					})
+					if (
+						// 消息的seq_id大于这个组织的渲染序列号
+						bigNumCompare(
+							message.seq_id,
+							MessageSeqIdService.getOrganizationRenderSeqId(
+								message.organization_code,
+							),
+						) > 0
+					) {
+						logger.log("添加组织未读点", message)
+						DotsService.addConversationUnreadDots(
+							message.organization_code,
+							message.conversation_id,
+							m.message.topic_id ?? "",
+							message.seq_id,
+							1,
+						)
+					} else {
+						logger.log("不是该组织的信息，但已应用", {
+							seqId: message.seq_id,
+							// organizationSeqId,
+							organizationCode: message.organization_code,
+						})
+					}
 				}
-			} else {
-				console.log("applyMessages: 应用消息", message)
-				// 如果消息的组织编码与当前组织编码一致，则将消息加入数据库
-				MessageApplyServices.applyMessage(message, options)
+
+				// 如果我收到别的组织的消息，可以更新组织的 seq_id
 				MessageSeqIdService.updateOrganizationRenderSeqId(
-					message.organization_code,
+					currentOrganization,
 					message.seq_id,
 				)
+			} else {
+				logger.log("applyMessages: 应用消息", message)
+				// 如果消息的组织编码与当前组织编码一致，则将消息加入数据库
+				MessageApplyServices.applyMessage(message, options)
+
+				// 更新其他组织的渲染序列号
+				Object.values(userStore.user.magicOrganizationMap).forEach((item) => {
+					if (item.magic_organization_code !== currentOrganization) {
+						// 如果该组织红点为 0，说明没有未拉取的消息，可以更新组织的 seq_id
+						if (
+							OrganizationDotsService.getOrganizationDot(
+								item.magic_organization_code,
+							) <= 0
+						) {
+							MessageSeqIdService.updateOrganizationRenderSeqId(
+								item.magic_organization_code,
+								message.seq_id,
+							)
+						}
+					} else {
+						// 更新渲染序列号
+						MessageSeqIdService.updateOrganizationRenderSeqId(
+							message.organization_code,
+							message.seq_id,
+						)
+					}
+				})
 			}
 		})
 
