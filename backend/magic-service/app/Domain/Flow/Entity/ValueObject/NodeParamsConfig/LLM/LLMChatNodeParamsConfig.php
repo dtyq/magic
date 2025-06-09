@@ -129,7 +129,8 @@ JSON,
         ];
         if ($this->isLoadAgentPlugin) {
             foreach (AgentPluginCollector::list() as $plugin) {
-                $params = array_merge($plugin->getParamsTemplate(), $params);
+                $agentPlugin = $plugin->createAgentPlugin();
+                $params = array_merge($agentPlugin->getParamsTemplate(), $params);
             }
         }
         $this->node->setParams($params);
