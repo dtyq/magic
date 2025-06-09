@@ -67,7 +67,7 @@ class MagicChatFileRepository implements MagicChatFileRepositoryInterface
         // Sort by fileIds order in PHP
         $fileMap = [];
         foreach ($files as $file) {
-            $fileMap[$file->file_id] = new MagicChatFileEntity($file);
+            $fileMap[$file['file_id']] = new MagicChatFileEntity($file);
         }
 
         $fileEntities = [];
