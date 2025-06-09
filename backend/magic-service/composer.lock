@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0a5a96791f24a8cf7df4ca4b50458cf0",
+    "content-hash": "b8641213a01063c190611ca540bce972",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2306,16 +2306,16 @@
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.0.3",
+            "version": "0.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "edd7b70371a62fb9cc761f6139fc3a89c494c513"
+                "reference": "0db4f14994d7cbc175d9cfcda2fc98ef484f668d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/edd7b70371a62fb9cc761f6139fc3a89c494c513",
-                "reference": "edd7b70371a62fb9cc761f6139fc3a89c494c513",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/0db4f14994d7cbc175d9cfcda2fc98ef484f668d",
+                "reference": "0db4f14994d7cbc175d9cfcda2fc98ef484f668d",
                 "shasum": ""
             },
             "require": {
@@ -2364,9 +2364,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.0.3"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.0"
             },
-            "time": "2025-06-05T09:40:43+00:00"
+            "time": "2025-06-09T07:23:45+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -6322,21 +6322,21 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.14",
+            "version": "v1.1.15",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "c242756678322387cb2fb4110ce162b4fe0f7790"
+                "reference": "2cfa4b4066a73750fbed04ea7b8160b535f3ebcf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=c242756678322387cb2fb4110ce162b4fe0f7790",
-                "reference": "c242756678322387cb2fb4110ce162b4fe0f7790",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=2cfa4b4066a73750fbed04ea7b8160b535f3ebcf",
+                "reference": "2cfa4b4066a73750fbed04ea7b8160b535f3ebcf",
                 "shasum": ""
             },
             "require": {
                 "aws/aws-sdk-php": "^3.0",
-                "dtyq/php-mcp": "^0.0",
+                "dtyq/php-mcp": "0.1.*",
                 "ext-bcmath": "*",
                 "ext-mbstring": "*",
                 "guzzlehttp/guzzle": "^7.0|^6.0",
@@ -6394,9 +6394,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.14"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.15"
             },
-            "time": "2025-06-07T00:22:39+08:00"
+            "time": "2025-06-09T07:36:01+00:00"
         },
         {
             "name": "hyperf/phar",
