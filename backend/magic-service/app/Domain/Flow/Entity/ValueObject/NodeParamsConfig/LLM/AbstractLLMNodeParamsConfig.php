@@ -58,10 +58,11 @@ abstract class AbstractLLMNodeParamsConfig extends NodeParamsConfig
         // 加载插件的配置
         $agentParams = [];
         foreach (AgentPluginCollector::list() as $plugin) {
+            $agentPlugin = $plugin->createAgentPlugin();
             // 解析插件参数
-            $agentParams = array_merge($agentParams, $plugin->parseParams($params));
+            $agentParams = array_merge($agentParams, $agentPlugin->parseParams($params));
             // 注入本次运行时使用的插件
-            $this->agentPlugins[] = $plugin;
+            $this->agentPlugins[] = $agentPlugin;
         }
         return $agentParams;
     }
