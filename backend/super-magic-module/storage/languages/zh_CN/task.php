@@ -7,4 +7,5 @@ declare(strict_types=1);
 return [
     'not_found' => '任务未找到',
     'work_dir_not_found' => '工作目录未找到',
+    'continue' => '继续',
 ];

@@ -29,7 +29,7 @@ class ApiKeyProviderAuthenticator implements AuthenticatorInterface
     ) {
     }
 
-    public function authenticate(): AuthInfo
+    public function authenticate(string $server, string $version): AuthInfo
     {
         $apiKey = $this->getRequestApiKey();
         if (empty($apiKey)) {

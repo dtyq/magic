@@ -12,6 +12,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
@@ -27,6 +28,7 @@ class TaskApi extends AbstractApi
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
         protected TopicTaskAppService $topicTaskAppService,
+        protected TaskAppService $taskAppService,
     ) {
     }
 
@@ -55,6 +57,27 @@ class TaskApi extends AbstractApi
         $messageDTO = TopicTaskMessageDTO::fromArray($this->request->all());
         // 调用应用服务进行消息投递
         return $this->topicTaskAppService->deliverTopicTaskMessage($messageDTO);
+    }
+
+    public function resumeTask(RequestContext $requestContext): array
+    {
+        // 从 header 中获取 token 字段
+        $token = $this->request->header('token', '');
+        if (empty($token)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
+        }
+
+        // 从 env 获取沙箱 token ，然后对比沙箱 token 和请求 token 是否一致
+        $sandboxToken = config('super-magic.sandbox.token', '');
+        if ($sandboxToken !== $token) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
+        }
+        $sandboxId = $this->request->input('sandbox_id', '');
+        $isInit = $this->request->input('is_init', false);
+
+        $this->taskAppService->sendContinueMessageToSandbox($sandboxId, $isInit);
+
+        return [];
     }
 
     /**

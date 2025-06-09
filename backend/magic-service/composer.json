@@ -79,7 +79,7 @@
         "wyndow/fuzzywuzzy": "^0.6.0",
         "dtyq/super-magic-module": "dev-enterprise-master",
         "dtyq/magic-enterprise-service": "dev-master",
-        "dtyq/php-mcp": "^0.0"
+        "dtyq/php-mcp": "0.1.*"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
