@@ -116,16 +116,16 @@ class MagicChatWebSocketApi extends BaseNamespace
             $userToken = $socket->getRequest()->getQueryParams()['authorization'] ?? '';
             $this->magicChatMessageAppService->setUserContext($userToken, $context);
             // 调用 guard 获取用户信息
-            $userData = $this->getAuthorization();
+            $userAuthorization = $this->getAuthorization();
             // 将账号的所有设备加入同一个房间
-            $this->magicChatMessageAppService->login($userData, $socket, $context);
+            $this->magicChatMessageAppService->joinRoom($userAuthorization, $socket);
             return ['type' => 'user', 'user' => [
-                'magic_id' => $userData->getMagicId(),
-                'user_id' => $userData->getId(),
-                'status' => $userData->getStatus(),
-                'nickname' => $userData->getNickname(),
-                'avatar' => $userData->getAvatar(),
-                'organization_code' => $userData->getOrganizationCode(),
+                'magic_id' => $userAuthorization->getMagicId(),
+                'user_id' => $userAuthorization->getId(),
+                'status' => $userAuthorization->getStatus(),
+                'nickname' => $userAuthorization->getNickname(),
+                'avatar' => $userAuthorization->getAvatar(),
+                'organization_code' => $userAuthorization->getOrganizationCode(),
                 'sid' => $socket->getSid(),
             ]];
         } catch (BusinessException $exception) {
@@ -235,7 +235,8 @@ class MagicChatWebSocketApi extends BaseNamespace
             $this->magicChatMessageAppService->setUserContext($userToken, $chatRequest->getContext());
             // 根据消息类型,分发到对应的处理模块
             $userAuthorization = $this->getAuthorization();
-
+            // 将账号的所有设备加入同一个房间
+            $this->magicChatMessageAppService->joinRoom($userAuthorization, $socket);
             return $this->magicChatMessageAppService->onChatMessage($chatRequest, $userAuthorization);
         } catch (BusinessException $businessException) {
             throw $businessException;

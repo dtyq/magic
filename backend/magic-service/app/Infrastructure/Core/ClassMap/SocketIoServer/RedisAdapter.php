@@ -318,15 +318,13 @@ class RedisAdapter implements AdapterInterface, EphemeralInterface
         if (in_array($sid, $except)) {
             return;
         }
-
-        // Optimization: if packet contains seq_id instead of complete message, get real message content
-        if ($this->messageContentProvider !== null) {
-            $actualPacket = $this->messageContentProvider->resolveActualPacket($packet);
-        } else {
-            $actualPacket = $packet;
-        }
-
         if ($this->isLocal($sid) && ! isset($pushed[$fd])) {
+            // Optimization: if packet contains seq_id instead of complete message, get real message content
+            if ($this->messageContentProvider !== null) {
+                $actualPacket = $this->messageContentProvider->resolveActualPacket($packet);
+            } else {
+                $actualPacket = $packet;
+            }
             $this->sender->pushFrame($fd, new Frame(payloadData: $actualPacket));
             $pushed[$fd] = true;
             $this->shouldClose($opts) && $this->close($fd);

@@ -70,6 +70,8 @@ class MessageContentProvider implements MessageContentProviderInterface
                 // Return with Engine.IO MESSAGE prefix
                 return Engine::MESSAGE . $encodedSocketIO;
             }
+            $this->logger->warning('Failed to resolve message content for packet, fallback to original, seq_id: ' . $sequenceId);
+            return $packet;
         } catch (Throwable $e) {
             // Fallback to original packet when parsing fails
             $this->logger->warning('Failed to resolve message content for packet, fallback to original: ' . $e->getMessage());

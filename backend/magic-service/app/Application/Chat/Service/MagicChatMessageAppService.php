@@ -104,11 +104,10 @@ class MagicChatMessageAppService extends MagicSeqAppService
         parent::__construct($magicSeqDomainService);
     }
 
-    public function login(MagicUserAuthorization $userAuthorization, Socket $socket, ?MagicContext $context): void
+    public function joinRoom(MagicUserAuthorization $userAuthorization, Socket $socket): void
     {
-        // 将所有 sid 都加入到房间id值味uid的房间中
-        $this->magicChatDomainService->login($userAuthorization->getMagicId(), $socket);
-        $this->logger->info(sprintf(__METHOD__ . ' accountId:%s params:%s', $userAuthorization->getMagicId(), Json::encode($context)));
+        // 将所有 sid 都加入到房间 id 值为 magicId 的房间中
+        $this->magicChatDomainService->joinRoom($userAuthorization->getMagicId(), $socket);
     }
 
     /**
