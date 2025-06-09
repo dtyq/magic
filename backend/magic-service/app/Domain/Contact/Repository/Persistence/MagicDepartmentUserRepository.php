@@ -11,6 +11,7 @@ use App\Domain\Chat\DTO\PageResponseDTO\DepartmentUsersPageResponseDTO;
 use App\Domain\Contact\Entity\MagicDepartmentUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentUserRepositoryInterface;
+use App\Domain\Contact\Repository\Persistence\Model\DepartmentModel;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentUserModel;
 use Hyperf\DbConnection\Db;
 
@@ -75,15 +76,33 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
         return $this->getDepartmentUserEntities($departmentUsers);
     }
 
-    public function getDepartmentIdsByUserIds(DataIsolation $dataIsolation, array $userIds): array
+    public function getDepartmentIdsByUserIds(DataIsolation $dataIsolation, array $userIds, bool $withAllParentIds = false): array
     {
         $builder = DepartmentUserModel::query();
         $builder->whereIn('user_id', $userIds);
         $builder->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
         $departmentUsers = Db::select($builder->toSql(), $builder->getBindings());
         $list = [];
+        $departmentIds = [];
         foreach ($departmentUsers as $departmentUser) {
             $list[$departmentUser['user_id']][] = $departmentUser['department_id'];
+            $departmentIds[] = $departmentUser['department_id'];
+        }
+        if ($withAllParentIds) {
+            // 获取所有部门信息
+            $departmentIds = array_values(array_unique($departmentIds));
+            $departments = DepartmentModel::query()
+                ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
+                ->whereIn('department_id', $departmentIds)->pluck('path', 'department_id')->toArray();
+            foreach ($list as $userId => $userDepartmentIds) {
+                foreach ($userDepartmentIds as $departmentId) {
+                    if (isset($departments[$departmentId])) {
+                        $path = explode('/', $departments[$departmentId]);
+                        $list[$userId] = array_merge($list[$userId], $path);
+                    }
+                }
+                $list[$userId] = array_values(array_unique($list[$userId]));
+            }
         }
         return $list;
     }
