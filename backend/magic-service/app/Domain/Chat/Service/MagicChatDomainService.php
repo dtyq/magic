@@ -40,6 +40,7 @@ use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
@@ -59,7 +60,7 @@ class MagicChatDomainService extends AbstractDomainService
     /**
      * 加入房间.
      */
-    public function login(string $accountId, Socket $socket): void
+    public function joinRoom(string $accountId, Socket $socket): void
     {
         $socket->join($accountId);
         $this->logger->info(__METHOD__ . sprintf(' login accountId:%s sid:%s', $accountId, $socket->getSid()));
@@ -930,12 +931,6 @@ class MagicChatDomainService extends AbstractDomainService
             $this->createTopicMessage($senderSeqEntity);
             // 收件方的话题消息
             $this->createTopicMessage($receiveSeqEntity);
-            // 前端渲染需要：如果是流式开始时，推一个普通 seq 给前端，用于渲染占位
-            $receiveData = SeqAssembler::getClientSeqStruct($receiveSeqEntity, $messageEntity)->toArray();
-            $this->socketIO->of(ChatSocketIoNameSpace::Im->value)
-                ->to($receiveSeqEntity->getObjectId())
-                ->compress(true)
-                ->emit(SocketEventType::Chat->value, $receiveData);
             // 缓存流式消息
             $cachedStreamMessageKey = $this->getStreamMessageCacheKey($createStreamSeqDTO->getAppMessageId());
             $jsonStreamCachedDTO = (new JsonStreamCachedDTO())
@@ -952,6 +947,8 @@ class MagicChatDomainService extends AbstractDomainService
             Db::rollBack();
             throw $exception;
         }
+        // 前端渲染需要：如果是流式开始时，推一个普通 seq 给前端，用于渲染占位，但是 seq_id 并没有落库。
+        SocketIOUtil::sendSequenceId($receiveSeqEntity);
         return $senderSeqEntity;
     }
 

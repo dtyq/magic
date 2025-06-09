@@ -8,26 +8,51 @@ declare(strict_types=1);
 namespace App\Infrastructure\Util\Redis;
 
 use Hyperf\Redis\Redis;
+use RuntimeException;
 
 class RedisUtil
 {
     /**
-     * 使用SCAN命令替代KEYS命令，返回匹配模式的所有键.
+     * Use SCAN command instead of KEYS command to return all keys matching the pattern.
      *
-     * @param string $pattern 匹配模式 (例如: 'user:*')
-     * @param int $count 每次 SCAN 返回的元素数量 (可选，默认为 100)
-     * @return array 匹配模式的所有键
+     * @param string $pattern Matching pattern (e.g., 'user:*')
+     * @param int $count Number of elements returned per SCAN
+     * @param int $maxIterations Maximum iterations to prevent infinite loops
+     * @param int $timeout Timeout in seconds to prevent long blocking
+     * @return array All keys matching the pattern
+     * @throws RuntimeException When maximum iterations are exceeded or timeout occurs
      */
-    public static function scanKeys(string $pattern, int $count = 100): array
+    public static function scanKeys(string $pattern, int $count = 100, int $maxIterations = 1000, int $timeout = 3): array
     {
         $redis = di(Redis::class);
         $keys = [];
-        $iterator = null; // PhpRedis 使用 null 作为初始迭代器
-        while (false !== ($batchKeys = $redis->scan($iterator, $pattern, $count))) {
+        $iterator = 0; // PhpRedis uses 0 as initial iterator
+        $iterations = 0;
+        $startTime = time();
+
+        while (true) {
+            // Check timeout
+            if (time() - $startTime > $timeout) {
+                throw new RuntimeException("Redis scan operation timeout after {$timeout} seconds");
+            }
+
+            // Check maximum iterations
+            if (++$iterations > $maxIterations) {
+                throw new RuntimeException("Redis scan operation exceeded maximum iterations ({$maxIterations})");
+            }
+
+            $batchKeys = $redis->scan($iterator, $pattern, $count);
             if ($batchKeys !== false) {
                 $keys[] = $batchKeys;
             }
+
+            // When iterator is 0, scanning is complete
+            /* @phpstan-ignore-next-line */
+            if ($iterator == 0) {
+                break;
+            }
         }
+
         ! empty($keys) && $keys = array_merge(...$keys);
         return $keys;
     }
