@@ -1410,7 +1410,10 @@ class MessageService {
 	}
 
 	pullOfflineMessages() {
-		return this.messagePullService.pullOfflineMessages()
+		const organizationSeqId = MessageSeqIdService.getOrganizationRenderSeqId(
+			userStore.user.userInfo?.organization_code ?? "",
+		)
+		return this.messagePullService.pullOfflineMessages(organizationSeqId)
 	}
 
 	focusMessage(messageId: string) {

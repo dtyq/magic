@@ -235,7 +235,7 @@ class ConversationStore {
 		const conversation = this.conversations[conversationId]
 		if (!conversation) return
 
-		conversation.setLastReceiveMessage(message)
+		conversation.setLastReceiveMessageAndLastReceiveTime(message)
 	}
 
 	/**

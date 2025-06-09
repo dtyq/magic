@@ -109,5 +109,14 @@ export const useStyles = createStyles(({ css, token }, { fontSize }: { fontSize:
 			min-width: 100px;
 			width: fit-content;
 		`,
+		conversationSwitching: css`
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			height: 200px;
+			color: ${token.colorTextSecondary};
+			font-size: 14px;
+			background-color: ${token.magicColorScales.grey[0]};
+		`,
 	}
 })

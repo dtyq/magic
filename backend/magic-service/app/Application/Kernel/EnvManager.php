@@ -29,12 +29,28 @@ class EnvManager
             // 尝试获取当前环境的环境 ID.
             $envId = $baseDataIsolation->getEnvId();
         }
+
+        $magicOrganizationEnvDomainService = di(MagicOrganizationEnvDomainService::class);
+
         if (! $envId) {
-            // 根据组织动态加载环境，但是这里有个问题就是会出现 预发布和生产 环境组织一样的情况，数据库里面谁在前就用谁了，待修复!!!
-            $envDTO = di(MagicOrganizationEnvDomainService::class)->getOrganizationsEnvironmentDTO($baseDataIsolation->getCurrentOrganizationCode());
+            $envDTO = $magicOrganizationEnvDomainService->getOrganizationsEnvironmentDTO($baseDataIsolation->getCurrentOrganizationCode());
             $env = $envDTO?->getMagicEnvironmentEntity();
+            $envId = $envDTO?->getEnvironmentId() ?? 0;
+            $relationEnvIds = $env?->getRelationEnvIds() ?? [];
+            if (count($relationEnvIds) > 0 && ! $env?->getEnvironment()?->isProduction()) {
+                foreach ($relationEnvIds as $relationEnvId) {
+                    if ($relationEnvId === $envId) {
+                        continue;
+                    }
+                    $relationEnv = $magicOrganizationEnvDomainService->getMagicEnvironmentById((int) $relationEnvId);
+                    if ($relationEnv?->getEnvironment()?->isProduction()) {
+                        $env = $relationEnv;
+                        break;
+                    }
+                }
+            }
         } else {
-            $env = di(MagicOrganizationEnvDomainService::class)->getMagicEnvironmentById($envId);
+            $env = $magicOrganizationEnvDomainService->getMagicEnvironmentById($envId);
         }
         if (! $env) {
             return;
