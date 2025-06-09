@@ -57,14 +57,13 @@ class AsyncEventDispatcher implements EventDispatcherInterface
         // 投递异步事件
         foreach ($asyncListeners as $listenerName => $listener) {
             Coroutine::defer(function () use ($event, $listener, $eventName, $listenerName) {
-                $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
-                $this->asyncEventService->create($eventRecord);
                 try {
                     $listener($event);
-                    $this->asyncEventService->complete($eventRecord['id']);
                 } catch (Throwable $exception) {
+                    $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
+                    $this->asyncEventService->create($eventRecord);
                 } finally {
-                    $this->dump($eventRecord['id'], $eventRecord['listener'], $eventRecord['event'], $exception ?? null);
+                    $this->dump($eventRecord['id'] ?? 0, $listenerName, $eventName, $exception ?? null);
                 }
             });
         }

@@ -40,6 +40,7 @@ use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Exception;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Context\Context;
 use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
@@ -56,6 +57,7 @@ use Hyperf\Odin\Utils\MessageUtil;
 use Hyperf\Odin\Utils\ToolUtil;
 use Hyperf\Redis\Redis;
 use InvalidArgumentException;
+use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
@@ -268,6 +270,9 @@ class LLMAppService extends AbstractLLMAppService
         } catch (Throwable $e) {
             $this->logger->warning('endpointHighAvailability failed to check conversation continuation', [
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return null;
         }
@@ -417,51 +422,66 @@ class LLMAppService extends AbstractLLMAppService
      */
     protected function getHighAvailableModelId(ProxyModelRequestInterface $proxyModelRequest, ?EndpointDTO &$endpointDTO, ?string $orgCode = null): ?string
     {
-        $highAvailable = $this->getHighAvailabilityService();
-        if ($highAvailable === null) {
+        try {
+            $highAvailable = $this->getHighAvailabilityService();
+            if ($highAvailable === null) {
+                return null;
+            }
+
+            // If it's a chat request, try to get remembered endpoint ID (conversation continuation already checked internally)
+            $rememberedEndpointId = null;
+            if ($proxyModelRequest instanceof CompletionDTO) {
+                $rememberedEndpointId = $this->getRememberedEndpointId($proxyModelRequest);
+            }
+
+            // Use EndpointAssembler to generate standardized endpoint type identifier
+            $modelType = $proxyModelRequest->getModel();
+            $formattedModelType = EndpointAssembler::generateEndpointType(
+                HighAvailabilityAppType::MODEL_GATEWAY,
+                $modelType
+            );
+
+            // Create endpoint request DTO
+            $endpointRequest = EndpointRequestDTO::create(
+                endpointType: $formattedModelType,
+                orgCode: $orgCode ?? '',
+                lastSelectedEndpointId: $rememberedEndpointId
+            );
+
+            // Get available endpoints
+            $endpointDTO = $highAvailable->getAvailableEndpoint($endpointRequest);
+
+            // Log only when remembered endpoint ID matches the current endpoint ID
+            if ($rememberedEndpointId && $endpointDTO && $rememberedEndpointId === $endpointDTO->getEndpointId()) {
+                $this->logger->info('endpointHighAvailability sameConversationEndpoint', [
+                    'remembered_endpoint_id' => $rememberedEndpointId,
+                    'current_endpoint_id' => $endpointDTO->getEndpointId(),
+                    'model' => $modelType,
+                    'is_same_endpoint' => true,
+                ]);
+            }
+
+            // If it's a chat request and got a new endpoint, remember this endpoint ID
+            if ($proxyModelRequest instanceof CompletionDTO && $endpointDTO && $endpointDTO->getEndpointId()) {
+                $this->rememberEndpointId($proxyModelRequest, $endpointDTO->getEndpointId());
+            }
+
+            // Model configuration id
+            return $endpointDTO?->getBusinessId() ?: null;
+        } catch (Throwable $e) {
+            $this->logger->warning('endpointHighAvailability failed to get high available model ID', [
+                'model' => $proxyModelRequest->getModel(),
+                'orgCode' => $orgCode,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            // Reset endpointDTO to null when exception occurs
+            $endpointDTO = null;
             return null;
         }
-
-        // If it's a chat request, try to get remembered endpoint ID (conversation continuation already checked internally)
-        $rememberedEndpointId = null;
-        if ($proxyModelRequest instanceof CompletionDTO) {
-            $rememberedEndpointId = $this->getRememberedEndpointId($proxyModelRequest);
-        }
-
-        // Use EndpointAssembler to generate standardized endpoint type identifier
-        $modelType = $proxyModelRequest->getModel();
-        $formattedModelType = EndpointAssembler::generateEndpointType(
-            HighAvailabilityAppType::MODEL_GATEWAY,
-            $modelType
-        );
-
-        // Create endpoint request DTO
-        $endpointRequest = EndpointRequestDTO::create(
-            endpointType: $formattedModelType,
-            orgCode: $orgCode ?? '',
-            lastSelectedEndpointId: $rememberedEndpointId
-        );
-
-        // Get available endpoints
-        $endpointDTO = $highAvailable->getAvailableEndpoint($endpointRequest);
-
-        // Log only when remembered endpoint ID matches the current endpoint ID
-        if ($rememberedEndpointId && $endpointDTO && $rememberedEndpointId === $endpointDTO->getEndpointId()) {
-            $this->logger->info('endpointHighAvailability sameConversationEndpoint', [
-                'remembered_endpoint_id' => $rememberedEndpointId,
-                'current_endpoint_id' => $endpointDTO->getEndpointId(),
-                'model' => $modelType,
-                'is_same_endpoint' => true,
-            ]);
-        }
-
-        // If it's a chat request and got a new endpoint, remember this endpoint ID
-        if ($proxyModelRequest instanceof CompletionDTO && $endpointDTO && $endpointDTO->getEndpointId()) {
-            $this->rememberEndpointId($proxyModelRequest, $endpointDTO->getEndpointId());
-        }
-
-        // Model configuration id
-        return $endpointDTO?->getBusinessId() ?: null;
     }
 
     /**
@@ -508,6 +528,9 @@ class LLMAppService extends AbstractLLMAppService
             $this->logger->warning('endpointHighAvailability Failed to remember endpoint ID', [
                 'endpoint_id' => $endpointId,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -533,20 +556,28 @@ class LLMAppService extends AbstractLLMAppService
 
         // Single loop: build cumulative hash string and calculate hashes as we go
         foreach ($messages as $index => $message) {
+            // Ensure message is an array
+            if (! is_array($message)) {
+                continue;
+            }
+
             // Extract and concatenate parts for current message directly to string
-            $cumulativeHashString .= $message['role'] ?? '';
-            $cumulativeHashString .= $message['content'] ?? '';
-            $cumulativeHashString .= $message['name'] ?? '';
-            $cumulativeHashString .= $message['tool_call_id'] ?? '';
+            $cumulativeHashString .= $this->convertToString($message['role'] ?? '');
+            $cumulativeHashString .= $this->convertToString($message['content'] ?? '');
+            $cumulativeHashString .= $this->convertToString($message['name'] ?? '');
+            $cumulativeHashString .= $this->convertToString($message['tool_call_id'] ?? '');
 
             // Handle tool_calls
             if (isset($message['tool_calls']) && is_array($message['tool_calls'])) {
                 foreach ($message['tool_calls'] as $toolCall) {
-                    $cumulativeHashString .= $toolCall['id'] ?? '';
-                    $cumulativeHashString .= $toolCall['type'] ?? '';
-                    if (isset($toolCall['function'])) {
-                        $cumulativeHashString .= $toolCall['function']['name'] ?? '';
-                        $cumulativeHashString .= $toolCall['function']['arguments'] ?? '';
+                    if (! is_array($toolCall)) {
+                        continue;
+                    }
+                    $cumulativeHashString .= $this->convertToString($toolCall['id'] ?? '');
+                    $cumulativeHashString .= $this->convertToString($toolCall['type'] ?? '');
+                    if (isset($toolCall['function']) && is_array($toolCall['function'])) {
+                        $cumulativeHashString .= $this->convertToString($toolCall['function']['name'] ?? '');
+                        $cumulativeHashString .= $this->convertToString($toolCall['function']['arguments'] ?? '');
                     }
                 }
             }
@@ -570,6 +601,38 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $hashes;
+    }
+
+    /**
+     * Convert value to string safely, handling arrays, objects, and other types.
+     *
+     * @param mixed $value Value to convert
+     * @return string String representation
+     */
+    private function convertToString($value): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_null($value)) {
+            return '';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        // For resources or other non-serializable types
+        return gettype($value);
     }
 
     /**
@@ -948,6 +1011,16 @@ class LLMAppService extends AbstractLLMAppService
         $refreshPointMinTokens = (int) $proxyModelRequest->getHeaderConfig('AWS-RefreshPointMinTokens', 5000);
         $refreshPointMinTokens = max($refreshPointMinTokens, 2048);
 
+        if (Context::has(PsrResponseInterface::class)) {
+            $response = Context::get(PsrResponseInterface::class);
+            $response = $response
+                ->withHeader('AWS-AutoCache', $autoCache ? 'true' : 'false')
+                ->withHeader('AWS-MaxCachePoints', (string) $maxCachePoints)
+                ->withHeader('AWS-MinCacheTokens', (string) $minCacheTokens)
+                ->withHeader('AWS-RefreshPointMinTokens', (string) $refreshPointMinTokens);
+            Context::set(PsrResponseInterface::class, $response);
+        }
+
         return [
             'auto_cache' => $autoCache,
             'auto_cache_config' => [
@@ -973,7 +1046,7 @@ class LLMAppService extends AbstractLLMAppService
     {
         // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
         $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
-        $messagesHash = $hashes[0];
+        $messagesHash = $hashes[0] ?? hash('sha256', '');
 
         // Generate cache key using messages hash + model
         $cacheKey = $messagesHash . ':' . $model;

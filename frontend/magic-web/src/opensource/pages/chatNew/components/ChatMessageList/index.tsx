@@ -44,6 +44,7 @@ const ChatMessageList = observer(() => {
 		isLoadingMore: false,
 		isAtBottom: true,
 		openDropdown: false,
+		isConversationSwitching: false,
 		marginSize: 4,
 		size: { width: 92, height: 240 },
 		dropdownPosition: { x: 0, y: 0 },
@@ -55,6 +56,9 @@ const ChatMessageList = observer(() => {
 		},
 		setOpenDropdown: (value: boolean) => {
 			state.openDropdown = value
+		},
+		setIsConversationSwitching: (value: boolean) => {
+			state.isConversationSwitching = value
 		},
 		setDropdownPosition: (value: { x: number; y: number }) => {
 			state.dropdownPosition = value
@@ -91,6 +95,7 @@ const ChatMessageList = observer(() => {
 			state.isLoadingMore = false
 			state.isAtBottom = true
 			state.openDropdown = false
+			state.isConversationSwitching = false
 			state.dropdownPosition = { x: 0, y: 0 }
 		},
 	}))
@@ -346,25 +351,33 @@ const ChatMessageList = observer(() => {
 			wrapperRef.current.removeEventListener("scroll", handleContainerScroll)
 		}
 
+		// 立即设置切换状态，防止消息串台
+		state.setIsConversationSwitching(true)
 		state.reset()
 		lastMessageId = ""
 		canScroll = true
 		lastScrollTop = 0
 		initialRenderRef.current = false
-		scrollToBottom(true)
 
+		// 立即滚动到底部，不延迟
+		setTimeout(() => {
+			scrollToBottom(true)
+		}, 0)
+
+		// 减少延迟时间，快速恢复正常状态
 		setTimeout(() => {
 			if (wrapperRef.current) {
 				wrapperRef.current.addEventListener("scroll", handleContainerScroll)
 			}
 			initialRenderRef.current = true
+			state.setIsConversationSwitching(false)
 
 			// 会话切换后，检查消息是否填满视图
 			if (checkMessagesFillViewportTimerRef.current) {
 				clearTimeout(checkMessagesFillViewportTimerRef.current)
 			}
 			checkMessagesFillViewport()
-		}, 1000)
+		}, 100) // 减少延迟从1000ms到100ms
 	}, [MessageStore.conversationId, MessageStore.topicId])
 
 	useLayoutEffect(() => {
@@ -473,7 +486,11 @@ const ChatMessageList = observer(() => {
 			onClick={handleContainerClick}
 			onContextMenu={handleContainerContextMenu}
 		>
-			{state.isLoadingMore && <div className={styles.loadingMore}>加载更多消息...</div>}
+			{state.isLoadingMore && (
+				<div className={styles.loadingMore}>
+					{t("message.chat.loadingMoreMessages", { ns: "interface" })}
+				</div>
+			)}
 			<div
 				ref={wrapperRef}
 				className={cx(styles.wrapper)}
@@ -483,23 +500,43 @@ const ChatMessageList = observer(() => {
 				<div
 					ref={chatListRef}
 					className={cx(styles.chatList)}
+					data-testid="chat-list"
 					style={{
 						willChange: "transform",
 					}}
 				>
-					{MessageStore.messages.map((message) => {
-						// const item = renderMessage(message)
-						return (
-							<div
-								id={message.message_id}
-								key={message.message_id}
-								style={{ willChange: "transform" }}
-							>
-								<MessageRender message={message} />
+					{/* 会话切换时显示加载状态，防止消息串台 */}
+					{state.isConversationSwitching ? (
+						<div className={styles.conversationSwitching}>
+							<div>
+								{t("message.chat.switchingConversation", { ns: "interface" })}
 							</div>
-						)
-					})}
-					<AiConversationMessageLoading key="ai-conversation-message-loading" />
+						</div>
+					) : (
+						MessageStore.messages
+							.filter((message) => {
+								// 过滤消息，确保只显示当前会话的消息
+								return message.conversation_id === MessageStore.conversationId
+							})
+							.map((message) => {
+								// 使用复合key防止不同会话间的组件复用
+								const messageKey = `${MessageStore.conversationId}-${MessageStore.topicId}-${message.message_id}`
+								return (
+									<div
+										id={message.message_id}
+										key={messageKey}
+										style={{ willChange: "transform" }}
+										data-conversation-id={message.conversation_id}
+										data-message-id={message.message_id}
+									>
+										<MessageRender message={message} />
+									</div>
+								)
+							})
+					)}
+					<AiConversationMessageLoading
+						key={`ai-loading-${MessageStore.conversationId}-${MessageStore.topicId}`}
+					/>
 					<div ref={bottomRef} />
 				</div>
 				<MagicDropdown

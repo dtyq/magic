@@ -91,6 +91,11 @@ class Conversation {
 	 */
 	receive_inputing: boolean
 
+	/**
+	 * 最后一条消息时间
+	 */
+	last_receive_message_time: number
+
 	constructor(data: ConversationFromService | Conversation | ConversationObject) {
 		this.id = data.id
 		this.user_id = data.user_id
@@ -111,6 +116,8 @@ class Conversation {
 		this.last_receive_message = (
 			data as Conversation | ConversationObject
 		)?.last_receive_message
+		this.last_receive_message_time =
+			(data as ConversationObject)?.last_receive_message_time ?? 0
 		makeAutoObservable(this, {}, { autoBind: true })
 	}
 
@@ -133,6 +140,7 @@ class Conversation {
 			unread_dots: this.unread_dots,
 			topic_unread_dots: new Map(this.topic_unread_dots),
 			receive_inputing: this.receive_inputing,
+			last_receive_message_time: this.last_receive_message_time,
 		}
 
 		return cloneDeep(res)
@@ -175,11 +183,24 @@ class Conversation {
 	}
 
 	/**
+	 * 比较消息时间
+	 * @param messageTime 消息时间
+	 * @returns 最大时间
+	 */
+	getLastMessageTime(messageTime: number) {
+		return Math.max(messageTime, this.last_receive_message_time)
+	}
+
+	/**
 	 * 设置最后一条消息
 	 * @param message 最后一条消息
 	 */
-	setLastReceiveMessage(message: LastReceiveMessage | undefined) {
+	setLastReceiveMessageAndLastReceiveTime(message: LastReceiveMessage | undefined) {
 		this.last_receive_message = message
+
+		console.trace("setLastReceiveMessageAndLastReceiveTime", this.id, message)
+
+		this.last_receive_message_time = this.getLastMessageTime(message?.time ?? 0)
 	}
 
 	/**

@@ -34,6 +34,7 @@ import { bigNumCompare } from "@/utils/string"
 import OrganizationDotsStore from "@/opensource/stores/chatNew/dots/OrganizationDotsStore"
 import { userStore } from "@/opensource/models/user"
 import StreamMessageApplyServiceV2 from "../StreamMessageApplyServiceV2"
+import ConversationDbService from "../../../conversation/ConversationDbService"
 
 // 消息事件监听器类型
 type MessageEventListener = (message: SeqResponse<CMessage>, options?: ApplyMessageOptions) => void
@@ -133,14 +134,6 @@ class ChatMessageApplyService {
 		if (message.message.type === ConversationMessageType.HDImage) {
 			return (
 				message.message.image_convert_high_card?.type === HDImageDataType.GenerateComplete
-			)
-		}
-
-		if (message.message.type === ConversationMessageType.AggregateAISearchCard) {
-			return (
-				(message as SeqResponse<AggregateAISearchCardConversationMessage>).message
-					.aggregate_ai_search_card?.type ===
-				AggregateAISearchCardDataType.SearchDeepLevel
 			)
 		}
 
@@ -257,7 +250,15 @@ class ChatMessageApplyService {
 
 		// 如果是 AI 会话，并且当前没有话题 Id，自动设置上
 		if (!conversation.current_topic_id && message.message.topic_id) {
-			ConversationService.switchTopic(message.conversation_id, message.message.topic_id)
+			conversation.setCurrentTopicId(message.message.topic_id ?? "")
+			ConversationDbService.updateConversation(message.conversation_id, {
+				current_topic_id: message.message.topic_id ?? "",
+			})
+
+			// 如果当前会话是当前会话，则切换话题
+			if (ConversationStore.currentConversation?.id === message.conversation_id) {
+				ConversationService.switchTopic(message.conversation_id, message.message.topic_id)
+			}
 		}
 
 		if (

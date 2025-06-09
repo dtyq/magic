@@ -23,7 +23,7 @@ interface GroupConversationItemProps {
 
 const GroupConversationItem = observer(
 	({ conversationId, onClick }: GroupConversationItemProps) => {
-		const conversation = conversationStore.conversations[conversationId]
+		const conversation = conversationStore.getConversation(conversationId)
 		const { groupInfo } = useGroupInfo(conversation.receive_id)
 
 		const unreadDots = conversation.unread_dots
@@ -76,7 +76,9 @@ const GroupConversationItem = observer(
 									className={styles.time}
 									style={{ display: isHover ? "none" : "unset" }}
 								>
-									{formatRelativeTime(language)(lastMessage?.time)}
+									{formatRelativeTime(language)(
+										conversation.last_receive_message_time,
+									)}
 								</span>
 							</Flex>
 							<LastMessageRender message={lastMessage} className={styles.content} />

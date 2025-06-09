@@ -17,6 +17,7 @@ import { SegmentedKey } from "./constants"
 import { useMemoizedFn } from "ahooks"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
 import EmptyFallback from "./components/EmptyFallback"
+import { toJS } from "mobx"
 
 const enum MessageGroupKey {
 	Pinned = "Pinned",

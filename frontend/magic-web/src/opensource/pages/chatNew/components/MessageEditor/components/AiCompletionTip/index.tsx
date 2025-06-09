@@ -27,7 +27,8 @@ const AiCompletionTip = observer(() => {
 		const visibleHeight = window.innerHeight - FooterHeight
 		const divTop = position.top + 4
 
-		const isVisible = visible && divTop < visibleHeight
+		const isVisible =
+			visible && divTop < visibleHeight && position.top !== 0 && position.left !== 0
 
 		return {
 			top: position.top + 4,

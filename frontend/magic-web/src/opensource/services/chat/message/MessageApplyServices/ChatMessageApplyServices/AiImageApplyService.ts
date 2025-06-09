@@ -3,6 +3,9 @@ import type { AIImagesMessage, HDImageMessage } from "@/types/chat/conversation_
 import { AIImagesDataType, HDImageDataType } from "@/types/chat/conversation_message"
 import type { SeqResponse } from "@/types/request"
 import type { ApplyMessageOptions } from "./types"
+import ConversationStore from "@/opensource/stores/chatNew/conversation"
+import MessageStore from "@/opensource/stores/chatNew/message"
+import chatTopicService from "@/opensource/services/chat/topic"
 
 class AiImageApplyService {
 	aiImageMessageIdMap: Record<string, string> = {}
@@ -71,6 +74,18 @@ class AiImageApplyService {
 
 			default:
 				break
+		}
+
+		if (
+			!isHistoryMessage &&
+			ConversationStore.currentConversation?.id === message.conversation_id &&
+			ConversationStore.currentConversation?.current_topic_id === message.message.topic_id
+		) {
+			// 如果是 AI 会话，此时消息列表的数量为 2，调用智能重命名
+			if (MessageStore.messages.length === 2 && !isHistoryMessage) {
+				// 调用智能重命名
+				chatTopicService.getAndSetMagicTopicName(message.message.topic_id ?? "")
+			}
 		}
 	}
 

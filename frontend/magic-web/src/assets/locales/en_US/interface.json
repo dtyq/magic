@@ -1124,7 +1124,9 @@
 			"NotSupport": "Not supported yet",
 			"groupDisbanded": {
 				"content": "This group has been disbanded"
-			}
+			},
+			"loadingMoreMessages": "Loading more messages...",
+			"switchingConversation": "Switching conversation..."
 		},
 		"drive": {
 			"modal": {}

@@ -247,7 +247,7 @@ class StreamMessageApplyServiceV2 {
 
 			// 更新最后一条消息
 			ConversationService.updateLastReceiveMessage(conversationId, {
-				time: Date.now(),
+				time: Date.now() / 1000,
 				seq_id: messageId,
 				type: ConversationMessageType.Text,
 				text: (keyPaths.content as string).slice(0, 50),
@@ -307,7 +307,7 @@ class StreamMessageApplyServiceV2 {
 
 			// 更新最后一条消息
 			ConversationService.updateLastReceiveMessage(conversationId, {
-				time: Date.now(),
+				time: Date.now() / 1000,
 				seq_id: messageId,
 				type: ConversationMessageType.Markdown,
 				text: (keyPaths.content as string).slice(0, 50),
@@ -379,7 +379,7 @@ class StreamMessageApplyServiceV2 {
 
 			// 更新最后一条消息
 			ConversationService.updateLastReceiveMessage(conversationId, {
-				time: Date.now(),
+				time: Date.now() / 1000,
 				seq_id: messageId,
 				type: ConversationMessageType.AggregateAISearchCard,
 				text: (keyPaths.llm_response as string).slice(0, 50),
@@ -463,7 +463,7 @@ class StreamMessageApplyServiceV2 {
 
 			// 更新最后一条消息
 			ConversationService.updateLastReceiveMessage(conversationId, {
-				time: Date.now(),
+				time: Date.now() / 1000,
 				seq_id: messageId,
 				type: ConversationMessageType.AggregateAISearchCardV2,
 				text:
