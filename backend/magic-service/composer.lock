@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.2",
+            "version": "3.344.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "3a6aaaea75f4605f89aa57ad63b9a077bf01e1e5"
+                "reference": "0cf789243c7de82be7d3f7641cab37b5bb5d937d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/3a6aaaea75f4605f89aa57ad63b9a077bf01e1e5",
-                "reference": "3a6aaaea75f4605f89aa57ad63b9a077bf01e1e5",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/0cf789243c7de82be7d3f7641cab37b5bb5d937d",
+                "reference": "0cf789243c7de82be7d3f7641cab37b5bb5d937d",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.2"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.3"
             },
-            "time": "2025-06-06T18:14:42+00:00"
+            "time": "2025-06-09T18:04:12+00:00"
         },
         {
             "name": "brick/math",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.11",
+            "version": "1.0.12",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "b23939dd0e2fb9daece5137bd13f703979bc70c7"
+                "reference": "4291ed9ab78872fcf72032b5abb17e62d0712dc7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=b23939dd0e2fb9daece5137bd13f703979bc70c7",
-                "reference": "b23939dd0e2fb9daece5137bd13f703979bc70c7",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=4291ed9ab78872fcf72032b5abb17e62d0712dc7",
+                "reference": "4291ed9ab78872fcf72032b5abb17e62d0712dc7",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.11"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.12"
             },
-            "time": "2025-06-06T10:27:20+00:00"
+            "time": "2025-06-10T12:08:00+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2305,16 +2305,16 @@
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "0db4f14994d7cbc175d9cfcda2fc98ef484f668d"
+                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/0db4f14994d7cbc175d9cfcda2fc98ef484f668d",
-                "reference": "0db4f14994d7cbc175d9cfcda2fc98ef484f668d",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/d5d176add0195d2a2f1c605e1aae13151312f81c",
+                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c",
                 "shasum": ""
             },
             "require": {
@@ -2363,9 +2363,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.0"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.1"
             },
-            "time": "2025-06-09T07:23:45+00:00"
+            "time": "2025-06-10T06:41:17+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2567,16 +2567,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.36",
+            "version": "v0.0.37",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "68a331249ae1a637b437f996d87ef790bb1cf9b2"
+                "reference": "10a859798d26300a5e0fc8de5fa575a1d6a31105"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/68a331249ae1a637b437f996d87ef790bb1cf9b2",
-                "reference": "68a331249ae1a637b437f996d87ef790bb1cf9b2",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/10a859798d26300a5e0fc8de5fa575a1d6a31105",
+                "reference": "10a859798d26300a5e0fc8de5fa575a1d6a31105",
                 "shasum": ""
             },
             "require": {
@@ -2668,10 +2668,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.36",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.37",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-06-05T16:26:01+00:00"
+            "time": "2025-06-10T12:27:23+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6326,16 +6326,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.15",
+            "version": "v1.1.16",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "2cfa4b4066a73750fbed04ea7b8160b535f3ebcf"
+                "reference": "039c0f2f4230e7f47739bacc12e855a44ab5f046"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=2cfa4b4066a73750fbed04ea7b8160b535f3ebcf",
-                "reference": "2cfa4b4066a73750fbed04ea7b8160b535f3ebcf",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=039c0f2f4230e7f47739bacc12e855a44ab5f046",
+                "reference": "039c0f2f4230e7f47739bacc12e855a44ab5f046",
                 "shasum": ""
             },
             "require": {
@@ -6398,9 +6398,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.15"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.16"
             },
-            "time": "2025-06-09T07:36:01+00:00"
+            "time": "2025-06-10T07:01:20+00:00"
         },
         {
             "name": "hyperf/phar",
@@ -17101,12 +17101,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "1f25500e8bf958acb60f7cbaf30e6ceb9658ee21"
+                "reference": "1eb2c3ac8130315972955def682482a1972b8d8d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1f25500e8bf958acb60f7cbaf30e6ceb9658ee21",
-                "reference": "1f25500e8bf958acb60f7cbaf30e6ceb9658ee21",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1eb2c3ac8130315972955def682482a1972b8d8d",
+                "reference": "1eb2c3ac8130315972955def682482a1972b8d8d",
                 "shasum": ""
             },
             "conflict": {
@@ -17297,6 +17297,7 @@
                 "elefant/cms": "<2.0.7",
                 "elgg/elgg": "<3.3.24|>=4,<4.0.5",
                 "elijaa/phpmemcacheadmin": "<=1.3",
+                "elmsln/haxcms": "<11",
                 "encore/laravel-admin": "<=1.8.19",
                 "endroid/qr-code-bundle": "<3.4.2",
                 "enhavo/enhavo-app": "<=0.13.1",
@@ -18039,7 +18040,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-09T14:06:10+00:00"
+            "time": "2025-06-09T18:07:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
