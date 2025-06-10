@@ -10,7 +10,9 @@ namespace App\Application\MCP\Service;
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\MCP\Entity\MCPServerToolEntity;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\ToolSource;
+use App\Domain\MCP\Service\MCPServerToolDomainService;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Flow\DTO\MagicFlowApiChatDTO;
@@ -60,8 +62,15 @@ class MCPServerStreamableAppService extends AbstractMCPAppService
 
     private function getToolExecutorCallback(FlowDataIsolation $flowDataIsolation, MCPServerToolEntity $MCPServerToolEntity): ?callable
     {
+        $toolId = $MCPServerToolEntity->getId();
         return match ($MCPServerToolEntity->getSource()) {
-            ToolSource::FlowTool => function (array $arguments) use ($flowDataIsolation, $MCPServerToolEntity) {
+            ToolSource::FlowTool => function (array $arguments) use ($flowDataIsolation, $toolId) {
+                $mcpDataIsolation = MCPDataIsolation::createByBaseDataIsolation($flowDataIsolation);
+                $MCPServerToolEntity = di(MCPServerToolDomainService::class)->getById($mcpDataIsolation, $toolId);
+                if (! $MCPServerToolEntity || ! $MCPServerToolEntity->isEnabled()) {
+                    $label = $MCPServerToolEntity ? (string) $MCPServerToolEntity->getName() : (string) $toolId;
+                    ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.disabled', ['label' => $label]);
+                }
                 $apiChatDTO = new MagicFlowApiChatDTO();
                 $apiChatDTO->setParams($arguments);
                 $apiChatDTO->setFlowCode($MCPServerToolEntity->getRelCode());
