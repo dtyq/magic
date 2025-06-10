@@ -24,6 +24,11 @@ class TopicDomainService
         return $this->topicRepository->getTopicById($id);
     }
 
+    public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
+    {
+        return $this->topicRepository->getTopicBySandboxId($sandboxId);
+    }
+
     public function updateTopicStatus(int $id, int $taskId, TaskStatus $taskStatus): bool
     {
         return $this->topicRepository->updateTopicStatus($id, $taskId, $taskStatus);
@@ -57,5 +62,22 @@ class TopicDomainService
         }
 
         return $result['list'][0];
+    }
+
+    /**
+     * @return array<TopicEntity>
+     */
+    public function getUserRunningTopics(DataIsolation $dataIsolation): array
+    {
+        $conditions = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'current_task_status' => TaskStatus::RUNNING,
+        ];
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return [];
+        }
+
+        return $result['list'];
     }
 }

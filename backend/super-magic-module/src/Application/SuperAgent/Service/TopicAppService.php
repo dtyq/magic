@@ -10,7 +10,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
-use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -19,10 +18,12 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\CreateTopicBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DeleteTopicAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
@@ -143,11 +144,23 @@ class TopicAppService extends AbstractAppService
             ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.delete_failed');
         }
 
-        // 触发删除事件
+        // 触发删除后事件
         AsyncEventUtil::dispatch(new DeleteTopicAfterEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), (int) $requestDTO->getId()));
 
         // 返回删除结果
         return DeleteTopicResultDTO::fromId((int) $topicId);
+    }
+
+    /**
+     * 获取最近更新时间超过指定时间的话题列表.
+     *
+     * @param string $timeThreshold 时间阈值，如果话题的更新时间早于此时间，则会被包含在结果中
+     * @param int $limit 返回结果的最大数量
+     * @return array<TopicEntity> 话题实体列表
+     */
+    public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
+    {
+        return $this->topicDomainService->getTopicsExceedingUpdateTime($timeThreshold, $limit);
     }
 
     /**

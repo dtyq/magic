@@ -10,23 +10,34 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Chat\Service\MagicChatFileAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
-use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Hyperf\Codec\Json;
+use Hyperf\Coroutine\Parallel;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\RateLimit\Annotation\RateLimit;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * 文件处理应用服务
- * 负责跨域文件操作，包括查找文件是否存在以及更新和创建文件.
+ * File Process Application Service
+ * Responsible for cross-domain file operations, including checking file existence and updating/creating files.
  */
 class FileProcessAppService extends AbstractAppService
 {
@@ -36,22 +47,23 @@ class FileProcessAppService extends AbstractAppService
         private readonly MagicChatFileAppService $magicChatFileAppService,
         private readonly TaskDomainService $taskDomainService,
         private readonly FileAppService $fileAppService,
+        private readonly LockerInterface $locker,
+        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
 
     /**
-     * 根据file_key查找文件是否存在，如果存在则更新，不存在则创建
-     * 此方法同时处理两个不同领域（MagicChat和Task）的文件实体.
+     * Find file by file_key, update if exists, create if not exists.
      *
-     * @param string $fileKey 文件key
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param array $fileData 文件数据
-     * @param int $topicId 话题ID
-     * @param int $taskId 任务ID
-     * @param string $fileType 文件类型
-     * @return array 返回任务文件实体和文件ID
+     * @param string $fileKey File key
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param array $fileData File data
+     * @param int $topicId Topic ID
+     * @param int $taskId Task ID
+     * @param string $fileType File type
+     * @return array Returns task file entity and file ID
      */
     public function processFileByFileKey(
         string $fileKey,
@@ -61,32 +73,25 @@ class FileProcessAppService extends AbstractAppService
         int $taskId,
         string $fileType = TaskFileType::PROCESS->value
     ): array {
-        // 1. 保存或更新聊天文件（通过Application层协调）
-        $savedChatFile = $this->magicChatFileAppService->saveOrUpdateByFileKey($fileKey, $dataIsolation, $fileData);
-
-        // 2. 获取文件外部URL
-        $fileId = $savedChatFile['file_id'] ?? '';
-
-        // 3. 准备任务文件实体
-        $taskFileEntity = $this->taskDomainService->saveOrCreateTaskFileByFileId(
-            fileId: (int) $fileId,
-            fileKey: $fileKey,
+        $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
             dataIsolation: $dataIsolation,
+            fileKey: $fileKey,
             fileData: $fileData,
             topicId: $topicId,
             taskId: $taskId,
-            fileType: $fileType
+            fileType: $fileType,
+            isUpdate: true
         );
-        return [$fileId, $taskFileEntity];
+        return [$taskFileEntity->getFileId(), $taskFileEntity];
     }
 
     /**
-     * 处理初始附件，将用户初始上传的附件保存到任务文件表.
+     * Process initial attachments, save user uploaded attachments to task file table.
      *
-     * @param null|string $attachments 附件JSON字符串
-     * @param TaskEntity $task 任务实体
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @return array 处理结果统计
+     * @param null|string $attachments Attachments JSON string
+     * @param TaskEntity $task Task entity
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @return array Processing result statistics
      */
     public function processInitialAttachments(?string $attachments, TaskEntity $task, DataIsolation $dataIsolation): array
     {
@@ -104,7 +109,7 @@ class FileProcessAppService extends AbstractAppService
             $attachmentsData = Json::decode($attachments);
             if (empty($attachmentsData) || ! is_array($attachmentsData)) {
                 $this->logger->warning(sprintf(
-                    '附件数据格式错误，任务ID: %s，原始附件数据: %s',
+                    'Attachment data format error, Task ID: %s, Original attachment data: %s',
                     $task->getTaskId(),
                     $attachments
                 ));
@@ -114,17 +119,17 @@ class FileProcessAppService extends AbstractAppService
             $stats['total'] = count($attachmentsData);
 
             $this->logger->info(sprintf(
-                '开始处理初始附件，任务ID: %s，附件数量: %d',
+                'Starting to process initial attachments, Task ID: %s, Attachment count: %d',
                 $task->getTaskId(),
                 $stats['total']
             ));
 
-            // 对每个附件进行处理
+            // Process each attachment
             foreach ($attachmentsData as $attachment) {
-                // 确保有file_id
+                // Ensure file_id exists
                 if (empty($attachment['file_id'])) {
                     $this->logger->warning(sprintf(
-                        '附件缺少file_id，任务ID: %s，附件内容: %s',
+                        'Attachment missing file_id, Task ID: %s, Attachment content: %s',
                         $task->getTaskId(),
                         json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                     ));
@@ -132,11 +137,11 @@ class FileProcessAppService extends AbstractAppService
                     continue;
                 }
 
-                // 获取完整的文件信息
+                // Get complete file information
                 $fileInfo = $this->magicChatFileAppService->getFileInfo($attachment['file_id']);
                 if (empty($fileInfo)) {
                     $this->logger->warning(sprintf(
-                        '未找到附件文件，文件ID: %s，任务ID: %s',
+                        'Attachment file not found, File ID: %s, Task ID: %s',
                         $attachment['file_id'],
                         $task->getTaskId()
                     ));
@@ -144,7 +149,7 @@ class FileProcessAppService extends AbstractAppService
                     continue;
                 }
 
-                // 构建完整的附件信息
+                // Build complete attachment information
                 $completeAttachment = [
                     'file_id' => $attachment['file_id'],
                     'file_key' => $fileInfo['file_key'],
@@ -157,7 +162,7 @@ class FileProcessAppService extends AbstractAppService
                     'storage_type' => $attachment['storage_type'] ?? 'workspace',
                 ];
 
-                // 处理单个附件
+                // Process single attachment
                 try {
                     $this->processFileByFileKey(
                         $completeAttachment['file_key'],
@@ -170,9 +175,9 @@ class FileProcessAppService extends AbstractAppService
                     ++$stats['success'];
                 } catch (Throwable $e) {
                     $this->logger->error(sprintf(
-                        '处理单个初始附件失败: %s, 文件ID: %s, 任务ID: %s',
+                        'Failed to process single initial attachment: %s, File ID: %s, Task ID: %s',
                         $e->getMessage(),
-                        $completeAttachment['file_id'] ?? '未知',
+                        $completeAttachment['file_id'] ?? 'Unknown',
                         $task->getTaskId()
                     ));
                     ++$stats['error'];
@@ -180,7 +185,7 @@ class FileProcessAppService extends AbstractAppService
             }
 
             $this->logger->info(sprintf(
-                '初始附件处理完成，任务ID: %s，处理结果: 总数=%d，成功=%d，失败=%d',
+                'Initial attachment processing completed, Task ID: %s, Processing result: Total=%d, Success=%d, Failed=%d',
                 $task->getTaskId(),
                 $stats['total'],
                 $stats['success'],
@@ -190,7 +195,7 @@ class FileProcessAppService extends AbstractAppService
             return $stats;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                '处理初始附件整体失败: %s, 任务ID: %s',
+                'Overall initial attachment processing failed: %s, Task ID: %s',
                 $e->getMessage(),
                 $task->getTaskId()
             ));
@@ -200,13 +205,13 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
-     * 批量处理附件数组，根据fileKey检查是否存在，存在则跳过，不存在则保存.
+     * Batch process attachment array, check if exists by fileKey, skip if exists, save if not exists.
      *
-     * @param array $attachments 附件数组
-     * @param string $sandboxId 沙箱ID
-     * @param string $organizationCode 组织编码
-     * @param int $topicId 话题ID，如果未提供将从任务记录中获取
-     * @return array 处理结果统计
+     * @param array $attachments Attachment array
+     * @param string $sandboxId Sandbox ID
+     * @param string $organizationCode Organization code
+     * @param null|int $topicId Topic ID, will be retrieved from task record if not provided
+     * @return array Processing result statistics
      */
     public function processAttachmentsArray(array $attachments, string $sandboxId, string $organizationCode, ?int $topicId = null): array
     {
@@ -222,14 +227,14 @@ class FileProcessAppService extends AbstractAppService
             return $stats;
         }
 
-        // 创建数据隔离对象
+        // Create data isolation object
         $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
         $task = null;
-        // 如果未提供topicId，从任务记录中获取
+        // If topicId not provided, retrieve from task record
         if ($topicId === null) {
             $task = $this->taskDomainService->getTaskBySandboxId($sandboxId);
             if (empty($task)) {
-                $this->logger->error(sprintf('无法找到任务，沙箱ID: %s', $sandboxId));
+                $this->logger->error(sprintf('Unable to find task, Sandbox ID: %s', $sandboxId));
                 $stats['error'] = $stats['total'];
                 return $stats;
             }
@@ -237,16 +242,16 @@ class FileProcessAppService extends AbstractAppService
         }
 
         $this->logger->info(sprintf(
-            '开始批量处理附件，沙箱ID: %s，附件数量: %d',
+            'Starting batch attachment processing, Sandbox ID: %s, Attachment count: %d',
             $sandboxId,
             $stats['total']
         ));
-        // 对每个附件进行处理
+        // Process each attachment
         foreach ($attachments as $attachment) {
-            // 确保有file_key
+            // Ensure file_key exists
             if (empty($attachment['file_key'])) {
                 $this->logger->warning(sprintf(
-                    '附件缺少file_key，沙箱ID: %s，附件内容: %s',
+                    'Attachment missing file_key, Sandbox ID: %s, Attachment content: %s',
                     $sandboxId,
                     json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 ));
@@ -254,19 +259,19 @@ class FileProcessAppService extends AbstractAppService
                 continue;
             }
             try {
-                // 确保任务存在并有ID
+                // Ensure task exists and has ID
                 if (empty($task) || empty($task->getId())) {
-                    $this->logger->error(sprintf('无法找到任务或任务ID为空，沙箱ID: %s', $sandboxId));
+                    $this->logger->error(sprintf('Unable to find task or task ID is empty, Sandbox ID: %s', $sandboxId));
                     ++$stats['error'];
                     continue;
                 }
 
-                // 检查文件是否已存在
+                // Check if file already exists
                 $existingFile = $this->taskDomainService->getTaskFileByFileKey($attachment['file_key']);
                 if ($existingFile) {
-                    // 如果已存在，记录并跳过
+                    // If already exists, log and skip
                     $this->logger->info(sprintf(
-                        '附件已存在，跳过处理，文件Key: %s，沙箱ID: %s',
+                        'Attachment already exists, skipping processing, File Key: %s, Sandbox ID: %s',
                         $attachment['file_key'],
                         $sandboxId
                     ));
@@ -280,15 +285,14 @@ class FileProcessAppService extends AbstractAppService
                     ];
                     continue;
                 }
-                // 如果不存在，则保存
-                $taskFileEntity = $this->taskDomainService->saveOrCreateTaskFileByFileKey(
-                    $attachment['file_key'],
-                    $dataIsolation,
-                    $attachment,
-                    $topicId,
-                    $sandboxId,
-                    $task->getId(),
-                    $attachment['file_type'] ?? 'system_auto_upload'
+                // If not exists, save it
+                $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
+                    dataIsolation: $dataIsolation,
+                    fileKey: $attachment['file_key'],
+                    fileData: $attachment,
+                    topicId: $topicId,
+                    taskId: $task->getId(),
+                    fileType: $attachment['file_type'] ?? 'system_auto_upload'
                 );
                 ++$stats['success'];
                 $stats['files'][] = [
@@ -299,14 +303,14 @@ class FileProcessAppService extends AbstractAppService
                     'status' => 'created',
                 ];
                 $this->logger->info(sprintf(
-                    '附件保存成功，文件Key: %s，沙箱ID: %s，文件名: %s',
+                    'Attachment saved successfully, File Key: %s, Sandbox ID: %s, File name: %s',
                     $attachment['file_key'],
                     $sandboxId,
-                    $attachment['filename'] ?? $attachment['display_filename'] ?? '未知'
+                    $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown'
                 ));
             } catch (Throwable $e) {
                 $this->logger->error(sprintf(
-                    '处理附件异常: %s, 文件Key: %s, 沙箱ID: %s',
+                    'Attachment processing exception: %s, File Key: %s, Sandbox ID: %s',
                     $e->getMessage(),
                     $attachment['file_key'],
                     $sandboxId
@@ -314,7 +318,7 @@ class FileProcessAppService extends AbstractAppService
                 ++$stats['error'];
                 $stats['files'][] = [
                     'file_key' => $attachment['file_key'],
-                    'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? '未知',
+                    'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown',
                     'status' => 'error',
                     'error' => $e->getMessage(),
                 ];
@@ -322,7 +326,7 @@ class FileProcessAppService extends AbstractAppService
         }
 
         $this->logger->info(sprintf(
-            '附件批量处理完成，沙箱ID: %s，处理结果: 总数=%d，成功=%d，跳过=%d，失败=%d',
+            'Batch attachment processing completed, Sandbox ID: %s, Processing result: Total=%d, Success=%d, Skipped=%d, Failed=%d',
             $sandboxId,
             $stats['total'],
             $stats['success'],
@@ -334,18 +338,18 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
-     * 刷新 STS Token.
+     * Refresh STS Token.
      *
-     * @param RefreshStsTokenRequestDTO $requestDTO 请求DTO
-     * @return array 刷新结果
+     * @param RefreshStsTokenRequestDTO $requestDTO Request DTO
+     * @return array Refresh result
      */
     public function refreshStsToken(RefreshStsTokenRequestDTO $requestDTO): array
     {
         try {
-            // 获取请求中的组织编码
+            // Get organization code from request
             $organizationCode = $requestDTO->getOrganizationCode();
 
-            // 获取 task 表中的 work_dir 目录作为工作目录
+            // Get work_dir directory from task table as working directory
             $taskEntity = $this->taskDomainService->getTaskById((int) $requestDTO->getSuperMagicTaskId());
             if (empty($taskEntity)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.not_found');
@@ -355,24 +359,506 @@ class FileProcessAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'task.work_dir.not_found');
             }
 
-            // 获取STS临时凭证
+            // Get STS temporary credentials
             $storageType = StorageBucketType::Private->value;
-            $expires = 7200; // 凭证有效期2小时
+            $expires = 3600; // Credential valid for 1 hour
 
-            // 创建用户授权对象
+            // Create user authorization object
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
 
-            // 使用统一的FileAppService获取STS Token
+            // Use unified FileAppService to get STS Token
             return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $workDir, $expires);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                '刷新STS Token失败: %s，组织编码: %s，沙箱ID: %s',
+                'Failed to refresh STS Token: %s, Organization code: %s, Sandbox ID: %s',
                 $e->getMessage(),
                 $requestDTO->getOrganizationCode(),
                 $requestDTO->getSandboxId()
             ));
             ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
         }
+    }
+
+    /**
+     * Save file content to object storage.
+     *
+     * @param SaveFileContentRequestDTO $requestDTO Request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Response data
+     */
+    #[RateLimit(create: 30, consume: 1, capacity: 10, waitTimeout: 3)]
+    public function saveFileContent(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        $fileId = $requestDTO->getFileId();
+        $lockKey = 'file_save_lock:' . $fileId;
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockExpireSeconds = 30;
+        $lockAcquired = false;
+
+        try {
+            // Try to acquire distributed mutex lock
+            $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+
+            if ($lockAcquired) {
+                $this->logger->debug(sprintf('File save lock acquired for file %d by %s', $fileId, $lockOwner));
+
+                // Execute file save logic
+                $result = $this->performFileSave($requestDTO, $authorization);
+
+                $this->logger->debug(sprintf('File save completed for file %d by %s', $fileId, $lockOwner));
+
+                return $result;
+            }
+            $this->logger->warning(sprintf('Failed to acquire mutex lock for file %d. It might be held by another instance.', $fileId));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONCURRENT_MODIFICATION, 'file.concurrent_modification');
+        } finally {
+            // Release lock if acquired
+            if ($lockAcquired) {
+                if ($this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->debug(sprintf('File save lock released for file %d by %s', $fileId, $lockOwner));
+                } else {
+                    $this->logger->error(sprintf('Failed to release file save lock for file %d held by %s. Manual intervention may be required.', $fileId, $lockOwner));
+                }
+            }
+        }
+    }
+
+    /**
+     * Batch save file content with concurrent processing.
+     *
+     * @param BatchSaveFileContentRequestDTO $requestDTO Batch request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Batch response data
+     */
+    #[RateLimit(create: 30, consume: 5, capacity: 20, waitTimeout: 5)]
+    public function batchSaveFileContent(BatchSaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        $files = $requestDTO->getFiles();
+        $stats = [
+            'total' => count($files),
+            'success' => 0,
+            'error' => 0,
+            'results' => [],
+            'errors' => [],
+        ];
+
+        $this->logger->info(sprintf(
+            'Starting concurrent batch file save operation - user: %s, organization: %s, file_count: %d',
+            $authorization->getId(),
+            $authorization->getOrganizationCode(),
+            $stats['total']
+        ));
+
+        // Record deduplication information
+        $deduplicatedCount = $requestDTO->getDeduplicatedCount();
+        if ($deduplicatedCount > 0) {
+            $this->logger->info(sprintf(
+                'File deduplication applied - original_count: %d, after_dedup: %d, deduplicated: %d',
+                $requestDTO->getOriginalCount(),
+                $stats['total'],
+                $deduplicatedCount
+            ));
+        }
+
+        // Dynamically adjust concurrency strategy based on configuration and file count
+        $fileCount = count($files);
+        $enableConcurrency = BatchProcessConfig::shouldEnableConcurrency($fileCount);
+        $maxConcurrency = BatchProcessConfig::getMaxConcurrency($fileCount);
+        $startTime = microtime(true);
+
+        $this->logger->info(sprintf(
+            'Batch processing strategy - concurrent: %s, max_concurrency: %d, file_count: %d',
+            $enableConcurrency ? 'enabled' : 'disabled',
+            $maxConcurrency,
+            $fileCount
+        ));
+
+        // Create concurrent tasks
+        $tasks = [];
+        foreach ($files as $index => $fileDTO) {
+            $tasks[$index] = function () use ($fileDTO, $authorization, $index) {
+                // Record task start time
+                $taskStartTime = microtime(true);
+
+                try {
+                    // Use existing single file save logic
+                    $result = $this->saveFileContent($fileDTO, $authorization);
+
+                    $taskDuration = round((microtime(true) - $taskStartTime) * 1000, 2);
+
+                    $this->logger->debug(sprintf(
+                        'Concurrent save - file %d completed successfully, file_id: %d, duration: %sms',
+                        $index + 1,
+                        $fileDTO->getFileId(),
+                        $taskDuration
+                    ));
+
+                    return [
+                        'index' => $index,
+                        'file_id' => $fileDTO->getFileId(),
+                        'status' => 'success',
+                        'data' => $result,
+                        'duration_ms' => $taskDuration,
+                    ];
+                } catch (Throwable $e) {
+                    $taskDuration = round((microtime(true) - $taskStartTime) * 1000, 2);
+
+                    $this->logger->error(sprintf(
+                        'Concurrent save - file %d failed, file_id: %d, error: %s, duration: %sms',
+                        $index + 1,
+                        $fileDTO->getFileId(),
+                        $e->getMessage(),
+                        $taskDuration
+                    ));
+
+                    return [
+                        'index' => $index,
+                        'file_id' => $fileDTO->getFileId(),
+                        'status' => 'error',
+                        'error' => $e->getMessage(),
+                        'error_code' => method_exists($e, 'getCode') ? $e->getCode() : 0,
+                        'duration_ms' => $taskDuration,
+                    ];
+                }
+            };
+        }
+
+        // Execute tasks based on strategy
+        if ($enableConcurrency) {
+            // Execute tasks concurrently
+            $parallel = new Parallel($maxConcurrency);
+            foreach ($tasks as $index => $task) {
+                $parallel->add($task, $index);
+            }
+            $results = $parallel->wait();
+        } else {
+            // Execute tasks serially (suitable for small number of files)
+            $results = [];
+            foreach ($tasks as $index => $task) {
+                $results[$index] = $task();
+            }
+        }
+
+        // Process results
+        foreach ($results as $result) {
+            if ($result['status'] === 'success') {
+                $stats['results'][] = $result;
+                ++$stats['success'];
+            } else {
+                $stats['errors'][] = $result;
+                ++$stats['error'];
+            }
+        }
+
+        $totalDuration = round((microtime(true) - $startTime) * 1000, 2);
+
+        $this->logger->info(sprintf(
+            'Concurrent batch file save operation completed - user: %s, total: %d, success: %d, error: %d, total_duration: %sms, avg_duration: %sms',
+            $authorization->getId(),
+            $stats['total'],
+            $stats['success'],
+            $stats['error'],
+            $totalDuration,
+            $stats['total'] > 0 ? round($totalDuration / $stats['total'], 2) : 0
+        ));
+
+        return [
+            'batch_id' => IdGenerator::getUniqueId32(),
+            'total' => $stats['total'],
+            'success' => $stats['success'],
+            'error' => $stats['error'],
+            'success_files' => $stats['results'],
+            'error_files' => $stats['errors'],
+            'performance' => [
+                'total_duration_ms' => $totalDuration,
+                'avg_duration_ms' => $stats['total'] > 0 ? round($totalDuration / $stats['total'], 2) : 0,
+                'max_concurrency' => $maxConcurrency,
+                'concurrent_enabled' => $enableConcurrency,
+                'processing_strategy' => $enableConcurrency ? 'concurrent' : 'sequential',
+            ],
+            'completed_at' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    /**
+     * Save tool message content to object storage.
+     *
+     * @param string $fileName File name
+     * @param string $workDir Working directory
+     * @param string $fileKey File key
+     * @param string $content File content
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $topicId Topic ID
+     * @param int $taskId Task ID
+     * @return int Returns file ID
+     */
+    public function saveToolMessageContent(
+        string $fileName,
+        string $workDir,
+        string $fileKey,
+        string $content,
+        DataIsolation $dataIsolation,
+        int $topicId,
+        int $taskId
+    ): int {
+        $this->logger->info(sprintf(
+            'Starting to save tool message content, File name: %s, File size: %d bytes, Task ID: %d',
+            $fileName,
+            strlen($content),
+            $taskId
+        ));
+
+        try {
+            // Construct complete file path
+            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+            $appId = config('kk_brd_service.app_id');
+            $md5Key = md5(StorageBucketType::Private->value);
+            $fullFileKey = "{$organizationCode}/{$appId}/{$md5Key}" . '/' . trim($workDir, '/') . '/' . ltrim($fileKey, '/');
+
+            // 1. Check if file already exists
+            $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey);
+            if ($existingFile) {
+                $this->logger->info(sprintf(
+                    'File already exists, returning existing file ID: %d, File key: %s',
+                    $existingFile->getFileId(),
+                    $fullFileKey
+                ));
+                return $existingFile->getFileId();
+            }
+
+            // 2. Upload file to object storage
+            // 2. Directly use production-verified uploadFileContent method
+            $uploadResult = $this->uploadFileContent(
+                $content,
+                $fullFileKey,
+                $fileName,
+                pathinfo($fileName, PATHINFO_EXTENSION),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
+            // 3. Build file data
+            $fileData = [
+                'file_key' => $fullFileKey,
+                'file_extension' => pathinfo($fileName, PATHINFO_EXTENSION),
+                'filename' => $fileName,
+                'display_filename' => $fileName,
+                'file_size' => $uploadResult['size'],
+                'file_tag' => 'tool_message_content',
+                'file_url' => $uploadResult['url'] ?? '',
+                'storage_type' => 'object_storage',
+            ];
+
+            // 4. Save file information to database
+            $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
+                dataIsolation: $dataIsolation,
+                fileKey: $fullFileKey,
+                fileData: $fileData,
+                topicId: $topicId,
+                taskId: $taskId,
+                fileType: 'tool_message_content'
+            );
+
+            // 5. Set as hidden file
+            $taskFileEntity->setIsHidden(true);
+            $this->taskDomainService->updateTaskFile($taskFileEntity);
+
+            $this->logger->info(sprintf(
+                'Tool message content saved successfully, File ID: %d, File key: %s',
+                $taskFileEntity->getFileId(),
+                $fullFileKey
+            ));
+
+            return $taskFileEntity->getFileId();
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to save tool message content: %s, File name: %s, Task ID: %d',
+                $e->getMessage(),
+                $fileName,
+                $taskId
+            ));
+            throw $e;
+        }
+    }
+
+    /**
+     * Perform actual file save logic.
+     *
+     * @param SaveFileContentRequestDTO $requestDTO Request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Response data
+     */
+    private function performFileSave(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        // 1. Validate file permission
+        $taskFileEntity = $this->validateFilePermission($requestDTO->getFileId(), $authorization);
+
+        // 2. Process content (decode shadow if enabled)
+        $content = $requestDTO->getContent();
+        if ($requestDTO->getEnableShadow()) {
+            $content = ShadowCode::unShadow($content);
+            $this->logger->info(sprintf(
+                'Shadow decoding enabled for file %d, original content size: %d, decoded content size: %d',
+                $requestDTO->getFileId(),
+                strlen($requestDTO->getContent()),
+                strlen($content)
+            ));
+        }
+
+        // 3. Upload file content (replace existing content using file_key)
+        $result = $this->uploadFileContent(
+            $content,
+            $taskFileEntity->getFileKey(),
+            $taskFileEntity->getFileName(),
+            $taskFileEntity->getFileExtension(),
+            $authorization->getOrganizationCode(),
+            $taskFileEntity->getFileId()
+        );
+
+        // 4. Update file metadata
+        $this->updateFileMetadata($taskFileEntity, $result);
+
+        return [
+            'file_id' => $requestDTO->getFileId(),
+            'size' => $result['size'],
+            'updated_at' => date('Y-m-d H:i:s'),
+            'shadow_decoded' => $requestDTO->getEnableShadow(),
+        ];
+    }
+
+    /**
+     * Validate file permission.
+     *
+     * @param int $fileId File ID
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return TaskFileEntity Task file entity
+     */
+    private function validateFilePermission(int $fileId, MagicUserAuthorization $authorization): TaskFileEntity
+    {
+        // Get TaskFileEntity by file_id
+        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
+
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        // Check if current user is the file owner
+        if ($taskFileEntity->getUserId() !== $authorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+        }
+
+        return $taskFileEntity;
+    }
+
+    /**
+     * Upload file content to object storage.
+     *
+     * @param string $content File content
+     * @param string $fileKey File key
+     * @param string $fileName File name
+     * @param string $fileExtension File extension
+     * @param string $organizationCode Organization code
+     * @param null|int $fileId File ID (optional, for logging)
+     * @return array Upload result
+     */
+    private function uploadFileContent(string $content, string $fileKey, string $fileName, string $fileExtension, string $organizationCode, ?int $fileId = null): array
+    {
+        try {
+            // Log debug information
+            $this->logger->info(sprintf(
+                'Starting file upload - file_id: %s, file_key: %s, file_name: %s, file_extension: %s, organization: %s, content_size: %d',
+                $fileId ?? 'N/A',
+                $fileKey,
+                $fileName,
+                $fileExtension,
+                $organizationCode,
+                strlen($content)
+            ));
+
+            // Step 1: Save upload content to temporary file with correct file extension
+            $tempFile = tempnam(sys_get_temp_dir(), 'file_save_');
+
+            // Ensure temporary file has correct extension
+            if (! empty($fileExtension)) {
+                $tempFileWithExt = $tempFile . '.' . $fileExtension;
+                rename($tempFile, $tempFileWithExt);
+                $tempFile = $tempFileWithExt;
+            }
+
+            file_put_contents($tempFile, $content);
+
+            $this->logger->info(sprintf(
+                'Created temporary file with correct extension: %s, size: %d bytes',
+                $tempFile,
+                filesize($tempFile)
+            ));
+
+            // Step 2: Build UploadFile object
+            $appId = config('kk_brd_service.app_id');
+            $uploadKeyPrefix = "{$organizationCode}/{$appId}";
+            $uploadFileKey = str_replace($uploadKeyPrefix, '', $fileKey);
+            $uploadFileKey = ltrim($uploadFileKey, '/');
+            $uploadFile = new UploadFile($tempFile, '', $uploadFileKey, false);
+
+            $this->logger->info(sprintf(
+                'Created UploadFile object with file_key: %s',
+                $uploadFile->getKey()
+            ));
+
+            // Step 3: Upload using FileDomainService uploadByCredential method
+            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Private, false);
+
+            $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::Private);
+
+            $this->logger->info(sprintf(
+                'Successfully uploaded file using uploadByCredential with key: %s, file_link: %s',
+                $uploadFile->getKey(),
+                $fileLink->getUrl()
+            ));
+
+            // Clean up temporary file
+            unlink($tempFile);
+
+            $this->logger->info(sprintf(
+                'Cleaned up temporary file: %s',
+                $tempFile
+            ));
+
+            // Step 4: Return upload result
+            return [
+                'size' => strlen($content),
+                'key' => $fileKey, // Keep original file_key unchanged
+                'url' => $fileLink->getUrl(),
+            ];
+        } catch (Throwable $e) {
+            // Clean up temporary file if it exists
+            if (isset($tempFile) && file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+
+            $this->logger->error(sprintf(
+                'File upload failed: %s, file_id: %s, organization: %s',
+                $e->getMessage(),
+                $fileId ?? 'N/A',
+                $organizationCode
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED, 'file.upload_failed');
+        }
+    }
+
+    /**
+     * Update file metadata.
+     *
+     * @param TaskFileEntity $taskFileEntity Task file entity
+     * @param array $result Upload result
+     */
+    private function updateFileMetadata(TaskFileEntity $taskFileEntity, array $result): void
+    {
+        // Update file size and modification time
+        $taskFileEntity->setFileSize($result['size']);
+        $taskFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        // Save updated entity
+        $this->taskDomainService->updateTaskFile($taskFileEntity);
     }
 }

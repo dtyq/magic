@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-class CreateTopicBeforeEvent
+class CreateTopicBeforeEvent extends AbstractEvent
 {
     public function __construct(
         private string $organizationCode,
@@ -15,6 +15,8 @@ class CreateTopicBeforeEvent
         private int $workspaceId,
         private string $topicName
     ) {
+        // Call parent constructor to generate snowflake ID
+        parent::__construct();
     }
 
     public function getOrganizationCode(): string

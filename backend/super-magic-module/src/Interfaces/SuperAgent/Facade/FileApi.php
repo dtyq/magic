@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -85,5 +86,30 @@ class FileApi extends AbstractApi
         $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
 
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
+    }
+
+    /**
+     * 批量保存文件内容.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 批量保存结果
+     */
+    public function saveFileContent(RequestContext $requestContext): array
+    {
+        // 获取原始请求数据
+        $requestData = $this->request->all();
+
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 验证请求格式必须是数组
+        if (! is_array($requestData) || empty($requestData)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'files_array_required');
+        }
+
+        // 创建批量保存DTO
+        $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
+        return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
     }
 }

@@ -23,7 +23,18 @@ class TopicRepository implements TopicRepositoryInterface
 
     public function getTopicById(int $id): ?TopicEntity
     {
-        $model = $this->model::query()->find($id);
+        $model = $this->model::query()->whereNull('deleted_at')->find($id);
+        if (! $model) {
+            return null;
+        }
+
+        $data = $this->convertModelToEntityData($model->toArray());
+        return new TopicEntity($data);
+    }
+
+    public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
+    {
+        $model = $this->model::query()->whereNull('deleted_at')->where('sandbox_id', $sandboxId)->first();
         if (! $model) {
             return null;
         }

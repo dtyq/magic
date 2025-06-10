@@ -14,7 +14,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
 /**
  * 话题任务消息事件.
  */
-class TopicTaskMessageEvent
+class TopicTaskMessageEvent extends AbstractEvent
 {
     /**
      * 构造函数.
@@ -28,6 +28,8 @@ class TopicTaskMessageEvent
         private MessagePayload $payload,
         private ?TokenUsageDetails $tokenUsageDetails = null,
     ) {
+        // Call parent constructor to generate snowflake ID
+        parent::__construct();
     }
 
     /**

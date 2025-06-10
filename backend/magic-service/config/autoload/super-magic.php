@@ -20,4 +20,10 @@ return [
         'encrypt_key' => \Hyperf\Support\env('SHARE_ENCRYPT_KEY', ''),
         'encrypt_iv' => \Hyperf\Support\env('SHARE_ENCRYPT_IV', ''),
     ],
+    'task' => [
+        'tool_message' => [
+            'object_storage_enabled' => \Hyperf\Support\env('TOOL_MESSAGE_OBJECT_STORAGE_ENABLED', true),
+            'min_content_length' => \Hyperf\Support\env('TOOL_MESSAGE_MIN_CONTENT_LENGTH', 200),
+        ],
+    ],
 ];

@@ -14,8 +14,8 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('magic_super_agent_message', function (Blueprint $table) {
-            $table->tinyInteger('show_in_ui')->default(1)->comment('是否在UI中显示，1是，0否');
+        Schema::table('magic_super_agent_task', function (Blueprint $table) {
+            $table->text('prompt')->comment('用户的问题。')->change();
         });
     }
 
@@ -24,8 +24,8 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::table('magic_super_agent_message', function (Blueprint $table) {
-            $table->dropColumn('show_in_ui');
+        Schema::table('magic_super_agent_task', function (Blueprint $table) {
+            $table->string('prompt', 5000)->comment('用户的问题。')->change();
         });
     }
 }; 

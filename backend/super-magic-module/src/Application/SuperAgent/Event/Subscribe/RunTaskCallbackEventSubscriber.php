@@ -12,7 +12,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\TokenUsageRecordAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TokenUsageRecordEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsage;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -21,11 +21,11 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * RunTaskAfterEvent事件监听器 - 记录Token使用情况.
+ * RunTaskCallbackEvent事件监听器 - 记录Token使用情况.
  */
 #[AsyncListener]
 #[Listener]
-class RunTaskAfterEventSubscriber implements ListenerInterface
+class RunTaskCallbackEventSubscriber implements ListenerInterface
 {
     private LoggerInterface $logger;
 
@@ -45,7 +45,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
     public function listen(): array
     {
         return [
-            RunTaskAfterEvent::class,
+            RunTaskCallbackEvent::class,
         ];
     }
 
@@ -57,12 +57,12 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
     public function process(object $event): void
     {
         // Type check
-        if (! $event instanceof RunTaskAfterEvent) {
+        if (! $event instanceof RunTaskCallbackEvent) {
             return;
         }
 
-        // Get TokenUsageDetails
-        $tokenUsageDetails = $event->getTokenUsageDetails();
+        // Get TokenUsageDetails from the task message
+        $tokenUsageDetails = $event->getTaskMessage()->getTokenUsageDetails();
         if ($tokenUsageDetails === null) {
             $this->logger->info('TokenUsageDetails is null, skipping record', [
                 'task_id' => $event->getTaskId(),
@@ -88,10 +88,10 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
     /**
      * Record token usage.
      *
-     * @param RunTaskAfterEvent $event Event object
+     * @param RunTaskCallbackEvent $event Event object
      * @param TokenUsageDetails $tokenUsageDetails Token usage details
      */
-    private function recordTokenUsage(RunTaskAfterEvent $event, TokenUsageDetails $tokenUsageDetails): void
+    private function recordTokenUsage(RunTaskCallbackEvent $event, TokenUsageDetails $tokenUsageDetails): void
     {
         try {
             // Get sandbox_id by task_id
@@ -139,6 +139,9 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
                     continue;
                 }
 
+                // Get task status from task message payload
+                $taskStatus = $event->getTaskMessage()->getPayload()->getStatus() ?? 'unknown';
+
                 // Create TokenUsageRecordEntity for this specific model
                 $entity = new TokenUsageRecordEntity();
                 $entity->setTopicId($event->getTopicId());
@@ -146,7 +149,7 @@ class RunTaskAfterEventSubscriber implements ListenerInterface
                 $entity->setSandboxId($sandboxId);
                 $entity->setOrganizationCode($event->getOrganizationCode());
                 $entity->setUserId($event->getUserId());
-                $entity->setTaskStatus($event->getStatus());
+                $entity->setTaskStatus($taskStatus);
                 $entity->setUsageType($tokenUsageDetails->getType());
 
                 // Set individual model statistics

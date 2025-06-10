@@ -7,12 +7,18 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-class CreateWorkspaceBeforeEvent extends AbstractEvent
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+
+/**
+ * Delete topic before event - triggered before topic deletion to handle sandbox termination.
+ */
+class DeleteTopicBeforeEvent extends AbstractEvent
 {
     public function __construct(
         private string $organizationCode,
         private string $userId,
-        private string $workspaceName,
+        private int $topicId,
+        private TopicEntity $topicEntity,
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
@@ -28,8 +34,13 @@ class CreateWorkspaceBeforeEvent extends AbstractEvent
         return $this->userId;
     }
 
-    public function getWorkspaceName(): string
+    public function getTopicId(): int
     {
-        return $this->workspaceName;
+        return $this->topicId;
+    }
+
+    public function getTopicEntity(): TopicEntity
+    {
+        return $this->topicEntity;
     }
 }
