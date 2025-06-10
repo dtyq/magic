@@ -2306,16 +2306,16 @@
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.1",
+            "version": "0.1.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c"
+                "reference": "3700e18ff587488c172fcb787cca81c329b32727"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/d5d176add0195d2a2f1c605e1aae13151312f81c",
-                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/3700e18ff587488c172fcb787cca81c329b32727",
+                "reference": "3700e18ff587488c172fcb787cca81c329b32727",
                 "shasum": ""
             },
             "require": {
@@ -2364,9 +2364,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.1"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.2"
             },
-            "time": "2025-06-10T06:41:17+00:00"
+            "time": "2025-06-10T14:23:58+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
