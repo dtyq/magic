@@ -65,8 +65,8 @@ class ImageEditDTO extends AbstractRequestDTO
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'model_field']);
         }
 
-        // Validate model is supported volcano image generation model
-        $this->validateVolcanoModel();
+        // Validate model is supported for image editing
+        $this->validateSupportedImageEditModel();
 
         // Validate prompt is provided
         if ($this->prompt === '') {
@@ -80,18 +80,19 @@ class ImageEditDTO extends AbstractRequestDTO
     }
 
     /**
-     * Validate that the model is a supported volcano image generation model.
+     * Validate that the model supports image editing functionality.
      */
-    private function validateVolcanoModel(): void
+    private function validateSupportedImageEditModel(): void
     {
-        $volcanoModels = array_merge(
+        $supportedModels = array_merge(
             ImageGenerateModelType::getVolcengineModes(),
+            ImageGenerateModelType::getAzureOpenAIEditModes(),
         );
 
-        if (! in_array($this->model, $volcanoModels)) {
+        if (! in_array($this->model, $supportedModels)) {
             ExceptionBuilder::throw(
                 MagicApiErrorCode::ValidateFailed,
-                'Only volcano image generation models are supported for image editing'
+                'Model does not support image editing functionality'
             );
         }
     }

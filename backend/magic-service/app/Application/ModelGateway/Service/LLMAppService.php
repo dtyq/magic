@@ -32,8 +32,10 @@ use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
@@ -44,6 +46,7 @@ use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
@@ -194,7 +197,13 @@ class LLMAppService extends AbstractLLMAppService
         $this->logger->info('Image generation service configuration', $configInfo);
 
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
-        $images = $imageGenerateResponse->getData();
+
+        if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
+            $images = $this->processBase64Images($imageGenerateResponse->getData(), $authorization);
+        } else {
+            $images = $imageGenerateResponse->getData();
+        }
+
         $this->logger->info('images', $images);
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
         return $images;
@@ -1163,10 +1172,65 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * 计算最大公约数（辗转相除法）.
+     * Calculate the greatest common divisor using Euclidean algorithm.
+     * Improved version with proper error handling and edge case management.
      */
     private function gcd(int $a, int $b): int
     {
-        return $b === 0 ? $a : $this->gcd($b, $a % $b);
+        // Handle edge case where both numbers are zero
+        if ($a === 0 && $b === 0) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed);
+        }
+
+        // Use absolute values to ensure positive result
+        $a = abs($a);
+        $b = abs($b);
+
+        // Iterative approach to avoid stack overflow for large numbers
+        while ($b !== 0) {
+            $temp = $b;
+            $b = $a % $b;
+            $a = $temp;
+        }
+
+        return $a;
+    }
+
+    /**
+     * Process base64 images by uploading them to file storage and returning accessible URLs.
+     *
+     * @param array $images Array of base64 encoded images
+     * @param MagicUserAuthorization $authorization User authorization for organization context
+     * @return array Array of processed image URLs or original base64 data on failure
+     */
+    private function processBase64Images(array $images, MagicUserAuthorization $authorization): array
+    {
+        $processedImages = [];
+
+        foreach ($images as $index => $base64Image) {
+            try {
+                $uploadDir = $authorization->getOrganizationCode() . '/image_generate/' . md5(StorageBucketType::Public->value);
+
+                $filename = 'generated_' . time() . '_' . $index . '.png';
+
+                $uploadFile = new UploadFile($base64Image, $uploadDir, $filename);
+
+                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile);
+
+                $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
+
+                $processedImages[] = $fileLink;
+            } catch (Exception $e) {
+                $this->logger->error('Failed to process base64 image', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                    'organization_code' => $authorization->getOrganizationCode(),
+                ]);
+                // If upload fails, keep the original base64 data
+                $processedImages[] = $base64Image;
+            }
+        }
+
+        return $processedImages;
     }
 }

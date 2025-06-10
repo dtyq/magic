@@ -17,6 +17,8 @@ enum ImageGenerateModelType: string
     case Flux = 'Flux';
     case MiracleVision = 'MiracleVision';
     case TTAPIGPT4o = 'GPT4o';
+    case AzureOpenAIImageGenerate = 'AzureOpenAI-ImageGenerate';
+    case AzureOpenAIImageEdit = 'AzureOpenAI-ImageEdit';
 
     // 目前美图ai超清的model_id
     case MiracleVisionHightModelId = 'miracleVision_mtlab';
@@ -32,6 +34,8 @@ enum ImageGenerateModelType: string
             in_array($model, self::getVolcengineModes()) => self::Volcengine,
             in_array($model, self::getVolcengineImageGenerateV3Modes()) => self::VolcengineImageGenerateV3,
             in_array($model, self::getGPT4oModes()) => self::TTAPIGPT4o,
+            in_array($model, self::getAzureOpenAIModes()) => self::AzureOpenAIImageGenerate,
+            in_array($model, self::getAzureOpenAIEditModes()) => self::AzureOpenAIImageEdit,
             default => $throw ? throw new InvalidArgumentException('Unsupported model type: ' . $model) : self::Volcengine,
         };
     }
@@ -79,5 +83,15 @@ enum ImageGenerateModelType: string
     public static function getGPT4oModes(): array
     {
         return [self::TTAPIGPT4o->value];
+    }
+
+    public static function getAzureOpenAIModes(): array
+    {
+        return [self::AzureOpenAIImageGenerate->value];
+    }
+
+    public static function getAzureOpenAIEditModes(): array
+    {
+        return [self::AzureOpenAIImageEdit->value];
     }
 }

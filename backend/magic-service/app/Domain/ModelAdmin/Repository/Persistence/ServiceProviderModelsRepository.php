@@ -531,27 +531,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 根据服务商配置IDs、modelId和激活状态查找对应的模型.
-     * @param array $configIds 服务商配置ID数组
-     * @param string $modelVersion 模型ID
-     * @return ServiceProviderModelsEntity[] 找到的激活模型数组
-     */
-    public function getActiveModelsByConfigIdsAndModelId(array $configIds, string $modelVersion): array
-    {
-        if (empty($configIds) || empty($modelVersion)) {
-            return [];
-        }
-
-        $query = $this->serviceProviderModelsModel::query()
-            ->whereIn('service_provider_config_id', $configIds)
-            ->where('model_version', $modelVersion)
-            ->where('status', Status::ACTIVE->value)
-            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
-
-        return $this->executeQueryAndToEntities($query);
-    }
-
-    /**
      * find active models by config ids, model version and status.
      * @param array $configIds provider config ids
      * @param string $modelVersion model version
@@ -583,6 +562,27 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
 
         $query = $this->serviceProviderModelsModel::query()
             ->whereIn('service_provider_config_id', $configIds)
+            ->where('status', Status::ACTIVE->value)
+            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
+
+        return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * 根据服务商配置IDs、modelId和激活状态查找对应的模型.
+     * @param array $configIds 服务商配置ID数组
+     * @param string $modelVersion 模型ID
+     * @return ServiceProviderModelsEntity[] 找到的激活模型数组
+     */
+    public function getActiveModelsByConfigIdsAndModelId(array $configIds, string $modelVersion): array
+    {
+        if (empty($configIds) || empty($modelVersion)) {
+            return [];
+        }
+
+        $query = $this->serviceProviderModelsModel::query()
+            ->whereIn('service_provider_config_id', $configIds)
+            ->where('model_version', $modelVersion)
             ->where('status', Status::ACTIVE->value)
             ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
 
