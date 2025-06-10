@@ -451,11 +451,12 @@ class TopicEntity extends AbstractEntity
 
     /**
      * 设置话题成本.
+     * @param mixed $cost
      */
     public function setCost($cost): self
     {
         // 当输入不是浮点数时进行转换
-        if (!is_float($cost)) {
+        if (! is_float($cost)) {
             $cost = (float) $cost;
         }
 

@@ -51,7 +51,8 @@ class PasswordCrypt
         $iv = substr(hash('sha256', self::getEncryptIv()), 0, 16);
 
         $encrypted = base64_decode($encryptedPassword);
-        return openssl_decrypt($encrypted, $method, $key, 0, $iv);
+        $result = openssl_decrypt($encrypted, $method, $key, 0, $iv);
+        return $result === false ? '' : $result;
     }
 
     /**
