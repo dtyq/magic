@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.2",
+            "version": "3.344.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "3a6aaaea75f4605f89aa57ad63b9a077bf01e1e5"
+                "reference": "0cf789243c7de82be7d3f7641cab37b5bb5d937d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/3a6aaaea75f4605f89aa57ad63b9a077bf01e1e5",
-                "reference": "3a6aaaea75f4605f89aa57ad63b9a077bf01e1e5",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/0cf789243c7de82be7d3f7641cab37b5bb5d937d",
+                "reference": "0cf789243c7de82be7d3f7641cab37b5bb5d937d",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.2"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.3"
             },
-            "time": "2025-06-06T18:14:42+00:00"
+            "time": "2025-06-09T18:04:12+00:00"
         },
         {
             "name": "brick/math",
@@ -2194,12 +2194,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "8965c2ac9b0eccdb83b8794c19427a08e01fe6bd"
+                "reference": "2a380401cb201f275959e27b0470385a5a9e9b5a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=8965c2ac9b0eccdb83b8794c19427a08e01fe6bd",
-                "reference": "8965c2ac9b0eccdb83b8794c19427a08e01fe6bd",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=2a380401cb201f275959e27b0470385a5a9e9b5a",
+                "reference": "2a380401cb201f275959e27b0470385a5a9e9b5a",
                 "shasum": ""
             },
             "require": {
@@ -2302,20 +2302,20 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-06-06T20:52:43+08:00"
+            "time": "2025-06-10T02:26:24+00:00"
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.0",
+            "version": "0.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "0db4f14994d7cbc175d9cfcda2fc98ef484f668d"
+                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/0db4f14994d7cbc175d9cfcda2fc98ef484f668d",
-                "reference": "0db4f14994d7cbc175d9cfcda2fc98ef484f668d",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/d5d176add0195d2a2f1c605e1aae13151312f81c",
+                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c",
                 "shasum": ""
             },
             "require": {
@@ -2364,9 +2364,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.0"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.1"
             },
-            "time": "2025-06-09T07:23:45+00:00"
+            "time": "2025-06-10T06:41:17+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "afa8e9395b01a2d96b5a66577d81df1311cc9137"
+                "reference": "de4b54b894faa2d7d7d7102d997a164d26dbc1aa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=afa8e9395b01a2d96b5a66577d81df1311cc9137",
-                "reference": "afa8e9395b01a2d96b5a66577d81df1311cc9137",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=de4b54b894faa2d7d7d7102d997a164d26dbc1aa",
+                "reference": "de4b54b894faa2d7d7d7102d997a164d26dbc1aa",
                 "shasum": ""
             },
             "require": {
@@ -2671,7 +2671,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-06-09T15:01:55+08:00"
+            "time": "2025-06-10T10:53:13+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17097,12 +17097,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "d1d1619048a615bd2836f095f8dd3dd33e4ba457"
+                "reference": "1eb2c3ac8130315972955def682482a1972b8d8d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/d1d1619048a615bd2836f095f8dd3dd33e4ba457",
-                "reference": "d1d1619048a615bd2836f095f8dd3dd33e4ba457",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1eb2c3ac8130315972955def682482a1972b8d8d",
+                "reference": "1eb2c3ac8130315972955def682482a1972b8d8d",
                 "shasum": ""
             },
             "conflict": {
@@ -17162,7 +17162,7 @@
                 "bagisto/bagisto": "<2.1",
                 "barrelstrength/sprout-base-email": "<1.2.7",
                 "barrelstrength/sprout-forms": "<3.9",
-                "barryvdh/laravel-translation-manager": "<0.6.2",
+                "barryvdh/laravel-translation-manager": "<0.6.8",
                 "barzahlen/barzahlen-php": "<2.0.1",
                 "baserproject/basercms": "<=5.1.1",
                 "bassjobsen/bootstrap-3-typeahead": ">4.0.2",
@@ -17293,6 +17293,7 @@
                 "elefant/cms": "<2.0.7",
                 "elgg/elgg": "<3.3.24|>=4,<4.0.5",
                 "elijaa/phpmemcacheadmin": "<=1.3",
+                "elmsln/haxcms": "<11",
                 "encore/laravel-admin": "<=1.8.19",
                 "endroid/qr-code-bundle": "<3.4.2",
                 "enhavo/enhavo-app": "<=0.13.1",
@@ -18035,7 +18036,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-06T23:05:15+00:00"
+            "time": "2025-06-09T18:07:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
