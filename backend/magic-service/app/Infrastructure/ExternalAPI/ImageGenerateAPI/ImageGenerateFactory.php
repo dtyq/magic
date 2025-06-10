@@ -143,14 +143,19 @@ class ImageGenerateFactory
     private static function createAzureOpenAIImageEditRequest(array $data): AzureOpenAIImageEditRequest
     {
         $request = new AzureOpenAIImageEditRequest();
-        $request->setPrompt($data['user_prompt']);
+        $request->setPrompt($data['user_prompt'] ?? $data['prompt'] ?? '');
 
-        // Required parameters for image editing - support multiple images
-        if (isset($data['image_urls']) && is_array($data['image_urls'])) {
+        // Handle image URLs from different sources
+        if (isset($data['reference_images']) && is_array($data['reference_images'])) {
+            $request->setImageUrls($data['reference_images']);
+        } elseif (isset($data['image_urls']) && is_array($data['image_urls'])) {
             $request->setImageUrls($data['image_urls']);
         } elseif (isset($data['image_url'])) {
             // Backward compatibility for single image
             $request->setImageUrls([$data['image_url']]);
+        } else {
+            // Default to empty array if no images provided
+            $request->setImageUrls([]);
         }
 
         // Optional mask parameter
@@ -158,12 +163,19 @@ class ImageGenerateFactory
             $request->setMaskUrl($data['mask_url']);
         }
 
-        // Optional parameters
-        if (isset($data['size'])) {
+        // Set size based on width and height if available, otherwise use default
+        if (isset($data['width']) && isset($data['height'])) {
+            $size = $data['width'] . 'x' . $data['height'];
+            $request->setSize($size);
+        } elseif (isset($data['size'])) {
             $request->setSize($data['size']);
         }
+
+        // Set number of images to generate
         if (isset($data['generate_num'])) {
             $request->setN((int) $data['generate_num']);
+        } elseif (isset($data['n'])) {
+            $request->setN((int) $data['n']);
         }
 
         return $request;

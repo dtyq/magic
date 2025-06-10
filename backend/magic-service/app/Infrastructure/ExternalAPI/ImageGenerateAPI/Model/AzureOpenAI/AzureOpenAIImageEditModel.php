@@ -26,8 +26,8 @@ class AzureOpenAIImageEditModel implements ImageGenerate
     {
         $this->config = $serviceProviderConfig;
         $baseUrl = $this->config->getUrl();
-        $deploymentName = $this->config->getDeploymentName();
-        $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $deploymentName);
+        $apiVersion = $this->config->getApiVersion();
+        $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $apiVersion);
     }
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -64,8 +64,8 @@ class AzureOpenAIImageEditModel implements ImageGenerate
     public function setApiKey(string $apiKey): void
     {
         $baseUrl = $this->config->getUrl();
-        $deploymentName = $this->config->getDeploymentName();
-        $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $deploymentName);
+        $apiVersion = $this->config->getApiVersion();
+        $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
     }
 
     private function buildResponse(array $result): ImageGenerateResponse

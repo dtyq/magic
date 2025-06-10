@@ -9,7 +9,6 @@ namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
-use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
@@ -180,7 +179,7 @@ class LLMAppService extends AbstractLLMAppService
 
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
-        if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64){
+        if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
             $images = $this->processBase64Images($imageGenerateResponse->getData(), $authorization);
         } else {
             $images = $imageGenerateResponse->getData();
@@ -897,30 +896,28 @@ class LLMAppService extends AbstractLLMAppService
 
         foreach ($images as $index => $base64Image) {
             try {
-
                 $uploadDir = $authorization->getOrganizationCode() . '/image_generate/' . md5(StorageBucketType::Public->value);
-                
+
                 $filename = 'generated_' . time() . '_' . $index . '.png';
-                
+
                 $uploadFile = new UploadFile($base64Image, $uploadDir, $filename);
-                
+
                 $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile);
-                
+
                 $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
-                
+
                 $processedImages[] = $fileLink;
-                
             } catch (Exception $e) {
                 $this->logger->error('Failed to process base64 image', [
                     'index' => $index,
                     'error' => $e->getMessage(),
-                    'organization_code' => $authorization->getOrganizationCode()
+                    'organization_code' => $authorization->getOrganizationCode(),
                 ]);
                 // If upload fails, keep the original base64 data
                 $processedImages[] = $base64Image;
             }
         }
-        
+
         return $processedImages;
     }
 }
