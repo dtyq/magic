@@ -18,7 +18,6 @@ use App\Domain\Chat\DTO\PageResponseDTO\ConversationsPageResponseDTO;
 use App\Domain\Chat\Entity\MagicConversationEntity;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
-use App\Domain\Chat\Entity\ValueObject\ChatSocketIoNameSpace;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
@@ -31,6 +30,7 @@ use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
@@ -281,7 +281,7 @@ class MagicConversationDomainService extends AbstractDomainService
         // seq 也加上 topicId
         $pushData = SeqAssembler::getClientSeqStruct($seqEntity)->toArray();
         // 直接推送消息给收件方
-        $this->socketIO->of(ChatSocketIoNameSpace::Im->value)->to($receiveUserEntity->getMagicId())->compress(true)->emit(SocketEventType::Intermediate->value, $pushData);
+        SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
         return true;
     }
 

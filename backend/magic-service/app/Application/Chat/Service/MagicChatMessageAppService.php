@@ -68,7 +68,6 @@ use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Message\UserMessage;
 use Hyperf\Redis\Redis;
 use Hyperf\SocketIOServer\Socket;
-use Hyperf\SocketIOServer\SocketIO;
 use Hyperf\WebSocketServer\Context as WebSocketContext;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -90,7 +89,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         protected readonly MagicChatFileDomainService $magicChatFileDomainService,
         protected MagicSeqDomainService $magicSeqDomainService,
         protected FileDomainService $fileDomainService,
-        protected SocketIO $socketIO,
         protected CacheInterface $cache,
         protected MagicUserDomainService $magicUserDomainService,
         protected Redis $redis,
@@ -106,11 +104,10 @@ class MagicChatMessageAppService extends MagicSeqAppService
         parent::__construct($magicSeqDomainService);
     }
 
-    public function login(MagicUserAuthorization $userAuthorization, Socket $socket, ?MagicContext $context): void
+    public function joinRoom(MagicUserAuthorization $userAuthorization, Socket $socket): void
     {
-        // 将所有 sid 都加入到房间id值味uid的房间中
-        $this->magicChatDomainService->login($userAuthorization->getMagicId(), $socket);
-        $this->logger->info(sprintf(__METHOD__ . ' accountId:%s params:%s', $userAuthorization->getMagicId(), Json::encode($context)));
+        // 将所有 sid 都加入到房间 id 值为 magicId 的房间中
+        $this->magicChatDomainService->joinRoom($userAuthorization->getMagicId(), $socket);
     }
 
     /**

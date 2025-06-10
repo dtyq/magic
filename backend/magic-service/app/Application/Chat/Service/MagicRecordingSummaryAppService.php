@@ -20,14 +20,12 @@ use App\Domain\Chat\Entity\MagicChatFileEntity;
 use App\Domain\Chat\Entity\MagicConversationEntity;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
-use App\Domain\Chat\Entity\ValueObject\ChatSocketIoNameSpace;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\FileType;
 use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\RecordingSummaryStatus;
-use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Chat\Event\Seq\RecordingSummaryEndEvent;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Chat\Service\MagicChatFileDomainService;
@@ -42,6 +40,7 @@ use App\Infrastructure\Util\Asr\AsrFacade;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Infrastructure\Util\File\FMTChunk;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
@@ -50,7 +49,6 @@ use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\SocketIOServer\SocketIO;
 use Hyperf\WebSocketServer\Context as WebSocketContext;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -68,7 +66,6 @@ class MagicRecordingSummaryAppService extends MagicSeqAppService
         protected readonly MagicChatFileDomainService $magicChatFileDomainService,
         protected MagicSeqDomainService $magicSeqDomainService,
         protected FileDomainService $fileDomainService,
-        protected SocketIO $socketIO,
         protected MagicRecordingSummaryDomainService $magicStreamDomainService,
         protected Producer $producer,
     ) {
@@ -212,9 +209,7 @@ class MagicRecordingSummaryAppService extends MagicSeqAppService
                 $streamMessage->addSeqId($magicSeqEntity->getSeqId());
                 $this->updateStreamMessage($dataIsolation, $streamMessage);
                 Db::commit();
-                $pushData = SeqAssembler::getClientSeqStruct($magicSeqEntity, $magicMessageEntity)->toArray();
-                $socketEventType = SocketEventType::Chat;
-                $this->socketIO->of(ChatSocketIoNameSpace::Im->value)->to($dataIsolation->getCurrentMagicId())->emit($socketEventType->value, $pushData);
+                SocketIOUtil::sendSequenceId($magicSeqEntity);
             } catch (Throwable $exception) {
                 Db::rollBack();
                 $this->logger->error(Json::encode([

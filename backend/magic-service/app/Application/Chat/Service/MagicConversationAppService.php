@@ -25,7 +25,6 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\SocketIOServer\SocketIO;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -42,7 +41,6 @@ class MagicConversationAppService extends MagicSeqAppService
         protected readonly MagicChatFileDomainService $magicChatFileDomainService,
         protected MagicSeqDomainService $magicSeqDomainService,
         protected FileDomainService $fileDomainService,
-        protected SocketIO $socketIO,
         protected readonly MagicAgentDomainService $magicAgentDomainService,
     ) {
         try {

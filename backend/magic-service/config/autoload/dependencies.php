@@ -53,6 +53,8 @@ use App\Domain\Chat\Repository\Persistence\MagicFriendRepository;
 use App\Domain\Chat\Repository\Persistence\MagicMessageRepository;
 use App\Domain\Chat\Repository\Persistence\MagicMessageVersionsRepository;
 use App\Domain\Chat\Repository\Persistence\MagicStreamMessageRepository;
+use App\Domain\Chat\Service\MessageContentProvider;
+use App\Domain\Chat\Service\MessageContentProviderInterface;
 use App\Domain\Contact\Repository\Facade\MagicAccountRepositoryInterface;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentRepositoryInterface;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentUserRepositoryInterface;
@@ -206,6 +208,7 @@ $dependencies = [
     MagicChatSeqRepositoryInterface::class => MagicChatSeqRepository::class,
     MagicChatTopicRepositoryInterface::class => MagicChatTopicRepository::class,
     MagicContactIdMappingRepositoryInterface::class => MagicContactIdMappingRepository::class,
+    MessageContentProviderInterface::class => MessageContentProvider::class,
     OrganizationsPlatformRepositoryInterface::class => OrganizationsPlatformRepository::class,
     OpenPlatformConfigInterface::class => OpenPlatformConfigItem::class,
     MagicChatMessageVersionsRepositoryInterface::class => MagicMessageVersionsRepository::class,

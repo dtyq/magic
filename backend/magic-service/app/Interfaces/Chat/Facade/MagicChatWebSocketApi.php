@@ -17,7 +17,6 @@ use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\Common\MagicContext;
 use App\Domain\Chat\DTO\Request\ControlRequest;
 use App\Domain\Chat\DTO\Request\StreamRequest;
-use App\Domain\Chat\Entity\ValueObject\ChatSocketIoNameSpace;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessagePriority;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
@@ -29,6 +28,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\Guard\WebsocketChatUserGuard;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -44,7 +44,6 @@ use Hyperf\SocketIOServer\Annotation\SocketIONamespace;
 use Hyperf\SocketIOServer\BaseNamespace;
 use Hyperf\SocketIOServer\SidProvider\SidProviderInterface;
 use Hyperf\SocketIOServer\Socket;
-use Hyperf\SocketIOServer\SocketIO;
 use Hyperf\SocketIOServer\SocketIOConfig;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use Hyperf\WebSocketServer\Sender;
@@ -71,7 +70,6 @@ class MagicChatWebSocketApi extends BaseNamespace
         private readonly ValidatorFactoryInterface $validatorFactory,
         private readonly StdoutLoggerInterface $logger,
         private readonly SocketIOConfig $config,
-        private readonly SocketIO $socketIO,
         private readonly Redis $redis,
         private readonly Timer $timer,
         private readonly AuthManager $authManager,
@@ -118,16 +116,16 @@ class MagicChatWebSocketApi extends BaseNamespace
             $userToken = $socket->getRequest()->getQueryParams()['authorization'] ?? '';
             $this->magicChatMessageAppService->setUserContext($userToken, $context);
             // 调用 guard 获取用户信息
-            $userData = $this->getAuthorization();
+            $userAuthorization = $this->getAuthorization();
             // 将账号的所有设备加入同一个房间
-            $this->magicChatMessageAppService->login($userData, $socket, $context);
+            $this->magicChatMessageAppService->joinRoom($userAuthorization, $socket);
             return ['type' => 'user', 'user' => [
-                'magic_id' => $userData->getMagicId(),
-                'user_id' => $userData->getId(),
-                'status' => $userData->getStatus(),
-                'nickname' => $userData->getNickname(),
-                'avatar' => $userData->getAvatar(),
-                'organization_code' => $userData->getOrganizationCode(),
+                'magic_id' => $userAuthorization->getMagicId(),
+                'user_id' => $userAuthorization->getId(),
+                'status' => $userAuthorization->getStatus(),
+                'nickname' => $userAuthorization->getNickname(),
+                'avatar' => $userAuthorization->getAvatar(),
+                'organization_code' => $userAuthorization->getOrganizationCode(),
                 'sid' => $socket->getSid(),
             ]];
         } catch (BusinessException $exception) {
@@ -237,7 +235,8 @@ class MagicChatWebSocketApi extends BaseNamespace
             $this->magicChatMessageAppService->setUserContext($userToken, $chatRequest->getContext());
             // 根据消息类型,分发到对应的处理模块
             $userAuthorization = $this->getAuthorization();
-
+            // 将账号的所有设备加入同一个房间
+            $this->magicChatMessageAppService->joinRoom($userAuthorization, $socket);
             return $this->magicChatMessageAppService->onChatMessage($chatRequest, $userAuthorization);
         } catch (BusinessException $businessException) {
             throw $businessException;
@@ -346,7 +345,8 @@ class MagicChatWebSocketApi extends BaseNamespace
                     if (! $this->redis->set('magic-im:subscribe:keepalive', '1', ['ex' => 5, 'nx'])) {
                         return;
                     }
-                    $this->socketIO->of(ChatSocketIoNameSpace::Im->value)->to('magic-im:subscribe:keepalive')->emit(SocketEventType::Chat->value, ControlMessageType::Ping->value);
+                    SocketIOUtil::sendIntermediate(SocketEventType::Chat, 'magic-im:subscribe:keepalive', ControlMessageType::Ping->value);
+
                     $producer = ApplicationContext::getContainer()->get(Producer::class);
                     // 对所有队列投一条消息,以保活链接/队列
                     $messagePriorities = MessagePriority::cases();
