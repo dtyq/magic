@@ -14,7 +14,7 @@ use Hyperf\Process\AbstractProcess;
 use Hyperf\Process\Annotation\Process;
 use Psr\Container\ContainerInterface;
 
-#[Process(name: 'mcp_sse_broadcast_subscriber')]
+// #[Process(name: 'mcp_sse_broadcast_subscriber')]
 class SubscriberProcess extends AbstractProcess
 {
     protected SubscriberInterface $subscriber;
