@@ -44,9 +44,9 @@ class AddServiceProviderConfigCommand extends HyperfCommand
     public function configure()
     {
         parent::configure();
-        $this->setDescription('添加服务商配置到所有组织');
+        $this->setDescription('Add service provider configuration to all organizations');
 
-        $this->addOption('config', null, InputOption::VALUE_REQUIRED, 'JSON格式的服务商配置');
+        $this->addOption('config', null, InputOption::VALUE_REQUIRED, 'Service provider configuration in JSON format');
     }
 
     public function handle()
@@ -54,8 +54,8 @@ class AddServiceProviderConfigCommand extends HyperfCommand
         $configData = $this->input->getOption('config');
 
         if (empty($configData)) {
-            $this->output->error('请提供JSON格式的服务商配置');
-            $this->output->info('示例: --config=\'{"service_provider_id":123,"alias":"配置别名","status":1}\'');
+            $this->output->error('Please provide service provider configuration in JSON format');
+            $this->output->info('Example: --config=\'{"service_provider_id":123,"alias":"config alias","status":1}\'');
             return 1;
         }
 
@@ -65,7 +65,7 @@ class AddServiceProviderConfigCommand extends HyperfCommand
 
             // Validate required fields
             if (empty($data['service_provider_id'])) {
-                $this->output->error('服务提供商ID不能为空');
+                $this->output->error('Service provider ID cannot be empty');
                 return 1;
             }
 
@@ -74,7 +74,7 @@ class AddServiceProviderConfigCommand extends HyperfCommand
 
             // Get all organization codes
             $organizationCodes = $this->organizationEnvDomainService->getAllOrganizationCodes();
-            $this->output->info(sprintf('为 %d 个组织添加服务商配置', count($organizationCodes)));
+            $this->output->info(sprintf('Adding service provider configuration for %d organizations', count($organizationCodes)));
 
             // Clone base entity for each organization
             $configEntities = [];
@@ -88,21 +88,21 @@ class AddServiceProviderConfigCommand extends HyperfCommand
             $this->serviceProviderConfigRepository->batchAddServiceProviderConfigs($configEntities);
 
             $this->output->success(sprintf(
-                '成功为服务提供商 [%d] 添加配置到 %d 个组织',
+                'Successfully added configuration for service provider [%d] to %d organizations',
                 $data['service_provider_id'],
                 count($organizationCodes)
             ));
 
             // Display organization codes summary
             if (count($organizationCodes) <= 10) {
-                $this->output->info('组织: ' . implode(', ', $organizationCodes));
+                $this->output->info('Organizations: ' . implode(', ', $organizationCodes));
             } else {
-                $this->output->info(sprintf('已添加到 %d 个组织 (组织过多，不显示详情)', count($organizationCodes)));
+                $this->output->info(sprintf('Added to %d organizations (too many organizations, details not shown)', count($organizationCodes)));
             }
 
             return 0;
         } catch (Throwable $e) {
-            $this->output->error(sprintf('添加服务商配置失败: %s', $e->getMessage()));
+            $this->output->error(sprintf('Failed to add service provider configuration: %s', $e->getMessage()));
             return 1;
         }
     }
