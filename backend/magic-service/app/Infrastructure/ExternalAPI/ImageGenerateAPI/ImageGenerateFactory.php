@@ -10,12 +10,16 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineImageGenerateV3Model;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
@@ -34,6 +38,8 @@ class ImageGenerateFactory
             ImageGenerateModelType::Flux => new FluxModel($serviceProviderConfig),
             ImageGenerateModelType::MiracleVision => new MiracleVisionModel($serviceProviderConfig),
             ImageGenerateModelType::TTAPIGPT4o => new GPT4oModel($serviceProviderConfig),
+            ImageGenerateModelType::AzureOpenAIImageGenerate => new AzureOpenAIImageGenerateModel($serviceProviderConfig),
+            ImageGenerateModelType::AzureOpenAIImageEdit => new AzureOpenAIImageEditModel($serviceProviderConfig),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -46,6 +52,8 @@ class ImageGenerateFactory
             ImageGenerateModelType::Midjourney => self::createMidjourneyRequest($data),
             ImageGenerateModelType::Flux => self::createFluxRequest($data),
             ImageGenerateModelType::TTAPIGPT4o => self::createGPT4oRequest($data),
+            ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageGenerateRequest($data),
+            ImageGenerateModelType::AzureOpenAIImageEdit => self::createAzureOpenAIImageEditRequest($data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -110,6 +118,54 @@ class ImageGenerateFactory
         isset($data['generate_num']) && $request->setGenerateNum($data['generate_num']);
         $request->setWidth((string) $width);
         $request->setHeight((string) $height);
+        return $request;
+    }
+
+    private static function createAzureOpenAIImageGenerateRequest(array $data): AzureOpenAIImageGenerateRequest
+    {
+        $request = new AzureOpenAIImageGenerateRequest();
+        $request->setPrompt($data['user_prompt']);
+
+        // Set optional parameters
+        if (isset($data['size'])) {
+            $request->setSize($data['size']);
+        }
+        if (isset($data['quality'])) {
+            $request->setQuality($data['quality']);
+        }
+        if (isset($data['generate_num'])) {
+            $request->setN((int) $data['generate_num']);
+        }
+
+        return $request;
+    }
+
+    private static function createAzureOpenAIImageEditRequest(array $data): AzureOpenAIImageEditRequest
+    {
+        $request = new AzureOpenAIImageEditRequest();
+        $request->setPrompt($data['user_prompt']);
+
+        // Required parameters for image editing - support multiple images
+        if (isset($data['image_urls']) && is_array($data['image_urls'])) {
+            $request->setImageUrls($data['image_urls']);
+        } elseif (isset($data['image_url'])) {
+            // Backward compatibility for single image
+            $request->setImageUrls([$data['image_url']]);
+        }
+
+        // Optional mask parameter
+        if (isset($data['mask_url'])) {
+            $request->setMaskUrl($data['mask_url']);
+        }
+
+        // Optional parameters
+        if (isset($data['size'])) {
+            $request->setSize($data['size']);
+        }
+        if (isset($data['generate_num'])) {
+            $request->setN((int) $data['generate_num']);
+        }
+
         return $request;
     }
 }

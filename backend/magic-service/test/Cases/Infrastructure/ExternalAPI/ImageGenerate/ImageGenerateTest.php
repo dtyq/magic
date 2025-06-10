@@ -7,17 +7,25 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
+use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use HyperfTest\Cases\BaseTest;
 
 /**
@@ -25,6 +33,68 @@ use HyperfTest\Cases\BaseTest;
  */
 class ImageGenerateTest extends BaseTest
 {
+
+    public function testAzureOpenAIImageGenerate()
+    {
+        $serviceProviderConfig = new ServiceProviderConfig();
+        $serviceProviderConfig->setApiKey("7LGGk2ZGU5fOxLCKtXIcjcAPJYxNE1s8Za7ZCJPtbFNPGb2A1wWLJQQJ99BDACMsfrFXJ3w3AAABACOG6i0i");
+        $azureOpenAIImageGenerateModel = new AzureOpenAIImageGenerateModel($serviceProviderConfig);
+        $azureOpenAIImageGenerateModelRequest = new AzureOpenAIImageGenerateRequest();
+        $azureOpenAIImageGenerateModelRequest->setPrompt('一只小金毛正在草原上欢快的奔跑');
+        $azureOpenAIImageGenerateModelRequest->setGenerateNum(4);
+        $result = $azureOpenAIImageGenerateModel->generateImage($azureOpenAIImageGenerateModelRequest);
+        var_dump($result);
+        $this->markTestSkipped();
+    }
+
+    public static function isBase64Image(string $str): bool
+    {
+        $data = explode(',', $str);
+        if (count($data) !== 2) {
+            return false;
+        }
+        $header = $data[0];
+        $imageData = $data[1];
+        // 检查头部是否符合Base64编码图片的格式
+        if (! preg_match('/^data:image\/(png|jpeg|jpg|gif);base64$/', $header)) {
+            return false;
+        }
+        // 检查Base64编码是否有效
+        $decodedData = base64_decode($imageData);
+        return $decodedData !== false;
+    }
+
+    public function testBase64Image()
+    {
+        $base64 = 'xx';
+        $uploadDir = 'DT001' . '/open/' . md5(StorageBucketType::Public->value);
+        $uploadFile = new UploadFile($base64, $uploadDir, 'test');
+
+            $fileDomainService = di(FileDomainService::class);
+            // 上传文件（指定不自动创建目录）
+            $fileDomainService->uploadByCredential('DT001', $uploadFile);
+
+            // 生成可访问的链接
+            $fileLink = $fileDomainService->getLink('DT001', $uploadFile->getKey(), StorageBucketType::Private);
+            var_dump($fileLink);
+    }
+
+    public function testAzureOpenAIImageEdit()
+    {
+        $serviceProviderConfig = new ServiceProviderConfig();
+        $serviceProviderConfig->setApiKey("7LGGk2ZGU5fOxLCKtXIcjcAPJYxNE1s8Za7ZCJPtbFNPGb2A1wWLJQQJ99BDACMsfrFXJ3w3AAABACOG6i0i");
+        $azureOpenAIImageEditModel = new AzureOpenAIImageEditModel($serviceProviderConfig);
+        $azureOpenAIImageEditModelRequest = new AzureOpenAIImageEditRequest();
+        $azureOpenAIImageEditModelRequest->setImageUrls([
+            'http://sx9fft2va.hn-bkt.clouddn.com/lQDPKcXPbtTR26fNAlnNAT6wkmcykszx5lkIHosl-JZoAA_318_601.jpg',
+        ]);
+        $azureOpenAIImageEditModelRequest->setPrompt('添加一只小狗');
+        $azureOpenAIImageEditModelRequest->setGenerateNum(4);
+        $result = $azureOpenAIImageEditModel->generateImage($azureOpenAIImageEditModelRequest);
+        var_dump($result);
+        $this->markTestSkipped();
+    }
+
     // 转超清
     public function testImage2ImagePlus()
     {
@@ -144,5 +214,46 @@ class ImageGenerateTest extends BaseTest
 
         var_dump($result);
         $this->markTestSkipped();
+    }
+
+
+    
+    /**
+     * Check if binary data is valid image data by examining magic bytes
+     */
+    private static function isValidImageData(string $data): bool
+    {
+        if (strlen($data) < 8) {
+            return false;
+        }
+        
+        // Check for common image format signatures
+        $signatures = [
+            // PNG
+            "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
+            // JPEG
+            "\xFF\xD8\xFF",
+            // GIF87a
+            "\x47\x49\x46\x38\x37\x61",
+            // GIF89a  
+            "\x47\x49\x46\x38\x39\x61",
+            // BMP
+            "\x42\x4D",
+            // WebP
+            "\x52\x49\x46\x46",
+        ];
+        
+        foreach ($signatures as $signature) {
+            if (strpos($data, $signature) === 0) {
+                return true;
+            }
+        }
+        
+        // For WebP, we need additional check
+        if (strpos($data, "\x52\x49\x46\x46") === 0 && strpos($data, "\x57\x45\x42\x50") === 8) {
+            return true;
+        }
+        
+        return false;
     }
 }

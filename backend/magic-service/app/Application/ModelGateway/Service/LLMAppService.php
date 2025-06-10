@@ -9,6 +9,7 @@ namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
@@ -29,11 +30,12 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\Util\Context\CoContext;
@@ -42,6 +44,7 @@ use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\DbConnection\Db;
@@ -61,7 +64,6 @@ use Hyperf\Odin\Utils\ToolUtil;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
-use function Symfony\Component\Translation\t;
 
 class LLMAppService extends AbstractLLMAppService
 {
@@ -177,7 +179,13 @@ class LLMAppService extends AbstractLLMAppService
         $this->logger->info('图像生成服务配置信息', $configInfo);
 
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
-        $images = $imageGenerateResponse->getData();
+
+        if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64){
+            $images = $this->processBase64Images($imageGenerateResponse->getData(), $authorization);
+        } else {
+            $images = $imageGenerateResponse->getData();
+        }
+
         $this->logger->info('images', $images);
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
         return $images;
@@ -833,79 +841,6 @@ class LLMAppService extends AbstractLLMAppService
         ];
     }
 
-    public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO):array
-    {
-
-        $this->validateAccessToken($textGenerateImageDTO);
-
-        $modelVersion = $textGenerateImageDTO->getModel();
-        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion,ServiceProviderCategory::VLM);
-        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
-
-        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
-        $imageGenerateParamsVO->setModel($modelVersion);
-        $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
-        $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
-
-        $size = $textGenerateImageDTO->getSize();
-        [$width, $height] = explode('x', $size);
-
-        // 计算字符串格式的比例，如 "1:1", "3:4"
-        $ratio = $this->calculateRatio((int)$width, (int)$height);
-        $imageGenerateParamsVO->setRatio($ratio);
-        $imageGenerateParamsVO->setWidth($width);
-        $imageGenerateParamsVO->setHeight($height);
-
-        // 从服务商配置数组中取第一个进行处理
-        if (empty($serviceProviderConfigs)) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
-        }
-
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
-
-        foreach ($serviceProviderConfigs as $serviceProviderConfig) {
-            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType,$serviceProviderConfig);
-            try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
-                if (!empty($generateImageRaw)){
-                    return $generateImageRaw;
-                }
-            }catch (Exception $e){
-                $this->logger->warning("text generate image error:".$e->getMessage());
-            }
-        }
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
-    }
-
-    /**
-     * 计算宽高比例的字符串格式
-     * @param int $width 宽度
-     * @param int $height 高度
-     * @return string 比例字符串，如"1:1", "3:4", "16:9"
-     */
-    private function calculateRatio(int $width, int $height): string
-    {
-        // 计算最大公约数
-        $gcd = $this->gcd($width, $height);
-
-        // 计算简化后的比例
-        $ratioWidth = $width / $gcd;
-        $ratioHeight = $height / $gcd;
-
-        return $ratioWidth . ':' . $ratioHeight;
-    }
-
-    /**
-     * 计算最大公约数（辗转相除法）
-     * @param int $a
-     * @param int $b
-     * @return int
-     */
-    private function gcd(int $a, int $b): int
-    {
-        return $b === 0 ? $a : $this->gcd($b, $a % $b);
-    }
-
     /**
      * 计算宽高比例的字符串格式.
      * @param int $width 宽度
@@ -947,5 +882,45 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $a;
+    }
+
+    /**
+     * Process base64 images by uploading them to file storage and returning accessible URLs.
+     *
+     * @param array $images Array of base64 encoded images
+     * @param MagicUserAuthorization $authorization User authorization for organization context
+     * @return array Array of processed image URLs or original base64 data on failure
+     */
+    private function processBase64Images(array $images, MagicUserAuthorization $authorization): array
+    {
+        $processedImages = [];
+
+        foreach ($images as $index => $base64Image) {
+            try {
+
+                $uploadDir = $authorization->getOrganizationCode() . '/image_generate/' . md5(StorageBucketType::Public->value);
+                
+                $filename = 'generated_' . time() . '_' . $index . '.png';
+                
+                $uploadFile = new UploadFile($base64Image, $uploadDir, $filename);
+                
+                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile);
+                
+                $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
+                
+                $processedImages[] = $fileLink;
+                
+            } catch (Exception $e) {
+                $this->logger->error('Failed to process base64 image', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                    'organization_code' => $authorization->getOrganizationCode()
+                ]);
+                // If upload fails, keep the original base64 data
+                $processedImages[] = $base64Image;
+            }
+        }
+        
+        return $processedImages;
     }
 }
