@@ -16,8 +16,6 @@ use Psr\Http\Message\StreamInterface;
 
 class AzureOpenAIAPI
 {
-    private const DEFAULT_API_VERSION = '2025-04-01-preview';
-
     private Client $client;
 
     private string $apiKey;
@@ -26,11 +24,11 @@ class AzureOpenAIAPI
 
     private string $apiVersion;
 
-    public function __construct(string $apiKey, string $baseUrl, ?string $apiVersion = null)
+    public function __construct(string $apiKey, string $baseUrl, string $apiVersion)
     {
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
-        $this->apiVersion = $apiVersion ?: self::DEFAULT_API_VERSION;
+        $this->apiVersion = $apiVersion;
         $this->client = new Client([
             'timeout' => 120,
             'verify' => false,

@@ -8,18 +8,13 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
