@@ -163,7 +163,7 @@ readonly class OperationPermissionDomainService
     {
         $contactDataIsolation = ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         // 获取用户所在部门、群组添加到 target 中查找
-        $userDepartmentList = $this->departmentUserRepository->getDepartmentIdsByUserIds($contactDataIsolation, $userIds);
+        $userDepartmentList = $this->departmentUserRepository->getDepartmentIdsByUserIds($contactDataIsolation, $userIds, true);
         $userGroupIds = $this->magicGroupRepository->getGroupIdsByUserIds($userIds);
 
         $targetIds = $userIds;

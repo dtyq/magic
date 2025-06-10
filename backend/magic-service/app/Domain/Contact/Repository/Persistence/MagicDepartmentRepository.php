@@ -261,6 +261,40 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
     }
 
     /**
+     * Get all organizations root departments with pagination support.
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param string $organizationName Organization name for fuzzy search (optional)
+     * @return array Array containing total and list
+     */
+    public function getAllOrganizationsRootDepartments(int $page = 1, int $pageSize = 20, string $organizationName = ''): array
+    {
+        $query = $this->model->newQuery()
+            ->where('department_id', '=', PlatformRootDepartmentId::Magic);
+
+        // Add organization name fuzzy search if provided
+        if (! empty($organizationName)) {
+            $query->where('name', 'like', "%{$organizationName}%");
+        }
+
+        // Get total count for pagination
+        $totalQuery = clone $query;
+        $total = $totalQuery->count();
+
+        // Apply pagination
+        $offset = ($page - 1) * $pageSize;
+        $query->limit($pageSize)->offset($offset)->orderBy('created_at', 'desc');
+
+        $departments = Db::select($query->toSql(), $query->getBindings());
+        $list = $this->getDepartmentsEntity($departments);
+
+        return [
+            'total' => $total,
+            'list' => $list,
+        ];
+    }
+
+    /**
      * @return MagicDepartmentEntity[]
      */
     protected function getDepartmentsEntity(array $departments, bool $keyById = false): array

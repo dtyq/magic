@@ -89,4 +89,13 @@ interface MagicDepartmentRepositoryInterface
      * @return MagicDepartmentEntity[] 根部门实体数组
      */
     public function getOrganizationsRootDepartment(array $organizationCodes): array;
+
+    /**
+     * Get all organizations root departments with pagination support.
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param string $organizationName Organization name for fuzzy search (optional)
+     * @return array Array containing total and list
+     */
+    public function getAllOrganizationsRootDepartments(int $page = 1, int $pageSize = 20, string $organizationName = ''): array;
 }

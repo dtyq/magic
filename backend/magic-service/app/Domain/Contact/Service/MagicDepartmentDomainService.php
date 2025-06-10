@@ -202,6 +202,18 @@ class MagicDepartmentDomainService extends AbstractContactDomainService
         return $result;
     }
 
+    /**
+     * Get all organizations root departments with pagination support.
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param string $organizationName Organization name for fuzzy search (optional)
+     * @return array Array containing total and list
+     */
+    public function getAllOrganizationsRootDepartments(int $page = 1, int $pageSize = 20, string $organizationName = ''): array
+    {
+        return $this->departmentRepository->getAllOrganizationsRootDepartments($page, $pageSize, $organizationName);
+    }
+
     public function getOrganizationNameByCode(string $organizationCode): string
     {
         $entity = $this->departmentRepository->getDepartmentById('-1', $organizationCode);
