@@ -273,7 +273,7 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
             ->where('department_id', '=', PlatformRootDepartmentId::Magic);
 
         // Add organization name fuzzy search if provided
-        if (!empty($organizationName)) {
+        if (! empty($organizationName)) {
             $query->where('name', 'like', "%{$organizationName}%");
         }
 
