@@ -34,18 +34,6 @@ use HyperfTest\Cases\BaseTest;
 class ImageGenerateTest extends BaseTest
 {
 
-    public function testAzureOpenAIImageGenerate()
-    {
-        $serviceProviderConfig = new ServiceProviderConfig();
-        $serviceProviderConfig->setApiKey("7LGGk2ZGU5fOxLCKtXIcjcAPJYxNE1s8Za7ZCJPtbFNPGb2A1wWLJQQJ99BDACMsfrFXJ3w3AAABACOG6i0i");
-        $azureOpenAIImageGenerateModel = new AzureOpenAIImageGenerateModel($serviceProviderConfig);
-        $azureOpenAIImageGenerateModelRequest = new AzureOpenAIImageGenerateRequest();
-        $azureOpenAIImageGenerateModelRequest->setPrompt('一只小金毛正在草原上欢快的奔跑');
-        $azureOpenAIImageGenerateModelRequest->setGenerateNum(4);
-        $result = $azureOpenAIImageGenerateModel->generateImage($azureOpenAIImageGenerateModelRequest);
-        var_dump($result);
-        $this->markTestSkipped();
-    }
 
     public static function isBase64Image(string $str): bool
     {
@@ -77,22 +65,6 @@ class ImageGenerateTest extends BaseTest
             // 生成可访问的链接
             $fileLink = $fileDomainService->getLink('DT001', $uploadFile->getKey(), StorageBucketType::Private);
             var_dump($fileLink);
-    }
-
-    public function testAzureOpenAIImageEdit()
-    {
-        $serviceProviderConfig = new ServiceProviderConfig();
-        $serviceProviderConfig->setApiKey("7LGGk2ZGU5fOxLCKtXIcjcAPJYxNE1s8Za7ZCJPtbFNPGb2A1wWLJQQJ99BDACMsfrFXJ3w3AAABACOG6i0i");
-        $azureOpenAIImageEditModel = new AzureOpenAIImageEditModel($serviceProviderConfig);
-        $azureOpenAIImageEditModelRequest = new AzureOpenAIImageEditRequest();
-        $azureOpenAIImageEditModelRequest->setImageUrls([
-            'http://sx9fft2va.hn-bkt.clouddn.com/lQDPKcXPbtTR26fNAlnNAT6wkmcykszx5lkIHosl-JZoAA_318_601.jpg',
-        ]);
-        $azureOpenAIImageEditModelRequest->setPrompt('添加一只小狗');
-        $azureOpenAIImageEditModelRequest->setGenerateNum(4);
-        $result = $azureOpenAIImageEditModel->generateImage($azureOpenAIImageEditModelRequest);
-        var_dump($result);
-        $this->markTestSkipped();
     }
 
     // 转超清

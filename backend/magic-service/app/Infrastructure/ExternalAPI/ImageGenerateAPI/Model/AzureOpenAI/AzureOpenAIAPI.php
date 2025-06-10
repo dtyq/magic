@@ -16,7 +16,7 @@ use Psr\Http\Message\StreamInterface;
 
 class AzureOpenAIAPI
 {
-    private const API_VERSION = '2025-04-01-preview';
+    private const DEFAULT_API_VERSION = '2025-04-01-preview';
 
     private Client $client;
 
@@ -24,13 +24,13 @@ class AzureOpenAIAPI
 
     private string $baseUrl;
 
-    private string $deploymentName;
+    private string $apiVersion;
 
-    public function __construct(string $apiKey, string $baseUrl, string $deploymentName)
+    public function __construct(string $apiKey, string $baseUrl, ?string $apiVersion = null)
     {
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
-        $this->deploymentName = $deploymentName;
+        $this->apiVersion = $apiVersion ?: self::DEFAULT_API_VERSION;
         $this->client = new Client([
             'timeout' => 120,
             'verify' => false,
@@ -128,12 +128,13 @@ class AzureOpenAIAPI
      */
     private function buildUrl(string $endpoint): string
     {
+        // baseUrl already contains the full deployment path
+        // e.g., https://kobayashi-aoai-westus3.openai.azure.com/openai/deployments/kobayashi-aoai-westus3-gpt-image-1-global
         return sprintf(
-            '%s/openai/deployments/%s/%s?api-version=%s',
+            '%s/%s?api-version=%s',
             $this->baseUrl,
-            $this->deploymentName,
             $endpoint,
-            self::API_VERSION
+            $this->apiVersion
         );
     }
 
