@@ -42,9 +42,9 @@ class AddServiceProviderCommand extends HyperfCommand
     public function configure()
     {
         parent::configure();
-        $this->setDescription('添加服务提供商');
+        $this->setDescription('Add service provider');
 
-        $this->addOption('config', null, InputOption::VALUE_REQUIRED, 'JSON格式的服务提供商配置');
+        $this->addOption('config', null, InputOption::VALUE_REQUIRED, 'Service provider configuration in JSON format');
     }
 
     public function handle()
@@ -52,8 +52,8 @@ class AddServiceProviderCommand extends HyperfCommand
         $configData = $this->input->getOption('config');
 
         if (empty($configData)) {
-            $this->output->error('请提供JSON格式的服务提供商配置');
-            $this->output->info('示例: --config=\'{"name":"OpenAI","provider_code":"openai","category":"llm"}\'');
+            $this->output->error('Please provide service provider configuration in JSON format');
+            $this->output->info('Example: --config=\'{"name":"OpenAI","provider_code":"openai","category":"llm"}\'');
             return 1;
         }
 
@@ -63,24 +63,24 @@ class AddServiceProviderCommand extends HyperfCommand
 
             // Validate required fields before creating entity
             if (empty($data['name'])) {
-                $this->output->error('服务提供商名称不能为空');
+                $this->output->error('Service provider name cannot be empty');
                 return 1;
             }
 
             if (empty($data['provider_code'])) {
-                $this->output->error('服务提供商编码不能为空');
+                $this->output->error('Service provider code cannot be empty');
                 return 1;
             }
 
             if (empty($data['category'])) {
-                $this->output->error('服务提供商类型不能为空');
+                $this->output->error('Service provider category cannot be empty');
                 return 1;
             }
 
             // Validate category
             $categoryEnum = ServiceProviderCategory::tryFrom($data['category']);
             if (! $categoryEnum) {
-                $this->output->error('无效的类型，必须是: llm 或 vlm');
+                $this->output->error('Invalid category, must be: llm or vlm');
                 return 1;
             }
 
@@ -88,7 +88,7 @@ class AddServiceProviderCommand extends HyperfCommand
             $providerType = (int) ($data['provider_type'] ?? 0);
             $providerTypeEnum = ServiceProviderType::tryFrom($providerType);
             if (! $providerTypeEnum) {
-                $this->output->error('无效的提供商类型，必须是: 0 (普通), 1 (官方), 或 2 (自定义)');
+                $this->output->error('Invalid provider type, must be: 0 (normal), 1 (official), or 2 (custom)');
                 return 1;
             }
 
@@ -98,13 +98,13 @@ class AddServiceProviderCommand extends HyperfCommand
             $result = $this->serviceProviderRepository->insert($serviceProviderEntity);
 
             $this->output->success(sprintf(
-                '成功添加服务提供商 [%s]，ID: %d',
+                'Successfully added service provider [%s], ID: %d',
                 $serviceProviderEntity->getName(),
                 $result->getId()
             ));
             return 0;
         } catch (Throwable $e) {
-            $this->output->error(sprintf('添加服务提供商失败: %s', $e->getMessage()));
+            $this->output->error(sprintf('Failed to add service provider: %s', $e->getMessage()));
             return 1;
         }
     }

@@ -38,10 +38,10 @@ class DeleteModelCommand extends HyperfCommand
     public function configure()
     {
         parent::configure();
-        $this->setDescription('删除服务提供商模型');
+        $this->setDescription('Delete service provider model');
 
-        $this->addOption('model-id', null, InputOption::VALUE_REQUIRED, '模型ID');
-        $this->addOption('organization-code', null, InputOption::VALUE_REQUIRED, '组织编码');
+        $this->addOption('model-id', null, InputOption::VALUE_REQUIRED, 'Model ID');
+        $this->addOption('organization-code', null, InputOption::VALUE_REQUIRED, 'Organization code');
     }
 
     public function handle()
@@ -50,12 +50,12 @@ class DeleteModelCommand extends HyperfCommand
         $organizationCode = $this->input->getOption('organization-code');
 
         if (empty($modelId)) {
-            $this->output->error('模型ID不能为空');
+            $this->output->error('Model ID cannot be empty');
             return 1;
         }
 
         if (empty($organizationCode)) {
-            $this->output->error('组织编码不能为空');
+            $this->output->error('Organization code cannot be empty');
             return 1;
         }
 
@@ -63,10 +63,10 @@ class DeleteModelCommand extends HyperfCommand
             $this->serviceProviderModelsRepository->deleteByModelIdAndOrganizationCode($modelId, $organizationCode);
             $this->serviceProviderModelsRepository->deleteByModelParentId([$modelId]);
 
-            $this->output->success(sprintf('成功删除模型 [%s]', $modelId));
+            $this->output->success(sprintf('Successfully deleted model [%s]', $modelId));
             return 0;
         } catch (Throwable $e) {
-            $this->output->error(sprintf('删除模型失败: %s', $e->getMessage()));
+            $this->output->error(sprintf('Failed to delete model: %s', $e->getMessage()));
             return 1;
         }
     }
