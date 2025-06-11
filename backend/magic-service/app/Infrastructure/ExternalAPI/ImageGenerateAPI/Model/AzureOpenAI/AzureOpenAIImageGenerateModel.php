@@ -72,14 +72,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
     private function buildResponse(array $result): ImageGenerateResponse
     {
         if (isset($result['data']) && ! empty($result['data'])) {
-            $images = [];
-            foreach ($result['data'] as $item) {
-                if (isset($item['b64_json'])) {
-                    // Convert base64 to data URL format
-                    $images[] = 'data:image/png;base64,' . $item['b64_json'];
-                }
-            }
-            return new ImageGenerateResponse(ImageGenerateType::BASE_64, $images);
+            return new ImageGenerateResponse(ImageGenerateType::BASE_64, $result = array_column($result['data'], 'b64_json'));
         }
         throw new Exception('No image data received from Azure OpenAI');
     }

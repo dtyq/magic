@@ -1359,10 +1359,25 @@ class ServiceProviderDomainService
             if (! empty($apiKey)) {
                 $mergedConfig->setApiKey($apiKey);
             }
+
+            $url = $config->getUrl();
+            if (! empty($url)) {
+                $mergedConfig->setUrl($url);
+            }
+
+            $apiVersion = $config->getApiVersion();
+            if (! empty($apiVersion)) {
+                $mergedConfig->setApiVersion($apiVersion);
+            }
+            $proxyUrl = $config->getProxyUrl();
+            if (! empty($proxyUrl)) {
+                $mergedConfig->setProxyUrl($proxyUrl);
+            }
         }
 
         return $mergedConfig;
     }
+
 
     /**
      * 批量创建服务商配置.
