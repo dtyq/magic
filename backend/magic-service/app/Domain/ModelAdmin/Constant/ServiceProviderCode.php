@@ -18,7 +18,7 @@ use Hyperf\Odin\Model\OpenAIModel;
  */
 enum ServiceProviderCode: string
 {
-    case Official = 'Official'; // 官方
+    case Magic = 'Official'; // 官方
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';
     case MicrosoftAzure = 'MicrosoftAzure';

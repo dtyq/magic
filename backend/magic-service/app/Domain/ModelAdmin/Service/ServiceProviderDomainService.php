@@ -1609,6 +1609,9 @@ class ServiceProviderDomainService
 
         $officeLLMProviderIds = [];
         foreach ($officeLLMProviders as $provider) {
+            if ($provider->getProviderCode() === ServiceProviderCode::Magic->value) {
+                continue;
+            }
             // Exclude Magic itself, only collect other LLM service providers
             if ($provider->getId() !== $magicServiceProvider->getId()) {
                 $officeLLMProviderIds[] = $provider->getId();
@@ -1629,8 +1632,15 @@ class ServiceProviderDomainService
             return true;
         }
 
+        $officeConfigMap = [];
+        $officeConfigIds = [];
+        foreach ($officeConfigs as $config) {
+            $id = $config->getId();
+            $officeConfigIds[] = $id;
+            $officeConfigMap[$id] = $config->getStatus();
+        }
+
         // 5. Get all models under these configurations
-        $officeConfigIds = array_column($officeConfigs, 'id');
         $allModels = $this->serviceProviderModelsRepository->getModelsByConfigIds($officeConfigIds);
 
         if (empty($allModels)) {
@@ -1641,9 +1651,17 @@ class ServiceProviderDomainService
         $modelsToSave = [];
         foreach ($allModels as $baseModel) {
             $newModel = clone $baseModel;
+            $newModel->setId(null);
             $newModel->setServiceProviderConfigId($magicConfigId);
             $newModel->setOrganizationCode($organizationCode);
             $newModel->setIsOffice(true); // Mark as official model
+            $newModel->setModelParentId($baseModel->getId());
+
+            // Model is enabled only when both service provider and model are active; otherwise disabled
+            $bothActive = ($baseModel->getStatus() === Status::ACTIVE->value)
+                          && ($officeConfigMap[$baseModel->getServiceProviderConfigId()] === Status::ACTIVE->value);
+
+            $newModel->setStatus($bothActive ? Status::ACTIVE->value : Status::DISABLE->value);
             $modelsToSave[] = $newModel;
         }
 

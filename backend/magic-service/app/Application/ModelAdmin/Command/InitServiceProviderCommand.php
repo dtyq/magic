@@ -83,7 +83,7 @@ class InitServiceProviderCommand extends HyperfCommand
                 'zh_CN' => '由 Magic 通过官方部署的 AP! 来实现 A! 模型的调用，可直接购买 Tokens 使用海量的大模型。',
             ],
         ],
-        'provider_code' => ServiceProviderCode::Official->value,
+        'provider_code' => ServiceProviderCode::Magic->value,
     ]];
 
     /**
@@ -175,7 +175,7 @@ class InitServiceProviderCommand extends HyperfCommand
                     'zh_CN' => '由 Magic 通过官方部署的 AP! 来实现多种热门的文生图、图生图等模型的调用，可直接购买 Tokens 使用海量的大模型。',
                 ],
             ],
-            'provider_code' => ServiceProviderCode::Official->value,
+            'provider_code' => ServiceProviderCode::Magic->value,
             'config' => [
                 'ak' => '',
                 'sk' => '',
@@ -822,7 +822,7 @@ class InitServiceProviderCommand extends HyperfCommand
             $configs = $this->serviceProviderConfigRepository->getsByServiceProviderId($serviceProvider->getId());
             $serviceProviderCode = ServiceProviderCode::from($serviceProvider->getProviderCode());
 
-            if ($serviceProviderCode === ServiceProviderCode::Official) {
+            if ($serviceProviderCode === ServiceProviderCode::Magic) {
                 foreach ($configs as $config) {
                     // 从文生图服务商中获取模型
                     foreach ($this->presetVLMServiceProviders as $provider) {
