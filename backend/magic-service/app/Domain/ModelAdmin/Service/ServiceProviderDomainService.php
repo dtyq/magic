@@ -1689,8 +1689,15 @@ class ServiceProviderDomainService
             return true;
         }
 
+        $officeConfigMap = [];
+        $officeConfigIds = [];
+        foreach ($officeConfigs as $config) {
+            $id = $config->getId();
+            $officeConfigIds[] = $id;
+            $officeConfigMap[$id] = $config->getStatus();
+        }
+
         // 5. Get all models under these configurations
-        $officeConfigIds = array_column($officeConfigs, 'id');
         $allModels = $this->serviceProviderModelsRepository->getModelsByConfigIds($officeConfigIds);
 
         if (empty($allModels)) {
@@ -1706,6 +1713,7 @@ class ServiceProviderDomainService
             $newModel->setOrganizationCode($organizationCode);
             $newModel->setIsOffice(true); // Mark as official model
             $newModel->setModelParentId($baseModel->getId());
+            $newModel->setStatus($officeConfigMap[$baseModel->getServiceProviderConfigId()]);
             $modelsToSave[] = $newModel;
         }
 
