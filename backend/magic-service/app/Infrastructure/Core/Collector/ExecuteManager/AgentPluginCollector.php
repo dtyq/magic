@@ -8,37 +8,30 @@ declare(strict_types=1);
 namespace App\Infrastructure\Core\Collector\ExecuteManager;
 
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\AgentPluginDefine;
-use App\Infrastructure\Core\Contract\Flow\AgentPluginInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
-use RuntimeException;
 
 class AgentPluginCollector
 {
     /**
-     * @var null|array<AgentPluginInterface>
+     * @var null|array<AgentPluginDefine>
      */
-    private static ?array $agentPlugins = null;
+    private static ?array $agentPluginDefines = null;
 
     public static function list(): array
     {
-        if (! is_null(self::$agentPlugins)) {
-            return self::$agentPlugins;
+        if (! is_null(self::$agentPluginDefines)) {
+            return self::$agentPluginDefines;
         }
         $agentPluginDefines = AnnotationCollector::getClassesByAnnotation(AgentPluginDefine::class);
         $agentPlugins = [];
         /**
          * @var AgentPluginDefine $agentPluginDefine
          */
-        foreach ($agentPluginDefines as $class => $agentPluginDefine) {
+        foreach ($agentPluginDefines as $agentPluginDefine) {
             if (! $agentPluginDefine->isEnabled()) {
                 continue;
             }
-            $agentPlugin = di($class);
-            if (! $agentPlugin instanceof AgentPluginInterface) {
-                throw new RuntimeException(sprintf('AgentPlugin %s must implement %s', $class, AgentPluginInterface::class));
-            }
-
-            $agentPlugins[$agentPluginDefine->getCode()][$agentPluginDefine->getPriority()] = $agentPlugin;
+            $agentPlugins[$agentPluginDefine->getCode()][$agentPluginDefine->getPriority()] = $agentPluginDefine;
         }
         // 获取最大的
         foreach ($agentPlugins as $code => $plugins) {
@@ -46,7 +39,7 @@ class AgentPluginCollector
             $agentPlugins[$code] = array_shift($plugins);
         }
 
-        self::$agentPlugins = $agentPlugins;
+        self::$agentPluginDefines = $agentPlugins;
         return $agentPlugins;
     }
 }

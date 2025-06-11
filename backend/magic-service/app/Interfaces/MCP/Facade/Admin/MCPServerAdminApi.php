@@ -40,6 +40,7 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
 
         $query = new MCPServerQuery($this->request->all());
         $query->setOrder(['id' => 'desc']);
+        $query->setWithToolCount(true);
         $result = $this->mcpServerAppService->queries($authorization, $query, $page);
 
         return MCPServerAssembler::createPageListDTO(
@@ -64,5 +65,12 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
     {
         $authorization = $this->getAuthorization();
         return $this->mcpServerAppService->destroy($authorization, $code);
+    }
+
+    public function checkStatus(string $code)
+    {
+        $authorization = $this->getAuthorization();
+
+        return $this->mcpServerAppService->checkStatus($authorization, $code);
     }
 }

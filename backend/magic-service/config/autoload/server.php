@@ -11,12 +11,15 @@ use Hyperf\Server\SwowServer;
 
 use function Hyperf\Support\env;
 
+$httpPort = (int) env('HTTP_PORT', 9501);
+! defined('LOCAL_HTTP_URL') && define('LOCAL_HTTP_URL', 'http://127.0.1:' . $httpPort);
+
 $servers = [
     [
         'name' => 'http',
         'type' => ServerInterface::SERVER_HTTP,
         'host' => '0.0.0.0',
-        'port' => (int) env('HTTP_PORT', 9501),
+        'port' => $httpPort,
         'callbacks' => [
             Event::ON_REQUEST => [Server::class, 'onRequest'],
         ],

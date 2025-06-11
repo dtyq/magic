@@ -10,14 +10,17 @@ namespace App\Application\Flow\ExecuteManager\NodeRunner\LLM;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\Memory\MemoryQuery;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
+use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\AbstractLLMNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\ModelConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\OptionTool;
 use App\Infrastructure\Core\Dag\VertexResult;
+use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Util\Odin\Agent;
 use App\Infrastructure\Util\Odin\AgentFactory;
 use Dtyq\FlowExprEngine\Component;
 use Hyperf\Odin\Contract\Model\ModelInterface;
+use Hyperf\Odin\Mcp\McpServerManager;
 use Hyperf\Odin\Memory\MemoryManager;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Model\AbstractModel;
@@ -40,7 +43,7 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
         $vertexResult->addDebugLog('model', $modelName);
 
         // 加载 Agent 插件
-        $this->loadAgentPlugins($LLMNodeParamsConfig, $systemPrompt);
+        $this->loadAgentPlugins($executionData->getDataIsolation(), $model, $LLMNodeParamsConfig, $systemPrompt);
 
         $vertexResult->addDebugLog('actual_system_prompt', $systemPrompt);
 
@@ -70,8 +73,9 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
         );
     }
 
-    protected function loadAgentPlugins(AbstractLLMNodeParamsConfig $LLMNodeParamsConfig, string &$systemPrompt): void
+    protected function loadAgentPlugins(FlowDataIsolation $flowDataIsolation, ModelInterface $model, AbstractLLMNodeParamsConfig $LLMNodeParamsConfig, string &$systemPrompt): void
     {
+        $mcpServerConfigs = [];
         // 加载 Agent 的插件。一般就是加载工具和追加系统提示词，先做着两个的吧
         foreach ($LLMNodeParamsConfig->getAgentPlugins() as $agentPlugin) {
             $appendSystemPrompt = $agentPlugin->getAppendSystemPrompt();
@@ -87,6 +91,21 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
                 );
                 $LLMNodeParamsConfig->addOptionTool($tool->getCode(), $optionTool);
             }
+            $mcpServerConfigs = array_merge($mcpServerConfigs, $agentPlugin->getMcpServerConfigs());
+        }
+        if ($mcpServerConfigs) {
+            $tempAuth = di(TempAuthInterface::class);
+            foreach ($mcpServerConfigs as $code => $mcpServerConfig) {
+                if (str_starts_with($mcpServerConfig->getUrl(), LOCAL_HTTP_URL)) {
+                    $token = $tempAuth->create([
+                        'user_id' => $flowDataIsolation->getCurrentUserId(),
+                        'organization_code' => $flowDataIsolation->getCurrentOrganizationCode(),
+                        'server_code' => $code,
+                    ], 1800);
+                    $mcpServerConfig->setToken($token);
+                }
+            }
+            $model->registerMcpServerManager(new McpServerManager($mcpServerConfigs));
         }
     }
 

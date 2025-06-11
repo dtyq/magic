@@ -168,6 +168,8 @@ use App\Infrastructure\Core\File\Parser\Driver\TextFileParserDriver;
 use App\Infrastructure\Core\File\Parser\Driver\WordFileParserDriver;
 use App\Infrastructure\Core\HighAvailability\Interface\EndpointProviderInterface;
 use App\Infrastructure\Core\HighAvailability\Service\ModelGatewayEndpointProvider;
+use App\Infrastructure\Core\TempAuth\RedisTempAuth;
+use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
@@ -177,6 +179,8 @@ use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\Locker\RedisLocker;
+use App\Interfaces\MCP\Facade\HttpTransportHandler\ApiKeyProviderAuthenticator;
+use Dtyq\PhpMcp\Shared\Auth\AuthenticatorInterface;
 use Hyperf\Config\ProviderConfig;
 use Hyperf\Crontab\Strategy\CoroutineStrategy;
 use Hyperf\Crontab\Strategy\StrategyInterface;
@@ -198,6 +202,7 @@ $dependencies = [
     // core
     ThirdPlatformDataIsolationManagerInterface::class => BaseThirdPlatformDataIsolationManager::class,
     DocumentSplitterInterface::class => OdinRecursiveCharacterTextSplitter::class,
+    TempAuthInterface::class => RedisTempAuth::class,
     HandleDataIsolationInterface::class => BaseHandleDataIsolation::class,
     FlowOpenApiCheckInterface::class => BaseFlowOpenApiCheck::class,
     MessageAttachmentHandlerInterface::class => BaseMessageAttachmentHandler::class,
@@ -258,6 +263,7 @@ $dependencies = [
     // mcp
     MCPServerRepositoryInterface::class => MCPServerRepository::class,
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
+    AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
 
     // api-key
     ApiKeyProviderRepositoryInterface::class => ApiKeyProviderRepository::class,
