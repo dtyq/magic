@@ -136,6 +136,16 @@ class ImageGenerateFactory
         if (isset($data['generate_num'])) {
             $request->setN((int) $data['generate_num']);
         }
+        // Handle image URLs from different sources
+        if (isset($data['reference_images']) && is_array($data['reference_images'])) {
+            $request->setReferenceImages($data['reference_images']);
+        } elseif (isset($data['reference_images'])) {
+            // Backward compatibility for single image
+            $request->setReferenceImages([$data['reference_images']]);
+        } else {
+            // Default to empty array if no images provided
+            $request->setReferenceImages([]);
+        }
 
         return $request;
     }
@@ -147,15 +157,13 @@ class ImageGenerateFactory
 
         // Handle image URLs from different sources
         if (isset($data['reference_images']) && is_array($data['reference_images'])) {
-            $request->setImageUrls($data['reference_images']);
-        } elseif (isset($data['image_urls']) && is_array($data['image_urls'])) {
-            $request->setImageUrls($data['image_urls']);
-        } elseif (isset($data['image_url'])) {
+            $request->setReferenceImages($data['reference_images']);
+        } elseif (isset($data['reference_images'])) {
             // Backward compatibility for single image
-            $request->setImageUrls([$data['image_url']]);
+            $request->setReferenceImages([$data['reference_images']]);
         } else {
             // Default to empty array if no images provided
-            $request->setImageUrls([]);
+            $request->setReferenceImages([]);
         }
 
         // Optional mask parameter

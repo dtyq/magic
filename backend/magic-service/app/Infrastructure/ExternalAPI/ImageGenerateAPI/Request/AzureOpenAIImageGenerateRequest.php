@@ -15,6 +15,19 @@ class AzureOpenAIImageGenerateRequest extends ImageGenerateRequest
 
     private int $n = 1;
 
+    private array $referenceImages = [];
+
+    public function getReferenceImages(): array
+    {
+        return $this->referenceImages;
+    }
+
+    public function setReferenceImages(array $referenceImages): void
+    {
+        $this->referenceImages = $referenceImages;
+    }
+
+
     public function setSize(string $size): void
     {
         $this->size = $size;

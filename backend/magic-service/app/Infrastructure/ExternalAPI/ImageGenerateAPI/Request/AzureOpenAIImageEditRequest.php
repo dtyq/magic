@@ -9,7 +9,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
 
 class AzureOpenAIImageEditRequest extends ImageGenerateRequest
 {
-    private array $imageUrls;
+    private array $referenceImages;
 
     private ?string $maskUrl = null;
 
@@ -17,14 +17,14 @@ class AzureOpenAIImageEditRequest extends ImageGenerateRequest
 
     private int $n = 1;
 
-    public function setImageUrls(array $imageUrls): void
+    public function setReferenceImages(array $referenceImages): void
     {
-        $this->imageUrls = $imageUrls;
+        $this->referenceImages = $referenceImages;
     }
 
-    public function getImageUrls(): array
+    public function getReferenceImages(): array
     {
-        return $this->imageUrls;
+        return $this->referenceImages;
     }
 
     public function setMaskUrl(?string $maskUrl): void
@@ -61,7 +61,7 @@ class AzureOpenAIImageEditRequest extends ImageGenerateRequest
     {
         return [
             'prompt' => $this->getPrompt(),
-            'image_urls' => $this->imageUrls,
+            'image_urls' => $this->referenceImages,
             'mask_url' => $this->maskUrl,
             'size' => $this->size,
             'n' => $this->n,
