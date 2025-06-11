@@ -168,8 +168,12 @@ readonly class OperationPermissionDomainService
 
         $targetIds = $userIds;
 
-        foreach ($userDepartmentList as $departmentIds) {
+        $departmentUserIds = [];
+        foreach ($userDepartmentList as $userId => $departmentIds) {
             $targetIds = array_merge($targetIds, $departmentIds);
+            foreach ($departmentIds as $departmentId) {
+                $departmentUserIds[$departmentId][] = $userId;
+            }
         }
 
         $groupUserIds = [];
@@ -193,6 +197,14 @@ readonly class OperationPermissionDomainService
             }
             if ($resourcesOperationPermission->getTargetType() === TargetType::GroupId) {
                 foreach ($groupUserIds[$resourcesOperationPermission->getTargetId()] ?? [] as $userId) {
+                    $topOperation = $list[$userId][$resourcesOperationPermission->getResourceId()] ?? null;
+                    if ($resourcesOperationPermission->getOperation()->gt($topOperation)) {
+                        $list[$userId][$resourcesOperationPermission->getResourceId()] = $resourcesOperationPermission->getOperation();
+                    }
+                }
+            }
+            if ($resourcesOperationPermission->getTargetType() === TargetType::DepartmentId) {
+                foreach ($departmentUserIds[$resourcesOperationPermission->getTargetId()] ?? [] as $userId) {
                     $topOperation = $list[$userId][$resourcesOperationPermission->getResourceId()] ?? null;
                     if ($resourcesOperationPermission->getOperation()->gt($topOperation)) {
                         $list[$userId][$resourcesOperationPermission->getResourceId()] = $resourcesOperationPermission->getOperation();
