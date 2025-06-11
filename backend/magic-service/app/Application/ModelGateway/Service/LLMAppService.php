@@ -1209,17 +1209,15 @@ class LLMAppService extends AbstractLLMAppService
 
         foreach ($images as $index => $base64Image) {
             try {
-                $uploadDir = $authorization->getOrganizationCode() . '/image_generate/' . md5(StorageBucketType::Public->value);
+                $subDir = 'open';
 
-                $filename = 'generated_' . time() . '_' . $index . '.png';
+                $uploadFile = new UploadFile($base64Image, $subDir, '');
 
-                $uploadFile = new UploadFile($base64Image, $uploadDir, $filename);
-
-                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile);
+                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Public);
 
                 $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
 
-                $processedImages[] = $fileLink;
+                $processedImages[] = $fileLink->getUrl();
             } catch (Exception $e) {
                 $this->logger->error('Failed to process base64 image', [
                     'index' => $index,

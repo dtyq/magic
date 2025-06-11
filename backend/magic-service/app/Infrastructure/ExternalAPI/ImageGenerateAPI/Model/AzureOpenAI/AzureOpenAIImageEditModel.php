@@ -32,7 +32,10 @@ class AzureOpenAIImageEditModel implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
+
+
         $result = $this->generateImageRaw($imageGenerateRequest);
+
         return $this->buildResponse($result);
     }
 
@@ -43,7 +46,7 @@ class AzureOpenAIImageEditModel implements ImageGenerate
         }
 
         return $this->api->editImage(
-            $imageGenerateRequest->getImageUrls(),
+            $imageGenerateRequest->getReferenceImages(),
             $imageGenerateRequest->getMaskUrl(),
             $imageGenerateRequest->getPrompt(),
             $imageGenerateRequest->getSize(),
