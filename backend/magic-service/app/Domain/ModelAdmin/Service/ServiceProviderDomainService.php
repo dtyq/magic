@@ -1713,7 +1713,12 @@ class ServiceProviderDomainService
             $newModel->setOrganizationCode($organizationCode);
             $newModel->setIsOffice(true); // Mark as official model
             $newModel->setModelParentId($baseModel->getId());
-            $newModel->setStatus($officeConfigMap[$baseModel->getServiceProviderConfigId()]);
+
+            // Model is enabled only when both service provider and model are active; otherwise disabled
+            $bothActive = ($baseModel->getStatus() === Status::ACTIVE->value)
+                          && ($officeConfigMap[$baseModel->getServiceProviderConfigId()] === Status::ACTIVE->value);
+
+            $newModel->setStatus($bothActive ? Status::ACTIVE->value : Status::DISABLE->value);
             $modelsToSave[] = $newModel;
         }
 
