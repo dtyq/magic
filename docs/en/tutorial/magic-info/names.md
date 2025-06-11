@@ -1,43 +1,53 @@
 # Terminology
 
-This document explains the key terms and concepts used in Magic.
+This document explains the core terms and important concepts used in Magic.
 
-## Core Concepts
+## Basic Concepts
 
-### Node
-A basic building block in Magic that represents a specific function or operation in your workflow. Nodes can be connected to create complex workflows.
+| Term         | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model        | Models contain a large number of parameters and are trained on vast amounts of diverse data. You can use models to perform various tasks such as image generation, question answering, code generation, rewriting, etc.                                                                                                                                                                                                                                                                                                                                                                  |
+| Access Token | When calling Magic API and SDK, access tokens are required to verify user identity and authorize access. Users can set different permissions for each access token to achieve secure resource access.                                                                                                                                                                                                                                                                                                                                                                                    |
+| Token        | In large language models, tokens are the basic units of text processing. Models typically break down input text into a series of tokens, then process and analyze these tokens. Tokens can be words, characters, subword segments, or other forms of text fragments. The specific segmentation method depends on the tokenization algorithm used by the model, so token calculation and processing methods may vary according to the model's specific architecture and design. When conversing with an AI assistant, the generated tokens are the sum of input tokens and output tokens. |
+| Prompt       | Natural language instructions that tell the model what task to perform. For example, "Translate the text into English".<br>It is recommended to specify the model's role in the persona and response logic, design the response language style, and limit the model's answer scope to make conversations more aligned with user expectations.                                                                                                                                                                                                                                            |
+| Workflow     | A workflow is a tool used for planning and implementing complex functional logic. You can design complex multi-step tasks by dragging different task nodes, improving construction efficiency in complex business scenarios.                                                                                                                                                                                                                                                                                                                                                             |
+| Knowledge    | Knowledge base is the AI assistant's private knowledge collection, used to store professional domain knowledge data, solving the problem of insufficient professional domain knowledge in general large models, and improving the professionalism and accuracy of AI assistant responses.                                                                                                                                                                                                                                                                                                |
+| Memory       | Memory refers to the ability of artificial intelligence to store, retrieve, and utilize information over time, improving model performance by providing more accurate and contextually relevant responses.<br>Magic provides a set of memory functions, including variables, databases, and long-term memory, to meet different use cases. Based on these memories, personalized responses can be provided to enhance user experience.                                                                                                                                                   |
 
-### Flow
-A sequence of connected nodes that define the logic and behavior of your application. Flows can be simple or complex, depending on your requirements.
+## Node Names
 
-### Workflow
-A complete set of flows and configurations that make up your application. A workflow can contain multiple flows and can be deployed as a single unit.
-
-## Node Types
-
-### Basic Nodes
-- **Start Node**: The entry point of a flow
-- **Reply Node**: Sends responses back to users
-- **Wait Node**: Pauses execution for a specified time
-- **End Node**: Terminates a flow
-
-### Logic Nodes
-- **Condition Node**: Implements if-then-else logic
-- **Loop Node**: Repeats a sequence of nodes
-- **Switch Node**: Routes flow based on conditions
-
-### Data Nodes
-- **Database Node**: Interacts with databases
-- **API Node**: Makes HTTP requests
-- **File Node**: Handles file operations
-
-## Configuration Terms
-
-### Project
-A container for all your workflows, configurations, and resources. Projects help organize and manage related applications.
-
-### Environment
-A specific configuration for running your application (e.g., development, staging, production).
-
-### Resource
-Any external service or component that your application depends on (e.g., databases, APIs, storage). 
+| Category              | Node Name                      | Node Description                                                                                                                                 |
+| --------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Basic                 | Start Node                     | When the following events are triggered, the process will start execution from this module                                                       |
+| Basic                 | Message Reply                  | Reply or respond with specified content to the user                                                                                              |
+| Basic                 | End Node                       | The final node of the process, used to return result information after workflow execution                                                        |
+| Basic                 | Wait                           | The process will wait at this node for the user's next operation                                                                                 |
+| Large Model           | Large Model Call               | Call large language models, use variables and prompts to generate responses                                                                      |
+| Large Model           | Intent Recognition             | Large model recognizes the actual intent of input content based on the input                                                                     |
+| Operations            | Selector                       | Connects multiple downstream branches, runs the "corresponding" branch if set conditions are met, otherwise runs the "else" branch               |
+| Operations            | Code Execution                 | Write code to process input variables, then generate return values through output                                                                |
+| Operations            | HTTP Request                   | Send requests to external HTTP services according to set parameters and obtain response data                                                     |
+| Operations            | Sub-process                    | Assign some functional modules to sub-processes for orchestration, avoiding the main process becoming too large                                  |
+| Operations            | Tool                           | Reusable tool processes, transferring some process functionality to tools for implementation                                                     |
+| Operations            | Personnel Retrieval            | Search for personnel information that meets conditions, only supports viewing personnel visible to the conversationalist and related information |
+| Operations            | Loop                           | Repeatedly execute a series of tasks by setting loop count and logic                                                                             |
+| Operations            | Knowledge Retrieval            | Perform knowledge retrieval on input keywords, return matching relevant content                                                                  |
+| Operations            | Cloud Document Parsing         | Output content of specified cloud documents in Markdown structure through nodes                                                                  |
+| Operations            | Image Generation               | Generate images through text descriptions                                                                                                        |
+| Operations            | Create Group Chat              | Create group chats containing specified group members                                                                                            |
+| Data Processing       | Historical Message Query       | Query historical messages according to specified conditions                                                                                      |
+| Data Processing       | Historical Message Storage     | Custom memory storage, freely choose to store any content                                                                                        |
+| Vector Knowledge Base | Vector Storage                 | Store in knowledge base in fragment form                                                                                                         |
+| Vector Knowledge Base | Vector Search                  | Perform similarity matching from top to bottom in multiple knowledge bases, output fragments of specified similarity and quantity                |
+| Vector Knowledge Base | Vector Deletion                | Perform similarity matching from top to bottom in multiple knowledge bases, output fragments of specified similarity and quantity                |
+| Vector Knowledge Base | Vector Knowledge Base Matching | Match related vector knowledge bases through query conditions                                                                                    |
+| Persistent Database   | Data Storage                   | Store persistent data                                                                                                                            |
+| Persistent Database   | Data Loading                   | Read persistent data                                                                                                                             |
+| Variables             | Variable Save                  | Update if variable exists, create new if it doesn't exist                                                                                        |
+| Magic Tables          | Add Record                     | Add records to specified data table                                                                                                              |
+| Magic Tables          | Modify Record                  | Modify records in specified data table                                                                                                           |
+| Magic Tables          | Query Record                   | Query row records in data table according to specified conditions                                                                                |
+| Magic Tables          | Delete Record                  | Delete row records in data table according to specified conditions                                                                               |
+| File Related          | Document Parsing               | Extract file text content, output as text to the next node for use                                                                               |
+| File Related          | Spreadsheet Parsing            | Extract file text content, output as text to the next node for use                                                                               |
+| Text Related          | Text Splitting                 | Split long text according to established strategies, strategy selection will be opened in the future                                             |
