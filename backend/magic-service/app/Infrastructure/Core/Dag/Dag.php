@@ -8,14 +8,11 @@ declare(strict_types=1);
 namespace App\Infrastructure\Core\Dag;
 
 use Hyperf\Context\Context;
-use Hyperf\Engine\Channel;
 use Hyperf\Engine\Coroutine;
 use InvalidArgumentException;
+use RuntimeException;
 use SplQueue;
 use SplStack;
-use Throwable;
-
-use function Hyperf\Support\call;
 
 class Dag implements Runner
 {
@@ -57,25 +54,9 @@ class Dag implements Runner
     protected int $concurrency = 10;
 
     /**
-     * 调度dag.
-     */
-    protected ?Dag $scheduleUnitDag = null;
-
-    /**
-     * 调度单元，每个单元里面是需要有序执行的节点.
-     * @var array<string, Vertex>
-     */
-    protected array $scheduleUnits = [];
-
-    /**
-     * @var array<string, VertexResult>
+     * @var array<string, array<VertexResult>>|array<string, VertexResult>
      */
     protected array $vertexResults = [];
-
-    /**
-     * @var array<string, array<VertexResult>>
-     */
-    protected array $scheduleUnitResults = [];
 
     protected int $vertexNum;
 
@@ -158,18 +139,124 @@ class Dag implements Runner
 
     public function run(array $args = []): array
     {
-        $this->scheduleUnitDag = (new Dag())
-            ->setRunningMode($this->runningMode)
-            ->setNodeWaitingMode($this->nodeWaitingMode);
+        if ($this->checkCircularDependencies()) {
+            throw new RuntimeException('Circular dependencies detected in the DAG.');
+        }
 
-        foreach ($this->vertexes as $vertex) {
-            if (empty($vertex->parents) && $vertex->isRoot()) {
-                $rootScheduleUnit = $this->parseScheduleUnit($vertex);
-                $rootScheduleUnit->markAsRoot();
+        $this->vertexResults = $args;
+
+        if ($this->runningMode === self::NON_CONCURRENCY_RUNNING_MODE) {
+            foreach ($this->vertexes as $vertex) {
+                if ($vertex->isRoot() && empty($vertex->parents)) {
+                    $this->runVertexRecursively($vertex);
+                }
+            }
+            return $this->vertexResults;
+        }
+
+        $queue = new SplQueue();
+        $running = 0;
+
+        // State for WAITING_MODE
+        $finishedNodes = []; // key => bool
+        $finishedParentCount = []; // key => int
+        if ($this->nodeWaitingMode === self::WAITING_MODE) {
+            foreach (array_keys($this->vertexes) as $key) {
+                $finishedParentCount[$key] = 0;
             }
         }
 
-        return $this->scheduleUnitDag->runScheduleUnits($args);
+        // Find root nodes and prime the queue
+        foreach ($this->vertexes as $vertex) {
+            if ($vertex->isRoot() && empty($vertex->parents)) {
+                $queue->enqueue($vertex);
+            }
+        }
+
+        if ($queue->isEmpty() && ! empty($this->vertexes)) {
+            throw new InvalidArgumentException('No roots can be found in DAG. A root is a vertex with no parents marked with markAsRoot().');
+        }
+
+        // Main execution loop
+        while (! $queue->isEmpty() || $running > 0) {
+            if ($queue->isEmpty()) {
+                usleep(1); // Wait for running jobs to add to the queue
+                continue;
+            }
+
+            $vertex = $queue->dequeue();
+
+            if ($this->nodeWaitingMode === self::WAITING_MODE) {
+                if (isset($finishedNodes[$vertex->key])) {
+                    continue;
+                }
+            }
+
+            // The core execution logic for a single vertex
+            $runFunc = function () use ($vertex, &$queue, &$finishedNodes, &$finishedParentCount) {
+                // a. Execute the vertex's job
+                /** @var VertexResult $result */
+                $result = call_user_func($vertex->value, $this->vertexResults);
+
+                // b. Store results
+                if ($this->nodeWaitingMode === self::WAITING_MODE) {
+                    $this->vertexResults[$vertex->key] = $result;
+                } else {
+                    $this->vertexResults[$vertex->key][] = $result;
+                }
+                $finishedNodes[$vertex->key] = true;
+
+                // c. Handle children scheduling
+                $childrenToScheduleFromCurrent = $result->getChildrenIds();
+
+                foreach ($vertex->children as $child) {
+                    if (! in_array($child->key, $childrenToScheduleFromCurrent, true)) {
+                        continue;
+                    }
+
+                    if ($this->nodeWaitingMode === self::WAITING_MODE) {
+                        ++$finishedParentCount[$child->key];
+                        if ($finishedParentCount[$child->key] === count($child->parents)) {
+                            // All parents finished. Now check the "AND" condition for scheduling.
+                            $allParentsAgree = true;
+                            foreach ($child->parents as $parent) {
+                                /** @var VertexResult $parentResult */
+                                $parentResult = $this->vertexResults[$parent->key];
+                                if (! in_array($child->key, $parentResult->getChildrenIds(), true)) {
+                                    $allParentsAgree = false;
+                                    break;
+                                }
+                            }
+                            if ($allParentsAgree) {
+                                $queue->enqueue($child);
+                            }
+                        }
+                    } else { // NON_WAITING_MODE
+                        $queue->enqueue($child);
+                    }
+                }
+            };
+
+            // d. Dispatch execution
+            if ($this->runningMode === self::CONCURRENCY_RUNNING_MODE) {
+                ++$running;
+                $fromCoroutineId = Coroutine::id();
+                Coroutine::create(function () use ($runFunc, $fromCoroutineId, &$running) {
+                    Context::copy($fromCoroutineId, ['request-id', 'x-b3-trace-id', 'FlowEventStreamManager::EventStream']);
+                    try {
+                        $runFunc();
+                    } finally {
+                        --$running;
+                    }
+                });
+            } else { // NON_CONCURRENCY_RUNNING_MODE
+                $runFunc();
+            }
+        }
+
+        return array_filter($this->vertexResults, function ($value) {
+            return $value instanceof VertexResult || (is_array($value) && ! empty($value));
+        });
     }
 
     public function getConcurrency(): int
@@ -207,205 +294,26 @@ class Dag implements Runner
         return $this->circularDependencies;
     }
 
-    /**
-     * 串行运行调度单元.
-     */
-    protected function runScheduleUnit(Vertex $vertex): VertexResult
+    private function runVertexRecursively(Vertex $vertex): void
     {
-        $vertexResult = null;
-
-        /** @var Vertex $vertex */
-        foreach ($vertex->value[0]->vertexes as $vertex) {
-            /** @var VertexResult $vertexResult */
-            $vertexResult = call($vertex->value, [$this->vertexResults]);
-            $this->vertexResults[$vertex->key][] = $vertexResult;
-            if (empty($vertexResult->getChildrenIds())) {
-                break;
-            }
+        if ($this->nodeWaitingMode === self::WAITING_MODE && isset($this->vertexResults[$vertex->key])) {
+            return;
         }
 
-        $scheduleUnitResult = new VertexResult();
-        $oldChildrenIds = $vertexResult->getChildrenIds();
-        $newChildrenIds = [];
-        foreach ($oldChildrenIds as $oldChildrenId) {
-            $newChildrenIds[] = $this->getScheduleUnitKey($oldChildrenId);
-        }
-        $scheduleUnitResult->setChildrenIds($newChildrenIds);
-        return $scheduleUnitResult;
-    }
+        /** @var VertexResult $result */
+        $result = call_user_func($vertex->value, $this->vertexResults);
 
-    /**
-     * 解析为入度和出度最大为1的调度单元.
-     */
-    protected function parseScheduleUnit(Vertex $root, array &$parsedScheduleUnits = []): Vertex
-    {
-        if (isset($parsedScheduleUnits[$root->key])) {
-            return $parsedScheduleUnits[$root->key];
-        }
-
-        $scheduleUnitKey = $this->getScheduleUnitKey($root->key);
-        $vertex = $root;
-
-        $rootScheduleUnitDag = new Dag();
-        $rootScheduleUnitVertex = Vertex::of($rootScheduleUnitDag, $scheduleUnitKey);
-        $this->scheduleUnitDag->addVertex($rootScheduleUnitVertex);
-        $parsedScheduleUnits[$root->key] = $rootScheduleUnitVertex;
-
-        $rootScheduleUnitDag->addVertex($vertex);
-        while (count($vertex->children) === 1) {
-            $vertex = $vertex->children[0];
-            if (count($vertex->parents) > 1) {
-                $childScheduleUnitVertex = $this->parseScheduleUnit($vertex, $parsedScheduleUnits);
-                $this->scheduleUnitDag->addEdge($rootScheduleUnitVertex, $childScheduleUnitVertex);
-                break;
-            }
-
-            $rootScheduleUnitDag->addVertex($vertex);
-        }
-
-        if (count($vertex->children) > 1) {
-            foreach ($vertex->children as $child) {
-                $childScheduleUnitVertex = $this->parseScheduleUnit($child, $parsedScheduleUnits);
-                $this->scheduleUnitDag->addEdge($rootScheduleUnitVertex, $childScheduleUnitVertex);
-            }
-        }
-
-        return $rootScheduleUnitVertex;
-    }
-
-    protected function runScheduleUnits(array $args = []): array
-    {
-        $queue = new SplQueue();
-        $this->buildInitialQueue($queue);
-
-        /** @var array<Channel> $visited */
-        $visited = [];
-        $this->vertexResults = $args;
-
-        while (! $queue->isEmpty()) {
-            $element = $queue->dequeue();
-            if (! isset($visited[$element->key])) {
-                // channel 将在完成相应任务后关闭
-                $visited[$element->key] = new Channel();
-            }
-
-            $runFunc = function () use (&$visited, $element) {
-                /* @var VertexResult $scheduleUnitResult */
-                try {
-                    $scheduleUnitResult = $this->runScheduleUnit($element);
-                } catch (Throwable $e) {
-                    $scheduleUnitResult = new VertexResult();
-                    $scheduleUnitResult->setChildrenIds([]);
-                    $scheduleUnitResult->setErrorMessage($e->getMessage());
-                }
-
-                $this->scheduleUnitResults[$element->key][] = $scheduleUnitResult;
-                $visited[$element->key]->close();
-            };
-            if ($this->getRunningMode() === self::CONCURRENCY_RUNNING_MODE) {
-                $fromCoroutineId = Coroutine::id();
-                Coroutine::create(function () use ($runFunc, $fromCoroutineId) {
-                    Context::copy($fromCoroutineId, ['request-id', 'x-b3-trace-id', 'FlowEventStreamManager::EventStream']);
-                    $runFunc();
-                });
-            } else {
-                $runFunc();
-            }
-
-            $this->scheduleChildren($element, $queue, $visited);
-        }
-        // 等待所有挂起的任务处理完
-        foreach ($visited as $element) {
-            $element->pop();
-        }
-        return $this->vertexResults;
-    }
-
-    /**
-     * @param array<Channel> $visited
-     */
-    private function scheduleChildren(Vertex $element, SplQueue $queue, array &$visited): void
-    {
-        if ($this->getNodeWaitingMode() === self::WAITING_MODE) {
-            foreach ($element->children as $child) {
-                /*
-                 * 判断是否还有父级在queue里面等待运行，如果有，那么这个子节点就不能运行
-                 */
-                if ($this->hasParentInQueue($child, $queue)) {
-                    continue;
-                }
-
-                // 只有在所有的父节点完成后才调度子节点
-                foreach ($child->parents as $parent) {
-                    /*
-                     * 说明这个子节点有多个父节点，有的父节点还没开始跑，那么这个子节点也不能加入到队列中。
-                     * 需要等所有的父节点运行起来，然后再去判断父节点是否运行完了。
-                     */
-                    if (! isset($visited[$parent->key])) {
-                        continue 2;
-                    }
-                    $visited[$parent->key]->pop();
-                }
-
-                // 判断是否需要调度该子节点。只要有一个父节点会调度这个子节点，那么这个子节点就会被调度
-                foreach ($child->parents as $parent) {
-                    $parentResult = $this->scheduleUnitResults[$parent->key][0]; // TODO: 目前只需要取第一个结果即可，后续支持循环后，这里是需要改造的
-                    if (! in_array($child->key, $parentResult->getChildrenIds())) {
-                        continue 2;
-                    }
-                }
-                $queue->enqueue($child);
-            }
+        if ($this->nodeWaitingMode === self::WAITING_MODE) {
+            $this->vertexResults[$vertex->key] = $result;
         } else {
-            // 获取element的结果，用来确定要调度哪些子级节点
-            $elementResult = $this->scheduleUnitResults[$element->key][0]; // TODO: 目前只需要取第一个结果即可，后续支持循环后，这里是需要改造的
-            foreach ($element->children as $child) {
-                if (in_array($child->key, $elementResult->getChildrenIds())) {
-                    $queue->enqueue($child);
-                }
+            $this->vertexResults[$vertex->key][] = $result;
+        }
+
+        $childrenToSchedule = $result->getChildrenIds();
+        foreach ($vertex->children as $child) {
+            if (in_array($child->key, $childrenToSchedule, true)) {
+                $this->runVertexRecursively($child);
             }
-        }
-    }
-
-    /**
-     * 判断是否还有父级在queue里面等待运行，如果有，那么这个子节点就不能运行.
-     */
-    private function hasParentInQueue(Vertex $child, SplQueue $queue): bool
-    {
-        $waitingNodes = [];
-        foreach ($queue as $item) {
-            $waitingNodes[$item->key] = true;
-        }
-
-        foreach ($child->parents as $parent) {
-            if (isset($waitingNodes[$parent->key])) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function getScheduleUnitKey(string $rootKey): string
-    {
-        return 'schedule_unit_' . $rootKey;
-    }
-
-    private function buildInitialQueue(SplQueue $queue): void
-    {
-        $roots = [];
-        foreach ($this->vertexes as $vertex) {
-            if (empty($vertex->parents) && $vertex->isRoot()) {
-                $roots[] = $vertex;
-            }
-        }
-
-        if (empty($roots)) {
-            throw new InvalidArgumentException('no roots can be found in dag');
-        }
-
-        foreach ($roots as $root) {
-            $queue->enqueue($root);
         }
     }
 
