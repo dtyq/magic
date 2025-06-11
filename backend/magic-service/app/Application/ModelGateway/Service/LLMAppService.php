@@ -900,7 +900,7 @@ class LLMAppService extends AbstractLLMAppService
 
                 $uploadFile = new UploadFile($base64Image, $subDir, '');
 
-                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile);
+                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Public);
 
                 $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
 

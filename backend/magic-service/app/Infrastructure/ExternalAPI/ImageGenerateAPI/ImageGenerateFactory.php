@@ -164,7 +164,7 @@ class ImageGenerateFactory
         }
 
         // Set size based on width and height if available, otherwise use default
-        if (isset($data['width']) && isset($data['height'])) {
+        if (isset($data['width'], $data['height'])) {
             $size = $data['width'] . 'x' . $data['height'];
             $request->setSize($size);
         } elseif (isset($data['size'])) {

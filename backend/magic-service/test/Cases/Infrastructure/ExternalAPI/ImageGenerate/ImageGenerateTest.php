@@ -28,8 +28,6 @@ use HyperfTest\Cases\BaseTest;
  */
 class ImageGenerateTest extends BaseTest
 {
-
-
     public static function isBase64Image(string $str): bool
     {
         $data = explode(',', $str);
@@ -50,16 +48,16 @@ class ImageGenerateTest extends BaseTest
     public function testBase64Image()
     {
         $base64 = 'xx';
-        $uploadDir = 'DT001' . '/open/' . md5(StorageBucketType::Public->value);
+        $uploadDir = 'DT001/open/' . md5(StorageBucketType::Public->value);
         $uploadFile = new UploadFile($base64, $uploadDir, 'test');
 
-            $fileDomainService = di(FileDomainService::class);
-            // 上传文件（指定不自动创建目录）
-            $fileDomainService->uploadByCredential('DT001', $uploadFile);
+        $fileDomainService = di(FileDomainService::class);
+        // 上传文件（指定不自动创建目录）
+        $fileDomainService->uploadByCredential('DT001', $uploadFile);
 
-            // 生成可访问的链接
-            $fileLink = $fileDomainService->getLink('DT001', $uploadFile->getKey(), StorageBucketType::Private);
-            var_dump($fileLink);
+        // 生成可访问的链接
+        $fileLink = $fileDomainService->getLink('DT001', $uploadFile->getKey(), StorageBucketType::Private);
+        var_dump($fileLink);
     }
 
     // 转超清
@@ -183,17 +181,15 @@ class ImageGenerateTest extends BaseTest
         $this->markTestSkipped();
     }
 
-
-    
     /**
-     * Check if binary data is valid image data by examining magic bytes
+     * Check if binary data is valid image data by examining magic bytes.
      */
     private static function isValidImageData(string $data): bool
     {
         if (strlen($data) < 8) {
             return false;
         }
-        
+
         // Check for common image format signatures
         $signatures = [
             // PNG
@@ -202,25 +198,25 @@ class ImageGenerateTest extends BaseTest
             "\xFF\xD8\xFF",
             // GIF87a
             "\x47\x49\x46\x38\x37\x61",
-            // GIF89a  
+            // GIF89a
             "\x47\x49\x46\x38\x39\x61",
             // BMP
             "\x42\x4D",
             // WebP
             "\x52\x49\x46\x46",
         ];
-        
+
         foreach ($signatures as $signature) {
             if (strpos($data, $signature) === 0) {
                 return true;
             }
         }
-        
+
         // For WebP, we need additional check
         if (strpos($data, "\x52\x49\x46\x46") === 0 && strpos($data, "\x57\x45\x42\x50") === 8) {
             return true;
         }
-        
+
         return false;
     }
 }
