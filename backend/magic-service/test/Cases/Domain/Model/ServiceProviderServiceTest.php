@@ -25,6 +25,12 @@ use HyperfTest\Cases\BaseTest;
  */
 class ServiceProviderServiceTest extends BaseTest
 {
+    public function test3()
+    {
+        $di = di(ServiceProviderDomainService::class);
+        $di->initOrganizationServiceProviders('hnqno3hl43vt');
+    }
+
     public function testSaveServiceProvider()
     {
         $aiVendorDomainService = $this->getServiceProviderService();
