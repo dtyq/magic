@@ -7,14 +7,14 @@ declare(strict_types=1);
 
 namespace App\Application\Flow\ExecuteManager\BuiltIn\AgentPlugin\KnowledgeSimilarity;
 
+use App\Application\Flow\ExecuteManager\BuiltIn\AgentPlugin\AbstractAgentPlugin;
 use App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AIImage\Tools\KnowledgeSimilarityBuiltInTool;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Knowledge\Structure\KnowledgeConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Knowledge\Structure\KnowledgeOperator;
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\AgentPluginDefine;
-use App\Infrastructure\Core\Contract\Flow\AgentPluginInterface;
 
 #[AgentPluginDefine(code: 'knowledge_similarity', name: '知识库数据', description: '挂载知识数据，用于 RAG 检索')]
-class KnowledgeSimilarityAgentPlugin implements AgentPluginInterface
+class KnowledgeSimilarityAgentPlugin extends AbstractAgentPlugin
 {
     private KnowledgeConfig $knowledgeConfig;
 

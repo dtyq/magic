@@ -24,6 +24,7 @@ class MCPServerFactory
         $entity->setIcon($model->icon);
         $entity->setType(ServiceType::from($model->type));
         $entity->setEnabled($model->enabled);
+        $entity->setExternalSseUrl($model->external_sse_url);
         $entity->setCreator($model->creator);
         $entity->setCreatedAt($model->created_at);
         $entity->setModifier($model->modifier);

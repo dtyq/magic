@@ -6,13 +6,14 @@ declare(strict_types=1);
  */
 use App\Interfaces\MCP\Facade\Admin\MCPServerAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPServerToolAdminApi;
-use App\Interfaces\MCP\Facade\SSE\MCPServerSSEApi;
+use Dtyq\PhpMcp\Server\Framework\Hyperf\HyperfMcpServer;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/mcp', function () {
     Router::addGroup('/server', function () {
         Router::post('', [MCPServerAdminApi::class, 'save']);
         Router::post('/queries', [MCPServerAdminApi::class, 'queries']);
+        Router::get('/{code}/status', [MCPServerAdminApi::class, 'checkStatus']);
         Router::get('/{code}', [MCPServerAdminApi::class, 'show']);
         Router::delete('/{code}', [MCPServerAdminApi::class, 'destroy']);
 
@@ -23,7 +24,8 @@ Router::addGroup('/api/v1/mcp', function () {
     });
 
     Router::addGroup('/sse', function () {
-        Router::get('/{code}', [MCPServerSSEApi::class, 'register']);
-        Router::post('/{code}', [MCPServerSSEApi::class, 'handle']);
+        Router::addRoute(['POST', 'GET', 'DELETE'], '/{code}', function (string $code) {
+            return di(HyperfMcpServer::class)->handle('MagicMcp-' . $code, '1.0.0', true);
+        });
     });
 });

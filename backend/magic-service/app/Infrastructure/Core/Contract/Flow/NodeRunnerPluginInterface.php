@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\Contract\Flow;
 
+use Hyperf\Odin\Mcp\McpServerConfig;
+
 interface NodeRunnerPluginInterface
 {
     public function getAppendSystemPrompt(): ?string;
@@ -15,4 +17,9 @@ interface NodeRunnerPluginInterface
      * @return array<BuiltInToolInterface>
      */
     public function getTools(): array;
+
+    /**
+     * @return array<string, McpServerConfig>
+     */
+    public function getMcpServerConfigs(): array;
 }

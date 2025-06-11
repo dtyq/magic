@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6a232e10f69601c2c9f1bcc41a302b6e",
+    "content-hash": "685fefe88abd301970ccce9e70911c3d",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.3",
+            "version": "3.344.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "0cf789243c7de82be7d3f7641cab37b5bb5d937d"
+                "reference": "df314cc4169146d87a15bb408edfaf94ab9ca08c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/0cf789243c7de82be7d3f7641cab37b5bb5d937d",
-                "reference": "0cf789243c7de82be7d3f7641cab37b5bb5d937d",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/df314cc4169146d87a15bb408edfaf94ab9ca08c",
+                "reference": "df314cc4169146d87a15bb408edfaf94ab9ca08c",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.3"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.4"
             },
-            "time": "2025-06-09T18:04:12+00:00"
+            "time": "2025-06-10T18:04:31+00:00"
         },
         {
             "name": "brick/math",
@@ -2305,16 +2305,16 @@
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.1",
+            "version": "0.1.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c"
+                "reference": "2880173df7795bdc4a5755946baf0393b167fac6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/d5d176add0195d2a2f1c605e1aae13151312f81c",
-                "reference": "d5d176add0195d2a2f1c605e1aae13151312f81c",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/2880173df7795bdc4a5755946baf0393b167fac6",
+                "reference": "2880173df7795bdc4a5755946baf0393b167fac6",
                 "shasum": ""
             },
             "require": {
@@ -2363,9 +2363,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.1"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.4"
             },
-            "time": "2025-06-10T06:41:17+00:00"
+            "time": "2025-06-11T10:36:10+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -6326,16 +6326,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.16",
+            "version": "v1.1.18",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "039c0f2f4230e7f47739bacc12e855a44ab5f046"
+                "reference": "5ac7fbda806fe541851d0b6e452aa57f5670859e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=039c0f2f4230e7f47739bacc12e855a44ab5f046",
-                "reference": "039c0f2f4230e7f47739bacc12e855a44ab5f046",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=5ac7fbda806fe541851d0b6e452aa57f5670859e",
+                "reference": "5ac7fbda806fe541851d0b6e452aa57f5670859e",
                 "shasum": ""
             },
             "require": {
@@ -6398,9 +6398,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.16"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.18"
             },
-            "time": "2025-06-10T07:01:20+00:00"
+            "time": "2025-06-11T09:58:07+00:00"
         },
         {
             "name": "hyperf/phar",

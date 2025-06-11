@@ -27,6 +27,7 @@ use Hyperf\Odin\Message\AssistantMessage;
 use Hyperf\Odin\Message\UserMessage;
 use Hyperf\Odin\Message\UserMessageContent;
 use Hyperf\Odin\Model\AbstractModel;
+use Hyperf\Odin\Tool\Definition\ToolDefinition;
 
 #[FlowNodeDefine(
     type: NodeType::LLM->value,
@@ -205,6 +206,10 @@ class LLMChatNodeRunner extends AbstractLLMNodeRunner
         $vertexResult->addDebugLog('used_tools', array_map(function (UsedTool $useTool) {
             return $useTool->toArray();
         }, $agent->getUsedTools()));
+
+        $vertexResult->addDebugLog('mcp_tools', array_map(function (ToolDefinition $toolDefinition) {
+            return $toolDefinition->toArray();
+        }, $agent->getMcpTools()));
 
         [$reasoningResponseText, $responseText] = $response;
 
