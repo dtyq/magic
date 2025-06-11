@@ -1666,6 +1666,9 @@ class ServiceProviderDomainService
 
         $officeLLMProviderIds = [];
         foreach ($officeLLMProviders as $provider) {
+            if ($provider->getProviderCode() === ServiceProviderCode::Official->value) {
+                continue;
+            }
             // Exclude Magic itself, only collect other LLM service providers
             if ($provider->getId() !== $magicServiceProvider->getId()) {
                 $officeLLMProviderIds[] = $provider->getId();
@@ -1701,6 +1704,7 @@ class ServiceProviderDomainService
             $newModel->setServiceProviderConfigId($magicConfigId);
             $newModel->setOrganizationCode($organizationCode);
             $newModel->setIsOffice(true); // Mark as official model
+            $newModel->setModelParentId($baseModel->getId());
             $modelsToSave[] = $newModel;
         }
 
