@@ -467,7 +467,7 @@ class ServiceProviderDomainService
      */
     public function initOrganizationServiceProviders(string $organizationCode, ?ServiceProviderCategory $serviceProviderCategory = null): array
     {
-        $lockKey = 'service_provider:init2:' . $organizationCode;
+        $lockKey = 'service_provider:init:' . $organizationCode;
         $userId = uniqid('service_provider'); // 使用唯一ID作为锁的拥有者
 
         // 尝试获取锁，超时时间设置为60秒
