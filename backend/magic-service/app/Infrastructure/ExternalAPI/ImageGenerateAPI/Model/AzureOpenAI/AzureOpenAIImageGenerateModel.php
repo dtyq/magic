@@ -10,8 +10,8 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
@@ -34,11 +34,11 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         // 判断是否有参考图像
-        if ($imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest && !empty($imageGenerateRequest->getReferenceImages())) {
+        if ($imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest && ! empty($imageGenerateRequest->getReferenceImages())) {
             // 有参考图像，使用图像编辑模型
             return $this->generateImageWithReference($imageGenerateRequest);
         }
-        
+
         // 无参考图像，使用原有的生成逻辑
         $result = $this->generateImageRaw($imageGenerateRequest);
         return $this->buildResponse($result);
@@ -51,7 +51,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
         }
 
         // 判断是否有参考图像
-        if (!empty($imageGenerateRequest->getReferenceImages())) {
+        if (! empty($imageGenerateRequest->getReferenceImages())) {
             // 有参考图像，使用图像编辑模型
             $editModel = new AzureOpenAIImageEditModel($this->config);
             $editRequest = $this->convertToEditRequest($imageGenerateRequest);
@@ -95,7 +95,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
     }
 
     /**
-     * 当有参考图像时，使用图像编辑模型生成图像
+     * 当有参考图像时，使用图像编辑模型生成图像.
      */
     private function generateImageWithReference(AzureOpenAIImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
@@ -116,7 +116,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
         $editRequest->setN($imageGenerateRequest->getN());
         // 图像编辑不需要mask，所以设置为null
         $editRequest->setMaskUrl(null);
-        
+
         return $editRequest;
     }
 }

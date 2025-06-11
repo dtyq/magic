@@ -27,7 +27,6 @@ class AzureOpenAIImageGenerateRequest extends ImageGenerateRequest
         $this->referenceImages = $referenceImages;
     }
 
-
     public function setSize(string $size): void
     {
         $this->size = $size;
