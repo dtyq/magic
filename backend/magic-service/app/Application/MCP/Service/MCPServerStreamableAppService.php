@@ -50,9 +50,9 @@ class MCPServerStreamableAppService extends AbstractMCPAppService
                 continue;
             }
             $tool = new Tool(
-                name: $mcpServerTool->getOptions()->getName(),
+                name: $mcpServerTool->getName(),
                 inputSchema: $mcpServerTool->getOptions()->getInputSchema(),
-                description: $mcpServerTool->getOptions()->getDescription(),
+                description: $mcpServerTool->getDescription(),
             );
             $mcpTools[] = new RegisteredTool($tool, $callback);
         }
