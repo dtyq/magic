@@ -191,7 +191,11 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         $operator->setRealName($account?->getRealName());
         $operator->setSourceId($apiChatDTO->getShareOptions('source_id', 'sk_flow'));
 
-        $magicFlow = $this->getFlow($flowDataIsolation, $apiChatDTO->getFlowCode(), [Type::Sub, Type::Tools], operationValidate: 'read');
+        $operationValidate = 'read';
+        if ($apiChatDTO->getShareOptions('source_id') === 'oauth2_flow') {
+            $operationValidate = '';
+        }
+        $magicFlow = $this->getFlow($flowDataIsolation, $apiChatDTO->getFlowCode(), [Type::Sub, Type::Tools], operationValidate: $operationValidate);
 
         // 设置指令
         $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);

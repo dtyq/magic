@@ -91,9 +91,7 @@ class MCPServerToolEntity extends AbstractEntity
         if (empty($this->mcpServerCode)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp_server_code']);
         }
-        if (empty($this->name)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.name']);
-        }
+        $this->checkName();
         if (empty($this->creator)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'creator']);
         }
@@ -119,9 +117,7 @@ class MCPServerToolEntity extends AbstractEntity
         if (empty($this->mcpServerCode)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp_server_code']);
         }
-        if (empty($this->name)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'name']);
-        }
+        $this->checkName();
 
         $mcpServerToolEntity->setName($this->name);
         $mcpServerToolEntity->setDescription($this->description);
@@ -310,5 +306,15 @@ class MCPServerToolEntity extends AbstractEntity
     public function setUpdatedAt(DateTime $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    private function checkName(): void
+    {
+        if (empty($this->name)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.name']);
+        }
+        if (! preg_match('/^[a-zA-Z0-9_]+$/', $this->name)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'flow.tool.name.invalid_format');
+        }
     }
 }
