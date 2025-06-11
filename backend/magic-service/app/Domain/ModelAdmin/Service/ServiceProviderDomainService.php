@@ -493,7 +493,11 @@ class ServiceProviderDomainService
                 $officialAndVlmProviders = [];
                 $serviceProviderMap = [];
 
+                // collect vlm and official provider
                 foreach ($serviceProviders as $serviceProvider) {
+                    if ($serviceProvider->getCategory() === ServiceProviderCategory::LLM->value) {
+                        continue;
+                    }
                     $serviceProviderMap[$serviceProvider->getId()] = $serviceProvider;
                     // 收集需要同步模型的服务商（官方和VLM类型）
                     $isOfficial = ServiceProviderType::from($serviceProvider->getProviderType()) === ServiceProviderType::OFFICIAL;
@@ -505,7 +509,7 @@ class ServiceProviderDomainService
                 // 批量创建服务商配置
                 $configEntities = $this->batchCreateServiceProviderConfigs($serviceProviders, $organizationCode);
 
-                // 如果有官方或VLM服务商，批量同步它们的模型
+                // process vlm and official provider
                 if (! empty($officialAndVlmProviders)) {
                     $this->batchSyncServiceProviderModels($officialAndVlmProviders, $organizationCode);
                 }
