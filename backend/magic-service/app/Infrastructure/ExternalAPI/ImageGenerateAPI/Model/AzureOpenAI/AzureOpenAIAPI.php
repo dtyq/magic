@@ -91,8 +91,6 @@ class AzureOpenAIAPI
 
             // Add other parameters
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
-            $multipartData[] = ['name' => 'size', 'contents' => $size];
-            $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
 
             $response = $this->client->post($url, [
                 'headers' => [
