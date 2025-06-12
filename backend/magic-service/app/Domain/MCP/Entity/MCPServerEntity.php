@@ -12,6 +12,7 @@ use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 use DateTime;
 use Hyperf\Odin\Mcp\McpServerConfig;
 use Hyperf\Odin\Mcp\McpType;
@@ -97,12 +98,7 @@ class MCPServerEntity extends AbstractEntity
         $this->id = null;
 
         if ($this->type === ServiceType::ExternalSSE) {
-            if (empty($this->externalSseUrl)) {
-                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.external_sse_url']);
-            }
-            if (! is_url($this->externalSseUrl)) {
-                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.external_sse_url']);
-            }
+            $this->checkSSEUrl();
         }
     }
 
@@ -114,8 +110,8 @@ class MCPServerEntity extends AbstractEntity
         if (empty($this->name)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'name']);
         }
-        if ($this->externalSseUrl && ! is_url($this->externalSseUrl)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.external_sse_url']);
+        if ($this->externalSseUrl) {
+            $this->checkSSEUrl();
         }
 
         $mcpServerEntity->setName($this->name);
@@ -315,5 +311,16 @@ class MCPServerEntity extends AbstractEntity
     public function setToolsCount(int $toolsCount): void
     {
         $this->toolsCount = $toolsCount;
+    }
+
+    private function checkSSEUrl(): void
+    {
+        if (empty($this->externalSseUrl)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.external_sse_url']);
+        }
+        if (! is_url($this->externalSseUrl)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.external_sse_url']);
+        }
+        SSRFUtil::getSafeUrl($this->externalSseUrl, replaceIp: false, allowRedirect: true);
     }
 }
