@@ -38,10 +38,6 @@ class AzureOpenAIImageEditModel implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
-        $this->logger->info('Azure OpenAI图像编辑：开始生成图像', [
-            'request_type' => get_class($imageGenerateRequest),
-        ]);
-
         try {
             $result = $this->generateImageRaw($imageGenerateRequest);
             $response = $this->buildResponse($result);
@@ -81,19 +77,13 @@ class AzureOpenAIImageEditModel implements ImageGenerate
         ]);
 
         try {
-            $result = $this->api->editImage(
+            return $this->api->editImage(
                 $imageGenerateRequest->getReferenceImages(),
                 $imageGenerateRequest->getMaskUrl(),
                 $imageGenerateRequest->getPrompt(),
                 $imageGenerateRequest->getSize(),
                 $imageGenerateRequest->getN()
             );
-
-            $this->logger->info('Azure OpenAI图像编辑：API调用成功', [
-                'result_data_count' => isset($result['data']) ? count($result['data']) : 0,
-            ]);
-
-            return $result;
         } catch (Exception $e) {
             $this->logger->error('Azure OpenAI图像编辑：API调用失败', [
                 'error' => $e->getMessage(),

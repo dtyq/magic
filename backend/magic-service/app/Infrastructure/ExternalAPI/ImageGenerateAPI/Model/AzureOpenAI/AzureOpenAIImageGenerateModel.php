@@ -39,29 +39,13 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
-        $this->logger->info('Azure OpenAI图像生成：开始生成图像', [
-            'request_type' => get_class($imageGenerateRequest),
-        ]);
-
         try {
-            // 判断是否有参考图像
             if ($imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest && ! empty($imageGenerateRequest->getReferenceImages())) {
-                $this->logger->info('Azure OpenAI图像生成：检测到参考图像，使用图像编辑模式', [
-                    'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
-                ]);
-                // 有参考图像，使用图像编辑模型
                 return $this->generateImageWithReference($imageGenerateRequest);
             }
 
-            // 无参考图像，使用原有的生成逻辑
             $result = $this->generateImageRaw($imageGenerateRequest);
-            $response = $this->buildResponse($result);
-
-            $this->logger->info('Azure OpenAI图像生成：图像生成成功', [
-                'image_count' => count($response->getData()),
-            ]);
-
-            return $response;
+            return $this->buildResponse($result);
         } catch (Exception $e) {
             $this->logger->error('Azure OpenAI图像生成：图像生成失败', [
                 'error' => $e->getMessage(),
@@ -79,25 +63,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
                 'actual' => get_class($imageGenerateRequest),
             ]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
-        }
-
-        // 判断是否有参考图像
-        if (! empty($imageGenerateRequest->getReferenceImages())) {
-            $this->logger->info('Azure OpenAI图像生成：使用图像编辑模式处理参考图像', [
-                'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
-            ]);
-
-            try {
-                // 有参考图像，使用图像编辑模型
-                $editModel = new AzureOpenAIImageEditModel($this->config);
-                $editRequest = $this->convertToEditRequest($imageGenerateRequest);
-                return $editModel->generateImageRaw($editRequest);
-            } catch (Exception $e) {
-                $this->logger->error('Azure OpenAI图像生成：图像编辑模式失败', [
-                    'error' => $e->getMessage(),
-                ]);
-                throw $e;
-            }
         }
 
         $this->validateRequest($imageGenerateRequest);
@@ -147,7 +112,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
         $baseUrl = $this->config->getUrl();
         $apiVersion = $this->config->getApiVersion();
         $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
-        $this->logger->info('Azure OpenAI图像生成：API密钥已更新');
     }
 
     private function buildResponse(array $result): ImageGenerateResponse
@@ -182,10 +146,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
                 ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA, 'image_generate.no_valid_image_data');
             }
 
-            $this->logger->info('Azure OpenAI图像生成：成功构建响应', [
-                'total_images' => count($images),
-            ]);
-
             return new ImageGenerateResponse(ImageGenerateType::BASE_64, $images);
         } catch (Exception $e) {
             $this->logger->error('Azure OpenAI图像生成：构建响应失败', [
@@ -206,20 +166,10 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
      */
     private function generateImageWithReference(AzureOpenAIImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
-        $this->logger->info('Azure OpenAI图像生成：开始使用参考图像生成', [
-            'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
-        ]);
-
         try {
             $editModel = new AzureOpenAIImageEditModel($this->config);
             $editRequest = $this->convertToEditRequest($imageGenerateRequest);
-            $response = $editModel->generateImage($editRequest);
-
-            $this->logger->info('Azure OpenAI图像生成：参考图像生成成功', [
-                'image_count' => count($response->getData()),
-            ]);
-
-            return $response;
+            return $editModel->generateImage($editRequest);
         } catch (Exception $e) {
             $this->logger->error('Azure OpenAI图像生成：参考图像生成失败', [
                 'error' => $e->getMessage(),
