@@ -33,12 +33,13 @@ class FileAppService extends AbstractAppService
     ) {
     }
 
-    public function getSimpleUploadTemporaryCredential(Authenticatable $authorization, string $storage): array
+    public function getSimpleUploadTemporaryCredential(Authenticatable $authorization, string $storage, ?string $contentType = null): array
     {
         $dataIsolation = $this->createFlowDataIsolation($authorization);
         $data = $this->fileDomainService->getSimpleUploadTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::from($storage),
+            $contentType
         );
         // 如果是本地驱动，那么增加一个临时 key
         if ($data['platform'] === AdapterName::LOCAL) {

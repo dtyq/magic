@@ -32,4 +32,20 @@ return [
     'unsupported_image_format' => '仅支持 JPG、JPEG、BMP、PNG 格式的图片',
     'invalid_aspect_ratio' => '图生图的尺寸比例差距过大，只能相差3倍',
     'image_url_is_empty' => '图片为空',
+
+    // Azure OpenAI 相关错误消息
+    'api_key_update_failed' => '更新API密钥失败',
+    'prompt_required' => '图像生成提示词不能为空',
+    'reference_images_required' => '图像编辑需要提供参考图像',
+    'invalid_image_count' => '图像生成数量必须在1-10之间',
+    'invalid_image_url' => '参考图像URL格式无效',
+    'invalid_mask_url' => '遮罩图像URL格式无效',
+    'no_image_generated' => '未生成任何图像',
+    'invalid_image_data' => '所有图像数据无效',
+    'no_valid_image_data' => '无有效图像数据',
+    'response_build_failed' => '构建响应失败',
+    'api_call_failed' => 'API调用失败',
+    'request_conversion_failed' => '请求格式转换失败',
+    'invalid_size_format' => '无效的尺寸格式，应为WIDTHxHEIGHT格式',
+    'invalid_quality_parameter' => '无效的质量参数，有效选项为: standard, hd',
 ];
