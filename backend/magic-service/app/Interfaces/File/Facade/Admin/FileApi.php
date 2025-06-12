@@ -33,6 +33,7 @@ class FileApi extends AbstractAdminApi
         return $this->fileAppService->getSimpleUploadTemporaryCredential(
             $this->getAuthorization(),
             $this->request->input('storage'),
+            $this->request->input('content_type')
         );
     }
 
