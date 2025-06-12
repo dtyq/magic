@@ -17,7 +17,6 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEdit
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
 class AzureOpenAIImageEditModel implements ImageGenerate
@@ -28,13 +27,13 @@ class AzureOpenAIImageEditModel implements ImageGenerate
 
     private ServiceProviderConfig $config;
 
-    public function __construct(ServiceProviderConfig $serviceProviderConfig, ?LoggerInterface $logger = null)
+    public function __construct(ServiceProviderConfig $serviceProviderConfig)
     {
         $this->config = $serviceProviderConfig;
         $baseUrl = $this->config->getUrl();
         $apiVersion = $this->config->getApiVersion();
         $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $apiVersion);
-        $this->logger = $logger;
+        $this->logger = di(LoggerInterface::class);
     }
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -68,7 +67,7 @@ class AzureOpenAIImageEditModel implements ImageGenerate
                 'expected' => AzureOpenAIImageEditRequest::class,
                 'actual' => get_class($imageGenerateRequest),
             ]);
-            throw new InvalidArgumentException('Request must be AzureOpenAIImageEditRequest');
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
 
         $this->validateRequest($imageGenerateRequest);
@@ -100,36 +99,23 @@ class AzureOpenAIImageEditModel implements ImageGenerate
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Azure OpenAI图像编辑API调用失败: ' . $e->getMessage());
+            throw $e;
         }
     }
 
     public function setAK(string $ak): void
     {
-        // Not used for Azure OpenAI
-        $this->logger->debug('Azure OpenAI图像编辑：AK设置被忽略，Azure OpenAI不使用此参数');
     }
 
     public function setSK(string $sk): void
     {
-        // Not used for Azure OpenAI
-        $this->logger->debug('Azure OpenAI图像编辑：SK设置被忽略，Azure OpenAI不使用此参数');
     }
 
     public function setApiKey(string $apiKey): void
     {
-        try {
-            $baseUrl = $this->config->getUrl();
-            $apiVersion = $this->config->getApiVersion();
-            $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
-
-            $this->logger->info('Azure OpenAI图像编辑：API密钥已更新');
-        } catch (Exception $e) {
-            $this->logger->error('Azure OpenAI图像编辑：更新API密钥失败', [
-                'error' => $e->getMessage(),
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.api_key_update_failed');
-        }
+        $baseUrl = $this->config->getUrl();
+        $apiVersion = $this->config->getApiVersion();
+        $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
     }
 
     private function validateRequest(AzureOpenAIImageEditRequest $request): void

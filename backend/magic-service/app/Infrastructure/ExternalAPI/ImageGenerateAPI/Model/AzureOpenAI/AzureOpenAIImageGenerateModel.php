@@ -18,24 +18,23 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGene
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
 class AzureOpenAIImageGenerateModel implements ImageGenerate
 {
+    protected LoggerInterface $logger;
+
     private AzureOpenAIAPI $api;
 
     private ServiceProviderConfig $config;
 
-    private LoggerInterface $logger;
-
-    public function __construct(ServiceProviderConfig $serviceProviderConfig, ?LoggerInterface $logger = null)
+    public function __construct(ServiceProviderConfig $serviceProviderConfig)
     {
         $this->config = $serviceProviderConfig;
         $baseUrl = $this->config->getUrl();
         $apiVersion = $this->config->getApiVersion();
         $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $apiVersion);
-        $this->logger = $logger;
+        $this->logger = di(LoggerInterface::class);
     }
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -79,7 +78,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
                 'expected' => AzureOpenAIImageGenerateRequest::class,
                 'actual' => get_class($imageGenerateRequest),
             ]);
-            throw new InvalidArgumentException('Request must be AzureOpenAIImageGenerateRequest');
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
 
         // 判断是否有参考图像
@@ -90,7 +89,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
 
             try {
                 // 有参考图像，使用图像编辑模型
-                $editModel = new AzureOpenAIImageEditModel($this->config, $this->logger);
+                $editModel = new AzureOpenAIImageEditModel($this->config);
                 $editRequest = $this->convertToEditRequest($imageGenerateRequest);
                 return $editModel->generateImageRaw($editRequest);
             } catch (Exception $e) {
@@ -137,30 +136,18 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
 
     public function setAK(string $ak): void
     {
-        // Not used for Azure OpenAI
-        $this->logger->debug('Azure OpenAI图像生成：AK设置被忽略，Azure OpenAI不使用此参数');
     }
 
     public function setSK(string $sk): void
     {
-        // Not used for Azure OpenAI
-        $this->logger->debug('Azure OpenAI图像生成：SK设置被忽略，Azure OpenAI不使用此参数');
     }
 
     public function setApiKey(string $apiKey): void
     {
-        try {
-            $baseUrl = $this->config->getUrl();
-            $apiVersion = $this->config->getApiVersion();
-            $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
-
-            $this->logger->info('Azure OpenAI图像生成：API密钥已更新');
-        } catch (Exception $e) {
-            $this->logger->error('Azure OpenAI图像生成：更新API密钥失败', [
-                'error' => $e->getMessage(),
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.api_key_update_failed');
-        }
+        $baseUrl = $this->config->getUrl();
+        $apiVersion = $this->config->getApiVersion();
+        $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
+        $this->logger->info('Azure OpenAI图像生成：API密钥已更新');
     }
 
     private function buildResponse(array $result): ImageGenerateResponse
@@ -224,7 +211,7 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
         ]);
 
         try {
-            $editModel = new AzureOpenAIImageEditModel($this->config, $this->logger);
+            $editModel = new AzureOpenAIImageEditModel($this->config);
             $editRequest = $this->convertToEditRequest($imageGenerateRequest);
             $response = $editModel->generateImage($editRequest);
 
@@ -246,11 +233,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
      */
     private function convertToEditRequest(AzureOpenAIImageGenerateRequest $imageGenerateRequest): AzureOpenAIImageEditRequest
     {
-        $this->logger->debug('Azure OpenAI图像生成：开始转换请求格式', [
-            'from' => AzureOpenAIImageGenerateRequest::class,
-            'to' => AzureOpenAIImageEditRequest::class,
-        ]);
-
         try {
             $editRequest = new AzureOpenAIImageEditRequest();
             $editRequest->setPrompt($imageGenerateRequest->getPrompt());
@@ -259,8 +241,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
             $editRequest->setN($imageGenerateRequest->getN());
             // 图像编辑不需要mask，所以设置为null
             $editRequest->setMaskUrl(null);
-
-            $this->logger->debug('Azure OpenAI图像生成：请求格式转换成功');
 
             return $editRequest;
         } catch (Exception $e) {
@@ -284,27 +264,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
                 'valid_range' => '1-10',
             ]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_image_count');
-        }
-
-        // 验证尺寸格式
-        $size = $request->getSize();
-        if (! empty($size) && ! preg_match('/^\d+x\d+$/', $size)) {
-            $this->logger->error('Azure OpenAI图像生成：无效的尺寸格式', [
-                'size' => $size,
-                'expected_format' => 'WIDTHxHEIGHT (e.g., 1024x1024)',
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_size_format');
-        }
-
-        // 验证质量参数
-        $quality = $request->getQuality();
-        $validQualities = ['standard', 'hd'];
-        if (! empty($quality) && ! in_array($quality, $validQualities)) {
-            $this->logger->error('Azure OpenAI图像生成：无效的质量参数', [
-                'quality' => $quality,
-                'valid_options' => $validQualities,
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_quality_parameter');
         }
     }
 }
