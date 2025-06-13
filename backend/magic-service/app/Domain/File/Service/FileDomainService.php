@@ -39,7 +39,7 @@ readonly class FileDomainService
         return $this->cloudFileRepository->getLinks($organizationCode, [$filePath], $bucketType, $downloadNames)[$filePath] ?? null;
     }
 
-    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
+    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
         $this->cloudFileRepository->uploadByCredential($organizationCode, $uploadFile, $storage, $autoDir);
     }

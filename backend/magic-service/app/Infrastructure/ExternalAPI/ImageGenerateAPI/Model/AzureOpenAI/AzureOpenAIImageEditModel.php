@@ -69,7 +69,7 @@ class AzureOpenAIImageEditModel implements ImageGenerate
         $this->validateRequest($imageGenerateRequest);
 
         $this->logger->info('Azure OpenAI图像编辑：开始调用API', [
-            'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
+            'reference_images' => $imageGenerateRequest->getReferenceImages(),
             'has_mask' => ! empty($imageGenerateRequest->getMaskUrl()),
             'prompt' => $imageGenerateRequest->getPrompt(),
             'size' => $imageGenerateRequest->getSize(),
