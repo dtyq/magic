@@ -889,7 +889,7 @@ class MagicChatAISearchV2AppService extends AbstractAppService
         return array_slice($rawHistoryMessages, -10);
     }
 
-    private function getChatModel(string $orgCode, string $modelName = LLMModelEnum::GPT_41->value): ModelInterface
+    private function getChatModel(string $orgCode, string $modelName = LLMModelEnum::DEEPSEEK_V3->value): ModelInterface
     {
         // 通过降级链获取模型名称
         $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $modelName);
