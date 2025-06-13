@@ -241,7 +241,7 @@ class StartNodeParamsConfig extends NodeParamsConfig
         if (! $form || ! $form->getType()->isObject()) {
             return;
         }
-        foreach ($form->getProperties() as $property) {
+        foreach ($form->getProperties() ?? [] as $property) {
             if (in_array($property->getKey(), StartInputTemplate::getChatMessageInputKeys(), true)) {
                 ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.input_key_conflict', ['key' => $property->getKey()]);
             }
