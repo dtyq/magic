@@ -81,7 +81,14 @@ JSON
                 "title": "变量名",
                 "value": {
                     "type": "expression",
-                    "expression_value": [],
+                    "expression_value": [
+                        {
+                            "args": null,
+                            "name": "",
+                            "type": "fields",
+                            "value": "520872893193809920.var1"
+                        }
+                    ],
                     "const_value": []
                 },
                 "required": null,
@@ -104,7 +111,7 @@ JSON
         $this->assertEquals('form', $component->getType()->value);
         $this->assertNotEmpty($component->getId());
         $this->assertInstanceOf(Form::class, $component->getForm());
-        $result = $component->getForm()->getKeyValue(check: true, execExpression: true);
+        $result = $component->getForm()->getKeyValue(check: true, execExpression: false);
         $this->assertEquals(['var1' => null], $result);
     }
 

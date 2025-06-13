@@ -1008,7 +1008,7 @@ PROMPT;
     ): string {
         $orgCode = $authorization->getOrganizationCode();
         $dataIsolation = $this->createDataIsolation($authorization);
-        $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, LLMModelEnum::GPT_41->value);
+        $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, LLMModelEnum::DEEPSEEK_V3->value);
 
         # 开始请求大模型
         $modelGatewayMapper = di(ModelGatewayMapper::class);

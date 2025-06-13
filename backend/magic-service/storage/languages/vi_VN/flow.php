@@ -140,6 +140,7 @@ return [
             'unsupported_unit' => '[:unit] Đơn vị thời gian không được hỗ trợ',
             'content_empty' => 'Tin nhắn không thể trống',
             'unsupported_routine_type' => 'Loại thói quen không được hỗ trợ',
+            'input_key_conflict' => 'Tên trường [:key] xung đột với trường dành riêng của hệ thống, vui lòng sử dụng tên khác',
         ],
         'sub' => [
             'flow_not_found' => 'Không tìm thấy luồng con [:flow_code]',

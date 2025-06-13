@@ -20,6 +20,7 @@ use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\V1\Template\StartI
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\FlowExprEngine\ComponentFactory;
+use Dtyq\FlowExprEngine\Structure\Form\Form;
 use Dtyq\FlowExprEngine\Structure\StructureType;
 
 class StartNodeParamsConfig extends NodeParamsConfig
@@ -114,6 +115,7 @@ class StartNodeParamsConfig extends NodeParamsConfig
                     if ($outputComponent) {
                         $output = new NodeOutput();
                         $output->setForm($outputComponent);
+                        $this->checkChatMessageInputKey($outputComponent->getForm());
                     }
 
                     $systemOutput = $this->getChatMessageOutputTemplate();
@@ -121,6 +123,7 @@ class StartNodeParamsConfig extends NodeParamsConfig
                     // 支持自定义输出
                     $customSystemOutput = new NodeOutput();
                     $customSystemOutput->setForm(ComponentFactory::fastCreate($branch['custom_system_output']['form'] ?? []));
+                    $this->checkChatMessageInputKey($customSystemOutput->getFormComponent()?->getForm());
 
                     break;
                 case TriggerType::Routine:
@@ -222,6 +225,18 @@ class StartNodeParamsConfig extends NodeParamsConfig
         ]);
         $this->node->setInput(null);
         $this->node->setOutput(null);
+    }
+
+    private function checkChatMessageInputKey(?Form $form): void
+    {
+        if (! $form || ! $form->getType()->isObject()) {
+            return;
+        }
+        foreach ($form->getProperties() as $property) {
+            if (in_array($property->getKey(), StartInputTemplate::getChatMessageInputKeys(), true)) {
+                ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.input_key_conflict', ['key' => $property->getKey()]);
+            }
+        }
     }
 
     private function getChatMessageOutputTemplate(): NodeOutput

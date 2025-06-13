@@ -156,6 +156,7 @@ return [
             'content_empty' => '消息 不能为空',
             'interval_valid' => '间隔时间 必须为正整数',
             'unsupported_routine_type' => '不支持的周期类型',
+            'input_key_conflict' => '字段名 [:key] 与系统保留字段冲突，请使用其他名称',
         ],
         'sub' => [
             'flow_not_found' => '子流程 [:flow_code] 未找到',
