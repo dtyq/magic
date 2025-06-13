@@ -1983,12 +1983,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "24ea7d9cc1661af13c375a3178432fa8e3b2bde6"
+                "reference": "85ed0886f0f03606b834f1e5871ab7daca8e0796"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=24ea7d9cc1661af13c375a3178432fa8e3b2bde6",
-                "reference": "24ea7d9cc1661af13c375a3178432fa8e3b2bde6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=85ed0886f0f03606b834f1e5871ab7daca8e0796",
+                "reference": "85ed0886f0f03606b834f1e5871ab7daca8e0796",
                 "shasum": ""
             },
             "require": {
@@ -2063,9 +2063,9 @@
             ],
             "description": "Package description here.",
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/dev"
+                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
             },
-            "time": "2025-06-03T10:06:01+00:00"
+            "time": "2025-06-13T04:02:04+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
