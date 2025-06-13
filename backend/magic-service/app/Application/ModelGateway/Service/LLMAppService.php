@@ -266,7 +266,7 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function imageEdit(ImageEditDTO $imageEditDTO): array
     {
-        $this->validateAccessToken($imageEditDTO);
+        //        $this->validateAccessToken($imageEditDTO);
 
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
