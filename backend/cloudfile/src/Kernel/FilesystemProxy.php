@@ -9,8 +9,11 @@ namespace Dtyq\CloudFile\Kernel;
 
 use Dtyq\CloudFile\Kernel\Driver\ExpandInterface;
 use Dtyq\CloudFile\Kernel\Driver\FileService\FileServiceApi;
+use Dtyq\CloudFile\Kernel\Exceptions\ChunkDownloadException;
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
+use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadConfig;
+use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
@@ -95,6 +98,30 @@ class FilesystemProxy extends Filesystem
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         $this->getSimpleUploadInstance($this->adapterName)->uploadObject($credential, $uploadFile);
         $uploadFile->release();
+    }
+
+    /**
+     * Upload file by chunks using STS credentials.
+     *
+     * @param ChunkUploadFile $chunkUploadFile Chunk upload file object
+     * @param CredentialPolicy $credentialPolicy Credential policy
+     * @param array $options Additional options
+     * @throws CloudFileException
+     */
+    public function uploadByChunks(ChunkUploadFile $chunkUploadFile, CredentialPolicy $credentialPolicy, array $options = []): void
+    {
+        // Force STS mode for chunk upload
+        $credentialPolicy->setSts(true);
+        $credentialPolicy->setContentType($chunkUploadFile->getMimeType());
+
+        // Get STS temporary credentials
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+
+        // Call platform-specific chunk upload implementation
+        $this->getSimpleUploadInstance($this->adapterName)->uploadObjectByChunks($credential, $chunkUploadFile);
+
+        // Release file resources
+        $chunkUploadFile->release();
     }
 
     /**
@@ -224,6 +251,31 @@ class FilesystemProxy extends Filesystem
         return $this->expand->duplicate($source, $destination, $options);
     }
 
+    /**
+     * Download file by chunks.
+     *
+     * @param string $filePath Remote file path
+     * @param string $localPath Local file path to save
+     * @param null|ChunkDownloadConfig $config Download configuration
+     * @param array $options Additional options
+     * @throws ChunkDownloadException
+     */
+    public function downloadByChunks(string $filePath, string $localPath, ?ChunkDownloadConfig $config = null, array $options = []): void
+    {
+        $credentialPolicy = new CredentialPolicy([
+            'sts' => true,
+            'role_session_name' => 'magic',
+            'dir' => '',
+        ]);
+
+        $platform = $this->config['platform'] ?? $this->adapterName;
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $expandConfig = $this->createExpandConfigByCredential($platform, $credential);
+        $config = $config ?? ChunkDownloadConfig::createDefault();
+        $expandObject = $this->createExpand($platform, $expandConfig);
+        $expandObject->downloadByChunks($filePath, $localPath, $config, $options);
+    }
+
     public function setIsPublicRead(bool $isPublicRead): void
     {
         $this->isPublicRead = $isPublicRead;
@@ -280,6 +332,25 @@ class FilesystemProxy extends Filesystem
                 return new Driver\FileService\FileServiceExpand($fileServiceApi);
             case AdapterName::LOCAL:
                 return new Driver\Local\LocalExpand($config);
+            default:
+                throw new CloudFileException("expand not found | [{$adapterName}]");
+        }
+    }
+
+    private function createExpandConfigByCredential(string $adapterName, array $credential): array
+    {
+        switch ($adapterName) {
+            case AdapterName::TOS:
+                $tempCred = $credential['temporary_credential'];
+                $credentials = $tempCred['credentials'];
+                return [
+                    'region' => $tempCred['region'],
+                    'endpoint' => $tempCred['endpoint'],
+                    'ak' => $credentials['AccessKeyId'],
+                    'sk' => $credentials['SecretAccessKey'],
+                    'securityToken' => $credentials['SessionToken'], // STS token for temporary access
+                    'bucket' => $tempCred['bucket'],
+                ];
             default:
                 throw new CloudFileException("expand not found | [{$adapterName}]");
         }
