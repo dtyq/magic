@@ -195,10 +195,13 @@ class FileAppService extends AbstractAppService
             $localCredential = 'local_credential:' . IdGenerator::getUniqueId32();
             $data['temporary_credential']['dir'] = $organizationCode . '/' . $data['temporary_credential']['dir'];
             $data['temporary_credential']['credential'] = $localCredential;
-            $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DCOKER_READ_HOST', 'http://magic-caddy/files');
+            $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DOCKER_READ_HOST', 'http://magic-caddy/files');
             $data['temporary_credential']['host'] = env('FILE_LOCAL_DOCKER_WRITE_HOST', '');
             $this->cache->set($localCredential, ['organization_code' => $organizationCode], (int) ($data['expires'] - time()));
         }
+
+        // magic service 服务地址
+        $data['magic_service_host'] = config('super-magic.sandbox.callback_host', '');
 
         return $data;
     }

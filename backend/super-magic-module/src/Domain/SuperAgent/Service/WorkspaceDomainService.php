@@ -20,10 +20,12 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Exception;
 use RuntimeException;
 
@@ -35,6 +37,7 @@ class WorkspaceDomainService
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected TaskRepositoryInterface $taskRepository,
         protected TaskDomainService $taskDomainService,
+        protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
     ) {
     }
 
@@ -687,6 +690,28 @@ class WorkspaceDomainService
 
         // 使用仓储层查询统计数据
         return $this->topicRepository->getTopicStatusMetrics($conditions);
+    }
+
+    /**
+     * Create a new workspace version record.
+     */
+    public function createWorkspaceVersion(WorkspaceVersionEntity $versionEntity): void
+    {
+        $this->workspaceVersionRepository->create($versionEntity);
+    }
+
+    /**
+     * Get workspace version by commit hash, topic ID and folder.
+     *
+     * @param string $commitHash The commit hash
+     * @param int $topicId The topic ID
+     * @param string $folder The folder path
+     * @return null|WorkspaceVersionEntity The workspace version entity or null if not found
+     */
+    public function getWorkspaceVersionByCommitAndTopic(string $commitHash, int $topicId, string $folder = ''): ?WorkspaceVersionEntity
+    {
+        // Get all versions for the topic
+        return $this->workspaceVersionRepository->findByCommitHashAndTopicId($commitHash, $topicId, $folder);
     }
 
     /**

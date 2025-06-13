@@ -11,21 +11,17 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\RateLimit\Annotation\RateLimit;
 
 #[ApiResponse('low_code')]
 class FileApi extends AbstractApi
 {
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
-        private readonly FileBatchAppService $fileBatchAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
     ) {
@@ -90,6 +86,39 @@ class FileApi extends AbstractApi
         $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
 
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
+    }
+
+    public function workspaceAttachments(RequestContext $requestContext): array
+    {
+        // $topicId = $this->request->input('topic_id', '');
+        // $commitHash = $this->request->input('commit_hash', '');
+        // $sandboxId = $this->request->input('sandbox_id', '');
+        // $folder = $this->request->input('folder', '');
+        // $dir = $this->request->input('dir', '');
+        $requestDTO = new WorkspaceAttachmentsRequestDTO();
+        $requestDTO = $requestDTO->fromRequest($this->request);
+
+        if (empty($requestDTO->getTopicId())) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id_required');
+        }
+
+        if (empty($requestDTO->getCommitHash())) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'commit_hash_required');
+        }
+
+        if (empty($requestDTO->getSandboxId())) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id_required');
+        }
+
+        if (empty($requestDTO->getDir())) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'dir_required');
+        }
+
+        if (empty($requestDTO->getFolder())) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'folder_required');
+        }
+
+        return $this->fileProcessAppService->workspaceAttachments($requestDTO);
     }
 
     /**

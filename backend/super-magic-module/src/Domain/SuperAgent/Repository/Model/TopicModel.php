@@ -50,6 +50,7 @@ class TopicModel extends AbstractModel
         'deleted_at',
         'created_uid',
         'updated_uid',
+        'commit_hash',
     ];
 
     /**

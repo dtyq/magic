@@ -11,6 +11,7 @@ vendor/
 .env
 .DS_Store
 *.cache
+*.lock
 .php-accessor/
 .phpunit*
 .vscode/

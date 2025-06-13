@@ -65,19 +65,29 @@ class TopicDomainService
     }
 
     /**
-     * @return array<TopicEntity>
+     * 通过ChatTopicId获取话题实体.
      */
-    public function getUserRunningTopics(DataIsolation $dataIsolation): array
+    public function getTopicOnlyByChatTopicId(string $chatTopicId): ?TopicEntity
     {
         $conditions = [
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'current_task_status' => TaskStatus::RUNNING,
+            'chat_topic_id' => $chatTopicId,
         ];
+
         $result = $this->topicRepository->getTopicsByConditions($conditions, false);
         if (empty($result['list'])) {
-            return [];
+            return null;
         }
 
-        return $result['list'];
+        return $result['list'][0];
+    }
+
+    public function updateTopic(TopicEntity $topicEntity): bool
+    {
+        return $this->topicRepository->updateTopic($topicEntity);
+    }
+
+    public function updateTopicWhereUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool
+    {
+        return $this->topicRepository->updateTopicWithUpdatedAt($topicEntity, $updatedAt);
     }
 }

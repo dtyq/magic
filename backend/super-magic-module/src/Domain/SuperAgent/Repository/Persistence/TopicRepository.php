@@ -134,6 +134,17 @@ class TopicRepository implements TopicRepositoryInterface
             ->update($entityArray) > 0;
     }
 
+    // 使用updated_at 作为乐观锁
+    public function updateTopicWithUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool
+    {
+        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $entityArray = $topicEntity->toArray();
+        return $this->model::query()
+            ->where('id', $topicEntity->getId())
+            ->where('updated_at', $updatedAt)
+            ->update($entityArray) > 0;
+    }
+
     public function deleteTopic(int $id): bool
     {
         return $this->model::query()

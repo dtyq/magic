@@ -38,7 +38,7 @@ class GetTopicAttachmentsRequestDTO
         // 优先使用传入的 topicId 参数
         $this->topicId = $topicId ?? (string) ($data['topic_id'] ?? '');
         $this->page = (int) ($data['page'] ?? 1);
-        $this->pageSize = (int) ($data['page_size'] ?? 20);
+        $this->pageSize = (int) ($data['page_size'] ?? 200);
         $this->token = (string) ($data['token'] ?? '');
 
         // 处理文件类型，可以接收字符串或数组

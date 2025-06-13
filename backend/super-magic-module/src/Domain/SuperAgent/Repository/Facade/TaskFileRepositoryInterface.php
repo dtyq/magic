@@ -19,7 +19,7 @@ interface TaskFileRepositoryInterface
     /**
      * 根据fileKey获取文件.
      */
-    public function getByFileKey(string $fileKey): ?TaskFileEntity;
+    public function getByFileKey(string $fileKey, int $topicId): ?TaskFileEntity;
 
     /**
      * 根据话题ID获取文件列表.
