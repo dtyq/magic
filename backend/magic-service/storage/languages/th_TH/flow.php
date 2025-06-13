@@ -102,6 +102,7 @@ return [
             'empty_language' => 'ภาษาโค้ดต้องไม่ว่างเปล่า',
             'unsupported_code_language' => '[:language] ภาษาโค้ดไม่รองรับ',
             'execute_failed' => 'การดำเนินการโค้ดล้มเหลว | :error',
+            'execution_error' => 'ข้อผิดพลาดการดำเนินการโค้ด: :error',
         ],
         'http' => [
             'api_request_fail' => 'การร้องขอ API ล้มเหลว | :error',

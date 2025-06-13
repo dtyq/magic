@@ -19,6 +19,7 @@ use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PHPExecutorInterface;
 use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PythonExecutorInterface;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Throwable;
 
 #[FlowNodeDefine(
     type: NodeType::Code->value,
@@ -56,13 +57,17 @@ class CodeNodeRunner extends NodeRunner
         }
         $vertexResult->setInput($inputResult);
 
-        $executeResult = match ($paramsConfig->getLanguage()) {
-            CodeLanguage::PHP => di(PHPExecutorInterface::class)
-                ->execute($executionData->getDataIsolation()->getCurrentOrganizationCode(), $code, $inputResult),
-            CodeLanguage::PYTHON => di(PythonExecutorInterface::class)
-                ->execute($executionData->getDataIsolation()->getCurrentOrganizationCode(), $code, $inputResult),
-            default => ExceptionBuilder::throw(FlowErrorCode::ExecuteValidateFailed, 'flow.node.code.language_not_supported'),
-        };
+        try {
+            $executeResult = match ($paramsConfig->getLanguage()) {
+                CodeLanguage::PHP => di(PHPExecutorInterface::class)
+                    ->execute($executionData->getDataIsolation()->getCurrentOrganizationCode(), $code, $inputResult),
+                CodeLanguage::PYTHON => di(PythonExecutorInterface::class)
+                    ->execute($executionData->getDataIsolation()->getCurrentOrganizationCode(), $code, $inputResult),
+                default => ExceptionBuilder::throw(FlowErrorCode::ExecuteValidateFailed, 'flow.node.code.language_not_supported'),
+            };
+        } catch (Throwable $exception) {
+            ExceptionBuilder::throw(FlowErrorCode::ExecuteValidateFailed, 'flow.node.code.execution_error', ['error' => $exception->getMessage()]);
+        }
 
         if (is_array($executeResult->getResult())) {
             $output?->appendConstValue($executeResult->getResult());

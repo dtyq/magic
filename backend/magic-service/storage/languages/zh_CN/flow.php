@@ -114,6 +114,7 @@ return [
             'empty_language' => '代码语言 不能为空',
             'unsupported_code_language' => '[:language] 不支持的代码语言',
             'execute_failed' => '代码执行失败 | :error',
+            'execution_error' => '代码执行错误：:error',
         ],
         'http' => [
             'api_request_fail' => 'API 请求失败 | :error',

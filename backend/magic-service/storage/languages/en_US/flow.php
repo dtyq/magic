@@ -102,6 +102,7 @@ return [
             'empty_language' => 'Code language cannot be empty',
             'unsupported_code_language' => '[:language] Unsupported code language',
             'execute_failed' => 'Code execution failed | :error',
+            'execution_error' => 'Code execution error: :error',
         ],
         'http' => [
             'api_request_fail' => 'API request failed | :error',
