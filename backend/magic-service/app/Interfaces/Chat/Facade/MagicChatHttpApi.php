@@ -12,7 +12,6 @@ use App\Application\Chat\Service\MagicChatGroupAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Chat\Service\MagicControlMessageAppService;
 use App\Application\Chat\Service\MagicConversationAppService;
-use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\Chat\DTO\ChatCompletionsDTO;
 use App\Domain\Chat\DTO\ConversationListQueryDTO;
 use App\Domain\Chat\DTO\Message\ControlMessage\InstructMessage;
@@ -38,7 +37,6 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Codec\Json;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Odin\Api\Response\TextCompletionResponse;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use Hyperf\Validation\Rule;
 use Throwable;
@@ -52,7 +50,6 @@ class MagicChatHttpApi extends AbstractApi
         private readonly MagicChatMessageAppService $magicChatMessageAppService,
         private readonly MagicConversationAppService $magicConversationAppService,
         private readonly MagicChatGroupAppService $chatGroupAppService,
-        private readonly LLMAppService $llmAppService,
         protected readonly MagicAgentAppService $magicAgentAppService,
         protected readonly MagicControlMessageAppService $magicControlMessageAppService,
     ) {
@@ -425,7 +422,7 @@ class MagicChatHttpApi extends AbstractApi
     }
 
     /**
-     * 会话窗口中的聊天补全.
+     * Chat completion in conversation window.
      */
     public function conversationChatCompletions(string $conversationId, RequestInterface $request): array
     {
@@ -435,7 +432,7 @@ class MagicChatHttpApi extends AbstractApi
             $rules = [
                 'topic_id' => 'string',
                 'message' => 'required|string',
-                'history' => 'array', // 如果不在会话中，支持外部传入历史消息
+                'history' => 'array', // Support external history messages if not in conversation
             ];
             $params = $this->checkParams($params, $rules);
             $chatCompletionsDTO = new ChatCompletionsDTO();
@@ -443,10 +440,8 @@ class MagicChatHttpApi extends AbstractApi
             $chatCompletionsDTO->setMessage($params['message']);
             $chatCompletionsDTO->setHistory($params['history'] ?? []);
             $chatCompletionsDTO->setTopicId($params['topic_id'] ?? '');
-            // 拉取历史消息
-            $conversationId = $chatCompletionsDTO->getConversationId();
+            // Fetch history messages
             $topicId = $chatCompletionsDTO->getTopicId();
-            // 聊天窗口打字时补全用户输入。为了适配群聊，这里的 role 其实是用户的昵称，而不是角色类型。
             $historyMessages = $this->magicChatMessageAppService->getConversationChatCompletionsHistory(
                 $authorization,
                 $conversationId,
@@ -454,22 +449,18 @@ class MagicChatHttpApi extends AbstractApi
                 20,
                 $topicId
             );
-            $sendMsgGPTDTO = $this->magicConversationAppService->conversationChatCompletions($historyMessages, $chatCompletionsDTO, $authorization);
-            $completionResponse = $this->llmAppService->chatCompletion($sendMsgGPTDTO);
-            if (! $completionResponse instanceof TextCompletionResponse) {
-                return ConversationAssembler::getConversationChatCompletions($params, '');
-            }
-            $completionContent = $completionResponse->getFirstChoice()?->getText() ?? '';
-            // 通过 \n 分隔内容，只保留左侧的
+            // Delegate to app layer for LLM call and fallback, get string content directly
+            $completionContent = $this->magicConversationAppService->conversationChatCompletions($historyMessages, $chatCompletionsDTO, $authorization);
+            // Split content by \n and keep only the left part
             $completionContent = explode("\n", $completionContent, 2)[0];
-            // 去掉 emoji
+            // Remove emojis
             $regex = '/[\x{1F300}-\x{1F77F}\x{1F780}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B50}\x{2B55}\x{23E9}-\x{23EF}\x{23F0}\x{23F3}\x{24C2}\x{25AA}\x{25AB}\x{25B6}\x{25C0}\x{25FB}-\x{25FE}\x{00A9}\x{00AE}\x{203C}\x{2049}\x{2122}\x{2139}\x{2194}-\x{2199}\x{21A9}-\x{21AA}\x{231A}-\x{231B}\x{2328}\x{23CF}\x{23F1}-\x{23F2}\x{23F8}-\x{23FA}\x{2934}-\x{2935}\x{2B05}-\x{2B07}\x{2B1B}\x{2B1C}\x{3030}\x{303D}\x{3297}\x{3299}]/u';
-            // 去掉结尾的 \n和空格等特殊字符
+            // Remove trailing \n and special characters like spaces
             $completionContent = rtrim(preg_replace($regex, '', $completionContent));
             return ConversationAssembler::getConversationChatCompletions($params, $completionContent);
         } catch (Throwable $exception) {
             $this->logger->error('conversationChatCompletions:' . $exception->getMessage());
-            // 不报错
+            // Don't throw error
             return ConversationAssembler::getConversationChatCompletions($params, '');
         }
     }
