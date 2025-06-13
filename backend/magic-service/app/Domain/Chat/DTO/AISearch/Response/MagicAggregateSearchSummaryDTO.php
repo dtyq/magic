@@ -15,6 +15,8 @@ class MagicAggregateSearchSummaryDTO extends AbstractEntity
 
     protected array $searchContext = [];
 
+    protected array $formattedSearchContext;
+
     public function __construct(?array $data = [])
     {
         parent::__construct($data);
@@ -30,6 +32,11 @@ class MagicAggregateSearchSummaryDTO extends AbstractEntity
         return $this->searchContext;
     }
 
+    public function getFormattedSearchContext(): array
+    {
+        return $this->formattedSearchContext ?? [];
+    }
+
     public function setLlmResponse(string $llmResponse): static
     {
         $this->llmResponse = $llmResponse;
@@ -39,6 +46,12 @@ class MagicAggregateSearchSummaryDTO extends AbstractEntity
     public function setSearchContext(array $searchContext): static
     {
         $this->searchContext = $searchContext;
+        return $this;
+    }
+
+    public function setFormattedSearchContext(array $formattedSearchContext): static
+    {
+        $this->formattedSearchContext = $formattedSearchContext;
         return $this;
     }
 }
