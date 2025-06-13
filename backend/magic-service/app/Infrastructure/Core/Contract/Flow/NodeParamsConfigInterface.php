@@ -9,6 +9,8 @@ namespace App\Infrastructure\Core\Contract\Flow;
 
 interface NodeParamsConfigInterface
 {
+    public function setValidateScene(string $scene): void;
+
     /**
      * 参数校验.
      */

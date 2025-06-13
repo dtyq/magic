@@ -17,6 +17,7 @@ use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\StartNodeParamsCon
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\TriggerType;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Infrastructure\Core\Dag\VertexResult;
+use App\Infrastructure\Core\Exception\BusinessException;
 use DateTime;
 use HyperfTest\Cases\Application\Flow\ExecuteManager\ExecuteManagerBaseTest;
 
@@ -276,6 +277,174 @@ JSON,
         $this->assertEquals($triggerData->getParams(), $executionData->getNodeContext($node->getNodeId()));
         $this->assertNotEmpty($executionData->getNodeContext($node->getSystemNodeId()));
         $this->assertArrayHasKey('system', $executionData->getNodeContext($node->getCustomSystemNodeId()));
+    }
+
+    public function testParamCallWithSystemParamKey()
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('字段名 [conversation_id] 与系统保留字段冲突，请使用其他名称');
+
+        // 创建一个包含系统保留字段的节点配置，这应该在validate阶段抛出异常
+        $node = Node::generateTemplate(NodeType::Start, json_decode(
+            <<<'JSON'
+{
+    "branches": [
+        {
+            "trigger_type": 4,
+            "next_nodes": [
+                "node_4"
+            ],
+            "config": null,
+            "output": {
+                "form": {
+                    "type": "form",
+                    "version": "1",
+                    "structure": {
+                        "type": "object",
+                        "key": "root",
+                        "sort": 0,
+                        "title": "root节点",
+                        "description": "root节点",
+                        "items": null,
+                        "value": null,
+                        "required": [
+                            "conversation_id"
+                        ],
+                        "properties": {
+                            "conversation_id": {
+                                "type": "string",
+                                "key": "conversation_id",
+                                "sort": 0,
+                                "title": "conversation_id",
+                                "description": "conversation_id",
+                                "items": null,
+                                "value": null,
+                                "required": null,
+                                "properties": null
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
+JSON,
+            true
+        ), 'v1');
+        $node->validate();
+    }
+
+    public function testParamCallWithSystemParamKeyInCustomSystemOutput()
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('字段名 [message_type] 与系统保留字段冲突，请使用其他名称');
+
+        // 测试在custom_system_output中使用系统保留字段
+        $node = Node::generateTemplate(NodeType::Start, json_decode(
+            <<<'JSON'
+{
+    "branches": [
+        {
+            "trigger_type": 4,
+            "next_nodes": [
+                "node_4"
+            ],
+            "config": null,
+            "custom_system_output": {
+                "form": {
+                    "type": "form",
+                    "version": "1",
+                    "structure": {
+                        "type": "object",
+                        "key": "root",
+                        "sort": 0,
+                        "title": "root节点",
+                        "description": "root节点",
+                        "items": null,
+                        "value": null,
+                        "required": [
+                            "message_type"
+                        ],
+                        "properties": {
+                            "message_type": {
+                                "type": "string",
+                                "key": "message_type",
+                                "sort": 0,
+                                "title": "message_type",
+                                "description": "message_type",
+                                "items": null,
+                                "value": null,
+                                "required": null,
+                                "properties": null
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
+JSON,
+            true
+        ), 'v1');
+        $node->validate();
+    }
+
+    public function testParamCallWithErrorJsonSchema()
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('JSON Schema 格式错误：[user_list] Array type must have items');
+
+        // 创建一个包含系统保留字段的节点配置，这应该在validate阶段抛出异常
+        $node = Node::generateTemplate(NodeType::Start, json_decode(
+            <<<'JSON'
+{
+    "branches": [
+        {
+            "trigger_type": 4,
+            "next_nodes": [
+                "node_4"
+            ],
+            "config": null,
+            "output": {
+                "form": {
+                    "type": "form",
+                    "version": "1",
+                    "structure": {
+                        "type": "object",
+                        "key": "root",
+                        "sort": 0,
+                        "title": "root节点",
+                        "description": "root节点",
+                        "items": null,
+                        "value": null,
+                        "required": [
+                            "user_list"
+                        ],
+                        "properties": {
+                            "user_list": {
+                                "type": "array",
+                                "key": "user_list",
+                                "sort": 0,
+                                "title": "user_list",
+                                "description": "user_list",
+                                "items": null,
+                                "value": null,
+                                "required": null,
+                                "properties": null
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
+JSON,
+            true
+        ), 'v1');
+        $node->validate();
     }
 
     public function testRunRoutine()

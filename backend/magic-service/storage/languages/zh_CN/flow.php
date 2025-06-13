@@ -114,6 +114,7 @@ return [
             'empty_language' => '代码语言 不能为空',
             'unsupported_code_language' => '[:language] 不支持的代码语言',
             'execute_failed' => '代码执行失败 | :error',
+            'execution_error' => '代码执行错误：:error',
         ],
         'http' => [
             'api_request_fail' => 'API 请求失败 | :error',
@@ -156,6 +157,8 @@ return [
             'content_empty' => '消息 不能为空',
             'interval_valid' => '间隔时间 必须为正整数',
             'unsupported_routine_type' => '不支持的周期类型',
+            'input_key_conflict' => '字段名 [:key] 与系统保留字段冲突，请使用其他名称',
+            'json_schema_validation_failed' => 'JSON Schema 格式错误：:error',
         ],
         'sub' => [
             'flow_not_found' => '子流程 [:flow_code] 未找到',

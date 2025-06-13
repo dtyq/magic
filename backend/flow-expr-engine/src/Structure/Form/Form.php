@@ -286,11 +286,11 @@ class Form extends Structure
         ];
     }
 
-    public function toJsonSchema(): array
+    public function toJsonSchema(bool $throw = false): array
     {
         $properties = null;
         foreach ($this->getProperties() ?? [] as $key => $property) {
-            $properties[$key] = $property->toJsonSchema();
+            $properties[$key] = $property->toJsonSchema($throw);
         }
         $data = [
             'type' => $this->getType()->value,
@@ -300,7 +300,13 @@ class Form extends Structure
             $data['description'] = $this->getDescription();
         }
         if ($this->getType()->isObject()) {
-            $data['properties'] = $properties;
+            if ($throw && empty($properties)) {
+                throw new FlowExprEngineException("[{$this->getKey()}] Object type must have properties");
+            }
+            // Only set properties if we have them or if we're in throw mode
+            if (! empty($properties)) {
+                $data['properties'] = $properties;
+            }
         }
         if ($this->getType()->isArray()) {
             $items = $this->getItems();
@@ -309,10 +315,16 @@ class Form extends Structure
                 $items = $this->getProperties()[0] ?? null;
             }
             // 如果 items 有值，但是是空的对象，那么尝试从 properties 中获取
-            if ($items->getType()->isObject() && empty($items->getProperties())) {
+            if ($items && $items->getType()->isObject() && empty($items->getProperties())) {
                 $items = $this->getProperties()[0] ?? null;
             }
-            $data['items'] = $items?->toJsonSchema();
+            if ($throw && ! $items) {
+                throw new FlowExprEngineException("[{$this->getKey()}] Array type must have items");
+            }
+            // Only set items if we have them or if we're in throw mode
+            if ($items) {
+                $data['items'] = $items->toJsonSchema($throw);
+            }
         }
 
         return $data;

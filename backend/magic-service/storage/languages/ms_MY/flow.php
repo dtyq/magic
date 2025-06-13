@@ -102,6 +102,7 @@ return [
             'empty_language' => 'Bahasa kod tidak boleh kosong',
             'unsupported_code_language' => '[:language] Bahasa kod tidak disokong',
             'execute_failed' => 'Pelaksanaan kod gagal | :error',
+            'execution_error' => 'Ralat pelaksanaan kod: :error',
         ],
         'http' => [
             'api_request_fail' => 'Permintaan API gagal | :error',
@@ -140,6 +141,8 @@ return [
             'unsupported_unit' => '[:unit] Unit masa tidak disokong',
             'content_empty' => 'Mesej tidak boleh kosong',
             'unsupported_routine_type' => 'Jenis rutin tidak disokong',
+            'input_key_conflict' => 'Nama medan [:key] bercanggah dengan medan terpelihara sistem, sila gunakan nama lain',
+            'json_schema_validation_failed' => 'Ralat format JSON Schema: :error',
         ],
         'sub' => [
             'flow_not_found' => 'SubFlow [:flow_code] tidak dijumpai',

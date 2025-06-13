@@ -102,6 +102,7 @@ return [
             'empty_language' => 'ภาษาโค้ดต้องไม่ว่างเปล่า',
             'unsupported_code_language' => '[:language] ภาษาโค้ดไม่รองรับ',
             'execute_failed' => 'การดำเนินการโค้ดล้มเหลว | :error',
+            'execution_error' => 'ข้อผิดพลาดการดำเนินการโค้ด: :error',
         ],
         'http' => [
             'api_request_fail' => 'การร้องขอ API ล้มเหลว | :error',
@@ -140,6 +141,8 @@ return [
             'unsupported_unit' => '[:unit] หน่วยเวลาไม่รองรับ',
             'content_empty' => 'ข้อความต้องไม่ว่างเปล่า',
             'unsupported_routine_type' => 'ประเภทรูทีนไม่รองรับ',
+            'input_key_conflict' => 'ชื่อฟิลด์ [:key] ขัดแย้งกับฟิลด์สงวนของระบบ โปรดใช้ชื่ออื่น',
+            'json_schema_validation_failed' => 'ข้อผิดพลาดรูปแบบ JSON Schema: :error',
         ],
         'sub' => [
             'flow_not_found' => 'ไม่พบซับโฟลว์ [:flow_code]',

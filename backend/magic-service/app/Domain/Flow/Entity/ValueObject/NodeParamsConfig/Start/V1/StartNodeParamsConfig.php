@@ -20,7 +20,9 @@ use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\V1\Template\StartI
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\FlowExprEngine\ComponentFactory;
+use Dtyq\FlowExprEngine\Structure\Form\Form;
 use Dtyq\FlowExprEngine\Structure\StructureType;
+use Throwable;
 
 class StartNodeParamsConfig extends NodeParamsConfig
 {
@@ -122,6 +124,12 @@ class StartNodeParamsConfig extends NodeParamsConfig
                     $customSystemOutput = new NodeOutput();
                     $customSystemOutput->setForm(ComponentFactory::fastCreate($branch['custom_system_output']['form'] ?? []));
 
+                    if ($this->isPublishValidate()) {
+                        $this->checkChatMessageInputKey($outputComponent?->getForm());
+                        $this->checkChatMessageInputKey($customSystemOutput?->getFormComponent()?->getForm());
+                        $this->checkInputJsonScheme($outputComponent?->getForm());
+                    }
+
                     break;
                 case TriggerType::Routine:
                     $routineType = RoutineType::tryFrom($config['type'] ?? '');
@@ -222,6 +230,33 @@ class StartNodeParamsConfig extends NodeParamsConfig
         ]);
         $this->node->setInput(null);
         $this->node->setOutput(null);
+    }
+
+    private function checkChatMessageInputKey(?Form $form): void
+    {
+        if (! $form || ! $form->getType()->isObject()) {
+            return;
+        }
+        foreach ($form->getProperties() ?? [] as $property) {
+            if (in_array($property->getKey(), StartInputTemplate::getChatMessageInputKeys(), true)) {
+                ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.input_key_conflict', ['key' => $property->getKey()]);
+            }
+        }
+    }
+
+    private function checkInputJsonScheme(?Form $form): void
+    {
+        if (! $form) {
+            return;
+        }
+        if (empty($form->getProperties()) || empty($form->getItems())) {
+            return;
+        }
+        try {
+            $form->toJsonSchema(true);
+        } catch (Throwable $e) {
+            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.json_schema_validation_failed', ['error' => $e->getMessage()]);
+        }
     }
 
     private function getChatMessageOutputTemplate(): NodeOutput
