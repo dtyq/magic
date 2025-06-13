@@ -102,6 +102,7 @@ return [
             'empty_language' => 'Ngôn ngữ mã không thể trống',
             'unsupported_code_language' => '[:language] Ngôn ngữ mã không được hỗ trợ',
             'execute_failed' => 'Thực thi mã không thành công | :error',
+            'execution_error' => 'Lỗi thực thi mã: :error',
         ],
         'http' => [
             'api_request_fail' => 'Yêu cầu API không thành công | :error',
