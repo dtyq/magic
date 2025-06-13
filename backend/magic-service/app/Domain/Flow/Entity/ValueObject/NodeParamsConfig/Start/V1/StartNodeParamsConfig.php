@@ -127,11 +127,7 @@ class StartNodeParamsConfig extends NodeParamsConfig
                     if ($this->isPublishValidate()) {
                         $this->checkChatMessageInputKey($outputComponent?->getForm());
                         $this->checkChatMessageInputKey($customSystemOutput?->getFormComponent()?->getForm());
-                        try {
-                            $outputComponent?->getForm()->toJsonSchema(true);
-                        } catch (Throwable $e) {
-                            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.json_schema_validation_failed', ['error' => $e->getMessage()]);
-                        }
+                        $this->checkInputJsonScheme($outputComponent?->getForm());
                     }
 
                     break;
@@ -245,6 +241,21 @@ class StartNodeParamsConfig extends NodeParamsConfig
             if (in_array($property->getKey(), StartInputTemplate::getChatMessageInputKeys(), true)) {
                 ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.input_key_conflict', ['key' => $property->getKey()]);
             }
+        }
+    }
+
+    private function checkInputJsonScheme(?Form $form): void
+    {
+        if (! $form) {
+            return;
+        }
+        if (empty($form->getProperties()) || empty($form->getItems())) {
+            return;
+        }
+        try {
+            $form->toJsonSchema(true);
+        } catch (Throwable $e) {
+            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.json_schema_validation_failed', ['error' => $e->getMessage()]);
         }
     }
 
