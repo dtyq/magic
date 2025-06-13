@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.5",
+            "version": "3.344.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "70ffa372fb7813f904063ddbf25be2fc540230d0"
+                "reference": "eb0bc621472592545539329499961a15a3f9f6dc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/70ffa372fb7813f904063ddbf25be2fc540230d0",
-                "reference": "70ffa372fb7813f904063ddbf25be2fc540230d0",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/eb0bc621472592545539329499961a15a3f9f6dc",
+                "reference": "eb0bc621472592545539329499961a15a3f9f6dc",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.5"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.6"
             },
-            "time": "2025-06-11T18:06:01+00:00"
+            "time": "2025-06-12T18:03:59+00:00"
         },
         {
             "name": "brick/math",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.13",
+            "version": "1.0.14",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "a6949803b7c129408978ac585aa35dccd3179696"
+                "reference": "1f249bb3d4eeec786f7d243484a91a5882e65783"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=a6949803b7c129408978ac585aa35dccd3179696",
-                "reference": "a6949803b7c129408978ac585aa35dccd3179696",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=1f249bb3d4eeec786f7d243484a91a5882e65783",
+                "reference": "1f249bb3d4eeec786f7d243484a91a5882e65783",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.13"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.14"
             },
-            "time": "2025-06-11T15:37:00+00:00"
+            "time": "2025-06-11T18:35:43+08:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2121,16 +2121,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.5",
+            "version": "v0.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "ebc2cb865049a601e75692d43b3b6187cc9968a4"
+                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/ebc2cb865049a601e75692d43b3b6187cc9968a4",
-                "reference": "ebc2cb865049a601e75692d43b3b6187cc9968a4",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/af27204417e4a1f07fde21098d490b17f78f56f3",
+                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3",
                 "shasum": ""
             },
             "require": {
@@ -2183,22 +2183,22 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.5"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.6"
             },
-            "time": "2025-04-14T11:17:56+00:00"
+            "time": "2025-06-13T07:50:05+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.37",
+            "version": "0.0.38",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "dd0c351474ad34f0f1409ff426f2d15fa6ca06b8"
+                "reference": "f70bc5495e8b5f2072a5991a38af3b0cc3f3b642"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=dd0c351474ad34f0f1409ff426f2d15fa6ca06b8",
-                "reference": "dd0c351474ad34f0f1409ff426f2d15fa6ca06b8",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f70bc5495e8b5f2072a5991a38af3b0cc3f3b642",
+                "reference": "f70bc5495e8b5f2072a5991a38af3b0cc3f3b642",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.37"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.38"
             },
-            "time": "2025-06-12T03:12:44+00:00"
+            "time": "2025-06-13T16:55:18+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -8069,21 +8069,22 @@
         },
         {
             "name": "kk-erp-service/service-sdk",
-            "version": "3.0.2",
+            "version": "3.0.3",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:erp-service/service-sdk.git",
-                "reference": "abf56ba479557cf63ba79af0ef0c47ecbfe0662a"
+                "reference": "cf1369b0e9651f1461fc739b4b082b085d3f12c9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/erp-service%2Fservice-sdk/repository/archive.zip?sha=abf56ba479557cf63ba79af0ef0c47ecbfe0662a",
-                "reference": "abf56ba479557cf63ba79af0ef0c47ecbfe0662a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/erp-service%2Fservice-sdk/repository/archive.zip?sha=cf1369b0e9651f1461fc739b4b082b085d3f12c9",
+                "reference": "cf1369b0e9651f1461fc739b4b082b085d3f12c9",
                 "shasum": ""
             },
             "require": {
                 "ext-json": "*",
                 "hyperf/cache": "^3.0",
+                "hyperf/config": "^3.0",
                 "hyperf/constants": "^3.0",
                 "hyperf/di": "^3.0",
                 "hyperf/framework": "^3.0",
@@ -8116,10 +8117,10 @@
             ],
             "description": "service sdk",
             "support": {
-                "source": "https://git.kkgroup.cn/erp-service/service-sdk/-/tree/3.0.2",
+                "source": "https://git.kkgroup.cn/erp-service/service-sdk/-/tree/3.0.3",
                 "issues": "https://git.kkgroup.cn/erp-service/service-sdk/-/issues"
             },
-            "time": "2024-11-15T03:09:23+00:00"
+            "time": "2025-06-13T16:54:10+08:00"
         },
         {
             "name": "kkguan-service/keewood-service-open-sdk",
@@ -11806,16 +11807,16 @@
         },
         {
             "name": "spomky-labs/pki-framework",
-            "version": "1.2.3",
+            "version": "1.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Spomky-Labs/pki-framework.git",
-                "reference": "5ff1dcc21e961b60149a80e77f744fc047800b31"
+                "reference": "eced5b5ce70518b983ff2be486e902bbd15135ae"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Spomky-Labs/pki-framework/zipball/5ff1dcc21e961b60149a80e77f744fc047800b31",
-                "reference": "5ff1dcc21e961b60149a80e77f744fc047800b31",
+                "url": "https://api.github.com/repos/Spomky-Labs/pki-framework/zipball/eced5b5ce70518b983ff2be486e902bbd15135ae",
+                "reference": "eced5b5ce70518b983ff2be486e902bbd15135ae",
                 "shasum": ""
             },
             "require": {
@@ -11899,7 +11900,7 @@
             ],
             "support": {
                 "issues": "https://github.com/Spomky-Labs/pki-framework/issues",
-                "source": "https://github.com/Spomky-Labs/pki-framework/tree/1.2.3"
+                "source": "https://github.com/Spomky-Labs/pki-framework/tree/1.3.0"
             },
             "funding": [
                 {
@@ -11911,7 +11912,7 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2025-04-25T15:57:13+00:00"
+            "time": "2025-06-13T08:35:04+00:00"
         },
         {
             "name": "stripe/stripe-php",
