@@ -208,7 +208,7 @@ abstract class AbstractStartNodeRunner extends NodeRunner
                 $content = $messageContent->getTextContent();
             }
             $content = trim($content);
-            if ($content === '' && ! empty($messageContent->toArray())) {
+            if ($content === '' && ! empty($messageContent->toArray()) && $executionData->getTriggerType() === TriggerType::ChatMessage) {
                 $content = json_encode($messageContent->toArray(), JSON_UNESCAPED_UNICODE);
                 simple_logger('StartNodeRunner')->warning('UndefinedMessageTypeToText', $messageEntity->toArray());
             }
@@ -250,7 +250,7 @@ abstract class AbstractStartNodeRunner extends NodeRunner
     private function appendInstructions(ExecutionData $executionData, MagicMessageEntity $messageEntity): void
     {
         $magicFlowEntity = $executionData->getMagicFlowEntity();
-        if (! $magicFlowEntity->getType()->isMain()) {
+        if (! $magicFlowEntity || ! $magicFlowEntity->getType()->isMain()) {
             return;
         }
         $instructions = $this->getInstructions($messageEntity);

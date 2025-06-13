@@ -200,6 +200,10 @@ class MagicFlowEntity extends AbstractEntity
         $this->nodes = $magicFlow->getNodes();
         $this->globalVariable = $magicFlow->getGlobalVariable();
 
+        foreach ($this->nodes as $node) {
+            $node->getNodeParamsConfig()->setValidateScene('publish');
+        }
+
         $this->modifier = $publisher;
         $this->updatedAt = new DateTime('now');
 

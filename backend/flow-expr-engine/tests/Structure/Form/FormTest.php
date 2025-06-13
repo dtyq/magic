@@ -9,7 +9,9 @@ namespace Dtyq\FlowExprEngine\Test\Structure\Form;
 
 use Dtyq\FlowExprEngine\Builder\FormBuilder;
 use Dtyq\FlowExprEngine\ComponentFactory;
+use Dtyq\FlowExprEngine\Exception\FlowExprEngineException;
 use Dtyq\FlowExprEngine\Structure\Form\Form;
+use Dtyq\FlowExprEngine\Structure\Form\FormType;
 use Dtyq\FlowExprEngine\Test\BaseTestCase;
 
 /**
@@ -52,6 +54,335 @@ class FormTest extends BaseTestCase
         $this->assertIsArray($form2->toJsonSchema());
     }
 
+    public function testToJsonSchemaWithThrowFalse()
+    {
+        $builder = new FormBuilder();
+
+        // Test object with empty properties - should not include properties field
+        $emptyObjectForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "object",
+    "key": "root",
+    "sort": 0,
+    "title": "Empty Object",
+    "description": "An object with no properties",
+    "required": [],
+    "value": null,
+    "items": null,
+    "properties": {}
+}
+JSON,
+            true
+        ));
+
+        $schema = $emptyObjectForm->toJsonSchema(false);
+        $this->assertEquals('object', $schema['type']);
+        $this->assertEquals([], $schema['required']);
+        $this->assertEquals('An object with no properties', $schema['description']);
+        // Should not have properties field when empty and throw=false
+        $this->assertArrayNotHasKey('properties', $schema);
+
+        // Test array with no items - should not include items field
+        $emptyArrayForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "array",
+    "key": "root",
+    "sort": 0,
+    "title": "Empty Array",
+    "description": "An array with no items",
+    "required": null,
+    "value": null,
+    "items": null,
+    "properties": null
+}
+JSON,
+            true
+        ));
+
+        $schema = $emptyArrayForm->toJsonSchema(false);
+        $this->assertEquals('array', $schema['type']);
+        $this->assertEquals([], $schema['required']);
+        $this->assertEquals('An array with no items', $schema['description']);
+        // Should not have items field when empty and throw=false
+        $this->assertArrayNotHasKey('items', $schema);
+    }
+
+    public function testToJsonSchemaWithThrowTrue()
+    {
+        $builder = new FormBuilder();
+
+        // Test object with empty properties - should throw exception
+        $emptyObjectForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "object",
+    "key": "root",
+    "sort": 0,
+    "title": "Empty Object",
+    "description": "An object with no properties",
+    "required": [],
+    "value": null,
+    "items": null,
+    "properties": {}
+}
+JSON,
+            true
+        ));
+
+        $this->expectException(FlowExprEngineException::class);
+        $this->expectExceptionMessage('[root] Object type must have properties');
+        $emptyObjectForm->toJsonSchema(true);
+    }
+
+    public function testToJsonSchemaArrayWithThrowTrue()
+    {
+        $builder = new FormBuilder();
+
+        // Test array with no items - should throw exception
+        $emptyArrayForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "array",
+    "key": "root",
+    "sort": 0,
+    "title": "Empty Array",
+    "description": "An array with no items",
+    "required": null,
+    "value": null,
+    "items": null,
+    "properties": null
+}
+JSON,
+            true
+        ));
+
+        $this->expectException(FlowExprEngineException::class);
+        $this->expectExceptionMessage('[root] Array type must have items');
+        $emptyArrayForm->toJsonSchema(true);
+    }
+
+    public function testToJsonSchemaRecursiveThrowParameter()
+    {
+        $builder = new FormBuilder();
+
+        // Test that throw parameter is passed down recursively
+        $nestedForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "object",
+    "key": "root",
+    "sort": 0,
+    "title": "Parent Object",
+    "description": "Parent with nested empty object",
+    "required": ["child"],
+    "value": null,
+    "items": null,
+    "properties": {
+        "child": {
+            "type": "object",
+            "key": "child",
+            "sort": 0,
+            "title": "Child Object",
+            "description": "Child with no properties",
+            "required": [],
+            "value": null,
+            "items": null,
+            "properties": {}
+        }
+    }
+}
+JSON,
+            true
+        ));
+
+        // Should work with throw=false (skip empty nested object)
+        $schema = $nestedForm->toJsonSchema(false);
+        $this->assertEquals('object', $schema['type']);
+        $this->assertArrayHasKey('properties', $schema);
+        $this->assertArrayHasKey('child', $schema['properties']);
+        // Child should not have properties field when empty
+        $this->assertArrayNotHasKey('properties', $schema['properties']['child']);
+
+        // Should throw exception with throw=true (nested empty object)
+        $this->expectException(FlowExprEngineException::class);
+        $this->expectExceptionMessage('[child] Object type must have properties');
+        $nestedForm->toJsonSchema(true);
+    }
+
+    public function testToJsonSchemaWithValidStructure()
+    {
+        $builder = new FormBuilder();
+
+        // Test valid structure works with both throw=false and throw=true
+        $validForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "object",
+    "key": "root",
+    "sort": 0,
+    "title": "Valid Object",
+    "description": "Object with valid properties",
+    "required": ["name", "items"],
+    "value": null,
+    "items": null,
+    "properties": {
+        "name": {
+            "type": "string",
+            "key": "name",
+            "sort": 0,
+            "title": "Name",
+            "description": "Person name",
+            "required": null,
+            "value": null,
+            "items": null,
+            "properties": null
+        },
+        "items": {
+            "type": "array",
+            "key": "items",
+            "sort": 1,
+            "title": "Items",
+            "description": "List of items",
+            "required": null,
+            "value": null,
+            "items": {
+                "type": "string",
+                "key": "item",
+                "sort": 0,
+                "title": "Item",
+                "description": "Single item",
+                "required": null,
+                "value": null,
+                "items": null,
+                "properties": null
+            },
+            "properties": null
+        }
+    }
+}
+JSON,
+            true
+        ));
+
+        // Test with throw=false
+        $schemaFalse = $validForm->toJsonSchema(false);
+        $this->assertEquals('object', $schemaFalse['type']);
+        $this->assertEquals(['name', 'items'], $schemaFalse['required']);
+        $this->assertArrayHasKey('properties', $schemaFalse);
+        $this->assertArrayHasKey('name', $schemaFalse['properties']);
+        $this->assertArrayHasKey('items', $schemaFalse['properties']);
+        $this->assertEquals('array', $schemaFalse['properties']['items']['type']);
+        $this->assertArrayHasKey('items', $schemaFalse['properties']['items']);
+        $this->assertEquals('string', $schemaFalse['properties']['items']['items']['type']);
+
+        // Test with throw=true (should work the same)
+        $schemaTrue = $validForm->toJsonSchema(true);
+        $this->assertEquals($schemaFalse, $schemaTrue);
+    }
+
+    public function testToJsonSchemaArrayWithEmptyObjectItems()
+    {
+        $builder = new FormBuilder();
+
+        // Test array with items that have empty object properties
+        $arrayForm = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "array",
+    "key": "root",
+    "sort": 0,
+    "title": "Array with Empty Object Items",
+    "description": "Array containing objects with no properties",
+    "required": null,
+    "value": null,
+    "items": {
+        "type": "object",
+        "key": "item",
+        "sort": 0,
+        "title": "Item",
+        "description": "Empty object item",
+        "required": [],
+        "value": null,
+        "items": null,
+        "properties": {}
+    },
+    "properties": null
+}
+JSON,
+            true
+        ));
+
+        // Should work with throw=false - FormBuilder will skip empty object items
+        $schema = $arrayForm->toJsonSchema(false);
+        $this->assertEquals('array', $schema['type']);
+        // Since FormBuilder doesn't create items for empty objects, items field should not exist
+        $this->assertArrayNotHasKey('items', $schema);
+
+        // Should throw exception with throw=true because there are no items at all
+        $this->expectException(FlowExprEngineException::class);
+        $this->expectExceptionMessage('[root] Array type must have items');
+        $arrayForm->toJsonSchema(true);
+
+        // Note: We don't test the valid items case here since this method will stop after the exception
+    }
+
+    public function testToJsonSchemaArrayWithValidItems()
+    {
+        $builder = new FormBuilder();
+
+        // Test with a properly structured array that has items with properties
+        $arrayWithValidItems = $builder->build(json_decode(
+            <<<'JSON'
+{
+    "type": "array",
+    "key": "root",
+    "sort": 0,
+    "title": "Array with Valid Object Items",
+    "description": "Array containing objects with properties",
+    "required": null,
+    "value": null,
+    "items": {
+        "type": "object",
+        "key": "item",
+        "sort": 0,
+        "title": "Item",
+        "description": "Object item with properties",
+        "required": ["name"],
+        "value": null,
+        "items": null,
+        "properties": {
+            "name": {
+                "type": "string",
+                "key": "name",
+                "sort": 0,
+                "title": "Name",
+                "description": "Item name",
+                "required": null,
+                "value": null,
+                "items": null,
+                "properties": null
+            }
+        }
+    },
+    "properties": null
+}
+JSON,
+            true
+        ));
+
+        // This should work with both throw modes
+        $validSchema = $arrayWithValidItems->toJsonSchema(false);
+        $this->assertEquals('array', $validSchema['type']);
+        $this->assertArrayHasKey('items', $validSchema);
+        $this->assertEquals('object', $validSchema['items']['type']);
+        $this->assertArrayHasKey('properties', $validSchema['items']);
+
+        $validSchemaThrow = $arrayWithValidItems->toJsonSchema(true);
+        $this->assertEquals($validSchema, $validSchemaThrow);
+    }
+
     public function testGetAllFieldsExpressionItem()
     {
         $builder = new FormBuilder();
@@ -87,7 +418,14 @@ class FormTest extends BaseTestCase
             "title": "变量名",
             "value": {
                 "type": "expression",
-                "expression_value": [],
+                "expression_value": [
+                    {
+                        "args": null,
+                        "name": "",
+                        "type": "fields",
+                        "value": "520872893193809920.var1"
+                    }
+                ],
                 "const_value": []
             },
             "required": null,
@@ -104,7 +442,7 @@ JSON,
             true
         ));
         $this->assertInstanceOf(Form::class, $form);
-        $result = $form->getKeyValue(check: true, execExpression: true);
+        $result = $form->getKeyValue(check: true, execExpression: false);
         $this->assertEquals(['var1' => null], $result);
     }
 
@@ -1169,7 +1507,6 @@ JSON
                 ],
             ],
         ]);
-        var_dump($form->getKeyValue());
         $this->assertTrue(true);
     }
 
@@ -1314,6 +1651,43 @@ JSON,
         $form->isMatch($input, true);
         $form->appendConstValue($input);
         $this->assertEquals($input, $form->getKeyValue());
+    }
+
+    public function testToJsonSchemaArrayItemsValidationWithThrow()
+    {
+        // Create a form manually to test the throw behavior when items exist but are empty
+        $form = new Form(
+            FormType::Array,
+            'root',
+            0,
+            'Test Array',
+            'Array for testing'
+        );
+
+        // Manually set an empty object as items
+        $emptyObjectItems = new Form(
+            FormType::Object,
+            'item',
+            0,
+            'Empty Item',
+            'Empty object item'
+        );
+        // Set empty properties explicitly
+        $emptyObjectItems->setProperties([]);
+
+        $form->setItems($emptyObjectItems);
+
+        // Should work with throw=false (skip empty items)
+        $schema = $form->toJsonSchema(false);
+        $this->assertEquals('array', $schema['type']);
+        // Should not have items field since the object is empty
+        $this->assertArrayNotHasKey('items', $schema);
+
+        // Should throw exception with throw=true about missing items
+        // (because the empty object gets filtered out, making the array appear to have no items)
+        $this->expectException(FlowExprEngineException::class);
+        $this->expectExceptionMessage('[root] Array type must have items');
+        $form->toJsonSchema(true);
     }
 
     private function getFormJsonArray(): array

@@ -102,6 +102,7 @@ return [
             'empty_language' => 'Code language cannot be empty',
             'unsupported_code_language' => '[:language] Unsupported code language',
             'execute_failed' => 'Code execution failed | :error',
+            'execution_error' => 'Code execution error: :error',
         ],
         'http' => [
             'api_request_fail' => 'API request failed | :error',
@@ -140,6 +141,8 @@ return [
             'unsupported_unit' => '[:unit] Unsupported time unit',
             'content_empty' => 'Message cannot be empty',
             'unsupported_routine_type' => 'Unsupported routine type',
+            'input_key_conflict' => 'Field name [:key] conflicts with system reserved field, please use a different name',
+            'json_schema_validation_failed' => 'JSON Schema format error: :error',
         ],
         'sub' => [
             'flow_not_found' => 'SubFlow [:flow_code] not found',
