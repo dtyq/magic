@@ -7,8 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelAdmin\Command;
 
-use App\Application\ModelAdmin\Service\ServiceProviderAppService;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
+use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderModelsRepository;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Psr\Container\ContainerInterface;
@@ -26,15 +25,12 @@ class DeleteModelCommand extends HyperfCommand
      */
     protected $container;
 
-    /**
-     * @var ServiceProviderAppService
-     */
-    protected $serviceProviderDomainService;
+    protected ServiceProviderModelsRepository $serviceProviderModelsRepository;
 
     public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
-        $this->serviceProviderDomainService = $container->get(ServiceProviderDomainService::class);
+        $this->serviceProviderModelsRepository = $container->get(ServiceProviderModelsRepository::class);
 
         parent::__construct('model:delete');
     }
@@ -42,10 +38,10 @@ class DeleteModelCommand extends HyperfCommand
     public function configure()
     {
         parent::configure();
-        $this->setDescription('删除服务提供商模型');
+        $this->setDescription('Delete service provider model');
 
-        $this->addOption('model-id', null, InputOption::VALUE_REQUIRED, '模型ID');
-        $this->addOption('organization-code', null, InputOption::VALUE_REQUIRED, '组织编码');
+        $this->addOption('model-id', null, InputOption::VALUE_REQUIRED, 'Model ID');
+        $this->addOption('organization-code', null, InputOption::VALUE_REQUIRED, 'Organization code');
     }
 
     public function handle()
@@ -54,21 +50,23 @@ class DeleteModelCommand extends HyperfCommand
         $organizationCode = $this->input->getOption('organization-code');
 
         if (empty($modelId)) {
-            $this->output->error('模型ID不能为空');
+            $this->output->error('Model ID cannot be empty');
             return 1;
         }
 
         if (empty($organizationCode)) {
-            $this->output->error('组织编码不能为空');
+            $this->output->error('Organization code cannot be empty');
             return 1;
         }
 
         try {
-            $this->serviceProviderDomainService->deleteModel($modelId, $organizationCode);
-            $this->output->success(sprintf('成功删除模型 [%s]', $modelId));
+            $this->serviceProviderModelsRepository->deleteByModelIdAndOrganizationCode($modelId, $organizationCode);
+            $this->serviceProviderModelsRepository->deleteByModelParentId([$modelId]);
+
+            $this->output->success(sprintf('Successfully deleted model [%s]', $modelId));
             return 0;
         } catch (Throwable $e) {
-            $this->output->error(sprintf('删除模型失败: %s', $e->getMessage()));
+            $this->output->error(sprintf('Failed to delete model: %s', $e->getMessage()));
             return 1;
         }
     }

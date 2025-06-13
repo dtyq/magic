@@ -412,6 +412,11 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $this->serviceProviderModelsModel::query()->whereIn('model_parent_id', $modelParentIds)->where('is_office', true)->delete();
     }
 
+    public function deleteByModelParentId(array $modelParentIds): void
+    {
+        $this->serviceProviderModelsModel::query()->whereIn('model_parent_id', $modelParentIds)->delete();
+    }
+
     public function updateOfficeModel(int $id, array $entityArray): void
     {
         $this->removeOfficeImmutableFields($entityArray);
@@ -523,6 +528,65 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $query = $this->serviceProviderModelsModel::query()->where('service_provider_config_id', $serviceProviderConfigId);
         $result = Db::select($query->toSql(), $query->getBindings());
         return ServiceProviderModelsEntityFactory::toEntities($result);
+    }
+
+    /**
+     * find active models by config ids, model version and status.
+     * @param array $configIds provider config ids
+     * @param string $modelVersion model version
+     * @return ServiceProviderModelsEntity[] found active models
+     */
+    public function getActiveModelsByConfigIdsAndModelVersion(array $configIds, string $modelVersion): array
+    {
+        if (empty($configIds) || empty($modelVersion)) {
+            return [];
+        }
+
+        $query = $this->serviceProviderModelsModel::query()
+            ->whereIn('service_provider_config_id', $configIds)
+            ->where('model_version', $modelVersion)
+            ->where('status', Status::ACTIVE->value)
+            ->orderBy('created_at', 'desc'); // order by created at desc
+
+        return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getActiveModelsByConfigIds(array $configIds): array
+    {
+        if (empty($configIds)) {
+            return [];
+        }
+
+        $query = $this->serviceProviderModelsModel::query()
+            ->whereIn('service_provider_config_id', $configIds)
+            ->where('status', Status::ACTIVE->value)
+            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
+
+        return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * 根据服务商配置IDs、modelId和激活状态查找对应的模型.
+     * @param array $configIds 服务商配置ID数组
+     * @param string $modelVersion 模型ID
+     * @return ServiceProviderModelsEntity[] 找到的激活模型数组
+     */
+    public function getActiveModelsByConfigIdsAndModelId(array $configIds, string $modelVersion): array
+    {
+        if (empty($configIds) || empty($modelVersion)) {
+            return [];
+        }
+
+        $query = $this->serviceProviderModelsModel::query()
+            ->whereIn('service_provider_config_id', $configIds)
+            ->where('model_version', $modelVersion)
+            ->where('status', Status::ACTIVE->value)
+            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
+
+        return $this->executeQueryAndToEntities($query);
     }
 
     /**

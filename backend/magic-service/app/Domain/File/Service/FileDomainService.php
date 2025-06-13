@@ -39,9 +39,9 @@ readonly class FileDomainService
         return $this->cloudFileRepository->getLinks($organizationCode, [$filePath], $bucketType, $downloadNames)[$filePath] ?? null;
     }
 
-    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
+    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
-        $this->cloudFileRepository->uploadByCredential($organizationCode, $uploadFile, $storage, $autoDir);
+        $this->cloudFileRepository->uploadByCredential($organizationCode, $uploadFile, $storage, $autoDir, $contentType);
     }
 
     public function upload(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private): void
@@ -49,9 +49,9 @@ readonly class FileDomainService
         $this->cloudFileRepository->upload($organizationCode, $uploadFile, $storage);
     }
 
-    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private): array
+    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, ?string $contentType = null): array
     {
-        return $this->cloudFileRepository->getSimpleUploadTemporaryCredential($organizationCode, $storage);
+        return $this->cloudFileRepository->getSimpleUploadTemporaryCredential($organizationCode, $storage, contentType: $contentType);
     }
 
     /**

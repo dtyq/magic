@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\Util\Context\CoContext;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 use Exception;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Di\Annotation\Inject;
@@ -54,6 +55,47 @@ class VolcengineModel implements ImageGenerate
     }
 
     public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+
+        // 从原生结果中提取图片URL
+        $imageUrls = [];
+        foreach ($rawResults as $index => $result) {
+            $data = $result['data'];
+            if (! empty($data['binary_data_base64'])) {
+                $imageUrls[$index] = $data['binary_data_base64'][0];
+            } elseif (! empty($data['image_urls'])) {
+                $imageUrls[$index] = $data['image_urls'][0];
+            }
+        }
+
+        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageInternal($imageGenerateRequest);
+    }
+
+    public function setAK(string $ak)
+    {
+        $this->api->setAk($ak);
+    }
+
+    public function setSK(string $sk)
+    {
+        $this->api->setSk($sk);
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        // TODO: Implement setApiKey() method.
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果.
+     */
+    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
             $this->logger->error('火山文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
@@ -108,18 +150,13 @@ class VolcengineModel implements ImageGenerate
 
         // 获取所有并行任务的结果
         $results = $parallel->wait();
-        $imageUrls = [];
+        $rawResults = [];
         $errors = [];
 
-        // 处理结果
+        // 处理结果，保持原生格式
         foreach ($results as $result) {
             if ($result['success']) {
-                $data = $result['data'];
-                if (! empty($data['binary_data_base64'])) {
-                    $imageUrls[$result['index']] = $data['binary_data_base64'][0];
-                } elseif (! empty($data['image_urls'])) {
-                    $imageUrls[$result['index']] = $data['image_urls'][0];
-                }
+                $rawResults[$result['index']] = $result;
             } else {
                 $errors[] = [
                     'code' => $result['error_code'] ?? ImageGenerateErrorCode::GENERAL_ERROR->value,
@@ -128,7 +165,7 @@ class VolcengineModel implements ImageGenerate
             }
         }
 
-        if (empty($imageUrls)) {
+        if (empty($rawResults)) {
             // 优先使用具体的错误码，如果都是通用错误则使用 NO_VALID_IMAGE
             $finalErrorCode = ImageGenerateErrorCode::NO_VALID_IMAGE;
             $finalErrorMsg = '';
@@ -151,30 +188,14 @@ class VolcengineModel implements ImageGenerate
         }
 
         // 按索引排序结果
-        ksort($imageUrls);
-        $imageUrls = array_values($imageUrls);
+        ksort($rawResults);
+        $rawResults = array_values($rawResults);
 
         $this->logger->info('火山文生图：生成结束', [
-            '生成图片' => $imageUrls,
             '图片数量' => $count,
         ]);
 
-        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
-    }
-
-    public function setAK(string $ak)
-    {
-        $this->api->setAk($ak);
-    }
-
-    public function setSK(string $sk)
-    {
-        $this->api->setSk($sk);
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        // TODO: Implement setApiKey() method.
+        return $rawResults;
     }
 
     #[Retry(
@@ -199,6 +220,8 @@ class VolcengineModel implements ImageGenerate
                     $this->logger->error('火山图生图：缺少源图片');
                     ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA, 'image_generate.image_to_image_missing_source');
                 }
+                $this->validateImageToImageAspectRatio($request->getReferenceImage());
+
                 $body['image_urls'] = $request->getReferenceImage();
                 $body['req_key'] = $this->imageToImageReqKey;
             } else {
@@ -346,5 +369,77 @@ class VolcengineModel implements ImageGenerate
 
         $this->logger->error('火山文生图：任务查询超时', ['taskId' => $taskId]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    private function validateImageToImageAspectRatio(array $referenceImages)
+    {
+        if (empty($referenceImages)) {
+            $this->logger->error('火山图生图：参考图片列表为空');
+            ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA, '缺少参考图片');
+        }
+
+        // Get dimensions of the first reference image
+        $referenceImageUrl = $referenceImages[0];
+        $imageDimensions = $this->getImageDimensions($referenceImageUrl);
+
+        if (! $imageDimensions) {
+            $this->logger->warning('火山图生图：无法获取参考图尺寸，跳过长宽比例校验', ['image_url' => $referenceImageUrl]);
+            return; // Skip validation and continue execution
+        }
+
+        $width = $imageDimensions['width'];
+        $height = $imageDimensions['height'];
+
+        // Image-to-image aspect ratio limit: long side to short side ratio cannot exceed 3:1
+        $maxAspectRatio = 3.0;
+        $minDimension = min($width, $height);
+        $maxDimension = max($width, $height);
+
+        if ($minDimension <= 0) {
+            $this->logger->warning('火山图生图：图片尺寸无效，跳过长宽比例校验', ['width' => $width, 'height' => $height]);
+            return; // Skip validation and continue execution
+        }
+
+        $aspectRatio = $maxDimension / $minDimension;
+
+        if ($aspectRatio > $maxAspectRatio) {
+            $this->logger->error('火山图生图：长宽比例超出限制', [
+                'width' => $width,
+                'height' => $height,
+                'aspect_ratio' => $aspectRatio,
+                'max_allowed' => $maxAspectRatio,
+                'image_url' => $referenceImageUrl,
+            ]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::INVALID_ASPECT_RATIO);
+        }
+    }
+
+    /**
+     * Get image dimension information.
+     * @param string $imageUrl Image URL
+     * @return null|array ['width' => int, 'height' => int] or null
+     */
+    private function getImageDimensions(string $imageUrl): ?array
+    {
+        try {
+            // Get image information
+            $imageUrl = SSRFUtil::getSafeUrl($imageUrl, replaceIp: false);
+            $imageInfo = getimagesize($imageUrl);
+
+            if ($imageInfo === false) {
+                return null;
+            }
+
+            return [
+                'width' => $imageInfo[0],
+                'height' => $imageInfo[1],
+            ];
+        } catch (Exception $e) {
+            $this->logger->warning('火山图生图：获取图片尺寸失败', [
+                'image_url' => $imageUrl,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 }

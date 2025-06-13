@@ -100,7 +100,7 @@ class LLMAssembler
         foreach ($modelEntities as $modelEntity) {
             $data = [
                 'id' => $modelEntity->getType(),
-                'object' => 'model',
+                'object' => $modelEntity->getObject(),
                 'created_at' => $modelEntity->getCreatedAt()->getTimestamp(),
                 'owner_by' => $modelEntity->getOwnerBy() ?: 'magic',
             ];

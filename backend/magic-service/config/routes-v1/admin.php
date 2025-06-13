@@ -35,7 +35,7 @@ Router::addGroup('/api/v1/admin', static function () {
 
         // 其他功能
         Router::post('/connectivity-test', [ServiceProviderApi::class, 'connectivityTest']);
-        Router::get('/by-category', [ServiceProviderApi::class, 'getServiceProvidersByCategory']);
+        Router::post('/by-category', [ServiceProviderApi::class, 'getServiceProvidersByCategory']);
         Router::get('/non-official-llm', [ServiceProviderApi::class, 'getNonOfficialLlmProviders']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);
     }, ['middleware' => [RequestContextMiddleware::class]]);

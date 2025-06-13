@@ -113,7 +113,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         return $links;
     }
 
-    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
+    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
         $filesystem = $this->cloudFile->get($storage->value);
         $credentialPolicy = new CredentialPolicy([
@@ -121,6 +121,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'role_session_name' => 'magic',
             // 采用在文件路径中增加配置名的形式后续获取链接时自动识别
             'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
+            'content_type' => $contentType,
         ]);
         $filesystem->uploadByCredential($uploadFile, $credentialPolicy, $this->getOptions($organizationCode));
     }
@@ -131,7 +132,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         $filesystem->upload($uploadFile, $this->getOptions($organizationCode));
     }
 
-    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): array
+    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): array
     {
         $filesystem = $this->cloudFile->get($storage->value);
         $credentialPolicy = new CredentialPolicy([
@@ -139,6 +140,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'role_session_name' => 'magic',
             // 采用在文件路径中增加配置名的形式后续获取链接时自动识别
             'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
+            'content_type' => $contentType,
         ]);
         return $filesystem->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($organizationCode));
     }

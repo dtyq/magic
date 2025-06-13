@@ -10,6 +10,8 @@ namespace App\Interfaces\ModelGateway\Facade\Open;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
+use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
+use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -70,5 +72,30 @@ class OpenAIProxyApi extends AbstractOpenApi
         $withInfo = (bool) $this->request->input('with_info', false);
         $list = $this->llmAppService->models($accessToken, $withInfo);
         return LLMAssembler::createModels($list, $withInfo);
+    }
+
+    public function textGenerateImage(RequestInterface $request)
+    {
+        $requestData = $request->all();
+        $textGenerateImageDTO = new TextGenerateImageDTO($requestData);
+        $textGenerateImageDTO->setAccessToken($this->getAccessToken());
+        $textGenerateImageDTO->setIps($this->getClientIps());
+
+        $textGenerateImageDTO->valid();
+
+        return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
+    }
+
+    public function imageEdit(RequestInterface $request)
+    {
+        $requestData = $request->all();
+
+        $imageEditDTO = new ImageEditDTO($requestData);
+        $imageEditDTO->setAccessToken($this->getAccessToken());
+        $imageEditDTO->setIps($this->getClientIps());
+
+        $imageEditDTO->valid();
+
+        return $this->llmAppService->imageEdit($imageEditDTO);
     }
 }

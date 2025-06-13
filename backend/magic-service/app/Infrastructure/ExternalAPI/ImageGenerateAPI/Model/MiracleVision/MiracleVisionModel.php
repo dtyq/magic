@@ -57,6 +57,11 @@ class MiracleVisionModel implements ImageGenerate
         throw new BadMethodCallException('该方法暂不支持');
     }
 
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        throw new BadMethodCallException('该方法暂不支持');
+    }
+
     public function imageConvertHigh(ImageGenerateRequest $imageGenerateRequest): string
     {
         $this->logger->info('美图超清转换：开始处理转换请求', [

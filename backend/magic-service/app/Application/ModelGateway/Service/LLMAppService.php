@@ -8,15 +8,20 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Mapper\OdinModel;
+use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
+use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
+use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
+use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -26,8 +31,11 @@ use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
+use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
@@ -38,6 +46,7 @@ use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
@@ -87,8 +96,9 @@ class LLMAppService extends AbstractLLMAppService
 
         $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode());
         $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode());
+        $imageModels = $this->modelGatewayMapper->getImageModels($accessTokenEntity->getOrganizationCode());
 
-        $models = array_merge($chatModels, $embeddingModels);
+        $models = array_merge($chatModels, $embeddingModels, $imageModels);
 
         $list = [];
         foreach ($models as $name => $odinModel) {
@@ -96,14 +106,21 @@ class LLMAppService extends AbstractLLMAppService
             $model = $odinModel->getModel();
 
             $modelConfigEntity = new ModelConfigEntity();
-            // Service provider endpoint
+
+            // Determine object type based on model class name
+            $isImageModel = $model instanceof ImageGenerationModel;
+            $objectType = $isImageModel ? 'image' : 'model';
+
+            // Set common fields
             $modelConfigEntity->setModel($model->getModelName());
-            // Model type
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());
             $modelConfigEntity->setCreatedAt($odinModel->getAttributes()->getCreatedAt());
-            if ($withInfo) {
+            $modelConfigEntity->setObject($objectType);
+
+            // Only set info for non-image models when withInfo is true
+            if ($withInfo && ! $isImageModel) {
                 $modelConfigEntity->setInfo([
                     'attributes' => $odinModel->getAttributes()->toArray(),
                     'options' => $model->getModelOptions()->toArray(),
@@ -154,6 +171,11 @@ class LLMAppService extends AbstractLLMAppService
         if (! isset($data['model'])) {
             $data['model'] = $modelVersion;
         }
+
+        if (! is_array($data['reference_images'])) {
+            $data['reference_images'] = [$data['reference_images']];
+        }
+
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
         $imageGenerateRequest->setGenerateNum($data['generate_num'] ?? 4);
@@ -174,7 +196,13 @@ class LLMAppService extends AbstractLLMAppService
         $this->logger->info('Image generation service configuration', $configInfo);
 
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
-        $images = $imageGenerateResponse->getData();
+
+        if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
+            $images = $this->processBase64Images($imageGenerateResponse->getData(), $authorization);
+        } else {
+            $images = $imageGenerateResponse->getData();
+        }
+
         $this->logger->info('images', $images);
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
         return $images;
@@ -206,6 +234,81 @@ class LLMAppService extends AbstractLLMAppService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getServiceProviderConfig());
         return $imageGenerateService->queryTask($taskId);
+    }
+
+    public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): array
+    {
+        $this->validateAccessToken($textGenerateImageDTO);
+
+        $modelVersion = $textGenerateImageDTO->getModel();
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
+        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+
+        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
+        $imageGenerateParamsVO->setModel($modelVersion);
+        $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
+        $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
+
+        $size = $textGenerateImageDTO->getSize();
+        [$width, $height] = explode('x', $size);
+
+        // 计算字符串格式的比例，如 "1:1", "3:4"
+        $ratio = $this->calculateRatio((int) $width, (int) $height);
+        $imageGenerateParamsVO->setRatio($ratio);
+        $imageGenerateParamsVO->setWidth($width);
+        $imageGenerateParamsVO->setHeight($height);
+
+        // 从服务商配置数组中取第一个进行处理
+        if (empty($serviceProviderConfigs)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
+        }
+
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
+
+        foreach ($serviceProviderConfigs as $serviceProviderConfig) {
+            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
+            try {
+                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                if (! empty($generateImageRaw)) {
+                    return $generateImageRaw;
+                }
+            } catch (Exception $e) {
+                $this->logger->warning('text generate image error:' . $e->getMessage());
+            }
+        }
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+    }
+
+    /**
+     * Image editing with uploaded files using volcano image generation models.
+     */
+    public function imageEdit(ImageEditDTO $imageEditDTO): array
+    {
+        $this->validateAccessToken($imageEditDTO);
+
+        $modelVersion = $imageEditDTO->getModel();
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
+        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+
+        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
+        $imageGenerateParamsVO->setModel($modelVersion);
+        $imageGenerateParamsVO->setUserPrompt($imageEditDTO->getPrompt());
+        $imageGenerateParamsVO->setReferenceImages($imageEditDTO->getImages());
+
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
+
+        foreach ($serviceProviderConfigs as $serviceProviderConfig) {
+            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
+            try {
+                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                if (! empty($generateImageRaw)) {
+                    return $generateImageRaw;
+                }
+            } catch (Exception $e) {
+                $this->logger->warning('text generate image error:' . $e->getMessage());
+            }
+        }
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
     }
 
     /**
@@ -1047,5 +1150,84 @@ class LLMAppService extends AbstractLLMAppService
         $cacheKey = $messagesHash . ':' . $model;
 
         return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
+    }
+
+    /**
+     * 计算宽高比例的字符串格式.
+     * @param int $width 宽度
+     * @param int $height 高度
+     * @return string 比例字符串，如"1:1", "3:4", "16:9"
+     */
+    private function calculateRatio(int $width, int $height): string
+    {
+        // 计算最大公约数
+        $gcd = $this->gcd($width, $height);
+
+        // 计算简化后的比例
+        $ratioWidth = $width / $gcd;
+        $ratioHeight = $height / $gcd;
+
+        return $ratioWidth . ':' . $ratioHeight;
+    }
+
+    /**
+     * Calculate the greatest common divisor using Euclidean algorithm.
+     * Improved version with proper error handling and edge case management.
+     */
+    private function gcd(int $a, int $b): int
+    {
+        // Handle edge case where both numbers are zero
+        if ($a === 0 && $b === 0) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed);
+        }
+
+        // Use absolute values to ensure positive result
+        $a = abs($a);
+        $b = abs($b);
+
+        // Iterative approach to avoid stack overflow for large numbers
+        while ($b !== 0) {
+            $temp = $b;
+            $b = $a % $b;
+            $a = $temp;
+        }
+
+        return $a;
+    }
+
+    /**
+     * Process base64 images by uploading them to file storage and returning accessible URLs.
+     *
+     * @param array $images Array of base64 encoded images
+     * @param MagicUserAuthorization $authorization User authorization for organization context
+     * @return array Array of processed image URLs or original base64 data on failure
+     */
+    private function processBase64Images(array $images, MagicUserAuthorization $authorization): array
+    {
+        $processedImages = [];
+
+        foreach ($images as $index => $base64Image) {
+            try {
+                $subDir = 'open';
+
+                $uploadFile = new UploadFile($base64Image, $subDir, '');
+
+                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Public);
+
+                $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
+
+                $processedImages[] = $fileLink->getUrl();
+            } catch (Exception $e) {
+                $this->logger->error('Failed to process base64 image', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                    'organization_code' => $authorization->getOrganizationCode(),
+                ]);
+                // If upload fails, keep the original base64 data
+                $processedImages[] = $base64Image;
+            }
+        }
+
+        return $processedImages;
     }
 }

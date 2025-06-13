@@ -91,6 +91,17 @@ class ServiceProviderConfigRepository extends AbstractModelRepository
         return ServiceProviderConfigEntityFactory::toEntities($result);
     }
 
+    /**
+     * @return ServiceProviderConfigEntity[]
+     */
+    public function getsByServiceProviderIdsAndOffice(array $serviceProviderIds): array
+    {
+        $query = $this->configModel::query()->whereIn('service_provider_id', $serviceProviderIds)
+            ->where('organization_code', config('service_provider.office_organization'));
+        $result = Db::select($query->toSql(), $query->getBindings());
+        return ServiceProviderConfigEntityFactory::toEntities($result);
+    }
+
     public function addServiceProviderConfigs(int $serviceProviderId, array $organizationCodes, bool $status)
     {
         $data = [];
