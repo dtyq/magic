@@ -34,7 +34,6 @@ use Hyperf\Odin\Memory\MemoryManager;
 use Hyperf\Odin\Memory\MessageHistory;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Message\UserMessage;
-use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -52,7 +51,6 @@ class MagicConversationAppService extends MagicSeqAppService
         protected MagicSeqDomainService $magicSeqDomainService,
         protected FileDomainService $fileDomainService,
         protected readonly MagicAgentDomainService $magicAgentDomainService,
-        protected readonly Redis $redis,
     ) {
         try {
             $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(get_class($this));
@@ -74,22 +72,6 @@ class MagicConversationAppService extends MagicSeqAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         // Check if conversation ID belongs to current user
         $this->magicConversationDomainService->getConversationById($chatCompletionsDTO->getConversationId(), $dataIsolation);
-
-        // Debounce logic: only one completion per conversation within 1 second
-        $debounceKey = sprintf('chat_completion_debounce:%s', $chatCompletionsDTO->getConversationId());
-        $debounceTime = 1; // 1 second debounce time
-
-        // Check if within debounce period
-        if ($this->redis->exists($debounceKey)) {
-            $this->logger->info('Chat completion request debounced', [
-                'conversation_id' => $chatCompletionsDTO->getConversationId(),
-                'user_id' => $userAuthorization->getId(),
-            ]);
-            return ''; // Return empty string during debounce period
-        }
-
-        // Set debounce flag with 1 second expiration
-        $this->redis->setex($debounceKey, $debounceTime, '1');
         // Concatenate chat history messages into a single message
         $historyContext = '';
         foreach ($chatHistoryMessages as $message) {
@@ -103,7 +85,9 @@ class MagicConversationAppService extends MagicSeqAppService
             你是一个专业的智能输入补全助手。你的任务是根据对话历史和用户当前的输入，提供准确、简洁的文本补全建议。
             
             ## 对话历史：
+            <CONVERSATION_START>
             {historyContext}
+            <CONVERSATION_END>
             
             ## 补全规则：
             1. 仔细分析对话上下文和用户意图
@@ -119,7 +103,6 @@ class MagicConversationAppService extends MagicSeqAppService
 
         // Replace placeholders
         $systemPrompt = str_replace('{historyContext}', $historyContext, $systemPrompt);
-
         // Get current user nickname
         $currentUserRole = $userAuthorization->getRealName();
 
@@ -177,8 +160,6 @@ class MagicConversationAppService extends MagicSeqAppService
             }
         } catch (Throwable $exception) {
             $this->logger->error('conversationChatCompletions failed: ' . $exception->getMessage());
-            // Clean up debounce flag on exception to avoid blocking subsequent requests
-            $this->redis->del($debounceKey);
         }
 
         // Return empty string if implementation fails
