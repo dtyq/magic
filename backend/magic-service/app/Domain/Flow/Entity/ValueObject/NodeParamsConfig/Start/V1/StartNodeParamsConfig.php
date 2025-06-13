@@ -22,6 +22,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\FlowExprEngine\ComponentFactory;
 use Dtyq\FlowExprEngine\Structure\Form\Form;
 use Dtyq\FlowExprEngine\Structure\StructureType;
+use Throwable;
 
 class StartNodeParamsConfig extends NodeParamsConfig
 {
@@ -116,6 +117,11 @@ class StartNodeParamsConfig extends NodeParamsConfig
                         $output = new NodeOutput();
                         $output->setForm($outputComponent);
                         $this->checkChatMessageInputKey($outputComponent->getForm());
+                        try {
+                            $outputComponent->getForm()->toJsonSchema(true);
+                        } catch (Throwable $e) {
+                            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.json_schema_validation_failed', ['error' => $e->getMessage()]);
+                        }
                     }
 
                     $systemOutput = $this->getChatMessageOutputTemplate();

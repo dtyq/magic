@@ -391,6 +391,62 @@ JSON,
         $node->validate();
     }
 
+    public function testParamCallWithErrorJsonSchema()
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('JSON Schema 格式错误：[user_list] Array type must have items');
+
+        // 创建一个包含系统保留字段的节点配置，这应该在validate阶段抛出异常
+        $node = Node::generateTemplate(NodeType::Start, json_decode(
+            <<<'JSON'
+{
+    "branches": [
+        {
+            "trigger_type": 4,
+            "next_nodes": [
+                "node_4"
+            ],
+            "config": null,
+            "output": {
+                "form": {
+                    "type": "form",
+                    "version": "1",
+                    "structure": {
+                        "type": "object",
+                        "key": "root",
+                        "sort": 0,
+                        "title": "root节点",
+                        "description": "root节点",
+                        "items": null,
+                        "value": null,
+                        "required": [
+                            "user_list"
+                        ],
+                        "properties": {
+                            "user_list": {
+                                "type": "array",
+                                "key": "user_list",
+                                "sort": 0,
+                                "title": "user_list",
+                                "description": "user_list",
+                                "items": null,
+                                "value": null,
+                                "required": null,
+                                "properties": null
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
+JSON,
+            true
+        ), 'v1');
+        $node->validate();
+    }
+
     public function testRunRoutine()
     {
         $node = Node::generateTemplate(NodeType::Start, json_decode(<<<'JSON'
