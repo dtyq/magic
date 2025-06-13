@@ -82,7 +82,7 @@ class MagicChatAggregateSearchReqDTO
 
     public function getConversationId(): string
     {
-        return $this->conversationId;
+        return $this->conversationId ?? '';
     }
 
     public function setConversationId(string $conversationId): self
@@ -93,7 +93,7 @@ class MagicChatAggregateSearchReqDTO
 
     public function getUserMessage(): string
     {
-        return $this->userMessage;
+        return $this->userMessage ?? '';
     }
 
     public function setUserMessage(MessageInterface $userMessage): self
@@ -123,7 +123,7 @@ class MagicChatAggregateSearchReqDTO
 
     public function isGetDetail(): bool
     {
-        return $this->getDetail;
+        return $this->getDetail ?? false;
     }
 
     public function setGetDetail(bool $getDetail): MagicChatAggregateSearchReqDTO
@@ -134,7 +134,7 @@ class MagicChatAggregateSearchReqDTO
 
     public function getAppMessageId(): string
     {
-        return $this->appMessageId;
+        return $this->appMessageId ?? '';
     }
 
     public function setAppMessageId(string $appMessageId): MagicChatAggregateSearchReqDTO
