@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEdit
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
+use Hyperf\Retry\Annotation\Retry;
 use Psr\Log\LoggerInterface;
 
 class AzureOpenAIImageEditModel implements ImageGenerate
@@ -56,6 +57,10 @@ class AzureOpenAIImageEditModel implements ImageGenerate
         }
     }
 
+    #[Retry(
+        maxAttempts: self::GENERATE_RETRY_COUNT,
+        base: self::GENERATE_RETRY_TIME
+    )]
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof AzureOpenAIImageEditRequest) {
@@ -87,9 +92,8 @@ class AzureOpenAIImageEditModel implements ImageGenerate
         } catch (Exception $e) {
             $this->logger->error('Azure OpenAI图像编辑：API调用失败', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
-            throw $e;
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
     }
 
