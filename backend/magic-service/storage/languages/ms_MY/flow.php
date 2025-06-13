@@ -140,6 +140,7 @@ return [
             'unsupported_unit' => '[:unit] Unit masa tidak disokong',
             'content_empty' => 'Mesej tidak boleh kosong',
             'unsupported_routine_type' => 'Jenis rutin tidak disokong',
+            'input_key_conflict' => 'Nama medan [:key] bercanggah dengan medan terpelihara sistem, sila gunakan nama lain',
         ],
         'sub' => [
             'flow_not_found' => 'SubFlow [:flow_code] tidak dijumpai',

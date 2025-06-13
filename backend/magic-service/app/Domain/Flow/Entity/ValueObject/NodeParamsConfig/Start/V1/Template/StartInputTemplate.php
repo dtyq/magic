@@ -13,6 +13,21 @@ use Dtyq\FlowExprEngine\Structure\StructureType;
 
 class StartInputTemplate
 {
+    public static function getChatMessageInputKeys(): array
+    {
+        return [
+            'conversation_id',
+            'topic_id',
+            'message_content',
+            'message_type',
+            'message_time',
+            'organization_code',
+            'files',
+            'user',
+            'bot_key',
+        ];
+    }
+
     public static function getChatMessageInputTemplateComponent(): Component
     {
         $formJson = <<<'JSON'

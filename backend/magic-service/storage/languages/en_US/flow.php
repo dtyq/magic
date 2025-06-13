@@ -140,6 +140,7 @@ return [
             'unsupported_unit' => '[:unit] Unsupported time unit',
             'content_empty' => 'Message cannot be empty',
             'unsupported_routine_type' => 'Unsupported routine type',
+            'input_key_conflict' => 'Field name [:key] conflicts with system reserved field, please use a different name',
         ],
         'sub' => [
             'flow_not_found' => 'SubFlow [:flow_code] not found',
