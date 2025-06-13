@@ -11,7 +11,6 @@ use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use GuzzleHttp\Psr7\Utils;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 
@@ -114,8 +113,7 @@ class AzureOpenAIAPI
     {
         try {
             $response = $this->client->get($url, ['stream' => true]);
-            $body = $response->getBody();
-            return $body;
+            return $response->getBody();
         } catch (RequestException $e) {
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Failed to download image from URL: ' . $url);
         }
