@@ -12,7 +12,7 @@ use App\Infrastructure\Core\Contract\Flow\NodeParamsConfigInterface;
 
 abstract class NodeParamsConfig implements NodeParamsConfigInterface
 {
-    protected string $validateScene;
+    protected string $validateScene = '';
 
     private bool $skipExecute = false;
 
