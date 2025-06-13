@@ -141,6 +141,7 @@ return [
             'content_empty' => 'Tin nhắn không thể trống',
             'unsupported_routine_type' => 'Loại thói quen không được hỗ trợ',
             'input_key_conflict' => 'Tên trường [:key] xung đột với trường dành riêng của hệ thống, vui lòng sử dụng tên khác',
+            'json_schema_validation_failed' => 'Lỗi định dạng JSON Schema: :error',
         ],
         'sub' => [
             'flow_not_found' => 'Không tìm thấy luồng con [:flow_code]',

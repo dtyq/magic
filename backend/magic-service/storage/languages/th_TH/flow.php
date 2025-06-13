@@ -141,6 +141,7 @@ return [
             'content_empty' => 'ข้อความต้องไม่ว่างเปล่า',
             'unsupported_routine_type' => 'ประเภทรูทีนไม่รองรับ',
             'input_key_conflict' => 'ชื่อฟิลด์ [:key] ขัดแย้งกับฟิลด์สงวนของระบบ โปรดใช้ชื่ออื่น',
+            'json_schema_validation_failed' => 'ข้อผิดพลาดรูปแบบ JSON Schema: :error',
         ],
         'sub' => [
             'flow_not_found' => 'ไม่พบซับโฟลว์ [:flow_code]',
