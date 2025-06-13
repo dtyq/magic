@@ -59,6 +59,10 @@ class ServiceProviderAppService
             $serviceProviderConfigDTOS = $this->serviceProviderDomainService->initOrganizationServiceProviders($organizationCode, $serviceProviderCategory);
         }
 
+        foreach ($serviceProviderConfigDTOS as $serviceProviderConfigDTO) {
+            $this->maskSensitiveConfigInfo($serviceProviderConfigDTO);
+        }
+
         // 处理图标
         $this->processServiceProviderConfigIcons($serviceProviderConfigDTOS, $organizationCode);
 
