@@ -16,7 +16,6 @@ use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
