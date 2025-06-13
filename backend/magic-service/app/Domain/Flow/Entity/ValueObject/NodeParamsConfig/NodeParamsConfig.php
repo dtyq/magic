@@ -12,6 +12,8 @@ use App\Infrastructure\Core\Contract\Flow\NodeParamsConfigInterface;
 
 abstract class NodeParamsConfig implements NodeParamsConfigInterface
 {
+    protected string $validateScene;
+
     private bool $skipExecute = false;
 
     public function __construct(protected readonly Node $node)
@@ -21,6 +23,11 @@ abstract class NodeParamsConfig implements NodeParamsConfigInterface
     public function setSkipExecute(bool $skipExecute): void
     {
         $this->skipExecute = $skipExecute;
+    }
+
+    public function setValidateScene(string $scene): void
+    {
+        $this->validateScene = $scene;
     }
 
     /**
@@ -43,5 +50,10 @@ abstract class NodeParamsConfig implements NodeParamsConfigInterface
     public function getDefaultVisionModelString(): string
     {
         return 'gpt-4o-global';
+    }
+
+    protected function isPublishValidate(): bool
+    {
+        return $this->validateScene === 'publish';
     }
 }

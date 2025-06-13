@@ -116,12 +116,6 @@ class StartNodeParamsConfig extends NodeParamsConfig
                     if ($outputComponent) {
                         $output = new NodeOutput();
                         $output->setForm($outputComponent);
-                        $this->checkChatMessageInputKey($outputComponent->getForm());
-                        try {
-                            $outputComponent->getForm()->toJsonSchema(true);
-                        } catch (Throwable $e) {
-                            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.json_schema_validation_failed', ['error' => $e->getMessage()]);
-                        }
                     }
 
                     $systemOutput = $this->getChatMessageOutputTemplate();
@@ -129,7 +123,16 @@ class StartNodeParamsConfig extends NodeParamsConfig
                     // 支持自定义输出
                     $customSystemOutput = new NodeOutput();
                     $customSystemOutput->setForm(ComponentFactory::fastCreate($branch['custom_system_output']['form'] ?? []));
-                    $this->checkChatMessageInputKey($customSystemOutput->getFormComponent()?->getForm());
+
+                    if ($this->isPublishValidate()) {
+                        $this->checkChatMessageInputKey($outputComponent?->getForm());
+                        $this->checkChatMessageInputKey($customSystemOutput?->getFormComponent()?->getForm());
+                        try {
+                            $outputComponent?->getForm()->toJsonSchema(true);
+                        } catch (Throwable $e) {
+                            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.start.json_schema_validation_failed', ['error' => $e->getMessage()]);
+                        }
+                    }
 
                     break;
                 case TriggerType::Routine:
