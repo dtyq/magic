@@ -56,6 +56,13 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::addGroup('/file', static function () {
         // 保存文件内容
         Router::post('/save', [FileApi::class, 'saveFileContent']);
+        // 批量下载相关
+        Router::addGroup('/batch-download', static function () {
+            // 创建批量下载任务
+            Router::post('/create', [FileApi::class, 'createBatchDownload']);
+            // 检查批量下载状态
+            Router::get('/check', [FileApi::class, 'checkBatchDownload']);
+        });
     });
 },
     ['middleware' => [RequestContextMiddlewareV2::class]]

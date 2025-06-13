@@ -11,17 +11,21 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\RateLimit\Annotation\RateLimit;
 
 #[ApiResponse('low_code')]
 class FileApi extends AbstractApi
 {
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
+        private readonly FileBatchAppService $fileBatchAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
     ) {
@@ -111,5 +115,51 @@ class FileApi extends AbstractApi
         // 创建批量保存DTO
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
+    }
+
+    /**
+     * Create batch download task.
+     *
+     * @param RequestContext $requestContext Request context
+     * @return array Create result
+     */
+    #[RateLimit(create: 3, capacity: 3, key: 'batch_download_create')]
+    public function createBatchDownload(RequestContext $requestContext): array
+    {
+        // Set user authorization info
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request data and create DTO
+        $requestData = $this->request->all();
+        $requestDTO = CreateBatchDownloadRequestDTO::fromRequest($requestData);
+
+        // Call application service
+        $responseDTO = $this->fileBatchAppService->createBatchDownload($requestContext, $requestDTO);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * Check batch download status.
+     *
+     * @param RequestContext $requestContext Request context
+     * @return array Query result
+     */
+    #[RateLimit(create: 30, capacity: 30, key: 'batch_download_check')]
+    public function checkBatchDownload(RequestContext $requestContext): array
+    {
+        // Set user authorization info
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get batch key from request
+        $batchKey = (string) $this->request->input('batch_key', '');
+        if (empty($batchKey)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'batch_key_required');
+        }
+
+        // Call application service
+        $responseDTO = $this->fileBatchAppService->checkBatchDownload($requestContext, $batchKey);
+
+        return $responseDTO->toArray();
     }
 }

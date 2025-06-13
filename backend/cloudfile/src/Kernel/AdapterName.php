@@ -69,7 +69,7 @@ class AdapterName
                 }
                 break;
             case self::LOCAL:
-                    break;
+                break;
             default:
                 throw new CloudFileException("adapter not found | [{$adapterName}]");
         }

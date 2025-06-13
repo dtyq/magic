@@ -47,4 +47,23 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('file.upload_failed')]
     case FILE_UPLOAD_FAILED = 51106;
+
+    // File batch download related error codes
+    #[ErrorMessage('file.batch_file_ids_required')]
+    case BATCH_FILE_IDS_REQUIRED = 51107;
+
+    #[ErrorMessage('file.batch_file_ids_invalid')]
+    case BATCH_FILE_IDS_INVALID = 51108;
+
+    #[ErrorMessage('file.batch_too_many_files')]
+    case BATCH_TOO_MANY_FILES = 51109;
+
+    #[ErrorMessage('file.batch_no_valid_files')]
+    case BATCH_NO_VALID_FILES = 51110;
+
+    #[ErrorMessage('file.batch_access_denied')]
+    case BATCH_ACCESS_DENIED = 51111;
+
+    #[ErrorMessage('file.batch_publish_failed')]
+    case BATCH_PUBLISH_FAILED = 51112;
 }

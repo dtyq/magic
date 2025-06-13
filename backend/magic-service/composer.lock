@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b8641213a01063c190611ca540bce972",
+    "content-hash": "dbe0ee8cd7cd7db109f715a7b8502c13",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.5",
+            "version": "3.344.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "70ffa372fb7813f904063ddbf25be2fc540230d0"
+                "reference": "eb0bc621472592545539329499961a15a3f9f6dc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/70ffa372fb7813f904063ddbf25be2fc540230d0",
-                "reference": "70ffa372fb7813f904063ddbf25be2fc540230d0",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/eb0bc621472592545539329499961a15a3f9f6dc",
+                "reference": "eb0bc621472592545539329499961a15a3f9f6dc",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.5"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.6"
             },
-            "time": "2025-06-11T18:06:01+00:00"
+            "time": "2025-06-12T18:03:59+00:00"
         },
         {
             "name": "brick/math",
@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "1f249bb3d4eeec786f7d243484a91a5882e65783"
+                "reference": "cc2f8e19814e4bccfbae9acfc7cb1b826b72b700"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=1f249bb3d4eeec786f7d243484a91a5882e65783",
-                "reference": "1f249bb3d4eeec786f7d243484a91a5882e65783",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=cc2f8e19814e4bccfbae9acfc7cb1b826b72b700",
+                "reference": "cc2f8e19814e4bccfbae9acfc7cb1b826b72b700",
                 "shasum": ""
             },
             "require": {
@@ -1975,20 +1975,20 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-06-11T18:35:43+08:00"
+            "time": "2025-06-13T06:17:50+00:00"
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.4",
+            "version": "dev-enterprise-master",
             "source": {
                 "type": "git",
-                "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "24ea7d9cc1661af13c375a3178432fa8e3b2bde6"
+                "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
+                "reference": "23870dc4a15bd881c05bc3a012193565399d689a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/24ea7d9cc1661af13c375a3178432fa8e3b2bde6",
-                "reference": "24ea7d9cc1661af13c375a3178432fa8e3b2bde6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=23870dc4a15bd881c05bc3a012193565399d689a",
+                "reference": "23870dc4a15bd881c05bc3a012193565399d689a",
                 "shasum": ""
             },
             "require": {
@@ -2036,7 +2036,22 @@
                     "Dtyq\\CloudFile\\": "src"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "autoload-dev": {
+                "psr-4": {
+                    "Dtyq\\CloudFile\\Tests\\": "tests"
+                }
+            },
+            "scripts": {
+                "cs-fix": [
+                    "php-cs-fixer fix $1"
+                ],
+                "test": [
+                    "./vendor/bin/phpunit"
+                ],
+                "analyse": [
+                    "phpstan analyse --memory-limit 1024M -c phpstan.neon"
+                ]
+            },
             "license": [
                 "Apache License 2.0"
             ],
@@ -2048,10 +2063,9 @@
             ],
             "description": "Package description here.",
             "support": {
-                "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.4"
+                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
             },
-            "time": "2025-06-03T10:06:01+00:00"
+            "time": "2025-06-13T11:41:02+08:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2572,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "79ce9ee05cc11114425842f1ed0742011ef631f5"
+                "reference": "e312144e2e9c7bba5fad202694260698af5770cd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=79ce9ee05cc11114425842f1ed0742011ef631f5",
-                "reference": "79ce9ee05cc11114425842f1ed0742011ef631f5",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=e312144e2e9c7bba5fad202694260698af5770cd",
+                "reference": "e312144e2e9c7bba5fad202694260698af5770cd",
                 "shasum": ""
             },
             "require": {
@@ -2671,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-06-11T15:11:25+08:00"
+            "time": "2025-06-13T11:56:50+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -19404,6 +19418,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
+        "dtyq/cloudfile": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20

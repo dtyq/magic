@@ -234,4 +234,33 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
         return new TaskFileEntity($model->toArray());
     }
+
+    /**
+     * 根据文件ID数组和用户ID批量获取用户文件.
+     *
+     * @param array $fileIds 文件ID数组
+     * @param string $userId 用户ID
+     * @return TaskFileEntity[] 用户文件列表
+     */
+    public function findUserFilesByIds(array $fileIds, string $userId): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+
+        // 查询属于指定用户的文件
+        $models = $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
 }
