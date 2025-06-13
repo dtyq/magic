@@ -72,20 +72,20 @@ class AzureOpenAIAPI
 
             // Add multiple images
             foreach ($imageUrls as $index => $imageUrl) {
-                $imageStream = $this->downloadToStream($imageUrl);
+                $imageStreamBody = $this->downloadToStream($imageUrl);
                 $multipartData[] = [
                     'name' => 'image',
-                    'contents' => $imageStream,
+                    'contents' => $imageStreamBody->getContents(),
                     'filename' => "image{$index}.png",
                 ];
             }
 
             // Add mask if provided
             if ($maskUrl !== null) {
-                $maskStream = $this->downloadToStream($maskUrl);
+                $maskStreamBody = $this->downloadToStream($maskUrl);
                 $multipartData[] = [
                     'name' => 'mask',
-                    'contents' => $maskStream,
+                    'contents' => $maskStreamBody->getContents(),
                     'filename' => 'mask.png',
                 ];
             }
@@ -115,11 +115,8 @@ class AzureOpenAIAPI
         try {
             $response = $this->client->get($url, ['stream' => true]);
             $body = $response->getBody();
-
-            $content = $body->getContents();
-            return Utils::streamFor($content);
+            return $body;
         } catch (RequestException $e) {
-            error_log('Debug: Failed to download from URL: ' . $url . ' Error: ' . $e->getMessage());
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Failed to download image from URL: ' . $url);
         }
     }
