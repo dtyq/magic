@@ -18,12 +18,12 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\MCPErrorCode;
 use App\ErrorCode\PermissionErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
-use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\ErrorCode\TokenErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\ErrorCode\UserTaskErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 
 return [
     'exception_class' => BusinessException::class,
