@@ -44,7 +44,11 @@ import { Popover } from "antd"
 ;<Popover
 	content={<MagicEmojiPanel onClick={handleEmojiClick} />}
 	trigger="click"
-	overlayInnerStyle={{ padding: 0 }}
+	styles={{
+		body: {
+			padding: 0,
+		},
+	}}
 >
 	<Button>打开表情面板</Button>
 </Popover>

@@ -1,7 +1,7 @@
 import { MagicList } from "@/opensource/components/MagicList"
 import MagicSearch from "@/opensource/components/base/MagicSearch"
 import MagicSpin from "@/opensource/components/base/MagicSpin"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
+import { contactStore } from "@/opensource/stores/contact"
 import type { StructureUserItem } from "@/types/organization"
 import { useBoolean, useDebounce, useMemoizedFn } from "ahooks"
 import type { PopoverProps } from "antd"
@@ -9,6 +9,7 @@ import { Flex, Popover } from "antd"
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useStyles } from "./styles"
+import { observer } from "mobx-react-lite"
 
 export type MentionSelectItem = {
 	id: string
@@ -33,21 +34,29 @@ export interface MentionSelectRef {
 	confirmItem: () => void
 }
 
-const MentionSelect = forwardRef<MentionSelectRef, MentionSelectProps>(
-	({ keyword, children, ...props }, ref) => {
+const MentionSelect = observer(
+	forwardRef<MentionSelectRef, MentionSelectProps>(({ keyword, children, ...props }, ref) => {
 		const { t } = useTranslation("interface")
 
 		const { styles } = useStyles()
 
 		const searchValue = useDebounce(keyword, { wait: 500 })
 		const listRef = useRef<HTMLDivElement>(null)
-		const { data, isLoading } = useContactStore((state) => state.useUserSearchAll)(
-			searchValue,
-			{
-				errorRetryCount: 0,
-				revalidateOnMount: false,
-			},
-		)
+
+		const [data, setData] = useState<StructureUserItem[]>([])
+		const [isLoading, setIsLoading] = useState(false)
+
+		useEffect(() => {
+			setIsLoading(true)
+			contactStore
+				.getUserSearchAll(searchValue)
+				.then((result) => {
+					setData(result)
+				})
+				.finally(() => {
+					setIsLoading(false)
+				})
+		}, [searchValue])
 
 		const userList = useMemo(
 			() =>
@@ -122,7 +131,11 @@ const MentionSelect = forwardRef<MentionSelectRef, MentionSelectProps>(
 		return (
 			<Popover
 				autoAdjustOverflow
-				overlayInnerStyle={{ padding: 0 }}
+				styles={{
+					body: {
+						padding: 0,
+					},
+				}}
 				content={
 					<Flex vertical>
 						<MagicSearch
@@ -147,7 +160,7 @@ const MentionSelect = forwardRef<MentionSelectRef, MentionSelectProps>(
 				{children}
 			</Popover>
 		)
-	},
+	}),
 )
 
 export default MentionSelect

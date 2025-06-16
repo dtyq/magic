@@ -1133,6 +1133,81 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
+     * Calculate the width-to-height ratio.
+     * @return string "1:1", "3:4", "16:9"
+     */
+    private function calculateRatio(int $width, int $height): string
+    {
+        $gcd = $this->gcd($width, $height);
+
+        $ratioWidth = $width / $gcd;
+        $ratioHeight = $height / $gcd;
+
+        return $ratioWidth . ':' . $ratioHeight;
+    }
+
+    /**
+     * Calculate the greatest common divisor using Euclidean algorithm.
+     * Improved version with proper error handling and edge case management.
+     */
+    private function gcd(int $a, int $b): int
+    {
+        // Handle edge case where both numbers are zero
+        if ($a === 0 && $b === 0) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed);
+        }
+
+        // Use absolute values to ensure positive result
+        $a = abs($a);
+        $b = abs($b);
+
+        // Iterative approach to avoid stack overflow for large numbers
+        while ($b !== 0) {
+            $temp = $b;
+            $b = $a % $b;
+            $a = $temp;
+        }
+
+        return $a;
+    }
+
+    /**
+     * Process base64 images by uploading them to file storage and returning accessible URLs.
+     *
+     * @param array $images Array of base64 encoded images
+     * @param MagicUserAuthorization $authorization User authorization for organization context
+     * @return array Array of processed image URLs or original base64 data on failure
+     */
+    private function processBase64Images(array $images, MagicUserAuthorization $authorization): array
+    {
+        $processedImages = [];
+
+        foreach ($images as $index => $base64Image) {
+            try {
+                $subDir = 'open';
+
+                $uploadFile = new UploadFile($base64Image, $subDir, '');
+
+                $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Public);
+
+                $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
+
+                $processedImages[] = $fileLink->getUrl();
+            } catch (Exception $e) {
+                $this->logger->error('Failed to process base64 image', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                    'organization_code' => $authorization->getOrganizationCode(),
+                ]);
+                // If upload fails, keep the original base64 data
+                $processedImages[] = $base64Image;
+            }
+        }
+
+        return $processedImages;
+    }
+
+    /**
      * Generate conversation endpoint cache key (based on messages hash + model).
      * Now reuses the optimized calculateMultipleMessagesHashes method.
      *

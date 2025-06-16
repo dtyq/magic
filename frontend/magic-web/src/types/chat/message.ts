@@ -55,3 +55,10 @@ export interface UserInfo {
 	name: string
 	avatar: string
 }
+
+export type ApplyMessageOptions = {
+	isHistoryMessage?: boolean
+	isFromOtherTab?: boolean
+	sortCheck?: boolean
+	updateLastSeqId?: boolean
+}

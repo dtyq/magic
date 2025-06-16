@@ -15,7 +15,7 @@ import TopicCacheServices from "./TopicCacheServices"
 import MessageService from "../message/MessageService"
 
 // 创建专用的日志记录器
-const console = new Logger("ChatTopic", "blue")
+const logger = new Logger("ChatTopic", "blue")
 
 class ChatTopicService {
 	/**
@@ -85,14 +85,14 @@ class ChatTopicService {
 					}
 				})
 				.catch((error: any) => {
-					console.log(error)
+					logger.log(error)
 				})
 		}
 
 		await this.fetchTopicList()
 
 		// 如果没有话题，创建一个话题
-		console.log("topicStore.topicList ====> ", topicStore.topicList)
+		logger.log("topicStore.topicList ====> ", topicStore.topicList)
 		if (!topicStore.topicList.length) {
 			await this.createTopic()
 		}
@@ -103,29 +103,33 @@ class ChatTopicService {
 	 * @param message 消息
 	 */
 	applyCreateTopicMessage(message: SeqResponse<CreateTopicMessage>) {
-		console.log(
+		logger.log(
 			`[applyCreateTopicMessage] 开始应用创建话题消息，会话ID: ${message.conversation_id}`,
 		)
-		const newTopic = new Topic(message.message.create_topic)
-		console.log(`[applyCreateTopicMessage] 新话题信息:`, newTopic)
+		try {
+			const newTopic = new Topic(message.message.create_topic)
+			logger.log(`[applyCreateTopicMessage] 新话题信息:`, newTopic)
 
-		if (conversationStore.currentConversation?.id === message.conversation_id) {
-			console.log(`[applyCreateTopicMessage] 更新当前会话的UI状态`)
-			// 更新 UI 状态
-			topicStore.unshiftTopic(newTopic)
+			if (conversationStore.currentConversation?.id === message.conversation_id) {
+				logger.log(`[applyCreateTopicMessage] 更新当前会话的UI状态`)
+				// 更新 UI 状态
+				topicStore.unshiftTopic(newTopic)
+				logger.log("topicStore.topicList ====> ", topicStore.topicList)
+				// 更新数据库
+				TopicDBServices.addTopicToDB(newTopic)
+			} else if (TopicCacheServices.hasTopicCache(message.conversation_id)) {
+				logger.log(`[applyCreateTopicMessage] 更新缓存中的话题列表`)
+				const cachedTopics = TopicCacheServices.getTopicCache(message.conversation_id)!
+				const newTopics = [newTopic, ...cachedTopics]
+				TopicCacheServices.setTopicCache(message.conversation_id, newTopics)
 
-			// 更新数据库
-			TopicDBServices.addTopicToDB(newTopic)
-		} else if (TopicCacheServices.hasTopicCache(message.conversation_id)) {
-			console.log(`[applyCreateTopicMessage] 更新缓存中的话题列表`)
-			const cachedTopics = TopicCacheServices.getTopicCache(message.conversation_id)!
-			const newTopics = [newTopic, ...cachedTopics]
-			TopicCacheServices.setTopicCache(message.conversation_id, newTopics)
-
-			// 更新数据库
-			TopicDBServices.addTopicToDB(newTopic)
+				// 更新数据库
+				TopicDBServices.addTopicToDB(newTopic)
+			}
+			logger.log(`[applyCreateTopicMessage] 应用创建话题消息完成`)
+		} catch (err) {
+			logger.log("applyCreateTopicMessage error", err)
 		}
-		console.log(`[applyCreateTopicMessage] 应用创建话题消息完成`)
 	}
 
 	/**
@@ -133,14 +137,14 @@ class ChatTopicService {
 	 * @param message 消息
 	 */
 	applyUpdateTopicMessage(message: SeqResponse<UpdateTopicMessage>) {
-		console.log(
+		logger.log(
 			`[applyUpdateTopicMessage] 开始应用更新话题消息，会话ID: ${message.conversation_id}`,
 		)
 		const updatedTopic = message.message.update_topic
-		console.log(`[applyUpdateTopicMessage] 更新话题信息:`, updatedTopic)
+		logger.log(`[applyUpdateTopicMessage] 更新话题信息:`, updatedTopic)
 
 		if (conversationStore.currentConversation?.id === message.conversation_id) {
-			console.log(`[applyUpdateTopicMessage] 更新当前会话的UI状态`)
+			logger.log(`[applyUpdateTopicMessage] 更新当前会话的UI状态`)
 			// 更新 UI 状态
 			topicStore.updateTopic(updatedTopic.id, { name: updatedTopic.name })
 
@@ -150,7 +154,7 @@ class ChatTopicService {
 				updated_at: Date.now(),
 			})
 		} else if (TopicCacheServices.hasTopicCache(message.conversation_id)) {
-			console.log(`[applyUpdateTopicMessage] 更新缓存中的话题信息`)
+			logger.log(`[applyUpdateTopicMessage] 更新缓存中的话题信息`)
 			TopicCacheServices.updateTopicInCache(message.conversation_id, updatedTopic.id, {
 				name: updatedTopic.name,
 				updated_at: Date.now(),
@@ -162,7 +166,7 @@ class ChatTopicService {
 				updated_at: Date.now(),
 			})
 		}
-		console.log(`[applyUpdateTopicMessage] 应用更新话题消息完成`)
+		logger.log(`[applyUpdateTopicMessage] 应用更新话题消息完成`)
 	}
 
 	/**
@@ -170,19 +174,19 @@ class ChatTopicService {
 	 * @param message 消息
 	 */
 	applyDeleteTopicMessage(message: SeqResponse<DeleteTopicMessage>) {
-		console.log(
+		logger.log(
 			`[applyDeleteTopicMessage] 开始应用删除话题消息，会话ID: ${message.conversation_id}`,
 		)
 		const conversationId = conversationStore.currentConversation?.id
 		const deletedTopicId = message.message.delete_topic.id
-		console.log(`[applyDeleteTopicMessage] 要删除的话题ID: ${deletedTopicId}`)
+		logger.log(`[applyDeleteTopicMessage] 要删除的话题ID: ${deletedTopicId}`)
 
 		if (conversationId === message.conversation_id) {
-			console.log(`[applyDeleteTopicMessage] 删除当前会话的话题`)
+			logger.log(`[applyDeleteTopicMessage] 删除当前会话的话题`)
 			// 获取删除前的索引位置
 			const index = topicStore.topicList.findIndex((i) => i.id === deletedTopicId)
 			const topicsList = [...topicStore.topicList]
-			console.log(
+			logger.log(
 				`[applyDeleteTopicMessage] 当前话题列表长度: ${topicsList.length}, 删除话题索引: ${index}`,
 			)
 
@@ -196,10 +200,10 @@ class ChatTopicService {
 			) {
 				if (topicsList.length > 1) {
 					const target = topicsList[(index + topicsList.length - 1) % topicsList.length]
-					console.log(`[applyDeleteTopicMessage] 切换到新话题: ${target.id}`)
+					logger.log(`[applyDeleteTopicMessage] 切换到新话题: ${target.id}`)
 					conversationService.switchTopic(message.conversation_id, target.id)
 				} else {
-					console.log(`[applyDeleteTopicMessage] 无其他话题可切换，清空当前话题ID`)
+					logger.log(`[applyDeleteTopicMessage] 无其他话题可切换，清空当前话题ID`)
 					conversationService.switchTopic(message.conversation_id, undefined)
 				}
 			}
@@ -207,7 +211,7 @@ class ChatTopicService {
 			// 更新数据库
 			TopicDBServices.deleteTopic(deletedTopicId, message.conversation_id)
 		} else if (TopicCacheServices.hasTopicCache(message.conversation_id)) {
-			console.log(`[applyDeleteTopicMessage] 从缓存中删除话题`)
+			logger.log(`[applyDeleteTopicMessage] 从缓存中删除话题`)
 			TopicCacheServices.deleteTopicFromCache(message.conversation_id, deletedTopicId)
 
 			// 更新数据库
@@ -219,19 +223,19 @@ class ChatTopicService {
 				conversationStore.currentConversation?.last_receive_message?.topic_id
 			) {
 				const topicsList = TopicCacheServices.getTopicCache(message.conversation_id) || []
-				console.log(`[applyDeleteTopicMessage] 缓存中的话题列表长度: ${topicsList.length}`)
+				logger.log(`[applyDeleteTopicMessage] 缓存中的话题列表长度: ${topicsList.length}`)
 				if (topicsList.length) {
 					const index = topicsList.findIndex((topic) => topic.id === deletedTopicId)
 					const target = topicsList[(index + topicsList.length - 1) % topicsList.length]
-					console.log(`[applyDeleteTopicMessage] 切换到新话题: ${target.id}`)
+					logger.log(`[applyDeleteTopicMessage] 切换到新话题: ${target.id}`)
 					conversationService.switchTopic(message.conversation_id, target.id)
 				} else {
-					console.log(`[applyDeleteTopicMessage] 缓存中无其他话题可切换，清空当前话题ID`)
+					logger.log(`[applyDeleteTopicMessage] 缓存中无其他话题可切换，清空当前话题ID`)
 					conversationService.switchTopic(message.conversation_id, undefined)
 				}
 			}
 		}
-		console.log(`[applyDeleteTopicMessage] 应用删除话题消息完成`)
+		logger.log(`[applyDeleteTopicMessage] 应用删除话题消息完成`)
 	}
 
 	/**
@@ -244,10 +248,10 @@ class ChatTopicService {
 		// 设置加载状态
 		topicStore.setLoading(true)
 
-		console.log(`[fetchTopicList] 开始获取话题列表，会话ID=${conversationId}`)
+		logger.log(`[fetchTopicList] 开始获取话题列表，会话ID=${conversationId}`)
 
 		if (!conversationId) {
-			console.warn("[fetchTopicList] 会话ID不存在，无法获取话题列表")
+			logger.warn("[fetchTopicList] 会话ID不存在，无法获取话题列表")
 			topicStore.setLoading(false)
 			return Promise.reject()
 		}
@@ -280,14 +284,14 @@ class ChatTopicService {
 						!topics.find((i) => i.id === conversation?.current_topic_id))
 				) {
 					if (topics.length && conversationStore.currentConversation) {
-						console.log(
+						logger.log(
 							`[fetchTopicList] 当前会话未设置话题ID，设置为第一个话题：${topics[0].id}`,
 						)
 						conversationService.switchTopic(conversationId, topics[0].id)
 					}
 				}
 
-				console.log(`[fetchTopicList] 获取话题列表成功，话题数量=${topics.length}`)
+				logger.log(`[fetchTopicList] 获取话题列表成功，话题数量=${topics.length}`)
 				return topics
 			})
 			.finally(() => {
@@ -305,7 +309,7 @@ class ChatTopicService {
 		const conversationId = conversationStore.currentConversation?.id
 
 		if (!conversationId) {
-			console.error("conversationId 不存在")
+			logger.error("conversationId 不存在")
 			return Promise.reject()
 		}
 
@@ -348,7 +352,7 @@ class ChatTopicService {
 				return this.updateTopic(topicId, res.name)
 			})
 			.catch((error: any) => {
-				console.log(error)
+				logger.log(error)
 			})
 	}
 
@@ -358,22 +362,22 @@ class ChatTopicService {
 	 */
 	setCurrentConversationTopic(topicId: string | undefined) {
 		const conversationId = conversationStore.currentConversation?.id
-		console.log(
+		logger.log(
 			`[setCurrentConversationTopic] 开始设置当前话题，会话ID=${conversationId}，话题ID=${
 				topicId || "空"
 			}`,
 		)
 
 		if (!conversationId) {
-			console.warn("[setCurrentConversationTopic] 会话ID不存在，无法设置话题")
+			logger.warn("[setCurrentConversationTopic] 会话ID不存在，无法设置话题")
 			return
 		}
 
-		console.log(`[setCurrentConversationTopic] 更新会话当前话题ID`)
+		logger.log(`[setCurrentConversationTopic] 更新会话当前话题ID`)
 		conversationService.switchTopic(conversationId, topicId)
 
 		// 切换话题后，重新初始化渲染消息列表，并在初始化完成后立即滚动到底部
-		console.log(`[setCurrentConversationTopic] 开始初始化渲染消息列表`)
+		logger.log(`[setCurrentConversationTopic] 开始初始化渲染消息列表`)
 		MessageService.initMessages(conversationId, topicId ?? "")
 	}
 
@@ -400,14 +404,14 @@ class ChatTopicService {
 	 */
 	createTopic(topicName?: string) {
 		const conversationId = conversationStore.currentConversation?.id
-		console.log(
+		logger.log(
 			`[createTopic] 开始创建话题，会话ID=${conversationId}，话题名称=${
 				topicName || "未命名"
 			}`,
 		)
 
 		if (!conversationId) {
-			console.warn("[createTopic] 会话ID不存在，无法创建话题")
+			logger.warn("[createTopic] 会话ID不存在，无法创建话题")
 			return Promise.reject()
 		}
 
@@ -423,18 +427,18 @@ class ChatTopicService {
 		return ChatApi.createTopic(topicName, conversationId).then((res) => {
 			if (res.data.seq.message.create_topic) {
 				const newTopicId = res.data.seq.message.create_topic.id
-				console.log(`[createTopic] 话题创建成功，新话题ID=${newTopicId}`)
+				logger.log(`[createTopic] 话题创建成功，新话题ID=${newTopicId}`)
 
 				// 先清空消息渲染列表
-				console.log(`[createTopic] 清空消息渲染列表`)
+				logger.log(`[createTopic] 清空消息渲染列表`)
 				// this.chatBusiness.messageRenderBusiness.clearRenderMessages()
 
 				// 更新当前话题ID
-				console.log(`[createTopic] 更新会话当前话题ID`)
+				logger.log(`[createTopic] 更新会话当前话题ID`)
 				conversationService.switchTopic(conversationId, newTopicId)
 
 				// 更新话题列表
-				console.log(`[createTopic] 更新话题列表`)
+				logger.log(`[createTopic] 更新话题列表`)
 				const newTopic = new Topic(res.data.seq.message.create_topic)
 
 				// 替换临时话题
@@ -444,10 +448,10 @@ class ChatTopicService {
 				TopicDBServices.addTopicToDB(newTopic)
 
 				// 重新初始化消息列表
-				console.log(`[createTopic] 开始初始化渲染消息列表`)
+				logger.log(`[createTopic] 开始初始化渲染消息列表`)
 				// this.chatBusiness.messageRenderBusiness.initRenderMessages(10, () => {
 				// 	// 初始化完成后立即滚动到底部，使用非平滑滚动以提高速度
-				// 	console.log(`[createTopic] 初始化完成，触发滚动到底部事件`)
+				// 	logger.log(`[createTopic] 初始化完成，触发滚动到底部事件`)
 				// 	const scrollEvent = new CustomEvent("conversation-scroll-to-bottom", {
 				// 		detail: { smooth: false },
 				// 	})
@@ -468,7 +472,7 @@ class ChatTopicService {
 		const conversationId = conversationStore.currentConversation?.id
 
 		if (!conversationId) {
-			console.error("conversationId 不存在")
+			logger.error("conversationId 不存在")
 			return
 		}
 

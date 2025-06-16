@@ -72,7 +72,6 @@ const RichText = memo(
 						},
 					)
 
-					console.log("content update 1=====> ", content)
 					// 处理图片
 					editorViewRef.current = new EditorView(containerRef.current, {
 						state: EditorState.create({

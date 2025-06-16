@@ -15,13 +15,11 @@ const Code: FC<
 			markdownProps?: MarkdownProps
 		}
 > = (props) => {
-	const { className, children = "", markdownProps, node } = props
-
-	const inline = node?.position?.end.line === node?.position?.start.line
+	const { className, children = "", markdownProps } = props
 
 	const lang = useMemo(() => {
 		try {
-			const match = /language-(.*)/.exec(className || "")
+			const match = /lang-(.*)/.exec(className || "")
 			return match && match[1]
 		} catch (error) {
 			console.error(error)
@@ -30,11 +28,7 @@ const Code: FC<
 	}, [className])
 
 	const { isStreaming } = useIsStreaming(children as string)
-	let CodeComponent = CodeRenderFactory.getComponent(lang as CodeLanguage)
-
-	if (inline) {
-		CodeComponent = CodeRenderFactory.getInlineComponent()
-	}
+	const CodeComponent = CodeRenderFactory.getComponent(lang as CodeLanguage)
 
 	return (
 		<Suspense fallback={<Skeleton.Input active />}>

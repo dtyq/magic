@@ -14,16 +14,16 @@ import { IconMagicBots } from "@/enhance/tabler/icons-react"
 import type { MagicListItemData } from "@/opensource/components/MagicList/types"
 import { useMemoizedFn, useMount } from "ahooks"
 import { useCurrentMagicOrganization } from "@/opensource/models/user/hooks"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
+import { contactStore } from "@/opensource/stores/contact"
 import MagicSpin from "@/opensource/components/base/MagicSpin"
 import { useStyles } from "./styles"
 import { Line } from "./Line"
 import { useContactPageDataContext } from "../ContactDataProvider/hooks"
-import { observer } from "mobx-react-lite"
 import { userStore } from "@/opensource/models/user"
 import { useTheme } from "antd-style"
 import { StructureUserItem } from "@/types/organization"
 import userInfoService from "@/opensource/services/userInfo"
+import { observer } from "mobx-react-lite"
 
 interface CurrentOrganizationProps {
 	onItemClick: (data: MagicListItemData) => void
@@ -35,34 +35,23 @@ const CurrentOrganization = observer(({ onItemClick }: CurrentOrganizationProps)
 	const organization = useCurrentMagicOrganization()
 
 	const [userInfo, setUserInfo] = useState<StructureUserItem | null>(null)
-	const [isLoading, setIsLoading] = useState(false)
+	const [departmentInfos, setDepartmentInfos] = useState<any[]>([])
+
+	const [isLoadingDepartmentInfos, setIsLoadingDepartmentInfos] = useState(false)
 
 	useMount(() => {
 		if (!userStore.user.userInfo?.user_id) return
-		setIsLoading(true)
-		userInfoService
-			.fetchUserInfos([userStore.user.userInfo?.user_id], 2)
-			.then((res) => {
-				setUserInfo(res[0])
-			})
-			.finally(() => {
-				setIsLoading(false)
-			})
+		userInfoService.fetchUserInfos([userStore.user.userInfo?.user_id], 2).then((res) => {
+			const userInfo = res[0]
+			setUserInfo(userInfo)
+			contactStore
+				.getDepartmentInfos(userInfo.path_nodes.map((node) => node.department_id))
+				.then((result) => {
+					setDepartmentInfos(result)
+					setIsLoadingDepartmentInfos(false)
+				})
+		})
 	})
-
-	const departmentIds = useMemo(
-		() =>
-			Array.from(
-				(userInfo?.path_nodes ?? [])?.reduce((acc, node) => {
-					const path = node.path.split("/")
-					path.forEach((p) => acc.add(p))
-					return acc
-				}, new Set<string>()),
-			),
-		[userInfo?.path_nodes],
-	)
-
-	const { data: departmentInfos } = useContactStore((s) => s.useDepartmentInfos)(departmentIds)
 
 	const pathNodesState = useMemo(() => {
 		return (
@@ -126,7 +115,7 @@ const CurrentOrganization = observer(({ onItemClick }: CurrentOrganizationProps)
 								name: n.name,
 							})),
 							title: (
-								<MagicSpin spinning={isLoading}>
+								<MagicSpin spinning={isLoadingDepartmentInfos}>
 									<Flex gap={8} align="center" style={{ marginLeft: 40 }}>
 										{Line}
 										<span className={styles.departmentPathName}>

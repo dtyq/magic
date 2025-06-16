@@ -30,3 +30,5 @@ dist-ssr
 .turbo
 pnpm-lock.yaml
 package-lock.json
+
+coverage

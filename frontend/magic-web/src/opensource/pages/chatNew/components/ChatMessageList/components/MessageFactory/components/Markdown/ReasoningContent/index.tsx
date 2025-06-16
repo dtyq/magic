@@ -1,11 +1,11 @@
 import MagicIcon from "@/opensource/components/base/MagicIcon"
-import MagicMarkdown from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageFactory/components/Markdown/EnhanceMarkdown"
 import { IconBrain, IconChevronUp } from "@tabler/icons-react"
 import { useUpdateEffect } from "ahooks"
 import { Flex } from "antd"
 import { useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useStyles } from "./useStyles"
+import EnhanceMarkdown from "../EnhanceMarkdown"
 
 /**
  * 推理内容
@@ -109,7 +109,7 @@ const ReasoningContent = ({
 				ref={contentRef}
 				className={cx(styles.contentContainer, contentVisible && "visible")}
 			>
-				<MagicMarkdown
+				<EnhanceMarkdown
 					content={content}
 					className={styles.markdown}
 					isStreaming={isStreaming}

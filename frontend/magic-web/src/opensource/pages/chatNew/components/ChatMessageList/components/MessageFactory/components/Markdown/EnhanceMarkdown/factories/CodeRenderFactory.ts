@@ -4,8 +4,6 @@ import CodeComponents from "../components/Code/config/CodeComponents"
 import BaseRenderFactory from "./BaseRenderFactory"
 
 const Fallback = lazy(() => import("../components/Code/components/Fallback"))
-const InlineCode = lazy(() => import("../components/Code/components/InlineCode"))
-
 class CodeRenderFactory extends BaseRenderFactory<CodeRenderProps> {
 	constructor() {
 		super(CodeComponents)
@@ -17,14 +15,6 @@ class CodeRenderFactory extends BaseRenderFactory<CodeRenderProps> {
 	 */
 	public getFallbackComponent(): LazyExoticComponent<ComponentType<CodeRenderProps>> {
 		return Fallback
-	}
-
-	/**
-	 * 获取行内代码组件
-	 * @returns 行内代码组件
-	 */
-	getInlineComponent(): LazyExoticComponent<ComponentType<CodeRenderProps>> {
-		return InlineCode
 	}
 }
 

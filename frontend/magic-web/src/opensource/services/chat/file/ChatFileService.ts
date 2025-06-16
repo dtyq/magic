@@ -58,8 +58,6 @@ class ChatFileService {
 	checkFileExpired(fileId: string, expiredTime: number = 30 * 60 * 1000) {
 		const fileInfo = this.fileInfoCache.get(fileId)
 
-		console.log("checkFileExpired =======> ", fileId, fileInfo, this.fileInfoCache.size)
-
 		if (!fileInfo) return true
 
 		// 如果还有半小时过期则认为过期

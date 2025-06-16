@@ -31,10 +31,6 @@ const AiPopoverContent = observer(({ receiveId, conversationId }: AiPopoverConte
 		})
 	})
 
-	console.log("ai", ai)
-
-	console.log("AiPopoverContent", AiPopoverContent)
-
 	const navigateToWorkflow = useMemoizedFn(async () => {
 		navigate(
 			replaceRouteParams(RoutePath.FlowDetail, {

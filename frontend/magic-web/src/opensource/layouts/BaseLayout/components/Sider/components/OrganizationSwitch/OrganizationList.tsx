@@ -16,9 +16,7 @@ import { userService } from "@/services"
 import OrganizationDotsStore from "@/opensource/stores/chatNew/dots/OrganizationDotsStore"
 import { observer } from "mobx-react-lite"
 import { useOrganizationListStyles } from "./styles"
-import { userStore } from "@/opensource/models/user"
 import { interfaceStore } from "@/opensource/stores/interface"
-import { ContactApi } from "@/apis"
 
 interface OrganizationItemProps {
 	disabled: boolean
@@ -61,33 +59,8 @@ const OrganizationItem = observer((props: OrganizationItemProps) => {
 						await userService.switchOrganization(
 							organizationInfo.magic_user_id,
 							organizationInfo.magic_organization_code,
+							userInfo,
 						)
-						// 拉取用户信息
-						const { items } = await ContactApi.getUserInfos({
-							user_ids: [organizationInfo.magic_user_id],
-							query_type: 2,
-						})
-
-						const targetUser = items[0]
-
-						if (targetUser) {
-							const magicUser = {
-								magic_id: targetUser.magic_id,
-								user_id: targetUser.user_id,
-								status: targetUser.status,
-								nickname: targetUser.nickname,
-								avatar: targetUser.avatar_url,
-								organization_code: targetUser?.organization_code,
-							}
-
-							userStore.user.setUserInfo(magicUser)
-
-							// 切换用户
-							await userService.switchUser(magicUser, true)
-						} else {
-							// 切换失败，恢复当前组织
-							userService.setMagicOrganizationCode(userInfo?.organization_code)
-						}
 					} catch (err) {
 						console.error(err)
 						// 切换失败，恢复当前组织

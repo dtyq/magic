@@ -38,6 +38,15 @@ const extractTableData = (children: React.ReactNode, i18n: ReturnType<typeof use
 					headers = cells.map((cell, index) => {
 						if (isValidElement(cell)) {
 							const cellContent = cell.props.children
+
+							if (
+								Array.isArray(cellContent) &&
+								cellContent.length === 1 &&
+								typeof cellContent[0] === "string"
+							) {
+								return cellContent[0]
+							}
+
 							return typeof cellContent === "string"
 								? cellContent
 								: `${i18n.defaultColumn} ${index + 1}`
@@ -65,6 +74,7 @@ const extractTableData = (children: React.ReactNode, i18n: ReturnType<typeof use
 	}
 
 	React.Children.forEach(children, processChildren)
+
 	return { headers, rows }
 }
 

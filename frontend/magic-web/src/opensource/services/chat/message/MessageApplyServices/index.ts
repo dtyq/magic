@@ -1,5 +1,5 @@
 import type { SeqResponse } from "@/types/request"
-import type { CMessage } from "@/types/chat"
+import { MessageReceiveType, type CMessage } from "@/types/chat"
 import { bigNumCompare } from "@/utils/string"
 import ConversationStore from "@/opensource/stores/chatNew/conversation"
 import { ConversationStatus } from "@/types/chat/conversation"
@@ -9,13 +9,11 @@ import ControlMessageApplyService from "./ControlMessageApplyService"
 import messageSeqIdService from "../MessageSeqIdService"
 import ConversationService from "../../conversation/ConversationService"
 import pubsub from "@/utils/pubsub"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
+import { ApplyMessageOptions } from "@/types/chat/message"
+import userInfoService from "@/opensource/services/userInfo"
+import groupInfoService from "@/opensource/services/groupInfo"
 import { ConversationMessageType } from "@/types/chat/conversation_message"
-
-type ApplyMessageOptions = {
-	isHistoryMessage?: boolean
-	sortCheck?: boolean
-	updateLastSeqId?: boolean
-}
 
 /**
  * 自定义消息处理器接口
@@ -76,6 +74,67 @@ class MessageApplyService {
 	}
 
 	/**
+	 * 执行消息应用
+	 * @param message 消息
+	 * @param options 应用选项
+	 */
+	async doApplyMessage(message: SeqResponse<CMessage>, options: ApplyMessageOptions) {
+		const conversation = ConversationStore.getConversation(message.conversation_id)
+
+		console.log("applyMessage =====> conversation ====> ", conversation)
+		if (!conversation) {
+			// 如果会话不存在，则拉取会话列表
+			if (!this.fetchingPromiseMap[message.conversation_id]) {
+				this.fetchingPromiseMap[message.conversation_id] = ChatApi.getConversationList([
+					message.conversation_id,
+				]).then(({ items }) => {
+					const conversation = items[0]
+
+					delete this.fetchingPromiseMap[message.conversation_id]
+					if (items.length === 0) return
+					if (conversation.status === ConversationStatus.Normal) {
+						ConversationService.addNewConversation(conversation)
+						switch (conversation.receive_type) {
+							case MessageReceiveType.User:
+							case MessageReceiveType.Ai:
+								userInfoService.fetchUserInfos([conversation.receive_id], 2)
+								break
+							case MessageReceiveType.Group:
+								groupInfoService.fetchGroupInfos([conversation.receive_id])
+								break
+							default:
+								break
+						}
+					}
+				})
+			}
+
+			await this.fetchingPromiseMap[message.conversation_id]
+		}
+
+		switch (true) {
+			case ControlMessageApplyService.isControlMessage(message):
+				ControlMessageApplyService.apply(message, { ...options, isFromOtherTab: true })
+				break
+			case ChatMessageApplyService.isChatMessage(message):
+				ChatMessageApplyService.apply(message, { ...options, isFromOtherTab: true })
+				break
+			case message?.message?.type === ConversationMessageType.SuperMagic:
+				pubsub.publish("super_magic_new_message", message)
+				break
+			default:
+				// 检查是否有自定义处理器可以处理该消息
+				for (const handler of this.customHandlers.values()) {
+					if (handler.isMatch(message)) {
+						handler.apply(message, { ...options, isFromOtherTab: true })
+						return
+					}
+				}
+				break
+		}
+	}
+
+	/**
 	 * 应用一条消息
 	 * @param message 待应用的消息
 	 * @param options 应用选项
@@ -102,45 +161,8 @@ class MessageApplyService {
 			return
 		}
 
-		const conversation = ConversationStore.getConversation(message.conversation_id)
-		console.log("applyMessage =====> conversation ====> ", conversation)
-		if (!conversation) {
-			// 如果会话不存在，则拉取会话列表
-			if (!this.fetchingPromiseMap[message.conversation_id]) {
-				this.fetchingPromiseMap[message.conversation_id] = ChatApi.getConversationList([
-					message.conversation_id,
-				]).then(({ items }) => {
-					delete this.fetchingPromiseMap[message.conversation_id]
-					if (items.length === 0) return
-					if (items[0].status === ConversationStatus.Normal) {
-						ConversationService.addNewConversation(items[0])
-					}
-				})
-			}
-
-			await this.fetchingPromiseMap[message.conversation_id]
-		}
-
-		switch (true) {
-			case ControlMessageApplyService.isControlMessage(message):
-				ControlMessageApplyService.apply(message, options)
-				break
-			case ChatMessageApplyService.isChatMessage(message):
-				ChatMessageApplyService.apply(message, options)
-				break
-			case message?.message?.type === ConversationMessageType.SuperMagic:
-				pubsub.publish("super_magic_new_message", message)
-				break
-			default:
-				// 检查是否有自定义处理器可以处理该消息
-				for (const handler of this.customHandlers.values()) {
-					if (handler.isMatch(message)) {
-						handler.apply(message, options)
-						return
-					}
-				}
-				break
-		}
+		BroadcastChannelSender.applyMessage(message, options)
+		this.doApplyMessage(message, options)
 	}
 }
 

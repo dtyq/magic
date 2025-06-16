@@ -14,7 +14,6 @@ import { IconChevronRight } from "@tabler/icons-react"
 import { cx } from "antd-style"
 import MagicAvatar from "@/opensource/components/base/MagicAvatar"
 import MagicIcon from "@/opensource/components/base/MagicIcon"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
 import MagicSpin from "@/opensource/components/base/MagicSpin"
 import type { CheckboxChangeEvent } from "antd/es/checkbox"
 import { isArray } from "lodash-es"
@@ -27,6 +26,8 @@ import { useStyles } from "./style"
 import type { OrganizationSelectItem } from "../MemberDepartmentSelectPanel/types"
 import type { OrganizationPanelProps } from "./types"
 import OrganizationPanelEmpty from "./components/Empty"
+import useOrganizationTree from "../MemberDepartmentSelector/hooks/useOrganizationTree"
+
 /**
  * 组织架构面板
  */
@@ -79,15 +80,9 @@ const OrganizationPanel = memo(function OrganizationPanel(props: OrganizationPan
 		data = { departments: [], users: [] },
 		isLoading,
 		mutate,
-	} = useContactStore((state) => state.useOrganizationTree)(
-		{
-			department_id:
-				selectedPath?.length > 0 ? selectedPath[selectedPath.length - 1].id : "-1",
-			with_member: true,
-		},
-		{
-			errorRetryCount: 2,
-		},
+	} = useOrganizationTree(
+		selectedPath?.length > 0 ? selectedPath[selectedPath.length - 1].id : "-1",
+		true,
 	)
 
 	useMount(() => {

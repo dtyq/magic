@@ -1,5 +1,5 @@
 export interface BlockRenderProps {
-	language: string
+	language?: string
 	data?: string
 }
 

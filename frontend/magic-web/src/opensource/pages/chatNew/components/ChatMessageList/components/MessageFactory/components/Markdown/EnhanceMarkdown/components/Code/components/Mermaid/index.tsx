@@ -5,16 +5,16 @@ import MagicMermaid from "@/opensource/components/base/MagicMermaid"
 import MessageFilePreviewService from "@/opensource/services/chat/message/MessageImagePreview"
 import { useMessageRenderContext } from "@/opensource/components/business/MessageRenderProvider/hooks"
 import { useConversationMessage } from "@/opensource/pages/chatNew/components/ChatMessageList/components/MessageItem/components/ConversationMessageProvider/hooks"
-import { observer } from "mobx-react-lite"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
 import MagicCode from "@/opensource/components/base/MagicCode"
 import { CodeRenderProps } from "../../types"
+import { memo } from "react"
 
 interface MermaidProps extends MagicMermaidProps, CodeRenderProps {
-	language: string
+	language?: string
 }
 
-const Mermaid = observer((props: MermaidProps) => {
+const Mermaid = memo((props: MermaidProps) => {
 	const { hiddenDetail } = useMessageRenderContext()
 	const { t } = useTranslation("interface")
 	const { messageId } = useConversationMessage()

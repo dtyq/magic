@@ -2,6 +2,8 @@
 import OrganizationDotsStore from "@/opensource/stores/chatNew/dots/OrganizationDotsStore"
 import OrganizationDotsDbService from "./OrganizationDotsDbService"
 import { bigNumCompare } from "@/utils/string"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
+import { userStore } from "@/opensource/models/user"
 
 /**
  * 组织新消息提示服务
@@ -27,11 +29,19 @@ class OrganizationDotsService {
 			)
 			return
 		}
-		OrganizationDotsStore.setOrganizationDots(
-			organizationCode,
-			OrganizationDotsStore.getOrganizationDots(organizationCode) + count,
-		)
+
+		const newCount = OrganizationDotsStore.getOrganizationDots(organizationCode) + count
+
+		OrganizationDotsStore.setOrganizationDots(organizationCode, newCount)
 		OrganizationDotsStore.setOrganizationDotSeqId(organizationCode, seqId)
+
+		BroadcastChannelSender.updateOrganizationDot({
+			magicId: userStore.user.userInfo?.magic_id || "",
+			organizationCode,
+			count: newCount,
+			seqId,
+		})
+
 		const timer = setTimeout(() => {
 			OrganizationDotsDbService.setPersistenceData(OrganizationDotsStore.dots)
 			OrganizationDotsDbService.setDotSeqIdData(OrganizationDotsStore.dotSeqId)
@@ -44,10 +54,18 @@ class OrganizationDotsService {
 	 * @param organizationCode 组织编码
 	 */
 	reduceOrganizationDot(organizationCode: string, count: number = 1) {
-		OrganizationDotsStore.setOrganizationDots(
-			organizationCode,
-			Math.max(OrganizationDotsStore.getOrganizationDots(organizationCode) - count, 0),
+		const newCount = Math.max(
+			OrganizationDotsStore.getOrganizationDots(organizationCode) - count,
+			0,
 		)
+		OrganizationDotsStore.setOrganizationDots(organizationCode, newCount)
+
+		BroadcastChannelSender.updateOrganizationDot({
+			magicId: userStore.user.userInfo?.magic_id || "",
+			organizationCode,
+			count: newCount,
+		})
+
 		setTimeout(() => {
 			OrganizationDotsDbService.setPersistenceData(OrganizationDotsStore.dots)
 		}, 0)

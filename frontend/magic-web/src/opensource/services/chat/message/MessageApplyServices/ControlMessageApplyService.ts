@@ -24,23 +24,13 @@ import type {
 	TopConversationMessage,
 } from "@/types/chat/control_message"
 import type { SeenMessage } from "@/types/chat/seen_message"
-import type {
-	CreateTopicMessage,
-	UpdateTopicMessage,
-	DeleteTopicMessage,
-	EditMessage,
-} from "@/types/chat/topic"
+import type { CreateTopicMessage, UpdateTopicMessage, DeleteTopicMessage } from "@/types/chat/topic"
 import { ConversationStatus } from "@/types/chat/conversation"
 import groupInfoService from "@/opensource/services/groupInfo"
 import MessageService from "../MessageService"
 import { userStore } from "@/opensource/models/user"
 import { ChatApi } from "@/apis"
-
-type ApplyMessageOptions = {
-	isHistoryMessage?: boolean
-	sortCheck?: boolean
-	updateLastSeqId?: boolean
-}
+import { ApplyMessageOptions } from "@/types/chat/message"
 
 /**
  * 控制消息应用服务

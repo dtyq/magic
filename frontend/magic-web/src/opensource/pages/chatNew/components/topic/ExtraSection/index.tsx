@@ -36,6 +36,7 @@ const TopicExtraSection = observer(() => {
 	const currentTopicId = conversationStore.currentConversation?.current_topic_id
 
 	const { topicList } = topicStore
+
 	const isAiConversation = conversation?.receive_type === MessageReceiveType.Ai
 
 	const [searchValue, setSearchValue] = useState("")
@@ -51,6 +52,7 @@ const TopicExtraSection = observer(() => {
 	})
 
 	const topicListItems = useMemo<ItemType[]>(() => {
+		console.log("topicListItems ====> ", topicList)
 		if (!topicList || topicList.length === 0) {
 			if (isAiConversation) return [PlaceholderId]
 			return [] as any
