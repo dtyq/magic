@@ -18,12 +18,10 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\MCPErrorCode;
 use App\ErrorCode\PermissionErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\ErrorCode\SuperAgentErrorCode;
 use App\ErrorCode\TokenErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\ErrorCode\UserTaskErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
-use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 
 return [
     'exception_class' => BusinessException::class,
@@ -44,8 +42,6 @@ return [
         AsrErrorCode::class => [43000, 43999],
         UserTaskErrorCode::class => [8000, 8999],
         ServiceProviderErrorCode::class => [44000, 44999],
-        SuperAgentErrorCode::class => [51000, 51299],
-        ShareErrorCode::class => [51300, 51400],
         MCPErrorCode::class => [51500, 51599],
     ],
 ];

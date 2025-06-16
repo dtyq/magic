@@ -65,8 +65,22 @@ class FileBatchAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
+        // Check topic access
+        $topicEntity = $this->topicDomainService->getTopicById((int)$requestDTO->getTopicId());
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+        }
+
+        if ($topicEntity->getUserId() !== $userId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED);
+        }
+
         // Permission validation: get user accessible files
-        $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
+        if (empty($requestDTO->getFileIds())) {
+            $userFiles = $this->taskFileDomainService->findUserFilesByTopicId($requestDTO->getTopicId());
+        } else {
+            $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
+        }
 
         // Check if there are valid files
         if (empty($userFiles)) {

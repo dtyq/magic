@@ -19,7 +19,7 @@ interface TaskFileRepositoryInterface
     /**
      * 根据fileKey获取文件.
      */
-    public function getByFileKey(string $fileKey, int $topicId): ?TaskFileEntity;
+    public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity;
 
     /**
      * 根据话题ID获取文件列表.
@@ -83,4 +83,6 @@ interface TaskFileRepositoryInterface
      * @return TaskFileEntity[] 用户文件列表
      */
     public function findUserFilesByIds(array $fileIds, string $userId): array;
+
+    public function findUserFilesByTopicId(string $topicId): array;
 }

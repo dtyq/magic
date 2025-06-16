@@ -450,6 +450,29 @@ class TopicEntity extends AbstractEntity
         return $this;
     }
 
+    /**
+     * 获取话题成本.
+     */
+    public function getCost(): float
+    {
+        return $this->cost;
+    }
+
+    /**
+     * 设置话题成本.
+     * @param mixed $cost
+     */
+    public function setCost($cost): self
+    {
+        // 当输入不是浮点数时进行转换
+        if (!is_float($cost)) {
+            $cost = (float) $cost;
+        }
+
+        $this->cost = $cost;
+        return $this;
+    }
+
     public function getWorkspaceCommitHash(): string
     {
         return $this->workspaceCommitHash;
@@ -469,29 +492,6 @@ class TopicEntity extends AbstractEntity
     public function setChatHistoryCommitHash(?string $chatHistoryCommitHash): self
     {
         $this->chatHistoryCommitHash = $chatHistoryCommitHash;
-        return $this;
-    }
-
-    /**
-     * 获取话题成本.
-     */
-    public function getCost(): float
-    {
-        return $this->cost;
-    }
-
-    /**
-     * 设置话题成本.
-     * @param mixed $cost
-     */
-    public function setCost($cost): self
-    {
-        // 当输入不是浮点数时进行转换
-        if (! is_float($cost)) {
-            $cost = (float) $cost;
-        }
-
-        $this->cost = $cost;
         return $this;
     }
 }

@@ -7,11 +7,16 @@ declare(strict_types=1);
 
 namespace Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
 
+use Dtyq\CloudFile\Kernel\Exceptions\ChunkUploadException;
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
+use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\CloudFile\Kernel\Utils\CurlHelper;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
+use OSS\Core\OssException;
+use OSS\Credentials\StaticCredentialsProvider;
+use OSS\OssClient;
 use Throwable;
 
 class AliyunSimpleUpload extends SimpleUpload
@@ -81,24 +86,113 @@ class AliyunSimpleUpload extends SimpleUpload
     }
 
     /**
+     * OSS chunk upload implementation - using official SDK's multiuploadFile method.
+     * @see https://help.aliyun.com/zh/oss/developer-reference/multipart-upload
+     */
+    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile): void
+    {
+        // Check if chunk upload is needed
+        if (! $chunkUploadFile->shouldUseChunkUpload()) {
+            // File is small, use simple upload
+            $this->uploadObject($credential, $chunkUploadFile);
+            return;
+        }
+
+        // Convert credential format to SDK configuration
+        $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+        // Create OSS official SDK client
+        $ossClient = $this->createOssClient($sdkConfig);
+
+        $bucket = $sdkConfig['bucket'];
+        $dir = $sdkConfig['dir'] ?? '';
+        $key = $dir . $chunkUploadFile->getKeyPath();
+        $filePath = $chunkUploadFile->getRealPath();
+
+        try {
+            $chunkUploadFile->setKey($key);
+
+            $this->sdkContainer->getLogger()->info('chunk_upload_start', [
+                'key' => $key,
+                'file_size' => $chunkUploadFile->getSize(),
+                'chunk_size' => $chunkUploadFile->getChunkConfig()->getChunkSize(),
+            ]);
+
+            // Configure chunk upload options
+            $options = [
+                OssClient::OSS_CONTENT_TYPE => $chunkUploadFile->getMimeType() ?: 'application/octet-stream',
+                // Set chunk size
+                OssClient::OSS_PART_SIZE => $chunkUploadFile->getChunkConfig()->getChunkSize(),
+                // Enable MD5 verification
+                OssClient::OSS_CHECK_MD5 => true,
+            ];
+
+            // Use official SDK's multiuploadFile method to handle chunk upload automatically
+            $ossClient->multiuploadFile($bucket, $key, $filePath, $options);
+
+            $this->sdkContainer->getLogger()->info('chunk_upload_success', [
+                'key' => $key,
+                'file_size' => $chunkUploadFile->getSize(),
+            ]);
+        } catch (OssException $exception) {
+            // OSS SDK exception
+            $this->sdkContainer->getLogger()->error('chunk_upload_failed', [
+                'key' => $key,
+                'bucket' => $bucket,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+
+            throw ChunkUploadException::createInitFailed(
+                sprintf(
+                    'OSS SDK error: %s (ErrorCode: %s, RequestId: %s)',
+                    $exception->getMessage(),
+                    $exception->getErrorCode(),
+                    $exception->getRequestId()
+                ),
+                '',
+                $exception
+            );
+        } catch (Throwable $exception) {
+            // Other exceptions
+            $this->sdkContainer->getLogger()->error('chunk_upload_failed', [
+                'key' => $key,
+                'bucket' => $bucket,
+                'error' => $exception->getMessage(),
+            ]);
+
+            if ($exception instanceof ChunkUploadException) {
+                throw $exception;
+            }
+
+            throw ChunkUploadException::createInitFailed(
+                $exception->getMessage(),
+                '',
+                $exception
+            );
+        }
+    }
+
+    /**
      * @see https://help.aliyun.com/zh/oss/developer-reference/appendobject
      */
     public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
     {
         $object = $credential['dir'] . $appendUploadFile->getKeyPath();
 
-        // 检查必填参数
+        // Check required parameters
         if (! isset($credential['host']) || ! isset($credential['dir']) || ! isset($credential['access_key_id']) || ! isset($credential['access_key_secret'])) {
             throw new CloudFileException('Oss upload credential is invalid');
         }
 
-        // 先获取文件
+        // Get the file first
         $key = $credential['dir'] . $appendUploadFile->getKeyPath();
 
         try {
             $fileContent = file_get_contents($appendUploadFile->getRealPath());
             if ($fileContent === false) {
-                throw new CloudFileException('读取文件失败：' . $appendUploadFile->getRealPath());
+                throw new CloudFileException('Failed to read file: ' . $appendUploadFile->getRealPath());
             }
 
             $contentType = mime_content_type($appendUploadFile->getRealPath());
@@ -136,6 +230,57 @@ class AliyunSimpleUpload extends SimpleUpload
         }
         $appendUploadFile->setKey($key);
         $appendUploadFile->setPosition($appendUploadFile->getPosition() + $appendUploadFile->getSize());
+    }
+
+    /**
+     * Convert credential to OSS SDK configuration format.
+     */
+    private function convertCredentialToSdkConfig(array $credential): array
+    {
+        if (! isset($credential['temporary_credential'])) {
+            throw new CloudFileException('Missing temporary_credential in credential');
+        }
+
+        $tempCredential = $credential['temporary_credential'];
+
+        // Build endpoint from region
+        $region = $tempCredential['region'];
+        $endpoint = "https://{$region}.aliyuncs.com";
+
+        return [
+            'endpoint' => $endpoint,
+            'accessKeyId' => $tempCredential['access_key_id'],
+            'accessKeySecret' => $tempCredential['access_key_secret'],
+            'securityToken' => $tempCredential['sts_token'],
+            'bucket' => $tempCredential['bucket'],
+            'dir' => $tempCredential['dir'],
+            'region' => str_replace('oss-', '', $region), // Remove 'oss-' prefix, oss-ap-southeast-1 -> ap-southeast-1
+        ];
+    }
+
+    /**
+     * Create OSS client - using OSS SDK v2 approach.
+     */
+    private function createOssClient(array $config): OssClient
+    {
+        $endpoint = $config['endpoint'];
+        $accessKeyId = $config['accessKeyId'];
+        $accessKeySecret = $config['accessKeySecret'];
+        $securityToken = $config['securityToken'] ?? null;
+        $region = $config['region'] ?? 'cn-hangzhou';
+
+        // Use StaticCredentialsProvider to create credential provider (supports STS)
+        $provider = new StaticCredentialsProvider($accessKeyId, $accessKeySecret, $securityToken);
+
+        // OSS SDK v2 configuration
+        $ossConfig = [
+            'provider' => $provider,
+            'endpoint' => $endpoint,
+            'signatureVersion' => OssClient::OSS_SIGNATURE_VERSION_V4,
+            'region' => $region,
+        ];
+
+        return new OssClient($ossConfig);
     }
 
     private function aliyunCalcStringToSign($method, $date, array $headers, $resourcePath, array $query): string

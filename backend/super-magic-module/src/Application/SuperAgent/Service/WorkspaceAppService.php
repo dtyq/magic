@@ -857,7 +857,6 @@ class WorkspaceAppService extends AbstractAppService
             }
         }
         $dir = json_decode($workspaceVersion->getDir(), true);
-
         # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
         # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
         $dir = array_filter($dir, function ($item) {
@@ -876,7 +875,6 @@ class WorkspaceAppService extends AbstractAppService
                 }
             }
         }
-
         $tempResult = array_merge($tempResult1, $tempResult2);
 
         # 对tempResult进行去重

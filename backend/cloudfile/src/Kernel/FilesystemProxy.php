@@ -351,6 +351,19 @@ class FilesystemProxy extends Filesystem
                     'securityToken' => $credentials['SessionToken'], // STS token for temporary access
                     'bucket' => $tempCred['bucket'],
                 ];
+            case AdapterName::ALIYUN:
+                $temp = $credential['temporary_credential'];
+                $region = $temp['region'];
+                $actualRegion = str_replace('oss-', '', $region);
+                return [
+                    'accessId' => $temp['access_key_id'],
+                    'accessSecret' => $temp['access_key_secret'],
+                    'securityToken' => $temp['sts_token'],
+                    'endpoint' => 'https://oss-' . $actualRegion . '.aliyuncs.com',
+                    'bucket' => $temp['bucket'],
+                    'timeout' => 3600,
+                    'connectTimeout' => 10,
+                ];
             default:
                 throw new CloudFileException("expand not found | [{$adapterName}]");
         }

@@ -16,21 +16,22 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 use Hyperf\Coroutine\Parallel;
@@ -53,10 +54,8 @@ class FileProcessAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
-        private readonly LockerInterface $locker,
-        LoggerFactory $loggerFactory,
-        private readonly LockerInterface $locker,
         private readonly FileDomainService $fileDomainService,
+        private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -248,6 +247,7 @@ class FileProcessAppService extends AbstractAppService
             }
             $topicId = $task->getTopicId();
         }
+        $dataIsolation->setCurrentUserId($task->getUserId());
 
         $this->logger->info(sprintf(
             'Starting batch attachment processing, Sandbox ID: %s, Attachment count: %d',
@@ -259,10 +259,10 @@ class FileProcessAppService extends AbstractAppService
         try {
             // 对每个附件进行处理
             foreach ($attachments as $attachment) {
-                // 确保有file_key
+                // Ensure file_key exists
                 if (empty($attachment['file_key'])) {
                     $this->logger->warning(sprintf(
-                        '附件缺少file_key，沙箱ID: %s，附件内容: %s',
+                        'Attachment missing file_key, Sandbox ID: %s, Attachment content: %s',
                         $sandboxId,
                         json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                     ));
@@ -270,9 +270,9 @@ class FileProcessAppService extends AbstractAppService
                     continue;
                 }
                 try {
-                    // 确保任务存在并有ID
+                    // Ensure task exists and has ID
                     if (empty($task) || empty($task->getId())) {
-                        $this->logger->error(sprintf('无法找到任务或任务ID为空，沙箱ID: %s', $sandboxId));
+                        $this->logger->error(sprintf('Unable to find task or task ID is empty, Sandbox ID: %s', $sandboxId));
                         ++$stats['error'];
                         continue;
                     }
@@ -305,15 +305,15 @@ class FileProcessAppService extends AbstractAppService
                             $lockOwner
                         ));
 
-                        // 检查文件是否已存在
-                        $existingFile = $this->taskDomainService->getTaskFileByFileKey($attachment['file_key'], (int) $topicId);
+                        // Check if file already exists
+                        $existingFile = $this->taskDomainService->getTaskFileByFileKey($attachment['file_key']);
                         if ($existingFile) {
-                            // 如果已存在，更新更新时间并记录
+                            // If already exists, update timestamp and skip
                             $existingFile->setUpdatedAt(date('Y-m-d H:i:s'));
                             $this->taskDomainService->updateTaskFile($existingFile);
 
                             $this->logger->info(sprintf(
-                                '附件已存在，更新处理时间，文件Key: %s，沙箱ID: %s',
+                                'Attachment already exists, updating timestamp, File Key: %s, Sandbox ID: %s',
                                 $attachment['file_key'],
                                 $sandboxId
                             ));
@@ -323,19 +323,18 @@ class FileProcessAppService extends AbstractAppService
                                 'file_key' => $existingFile->getFileKey(),
                                 'file_name' => $existingFile->getFileName(),
                                 'storage_type' => $existingFile->getStorageType(),
-                                'status' => 'updated',
+                                'status' => 'skipped',
                             ];
                             continue;
                         }
-                        // 如果不存在，则保存
-                        $taskFileEntity = $this->taskDomainService->saveOrCreateTaskFileByFileKey(
-                            $attachment['file_key'],
-                            $dataIsolation,
-                            $attachment,
-                            $topicId,
-                            $sandboxId,
-                            $task->getId(),
-                            $attachment['file_type'] ?? 'system_auto_upload'
+                        // If not exists, save it
+                        $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
+                            dataIsolation: $dataIsolation,
+                            fileKey: $attachment['file_key'],
+                            fileData: $attachment,
+                            topicId: $topicId,
+                            taskId: $task->getId(),
+                            fileType: $attachment['file_type'] ?? 'system_auto_upload'
                         );
                         ++$stats['success'];
                         $stats['files'][] = [
@@ -346,10 +345,10 @@ class FileProcessAppService extends AbstractAppService
                             'status' => 'created',
                         ];
                         $this->logger->info(sprintf(
-                            '附件保存成功，文件Key: %s，沙箱ID: %s，文件名: %s',
+                            'Attachment saved successfully, File Key: %s, Sandbox ID: %s, File name: %s',
                             $attachment['file_key'],
                             $sandboxId,
-                            $attachment['filename'] ?? $attachment['display_filename'] ?? '未知'
+                            $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown'
                         ));
                     } catch (Throwable $e) {
                         $this->logger->error(sprintf(
@@ -401,7 +400,7 @@ class FileProcessAppService extends AbstractAppService
         Db::commit();
 
         $this->logger->info(sprintf(
-            '附件批量处理完成，沙箱ID: %s，处理结果: 总数=%d，成功=%d，跳过=%d，失败=%d',
+            'Batch attachment processing completed, Sandbox ID: %s, Processing result: Total=%d, Success=%d, Skipped=%d, Failed=%d',
             $sandboxId,
             $stats['total'],
             $stats['success'],
@@ -452,6 +451,50 @@ class FileProcessAppService extends AbstractAppService
                 $requestDTO->getSandboxId()
             ));
             ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
+        }
+    }
+
+    /**
+     * Save file content to object storage.
+     *
+     * @param SaveFileContentRequestDTO $requestDTO Request DTO
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array Response data
+     */
+    #[RateLimit(create: 30, consume: 1, capacity: 10, waitTimeout: 3)]
+    public function saveFileContent(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
+    {
+        $fileId = $requestDTO->getFileId();
+        $lockKey = 'file_save_lock:' . $fileId;
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockExpireSeconds = 30;
+        $lockAcquired = false;
+
+        try {
+            // Try to acquire distributed mutex lock
+            $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+
+            if ($lockAcquired) {
+                $this->logger->debug(sprintf('File save lock acquired for file %d by %s', $fileId, $lockOwner));
+
+                // Execute file save logic
+                $result = $this->performFileSave($requestDTO, $authorization);
+
+                $this->logger->debug(sprintf('File save completed for file %d by %s', $fileId, $lockOwner));
+
+                return $result;
+            }
+            $this->logger->warning(sprintf('Failed to acquire mutex lock for file %d. It might be held by another instance.', $fileId));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONCURRENT_MODIFICATION, 'file.concurrent_modification');
+        } finally {
+            // Release lock if acquired
+            if ($lockAcquired) {
+                if ($this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->debug(sprintf('File save lock released for file %d by %s', $fileId, $lockOwner));
+                } else {
+                    $this->logger->error(sprintf('Failed to release file save lock for file %d held by %s. Manual intervention may be required.', $fileId, $lockOwner));
+                }
+            }
         }
     }
 
@@ -530,52 +573,6 @@ class FileProcessAppService extends AbstractAppService
             if ($lockAcquired) {
                 $this->locker->release($lockKey, $lockOwner);
                 $this->logger->debug(sprintf('Lock released for topic %s by %s', $topic->getId(), $lockOwner));
-            }
-        }
-
-        return ['success' => false];
-    }
-
-    /**
-     * Save file content to object storage.
-     *
-     * @param SaveFileContentRequestDTO $requestDTO Request DTO
-     * @param MagicUserAuthorization $authorization User authorization
-     * @return array Response data
-     */
-    #[RateLimit(create: 30, consume: 1, capacity: 10, waitTimeout: 3)]
-    public function saveFileContent(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
-    {
-        $fileId = $requestDTO->getFileId();
-        $lockKey = 'file_save_lock:' . $fileId;
-        $lockOwner = IdGenerator::getUniqueId32();
-        $lockExpireSeconds = 30;
-        $lockAcquired = false;
-
-        try {
-            // Try to acquire distributed mutex lock
-            $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
-
-            if ($lockAcquired) {
-                $this->logger->debug(sprintf('File save lock acquired for file %d by %s', $fileId, $lockOwner));
-
-                // Execute file save logic
-                $result = $this->performFileSave($requestDTO, $authorization);
-
-                $this->logger->debug(sprintf('File save completed for file %d by %s', $fileId, $lockOwner));
-
-                return $result;
-            }
-            $this->logger->warning(sprintf('Failed to acquire mutex lock for file %d. It might be held by another instance.', $fileId));
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONCURRENT_MODIFICATION, 'file.concurrent_modification');
-        } finally {
-            // Release lock if acquired
-            if ($lockAcquired) {
-                if ($this->locker->release($lockKey, $lockOwner)) {
-                    $this->logger->debug(sprintf('File save lock released for file %d by %s', $fileId, $lockOwner));
-                } else {
-                    $this->logger->error(sprintf('Failed to release file save lock for file %d held by %s. Manual intervention may be required.', $fileId, $lockOwner));
-                }
             }
         }
     }

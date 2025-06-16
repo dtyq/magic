@@ -18,6 +18,11 @@ class CreateBatchDownloadRequestDTO
     private array $fileIds = [];
 
     /**
+     * @var string Topic ID
+     */
+    private string $topicId = '';
+
+    /**
      * Get file ID array.
      */
     public function getFileIds(): array
@@ -35,6 +40,23 @@ class CreateBatchDownloadRequestDTO
     }
 
     /**
+     * Get topic ID.
+     */
+    public function getTopicId(): string
+    {
+        return $this->topicId;
+    }
+
+    /**
+     * Set topic ID.
+     */
+    public function setTopicId(string $topicId): self
+    {
+        $this->topicId = $topicId;
+        return $this;
+    }
+
+    /**
      * Create DTO from request data.
      *
      * @param array $requestData Request data
@@ -43,23 +65,38 @@ class CreateBatchDownloadRequestDTO
     {
         $dto = new self();
         $fileIds = $requestData['file_ids'] ?? [];
+        $topicId = $requestData['topic_id'] ?? '';
 
-        // Validation
-        if (empty($fileIds) || ! is_array($fileIds)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_REQUIRED);
+        // Validation for topic_id
+        if (!is_string($topicId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOPIC_ID_INVALID);
         }
 
-        if (count($fileIds) > 50) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
+        // Validation for file_ids
+        if (!is_array($fileIds)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_INVALID);
         }
 
-        foreach ($fileIds as $fileId) {
-            if (empty($fileId) || ! is_string($fileId)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_INVALID);
+        // Either file_ids or topic_id must be provided
+        if (empty($fileIds) && empty($topicId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_OR_TOPIC_ID_REQUIRED);
+        }
+
+        // If file_ids is provided, validate it
+        if (!empty($fileIds)) {
+            if (count($fileIds) > 50) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
+            }
+
+            foreach ($fileIds as $fileId) {
+                if (empty($fileId) || ! is_string($fileId)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_INVALID);
+                }
             }
         }
 
         $dto->setFileIds($fileIds);
+        $dto->setTopicId($topicId);
         return $dto;
     }
 }

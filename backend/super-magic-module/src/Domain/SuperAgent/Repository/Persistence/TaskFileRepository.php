@@ -31,12 +31,13 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     /**
      * 根据fileKey获取文件.
      */
-    public function getByFileKey(string $fileKey, int $topicId): ?TaskFileEntity
+    public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity
     {
-        $model = $this->model::query()
-            ->where('file_key', $fileKey)
-            ->where('topic_id', $topicId)
-            ->first();
+        $query = $this->model::query()->where('file_key', $fileKey);
+        if ($topicId) {
+            $query = $query->where('topic_id', $topicId);
+        }
+        $model = $query->first();
 
         if (! $model) {
             return null;
@@ -255,6 +256,24 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->where('user_id', $userId)
             ->whereNull('deleted_at') // 过滤已删除的文件
             ->orderBy('file_id', 'desc')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
+    public function findUserFilesByTopicId(string $topicId): array
+    {
+        $models = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('is_hidden', 0)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->limit(1000)
             ->get();
 
         $entities = [];

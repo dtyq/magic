@@ -65,6 +65,23 @@ class TopicDomainService
     }
 
     /**
+     * @return array<TopicEntity>
+     */
+    public function getUserRunningTopics(DataIsolation $dataIsolation): array
+    {
+        $conditions = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'current_task_status' => TaskStatus::RUNNING,
+        ];
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return [];
+        }
+
+        return $result['list'];
+    }
+
+    /**
      * 通过ChatTopicId获取话题实体.
      */
     public function getTopicOnlyByChatTopicId(string $chatTopicId): ?TopicEntity
