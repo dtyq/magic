@@ -1,4 +1,5 @@
 import Recorder from "./recorder/recorder"
+import { safeBinaryToBtoa } from "@/utils/encoding"
 
 export const recorder = new Recorder({
 	sampleBits: 16, // 采样位数，支持 8 或 16，默认是16
@@ -56,10 +57,8 @@ export async function blobToBase64Async(input: Blob | Uint8Array): Promise<strin
 	if (input instanceof Uint8Array) {
 		// Uint8Array 转 Base64
 		return new Promise((resolve) => {
-			const binaryString = Array.from(input)
-				.map((byte) => String.fromCharCode(byte))
-				.join("")
-			resolve(btoa(binaryString))
+			const base64Result = safeBinaryToBtoa(input)
+			resolve(base64Result)
 		})
 	}
 	throw new Error("Unsupported input type. Only Blob or Uint8Array is allowed.")

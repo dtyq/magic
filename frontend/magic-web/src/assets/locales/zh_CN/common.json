@@ -43,5 +43,27 @@
 		"memberCard": {
 			"assistantIntroduction": "助理介绍"
 		}
+	},
+	"browser": {
+		"title": "浏览器版本过低",
+		"confirm": "继续使用（可能存在兼容性问题）",
+		"header": "检测到您正在使用较旧版本的浏览器",
+		"desc": "您当前使用的是 {{name}} {{version}}，建议使用以下浏览器以获得最佳体验：",
+		"tip": "{{name}} 或更高版本",
+		"warning": "使用旧版浏览器可能导致某些功能无法正常工作或显示异常"
+	},
+	"broadcastChannel": {
+		"organization": {
+			"title": "检测到组织切换",
+			"content": "其他标签页已切换到新的组织，当前页面需要同步切换才能保持一致。是否立即切换？",
+			"confirm": "立即切换",
+			"cancel": "保持当前"
+		},
+		"account": {
+			"title": "检测到账号切换",
+			"content": "其他标签页已切换到新的账号，当前页面需要同步切换才能保持一致。是否立即切换？",
+			"confirm": "立即切换",
+			"cancel": "保持当前"
+		}
 	}
 }

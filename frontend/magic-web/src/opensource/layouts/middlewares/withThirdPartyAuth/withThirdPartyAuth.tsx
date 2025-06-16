@@ -77,7 +77,7 @@ export function withThirdPartyAuth<T extends object>(
 							searchParams.delete(TempAuthorizationCodeKey)
 							navigate(`${url.pathname}${url.search}`)
 						})
-						.then(() => userService.login(true))
+						.then(() => userService.wsLogin({ showLoginLoading: true }))
 						.catch((error) => {
 							console.error("Abnormal authorization acquisition", "error", ...error)
 							// Need to redirect to login route

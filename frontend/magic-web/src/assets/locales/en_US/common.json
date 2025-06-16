@@ -46,5 +46,27 @@
 		"memberCard": {
 			"assistantIntroduction": "Assistant introduction"
 		}
+	},
+	"browser": {
+		"title": "Browser version too low",
+		"confirm": "Continue to use (there may be compatibility issues)",
+		"header": "Detected that you are using an older version of the browser",
+		"desc": "You are currently using {{name}} {{version}}. We recommend using the following browser for the best experience:",
+		"tip": "{{name}} or higher version",
+		"warning": "Using older browsers may cause certain features to malfunction or display abnormally"
+	},
+	"broadcastChannel": {
+		"organization": {
+			"title": "Organization Switch Detected",
+			"content": "Another tab has switched to a new organization. This page needs to sync the switch to stay consistent. Switch now?",
+			"confirm": "Switch Now",
+			"cancel": "Keep Current"
+		},
+		"account": {
+			"title": "Account Switch Detected",
+			"content": "Another tab has switched to a new account. This page needs to sync the switch to stay consistent. Switch now?",
+			"confirm": "Switch Now",
+			"cancel": "Keep Current"
+		}
 	}
 }

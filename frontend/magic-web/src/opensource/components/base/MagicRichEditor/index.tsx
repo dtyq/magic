@@ -269,28 +269,23 @@ const MagicRichEditor = memo(
 				// 自定义历史管理，取代StarterKit内置的history
 				CustomHistory,
 				// 在测试环境中跳过extend方法的调用
-				process.env.NODE_ENV === "test"
-					? StarterKit.configure({
-							blockquote: false,
-							codeBlock: false,
-							hardBreak: false,
-							// 禁用StarterKit内置的history，使用我们的自定义history
-							history: false,
-					  })
-					: StarterKit.configure({
-							blockquote: false,
-							codeBlock: false,
-							hardBreak: false,
-							// 禁用StarterKit内置的history，使用我们的自定义history
-							history: false,
-					  }).extend({
-							addKeyboardShortcuts() {
-								return {
-									// 移除回车键默认行为
-									Enter: () => enterBreak,
-								}
-							},
-					  }),
+				StarterKit.configure({
+					blockquote: false,
+					codeBlock: false,
+					orderedList: false,
+					bulletList: false,
+					code: false,
+					hardBreak: false,
+					// 禁用StarterKit内置的history，使用我们的自定义history
+					history: false,
+				}).extend({
+					addKeyboardShortcuts() {
+						return {
+							// 移除回车键默认行为
+							Enter: () => enterBreak,
+						}
+					},
+				}),
 				FontSize,
 				Highlight,
 				TextAlign,

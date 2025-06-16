@@ -66,6 +66,11 @@ export const getSlicedText = (message: ConversationMessage, revoked: boolean = f
 				type: ConversationMessageType.AggregateAISearchCard,
 				text: (message.aggregate_ai_search_card?.llm_response ?? "").slice(0, 50),
 			}
+		case ConversationMessageType.AggregateAISearchCardV2:
+			return {
+				type: ConversationMessageType.AggregateAISearchCardV2,
+				text: (message.aggregate_ai_search_card_v2?.summary?.content ?? "").slice(0, 50),
+			}
 		case ConversationMessageType.MagicSearchCard:
 			return {
 				type: ConversationMessageType.MagicSearchCard,

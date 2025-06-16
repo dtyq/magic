@@ -165,7 +165,9 @@ class AiImageApplyService {
 		this.tempMessageMap[app_message_id] = message
 
 		MessageService.addReceivedMessage(message)
-		MessageService.removeMessage(conversation_id, oldMessageId, topic_id ?? "")
+		if (oldMessageId && oldMessageId !== message_id) {
+			MessageService.removeMessage(conversation_id, oldMessageId, topic_id ?? "")
+		}
 	}
 }
 

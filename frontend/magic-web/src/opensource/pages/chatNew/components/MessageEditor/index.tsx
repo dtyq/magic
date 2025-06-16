@@ -16,6 +16,7 @@ import {
 	fileToBase64,
 	isOnlyText,
 	transformJSONContent,
+	isValidImageFile,
 } from "@/opensource/components/base/MagicRichEditor/utils"
 import { Image } from "@/opensource/components/base/MagicRichEditor/extensions/image"
 import { observer } from "mobx-react-lite"
@@ -370,9 +371,9 @@ const MessageEditor = observer(function MessageEditor({
 		const imageFiles: File[] = []
 		const otherFiles: File[] = []
 
-		// 文件先分类: 图片和其他
+		// Categorize files: images and others using improved detection
 		for (let i = 0; i < fileList.length; i += 1) {
-			if (fileList[i].type.includes("image") && fileList[i].type !== "image/svg+xml") {
+			if (isValidImageFile(fileList[i])) {
 				imageFiles.push(fileList[i])
 			} else {
 				otherFiles.push(fileList[i])
@@ -793,7 +794,7 @@ const MessageEditor = observer(function MessageEditor({
 			}
 		})
 
-		if (fileList.length) {
+		if (!errors.length && fileList.length) {
 			setFiles((prev) => [...prev, ...fileList])
 		}
 	})

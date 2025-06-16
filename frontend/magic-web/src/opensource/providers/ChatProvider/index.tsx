@@ -19,7 +19,6 @@ import type { SeqRecord } from "@/opensource/apis/modules/chat/types"
 import chatWebSocket from "@/opensource/apis/clients/chatWebSocket"
 import { useAuthorization, useOrganization } from "@/opensource/models/user/hooks"
 import { userStore } from "@/opensource/models/user"
-import ContactProvider from "@/opensource/providers/ContactProvider"
 import { observer } from "mobx-react-lite"
 import { useStyles } from "./styles"
 import StreamMessageApplyServiceV2 from "@/opensource/services/chat/message/MessageApplyServices/StreamMessageApplyServiceV2"
@@ -104,7 +103,7 @@ const ChatProvider = observer(function ChatProvider({ children }: ChatServicePro
 		return Fallback
 	}
 
-	return <ContactProvider>{children}</ContactProvider>
+	return children
 })
 
 const ParamsCheckWrapper = ({ children }: PropsWithChildren) => {

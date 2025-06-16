@@ -23,6 +23,7 @@ import { ChatApi } from "@/apis"
 import ChatFileService from "../chat/file/ChatFileService"
 import EditorDraftService from "../chat/editor/DraftService"
 import Logger from "@/utils/log/Logger"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
 
 const console = new Logger("UserService")
 
@@ -54,7 +55,7 @@ export class UserService {
 			console.log("open", { reconnect })
 			if (reconnect) {
 				console.log("重新连接成功，自动登录")
-				this.login(false)
+				this.wsLogin({ showLoginLoading: false })
 			}
 		})
 	}
@@ -183,24 +184,40 @@ export class UserService {
 	/**
 	 * @description 组织切换
 	 */
-	switchOrganization = async (magic_user_id: string, magic_organization_code: string) => {
-		// 拉取用户信息
-		const { items } = await this.contactApi.getUserInfos({
-			user_ids: [magic_user_id],
-			query_type: 2,
-		})
-
-		const targetUser = items[0]
-
-		if (targetUser) {
-			this.setUserInfo(userTransformer(targetUser))
-
-			const db = initDataContextDb(targetUser?.magic_id, targetUser?.user_id)
-			await userInfoService.loadData(db)
-			await groupInfoService.loadData(db)
-		} else {
-			// 切换失败，恢复当前组织
+	switchOrganization = async (
+		magic_user_id: string,
+		magic_organization_code: string,
+		fallbackUserInfo: User.UserInfo,
+	) => {
+		try {
 			this.setMagicOrganizationCode(magic_organization_code)
+
+			// 拉取用户信息
+			const { items } = await this.contactApi.getUserInfos({
+				user_ids: [magic_user_id],
+				query_type: 2,
+			})
+
+			const targetUser = items[0]
+
+			if (!targetUser) {
+				throw new Error("targetUser is null")
+			}
+
+			const userInfo = userTransformer(targetUser)
+			await this.loadUserInfo(userInfo, { showSwitchLoading: true })
+			this.setUserInfo(userInfo)
+
+			/** 广播切换组织 */
+			BroadcastChannelSender.switchOrganization({
+				userInfo,
+				magicOrganizationCode: magic_organization_code,
+			})
+		} catch (err) {
+			console.error(err)
+			// 切换失败，恢复当前组织
+			this.setMagicOrganizationCode(fallbackUserInfo?.organization_code)
+			this.setUserInfo(fallbackUserInfo)
 		}
 	}
 
@@ -255,9 +272,13 @@ export class UserService {
 
 		// 内存状态同步
 		userStore.account.setAccount(userAccount)
+
+		// 广播添加账号
+		BroadcastChannelSender.addAccount(userAccount)
 	}
 
 	/**
+	 * FIXME: 错误时，恢复当前账号
 	 * @description 账号切换
 	 * @param unionId
 	 * @param magicOrganizationCode
@@ -273,6 +294,7 @@ export class UserService {
 			const magicOrgSyncStep = this.service
 				.get<LoginService>("loginService")
 				.magicOrganizationSyncStep(account?.deployCode as string)
+
 			this.setAuthorization(account?.access_token)
 
 			if (magic_user_id && magic_organization_code) {
@@ -300,7 +322,7 @@ export class UserService {
 					})
 				await this.service.get<LoginService>("loginService").organizationSyncStep(response)
 
-				await this.login(true)
+				await this.wsLogin({ showLoginLoading: true })
 			}
 		}
 	}
@@ -391,7 +413,7 @@ export class UserService {
 			.catch(console.error)
 	}
 
-	login(showLoginLoading = true) {
+	wsLogin({ showLoginLoading = true }: { showLoginLoading?: boolean } = {}) {
 		const { authorization } = userStore.user
 
 		if (!authorization) {
@@ -411,7 +433,7 @@ export class UserService {
 					userStore.user.setUserInfo(res.data.user)
 					console.log("ws 登录成功", res)
 					// 切换 chat 数据
-					await this.switchUser(res.data.user, showLoginLoading)
+					await this.loadUserInfo(res.data.user, { showSwitchLoading: showLoginLoading })
 				})
 				.catch(async (err) => {
 					console.log("ws 登录失败", err)
@@ -435,18 +457,25 @@ export class UserService {
 		return this.lastLogin.promise
 	}
 
-	/**
+	/*
 	 * @description 清除 lastLogin
 	 */
 	clearLastLogin() {
 		this.lastLogin = null
 	}
-
-	async switchUser(magicUser: User.UserInfo, showSwitchLoading = true) {
+	/**
+	 * @description 切换用户
+	 * @param magicUser
+	 * @param showSwitchLoading
+	 */
+	async loadUserInfo(
+		magicUser: User.UserInfo,
+		{ showSwitchLoading = true }: { showSwitchLoading?: boolean } = {},
+	) {
 		try {
 			const magicId = magicUser.magic_id
 			const userId = magicUser.user_id
-			
+
 			console.log("切换账户", magicId)
 			if (showSwitchLoading) interfaceStore.setIsSwitchingOrganization(true)
 

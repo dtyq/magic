@@ -1134,37 +1134,13 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * Generate conversation endpoint cache key (based on messages hash + model).
-     * Now reuses the optimized calculateMultipleMessagesHashes method.
-     *
-     * @param array $messages Messages array
-     * @param string $model Model name
-     * @return string Cache key
-     */
-    private function generateEndpointCacheKey(array $messages, string $model): string
-    {
-        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
-        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
-        $messagesHash = $hashes[0] ?? hash('sha256', '');
-
-        // Generate cache key using messages hash + model
-        $cacheKey = $messagesHash . ':' . $model;
-
-        return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
-    }
-
-    /**
-     * 计算宽高比例的字符串格式.
-     * @param int $width 宽度
-     * @param int $height 高度
-     * @return string 比例字符串，如"1:1", "3:4", "16:9"
+     * Calculate the width-to-height ratio.
+     * @return string "1:1", "3:4", "16:9"
      */
     private function calculateRatio(int $width, int $height): string
     {
-        // 计算最大公约数
         $gcd = $this->gcd($width, $height);
 
-        // 计算简化后的比例
         $ratioWidth = $width / $gcd;
         $ratioHeight = $height / $gcd;
 
@@ -1230,5 +1206,25 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $processedImages;
+    }
+
+    /**
+     * Generate conversation endpoint cache key (based on messages hash + model).
+     * Now reuses the optimized calculateMultipleMessagesHashes method.
+     *
+     * @param array $messages Messages array
+     * @param string $model Model name
+     * @return string Cache key
+     */
+    private function generateEndpointCacheKey(array $messages, string $model): string
+    {
+        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
+        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
+        $messagesHash = $hashes[0] ?? hash('sha256', '');
+
+        // Generate cache key using messages hash + model
+        $cacheKey = $messagesHash . ':' . $model;
+
+        return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
     }
 }

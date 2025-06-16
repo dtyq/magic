@@ -146,6 +146,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 			is_not_disturb?: 0 | 1
 			is_top?: 0 | 1
 			is_mark?: 0 | 1
+			organization_code?: string
 		},
 	) {
 		return fetch.post<PaginationResponse<ConversationFromService>>(

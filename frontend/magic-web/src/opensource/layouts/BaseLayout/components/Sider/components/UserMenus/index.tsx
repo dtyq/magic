@@ -28,6 +28,7 @@ import { SettingSection } from "@/opensource/pages/settings/types"
 import useNavigate from "@/opensource/hooks/useNavigate"
 import { userStore } from "@/opensource/models/user"
 import { observer } from "mobx-react-lite"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
 
 interface UserMenusProps extends PropsWithChildren {}
 
@@ -73,9 +74,13 @@ const UserMenus = observer(function UserMenus({ children }: UserMenusProps) {
 
 				if (info?.magic_id) {
 					await accountLogout(info?.magic_id)
+					/** 广播删除账号 */
+					BroadcastChannelSender.deleteAccount(info?.magic_id, { navigateToLogin: false })
 				}
 			} else {
 				await accountLogout()
+				/** 广播删除账号 */
+				BroadcastChannelSender.deleteAccount(undefined, { navigateToLogin: true })
 				navigate(RoutePath.Login)
 			}
 		}

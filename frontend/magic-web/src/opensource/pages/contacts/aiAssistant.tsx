@@ -1,16 +1,17 @@
 import MagicInfiniteScrollList from "@/opensource/components/MagicInfiniteScrollList"
 import type { MagicListItemData } from "@/opensource/components/MagicList/types"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
+import { contactStore } from "@/opensource/stores/contact"
 import { MessageReceiveType } from "@/types/chat"
 import type { Friend } from "@/types/contact"
 import { useMemoizedFn } from "ahooks"
 import { createStyles } from "antd-style"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import MagicScrollBar from "@/opensource/components/base/MagicScrollBar"
 import { useChatWithMember } from "@/opensource/hooks/chat/useChatWithMember"
 import userInfoStore from "@/opensource/stores/userInfo"
 import userInfoService from "@/opensource/services/userInfo"
 import AvatarStore from "@/opensource/stores/chatNew/avatar"
+import { observer } from "mobx-react-lite"
 
 const useStyles = createStyles(({ css, token }) => {
 	return {
@@ -23,21 +24,39 @@ const useStyles = createStyles(({ css, token }) => {
 	}
 })
 
-function AiAssistant() {
+const AiAssistant = observer(function AiAssistant() {
 	const { styles } = useStyles()
 
-	const { trigger, data } = useContactStore((s) => s.useFriends)()
+	// 使用状态管理数据
+	const [data, setData] = useState<any>(undefined)
+
+	// 获取好友和用户信息的方法
+	const fetchFriends = useCallback(async (params = {}) => {
+		const result = await contactStore.getFriends(params)
+		setData(result)
+		return result
+	}, [])
+
+	// 初始加载
+	useEffect(() => {
+		fetchFriends()
+	}, [fetchFriends])
 
 	const { fetchUserInfos } = userInfoService
 	const chatWith = useChatWithMember()
 
 	useEffect(() => {
 		if (data && data?.items?.length > 0) {
-			const unUserInfos = data?.items?.filter((item) => !userInfoStore.get(item.friend_id))
+			const unUserInfos = data?.items?.filter(
+				(item: Friend) => !userInfoStore.get(item.friend_id),
+			)
 			if (unUserInfos.length > 0)
-				fetchUserInfos(unUserInfos.map((item) => item.friend_id), 2)
+				fetchUserInfos(
+					unUserInfos.map((item: Friend) => item.friend_id),
+					2,
+				)
 		}
-	}, [data])
+	}, [data, fetchUserInfos])
 
 	const itemsTransform = useCallback(
 		(item: Friend) => {
@@ -70,12 +89,12 @@ function AiAssistant() {
 		<MagicScrollBar className={styles.empty}>
 			<MagicInfiniteScrollList<Friend>
 				data={data}
-				trigger={trigger}
+				trigger={fetchFriends}
 				itemsTransform={itemsTransform}
 				onItemClick={handleItemClick}
 			/>
 		</MagicScrollBar>
 	)
-}
+})
 
 export default AiAssistant

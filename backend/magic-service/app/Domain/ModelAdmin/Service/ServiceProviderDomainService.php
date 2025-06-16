@@ -1072,22 +1072,32 @@ class ServiceProviderDomainService
     }
 
     /**
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getOfficeModels(ServiceProviderCategory $category): array
+    {
+        $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
+        $serviceProviderConfigEntities = $this->serviceProviderConfigRepository->getsByServiceProviderIdsAndOffice(array_column($serviceProviderEntities, 'id'));
+        $serviceProviderConfigIds = array_column($serviceProviderConfigEntities, 'id');
+
+        return $this->serviceProviderModelsRepository->getActiveModelsByConfigIds($serviceProviderConfigIds);
+    }
+
+    /**
      * 获取官方的激活模型配置（支持返回多个）.
      * @param string $modelVersion 模型
      * @return ServiceProviderConfig[] 服务商配置数组
      */
     public function getOfficeAndActiveModel(string $modelVersion, ServiceProviderCategory $category): array
     {
-        // 获取文生图官方服务商
         $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
-        // 获取官方文生图所有服务商配置
         $serviceProviderConfigEntities = $this->serviceProviderConfigRepository->getsByServiceProviderIdsAndOffice(array_column($serviceProviderEntities, 'id'));
 
         // 提取所有服务商配置ID
         $serviceProviderConfigIds = array_column($serviceProviderConfigEntities, 'id');
 
         // 根据服务商配置IDs、modelId和激活状态查找对应的模型（可能有多个）
-        $activeModels = $this->serviceProviderModelsRepository->getActiveModelsByConfigIdsAndModelId($serviceProviderConfigIds, $modelVersion);
+        $activeModels = $this->serviceProviderModelsRepository->getActiveModelsByConfigIdsAndModelVersion($serviceProviderConfigIds, $modelVersion);
 
         if (empty($activeModels)) {
             // 如果没有找到激活的模型，返回空数组
@@ -1114,18 +1124,6 @@ class ServiceProviderDomainService
 
         // 如果没有找到任何有效配置，返回空数组
         return $result;
-    }
-
-    /**
-     * @return ServiceProviderModelsEntity[]
-     */
-    public function getOfficeModels(ServiceProviderCategory $category): array
-    {
-        $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
-        $serviceProviderConfigEntities = $this->serviceProviderConfigRepository->getsByServiceProviderIdsAndOffice(array_column($serviceProviderEntities, 'id'));
-        $serviceProviderConfigIds = array_column($serviceProviderConfigEntities, 'id');
-
-        return $this->serviceProviderModelsRepository->getActiveModelsByConfigIds($serviceProviderConfigIds);
     }
 
     /**

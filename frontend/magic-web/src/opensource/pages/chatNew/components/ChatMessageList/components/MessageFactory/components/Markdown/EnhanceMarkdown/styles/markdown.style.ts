@@ -42,7 +42,7 @@ export const useStyles = createStyles(
         		color: var(--${prefixCls}-markdown-color);
 
 				font-size: var(--${prefixCls}-markdown-font-size);
-				line-height: 1;
+				line-height: 1.5;
 				word-break: break-word;
 				height: max-content;
 				width: 100%;
@@ -260,9 +260,21 @@ export const useStyles = createStyles(
 				}
 			`,
 			list: css`
-				li {
+				/* 任务列表项不应用通用li样式 */
+				li:not(.task-list-item) {
 					//margin-block: calc(var(--${prefixCls}-markdown-margin-multiple) * 0.33em);
 					line-height: 1.5;
+				}
+
+				/* 对于任务列表项，确保不显示黑点 */
+				li.task-list-item {
+					line-height: 1.5;
+					list-style: none !important;
+
+					&::before {
+						display: none !important;
+						content: none !important;
+					}
 				}
 
 				ul,
@@ -289,9 +301,11 @@ export const useStyles = createStyles(
 						margin-inline-start: 1em;
 						white-space: normal;
 
-						p {
+						p,
+						span {
 							display: inline;
 							margin-bottom: 0;
+							margin-left: 4px;
 						}
 					}
 				}
@@ -321,10 +335,10 @@ export const useStyles = createStyles(
 					}
 				}
 
-				ul {
+				ul:not(.task-list-container):not(.task-list-nested) {
 					list-style-type: none;
 
-					li {
+					li:not(.task-list-item) {
 						position: relative;
 
 						&::before {
@@ -341,6 +355,17 @@ export const useStyles = createStyles(
 						}
 					}
 				}
+
+				/* 确保任务列表容器绝对不显示黑点 */
+				ul.task-list-container,
+				ul.task-list-nested {
+					li {
+						&::before {
+							display: none !important;
+							content: none !important;
+						}
+					}
+				}
 			`,
 			p: css`
 				p {
@@ -350,7 +375,6 @@ export const useStyles = createStyles(
 					//margin-bottom: 0;
 					margin-block: 0;
 					white-space: break-spaces;
-					margin-block-end: 0;
 
 					br {
 						content: "";
@@ -417,6 +441,7 @@ export const useStyles = createStyles(
 					width: auto;
 					margin: 0;
 
+					font-size: 14px;
 					text-align: start;
 					word-break: break-word;
 					overflow-wrap: anywhere;
@@ -522,17 +547,11 @@ export const useStyles = createStyles(
 				}
 			`,
 			video: css`
-				> video,
-				> p > video {
-					margin-block: calc(var(--${prefixCls}-markdown-margin-multiple) * 1em);
-					border-radius: calc(var(--${prefixCls}-markdown-border-radius) * 1px);
-					box-shadow: 0 0 0 1px var(--${prefixCls}-markdown-border-color);
-				}
-
 				video {
 					width: 100%;
-					max-width: 240px;
-					max-height: 240px;
+					max-width: 500px;
+					max-height: 400px;
+					border-radius: 8px;
 				}
 			`,
 			math: css`
@@ -542,15 +561,210 @@ export const useStyles = createStyles(
 					padding: 4px 10px;
 				}
 
-				.katex-display *,
-				.katex * {
-					white-space: nowrap;
-					display: inline-block;
+				/* 移除对KaTeX内部元素的强制display样式，让KaTeX自行处理布局 */
+			`,
+			footnotes: css`
+				/* 脚注引用样式 */
+				.footnote-ref {
+					font-size: 0.75em;
+
+					a {
+						color: ${isDarkMode
+							? token.magicColorScales.brand[6]
+							: token.magicColorUsages.link.default};
+						text-decoration: none;
+
+						&:hover {
+							text-decoration: underline;
+						}
+					}
 				}
 
-				.katex-html,
-				.newline {
-					display: inline !important;
+				/* 脚注定义样式 */
+				.footnote {
+					font-size: 0.875em;
+					margin-top: 1em;
+					padding-top: 0.5em;
+					border-top: 1px solid ${token.colorBorder};
+					color: ${token.colorTextSecondary};
+
+					p {
+						margin: 0;
+					}
+
+					.footnote-backref {
+						color: ${isDarkMode
+							? token.magicColorScales.brand[6]
+							: token.magicColorUsages.link.default};
+						text-decoration: none;
+						margin-left: 0.25em;
+
+						&:hover {
+							text-decoration: underline;
+						}
+					}
+				}
+			`,
+			abbreviations: css`
+				/* 缩写样式 */
+				abbr {
+					text-decoration: underline dotted;
+					cursor: help;
+					border-bottom: 1px dotted ${token.colorTextSecondary};
+
+					&:hover {
+						background-color: ${isDarkMode
+							? token.magicColorScales.grey[1]
+							: token.magicColorScales.grey[0]};
+					}
+				}
+			`,
+
+			taskList: css`
+				/* Task list container reset */
+				.task-list-container,
+				.task-list-nested,
+				ul.task-list-container,
+				ul.task-list-nested {
+					list-style: none !important;
+					list-style-type: none !important;
+					margin: 0.5em 0;
+					padding-left: 0;
+
+					/* Nested task lists */
+					.task-list-nested {
+						margin: 0.25em 0 0 0;
+						padding-left: 1.5em;
+					}
+
+					/* Reset all list item styles */
+					li {
+						list-style: none !important;
+						list-style-type: none !important;
+						position: relative;
+
+						&::before,
+						&::after {
+							display: none !important;
+							content: none !important;
+							width: 0 !important;
+							height: 0 !important;
+							background: transparent !important;
+							border: none !important;
+							margin: 0 !important;
+							padding: 0 !important;
+						}
+					}
+				}
+
+				/* Task list item base styles */
+				.task-list-item,
+				li.task-list-item {
+					list-style: none !important;
+					list-style-type: none !important;
+					margin: 0.25em 0;
+					margin-inline-start: 0 !important;
+					padding: 0;
+					display: flex;
+					align-items: flex-start;
+					line-height: 1.4;
+					position: relative;
+
+					/* Remove all pseudo-elements */
+					&::before,
+					&::after {
+						display: none !important;
+						content: none !important;
+						width: 0 !important;
+						height: 0 !important;
+						background: transparent !important;
+						border: none !important;
+						margin: 0 !important;
+						padding: 0 !important;
+						position: static !important;
+					}
+
+					/* Task text content */
+					> span,
+					> :not(input):not(ul):not(.task-list-nested) {
+						flex: 1;
+						margin: 0;
+						line-height: 1.4;
+					}
+
+					/* Nested task list within item */
+					> .task-list-nested {
+						width: 100%;
+						margin-top: 0.25em;
+						margin-bottom: 0;
+						padding-left: 0;
+					}
+				}
+
+				/* Checkbox styles for different nesting levels */
+				.task-list-item > input[type="checkbox"] {
+					margin: 0.2em 0.5em 0 0;
+					flex-shrink: 0;
+					cursor: default;
+					appearance: none;
+					-webkit-appearance: none;
+					-moz-appearance: none;
+					border-radius: 3px;
+					position: relative;
+
+					/* Level 1 checkboxes */
+					width: 16px;
+					height: 16px;
+					border: 2px solid
+						${isDarkMode
+							? token.magicColorScales.grey[5]
+							: token.magicColorScales.grey[3]};
+					background: ${isDarkMode
+						? token.magicColorScales.grey[1]
+						: token.magicColorUsages.white};
+
+					&:checked {
+						background: ${token.magicColorUsages.brand};
+						border-color: ${token.magicColorUsages.brand};
+
+						&::after {
+							content: "✓";
+							position: absolute;
+							top: 50%;
+							left: 50%;
+							transform: translate(-50%, -50%);
+							color: white;
+							font-size: 12px;
+							font-weight: bold;
+							line-height: 1;
+						}
+					}
+
+					&:focus {
+						outline: 2px solid ${token.magicColorUsages.brand};
+						outline-offset: 2px;
+					}
+				}
+
+				/* Level 2 checkboxes */
+				.task-list-item .task-list-item > input[type="checkbox"] {
+					width: 14px;
+					height: 14px;
+					border-width: 1px;
+
+					&:checked::after {
+						font-size: 10px;
+					}
+				}
+
+				/* Level 3+ checkboxes */
+				.task-list-item .task-list-item .task-list-item > input[type="checkbox"] {
+					width: 12px;
+					height: 12px;
+
+					&:checked::after {
+						font-size: 9px;
+					}
 				}
 			`,
 		}

@@ -4,6 +4,7 @@ import ConversationStore from "@/opensource/stores/chatNew/conversation"
 import { isFunction } from "lodash-es"
 import { magic } from "@/enhance/magicElectron"
 import { ImagePreviewInfo } from "@/types/chat/preview"
+import { safeBtoa } from "@/utils/encoding"
 
 class MessageImagePreview {
 	setPreviewInfo(info: ImagePreviewInfo) {
@@ -110,8 +111,10 @@ class MessageImagePreview {
 	 */
 	copySvg(svgText: string) {
 		// 把 svg 转换为 base64
-		const base64 = btoa(svgText)
-		navigator.clipboard.write([new ClipboardItem({ "image/svg+xml": base64 })])
+		const base64 = safeBtoa(svgText)
+		if (base64) {
+			navigator.clipboard.write([new ClipboardItem({ "image/svg+xml": base64 })])
+		}
 	}
 }
 

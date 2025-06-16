@@ -31,10 +31,11 @@ const codeComponents: Partial<Record<CodeLanguage, CodeRenderComponent>> = {
 		propsParser: (props) => {
 			return {
 				...props,
+				content: props.data,
 				language: props.language,
 			}
 		},
-		loader: () => import("../components/Fallback"),
+		loader: () => import("../components/Markdown"),
 	},
 }
 

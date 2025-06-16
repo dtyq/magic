@@ -2,6 +2,7 @@ import { useMemoizedFn } from "ahooks"
 import { useClusterCode } from "@/opensource/providers/ClusterProvider"
 import { userStore } from "@/opensource/models/user"
 import { userService } from "@/services"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
 
 export function useAccount() {
 	const { setClusterCode } = useClusterCode()
@@ -18,6 +19,12 @@ export function useAccount() {
 				setClusterCode(account?.deployCode)
 			}
 			await userService.switchAccount(unionId, magic_user_id, magic_organization_code)
+			/** 广播切换账号 */
+			BroadcastChannelSender.switchAccount({
+				magicId: unionId,
+				magicUserId: magic_user_id,
+				magicOrganizationCode: magic_organization_code,
+			})
 		},
 	)
 

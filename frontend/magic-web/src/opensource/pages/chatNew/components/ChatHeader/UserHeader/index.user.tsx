@@ -1,23 +1,22 @@
 import { Flex } from "antd"
 import MagicButton from "@/opensource/components/base/MagicButton"
 import type { HTMLAttributes } from "react"
-import { useMemo } from "react"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
+import { useMemo, useState } from "react"
+import { contactStore } from "@/opensource/stores/contact"
 import type Conversation from "@/opensource/models/chat/conversation"
 import { getUserDepartmentFirstPath, getUserJobTitle, getUserName } from "@/utils/modules/chat"
 import { cx } from "antd-style"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
-import MagicMemberAvatar from "@/opensource/components/business/MagicMemberAvatar"
 import MagicIcon from "@/opensource/components/base/MagicIcon"
 import useUserInfo from "@/opensource/hooks/chat/useUserInfo"
-import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
-import { useMemoizedFn } from "ahooks"
+import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import { IconDots } from "@tabler/icons-react"
 import { ExtraSectionKey } from "@/opensource/pages/chatNew/types"
 import useStyles from "../styles"
 import CurrentTopic from "../CurrentTopic"
 import MagicAvatar from "@/opensource/components/base/MagicAvatar"
+import { observer } from "mobx-react-lite"
 
 interface HeaderProps extends HTMLAttributes<HTMLDivElement> {
 	conversation: Conversation
@@ -37,9 +36,16 @@ function HeaderRaw({ conversation, className }: HeaderProps) {
 		[conversationUser],
 	)
 
-	const { data: departments = [] } = useContactStore((state) =>
-		state.useDepartmentInfos(departmentPath, 1, true),
-	)
+	// 使用 useState 和 useEffect 替代 useContactStore
+	const [departments, setDepartments] = useState<any[]>([])
+
+	useDeepCompareEffect(() => {
+		if (departmentPath.length > 0) {
+			contactStore.getDepartmentInfos(departmentPath, 1, true).then((result) => {
+				setDepartments(result)
+			})
+		}
+	}, [departmentPath])
 
 	const onSettingClick = useMemoizedFn(() => {
 		conversationStore.toggleSettingOpen()

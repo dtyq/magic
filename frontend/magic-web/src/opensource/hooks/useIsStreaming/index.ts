@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react"
+import { useDebounceEffect, useUpdate } from "ahooks"
+import { useEffect, useRef } from "react"
 
 /**
  * 判断是否正在流式输出
@@ -7,19 +8,32 @@ import { useEffect, useRef, useState } from "react"
  * @returns 是否正在流式输出
  */
 export const useIsStreaming = (value: string, delay = 500) => {
-	const [isStreaming, setIsStreaming] = useState(true)
-	const timer = useRef<NodeJS.Timeout | null>(null)
+	const isStreaming = useRef(true)
+	const firstRender = useRef(true)
+	const update = useUpdate()
 
 	useEffect(() => {
-		if (timer.current) {
-			clearTimeout(timer.current)
+		if (firstRender.current) {
+			firstRender.current = false
+			return
 		}
-		setIsStreaming(true)
-		timer.current = setTimeout(() => {
-			setIsStreaming(false)
-		}, delay)
+
+		isStreaming.current = true
+		update()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [value])
 
-	return { isStreaming }
+	// 流式输出延迟
+	useDebounceEffect(
+		() => {
+			if (isStreaming.current) isStreaming.current = false
+			update()
+		},
+		[value],
+		{
+			wait: delay,
+		},
+	)
+
+	return { isStreaming: isStreaming.current }
 }

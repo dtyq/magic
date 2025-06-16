@@ -2,6 +2,7 @@ import chatDb from "@/opensource/database/chat"
 import type ChatDatabase from "@/opensource/database/chat/class-new"
 import Topic from "@/opensource/models/chat/topic"
 import type { ConversationTopic } from "@/types/chat/topic"
+import { uniqBy } from "lodash-es"
 
 class TopicDBServices {
 	db: ChatDatabase
@@ -72,7 +73,7 @@ class TopicDBServices {
 	 */
 	async addTopicToDB(topic: Topic) {
 		const topics = await this.loadTopicsFromDB(topic.conversation_id)
-		const newTopics = [...topics, topic]
+		const newTopics = uniqBy([...topics, topic], "id")
 		return this.saveTopicsToDB(topic.conversation_id, newTopics)
 	}
 
@@ -123,16 +124,13 @@ class TopicDBServices {
 		if (topics.length === 0) return
 
 		// 按会话ID分组
-		const topicsByConversation = topics.reduce(
-			(acc, topic) => {
-				if (!acc[topic.conversation_id]) {
-					acc[topic.conversation_id] = []
-				}
-				acc[topic.conversation_id].push(topic)
-				return acc
-			},
-			{} as Record<string, Topic[]>,
-		)
+		const topicsByConversation = topics.reduce((acc, topic) => {
+			if (!acc[topic.conversation_id]) {
+				acc[topic.conversation_id] = []
+			}
+			acc[topic.conversation_id].push(topic)
+			return acc
+		}, {} as Record<string, Topic[]>)
 
 		// 逐个会话保存话题
 		await Promise.all(

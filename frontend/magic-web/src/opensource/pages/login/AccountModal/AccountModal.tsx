@@ -67,7 +67,7 @@ function AccountModal(props: AccountModalProps) {
 			.then(() => {
 				const { userInfo } = userStore.user
 				if (userInfo) {
-					return userService.switchUser(userInfo, true)
+					return userService.loadUserInfo(userInfo, { showSwitchLoading: true })
 				}
 				return Promise.resolve()
 			})
