@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "4b9f027dacb3b314b34bb5e459ac68b68eb06e73"
+                "reference": "e312144e2e9c7bba5fad202694260698af5770cd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=4b9f027dacb3b314b34bb5e459ac68b68eb06e73",
-                "reference": "4b9f027dacb3b314b34bb5e459ac68b68eb06e73",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=e312144e2e9c7bba5fad202694260698af5770cd",
+                "reference": "e312144e2e9c7bba5fad202694260698af5770cd",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-06-13T19:30:35+08:00"
+            "time": "2025-06-13T11:56:50+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17114,12 +17114,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "5a31a1cd05b9114408f90c6cb35f65e9db6ea79d"
+                "reference": "0a95bcf39c5b55601cb073bc307d567a16e31dc0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/5a31a1cd05b9114408f90c6cb35f65e9db6ea79d",
-                "reference": "5a31a1cd05b9114408f90c6cb35f65e9db6ea79d",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0a95bcf39c5b55601cb073bc307d567a16e31dc0",
+                "reference": "0a95bcf39c5b55601cb073bc307d567a16e31dc0",
                 "shasum": ""
             },
             "conflict": {
@@ -17413,6 +17413,7 @@
                 "guzzlehttp/oauth-subscriber": "<0.8.1",
                 "guzzlehttp/psr7": "<1.9.1|>=2,<2.4.5",
                 "haffner/jh_captcha": "<=2.1.3|>=3,<=3.0.2",
+                "handcraftedinthealps/goodby-csv": "<1.4.3",
                 "harvesthq/chosen": "<1.8.7",
                 "helloxz/imgurl": "<=2.31",
                 "hhxsv5/laravel-s": "<3.7.36",
@@ -18059,7 +18060,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-13T15:05:43+00:00"
+            "time": "2025-06-13T22:05:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",

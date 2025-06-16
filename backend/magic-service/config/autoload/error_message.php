@@ -18,7 +18,7 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\MCPErrorCode;
 use App\ErrorCode\PermissionErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\ErrorCode\ShareErrorCode;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\ErrorCode\TokenErrorCode;
 use App\ErrorCode\UserErrorCode;
