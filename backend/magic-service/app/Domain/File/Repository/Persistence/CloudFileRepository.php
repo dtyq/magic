@@ -132,11 +132,11 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         $filesystem->upload($uploadFile, $this->getOptions($organizationCode));
     }
 
-    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): array
+    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, bool $sts = false): array
     {
         $filesystem = $this->cloudFile->get($storage->value);
         $credentialPolicy = new CredentialPolicy([
-            'sts' => false,
+            'sts' => $sts,
             'role_session_name' => 'magic',
             // 采用在文件路径中增加配置名的形式后续获取链接时自动识别
             'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
