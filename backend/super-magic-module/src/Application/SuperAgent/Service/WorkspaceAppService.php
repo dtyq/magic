@@ -21,13 +21,10 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\CreateWorkspaceBeforeEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\DeleteWorkspaceAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -155,11 +152,9 @@ class WorkspaceAppService extends AbstractAppService
             if ($requestDTO->getWorkspaceId()) {
                 // Update, currently only updates workspace name
                 $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+                Db::commit();
                 return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
             }
-
-            // Dispatch event before creating workspace
-            AsyncEventUtil::dispatch(new CreateWorkspaceBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $requestDTO->getWorkspaceName()));
 
             // 提交事务
             Db::commit();
@@ -308,9 +303,6 @@ class WorkspaceAppService extends AbstractAppService
 
         // 调用领域服务执行删除
         $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
-
-        // Dispatch event after delete workspace
-        AsyncEventUtil::dispatch(new DeleteWorkspaceAfterEvent($workspaceId, $userAuthorization->getOrganizationCode(), $userAuthorization->getId()));
 
         return true;
     }
