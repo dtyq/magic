@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "ca6b145691cb02d3a9468167d5aaae5191461674"
+                "reference": "47660de45e2268f6e6c1bcb2391d0ac0be278bbb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=ca6b145691cb02d3a9468167d5aaae5191461674",
-                "reference": "ca6b145691cb02d3a9468167d5aaae5191461674",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=47660de45e2268f6e6c1bcb2391d0ac0be278bbb",
+                "reference": "47660de45e2268f6e6c1bcb2391d0ac0be278bbb",
                 "shasum": ""
             },
             "require": {
@@ -1975,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-06-16T10:29:30+00:00"
+            "time": "2025-06-16T13:02:02+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -1983,12 +1983,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "23870dc4a15bd881c05bc3a012193565399d689a"
+                "reference": "9faf6799d6ee4ccce75b179130b5f498c2bfc597"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=23870dc4a15bd881c05bc3a012193565399d689a",
-                "reference": "23870dc4a15bd881c05bc3a012193565399d689a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=9faf6799d6ee4ccce75b179130b5f498c2bfc597",
+                "reference": "9faf6799d6ee4ccce75b179130b5f498c2bfc597",
                 "shasum": ""
             },
             "require": {
@@ -2065,7 +2065,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
             },
-            "time": "2025-06-13T11:41:02+08:00"
+            "time": "2025-06-15T21:59:31+08:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
