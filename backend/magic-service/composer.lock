@@ -1222,16 +1222,16 @@
         },
         {
             "name": "doctrine/dbal",
-            "version": "3.9.4",
+            "version": "3.9.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/doctrine/dbal.git",
-                "reference": "ec16c82f20be1a7224e65ac67144a29199f87959"
+                "reference": "4a4e2eed3134036ee36a147ee0dac037dfa17868"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/doctrine/dbal/zipball/ec16c82f20be1a7224e65ac67144a29199f87959",
-                "reference": "ec16c82f20be1a7224e65ac67144a29199f87959",
+                "url": "https://api.github.com/repos/doctrine/dbal/zipball/4a4e2eed3134036ee36a147ee0dac037dfa17868",
+                "reference": "4a4e2eed3134036ee36a147ee0dac037dfa17868",
                 "shasum": ""
             },
             "require": {
@@ -1244,14 +1244,14 @@
                 "psr/log": "^1|^2|^3"
             },
             "require-dev": {
-                "doctrine/coding-standard": "12.0.0",
+                "doctrine/coding-standard": "13.0.0",
                 "fig/log-test": "^1",
                 "jetbrains/phpstorm-stubs": "2023.1",
-                "phpstan/phpstan": "2.1.1",
+                "phpstan/phpstan": "2.1.17",
                 "phpstan/phpstan-strict-rules": "^2",
-                "phpunit/phpunit": "9.6.22",
-                "slevomat/coding-standard": "8.13.1",
-                "squizlabs/php_codesniffer": "3.10.2",
+                "phpunit/phpunit": "9.6.23",
+                "slevomat/coding-standard": "8.16.2",
+                "squizlabs/php_codesniffer": "3.13.1",
                 "symfony/cache": "^5.4|^6.0|^7.0",
                 "symfony/console": "^4.4|^5.4|^6.0|^7.0"
             },
@@ -1313,7 +1313,7 @@
             ],
             "support": {
                 "issues": "https://github.com/doctrine/dbal/issues",
-                "source": "https://github.com/doctrine/dbal/tree/3.9.4"
+                "source": "https://github.com/doctrine/dbal/tree/3.9.5"
             },
             "funding": [
                 {
@@ -1329,7 +1329,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-01-16T08:28:55+00:00"
+            "time": "2025-06-15T22:40:05+00:00"
         },
         {
             "name": "doctrine/deprecations",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.15",
+            "version": "1.0.16",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "275d4e21ad79ce07c2e806dd3d74668bc0e064c4"
+                "reference": "482d5f97374e9f4371257a942a95a63a32f89258"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=275d4e21ad79ce07c2e806dd3d74668bc0e064c4",
-                "reference": "275d4e21ad79ce07c2e806dd3d74668bc0e064c4",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=482d5f97374e9f4371257a942a95a63a32f89258",
+                "reference": "482d5f97374e9f4371257a942a95a63a32f89258",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.15"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.16"
             },
-            "time": "2025-06-12T16:13:20+00:00"
+            "time": "2025-06-16T13:50:11+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.38",
+            "version": "0.0.39",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "f70bc5495e8b5f2072a5991a38af3b0cc3f3b642"
+                "reference": "41d6c2c9daa4184b489f6366ef2be2023f2eadfc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f70bc5495e8b5f2072a5991a38af3b0cc3f3b642",
-                "reference": "f70bc5495e8b5f2072a5991a38af3b0cc3f3b642",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=41d6c2c9daa4184b489f6366ef2be2023f2eadfc",
+                "reference": "41d6c2c9daa4184b489f6366ef2be2023f2eadfc",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.38"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.39"
             },
-            "time": "2025-06-13T16:55:18+08:00"
+            "time": "2025-06-16T13:43:36+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2567,16 +2567,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.37",
+            "version": "v0.0.38",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "10a859798d26300a5e0fc8de5fa575a1d6a31105"
+                "reference": "5baedcc64717474ec2fd7abefffecc15f6779371"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/10a859798d26300a5e0fc8de5fa575a1d6a31105",
-                "reference": "10a859798d26300a5e0fc8de5fa575a1d6a31105",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/5baedcc64717474ec2fd7abefffecc15f6779371",
+                "reference": "5baedcc64717474ec2fd7abefffecc15f6779371",
                 "shasum": ""
             },
             "require": {
@@ -2668,10 +2668,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.37",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.38",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-06-10T12:27:23+00:00"
+            "time": "2025-06-16T13:46:05+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -10480,16 +10480,16 @@
         },
         {
             "name": "phpseclib/phpseclib",
-            "version": "3.0.43",
+            "version": "3.0.44",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpseclib/phpseclib.git",
-                "reference": "709ec107af3cb2f385b9617be72af8cf62441d02"
+                "reference": "1d0b5e7e1434678411787c5a0535e68907cf82d9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/709ec107af3cb2f385b9617be72af8cf62441d02",
-                "reference": "709ec107af3cb2f385b9617be72af8cf62441d02",
+                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/1d0b5e7e1434678411787c5a0535e68907cf82d9",
+                "reference": "1d0b5e7e1434678411787c5a0535e68907cf82d9",
                 "shasum": ""
             },
             "require": {
@@ -10570,7 +10570,7 @@
             ],
             "support": {
                 "issues": "https://github.com/phpseclib/phpseclib/issues",
-                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.43"
+                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.44"
             },
             "funding": [
                 {
@@ -10586,7 +10586,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-12-14T21:12:59+00:00"
+            "time": "2025-06-15T09:59:26+00:00"
         },
         {
             "name": "phpspec/php-diff",
@@ -17104,12 +17104,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "5a31a1cd05b9114408f90c6cb35f65e9db6ea79d"
+                "reference": "0a95bcf39c5b55601cb073bc307d567a16e31dc0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/5a31a1cd05b9114408f90c6cb35f65e9db6ea79d",
-                "reference": "5a31a1cd05b9114408f90c6cb35f65e9db6ea79d",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0a95bcf39c5b55601cb073bc307d567a16e31dc0",
+                "reference": "0a95bcf39c5b55601cb073bc307d567a16e31dc0",
                 "shasum": ""
             },
             "conflict": {
@@ -17403,6 +17403,7 @@
                 "guzzlehttp/oauth-subscriber": "<0.8.1",
                 "guzzlehttp/psr7": "<1.9.1|>=2,<2.4.5",
                 "haffner/jh_captcha": "<=2.1.3|>=3,<=3.0.2",
+                "handcraftedinthealps/goodby-csv": "<1.4.3",
                 "harvesthq/chosen": "<1.8.7",
                 "helloxz/imgurl": "<=2.31",
                 "hhxsv5/laravel-s": "<3.7.36",
@@ -18049,7 +18050,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-13T15:05:43+00:00"
+            "time": "2025-06-13T22:05:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
