@@ -62,10 +62,8 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
-use Hyperf\Odin\Message\AssistantMessage;
 use Hyperf\Odin\Message\Role;
 use Hyperf\Odin\Message\SystemMessage;
-use Hyperf\Odin\Message\UserMessage;
 use Hyperf\Redis\Redis;
 use Hyperf\SocketIOServer\Socket;
 use Hyperf\WebSocketServer\Context as WebSocketContext;
@@ -98,7 +96,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
         protected readonly MagicMessageVersionDomainService $magicMessageVersionDomainService,
     ) {
         try {
-            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(get_class($this));
+            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(get_class($this));
         } catch (Throwable) {
         }
         parent::__construct($magicSeqDomainService);
@@ -334,7 +332,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             // ai准备开始发消息了,结束输入状态
             $contentStruct = $aiSeqDTO->getContent();
             $isStream = $contentStruct instanceof StreamMessageInterface && $contentStruct->isStream();
-            $beginStreamMessage = $isStream && $contentStruct->getStreamOptions()->getStatus() === StreamMessageStatus::Start;
+            $beginStreamMessage = $isStream && $contentStruct instanceof StreamMessageInterface && $contentStruct->getStreamOptions()?->getStatus() === StreamMessageStatus::Start;
             if (! $isStream || $beginStreamMessage) {
                 // 非流式响应或者流式响应开始输入
                 $this->magicConversationDomainService->agentOperateConversationStatusV2(
@@ -471,7 +469,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             // ai准备开始发消息了,结束输入状态
             $contentStruct = $aiSeqDTO->getContent();
             $isStream = $contentStruct instanceof StreamMessageInterface && $contentStruct->isStream();
-            $beginStreamMessage = $isStream && $contentStruct->getStreamOptions()->getStatus() === StreamMessageStatus::Start;
+            $beginStreamMessage = $isStream && $contentStruct instanceof StreamMessageInterface && $contentStruct->getStreamOptions()?->getStatus() === StreamMessageStatus::Start;
             if (! $isStream || $beginStreamMessage) {
                 // 非流式响应或者流式响应开始输入
                 $this->magicConversationDomainService->agentOperateConversationStatusv2(
@@ -625,29 +623,13 @@ class MagicChatMessageAppService extends MagicSeqAppService
 
     public function intelligenceRenameTopicName(MagicUserAuthorization $authorization, string $topicId, string $conversationId): string
     {
-        $prompt = <<<'PROMPT'
-                [目标]
-                根据对话的内容，站在用户的角度，使用对陈述性的语句,返回一个对话内容的标题。
-                
-                [背景]
-                1.用户输入的内容可以非常简短.
-                2.不要让用户给出更多内容再总结.
-                
-                [输出格式]
-                字符串格式，只包含标题内容.
-                
-                [限制]
-                1.不论用户说了什么，都不要直接回答用户问题，只需要将对话内容总结成一个最合适的标题.
-                2.直接返回标题内容，不要有标题内容以外的其他返回.
-                3.总结的结果长度不超过12个汉字.
-                4.用户输入的内容再少也要给出一个标题.
-PROMPT;
-        $dataIsolation = $this->createDataIsolation($authorization);
-        $messageHistory = $this->getMessageHistory($dataIsolation, $conversationId, $prompt, 100, $topicId);
-        if ($messageHistory === null) {
+        $history = $this->getConversationChatCompletionsHistory($authorization, $conversationId, 30, $topicId);
+        if (empty($history)) {
             return '';
         }
-        return $this->getSummaryFromLLM($authorization, $messageHistory, $conversationId, $topicId);
+
+        $historyContext = MessageAssembler::buildHistoryContext($history, 10000, $authorization->getNickname());
+        return $this->summarizeText($authorization, $historyContext);
     }
 
     /**
@@ -658,20 +640,32 @@ PROMPT;
         if (empty($textContent)) {
             return '';
         }
-        $prompt = <<<PROMPT
-        请阅读以下字符串内容，从中提炼并总结一个能够准确概括该内容的简洁标题。
-        要求：
-        
-        标题应简洁明了，能够全面反映字符串的核心主题。
-        不得出现与内容无关的词语。
-        标题字数控制在15个字以内（如为英文，建议不超过10词）。
-        仅输出标题，不需要任何解释或其他内容。
-        字符串内容：{$textContent}
-PROMPT;
+        $prompt = <<<'PROMPT'
+                你是一个专业的内容标题生成助手。请严格按照以下要求为对话内容生成标题：
+                
+                ## 任务目标
+                根据对话内容，生成一个简洁、准确的标题，能够概括对话的核心主题。
+                
+                ## 严格要求
+                1. 标题长度：不超过 15 个字符。英文一个字母算一个字符，汉字一个字算一个字符，其他语种采用类似计数方案。
+                2. 内容相关：标题必须直接反映对话的核心主题
+                3. 语言风格：使用陈述性语句，避免疑问句
+                4. 输出格式：只输出标题内容，不要添加任何解释、标点或其他文字
+                5. 禁止行为：不要回答对话中的问题，不要进行额外解释
+                
+                ## 对话内容
+                <CONVERSATION_START>
+                {textContent}
+                <CONVERSATION_END>
+                
+                ## 输出
+                请直接输出标题：
+        PROMPT;
+
+        $prompt = str_replace('{textContent}', $textContent, $prompt);
         $conversationId = uniqid('', true);
         $messageHistory = new MessageHistory();
         $messageHistory->addMessages(new SystemMessage($prompt), $conversationId);
-
         return $this->getSummaryFromLLM($authorization, $messageHistory, $conversationId);
     }
 
@@ -873,70 +867,11 @@ PROMPT;
     }
 
     /**
-     * 可能传来的是 agent 自己的会话窗口，所以生成 content时，需要判断一下会话类型，而不是认为发件人为空，role_type 就为 user.
-     * 人与人的私聊，群聊也可以用这个逻辑简化判断.
-     */
-    public function getMessageHistory(DataIsolation $dataIsolation, string $conversationId, string $systemPrompt, int $limit, string $topicId): ?MessageHistory
-    {
-        $conversationEntity = $this->magicChatDomainService->getConversationById($conversationId);
-        if ($conversationEntity === null) {
-            return null;
-        }
-        if ($dataIsolation->getCurrentUserId() !== $conversationEntity->getUserId()) {
-            return null;
-        }
-        $userEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getUserId());
-        $userType = $userEntity->getUserType();
-        // 确定自己发送消息的角色类型. 只有当自己是 ai 时，自己发送的消息才是 assistant。（两个 ai 互相对话暂不考虑）
-        if ($userType === UserType::Ai) {
-            $selfSendMessageRoleType = Role::Assistant;
-            $otherSendMessageRoleType = Role::User;
-        } else {
-            $selfSendMessageRoleType = Role::User;
-            $otherSendMessageRoleType = Role::Assistant;
-        }
-        // 组装大模型的消息请求
-        // 获取话题的最近 20 条对话记录
-        $conversationMessagesQueryDTO = new MessagesQueryDTO();
-        $conversationMessagesQueryDTO->setConversationId($conversationId)
-            ->setLimit($limit)
-            ->setTopicId($topicId)
-            ->setOrder(Order::Asc);
-        $userMessages = $this->magicChatDomainService->getConversationChatMessages($conversationId, $conversationMessagesQueryDTO);
-        if (empty($userMessages)) {
-            return null;
-        }
-        $messageHistory = new MessageHistory();
-        $messageHistory->addMessages(new SystemMessage($systemPrompt), $conversationId);
-        foreach ($userMessages as $userMessage) {
-            // 确定消息的角色类型
-            if (empty($userMessage->getSeq()->getSenderMessageId())) {
-                $roleType = $selfSendMessageRoleType;
-            } else {
-                $roleType = $otherSendMessageRoleType;
-            }
-            $message = $userMessage->getSeq()->getMessage()->getContent();
-            // 暂时只处理用户的输入，以及能获取纯文本的消息类型
-            $messageContent = $this->getMessageTextContent($message);
-            if (empty($messageContent)) {
-                continue;
-            }
-            if ($roleType === Role::Assistant) {
-                $messageHistory->addMessages(new AssistantMessage($messageContent), $conversationId);
-            } elseif ($roleType === Role::User) {
-                $messageHistory->addMessages(new UserMessage($messageContent), $conversationId);
-            }
-        }
-        return $messageHistory;
-    }
-
-    /**
      * 聊天窗口打字时补全用户输入。为了适配群聊，这里的 role 其实是用户的昵称，而不是角色类型。
      */
     public function getConversationChatCompletionsHistory(
         MagicUserAuthorization $userAuthorization,
         string $conversationId,
-        string $systemPrompt,
         int $limit,
         string $topicId
     ): array {
@@ -982,13 +917,7 @@ PROMPT;
         }
         // 根据 seq_id 升序排列
         ksort($userMessages);
-        $userMessages = array_values($userMessages);
-        // 将系统消息放在第一位
-        if (! empty($systemPrompt)) {
-            $systemMessage = ['role' => 'system', 'content' => $systemPrompt];
-            array_unshift($userMessages, $systemMessage);
-        }
-        return $userMessages;
+        return array_values($userMessages);
     }
 
     /**
