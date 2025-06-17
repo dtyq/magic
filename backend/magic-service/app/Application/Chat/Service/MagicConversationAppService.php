@@ -79,12 +79,12 @@ class MagicConversationAppService extends MagicSeqAppService
         // Generate a unique debounce key based on user ID and conversation ID
         $debounceKey = sprintf(
             'chat_completions_debounce:%s:%s',
-            $userAuthorization->getId(),
+            $userAuthorization->getMagicId(),
             $chatCompletionsDTO->getConversationId()
         );
 
         // Use the sliding window utility for debouncing, executing only the last request within a 1-second window
-        if (! $this->slidingWindowUtil->shouldExecuteWithDebounce($debounceKey, 0.6)) {
+        if (! $this->slidingWindowUtil->shouldExecuteWithDebounce($debounceKey, 0.1)) {
             $this->logger->info('Chat completions request skipped due to debounce', [
                 'user_id' => $userAuthorization->getId(),
                 'conversation_id' => $chatCompletionsDTO->getConversationId(),
