@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "eb2ac911d9032c27775cb94ddea75192df2ba347"
+                "reference": "e9ab206ecb2c464eaab20f1001e2f7e54b5a224f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=eb2ac911d9032c27775cb94ddea75192df2ba347",
-                "reference": "eb2ac911d9032c27775cb94ddea75192df2ba347",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e9ab206ecb2c464eaab20f1001e2f7e54b5a224f",
+                "reference": "e9ab206ecb2c464eaab20f1001e2f7e54b5a224f",
                 "shasum": ""
             },
             "require": {
@@ -1975,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-06-17T07:45:34+00:00"
+            "time": "2025-06-17T08:27:05+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -14398,16 +14398,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.148",
+            "version": "v1.0.149",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "56c7e138af7227e0438256ed53e5c3c7895ea2b3"
+                "reference": "af758049c47c7809309b60efc968ff45ff97d822"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/56c7e138af7227e0438256ed53e5c3c7895ea2b3",
-                "reference": "56c7e138af7227e0438256ed53e5c3c7895ea2b3",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/af758049c47c7809309b60efc968ff45ff97d822",
+                "reference": "af758049c47c7809309b60efc968ff45ff97d822",
                 "shasum": ""
             },
             "require": {
@@ -14442,9 +14442,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.148"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.149"
             },
-            "time": "2025-05-29T12:30:12+00:00"
+            "time": "2025-06-17T09:18:04+00:00"
         },
         {
             "name": "w7corp/easywechat",
