@@ -24,6 +24,7 @@ use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\AgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Odin\AgentFactory;
+use App\Infrastructure\Util\SlidingWindow\SlidingWindowUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
@@ -38,7 +39,7 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * 聊天消息相关.
+ * Chat message related.
  */
 class MagicConversationAppService extends MagicSeqAppService
 {
@@ -51,6 +52,7 @@ class MagicConversationAppService extends MagicSeqAppService
         protected MagicSeqDomainService $magicSeqDomainService,
         protected FileDomainService $fileDomainService,
         protected readonly MagicAgentDomainService $magicAgentDomainService,
+        protected readonly SlidingWindowUtil $slidingWindowUtil,
     ) {
         try {
             $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(get_class($this));
@@ -72,13 +74,25 @@ class MagicConversationAppService extends MagicSeqAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         // Check if conversation ID belongs to current user
         $this->magicConversationDomainService->getConversationById($chatCompletionsDTO->getConversationId(), $dataIsolation);
-        // Concatenate chat history messages into a single message
-        $historyContext = '';
-        foreach ($chatHistoryMessages as $message) {
-            $role = $message['role'];
-            $content = $message['content'];
-            $historyContext .= sprintf("%s: %s\n", $role, $content);
+
+        // Generate a unique debounce key based on user ID and conversation ID
+        $debounceKey = sprintf(
+            'chat_completions_debounce:%s:%s',
+            $userAuthorization->getId(),
+            $chatCompletionsDTO->getConversationId()
+        );
+
+        // Use the sliding window utility for debouncing, executing only the last request within a 1-second window
+        if (! $this->slidingWindowUtil->shouldExecuteWithDebounce($debounceKey, 0.6)) {
+            $this->logger->info('Chat completions request skipped due to debounce', [
+                'user_id' => $userAuthorization->getId(),
+                'conversation_id' => $chatCompletionsDTO->getConversationId(),
+                'debounce_key' => $debounceKey,
+            ]);
+            return '';
         }
+        // Build history context with length limit, prioritizing recent messages
+        $historyContext = $this->buildHistoryContext($chatHistoryMessages);
 
         // Generate system prompt for user input completion
         $systemPrompt = <<<'Prompt'
@@ -105,7 +119,6 @@ class MagicConversationAppService extends MagicSeqAppService
         $systemPrompt = str_replace('{historyContext}', $historyContext, $systemPrompt);
         // Get current user nickname
         $currentUserRole = $userAuthorization->getRealName();
-
         // Create MessageInterface array
         $messages = [
             new SystemMessage($systemPrompt),
@@ -294,6 +307,43 @@ class MagicConversationAppService extends MagicSeqAppService
         }
 
         return $oldInstructs;
+    }
+
+    /**
+     * Builds a length-limited chat history context.
+     * To ensure context coherence, this method prioritizes keeping the most recent messages.
+     *
+     * @param array $chatHistoryMessages Chat history messages
+     * @param int $maxLength Maximum string length
+     */
+    private function buildHistoryContext(array $chatHistoryMessages, int $maxLength = 3000): string
+    {
+        $limitedMessages = [];
+        $currentLength = 0;
+
+        // Iterate through messages in reverse to prioritize recent ones
+        foreach (array_reverse($chatHistoryMessages) as $message) {
+            $role = $message['role'] ?? 'user';
+            $content = $message['content'] ?? '';
+
+            if (empty(trim($content))) {
+                continue;
+            }
+
+            $formattedMessage = sprintf("%s: %s\n", $role, $content);
+            $messageLength = mb_strlen($formattedMessage, 'UTF-8');
+
+            if ($currentLength + $messageLength > $maxLength) {
+                // Stop adding messages if the current one exceeds the length limit
+                break;
+            }
+
+            // Prepend the message to the array to maintain the original chronological order
+            array_unshift($limitedMessages, $formattedMessage);
+            $currentLength += $messageLength;
+        }
+
+        return implode('', $limitedMessages);
     }
 
     private function removeUserInputPrefix($content, $userInput)
