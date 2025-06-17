@@ -26,6 +26,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Odin\AgentFactory;
 use App\Infrastructure\Util\SlidingWindow\SlidingWindowUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Agent\Agent;
@@ -92,7 +93,7 @@ class MagicConversationAppService extends MagicSeqAppService
             return '';
         }
         // Build history context with length limit, prioritizing recent messages
-        $historyContext = $this->buildHistoryContext($chatHistoryMessages);
+        $historyContext = MessageAssembler::buildHistoryContext($chatHistoryMessages, 3000, $userAuthorization->getNickname());
 
         // Generate system prompt for user input completion
         $systemPrompt = <<<'Prompt'
@@ -307,43 +308,6 @@ class MagicConversationAppService extends MagicSeqAppService
         }
 
         return $oldInstructs;
-    }
-
-    /**
-     * Builds a length-limited chat history context.
-     * To ensure context coherence, this method prioritizes keeping the most recent messages.
-     *
-     * @param array $chatHistoryMessages Chat history messages
-     * @param int $maxLength Maximum string length
-     */
-    private function buildHistoryContext(array $chatHistoryMessages, int $maxLength = 3000): string
-    {
-        $limitedMessages = [];
-        $currentLength = 0;
-
-        // Iterate through messages in reverse to prioritize recent ones
-        foreach (array_reverse($chatHistoryMessages) as $message) {
-            $role = $message['role'] ?? 'user';
-            $content = $message['content'] ?? '';
-
-            if (empty(trim($content))) {
-                continue;
-            }
-
-            $formattedMessage = sprintf("%s: %s\n", $role, $content);
-            $messageLength = mb_strlen($formattedMessage, 'UTF-8');
-
-            if ($currentLength + $messageLength > $maxLength) {
-                // Stop adding messages if the current one exceeds the length limit
-                break;
-            }
-
-            // Prepend the message to the array to maintain the original chronological order
-            array_unshift($limitedMessages, $formattedMessage);
-            $currentLength += $messageLength;
-        }
-
-        return implode('', $limitedMessages);
     }
 
     private function removeUserInputPrefix($content, $userInput)
