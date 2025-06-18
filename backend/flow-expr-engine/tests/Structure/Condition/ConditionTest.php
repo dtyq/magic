@@ -104,6 +104,114 @@ JSON,
         $this->assertTrue($condition->getResult(['518002981345849344' => ['content' => 1]]));
     }
 
+    public function testErrorInput()
+    {
+        $conditionArray = json_decode(
+            <<<'JSON'
+{
+    "ops": "AND",
+    "children": [
+            {
+                "type": "compare",
+                "left_operands": {
+                    "type": "const",
+                    "const_value": [
+                        {
+                            "type": "input",
+                            "uniqueId": "727422814327410688",
+                            "value": "1"
+                        }
+                    ],
+                    "expression_value": []
+                },
+                "condition": "not_empty",
+                "right_operands": {
+                    "type": "const",
+                    "const_value": [],
+                    "expression_value": []
+                }
+            }
+        ]
+}
+JSON,
+            true
+        );
+        $condition = $this->builder->build($conditionArray);
+        $this->assertEquals('((true))', $condition->getCode());
+        $this->assertTrue($condition->getResult());
+    }
+
+    public function testEmptyConditionWithConstant()
+    {
+        // Test with non-empty constant
+        $conditionArray = json_decode(
+            <<<'JSON'
+{
+    "ops": "AND",
+    "children": [
+        {
+            "type": "compare",
+            "left_operands": {
+                "type": "const",
+                "const_value": [
+                    {
+                        "type": "input",
+                        "value": "1"
+                    }
+                ],
+                "expression_value": []
+            },
+            "condition": "empty",
+            "right_operands": {
+                "type": "const",
+                "const_value": [],
+                "expression_value": []
+            }
+        }
+    ]
+}
+JSON,
+            true
+        );
+        $condition = $this->builder->build($conditionArray);
+        $this->assertEquals('((false))', $condition->getCode());
+        $this->assertFalse($condition->getResult());
+
+        // Test with empty constant
+        $conditionArray = json_decode(
+            <<<'JSON'
+{
+    "ops": "AND",
+    "children": [
+        {
+            "type": "compare",
+            "left_operands": {
+                "type": "const",
+                "const_value": [
+                    {
+                        "type": "input",
+                        "value": ""
+                    }
+                ],
+                "expression_value": []
+            },
+            "condition": "empty",
+            "right_operands": {
+                "type": "const",
+                "const_value": [],
+                "expression_value": []
+            }
+        }
+    ]
+}
+JSON,
+            true
+        );
+        $condition = $this->builder->build($conditionArray);
+        $this->assertEquals('((true))', $condition->getCode());
+        $this->assertTrue($condition->getResult());
+    }
+
     public function testNumberCondition()
     {
         $conditionArray = json_decode(

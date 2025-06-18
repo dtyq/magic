@@ -7,9 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\FlowExprEngine\Test\Structure\Api;
 
-use Dtyq\FlowExprEngine\Structure\Api\ApiRequestOptions;
-use Dtyq\FlowExprEngine\Structure\Api\ApiSend;
-use Dtyq\FlowExprEngine\Structure\Api\Safe\DefenseAgainstSSRFOptions;
 use Dtyq\FlowExprEngine\Test\BaseTestCase;
 
 /**
