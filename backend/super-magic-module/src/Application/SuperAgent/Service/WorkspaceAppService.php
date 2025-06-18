@@ -429,9 +429,10 @@ class WorkspaceAppService extends AbstractAppService
      * @param MagicUserAuthorization $userAuthorization 用户授权信息
      * @param array $fileIds 文件ID列表
      * @param string $downloadMode 下载模式（download:下载, preview:预览）
+     * @param array $options 其他选项
      * @return array 文件URL列表
      */
-    public function getFileUrls(MagicUserAuthorization $userAuthorization, array $fileIds, string $downloadMode): array
+    public function getFileUrls(MagicUserAuthorization $userAuthorization, array $fileIds, string $downloadMode, array $options = []): array
     {
         // 创建数据隔离对象
         $organizationCode = $userAuthorization->getOrganizationCode();
@@ -456,7 +457,7 @@ class WorkspaceAppService extends AbstractAppService
             if ($downloadMode == 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
-            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames);
+            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames, $options);
             if (empty($fileLink)) {
                 // 如果获取URL失败，跳过
                 continue;

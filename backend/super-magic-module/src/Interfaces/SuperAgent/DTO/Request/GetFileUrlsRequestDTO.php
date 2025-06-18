@@ -26,6 +26,11 @@ class GetFileUrlsRequestDTO
     private string $topicId;
 
     /**
+     * 缓存设置，默认为 true.
+     */
+    private bool $cache;
+
+    /**
      * 构造函数.
      */
     public function __construct(array $params)
@@ -34,6 +39,7 @@ class GetFileUrlsRequestDTO
         $this->token = $params['token'] ?? '';
         $this->downloadMode = $params['download_mode'] ?? 'download';
         $this->topicId = $params['topic_id'] ?? '';
+        $this->cache = $params['cache'] ?? true;
 
         $this->validate();
     }
@@ -67,6 +73,11 @@ class GetFileUrlsRequestDTO
     public function getTopicId(): string
     {
         return $this->topicId;
+    }
+
+    public function getCache(): bool
+    {
+        return $this->cache;
     }
 
     /**

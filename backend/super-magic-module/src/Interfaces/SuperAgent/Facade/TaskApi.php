@@ -124,11 +124,18 @@ class TaskApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
+        // 构建options参数
+        $options = [];
+        if (!$dto->getCache()) {
+            $options['cache'] = false;
+        }
+
         // 调用应用服务
         return $this->workspaceAppService->getFileUrls(
             $userAuthorization,
             $dto->getFileIds(),
-            $dto->getDownloadMode()
+            $dto->getDownloadMode(),
+            $options
         );
     }
 }
