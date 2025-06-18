@@ -269,57 +269,42 @@ class MagicConversationAppService extends AbstractAppService
 
         // Generate base system prompt (cacheable)
         $baseSystemPrompt = <<<'Prompt'
-            # 角色:
-            你是一个专业的实时打字补全助手，专门为当前正在打字的用户提供智能输入建议。
-           
-            # 目标：
-            预测当前用户接下来可能要输入的文本内容。
-            
-            ## 历史聊天记录：
+            # Role:
+            You are a professional real-time typing completion assistant, dedicated to providing intelligent input suggestions for the user who is currently typing.
+
+            # Goal:
+            Predict the text content that the current user is likely to input next.
+
+            ## Chat History:
             <CONTEXT>
             {historyContext}
             </CONTEXT>
-              
-            ### 输出要求
-            1. **纯净输出**：只返回补全的文本内容，不包含任何解释说明，可以包含标点符号
-            2. **避免重复**：不要重复当前用户正在输入的内容
-            3. **自然衔接**：确保补全内容与用户输入形成自然流畅的完整句子
-            4. **严禁回答**：禁止对用户的输入进行回答或者解释，只提供补全建议
-            
-            ### 特殊指令处理
-            **输入为完整句子**:
-            - **判断标准**：如果用户输入的内容本身已经构成一个语法完整、意思清晰的句子（比如以句号、问号、感叹号结尾，或者逻辑上已经表达完整），则无需进行补全。
-            - **输出指令**：当判断输入为完整句子时，你必须只返回结束补全的特殊标识符：`{noCompletionChar}`，不要返回任何其他内容。
-            - **示例**：
-              - 用户输入: "好的，我知道了" -> 返回: `{noCompletionChar}`
-              - 用户输入: "你叫什么名字？" -> 返回: `{noCompletionChar}`
-        Prompt;
 
-        // Generate current request prompt (dynamic)
-        $currentRequestPrompt = <<<'Prompt'
-            ## 当前用户：
-            用户昵称：{userNickname}
+            ### Output Requirements:
+            1.  **Pure Output**: Return only the completed text content, without any explanations. Punctuation is allowed.
+            2.  **Avoid Repetition**: Do not repeat the content the user is already typing.
+            3.  **Natural Flow**: Ensure the completion flows naturally and forms a coherent sentence with the user's input.
+            4.  **No Answering**: Strictly forbidden to answer the user's input or provide explanations. Only provide completion suggestions.
+
+            ### Special Instructions:
+            **Input is a complete sentence**:
+            -   **Criteria**: If the user's input already forms a grammatically complete and clear sentence (e.g., it ends with a period, question mark, exclamation mark, or is logically complete), no completion is needed.
+            -   **Instruction**: When the input is judged to be a complete sentence, you must only return the special identifier to end completion: `{noCompletionChar}`, and nothing else.
+            -   **Examples**:
+                -   User inputs: "Okay, I got it" -> Return: `{noCompletionChar}`
+                -   User inputs: "What is your name?" -> Return: `{noCompletionChar}`
             
-            ## 用户当前输入：
-            <CURRENT_INPUT>
-            {currentInput}
-            </CURRENT_INPUT>
+            ## Current User:
+            Nickname: {userNickname}
             
-            请为当前用户的正在输入提供最佳补全建议，或者返回结束补全的特殊标识符：
+            Please provide the best completion suggestion for the user's current input, or return the special identifier to end completion.
         Prompt;
 
         // Replace placeholders for base system prompt (cacheable)
         $baseSystemPrompt = str_replace(
-            ['{historyContext}', '{noCompletionChar}'],
-            [$historyContext, self::NO_COMPLETION_NEEDED],
+            ['{historyContext}', '{noCompletionChar}', '{userNickname}'],
+            [$historyContext, self::NO_COMPLETION_NEEDED, $userAuthorization->getNickname()],
             $baseSystemPrompt
-        );
-
-        // Replace placeholders for current request prompt (dynamic)
-        $currentRequestPrompt = str_replace(
-            ['{userNickname}', '{currentInput}'],
-            [$userAuthorization->getNickname(), $chatCompletionsDTO->getMessage()],
-            $currentRequestPrompt
         );
 
         // Build messages for completion with two system parts
@@ -329,8 +314,8 @@ class MagicConversationAppService extends AbstractAppService
                 'content' => $baseSystemPrompt,
             ],
             [
-                'role' => Role::System->value,
-                'content' => $currentRequestPrompt,
+                'role' => Role::User->value,
+                'content' => $chatCompletionsDTO->getMessage(),
             ],
         ];
         // Create CompletionDTO
@@ -357,7 +342,6 @@ class MagicConversationAppService extends AbstractAppService
             'source_id' => 'conversation_chat_completion',
             'task_type' => 'text_completion',
         ]);
-        var_dump($messages);
         return $completionDTO;
     }
 
