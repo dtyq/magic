@@ -1978,16 +1978,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.4",
+            "version": "v0.1.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "24ea7d9cc1661af13c375a3178432fa8e3b2bde6"
+                "reference": "e6ca04406850aab0239800429bccf44d43dbe2bf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/24ea7d9cc1661af13c375a3178432fa8e3b2bde6",
-                "reference": "24ea7d9cc1661af13c375a3178432fa8e3b2bde6",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/e6ca04406850aab0239800429bccf44d43dbe2bf",
+                "reference": "e6ca04406850aab0239800429bccf44d43dbe2bf",
                 "shasum": ""
             },
             "require": {
@@ -2048,9 +2048,9 @@
             "description": "Package description here.",
             "support": {
                 "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.4"
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.5"
             },
-            "time": "2025-06-03T10:06:01+00:00"
+            "time": "2025-06-18T07:12:20+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2567,16 +2567,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.38",
+            "version": "v0.0.41",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "5baedcc64717474ec2fd7abefffecc15f6779371"
+                "reference": "1274219c297156e8ba11419ace7b83d2dd1662d2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/5baedcc64717474ec2fd7abefffecc15f6779371",
-                "reference": "5baedcc64717474ec2fd7abefffecc15f6779371",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/1274219c297156e8ba11419ace7b83d2dd1662d2",
+                "reference": "1274219c297156e8ba11419ace7b83d2dd1662d2",
                 "shasum": ""
             },
             "require": {
@@ -2668,10 +2668,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.38",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.41",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-06-16T13:46:05+00:00"
+            "time": "2025-06-18T13:23:06+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
