@@ -2136,16 +2136,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.6",
+            "version": "v0.1.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3"
+                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/af27204417e4a1f07fde21098d490b17f78f56f3",
-                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
+                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
                 "shasum": ""
             },
             "require": {
@@ -2198,9 +2198,9 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.6"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.8"
             },
-            "time": "2025-06-13T07:50:05+00:00"
+            "time": "2025-06-18T07:59:49+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "919721907e3b11f397bfd00e76a0ca0ff148fb8a"
+                "reference": "89983a2c5829e04ed67b0ca3bf0cef1962fa4c0e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=919721907e3b11f397bfd00e76a0ca0ff148fb8a",
-                "reference": "919721907e3b11f397bfd00e76a0ca0ff148fb8a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=89983a2c5829e04ed67b0ca3bf0cef1962fa4c0e",
+                "reference": "89983a2c5829e04ed67b0ca3bf0cef1962fa4c0e",
                 "shasum": ""
             },
             "require": {
@@ -2316,7 +2316,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-06-18T15:36:31+08:00"
+            "time": "2025-06-18T16:56:23+08:00"
         },
         {
             "name": "dtyq/php-mcp",
