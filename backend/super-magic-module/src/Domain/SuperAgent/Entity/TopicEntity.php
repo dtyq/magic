@@ -116,6 +116,13 @@ class TopicEntity extends AbstractEntity
      */
     protected string $updatedUid = '';
 
+    /**
+     * @var string commit hash
+     */
+    protected ?string $workspaceCommitHash = '';
+
+    protected ?string $chatHistoryCommitHash = '';
+
     public function __construct(array $data = [])
     {
         $this->initProperty($data);
@@ -147,6 +154,8 @@ class TopicEntity extends AbstractEntity
             'deleted_at' => $this->deletedAt,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
+            'workspace_commit_hash' => $this->workspaceCommitHash,
+            'chat_history_commit_hash' => $this->chatHistoryCommitHash,
         ];
 
         // 移除null值
@@ -461,6 +470,28 @@ class TopicEntity extends AbstractEntity
         }
 
         $this->cost = $cost;
+        return $this;
+    }
+
+    public function getWorkspaceCommitHash(): string
+    {
+        return $this->workspaceCommitHash;
+    }
+
+    public function setWorkspaceCommitHash(?string $workspaceCommitHash): self
+    {
+        $this->workspaceCommitHash = $workspaceCommitHash;
+        return $this;
+    }
+
+    public function getChatHistoryCommitHash(): string
+    {
+        return $this->chatHistoryCommitHash;
+    }
+
+    public function setChatHistoryCommitHash(?string $chatHistoryCommitHash): self
+    {
+        $this->chatHistoryCommitHash = $chatHistoryCommitHash;
         return $this;
     }
 }

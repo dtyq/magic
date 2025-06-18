@@ -13,7 +13,7 @@ class CurlHelper
 {
     /**
      * 由于 Guzzle MultipartStream 一定会带上 content-length，只能使用 curl.
-     * @return array{'headers': array<string, string>, 'body': array}
+     * @return array{'headers': array<string, string>, 'body': string}
      */
     public static function sendRequest(string $url, mixed $data, array $headers = [], int $successCode = 200): array
     {

@@ -67,6 +67,7 @@ class MessageBuilderDomainService
             'metadata' => $metaDataArray,
             'project_archive' => $sandboxConfig,
             'task_mode' => $taskMode,
+            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
     }
 

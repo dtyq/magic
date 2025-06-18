@@ -80,4 +80,31 @@ class TopicDomainService
 
         return $result['list'];
     }
+
+    /**
+     * 通过ChatTopicId获取话题实体.
+     */
+    public function getTopicOnlyByChatTopicId(string $chatTopicId): ?TopicEntity
+    {
+        $conditions = [
+            'chat_topic_id' => $chatTopicId,
+        ];
+
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return null;
+        }
+
+        return $result['list'][0];
+    }
+
+    public function updateTopic(TopicEntity $topicEntity): bool
+    {
+        return $this->topicRepository->updateTopic($topicEntity);
+    }
+
+    public function updateTopicWhereUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool
+    {
+        return $this->topicRepository->updateTopicWithUpdatedAt($topicEntity, $updatedAt);
+    }
 }

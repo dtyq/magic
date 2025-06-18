@@ -31,11 +31,13 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     /**
      * 根据fileKey获取文件.
      */
-    public function getByFileKey(string $fileKey): ?TaskFileEntity
+    public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity
     {
-        $model = $this->model::query()
-            ->where('file_key', $fileKey)
-            ->first();
+        $query = $this->model::query()->where('file_key', $fileKey);
+        if ($topicId) {
+            $query = $query->where('topic_id', $topicId);
+        }
+        $model = $query->first();
 
         if (! $model) {
             return null;
@@ -53,7 +55,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      * @param string $storageType 存储类型
      * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
      */
-    public function getByTopicId(int $topicId, int $page, int $pageSize, array $fileType = [], string $storageType = 'workspace'): array
+    public function getByTopicId(int $topicId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = 'workspace'): array
     {
         $offset = ($page - 1) * $pageSize;
 
@@ -233,5 +235,52 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             return null;
         }
         return new TaskFileEntity($model->toArray());
+    }
+
+    /**
+     * 根据文件ID数组和用户ID批量获取用户文件.
+     *
+     * @param array $fileIds 文件ID数组
+     * @param string $userId 用户ID
+     * @return TaskFileEntity[] 用户文件列表
+     */
+    public function findUserFilesByIds(array $fileIds, string $userId): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+
+        // 查询属于指定用户的文件
+        $models = $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
+    public function findUserFilesByTopicId(string $topicId): array
+    {
+        $models = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('is_hidden', 0)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->limit(1000)
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
     }
 }

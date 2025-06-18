@@ -64,8 +64,6 @@ class TaskDomainService
         if ($instruction == ChatInstruction::Interrupted) {
             $taskList = $this->taskRepository->getTasksByTopicId($topicId, 1, 1, ['task_status' => TaskStatus::RUNNING]);
             if (empty($taskList['list'])) {
-                // 优化一下，如果没有需要暂停的任务，请不要进行错误的输出
-                // 前端传，或者找最新的话题下的任务是哪个
                 ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
             }
             return $taskList['list'][0];
@@ -423,14 +421,14 @@ class TaskDomainService
 
         // 处理用户ID: 优先使用DataIsolation中的用户ID，如果为null则从任务中获取
         $userId = $dataIsolation->getCurrentUserId();
-        if ($userId === null) {
+        if (empty($userId)) {
             // 通过任务ID获取任务实体，获取用户ID
             $taskEntity = $this->taskRepository->getTaskById($taskId);
             if ($taskEntity) {
                 $userId = $taskEntity->getUserId();
             }
         }
-        $taskFileEntity->setUserId($userId !== null ? $userId : 'system');
+        $taskFileEntity->setUserId($userId ?? 'system');
         $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $taskFileEntity->setTopicId($topicId);
         $taskFileEntity->setTaskId($taskId);

@@ -18,6 +18,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\AdapterName;
+use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Psr\SimpleCache\CacheInterface;
@@ -195,12 +196,52 @@ class FileAppService extends AbstractAppService
             $localCredential = 'local_credential:' . IdGenerator::getUniqueId32();
             $data['temporary_credential']['dir'] = $organizationCode . '/' . $data['temporary_credential']['dir'];
             $data['temporary_credential']['credential'] = $localCredential;
-            $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DCOKER_READ_HOST', 'http://magic-caddy/files');
+            $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DOCKER_READ_HOST', 'http://magic-caddy/files');
             $data['temporary_credential']['host'] = env('FILE_LOCAL_DOCKER_WRITE_HOST', '');
             $this->cache->set($localCredential, ['organization_code' => $organizationCode], (int) ($data['expires'] - time()));
         }
 
+        // magic service 服务地址
+        $data['magic_service_host'] = config('super-magic.sandbox.callback_host', '');
+
         return $data;
+    }
+
+    /**
+     * Chunk file upload - dedicated method for large file upload using chunks.
+     *
+     * @param ChunkUploadFile $chunkUploadFile Chunk upload file object
+     * @param string $organizationCode Organization code
+     * @return array Upload result
+     */
+    public function chunkFileUpload(ChunkUploadFile $chunkUploadFile, string $organizationCode): array
+    {
+        // Perform chunk upload
+        $this->fileDomainService->uploadByChunks($organizationCode, $chunkUploadFile);
+
+        return [
+            'key' => $chunkUploadFile->getKey(),
+            'upload_method' => 'chunk',
+            'file_size' => $chunkUploadFile->getSize(),
+            'upload_id' => $chunkUploadFile->getUploadId(),
+            'chunk_size' => $chunkUploadFile->getChunkConfig()->getChunkSize(),
+            'total_chunks' => count($chunkUploadFile->getChunks()),
+        ];
+    }
+
+    /**
+     * Download file using chunk download.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath Remote file path
+     * @param string $localPath Local save path
+     * @param string $storage Storage type (private/public)
+     * @param array $options Additional options (chunk_size, max_concurrency, etc.)
+     */
+    public function downloadByChunks(string $organizationCode, string $filePath, string $localPath, string $storage = 'private', array $options = []): void
+    {
+        $storageType = StorageBucketType::from($storage);
+        $this->fileDomainService->downloadByChunks($organizationCode, $filePath, $localPath, $storageType, $options);
     }
 
     protected function getOrganizationCode(Authenticatable $authorization): string

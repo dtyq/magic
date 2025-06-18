@@ -53,4 +53,4 @@ return new class extends Migration {
     {
         Schema::dropIfExists('magic_super_agent_token_usage_records');
     }
-}; 
+};

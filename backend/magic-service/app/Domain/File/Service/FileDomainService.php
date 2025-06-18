@@ -10,6 +10,7 @@ namespace App\Domain\File\Service;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -49,6 +50,19 @@ readonly class FileDomainService
         $this->cloudFileRepository->upload($organizationCode, $uploadFile, $storage);
     }
 
+    /**
+     * Upload file using chunk upload.
+     *
+     * @param string $organizationCode Organization code
+     * @param ChunkUploadFile $chunkUploadFile Chunk upload file object
+     * @param StorageBucketType $storage Storage bucket type
+     * @param bool $autoDir Whether to auto-generate directory
+     */
+    public function uploadByChunks(string $organizationCode, ChunkUploadFile $chunkUploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
+    {
+        $this->cloudFileRepository->uploadByChunks($organizationCode, $chunkUploadFile, $storage, $autoDir);
+    }
+
     public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, ?string $contentType = null, bool $sts = false): array
     {
         return $this->cloudFileRepository->getSimpleUploadTemporaryCredential($organizationCode, $storage, contentType: $contentType, sts: $sts);
@@ -68,6 +82,20 @@ readonly class FileDomainService
     public function getLinks(string $organizationCode, array $filePaths, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): array
     {
         return $this->cloudFileRepository->getLinks($organizationCode, $filePaths, $bucketType, $downloadNames);
+    }
+
+    /**
+     * Download file using chunk download.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath Remote file path
+     * @param string $localPath Local save path
+     * @param null|StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (chunk_size, max_concurrency, etc.)
+     */
+    public function downloadByChunks(string $organizationCode, string $filePath, string $localPath, ?StorageBucketType $bucketType = null, array $options = []): void
+    {
+        $this->cloudFileRepository->downloadByChunks($organizationCode, $filePath, $localPath, $bucketType, $options);
     }
 
     public function getMetas(array $paths, string $organizationCode): array
