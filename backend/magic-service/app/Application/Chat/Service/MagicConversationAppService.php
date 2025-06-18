@@ -31,9 +31,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Agent\Agent;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
-use Hyperf\Odin\Contract\Message\MessageInterface;
 use Hyperf\Odin\Memory\MemoryManager;
-use Hyperf\Odin\Memory\MessageHistory;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Message\UserMessage;
 use Psr\Log\LoggerInterface;
@@ -95,39 +93,8 @@ class MagicConversationAppService extends MagicSeqAppService
         // Build history context with length limit, prioritizing recent messages
         $historyContext = MessageAssembler::buildHistoryContext($chatHistoryMessages, 3000, $userAuthorization->getNickname());
 
-        // Generate system prompt for user input completion
-        $systemPrompt = <<<'Prompt'
-            你是一个专业的智能输入补全助手。你的任务是根据对话历史和用户当前的输入，提供准确、简洁的文本补全建议。
-            
-            ## 对话历史：
-            <CONVERSATION_START>
-            {historyContext}
-            <CONVERSATION_END>
-            
-            ## 补全规则：
-            1. 仔细分析对话上下文和用户意图
-            2. 提供自然、流畅的补全内容
-            3. 保持与对话主题的一致性
-            4. 补全内容应该简洁明了，通常不超过一句话
-            5. 只返回补全的文本内容，不要添加任何解释、标点或格式
-            6. 重要：不要重复用户当前正在输入的内容，只提供接下来的补全部分
-            7. 如果用户输入不完整，请直接续写，不要从头开始
-            
-            请根据以上对话历史，为用户的当前输入提供最合适的补全建议：
-        Prompt;
-
-        // Replace placeholders
-        $systemPrompt = str_replace('{historyContext}', $historyContext, $systemPrompt);
-        // Get current user nickname
-        $currentUserRole = $userAuthorization->getRealName();
-        // Create MessageInterface array
-        $messages = [
-            new SystemMessage($systemPrompt),
-            new UserMessage(sprintf('%s: %s', $currentUserRole, $chatCompletionsDTO->getMessage())),
-        ];
-
-        $messageHistory = new MessageHistory();
-        $messageHistory->addMessages($messages, uniqid('', true));
+        // Create memory manager with messages
+        $memoryManager = $this->buildChatCompletionMemoryManager($historyContext, $userAuthorization->getNickname(), $chatCompletionsDTO->getMessage());
 
         try {
             // Use ChatCompletions interface implementation
@@ -139,12 +106,6 @@ class MagicConversationAppService extends MagicSeqAppService
 
             // Get model instance
             $model = di(ModelGatewayMapper::class)->getChatModelProxy($modelName, $userAuthorization->getOrganizationCode());
-
-            // Get memoryManager instance and add messages
-            $memoryManager = new MemoryManager();
-            foreach ($messages as $message) {
-                $memoryManager->addMessage($message);
-            }
 
             // Create agent instance
             $agent = AgentFactory::create(
@@ -308,6 +269,79 @@ class MagicConversationAppService extends MagicSeqAppService
         }
 
         return $oldInstructs;
+    }
+
+    private function buildChatCompletionMemoryManager(string $historyContext, string $userNickname, string $userMessage): MemoryManager
+    {
+        // Generate system prompt
+        $systemPrompt = <<<'Prompt'
+            你是一个专业的实时打字补全助手，专门为当前正在打字的用户提供智能输入建议。你的核心任务是预测当前用户接下来可能要输入的文本内容。
+            
+            ## 场景信息：
+            - 当前场景：聊天对话
+            - 用户状态：正在输入框中打字
+            - 对话参与者：通过对话上下文中的昵称可以识别所有参与者
+            
+            ## 当前用户：
+            用户昵称：{userNickname}
+            
+            ## 历史聊天记录：
+            <CONTEXT>
+            {historyContext}
+            </CONTEXT>
+            
+            ## 补全策略：
+            
+            ### 核心原则
+            - 基于历史聊天记录和用户当前输入，预测最可能的续写内容
+            - **优先考虑最新内容**：越靠后的对话内容越重要，最新的话题和语境优先级最高
+            - 理解用户在聊天场景中的表达意图和语言习惯
+            - 保持语言风格与对话氛围的一致性
+            - **实时响应**：用户正在输入框打字，需要提供即时、准确的补全建议
+            
+            ### 输出要求
+            1. **纯净输出**：只返回补全的文本内容，不包含任何解释、引号、标点符号或格式标记
+            2. **避免重复**：不要重复当前用户正在输入的内容
+            3. **长度控制**：补全内容通常为3-15个字符，最多不超过一句话
+            4. **自然衔接**：确保补全内容与用户输入形成自然流畅的完整句子
+            
+            ### 补全逻辑
+            - **时间优先级**：最近几轮对话的主题、词汇、语言风格权重最高
+            - **话题连贯性**：当前输入如果与最新话题相关，优先基于最新话题进行补全
+            - **聊天特征**：考虑聊天场景的表达特点，如口语化、简洁性、互动性
+            
+            ### 特殊情况处理
+            - 用户输入过短（1-2个字符）：基于最新对话内容提供相关词语补全
+            - 用户输入语法不完整：补全成语法正确的表达，优先使用最新对话的语言风格
+            - 对话主题转换：当检测到新话题时，立即调整补全策略以匹配新话题
+            - **上下文切换**：如果最新几条消息显示话题变化，优先跟随最新话题方向
+            
+            请为当前用户的正在输入提供最佳补全建议：
+        Prompt;
+
+        // Replace placeholders
+        $systemPrompt = str_replace(
+            ['{historyContext}', '{userNickname}'],
+            [$historyContext, $userNickname],
+            $systemPrompt
+        );
+
+        // Create user message
+        $currentUserMsg = sprintf('%s: %s', $userNickname, $userMessage);
+
+        // Create messages
+        $messages = [
+            new SystemMessage($systemPrompt),
+            new UserMessage($currentUserMsg),
+        ];
+
+        // Create memory manager and add messages
+        $memoryManager = new MemoryManager();
+        foreach ($messages as $message) {
+            $memoryManager->addMessage($message);
+        }
+
+        return $memoryManager;
     }
 
     private function removeUserInputPrefix($content, $userInput)
