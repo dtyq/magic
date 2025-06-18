@@ -12,6 +12,8 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
  */
 class MessageMetadata
 {
+    private ?UserInfoValueObject $userInfo = null;
+
     /**
      * 构造函数.
      *
@@ -23,6 +25,7 @@ class MessageMetadata
      * @param string $instruction 指令
      * @param string $sandboxId 沙箱ID
      * @param string $superMagicTaskId 超级助手任务ID
+     * @param null|UserInfoValueObject $userInfo 用户信息对象
      */
     public function __construct(
         private string $agentUserId = '',
@@ -32,8 +35,10 @@ class MessageMetadata
         private string $chatTopicId = '',
         private string $instruction = '',
         private string $sandboxId = '',
-        private string $superMagicTaskId = ''
+        private string $superMagicTaskId = '',
+        ?UserInfoValueObject $userInfo = null
     ) {
+        $this->userInfo = $userInfo;
     }
 
     /**
@@ -43,6 +48,11 @@ class MessageMetadata
      */
     public static function fromArray(array $data): self
     {
+        $userInfo = null;
+        if (isset($data['user']) && is_array($data['user'])) {
+            $userInfo = UserInfoValueObject::fromArray($data['user']);
+        }
+
         return new self(
             $data['agent_user_id'] ?? '',
             $data['user_id'] ?? '',
@@ -51,7 +61,8 @@ class MessageMetadata
             $data['chat_topic_id'] ?? '',
             $data['instruction'] ?? '',
             $data['sandbox_id'] ?? '',
-            $data['super_magic_task_id'] ?? ''
+            $data['super_magic_task_id'] ?? '',
+            $userInfo
         );
     }
 
@@ -62,7 +73,7 @@ class MessageMetadata
      */
     public function toArray(): array
     {
-        return [
+        $result = [
             'agent_user_id' => $this->agentUserId,
             'user_id' => $this->userId,
             'organization_code' => $this->organizationCode,
@@ -72,6 +83,13 @@ class MessageMetadata
             'sandbox_id' => $this->sandboxId,
             'super_magic_task_id' => $this->superMagicTaskId,
         ];
+
+        // 添加用户信息（如果存在）
+        if ($this->userInfo !== null) {
+            $result['user'] = $this->userInfo->toArray();
+        }
+
+        return $result;
     }
 
     // Getters
@@ -113,6 +131,16 @@ class MessageMetadata
     public function getSuperMagicTaskId(): string
     {
         return $this->superMagicTaskId;
+    }
+
+    /**
+     * 获取用户信息.
+     *
+     * @return null|UserInfoValueObject 用户信息对象
+     */
+    public function getUserInfo(): ?UserInfoValueObject
+    {
+        return $this->userInfo;
     }
 
     // Withers for immutability
@@ -170,5 +198,28 @@ class MessageMetadata
         $clone = clone $this;
         $clone->superMagicTaskId = $superMagicTaskId;
         return $clone;
+    }
+
+    /**
+     * 设置用户信息.
+     *
+     * @param null|UserInfoValueObject $userInfo 用户信息对象
+     * @return self 新的实例
+     */
+    public function withUserInfo(?UserInfoValueObject $userInfo): self
+    {
+        $clone = clone $this;
+        $clone->userInfo = $userInfo;
+        return $clone;
+    }
+
+    /**
+     * 检查是否有用户信息.
+     *
+     * @return bool 是否有用户信息
+     */
+    public function hasUserInfo(): bool
+    {
+        return $this->userInfo !== null;
     }
 }
