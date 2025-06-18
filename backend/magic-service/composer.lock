@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.344.7",
+            "version": "3.345.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "64ccde0a674425ea902232a6f7aa1a07dfcfe861"
+                "reference": "61b4675bc02db8d7f3e1ba6931dc827c5ae23aa8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/64ccde0a674425ea902232a6f7aa1a07dfcfe861",
-                "reference": "64ccde0a674425ea902232a6f7aa1a07dfcfe861",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/61b4675bc02db8d7f3e1ba6931dc827c5ae23aa8",
+                "reference": "61b4675bc02db8d7f3e1ba6931dc827c5ae23aa8",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.344.7"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.345.0"
             },
-            "time": "2025-06-16T18:05:39+00:00"
+            "time": "2025-06-17T18:09:42+00:00"
         },
         {
             "name": "brick/math",
@@ -2121,16 +2121,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.6",
+            "version": "v0.1.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3"
+                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/af27204417e4a1f07fde21098d490b17f78f56f3",
-                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
+                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
                 "shasum": ""
             },
             "require": {
@@ -2183,9 +2183,9 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.6"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.8"
             },
-            "time": "2025-06-13T07:50:05+00:00"
+            "time": "2025-06-18T07:59:49+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
