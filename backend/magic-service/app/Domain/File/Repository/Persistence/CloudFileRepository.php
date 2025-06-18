@@ -41,7 +41,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     /**
      * @return array<string,FileLink>
      */
-    public function getLinks(string $organizationCode, array $filePaths, ?StorageBucketType $bucketType = null, array $downloadNames = []): array
+    public function getLinks(string $organizationCode, array $filePaths, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): array
     {
         $filePaths = array_filter($filePaths);
 
@@ -67,8 +67,8 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 }
             }
             return array_merge(
-                $this->getLinks($organizationCode, $privateFilePaths, StorageBucketType::Private, $downloadNames),
-                $this->getLinks($organizationCode, $publicFilePaths, StorageBucketType::Public, $downloadNames)
+                $this->getLinks($organizationCode, $privateFilePaths, StorageBucketType::Private, $downloadNames, $options),
+                $this->getLinks($organizationCode, $publicFilePaths, StorageBucketType::Public, $downloadNames, $options)
             );
         }
 
@@ -97,14 +97,14 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         // 临时提高下载链接有效期
         $expires = 60 * 60 * 24;
         if (! empty($defaultIconPaths)) {
-            $defaultIconLinks = $this->cloudFile->get(StorageBucketType::Public->value)->getLinks($defaultIconPaths, [], $expires, $this->getOptions(self::DEFAULT_ICON_ORGANIZATION_CODE));
+            $defaultIconLinks = $this->cloudFile->get(StorageBucketType::Public->value)->getLinks($defaultIconPaths, [], $expires, $this->getOptions(self::DEFAULT_ICON_ORGANIZATION_CODE, $options));
             $links = array_merge($links, $defaultIconLinks);
         }
         if (empty($paths)) {
             return $links;
         }
         try {
-            $otherLinks = $this->cloudFile->get($bucketType->value)->getLinks($paths, $downloadNames, $expires, $this->getOptions($organizationCode));
+            $otherLinks = $this->cloudFile->get($bucketType->value)->getLinks($paths, $downloadNames, $expires, $this->getOptions($organizationCode, $options));
             $links = array_merge($links, $otherLinks);
         } catch (Throwable $throwable) {
             $this->logger->warning('GetLinksError', [
@@ -277,12 +277,14 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         }, $files);
     }
 
-    protected function getOptions(string $organizationCode): array
+    protected function getOptions(string $organizationCode, array $options = []): array
     {
-        return [
+        $defaultOptions = [
             'organization_code' => $organizationCode,
             //            'cache' => false,
         ];
+
+        return array_merge($defaultOptions, $options);
     }
 
     protected function isDefaultIconPath(string $path, string $appId = 'open'): bool
