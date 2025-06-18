@@ -8,16 +8,23 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
 
-class AddUniqueIndexToTokenUsageRecords extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
     public function up(): void
     {
+        // Check if table exists before performing index operations
+        if (!Schema::hasTable('magic_super_agent_token_usage_records')) {
+            return;
+        }
+
         Schema::table('magic_super_agent_token_usage_records', function (Blueprint $table) {
-            // Add unique composite index for idempotency
-            $table->unique(['topic_id', 'task_id', 'sandbox_id', 'model_id'], 'idx_token_usage_unique');
+            // Check if idx_token_usage_unique index exists before creating
+            if (!Schema::hasIndex('magic_super_agent_token_usage_records', 'idx_token_usage_unique')) {
+                // Add unique composite index for idempotency
+                $table->unique(['topic_id', 'task_id', 'sandbox_id', 'model_id'], 'idx_token_usage_unique');
+            }
         });
     }
 
@@ -26,9 +33,16 @@ class AddUniqueIndexToTokenUsageRecords extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('magic_super_agent_token_usage_records')) {
+            return;
+        }
+
         Schema::table('magic_super_agent_token_usage_records', function (Blueprint $table) {
-            // Drop the unique index
-            $table->dropUnique('idx_token_usage_unique');
+            // Check if idx_token_usage_unique index exists before dropping
+            if (Schema::hasIndex('magic_super_agent_token_usage_records', 'idx_token_usage_unique')) {
+                // Drop the unique index
+                $table->dropUnique('idx_token_usage_unique');
+            }
         });
     }
-}
+};

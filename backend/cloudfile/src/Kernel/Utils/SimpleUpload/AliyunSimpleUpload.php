@@ -94,7 +94,7 @@ class AliyunSimpleUpload extends SimpleUpload
         // Check if chunk upload is needed
         if (! $chunkUploadFile->shouldUseChunkUpload()) {
             // File is small, use simple upload
-            $this->uploadObject($credential, $chunkUploadFile);
+            $this->uploadObjectWithSts($credential, $chunkUploadFile);
             return;
         }
 
@@ -230,6 +230,74 @@ class AliyunSimpleUpload extends SimpleUpload
         }
         $appendUploadFile->setKey($key);
         $appendUploadFile->setPosition($appendUploadFile->getPosition() + $appendUploadFile->getSize());
+    }
+
+    /**
+     * Upload single object using STS credential via OSS SDK.
+     * @see https://help.aliyun.com/zh/oss/developer-reference/simple-upload
+     */
+    private function uploadObjectWithSts(array $credential, UploadFile $uploadFile): void
+    {
+        $key = '';
+        try {
+            // Convert credential format to SDK configuration
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS client with STS credential
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            $bucket = $sdkConfig['bucket'];
+            $dir = $sdkConfig['dir'] ?? '';
+            $key = $dir . $uploadFile->getKeyPath();
+            $filePath = $uploadFile->getRealPath();
+
+            // Set upload options
+            $options = [
+                OssClient::OSS_CONTENT_TYPE => $uploadFile->getMimeType() ?: 'application/octet-stream',
+            ];
+
+            // Use OSS SDK's uploadFile method for simple upload
+            $ossClient->uploadFile($bucket, $key, $filePath, $options);
+
+            $uploadFile->setKey($key);
+
+            $this->sdkContainer->getLogger()->info('simple_upload_success_sts', [
+                'key' => $key,
+                'bucket' => $bucket,
+                'file_size' => $uploadFile->getSize(),
+            ]);
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('simple_upload_fail_sts', [
+                'key' => $key,
+                'bucket' => $sdkConfig['bucket'] ?? '',
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+
+            throw new CloudFileException(
+                sprintf(
+                    'OSS STS simple upload failed: %s (ErrorCode: %s, RequestId: %s)',
+                    $exception->getMessage(),
+                    $exception->getErrorCode(),
+                    $exception->getRequestId()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('simple_upload_fail_sts', [
+                'key' => $key,
+                'bucket' => $sdkConfig['bucket'] ?? '',
+                'error' => $exception->getMessage(),
+            ]);
+
+            throw new CloudFileException(
+                'OSS STS simple upload failed: ' . $exception->getMessage(),
+                0,
+                $exception
+            );
+        }
     }
 
     /**
