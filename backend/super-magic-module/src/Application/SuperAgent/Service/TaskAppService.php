@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
@@ -35,6 +36,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
@@ -76,6 +78,7 @@ class TaskAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly MagicChatMessageAppService $chatMessageAppService,
+        private readonly MagicUserInfoAppService $userInfoAppService,
         private readonly MagicChatFileDomainService $chatFileDomainService,
         private readonly FileAppService $fileAppService,
         private readonly SandboxService $sandboxService,
@@ -628,6 +631,19 @@ class TaskAppService extends AbstractAppService
             $task->getWorkDir()
         );
 
+        // 获取用户信息
+        $userInfo = null;
+        try {
+            $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
+            $userInfo = UserInfoValueObject::fromArray($userInfoArray);
+        } catch (Throwable $e) {
+            $this->logger->warning(sprintf(
+                '获取用户信息失败: %s, 用户ID: %s',
+                $e->getMessage(),
+                $dataIsolation->getCurrentUserId()
+            ));
+        }
+
         // 使用值对象替代原始数组
         $messageMetadata = new MessageMetadata(
             agentUserId: $taskContext->getAgentUserId(),
@@ -638,6 +654,7 @@ class TaskAppService extends AbstractAppService
             instruction: $taskContext->getInstruction()->value,
             sandboxId: $taskContext->getSandboxId(),
             superMagicTaskId: (string) $task->getId(),
+            userInfo: $userInfo
         );
 
         $topicEntity = $this->workspaceDomainService->getTopicById($task->getTopicId());
