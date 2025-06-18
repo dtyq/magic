@@ -97,9 +97,9 @@ class FileAppService extends AbstractAppService
         return $this->fileDomainService->getDefaultIcons();
     }
 
-    public function getLink(string $getSenderOrganizationCode, string $key, ?StorageBucketType $bucketType = null, array $downloadNames = []): ?FileLink
+    public function getLink(string $getSenderOrganizationCode, string $key, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
     {
-        return $this->fileDomainService->getLink($getSenderOrganizationCode, $key, $bucketType, $downloadNames);
+        return $this->fileDomainService->getLink($getSenderOrganizationCode, $key, $bucketType, $downloadNames, $options);
     }
 
     public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile): void
