@@ -1983,12 +1983,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "a7e60706c193b1c74f70f4d2fc0520c028783064"
+                "reference": "e6ca04406850aab0239800429bccf44d43dbe2bf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=a7e60706c193b1c74f70f4d2fc0520c028783064",
-                "reference": "a7e60706c193b1c74f70f4d2fc0520c028783064",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=e6ca04406850aab0239800429bccf44d43dbe2bf",
+                "reference": "e6ca04406850aab0239800429bccf44d43dbe2bf",
                 "shasum": ""
             },
             "require": {
@@ -2065,7 +2065,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
             },
-            "time": "2025-06-18T07:13:17+00:00"
+            "time": "2025-06-18T15:12:20+08:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2136,16 +2136,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.6",
+            "version": "v0.1.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3"
+                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/af27204417e4a1f07fde21098d490b17f78f56f3",
-                "reference": "af27204417e4a1f07fde21098d490b17f78f56f3",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
+                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
                 "shasum": ""
             },
             "require": {
@@ -2198,9 +2198,9 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.6"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.8"
             },
-            "time": "2025-06-13T07:50:05+00:00"
+            "time": "2025-06-18T07:59:49+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "77e5cf8f92e1c525f4e97492942fbd22e138dcea"
+                "reference": "919721907e3b11f397bfd00e76a0ca0ff148fb8a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=77e5cf8f92e1c525f4e97492942fbd22e138dcea",
-                "reference": "77e5cf8f92e1c525f4e97492942fbd22e138dcea",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=919721907e3b11f397bfd00e76a0ca0ff148fb8a",
+                "reference": "919721907e3b11f397bfd00e76a0ca0ff148fb8a",
                 "shasum": ""
             },
             "require": {
@@ -2316,7 +2316,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-06-18T11:07:10+08:00"
+            "time": "2025-06-18T15:36:31+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "8579f47f123028d3c98cd7afbd1f1cdffdbdd57f"
+                "reference": "dc0a210e264cbdb1f2b3c1db896fe9ba27f20d83"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=8579f47f123028d3c98cd7afbd1f1cdffdbdd57f",
-                "reference": "8579f47f123028d3c98cd7afbd1f1cdffdbdd57f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=dc0a210e264cbdb1f2b3c1db896fe9ba27f20d83",
+                "reference": "dc0a210e264cbdb1f2b3c1db896fe9ba27f20d83",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-06-18T13:41:01+08:00"
+            "time": "2025-06-18T15:15:19+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
