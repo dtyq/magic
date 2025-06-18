@@ -48,6 +48,7 @@ use App\Domain\Chat\DTO\Message\ControlMessage\TopicUpdateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\UnknowControlMessage;
 use App\Domain\Chat\DTO\Message\MessageInterface;
 use App\Domain\Chat\DTO\Message\StreamMessage\StreamMessageStatus;
+use App\Domain\Chat\DTO\Message\StreamMessageInterface;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\ControlRequest;
 use App\Domain\Chat\DTO\Request\StreamRequest;
@@ -254,16 +255,68 @@ class MessageAssembler
         if (empty($message)) {
             return null;
         }
-        $messageEntity = new RecordingSummaryStreamMessage();
-        $messageEntity->setId($message['id']);
-        $messageEntity->setAppMessageId($message['app_message_id']);
-        $messageEntity->setType(ChatMessageType::from($message['type']));
-        $messageEntity->setStatus(StreamMessageStatus::from($message['status']));
-        $messageEntity->setContent($message['content']);
-        $messageEntity->setSeqMessageIds($message['seq_message_ids'] ?: []);
-        $messageEntity->setSequenceContent($message['sequence_content'] ?: []);
-        $messageEntity->setCreatedAt($message['created_at']);
-        $messageEntity->setUpdatedAt($message['updated_at']);
-        return $messageEntity;
+        $streamMessage = new RecordingSummaryStreamMessage($message);
+        if (isset($message['streamStatus']) && $streamMessage instanceof StreamMessageInterface) {
+            $streamMessage->getStreamOptions()?->setStatus(StreamMessageStatus::from($message['streamStatus']));
+        }
+        return $streamMessage;
+    }
+
+    /**
+     * Builds a length-limited chat history context.
+     * To ensure context coherence, this method prioritizes keeping the most recent messages.
+     * Current user's messages are kept complete, while other users' messages are truncated to 500 characters.
+     *
+     * @param array $chatHistoryMessages Chat history messages
+     * @param int $maxLength Maximum string length
+     * @param string $currentUserNickname Current user's nickname for prioritization
+     */
+    public static function buildHistoryContext(array $chatHistoryMessages, int $maxLength = 3000, string $currentUserNickname = ''): string
+    {
+        if (empty($chatHistoryMessages)) {
+            return '';
+        }
+
+        $limitedMessages = [];
+        $currentLength = 0;
+        $messageCount = 0;
+
+        // Iterate through messages in reverse to prioritize recent ones
+        foreach (array_reverse($chatHistoryMessages) as $message) {
+            $role = $message['role'] ?? 'user';
+            $content = $message['content'] ?? '';
+
+            if (empty(trim($content))) {
+                continue;
+            }
+
+            // 如果不是当前用户的消息，且内容超过500字符，则截断
+            if (! empty($currentUserNickname) && $role !== $currentUserNickname && mb_strlen($content, 'UTF-8') > 500) {
+                $content = mb_substr($content, 0, 500, 'UTF-8') . '...';
+            }
+
+            $formattedMessage = sprintf("%s: %s\n", $role, $content);
+            $messageLength = mb_strlen($formattedMessage, 'UTF-8');
+
+            // 如果是第一条消息，即使超过长度限制也要包含
+            if ($messageCount === 0) {
+                array_unshift($limitedMessages, $formattedMessage);
+                $currentLength += $messageLength;
+                ++$messageCount;
+                continue;
+            }
+
+            if ($currentLength + $messageLength > $maxLength) {
+                // Stop adding messages if the current one exceeds the length limit
+                break;
+            }
+
+            // Prepend the message to the array to maintain the original chronological order
+            array_unshift($limitedMessages, $formattedMessage);
+            $currentLength += $messageLength;
+            ++$messageCount;
+        }
+
+        return implode('', $limitedMessages);
     }
 }
