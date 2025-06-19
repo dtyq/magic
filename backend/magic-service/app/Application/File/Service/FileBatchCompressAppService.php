@@ -29,6 +29,34 @@ class FileBatchCompressAppService extends AbstractAppService
 {
     private LoggerInterface $logger;
 
+    /**
+     * Collection of temporary files created during processing.
+     * @var array<string>
+     */
+    private array $tempFiles = [];
+
+    /**
+     * Collection of open streams that need to be closed.
+     * @var array<resource>
+     */
+    private array $openStreams = [];
+
+    /**
+     * Collection of temporary directories created during processing.
+     * @var array<string>
+     */
+    private array $tempDirectories = [];
+
+    /**
+     * Base temporary directory for batch compress operations.
+     */
+    private string $baseTempDir = '';
+
+    /**
+     * Current cache key for the batch operation.
+     */
+    private string $currentCacheKey = '';
+
     public function __construct(
         private readonly FileAppService $fileAppService,
         private readonly FileDomainService $fileDomainService,
@@ -74,6 +102,12 @@ class FileBatchCompressAppService extends AbstractAppService
         string $targetPath = ''
     ): array {
         try {
+            // Set current cache key for use in private methods
+            $this->currentCacheKey = $cacheKey;
+
+            // Initialize base temporary directory for this batch
+            $this->createTempDirectory($cacheKey);
+
             $this->statusManager->setTaskProgress($cacheKey, 0, count($files), 'Starting batch compress');
 
             // Step 1: Get download links for all files
@@ -132,7 +166,149 @@ class FileBatchCompressAppService extends AbstractAppService
                 'success' => false,
                 'error' => 'File processing failed: ' . $exception->getMessage(),
             ];
+        } finally {
+            // Fallback cleanup: ensure all temporary resources are properly cleaned up
+            $this->cleanupAllTempResources();
+
+            // Reset current cache key
+            $this->currentCacheKey = '';
+
+            $this->logger->debug('Completed cleanup of all temporary resources', [
+                'cache_key' => $cacheKey,
+            ]);
         }
+    }
+
+    /**
+     * Create and ensure temporary directory exists.
+     */
+    private function createTempDirectory(string $cacheKey, string $subDir = ''): string
+    {
+        if (empty($this->baseTempDir)) {
+            $this->baseTempDir = sys_get_temp_dir() . '/batch_compress/' . $cacheKey;
+        }
+
+        $targetDir = $this->baseTempDir;
+        if (! empty($subDir)) {
+            $targetDir .= '/' . trim($subDir, '/');
+        }
+
+        if (! is_dir($targetDir)) {
+            if (! mkdir($targetDir, 0755, true)) {
+                throw new RuntimeException("Failed to create temporary directory: {$targetDir}");
+            }
+            $this->tempDirectories[] = $targetDir;
+            $this->logger->debug('Created temporary directory', ['dir' => $targetDir]);
+        }
+
+        return $targetDir;
+    }
+
+    /**
+     * Register temporary file for cleanup.
+     */
+    private function registerTempFile(string $filePath): void
+    {
+        if (! in_array($filePath, $this->tempFiles, true)) {
+            $this->tempFiles[] = $filePath;
+        }
+    }
+
+    /**
+     * Register stream for cleanup.
+     * @param mixed $stream
+     */
+    private function registerStream($stream): void
+    {
+        if (is_resource($stream) && ! in_array($stream, $this->openStreams, true)) {
+            $this->openStreams[] = $stream;
+        }
+    }
+
+    /**
+     * Cleanup all temporary files, streams and directories.
+     */
+    private function cleanupAllTempResources(): void
+    {
+        // Close all open streams
+        foreach ($this->openStreams as $stream) {
+            if (is_resource($stream)) {
+                try {
+                    fclose($stream);
+                    $this->logger->debug('Closed stream resource');
+                } catch (Throwable $e) {
+                    $this->logger->warning('Failed to close stream', ['error' => $e->getMessage()]);
+                }
+            }
+        }
+        $this->openStreams = [];
+
+        // Remove all temporary files
+        foreach ($this->tempFiles as $tempFile) {
+            if (file_exists($tempFile)) {
+                try {
+                    unlink($tempFile);
+                    $this->logger->debug('Removed temporary file', ['file' => $tempFile]);
+                } catch (Throwable $e) {
+                    $this->logger->warning('Failed to remove temporary file', [
+                        'file' => $tempFile,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+        $this->tempFiles = [];
+
+        // Remove all temporary directories (in reverse order to handle nested directories)
+        $tempDirs = array_reverse($this->tempDirectories);
+        foreach ($tempDirs as $tempDir) {
+            if (is_dir($tempDir)) {
+                try {
+                    // Try to remove directory if it's empty
+                    if ($this->isDirectoryEmpty($tempDir)) {
+                        rmdir($tempDir);
+                        $this->logger->debug('Removed temporary directory', ['dir' => $tempDir]);
+                    }
+                } catch (Throwable $e) {
+                    $this->logger->warning('Failed to remove temporary directory', [
+                        'dir' => $tempDir,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+        $this->tempDirectories = [];
+
+        // Reset base temp dir
+        $this->baseTempDir = '';
+    }
+
+    /**
+     * Check if directory is empty.
+     */
+    private function isDirectoryEmpty(string $dir): bool
+    {
+        $handle = opendir($dir);
+        if (! $handle) {
+            return false;
+        }
+
+        while (false !== ($entry = readdir($handle))) {
+            if ($entry !== '.' && $entry !== '..') {
+                closedir($handle);
+                return false;
+            }
+        }
+        closedir($handle);
+        return true;
+    }
+
+    /**
+     * Get current cache key.
+     */
+    private function getCurrentCacheKey(): string
+    {
+        return $this->currentCacheKey;
     }
 
     /**
@@ -284,7 +460,7 @@ class FileBatchCompressAppService extends AbstractAppService
                 'error' => 'File processing failed: ' . $exception->getMessage(),
             ];
         } finally {
-            // 清理临时ZIP文件
+            // Clean up temporary ZIP file
             if ($tempZipPath && file_exists($tempZipPath)) {
                 unlink($tempZipPath);
                 $this->logger->debug('Cleaned up temporary ZIP file', [
@@ -299,17 +475,20 @@ class FileBatchCompressAppService extends AbstractAppService
      */
     private function streamCompressFiles(string $cacheKey, string $organizationCode, array $fileLinks, string $workdir): string
     {
-        $this->logger->info('开始流式压缩文件批次', ['cache_key' => $cacheKey, 'file_count' => count($fileLinks)]);
+        $this->logger->info('Starting streaming compression of file batch', ['cache_key' => $cacheKey, 'file_count' => count($fileLinks)]);
 
-        // 创建临时ZIP文件
-        $tempZipPath = tempnam(sys_get_temp_dir(), 'batch_compress_') . '.zip';
+        // Create compression subdirectory and generate temporary ZIP file
+        $compressDir = $this->createTempDirectory($cacheKey, 'compress');
+        $tempZipPath = $compressDir . '/batch_compress_' . uniqid() . '.zip';
+        $this->registerTempFile($tempZipPath);
+
         $outputStream = fopen($tempZipPath, 'w+b');
-
         if (! $outputStream) {
-            throw new RuntimeException("无法创建临时ZIP文件: {$tempZipPath}");
+            throw new RuntimeException("Unable to create temporary ZIP file: {$tempZipPath}");
         }
+        $this->registerStream($outputStream);
 
-        // 配置 ZipStream 直接写入文件
+        // Configure ZipStream to write directly to file
         $zip = new ZipStream(
             outputStream: $outputStream,
             defaultCompressionMethod: CompressionMethod::DEFLATE,
@@ -327,11 +506,11 @@ class FileBatchCompressAppService extends AbstractAppService
                 $this->addFileToZipStream($zip, (string) $fileId, $linkData, $cacheKey, $organizationCode, $workdir);
                 ++$processedCount;
 
-                // 更新进度
+                // Update progress
                 $progress = round(($processedCount / $totalFiles) * 100, 2);
                 $this->statusManager->setTaskProgress($cacheKey, $processedCount, $totalFiles, "Processing file {$processedCount}/{$totalFiles}");
 
-                $this->logger->debug('文件添加到ZIP流', [
+                $this->logger->debug('File added to ZIP stream', [
                     'cache_key' => $cacheKey,
                     'file_id' => $fileId,
                     'progress' => $progress,
@@ -339,14 +518,14 @@ class FileBatchCompressAppService extends AbstractAppService
                 ]);
             }
 
-            // 完成压缩
+            // Complete compression
             $zip->finish();
             fclose($outputStream);
 
             $memoryPeak = memory_get_peak_usage(true);
             $fileSize = file_exists($tempZipPath) ? filesize($tempZipPath) : 0;
 
-            $this->logger->info('流式压缩完成', [
+            $this->logger->info('Streaming compression completed', [
                 'cache_key' => $cacheKey,
                 'temp_zip_path' => $tempZipPath,
                 'compressed_size' => $fileSize,
@@ -356,15 +535,14 @@ class FileBatchCompressAppService extends AbstractAppService
 
             return $tempZipPath;
         } catch (Throwable $e) {
-            // 清理资源
+            // Clean up resources
             if (is_resource($outputStream)) {
                 fclose($outputStream);
             }
             if (file_exists($tempZipPath)) {
                 unlink($tempZipPath);
             }
-
-            $this->logger->error('流式压缩失败', [
+            $this->logger->error('Streaming compression failed', [
                 'cache_key' => $cacheKey,
                 'temp_zip_path' => $tempZipPath,
                 'error' => $e->getMessage(),
@@ -376,21 +554,21 @@ class FileBatchCompressAppService extends AbstractAppService
     }
 
     /**
-     * 添加文件到ZIP流
+     * Add file to ZIP stream.
      */
     private function addFileToZipStream(ZipStream $zip, string $fileId, array $linkData, string $cacheKey, string $organizationCode, string $workdir): void
     {
-        // 获取原始文件名和相关信息
+        // Get original file name and related information
         $originalFileName = $linkData['file_name'] ?? '';
         $downloadName = $linkData['download_name'] ?? '';
         $filePath = $linkData['path'] ?? '';
         $fileUrl = $linkData['url'];
 
-        // 🔄 NEW: 使用新的ZIP路径生成方法，支持文件夹结构
+        // 🔄 NEW: Use new ZIP path generation method, supporting folder structure
         $zipEntryName = $this->generateZipRelativePath($workdir, $filePath);
 
         try {
-            $this->logger->debug('开始处理文件', [
+            $this->logger->debug('Starting file processing', [
                 'cache_key' => $cacheKey,
                 'file_id' => $fileId,
                 'original_file_name' => $originalFileName,
@@ -400,11 +578,11 @@ class FileBatchCompressAppService extends AbstractAppService
                 'workdir' => $workdir,
             ]);
 
-            // 使用流式下载获取文件内容
+            // Use streaming download to get file content
             $fileStream = $this->downloadFileAsStream($fileUrl, $organizationCode, $filePath);
 
             if (! $fileStream) {
-                $this->logger->warning('文件下载失败，跳过', [
+                $this->logger->warning('File download failed, skipping', [
                     'cache_key' => $cacheKey,
                     'file_id' => $fileId,
                     'file_url' => $fileUrl,
@@ -413,16 +591,16 @@ class FileBatchCompressAppService extends AbstractAppService
                 return;
             }
 
-            // 直接从流添加到ZIP（真正的流式处理）
+            // Add directly from stream to ZIP (true streaming processing)
             $zip->addFileFromStream(
                 fileName: $zipEntryName,
                 stream: $fileStream
             );
 
-            // 关闭流并清理临时文件
+            // Close stream and cleanup temporary files
             $this->closeStreamAndCleanup($fileStream);
 
-            $this->logger->debug('文件成功添加到ZIP', [
+            $this->logger->debug('File successfully added to ZIP', [
                 'cache_key' => $cacheKey,
                 'file_id' => $fileId,
                 'original_name' => $originalFileName,
@@ -430,136 +608,141 @@ class FileBatchCompressAppService extends AbstractAppService
                 'zip_entry_name' => $zipEntryName,
             ]);
         } catch (Throwable $e) {
-            $this->logger->error('添加文件到ZIP流失败', [
+            $this->logger->error('Failed to add file to ZIP stream', [
                 'cache_key' => $cacheKey,
                 'file_id' => $fileId,
                 'file_path' => $filePath,
                 'error' => $e->getMessage(),
             ]);
-            // 单个文件失败不中断整个批次
+            // Single file failure does not interrupt the entire batch
         }
     }
 
     /**
-     * 根据workdir和file_key生成ZIP内的相对路径.
+     * Generate relative path within ZIP based on workdir and file_key.
      *
-     * @param string $workdir 工作目录路径
-     * @param string $fileKey 文件的完整存储路径
-     * @return string ZIP内的相对路径
+     * @param string $workdir Working directory path
+     * @param string $fileKey Complete storage path of the file
+     * @return string Relative path within ZIP
      */
     private function generateZipRelativePath(string $workdir, string $fileKey): string
     {
-        // 1. 标准化路径分隔符和清理空白
+        // 1. Normalize path separators and clean whitespace
         $fileKey = str_replace(['\\', '//', '///'], '/', trim($fileKey));
         $workdir = str_replace(['\\', '//', '///'], '/', trim($workdir, '/'));
 
-        // 2. 特殊情况：workdir为空，返回整个fileKey
+        // 2. Special case: if workdir is empty, return entire fileKey
         if (empty($workdir)) {
             return trim($fileKey, '/');
         }
 
-        // 3. 在file_key中查找workdir的位置
+        // 3. Find position of workdir in file_key
         $workdirPos = strpos($fileKey, $workdir);
 
         if ($workdirPos !== false) {
-            // 4. 提取workdir之后的部分
+            // 4. Extract part after workdir
             $startPos = $workdirPos + strlen($workdir);
             $relativePath = ltrim(substr($fileKey, $startPos), '/');
 
             if (! empty($relativePath)) {
-                // 5. 清理路径安全性
+                // 5. Clean path for security
                 return $this->sanitizeZipPath($relativePath);
             }
-            // workdir匹配但没有后续路径，返回文件名
+            // workdir matches but no subsequent path, return file name
             return basename($fileKey);
         }
 
-        // 6. 降级处理：workdir匹配失败
+        // 6. Fallback handling: workdir match failed
         return $this->fallbackPathGeneration($fileKey);
     }
 
     /**
-     * 清理ZIP路径，确保安全性.
+     * Clean ZIP path to ensure security.
      */
     private function sanitizeZipPath(string $path): string
     {
-        // 1. 移除危险字符
+        // 1. Remove dangerous characters
         $path = preg_replace('/[<>:"|?*]/', '_', $path);
 
-        // 2. 防止路径遍历攻击
+        // 2. Prevent path traversal attacks
         $path = str_replace(['../', '..\\', '../\\'], '', $path);
 
-        // 3. 清理连续的斜杠
+        // 3. Clean consecutive slashes
         $path = preg_replace('/\/+/', '/', $path);
 
-        // 4. 限制路径深度（防止过深的嵌套）
+        // 4. Limit path depth (prevent overly deep nesting)
         $parts = explode('/', trim($path, '/'));
-        if (count($parts) > 8) {  // 最大8层深度
-            $parts = array_slice($parts, -8);  // 保留最后8层
+        if (count($parts) > 8) {  // Maximum 8 levels deep
+            $parts = array_slice($parts, -8);  // Keep last 8 levels
         }
 
         return implode('/', array_filter($parts));
     }
 
     /**
-     * 降级路径生成策略.
+     * Fallback path generation strategy.
      */
     private function fallbackPathGeneration(string $fileKey): string
     {
-        // 策略1: 使用文件路径的最后两级目录
+        // Strategy 1: Use the last two levels of the file path
         $pathParts = array_filter(explode('/', $fileKey));
         $count = count($pathParts);
 
         if ($count >= 2) {
-            // 取最后两级：倒数第二级作为文件夹，最后一级作为文件名
+            // Take the last two levels: second-to-last as folder, last as file name
             $folder = $pathParts[$count - 2];
             $file = $pathParts[$count - 1];
 
             return $folder . '/' . $file;
         }
 
-        // 策略2: 直接使用最后一级（文件名）
+        // Strategy 2: Use the last level directly (file name)
         return $count > 0 ? $pathParts[$count - 1] : 'unknown_file';
     }
 
     /**
-     * 流式下载文件 - 使用downloadByChunks自动判断是否分片.
+     * Stream download file - use downloadByChunks to automatically determine if chunking is needed.
      */
     private function downloadFileAsStream(string $fileUrl, string $organizationCode, string $filePath)
     {
         try {
-            // 生成临时文件路径
-            $tempPath = sys_get_temp_dir() . '/' . uniqid('batch_compress_', true) . '_' . basename($filePath);
+            // Create download subdirectory and generate temporary file path
+            $downloadDir = $this->createTempDirectory($this->getCurrentCacheKey(), 'download');
+            $tempPath = $downloadDir . '/' . uniqid('download_', true) . '_' . basename($filePath);
+            $this->registerTempFile($tempPath);
 
-            // 使用downloadByChunks，它会自动判断是否需要分片下载
+            // Use downloadByChunks, which automatically determines if chunking is needed
+            // Specify custom temp_dir to solve chunk download temporary directory issue
+            $chunksDir = $this->createTempDirectory($this->getCurrentCacheKey(), 'chunks');
             $this->fileAppService->downloadByChunks(
                 $organizationCode,
                 $filePath,
                 $tempPath,
                 'private',
                 [
-                    'chunk_size' => 2 * 1024 * 1024,  // 2MB分片
-                    'max_concurrency' => 3,           // 3个并发
-                    'max_retries' => 3,               // 最多重试3次
+                    'chunk_size' => 2 * 1024 * 1024,  // 2MB chunks
+                    'max_concurrency' => 3,           // 3 concurrent downloads
+                    'max_retries' => 3,               // Maximum 3 retries
+                    'temp_dir' => $chunksDir,         // Specify chunk temporary directory
                 ]
             );
 
-            // 检查文件是否下载成功
+            // Check if file download was successful
             if (! file_exists($tempPath)) {
-                $this->logger->error('文件下载失败，文件不存在', [
+                $this->logger->error('File download failed, file does not exist', [
                     'temp_path' => $tempPath,
                     'file_path' => $filePath,
                 ]);
                 return $this->fallbackStreamDownload($fileUrl);
             }
 
-            // 将下载的文件转换为流
+            // Convert downloaded file to stream
             $fileStream = fopen($tempPath, 'r');
             if (! $fileStream) {
-                $this->logger->error('无法打开下载的文件', [
+                $this->logger->error('Unable to open downloaded file', [
                     'temp_path' => $tempPath,
                 ]);
-                // 清理失败的临时文件
+                // Clean up failed temporary file
                 // @phpstan-ignore-next-line (defensive programming - double check before cleanup)
                 if (file_exists($tempPath)) {
                     unlink($tempPath);
@@ -567,23 +750,23 @@ class FileBatchCompressAppService extends AbstractAppService
                 return $this->fallbackStreamDownload($fileUrl);
             }
 
-            // 注册清理函数，在流关闭时删除临时文件
-            $this->registerStreamCleanup($fileStream, $tempPath);
+            // Register stream resource for subsequent unified cleanup
+            $this->registerStream($fileStream);
 
             return $fileStream;
         } catch (Throwable $e) {
-            $this->logger->error('downloadByChunks下载失败', [
+            $this->logger->error('downloadByChunks download failed', [
                 'file_path' => $filePath,
                 'error' => $e->getMessage(),
             ]);
 
-            // 降级到直接流式下载
+            // Fall back to direct streaming download
             return $this->fallbackStreamDownload($fileUrl);
         }
     }
 
     /**
-     * 降级方案：直接流式下载.
+     * Fallback solution: direct streaming download.
      */
     private function fallbackStreamDownload(string $fileUrl)
     {
@@ -601,15 +784,17 @@ class FileBatchCompressAppService extends AbstractAppService
             $stream = fopen($fileUrl, 'r', false, $context);
 
             if (! $stream) {
-                $this->logger->error('直接流式下载也失败', [
+                $this->logger->error('Direct streaming download also failed', [
                     'file_url' => $fileUrl,
                 ]);
                 return null;
             }
 
+            $this->registerStream($stream);
+
             return $stream;
         } catch (Throwable $e) {
-            $this->logger->error('降级下载失败', [
+            $this->logger->error('Fallback download failed', [
                 'file_url' => $fileUrl,
                 'error' => $e->getMessage(),
             ]);
@@ -618,41 +803,21 @@ class FileBatchCompressAppService extends AbstractAppService
     }
 
     /**
-     * 注册流清理函数.
-     * @param mixed $stream
-     */
-    private function registerStreamCleanup($stream, string $tempFilePath): void
-    {
-        // 使用stream_context_set_option来存储清理信息
-        // 这样在流关闭时可以清理临时文件
-        stream_context_set_option($stream, 'cleanup', 'temp_file', $tempFilePath);
-    }
-
-    /**
-     * 关闭流并清理临时文件.
+     * Close stream and cleanup temporary files.
      * @param mixed $stream
      */
     private function closeStreamAndCleanup($stream): void
     {
-        if (! $stream) {
+        if (! $stream || ! is_resource($stream)) {
             return;
         }
 
         try {
-            // 尝试获取清理信息
-            $context = stream_context_get_options($stream);
-            $tempFile = $context['cleanup']['temp_file'] ?? null;
-
-            // 关闭流
+            // Close stream
             fclose($stream);
-
-            // 清理临时文件
-            if ($tempFile && file_exists($tempFile)) {
-                unlink($tempFile);
-                $this->logger->debug('清理临时文件', ['temp_file' => $tempFile]);
-            }
+            $this->logger->debug('Closed file stream');
         } catch (Throwable $e) {
-            $this->logger->warning('清理流和临时文件时出错', [
+            $this->logger->warning('Error occurred while closing stream', [
                 'error' => $e->getMessage(),
             ]);
         }
@@ -664,29 +829,29 @@ class FileBatchCompressAppService extends AbstractAppService
     private function uploadCompressedFile(string $organizationCode, string $tempZipPath, string $zipFileName, string $uploadPath): array
     {
         try {
-            // 检查文件是否存在
+            // Check if file exists
             if (! file_exists($tempZipPath)) {
-                throw new RuntimeException("临时ZIP文件不存在: {$tempZipPath}");
+                throw new RuntimeException("Temporary ZIP file does not exist: {$tempZipPath}");
             }
 
             $fileSize = filesize($tempZipPath);
 
-            // 确保文件名有正确的扩展名
+            // Ensure file name has correct extension
             if (! str_ends_with(strtolower($zipFileName), '.zip')) {
                 $zipFileName .= '.zip';
             }
 
-            // 清理和标准化上传路径
+            // Clean and normalize upload path
             $uploadFileKey = trim($uploadPath, '/') . '/' . ltrim($zipFileName, '/');
 
-            $this->logger->info('准备上传压缩文件', [
+            $this->logger->info('Preparing to upload compressed file', [
                 'original_zip_name' => $zipFileName,
                 'upload_path' => $uploadFileKey,
                 'file_size' => $fileSize,
                 'temp_zip_path' => $tempZipPath,
             ]);
 
-            // 使用分片上传（内部会自动判断是否需要分片）
+            // Use chunked upload (internally determines if chunking is needed)
             $chunkConfig = new ChunkUploadConfig(
                 10 * 1024 * 1024,  // 10MB chunk size
                 20 * 1024 * 1024,  // 20MB threshold
@@ -703,17 +868,17 @@ class FileBatchCompressAppService extends AbstractAppService
                 $chunkConfig
             );
 
-            $this->logger->info('开始上传压缩文件', [
+            $this->logger->info('Starting compressed file upload', [
                 'file_size_mb' => round($fileSize / 1024 / 1024, 2),
                 'chunk_size_mb' => round($chunkConfig->getChunkSize() / 1024 / 1024, 2),
                 'upload_file_key' => $uploadFileKey,
                 'will_use_chunks' => $chunkUploadFile->shouldUseChunkUpload(),
             ]);
 
-            // 执行上传（内部会自动判断使用分片还是普通上传）
+            // Execute upload (internally determines whether to use chunked or regular upload)
             $this->fileDomainService->uploadByChunks($organizationCode, $chunkUploadFile, StorageBucketType::Private, false);
 
-            $this->logger->info('压缩文件上传成功', [
+            $this->logger->info('Compressed file upload successful', [
                 'file_key' => $chunkUploadFile->getKey(),
                 'file_name' => $zipFileName,
                 'upload_path' => $uploadPath,
@@ -730,7 +895,7 @@ class FileBatchCompressAppService extends AbstractAppService
                 'file_size' => $fileSize,
             ];
         } catch (Throwable $exception) {
-            $this->logger->error('压缩文件上传失败', [
+            $this->logger->error('Compressed file upload failed', [
                 'error' => $exception->getMessage(),
                 'file_name' => $zipFileName,
                 'upload_path' => $uploadPath,
