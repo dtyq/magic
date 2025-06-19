@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.345.0",
+            "version": "3.346.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "61b4675bc02db8d7f3e1ba6931dc827c5ae23aa8"
+                "reference": "be313721b8d786e515b5df3e09b1771befbad2c6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/61b4675bc02db8d7f3e1ba6931dc827c5ae23aa8",
-                "reference": "61b4675bc02db8d7f3e1ba6931dc827c5ae23aa8",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/be313721b8d786e515b5df3e09b1771befbad2c6",
+                "reference": "be313721b8d786e515b5df3e09b1771befbad2c6",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.345.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.346.0"
             },
-            "time": "2025-06-17T18:09:42+00:00"
+            "time": "2025-06-18T18:49:34+00:00"
         },
         {
             "name": "brick/math",
@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "9b6e6ba3e14daa524d053d3bea983d6dd81b7955"
+                "reference": "f416e3723efba2450ca92dd42e38def19512614e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=9b6e6ba3e14daa524d053d3bea983d6dd81b7955",
-                "reference": "9b6e6ba3e14daa524d053d3bea983d6dd81b7955",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=f416e3723efba2450ca92dd42e38def19512614e",
+                "reference": "f416e3723efba2450ca92dd42e38def19512614e",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-06-18T14:58:47+00:00"
+            "time": "2025-06-18T22:55:17+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17114,12 +17114,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "2b9122a87c062376685eede1e0a0ce8e31544fe6"
+                "reference": "7dacc91c92dcf3b81a600376d2a2f693eff91e35"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/2b9122a87c062376685eede1e0a0ce8e31544fe6",
-                "reference": "2b9122a87c062376685eede1e0a0ce8e31544fe6",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/7dacc91c92dcf3b81a600376d2a2f693eff91e35",
+                "reference": "7dacc91c92dcf3b81a600376d2a2f693eff91e35",
                 "shasum": ""
             },
             "conflict": {
@@ -17476,7 +17476,7 @@
                 "joyqi/hyper-down": "<=2.4.27",
                 "jsdecena/laracom": "<2.0.9",
                 "jsmitty12/phpwhois": "<5.1",
-                "juzaweb/cms": "<=3.4",
+                "juzaweb/cms": "<=3.4.2",
                 "jweiland/events2": "<8.3.8|>=9,<9.0.6",
                 "jweiland/kk-downloader": "<1.2.2",
                 "kazist/phpwhois": "<=4.2.6",
@@ -18060,7 +18060,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-16T22:05:27+00:00"
+            "time": "2025-06-18T19:04:39+00:00"
         },
         {
             "name": "sebastian/cli-parser",
