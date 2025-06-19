@@ -27,16 +27,19 @@ class FlowExecutorArchiveCloud
             return '';
         }
 
+        $tmpDir = sys_get_temp_dir();
+        $tmpFile = "{$tmpDir}/{$name}." . uniqid();
+
         try {
             // 数据大小符合要求，保存到临时文件
-            file_put_contents("./{$name}", $serializedData);
+            file_put_contents($tmpFile, $serializedData);
 
-            $uploadFile = new UploadFile("./{$name}", dir: 'MagicFlowExecutorArchive', name: $name, rename: false);
+            $uploadFile = new UploadFile($tmpFile, dir: 'MagicFlowExecutorArchive', name: $name, rename: false);
             di(FileDomainService::class)->uploadByCredential($organizationCode, $uploadFile, storage: StorageBucketType::Private, autoDir: false);
             return $uploadFile->getKey();
         } finally {
-            if (file_exists("./{$name}")) {
-                @unlink("./{$name}");
+            if (file_exists($tmpFile)) {
+                @unlink($tmpFile);
             }
         }
     }
