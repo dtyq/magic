@@ -11,6 +11,7 @@ use App\Application\Flow\ExecuteManager\Attachment\AbstractAttachment;
 use App\Application\Flow\ExecuteManager\Attachment\Attachment;
 use App\Application\Flow\ExecuteManager\Attachment\ExternalAttachment;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
+use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionDataCollector;
 use App\Application\Flow\ExecuteManager\Memory\FlowMemoryManager;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\LLMAppService;
@@ -108,6 +109,20 @@ abstract class NodeRunner implements NodeRunnerInterface
         $debugResult = $this->node->getNodeDebugResult();
         $debugResult->setStartTime(microtime(true));
         try {
+            if (ExecutionDataCollector::isMaxNodeExecuteCountReached($executionData->getId())) {
+                $this->logger->warning('NodeExecuteCountReached', [
+                    'executor_id' => $executionData->getId(),
+                    'node_id' => $this->node->getNodeId(),
+                    'node_name' => $this->node->getName(),
+                    'max_count' => ExecutionDataCollector::MAX_COUNT,
+                ]);
+                ExceptionBuilder::throw(
+                    FlowErrorCode::ExecuteFailed,
+                    'flow.executor.node_execute_count_reached',
+                    ['node_id' => $this->node->getNodeId(), 'max_count' => ExecutionDataCollector::MAX_COUNT]
+                );
+            }
+
             $debugResult->setParams($this->node->getParams());
             if ($this->node->hasCallback()) {
                 $callback = $this->node->getCallback();
@@ -127,6 +142,8 @@ abstract class NodeRunner implements NodeRunnerInterface
             $debugResult->setSuccess(true);
             $debugResult->setInput($vertexResult->getInput() ?? []);
             $debugResult->setOutput($vertexResult->getResult() ?? []);
+
+            ExecutionDataCollector::incrementNodeExecuteCount($executionData->getId());
         } catch (Throwable $throwable) {
             $debugResult->setSuccess(false);
             $debugResult->setErrorCode((int) $throwable->getCode());
