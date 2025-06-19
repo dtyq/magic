@@ -206,6 +206,7 @@ return [
         'has_circular_dependencies' => '[:label] 存在循环依赖',
         'unsupported_trigger_type' => '不支持的触发方式',
         'unsupported_flow_type' => '不支持的流程类型',
+        'node_execute_count_reached' => '达到全局节点的最大运行次数（:max_count）',
     ],
     'component' => [
         'format_error' => '[:label] 格式错误',

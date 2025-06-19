@@ -513,13 +513,13 @@ class MagicFlowExecutor
                 CoContext::copy($fromCoroutineId);
 
                 // 利用自旋锁来控制只有一个在保存
-                if (! $this->locker->spinLock($this->getLockerKey() . ':archive', $this->executorId, 20)) {
+                if (! $this->locker->spinLock($this->getLockerKey() . ':archive', $this->magicFlowExecuteLogEntity->getExecuteDataId(), 20)) {
                     ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'archive file failed');
                 }
 
                 FlowExecutorArchiveCloud::put(
                     organizationCode: $this->executionData->getDataIsolation()->getCurrentOrganizationCode(),
-                    key: (string) $this->magicFlowExecuteLogEntity->getId(),
+                    key: $this->magicFlowExecuteLogEntity->getExecuteDataId(),
                     data: [
                         'execution_data' => $this->executionData,
                         'magic_flow' => $this->magicFlowEntity,
