@@ -209,6 +209,29 @@ class MagicSeqDomainService extends AbstractDomainService
     }
 
     /**
+     * Get seq entity list by magic_message_id.
+     * A magic_message_id will create seq entities for both sender and receiver.
+     *
+     * @param string $magicMessageId The magic_message_id
+     * @return MagicSeqEntity[] Array of seq entities
+     */
+    public function getSeqEntitiesByMagicMessageId(string $magicMessageId): array
+    {
+        if (empty($magicMessageId)) {
+            return [];
+        }
+
+        $seqList = $this->magicSeqRepository->getBothSeqListByMagicMessageId($magicMessageId);
+
+        $seqEntities = [];
+        foreach ($seqList as $seqData) {
+            $seqEntities[] = SeqAssembler::getSeqEntity($seqData);
+        }
+
+        return $seqEntities;
+    }
+
+    /**
      * Get the minimum seq_id record for the same user (object_id) based on magic_message_id
      * Used to find the original message when there are multiple edited versions.
      */
