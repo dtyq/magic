@@ -65,6 +65,8 @@ class MagicFlowExecutor
 
     private LockerInterface $locker;
 
+    private bool $inLoop = false;
+
     public function __construct(
         private readonly MagicFlowEntity $magicFlowEntity,
         private readonly ExecutionData $executionData,
@@ -78,6 +80,11 @@ class MagicFlowExecutor
         $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('MagicFlowExecutor');
         $this->magicFlowExecuteLogDomainService = di(MagicFlowExecuteLogDomainService::class);
         $this->init();
+    }
+
+    public function setInLoop(bool $inLoop): void
+    {
+        $this->inLoop = $inLoop;
     }
 
     public function execute(?TriggerType $appointTriggerType = null): array
@@ -504,7 +511,7 @@ class MagicFlowExecutor
             return;
         }
         // 只有第一层的流程才会进行归档
-        if (! $this->executionData->isTop()) {
+        if (! $this->executionData->isTop() || $this->inLoop) {
             return;
         }
         if (isset($this->magicFlowExecuteLogEntity)) {
