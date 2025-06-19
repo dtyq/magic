@@ -16,9 +16,21 @@ class FlowExecutorArchiveCloud
     public static function put(string $organizationCode, string $key, array $data): string
     {
         $name = "{$key}.log";
+
+        // 直接检查序列化后的数据大小
+        $serializedData = serialize($data);
+        $dataSize = strlen($serializedData);
+        $maxSize = 100 * 1024 * 1024; // 100MB
+
+        if ($dataSize > $maxSize) {
+            // 数据过大，不上传，直接返回空字符串
+            return '';
+        }
+
         try {
-            // 保存执行数据到临时文件
-            file_put_contents("./{$name}", serialize($data));
+            // 数据大小符合要求，保存到临时文件
+            file_put_contents("./{$name}", $serializedData);
+
             $uploadFile = new UploadFile("./{$name}", dir: 'MagicFlowExecutorArchive', name: $name, rename: false);
             di(FileDomainService::class)->uploadByCredential($organizationCode, $uploadFile, storage: StorageBucketType::Private, autoDir: false);
             return $uploadFile->getKey();
