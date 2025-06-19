@@ -15,7 +15,7 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 class GetFileUrlsRequestDTO
 {
     /**
-     * 文件ID列表.
+     * List of file IDs.
      */
     private array $fileIds;
 
@@ -26,12 +26,12 @@ class GetFileUrlsRequestDTO
     private string $topicId;
 
     /**
-     * 缓存设置，默认为 true.
+     * Cache setting, default is true.
      */
     private bool $cache;
 
     /**
-     * 构造函数.
+     * Constructor.
      */
     public function __construct(array $params)
     {
