@@ -195,7 +195,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
         // seq 的扩展信息. 如果需要检索话题的消息,请查询 topic_messages 表
         $topicId && $seqExtra->setTopicId($topicId);
         $seqDTO->setExtra($seqExtra);
-        // 如果是跟 ai 的私聊，且没有话题 id，自动创建一个话题
+        // 如果是跟助理的私聊，且没有话题 id，自动创建一个话题
         if ($conversationEntity->getReceiveType() === ConversationType::Ai && empty($seqDTO->getExtra()?->getTopicId())) {
             $topicId = $this->magicTopicDomainService->agentSendMessageGetTopicId($conversationEntity, 0);
             // 不影响原有逻辑，将 topicId 设置到 extra 中
@@ -222,7 +222,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
         if ($conversationEntity->getUserOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
         }
-        // 判断会话的发起者是否是当前用户,并且不是ai
+        // 判断会话的发起者是否是当前用户,并且不是助理
         if ($conversationEntity->getReceiveType() !== ConversationType::Ai && $conversationEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
         }
@@ -231,37 +231,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_DELETED);
         }
         // 如果是编辑消息，检查被编辑消息的合法性(自己发的消息，且在当前会话中)
-        $seqExtra = $senderSeqDTO->getExtra();
-        try {
-            if ($seqExtra !== null && ($editMessageOptions = $seqExtra->getEditMessageOptions()) !== null) {
-                $messageEntity = $this->magicChatDomainService->getMessageByMagicMessageId($editMessageOptions->getMagicMessageId());
-                if ($messageEntity === null) {
-                    ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
-                }
-                // 检查消息是否属于当前用户
-                if ($messageEntity->getSenderId() !== $dataIsolation->getCurrentUserId()) {
-                    ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
-                }
-                $conversationDTO = new MagicConversationEntity();
-                $conversationDTO->setUserId($messageEntity->getSenderId());
-                $conversationDTO->setReceiveId($messageEntity->getReceiveId());
-                $senderConversationEntity = $this->magicConversationDomainService->getConversationByUserIdAndReceiveId($conversationDTO);
-                if ($senderConversationEntity === null) {
-                    ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
-                }
-                // 消息是否属于当前会话
-                if ($senderConversationEntity->getId() !== $conversationEntity->getId()) {
-                    ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
-                }
-            }
-        } catch (Throwable $exception) {
-            $this->logger->error(sprintf(
-                'checkSendMessageAuth error:%s senderSeqDTO:%s',
-                $exception->getMessage(),
-                json_encode($senderSeqDTO)
-            ));
-            throw $exception;
-        }
+        $this->checkEditMessageLegality($senderSeqDTO, $dataIsolation);
         return;
         // todo 如果消息中有文件:1.判断文件的所有者是否是当前用户;2.判断用户是否接收过这些文件。
         /* @phpstan-ignore-next-line */
@@ -296,7 +266,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
-     * ai给人类或者群发消息,支持在线消息和离线消息(取决于用户是否在线).
+     * 助理给人类或者群发消息,支持在线消息和离线消息(取决于用户是否在线).
      * @param MagicSeqEntity $aiSeqDTO 怎么传参可以参考 api层的 aiSendMessage 方法
      * @param string $appMessageId 消息防重,客户端(包括flow)自己对消息生成一条编码
      * @param bool $doNotParseReferMessageId 不由 chat 判断 referMessageId 的引用时机,由调用方自己判断
@@ -312,24 +282,24 @@ class MagicChatMessageAppService extends MagicSeqAppService
             if ($sendTime === null) {
                 $sendTime = new Carbon();
             }
-            // 如果用户给ai发送了多条消息,ai回复时,需要让用户知晓ai回复的是他的哪条消息.
+            // 如果用户给助理发送了多条消息,助理回复时,需要让用户知晓助理回复的是他的哪条消息.
             $aiSeqDTO = $this->magicChatDomainService->aiReferMessage($aiSeqDTO, $doNotParseReferMessageId);
-            // 获取ai的会话窗口
+            // 获取助理的会话窗口
             $aiConversationEntity = $this->magicChatDomainService->getConversationById($aiSeqDTO->getConversationId());
             if ($aiConversationEntity === null) {
                 ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
             }
-            // 确认发件人是否是ai
+            // 确认发件人是否是助理
             $aiUserId = $aiConversationEntity->getUserId();
             $aiUserEntity = $this->magicChatDomainService->getUserInfo($aiUserId);
             if ($aiUserEntity->getUserType() !== UserType::Ai) {
                 ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
             }
-            // 如果是ai与人私聊，且ai发送的消息没有话题 id，则报错
+            // 如果是助理与人私聊，且助理发送的消息没有话题 id，则报错
             if ($aiConversationEntity->getReceiveType() === ConversationType::User && empty($aiSeqDTO->getExtra()?->getTopicId())) {
                 ExceptionBuilder::throw(ChatErrorCode::TOPIC_ID_NOT_FOUND);
             }
-            // ai准备开始发消息了,结束输入状态
+            // 助理准备开始发消息了,结束输入状态
             $contentStruct = $aiSeqDTO->getContent();
             $isStream = $contentStruct instanceof StreamMessageInterface && $contentStruct->isStream();
             $beginStreamMessage = $isStream && $contentStruct instanceof StreamMessageInterface && $contentStruct->getStreamOptions()?->getStatus() === StreamMessageStatus::Start;
@@ -358,7 +328,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
-     * ai给人类或者群发消息,可以不传会话和话题 id,自动创建会话，非群组会话自动适配话题 id.
+     * 助理给人类或者群发消息,可以不传会话和话题 id,自动创建会话，非群组会话自动适配话题 id.
      * @param string $appMessageId 消息防重,客户端(包括flow)自己对消息生成一条编码
      * @param bool $doNotParseReferMessageId 可以不由 chat 判断 referMessageId 的引用时机,由调用方自己判断
      * @throws Throwable
@@ -390,7 +360,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
-     * 人类给AI或者群发消息,可以不传会话和话题 id,自动创建会话，非群组会话自动适配话题 id.
+     * 人类给助理或者群发消息,可以不传会话和话题 id,自动创建会话，非群组会话自动适配话题 id.
      * @param string $appMessageId 消息防重,客户端(包括flow)自己对消息生成一条编码
      * @param bool $doNotParseReferMessageId 可以不由 chat 判断 referMessageId 的引用时机,由调用方自己判断
      * @throws Throwable
@@ -425,7 +395,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             $topicId = '';
         }
 
-        // 3.组装参数，调用 aiSendMessage 方法
+        // 3.组装参数，调用 sendMessageToAgent 方法
         $aiSeqDTO->getExtra() === null && $aiSeqDTO->setExtra(new SeqExtra());
         $aiSeqDTO->getExtra()->setTopicId($topicId);
         $aiSeqDTO->setConversationId($senderConversationEntity->getId());
@@ -433,7 +403,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
-     * ai给人类或者群发消息,支持在线消息和离线消息(取决于用户是否在线).
+     * 助理给人类或者群发消息,支持在线消息和离线消息(取决于用户是否在线).
      * @param MagicSeqEntity $aiSeqDTO 怎么传参可以参考 api层的 aiSendMessage 方法
      * @param string $appMessageId 消息防重,客户端(包括flow)自己对消息生成一条编码
      * @param bool $doNotParseReferMessageId 不由 chat 判断 referMessageId 的引用时机,由调用方自己判断
@@ -449,24 +419,24 @@ class MagicChatMessageAppService extends MagicSeqAppService
             if ($sendTime === null) {
                 $sendTime = new Carbon();
             }
-            // 如果用户给ai发送了多条消息,ai回复时,需要让用户知晓ai回复的是他的哪条消息.
+            // 如果用户给助理发送了多条消息,助理回复时,需要让用户知晓助理回复的是他的哪条消息.
             $aiSeqDTO = $this->magicChatDomainService->aiReferMessage($aiSeqDTO, $doNotParseReferMessageId);
-            // 获取ai的会话窗口
+            // 获取助理的会话窗口
             $aiConversationEntity = $this->magicChatDomainService->getConversationById($aiSeqDTO->getConversationId());
             if ($aiConversationEntity === null) {
                 ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
             }
-            // 确认发件人是否是ai
+            // 确认发件人是否是助理
             $aiUserId = $aiConversationEntity->getUserId();
             $aiUserEntity = $this->magicChatDomainService->getUserInfo($aiUserId);
             // if ($aiUserEntity->getUserType() !== UserType::Ai) {
             //     ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
             // }
-            // 如果是ai与人私聊，且ai发送的消息没有话题 id，则报错
+            // 如果是助理与人私聊，且助理发送的消息没有话题 id，则报错
             if ($aiConversationEntity->getReceiveType() === ConversationType::User && empty($aiSeqDTO->getExtra()?->getTopicId())) {
                 ExceptionBuilder::throw(ChatErrorCode::TOPIC_ID_NOT_FOUND);
             }
-            // ai准备开始发消息了,结束输入状态
+            // 助理准备开始发消息了,结束输入状态
             $contentStruct = $aiSeqDTO->getContent();
             $isStream = $contentStruct instanceof StreamMessageInterface && $contentStruct->isStream();
             $beginStreamMessage = $isStream && $contentStruct instanceof StreamMessageInterface && $contentStruct->getStreamOptions()?->getStatus() === StreamMessageStatus::Start;
@@ -522,7 +492,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
                 case ConversationType::Ai:
                 case ConversationType::User:
                     try {
-                        # ai 可能参与私聊/群聊等场景,读取记忆时,需要读取自己会话窗口下的消息.
+                        # 助理可能参与私聊/群聊等场景,读取记忆时,需要读取自己会话窗口下的消息.
                         $receiveSeqEntity = $this->magicChatDomainService->generateReceiveSequenceByChatMessage($senderSeqEntity, $senderMessageEntity, $magicSeqStatus);
                         // 避免 seq 表承载太多功能,加太多索引,因此将话题的消息单独写入到 topic_messages 表中
                         $this->magicChatDomainService->createTopicMessage($receiveSeqEntity);
@@ -928,6 +898,61 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
+     * Check the legality of editing a message.
+     * Verify that the message to be edited meets one of the following conditions:
+     * 1. The current user is the message sender
+     * 2. The message is sent by an agent and the current user is the message receiver.
+     *
+     * @param MagicSeqEntity $senderSeqDTO Sender sequence DTO
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @throws Throwable
+     */
+    protected function checkEditMessageLegality(
+        MagicSeqEntity $senderSeqDTO,
+        DataIsolation $dataIsolation
+    ): void {
+        // Check if this is an edit message operation
+        $editMessageOptions = $senderSeqDTO->getExtra()?->getEditMessageOptions();
+        if ($editMessageOptions === null) {
+            return;
+        }
+
+        $magicMessageId = $editMessageOptions->getMagicMessageId();
+        if (empty($magicMessageId)) {
+            return;
+        }
+
+        try {
+            // Get the message entity to be edited
+            $messageEntity = $this->magicChatDomainService->getMessageByMagicMessageId($magicMessageId);
+            if ($messageEntity === null) {
+                ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
+            }
+
+            // Case 1: Check if the current user is the message sender
+            if ($this->isCurrentUserMessage($messageEntity, $dataIsolation)) {
+                return; // User can edit their own messages
+            }
+
+            // Case 2: Check if the message is sent by an agent to the current user
+            if ($this->isAgentMessageToCurrentUser($messageEntity, $magicMessageId, $dataIsolation)) {
+                return; // User can edit agent messages sent to them
+            }
+
+            // If neither condition is met, reject the edit
+            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
+        } catch (Throwable $exception) {
+            $this->logger->error(sprintf(
+                'checkEditMessageLegality error: %s, magicMessageId: %s, currentUserId: %s',
+                $exception->getMessage(),
+                $magicMessageId,
+                $dataIsolation->getCurrentUserId()
+            ));
+            throw $exception;
+        }
+    }
+
+    /**
      * 使用大模型生成内容摘要
      *
      * @param MagicUserAuthorization $authorization 用户授权信息
@@ -1097,6 +1122,41 @@ class MagicChatMessageAppService extends MagicSeqAppService
         $attachments = $this->magicChatFileDomainService->checkAndFillAttachments($attachments, $dataIsolation);
         $content->setAttachments($attachments);
         return $senderMessageDTO;
+    }
+
+    /**
+     * Check if the message is sent by the current user.
+     */
+    private function isCurrentUserMessage(MagicMessageEntity $messageEntity, DataIsolation $dataIsolation): bool
+    {
+        return $messageEntity->getSenderId() === $dataIsolation->getCurrentUserId();
+    }
+
+    /**
+     * Check if the message is sent by an agent to the current user.
+     */
+    private function isAgentMessageToCurrentUser(MagicMessageEntity $messageEntity, string $magicMessageId, DataIsolation $dataIsolation): bool
+    {
+        // First check if the message is sent by an agent
+        if ($messageEntity->getSenderType() !== ConversationType::Ai) {
+            return false;
+        }
+
+        // Get all seq entities for this message
+        $seqEntities = $this->magicSeqDomainService->getSeqEntitiesByMagicMessageId($magicMessageId);
+        if (empty($seqEntities)) {
+            return false;
+        }
+
+        // Check if the current user is the receiver of this message
+        $currentMagicId = $dataIsolation->getCurrentMagicId();
+        foreach ($seqEntities as $seqEntity) {
+            if ($seqEntity->getObjectId() === $currentMagicId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
