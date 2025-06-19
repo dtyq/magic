@@ -306,7 +306,7 @@ class FileProcessAppService extends AbstractAppService
                         ));
 
                         // Check if file already exists
-                        $existingFile = $this->taskDomainService->getTaskFileByFileKey($attachment['file_key']);
+                        $existingFile = $this->taskDomainService->getTaskFileByFileKey($attachment['file_key'], $topicId);
                         if ($existingFile) {
                             // If already exists, update timestamp and skip
                             $existingFile->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -770,7 +770,7 @@ class FileProcessAppService extends AbstractAppService
             $fullFileKey = "{$organizationCode}/{$appId}/{$md5Key}" . '/' . trim($workDir, '/') . '/' . ltrim($fileKey, '/');
 
             // 1. Check if file already exists
-            $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey);
+            $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey,$topicId);
             if ($existingFile) {
                 $this->logger->info(sprintf(
                     'File already exists, returning existing file ID: %d, File key: %s',

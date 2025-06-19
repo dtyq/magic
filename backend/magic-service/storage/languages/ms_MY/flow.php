@@ -190,6 +190,7 @@ return [
         'has_circular_dependencies' => '[:label] Pergantungan kitaran wujud',
         'unsupported_trigger_type' => 'Jenis pencetus tidak disokong',
         'unsupported_flow_type' => 'Jenis aliran tidak disokong',
+        'node_execute_count_reached' => 'Bilangan pelaksanaan nod global maksimum (:max_count) tercapai',
     ],
     'component' => [
         'format_error' => '[:label] Ralat format',
