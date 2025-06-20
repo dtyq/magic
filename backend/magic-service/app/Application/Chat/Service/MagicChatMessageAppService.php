@@ -794,6 +794,15 @@ class MagicChatMessageAppService extends MagicSeqAppService
                 $this->magicChatDomainService->pushChatSequence($senderChatSeqCreatedEvent);
             });
         }
+
+        // 如果是编辑消息，且是用户编辑了助理发来的审批表单时，返回空数组。
+        // 因为此时创建的 seq_id 是助理的，不是用户的，返回会造成困扰。
+        // 经由 mq 分发消息后，用户会异步收到属于他自己的消息推送。
+        if (isset($editMessageOptions) !== null && ! empty($editMessageOptions->getMagicMessageId())
+            && $messageEntity->getSenderId() !== $senderMessageDTO->getSenderId()) {
+            return [];
+        }
+
         // 将消息流返回给当前客户端! 但是还是会异步推送给用户的所有在线客户端.
         return SeqAssembler::getClientSeqStruct($senderSeqEntity, $messageEntity)->toArray();
     }
