@@ -66,7 +66,7 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Check topic access
-        $topicEntity = $this->topicDomainService->getTopicById((int)$requestDTO->getTopicId());
+        $topicEntity = $this->topicDomainService->getTopicById((int) $requestDTO->getTopicId());
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }

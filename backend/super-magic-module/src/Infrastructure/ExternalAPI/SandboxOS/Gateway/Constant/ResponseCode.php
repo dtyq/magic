@@ -8,23 +8,23 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant;
 
 /**
- * 沙箱网关响应码常量
- * 根据沙箱通信文档定义的响应码
+ * Sandbox Gateway Response Code Constants
+ * Response codes defined according to sandbox communication documentation.
  */
 class ResponseCode
 {
     /**
-     * 成功响应码
+     * Success response code.
      */
     public const SUCCESS = 1000;
 
     /**
-     * 错误响应码
+     * Error response code.
      */
     public const ERROR = 2000;
 
     /**
-     * 检查响应码是否表示成功
+     * Check if response code indicates success.
      */
     public static function isSuccess(int $code): bool
     {
@@ -32,7 +32,7 @@ class ResponseCode
     }
 
     /**
-     * 检查响应码是否表示错误
+     * Check if response code indicates error.
      */
     public static function isError(int $code): bool
     {
@@ -40,7 +40,7 @@ class ResponseCode
     }
 
     /**
-     * 获取响应码描述
+     * Get response code description.
      */
     public static function getDescription(int $code): string
     {
@@ -50,4 +50,4 @@ class ResponseCode
             default => 'Unknown',
         };
     }
-} 
+}

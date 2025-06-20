@@ -8,20 +8,24 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\AbstractSandbox;
+use Hyperf\Logger\LoggerFactory;
 
 /**
- * SandboxOS 基础抽象类
- * 提供 SandboxOS 网关和 Agent 模块的共享基础设施
+ * SandboxOS Base Abstract Class
+ * Provides shared infrastructure for SandboxOS Gateway and Agent modules.
  */
 abstract class AbstractSandboxOS extends AbstractSandbox
 {
-    public function __construct(\Hyperf\Logger\LoggerFactory $loggerFactory)
+    public function __construct(LoggerFactory $loggerFactory)
     {
         parent::__construct($loggerFactory);
+        // Initialize HTTP client
+        $this->initializeClient();
     }
+
     /**
-     * 获取认证头信息
-     * 根据沙箱通信文档使用 X-Sandbox-Gateway 头
+     * Get authentication header information
+     * Uses X-Sandbox-Gateway header according to sandbox communication documentation.
      */
     protected function getAuthHeaders(): array
     {
@@ -32,7 +36,7 @@ abstract class AbstractSandboxOS extends AbstractSandbox
     }
 
     /**
-     * 构建完整的API路径
+     * Build complete API path.
      */
     protected function buildApiPath(string $path): string
     {
@@ -40,10 +44,10 @@ abstract class AbstractSandboxOS extends AbstractSandbox
     }
 
     /**
-     * 构建沙箱转发路径
+     * Build sandbox proxy path.
      */
     protected function buildProxyPath(string $sandboxId, string $agentPath): string
     {
         return sprintf('api/v1/sandboxes/%s/proxy/%s', $sandboxId, ltrim($agentPath, '/'));
     }
-} 
+}

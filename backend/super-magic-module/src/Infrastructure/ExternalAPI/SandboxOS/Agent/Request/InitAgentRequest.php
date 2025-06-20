@@ -11,7 +11,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
 /**
  * 初始化Agent请求类
- * 严格按照沙箱通信文档的初始化请求格式
+ * 严格按照沙箱通信文档的初始化请求格式.
  */
 class InitAgentRequest
 {
@@ -23,7 +23,24 @@ class InitAgentRequest
         private array $stsTokenRefresh = [],
         private array $metadata = [],
         private string $taskMode = 'plan'
-    ) {}
+    ) {
+    }
+
+    /**
+     * 通过数组创建初始化请求
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            $data['message_id'] ?? '',
+            $data['user_id'] ?? '',
+            $data['upload_config'] ?? [],
+            $data['message_subscription_config'] ?? [],
+            $data['sts_token_refresh'] ?? [],
+            $data['metadata'] ?? [],
+            $data['task_mode'] ?? 'plan'
+        );
+    }
 
     /**
      * 创建默认的初始化请求
@@ -49,7 +66,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取上传配置
+     * 获取上传配置.
      */
     public function getUploadConfig(): array
     {
@@ -57,7 +74,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置上传配置
+     * 设置上传配置.
      */
     public function setUploadConfig(array $uploadConfig): self
     {
@@ -66,7 +83,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取消息订阅配置
+     * 获取消息订阅配置.
      */
     public function getMessageSubscriptionConfig(): array
     {
@@ -74,7 +91,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置消息订阅配置
+     * 设置消息订阅配置.
      */
     public function setMessageSubscriptionConfig(array $messageSubscriptionConfig): self
     {
@@ -83,7 +100,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取STS令牌刷新配置
+     * 获取STS令牌刷新配置.
      */
     public function getStsTokenRefresh(): array
     {
@@ -91,7 +108,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置STS令牌刷新配置
+     * 设置STS令牌刷新配置.
      */
     public function setStsTokenRefresh(array $stsTokenRefresh): self
     {
@@ -100,7 +117,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取元数据
+     * 获取元数据.
      */
     public function getMetadata(): array
     {
@@ -108,7 +125,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置元数据
+     * 设置元数据.
      */
     public function setMetadata(array $metadata): self
     {
@@ -117,7 +134,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取任务模式
+     * 获取任务模式.
      */
     public function getTaskMode(): string
     {
@@ -125,7 +142,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置任务模式
+     * 设置任务模式.
      */
     public function setTaskMode(string $taskMode): self
     {
@@ -134,7 +151,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置用户ID
+     * 设置用户ID.
      */
     public function setUserId(string $userId): self
     {
@@ -143,7 +160,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取用户ID
+     * 获取用户ID.
      */
     public function getUserId(): string
     {
@@ -151,7 +168,7 @@ class InitAgentRequest
     }
 
     /**
-     * 设置消息ID
+     * 设置消息ID.
      */
     public function setMessageId(string $messageId): self
     {
@@ -160,7 +177,7 @@ class InitAgentRequest
     }
 
     /**
-     * 获取消息ID
+     * 获取消息ID.
      */
     public function getMessageId(): string
     {
@@ -169,12 +186,12 @@ class InitAgentRequest
 
     /**
      * 转换为API请求数组
-     * 根据沙箱通信文档的初始化请求格式
+     * 根据沙箱通信文档的初始化请求格式.
      */
     public function toArray(): array
     {
         return [
-            'message_id' => !empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
+            'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
             'type' => 'init',
             'upload_config' => $this->uploadConfig,
@@ -184,4 +201,4 @@ class InitAgentRequest
             'task_mode' => $this->taskMode,
         ];
     }
-} 
+}

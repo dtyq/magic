@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Application\Share\Adapter\TopicShareableResource;
 use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
@@ -35,6 +36,10 @@ use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
 use Dtyq\SuperMagic\Listener\I18nLoadListener;
 use RecursiveDirectoryIterator;
@@ -81,6 +86,10 @@ class ConfigProvider
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
                 SandboxInterface::class => SandboxService::class,
+                // 添加SandboxOS相关服务的依赖注入
+                SandboxGatewayInterface::class => SandboxGatewayService::class,
+                SandboxAgentInterface::class => SandboxAgentService::class,
+                AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入
                 FileProcessAppService::class => FileProcessAppService::class,
                 // 添加分享相关服务

@@ -46,7 +46,6 @@ class TaskFileDomainService
     }
 
     /**
-     * @param string $topicId
      * @return TaskFileEntity[] User file list
      */
     public function findUserFilesByTopicId(string $topicId): array

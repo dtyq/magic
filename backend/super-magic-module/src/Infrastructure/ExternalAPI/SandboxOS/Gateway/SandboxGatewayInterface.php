@@ -7,49 +7,83 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 
 /**
- * 沙箱网关接口
- * 定义沙箱生命周期管理和代理转发功能
+ * Sandbox Gateway Interface
+ * Defines sandbox lifecycle management and agent forwarding functionality.
  */
 interface SandboxGatewayInterface
 {
     /**
-     * 创建沙箱
-     * 
-     * @param array $config 沙箱配置参数
-     * @return GatewayResult 创建结果，成功时data包含sandbox_id
+     * Create sandbox.
+     *
+     * @param SandboxStruct $struct Sandbox configuration parameters
+     * @return SandboxResult Creation result, success when data contains sandbox_id
+     */
+    public function create(SandboxStruct $struct): SandboxResult;
+
+    /**
+     * Get sandbox status.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return SandboxResult Sandbox status result
+     */
+    public function getStatus(string $sandboxId): SandboxResult;
+
+    /**
+     * Destroy sandbox.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return SandboxResult Destruction result
+     */
+    public function destroy(string $sandboxId): SandboxResult;
+
+    /**
+     * Get WebSocket URL for sandbox.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return string WebSocket URL
+     */
+    public function getWebsocketUrl(string $sandboxId): string;
+
+    /**
+     * Create sandbox.
+     *
+     * @param array $config Sandbox configuration parameters
+     * @return GatewayResult Creation result, success when data contains sandbox_id
      */
     public function createSandbox(array $config = []): GatewayResult;
 
     /**
-     * 获取单个沙箱状态
-     * 
-     * @param string $sandboxId 沙箱ID
-     * @return SandboxStatusResult 沙箱状态结果
+     * Get single sandbox status
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return SandboxStatusResult Sandbox status result
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult;
 
     /**
-     * 批量获取沙箱状态
-     * 
-     * @param array $sandboxIds 沙箱ID列表
-     * @return BatchStatusResult 批量状态结果
+     * Get batch sandbox status
+     *
+     * @param array $sandboxIds Sandbox ID list
+     * @return BatchStatusResult Batch status result
      */
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult;
 
     /**
-     * 代理转发请求到沙箱
-     * 
-     * @param string $sandboxId 沙箱ID
-     * @param string $method HTTP方法
-     * @param string $path 目标路径
-     * @param array $data 请求数据
-     * @param array $headers 额外头信息
-     * @return GatewayResult 代理结果
+     * Proxy request to sandbox.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @param string $method HTTP method
+     * @param string $path Target path
+     * @param array $data Request data
+     * @param array $headers Additional headers
+     * @return GatewayResult Proxy result
      */
     public function proxySandboxRequest(
         string $sandboxId,
@@ -58,4 +92,4 @@ interface SandboxGatewayInterface
         array $data = [],
         array $headers = []
     ): GatewayResult;
-} 
+}

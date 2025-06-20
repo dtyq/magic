@@ -43,24 +43,24 @@ class TaskDomainService
     }
 
     /**
-     * 初始化话题任务
+     * Initialize topic task.
      *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param TopicEntity $topicEntity 话题实体
-     * @param string $prompt 用户的问题
-     * @param string $attachments 用户上传的附件信息（JSON格式）
-     * @param ChatInstruction $instruction 指令 正常，追问，打断
-     * @return TaskEntity 任务实体
-     * @throws RuntimeException 如果任务仓库或话题仓库未注入
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param TopicEntity $topicEntity Topic entity
+     * @param string $prompt User's question
+     * @param string $attachments User uploaded attachment information (JSON format)
+     * @param ChatInstruction $instruction Instruction: normal, follow-up, interrupt
+     * @return TaskEntity Task entity
+     * @throws RuntimeException If task repository or topic repository not injected
      */
     public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, ChatInstruction $instruction, string $taskMode, string $prompt = '', string $attachments = ''): TaskEntity
     {
-        // 获取当前用户ID
+        // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
         $topicId = $topicEntity->getId();
 
-        // 如果指令是打断或者追问的情况下
-        // 如果后续有其他情况变更，再从前端传 task_id
+        // If instruction is interrupt or follow-up
+        // If there are other changes later, pass task_id from frontend
         if ($instruction == ChatInstruction::Interrupted) {
             $taskList = $this->taskRepository->getTasksByTopicId($topicId, 1, 1, ['task_status' => TaskStatus::RUNNING]);
             if (empty($taskList['list'])) {
@@ -68,18 +68,18 @@ class TaskDomainService
             }
             return $taskList['list'][0];
         }
-        // 如果 $taskMode  为空，则取话题的 task_mode
+        // If $taskMode is empty, use topic's task_mode
         if ($taskMode == '') {
             $taskMode = $topicEntity->getTaskMode();
         }
-        // 其他情况都是新建一个新的任务
+        // All other cases create a new task
         $taskEntity = new TaskEntity([
             'user_id' => $userId,
             'workspace_id' => $topicEntity->getWorkspaceId(),
             'topic_id' => $topicId,
-            'task_id' => '', // 初始为空，这个是 agent 的任务id
+            'task_id' => '', // Initially empty, this is agent's task id
             'task_mode' => $taskMode,
-            'sandbox_id' => $topicEntity->getSandboxId(), // 当前 task 优先先复用之前的 话题的沙箱id
+            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
             'prompt' => $prompt,
             'attachments' => $attachments,
             'task_status' => TaskStatus::WAITING->value,
@@ -88,10 +88,10 @@ class TaskDomainService
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
 
-        // 创建任务
+        // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
 
-        // 4. 更新话题的当前任务ID和状态
+        // 4. Update topic's current task ID and status
         $topicEntity->setCurrentTaskId($taskEntity->getId());
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -103,17 +103,17 @@ class TaskDomainService
     }
 
     /**
-     * 创建任务，并且更新话题的当前任务ID和状态
+     * Create task and update topic's current task ID and status.
      *
-     * @param TaskEntity $taskEntity 任务实体
-     * @return TaskEntity 创建后的任务实体
+     * @param TaskEntity $taskEntity Task entity
+     * @return TaskEntity Created task entity
      */
     public function createTask(TaskEntity $taskEntity): TaskEntity
     {
-        // 创建任务
+        // Create task
         $task = $this->taskRepository->createTask($taskEntity);
 
-        // 更新话题的当前任务ID和状态
+        // Update topic's current task ID and status
         $topic = $this->topicRepository->getTopicById($task->getTopicId());
         if ($topic) {
             $topic->setCurrentTaskId($task->getId());
@@ -126,28 +126,28 @@ class TaskDomainService
 
     public function updateTaskStatus(DataIsolation $dataIsolation, int $topicId, TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
     {
-        // 1. 通过话题 id 获取话题实体
+        // 1. Get topic entity by topic id
         $topicEntity = $this->topicRepository->getTopicById($topicId);
         if (! $topicEntity) {
             ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
         }
 
-        // 获取当前用户ID
+        // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
 
-        // 2. 查找任务
+        // 2. Find task
         $taskEntity = $this->taskRepository->getTaskById($id);
         if (! $taskEntity) {
             ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
         }
 
-        // 更新任务状态
+        // Update task status
         $taskEntity->setTaskStatus($status->value);
         $taskEntity->setSandboxId($sandboxId);
         $taskEntity->setTaskId($taskId);
         $taskEntity->setUpdatedAt(date('Y-m-d H:i:s'));
 
-        // 如果提供了错误信息，并且状态为ERROR，则设置错误信息
+        // If error message is provided and status is ERROR, set error message
         if ($status === TaskStatus::ERROR && $errMsg !== null) {
             if (mb_strlen($errMsg, 'UTF-8') > 500) {
                 $errMsg = mb_substr($errMsg, 0, 497, 'UTF-8') . '...';
@@ -157,14 +157,14 @@ class TaskDomainService
 
         $this->taskRepository->updateTask($taskEntity);
 
-        // 3. 更新话题的相关信息
+        // 3. Update topic's related information
         $topicEntity->setSandboxId($sandboxId);
         $topicEntity->setCurrentTaskId($id);
         $topicEntity->setCurrentTaskStatus($status);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
 
-        // 保存话题更新
+        // Save topic update
         return $this->topicRepository->updateTopic($topicEntity);
     }
 
@@ -185,30 +185,30 @@ class TaskDomainService
     }
 
     /**
-     * 删除任务
+     * Delete task.
      *
-     * @param int $taskId 任务ID
-     * @return bool 是否删除成功
+     * @param int $taskId Task ID
+     * @return bool Whether deletion was successful
      */
     public function deleteTask(int $taskId): bool
     {
-        // 检查任务是否存在
+        // Check if task exists
         $task = $this->taskRepository->getTaskById($taskId);
         if (! $task) {
             return false;
         }
 
-        // 检查任务是否正在运行
+        // Check if task is running
         if ($task->getStatus() === TaskStatus::RUNNING) {
             return false;
         }
 
-        // 删除任务
+        // Delete task
         return $this->taskRepository->deleteTask($taskId);
     }
 
     /**
-     * 记录任务消息.
+     * Record task message.
      */
     public function recordTaskMessage(
         string $taskId,
@@ -254,7 +254,7 @@ class TaskDomainService
     }
 
     /**
-     * 记录用户发送的消息.
+     * Record user sent message.
      */
     public function recordUserMessage(
         string $taskId,
@@ -287,7 +287,7 @@ class TaskDomainService
     }
 
     /**
-     * 记录AI回复的消息.
+     * Record AI replied message.
      */
     public function recordAiMessage(
         string $taskId,
@@ -323,10 +323,10 @@ class TaskDomainService
     }
 
     /**
-     * 通过任务ID(沙箱服务返回的taskId)获取任务.
+     * Get task by task ID (task ID returned by sandbox service).
      *
-     * @param string $taskId 任务ID
-     * @return null|TaskEntity 任务实体或null
+     * @param string $taskId Task ID
+     * @return null|TaskEntity Task entity or null
      */
     public function getTaskByTaskId(string $taskId): ?TaskEntity
     {
@@ -334,7 +334,7 @@ class TaskDomainService
     }
 
     /**
-     * 通过 id 获取任务实体.
+     * Get task entity by id.
      */
     public function getTaskById(int $id): ?TaskEntity
     {
@@ -342,14 +342,14 @@ class TaskDomainService
     }
 
     /**
-     * 保存任务文件.
+     * Save task file.
      *
-     * @param TaskFileEntity $entity 任务文件实体
-     * @return TaskFileEntity 保存后的实体
+     * @param TaskFileEntity $entity Task file entity
+     * @return TaskFileEntity Saved entity
      */
     public function saveTaskFile(TaskFileEntity $entity): TaskFileEntity
     {
-        // 通过仓储接口保存任务文件
+        // Save task file through storage interface
         return $this->taskFileRepository->insert($entity);
     }
 
@@ -359,7 +359,7 @@ class TaskDomainService
     }
 
     /**
-     * 更新任务文件.
+     * Update task file.
      */
     public function updateTaskFile(TaskFileEntity $taskFileEntity): TaskFileEntity
     {
@@ -367,9 +367,9 @@ class TaskDomainService
     }
 
     /**
-     * 通过文件key和taskId获取任务文件.
+     * Get task file by file key and task ID.
      */
-    public function getTaskFileByFileKey(string $fileKey,int $topicId): ?TaskFileEntity
+    public function getTaskFileByFileKey(string $fileKey, int $topicId): ?TaskFileEntity
     {
         return $this->taskFileRepository->getByFileKey($fileKey);
     }
@@ -386,15 +386,15 @@ class TaskDomainService
         string $fileType = TaskFileType::PROCESS->value,
         bool $isUpdate = false
     ): TaskFileEntity {
-        // 先通过 fileKey 检查是否已存在文件
-        $taskFileEntity = $this->getTaskFileByFileKey($fileKey,$topicId);
+        // First, check if the file already exists
+        $taskFileEntity = $this->getTaskFileByFileKey($fileKey, $topicId);
 
-        // 如果存在，并且不需要更新，则直接返回
+        // If exists and no need to update, return directly
         if ($taskFileEntity && ! $isUpdate) {
             return $taskFileEntity;
         }
 
-        // 如果已存在，则更新并返回
+        // If exists, update and return
         if ($taskFileEntity) {
             // $taskFileEntity->setFileKey($fileKey);
             // $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
@@ -404,9 +404,9 @@ class TaskDomainService
             // $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
             // $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
             // $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
-            // // 判断并设置是否为隐藏文件
+            // // Check and set whether it's a hidden file
             // $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
-            // // 更新存储类型，如果提供了的话
+            // // Update storage type if provided
             // if (isset($fileData['storage_type'])) {
             //     $taskFileEntity->setStorageType($fileData['storage_type']);
             // }
@@ -415,16 +415,16 @@ class TaskDomainService
             return $taskFileEntity;
         }
 
-        // 如果不存在，则创建新实体
+        // If not exists, create new entity
         $taskFileEntity = new TaskFileEntity();
         $fileId = ! empty($fileData['file_id']) ? (int) $fileData['file_id'] : IdGenerator::getSnowId();
         $taskFileEntity->setFileId($fileId);
         $taskFileEntity->setFileKey($fileKey);
 
-        // 处理用户ID: 优先使用DataIsolation中的用户ID，如果为null则从任务中获取
+        // Process user ID: Priority use user ID from DataIsolation, if null use from task
         $userId = $dataIsolation->getCurrentUserId();
         if (empty($userId)) {
-            // 通过任务ID获取任务实体，获取用户ID
+            // Get task entity by task ID, get user ID
             $taskEntity = $this->taskRepository->getTaskById($taskId);
             if ($taskEntity) {
                 $userId = $taskEntity->getUserId();
@@ -438,26 +438,26 @@ class TaskDomainService
         $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
         $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
         $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
-        // 判断并设置是否为隐藏文件
+        // Check and set whether it's a hidden file
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
-        // 设置存储类型，默认为workspace
+        // Set storage type, default to workspace
         $taskFileEntity->setStorageType($fileData['storage_type'] ?? 'workspace');
 
-        // 使用insertOrIgnore方法，如果已存在相同file_key和topic_id的记录，则返回已存在的实体
+        // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity
         $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);
         return $result ?: $taskFileEntity;
     }
 
     /**
-     * 通过话题ID获取消息列表.
+     * Get message list by topic ID.
      *
-     * @param int $topicId 话题ID
-     * @param int $page 页码
-     * @param int $pageSize 每页大小
-     * @param bool $shouldPage 是否分页
-     * @param string $sortDirection 排序方向，支持asc和desc
-     * @param bool $showInUi 是否只显示UI可见的消息，默认为true
-     * @return array 返回消息列表和总数
+     * @param int $topicId Topic ID
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param bool $shouldPage Whether to page
+     * @param string $sortDirection Sort direction, supports asc and desc
+     * @param bool $showInUi Whether to display only UI visible messages, default true
+     * @return array Return message list and total
      */
     public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array
     {
@@ -465,21 +465,21 @@ class TaskDomainService
     }
 
     /**
-     * 获取话题的附件列表.
+     * Get topic attachment list.
      *
-     * @param int $topicId 话题ID
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param int $page 页码
-     * @param int $pageSize 每页数量
-     * @param array $fileType 文件类型过滤
-     * @param string $storageType 存储类型
-     * @return array 附件列表和总数
+     * @param int $topicId Topic ID
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param array $fileType File type filter
+     * @param string $storageType Storage type
+     * @return array Attachment list and total
      */
     public function getTaskAttachmentsByTopicId(int $topicId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = 'workspace'): array
     {
-        // 调用TaskFileRepository获取文件列表
+        // Call TaskFileRepository to get file list
         return $this->taskFileRepository->getByTopicId($topicId, $page, $pageSize, $fileType, $storageType);
-        // 直接返回实体对象列表，让应用层处理URL获取
+        // Directly return entity object list, let application layer handle URL acquisition
     }
 
     public function getTaskBySandboxId(string $sandboxId): ?TaskEntity
@@ -493,7 +493,7 @@ class TaskDomainService
         if (empty($data)) {
             return [];
         }
-        // 输出格式是 topicId => ['total' => 0, 'last_task_start_time' => '', 'last_task_update_time' => '']
+        // Output format is topicId => ['total' => 0, 'last_task_start_time' => '', 'last_task_update_time' => '']
         $result = [];
         foreach ($data as $item) {
             /**
@@ -505,7 +505,7 @@ class TaskDomainService
                 $result[$item->getTopicId()]['last_task_start_time'] = '';
             }
             $result[$item->getTopicId()]['task_rounds'] = $result[$item->getTopicId()]['task_rounds'] + 1;
-            // 将时间字符串转换为时间戳进行比较
+            // Convert time string to timestamp for comparison
             $currentTime = strtotime($item->getCreatedAt());
             $lastTime = strtotime($result[$item->getTopicId()]['last_task_start_time']);
             if ($currentTime > $lastTime) {
@@ -513,11 +513,11 @@ class TaskDomainService
             }
         }
 
-        // 通过 topic_id 查出当前任务消息里最新一条的消息时间，以及内容
+        // Get the latest message time and content in the current task message of the topic, and output it
         foreach ($result as $topicId => $item) {
             $result[$topicId]['last_message_send_timestamp'] = '';
             $result[$topicId]['last_message_content'] = '';
-            // 因为性能问题，先暂时注释，后面优化
+            // Because of performance issues, it's temporarily commented out, will optimize later
             //            $messages = $this->messageRepository->findByTopicId($topicId, 1, 1, true, 'desc');
             //            if (! empty($messages['list'])) {
             //                /**
@@ -537,30 +537,30 @@ class TaskDomainService
 
     public function handleInterruptInstruction(DataIsolation $dataIsolation, TaskEntity $taskEntity): bool
     {
-        // 判断沙箱id 是否为空
+        // Check if sandbox ID is empty
         if (empty($taskEntity->getSandboxId())) {
             return false;
         }
 
-        // 通过沙箱id ，判断容器是否存在
-        // 检查沙箱是否存在
+        // Check if container exists through sandbox ID
+        // Check if sandbox exists
         $result = $this->sandboxService->checkSandboxExists($taskEntity->getSandboxId());
-        // 如果沙箱存在且状态为 running，直接返回该沙箱
+        // If sandbox exists and status is running, return directly
         if ($result->getCode() === SandboxResult::Normal
             && $result->getSandboxData()->getStatus() === 'running') {
-            // 沙箱状态正在运行，需要连接沙箱，进行处理
+            // Sandbox status is running, need to connect to sandbox, process
             $config = new WebSocketConfig();
             $sandboxId = $taskEntity->getSandboxId();
             $wsUrl = $this->sandboxService->getWebsocketUrl($sandboxId);
 
-            // 打印连接参数
+            // Print connection parameters
             $this->logger->info(sprintf(
-                'WebSocket连接参数，URL: %s，最大连接时间: %d秒',
+                'WebSocket connection parameters, URL: %s, Maximum connection time: %d seconds',
                 $wsUrl,
                 $config->getConnectTimeout()
             ));
 
-            // 创建 WebSocket 会话
+            // Create WebSocket session
             $session = new WebSocketSession(
                 $config,
                 $this->logger,
@@ -568,14 +568,14 @@ class TaskDomainService
                 $taskEntity->getTaskId()
             );
 
-            // 建立连接
+            // Establish connection
             $session->connect();
             $message = (new MessageBuilderDomainService())->buildInterruptMessage($taskEntity->getUserId(), $taskEntity->getId());
             $session->send($message);
-            // 等待响应
+            // Wait for response
             $message = $session->receive(60);
             if ($message === null) {
-                throw new RuntimeException('等待 agent 响应超时');
+                throw new RuntimeException('Waiting for agent response timeout');
             }
         }
 
@@ -583,10 +583,10 @@ class TaskDomainService
     }
 
     /**
-     * 更新长时间处于运行状态的任务为错误状态
+     * Update tasks that have been running for a long time to error status.
      *
-     * @param string $timeThreshold 时间阈值，早于此时间的运行中任务将被标记为错误
-     * @return int 更新的任务数量
+     * @param string $timeThreshold Time threshold, tasks running before this time will be marked as error
+     * @return int Updated task count
      */
     public function updateStaleRunningTasks(string $timeThreshold): int
     {
@@ -594,10 +594,10 @@ class TaskDomainService
     }
 
     /**
-     * 获取指定状态的任务列表.
+     * Get task list by specified status.
      *
-     * @param TaskStatus $status 任务状态
-     * @return array<TaskEntity> 任务实体列表
+     * @param TaskStatus $status Task status
+     * @return array<TaskEntity> Task entity list
      */
     public function getTasksByStatus(TaskStatus $status): array
     {
@@ -605,12 +605,12 @@ class TaskDomainService
     }
 
     /**
-     * 轻量级的更新任务状态方法，只修改任务状态
+     * Lightweight update task status method, only modify task status.
      *
-     * @param int $id 任务ID
-     * @param TaskStatus $status 任务状态
-     * @param null|string $errMsg 错误信息，仅当状态为ERROR时有意义
-     * @return bool 是否更新成功
+     * @param int $id Task ID
+     * @param TaskStatus $status Task status
+     * @param null|string $errMsg Error message, only meaningful when status is ERROR
+     * @return bool Whether update was successful
      */
     public function updateTaskStatusByTaskId(int $id, TaskStatus $status, ?string $errMsg = null): bool
     {
@@ -621,11 +621,11 @@ class TaskDomainService
     }
 
     /**
-     * 获取最近更新时间超过指定时间的任务列表.
+     * Get task list whose update time exceeds specified time.
      *
-     * @param string $timeThreshold 时间阈值，如果任务的更新时间早于此时间，则会被包含在结果中
-     * @param int $limit 返回结果的最大数量
-     * @return array<TaskEntity> 任务实体列表
+     * @param string $timeThreshold Time threshold, if task update time is earlier than this time, it will be included in the result
+     * @param int $limit Maximum number of results returned
+     * @return array<TaskEntity> Task entity list
      */
     public function getTasksExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
@@ -642,27 +642,32 @@ class TaskDomainService
         return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
     }
 
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus, ?string $errMsg = null): bool
+    {
+        return $this->taskRepository->updateTaskStatusBySandboxIds($sandboxIds, $taskStatus->value, $errMsg);
+    }
+
     /**
-     * 判断文件是否为隐藏文件.
+     * Check if file is hidden file.
      *
-     * @param string $fileKey 文件路径
-     * @return bool 是否为隐藏文件：true-是，false-否
+     * @param string $fileKey File path
+     * @return bool Whether it's a hidden file: true-yes, false-no
      */
     private function isHiddenFile(string $fileKey): bool
     {
-        // 移除开头的斜杠，统一处理
+        // Remove leading slash, uniform processing
         $fileKey = ltrim($fileKey, '/');
 
-        // 分割路径为各个部分
+        // Split path into parts
         $pathParts = explode('/', $fileKey);
 
-        // 检查每个路径部分是否以 . 开头
+        // Check if each path part starts with .
         foreach ($pathParts as $part) {
             if (! empty($part) && str_starts_with($part, '.')) {
-                return true; // 是隐藏文件
+                return true; // It's a hidden file
             }
         }
 
-        return false; // 不是隐藏文件
+        return false; // It's not a hidden file
     }
 }

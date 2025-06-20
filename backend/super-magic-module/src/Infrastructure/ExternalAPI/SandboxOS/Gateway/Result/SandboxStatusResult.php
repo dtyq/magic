@@ -11,15 +11,16 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\Sandbo
 
 /**
  * 沙箱状态结果类
- * 专门处理单个沙箱状态查询结果
+ * 专门处理单个沙箱状态查询结果.
  */
 class SandboxStatusResult extends GatewayResult
 {
     private ?string $sandboxId = null;
+
     private ?string $status = null;
 
     /**
-     * 从API响应创建沙箱状态结果
+     * 从API响应创建沙箱状态结果.
      */
     public static function fromApiResponse(array $response): self
     {
@@ -42,7 +43,7 @@ class SandboxStatusResult extends GatewayResult
     }
 
     /**
-     * 获取沙箱ID
+     * 获取沙箱ID.
      */
     public function getSandboxId(): ?string
     {
@@ -58,7 +59,7 @@ class SandboxStatusResult extends GatewayResult
     }
 
     /**
-     * 检查沙箱是否运行中
+     * 检查沙箱是否运行中.
      */
     public function isRunning(): bool
     {
@@ -67,7 +68,7 @@ class SandboxStatusResult extends GatewayResult
     }
 
     /**
-     * 检查沙箱是否待启动
+     * 检查沙箱是否待启动.
      */
     public function isPending(): bool
     {
@@ -75,7 +76,7 @@ class SandboxStatusResult extends GatewayResult
     }
 
     /**
-     * 检查沙箱是否已退出
+     * 检查沙箱是否已退出.
      */
     public function isExited(): bool
     {
@@ -83,11 +84,11 @@ class SandboxStatusResult extends GatewayResult
     }
 
     /**
-     * 检查状态是否有效
+     * 检查状态是否有效.
      */
     public function hasValidStatus(): bool
     {
         $status = $this->getStatus();
         return $status !== null && SandboxStatus::isValidStatus($status);
     }
-} 
+}

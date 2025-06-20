@@ -47,7 +47,7 @@ class SandboxStatus
     }
 
     /**
-     * 检查状态是否有效
+     * 检查状态是否有效.
      */
     public static function isValidStatus(string $status): bool
     {
@@ -55,10 +55,10 @@ class SandboxStatus
     }
 
     /**
-     * 检查沙箱是否可用（运行中）
+     * 检查沙箱是否可用（运行中）.
      */
     public static function isAvailable(string $status): bool
     {
         return $status === self::RUNNING;
     }
-} 
+}
