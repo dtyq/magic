@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.346.0",
+            "version": "3.346.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "be313721b8d786e515b5df3e09b1771befbad2c6"
+                "reference": "27401e70b1b01114e4e228861933eb7b78630be7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/be313721b8d786e515b5df3e09b1771befbad2c6",
-                "reference": "be313721b8d786e515b5df3e09b1771befbad2c6",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/27401e70b1b01114e4e228861933eb7b78630be7",
+                "reference": "27401e70b1b01114e4e228861933eb7b78630be7",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.346.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.346.1"
             },
-            "time": "2025-06-18T18:49:34+00:00"
+            "time": "2025-06-19T18:05:45+00:00"
         },
         {
             "name": "brick/math",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.42",
+            "version": "0.0.43",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "813747a11d5ca4fd4934e64cd4c9463797a37b76"
+                "reference": "f72398c12e514a2c2b5e7815c7575a87a1e0d094"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=813747a11d5ca4fd4934e64cd4c9463797a37b76",
-                "reference": "813747a11d5ca4fd4934e64cd4c9463797a37b76",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f72398c12e514a2c2b5e7815c7575a87a1e0d094",
+                "reference": "f72398c12e514a2c2b5e7815c7575a87a1e0d094",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.42"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.43"
             },
-            "time": "2025-06-18T17:02:11+08:00"
+            "time": "2025-06-20T14:44:10+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -17104,12 +17104,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "7dacc91c92dcf3b81a600376d2a2f693eff91e35"
+                "reference": "e3520a4c9a252831ae009f8bf79a8d2a32ba4936"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/7dacc91c92dcf3b81a600376d2a2f693eff91e35",
-                "reference": "7dacc91c92dcf3b81a600376d2a2f693eff91e35",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e3520a4c9a252831ae009f8bf79a8d2a32ba4936",
+                "reference": "e3520a4c9a252831ae009f8bf79a8d2a32ba4936",
                 "shasum": ""
             },
             "conflict": {
@@ -17693,7 +17693,7 @@
                 "processwire/processwire": "<=3.0.229",
                 "propel/propel": ">=2.0.0.0-alpha1,<=2.0.0.0-alpha7",
                 "propel/propel1": ">=1,<=1.7.1",
-                "pterodactyl/panel": "<1.11.8",
+                "pterodactyl/panel": "<=1.11.10",
                 "ptheofan/yii2-statemachine": ">=2.0.0.0-RC1-dev,<=2",
                 "ptrofimov/beanstalk_console": "<1.7.14",
                 "pubnub/pubnub": "<6.1",
@@ -18050,7 +18050,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-18T19:04:39+00:00"
+            "time": "2025-06-19T20:06:27+00:00"
         },
         {
             "name": "sebastian/cli-parser",
