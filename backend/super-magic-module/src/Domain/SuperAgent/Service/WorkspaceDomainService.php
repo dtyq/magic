@@ -732,4 +732,9 @@ class WorkspaceDomainService
     {
         return sprintf('/%s/%s/topic_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $topicId);
     }
+
+    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
+    {
+        return $this->workspaceVersionRepository->getLatestVersionByProjectId($projectId);
+    }
 }

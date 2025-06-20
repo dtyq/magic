@@ -15,20 +15,20 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 
 /**
- * 消息构建服务 - 专注于构建各种消息格式.
+ * Message Builder Service - Focused on building various message formats.
  */
 class MessageBuilderDomainService
 {
     /**
-     * 构建初始化消息.
+     * Build initialization message.
      *
-     * @param string $userId 用户ID
-     * @param array $uploadCredential 上传凭证
-     * @param MessageMetadata $metaData 元数据或元数据对象
-     * @param bool $isFirstTaskMessage 是否是第一次任务消息
-     * @param null|array $sandboxConfig 沙箱配置
-     * @param string $taskMode 任务模式
-     * @return array 构建的消息
+     * @param string $userId User ID
+     * @param array $uploadCredential Upload credential
+     * @param MessageMetadata $metaData Metadata or metadata object
+     * @param bool $isFirstTaskMessage Whether it's the first task message
+     * @param null|array $sandboxConfig Sandbox configuration
+     * @param string $taskMode Task mode
+     * @return array Built message
      */
     public function buildInitMessage(
         string $userId,
@@ -38,7 +38,7 @@ class MessageBuilderDomainService
         ?array $sandboxConfig,
         string $taskMode = 'chat'
     ): array {
-        // 处理元数据
+        // Process metadata
         $metaDataArray = $metaData;
         if ($metaData instanceof MessageMetadata) {
             $metaDataArray = $metaData->toArray();
@@ -48,7 +48,7 @@ class MessageBuilderDomainService
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $userId,
             'type' => MessageType::Init->value,
-            'fetch_workdir' => ! $isFirstTaskMessage, // 只要不是第一次创建，涉及到初始化就会去拉取沙箱
+            'fetch_workdir' => ! $isFirstTaskMessage, // As long as it's not the first creation, initialization will fetch the sandbox
             'upload_config' => $uploadCredential,
             'message_subscription_config' => [
                 'method' => 'POST',
@@ -72,15 +72,15 @@ class MessageBuilderDomainService
     }
 
     /**
-     * 构建聊天消息.
+     * Build chat message.
      *
-     * @param string $userId 用户ID
-     * @param int $taskId 任务ID
-     * @param string $contextType 上下文类型
-     * @param string $prompt 用户提示
-     * @param array $attachmentUrls 附件URL列表
-     * @param string $taskMode 任务模式
-     * @return array 构建的消息
+     * @param string $userId User ID
+     * @param int $taskId Task ID
+     * @param string $contextType Context type
+     * @param string $prompt User prompt
+     * @param array $attachmentUrls Attachment URL list
+     * @param string $taskMode Task mode
+     * @return array Built message
      */
     public function buildChatMessage(
         string $userId,
@@ -110,7 +110,7 @@ class MessageBuilderDomainService
             'task_id' => $taskId,
             'type' => MessageType::Chat->value,
             'context_type' => ChatInstruction::FollowUp,
-            'prompt' => '继续',
+            'prompt' => 'Continue',
             'attachments' => [],
             'task_mode' => 'chat',
         ];
@@ -132,7 +132,7 @@ class MessageBuilderDomainService
     }
 
     /**
-     * 创建通用代理消息.
+     * Create super agent message.
      */
     public function createSuperAgentMessage(
         int $topicId,

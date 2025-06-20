@@ -7,23 +7,30 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicTaskMessagePublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Assembler\TopicTaskMessageAssembler;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Producer;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class TopicTaskAppService extends AbstractAppService
 {
     private readonly LoggerInterface $logger;
 
     public function __construct(
+        private readonly TaskDomainService $taskDomainService,
         protected LockerInterface $locker,
         protected LoggerFactory $loggerFactory,
     ) {
@@ -31,13 +38,13 @@ class TopicTaskAppService extends AbstractAppService
     }
 
     /**
-     * 投递话题任务消息.
+     * Deliver topic task message.
      *
-     * @return array 操作结果
+     * @return array Operation result
      */
     public function deliverTopicTaskMessage(TopicTaskMessageDTO $messageDTO): array
     {
-        // 如果没有有效的 topicId，则无法加锁，直接处理或报错
+        // If there's no valid topicId, cannot acquire lock, process directly or report error
         $sandboxId = $messageDTO->getMetadata()->getSandboxId();
         if (empty($sandboxId)) {
             $this->logger->warning('Cannot acquire lock without a valid sandboxId in deliverTopicTaskMessage.', ['messageData' => $messageDTO->toArray()]);
@@ -45,58 +52,109 @@ class TopicTaskAppService extends AbstractAppService
         }
 
         $lockKey = 'deliver_sandbox_message_lock:' . $sandboxId;
-        $lockOwner = IdGenerator::getUniqueId32(); // 使用唯一ID作为锁持有者标识
-        $lockExpireSeconds = 10; // 锁的过期时间（秒），防止死锁
+        $lockOwner = IdGenerator::getUniqueId32(); // Use unique ID as lock holder identifier
+        $lockExpireSeconds = 10; // Lock expiration time (seconds) to prevent deadlock
         $lockAcquired = false;
 
         try {
-            // 尝试获取分布式互斥锁
+            // Attempt to acquire distributed mutex lock
             $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
 
             if ($lockAcquired) {
-                // --- 临界区开始 ---
+                // --- Critical section start ---
                 $this->logger->debug(sprintf('Lock acquired for sandbox %s by %s', $sandboxId, $lockOwner));
 
-                // 使用装配器将DTO转换为领域事件
+                // Use assembler to convert DTO to domain event
                 $topicTaskMessageEvent = TopicTaskMessageAssembler::toEvent($messageDTO);
-                // 创建消息发布器
+                // Create message publisher
                 $topicTaskMessagePublisher = new TopicTaskMessagePublisher($topicTaskMessageEvent);
-                // 获取Producer并发送消息
+                // Get Producer and send message
                 $producer = di(Producer::class);
                 $result = $producer->produce($topicTaskMessagePublisher);
 
-                // 检查发送结果
+                // Check send result
                 if (! $result) {
                     $this->logger->error(sprintf(
                         'deliverTopicTaskMessage failed after acquiring lock, message: %s',
                         json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE)
                     ));
-                    // 注意：即使发送失败，也要确保释放锁
+                    // Note: Even if sending fails, must ensure lock is released
                     ExceptionBuilder::throw(GenericErrorCode::SystemError, 'message_delivery_failed');
                 }
-                // --- 临界区结束 ---
+                // --- Critical section end ---
                 $this->logger->debug(sprintf('Message produced for sandbox %s by %s', $sandboxId, $lockOwner));
             } else {
-                // 获取锁失败（可能已被其他实例持有）
+                // Failed to acquire lock (might be held by another instance)
                 $this->logger->warning(sprintf('Failed to acquire mutex lock for sandbox %s. It might be held by another instance.', $sandboxId));
-                // 根据业务需求决定：抛出错误、稍后重试（例如放入延迟队列）、还是记录日志后认为处理失败
+                // Decide based on business requirements: throw error, retry later (e.g., put in delay queue), or log and consider failed
                 ExceptionBuilder::throw(GenericErrorCode::SystemError, 'concurrent_message_delivery_failed');
             }
         } finally {
-            // 如果获取了锁，确保释放它
+            // If lock was acquired, ensure it's released
             if ($lockAcquired) {
                 if ($this->locker->release($lockKey, $lockOwner)) {
                     $this->logger->debug(sprintf('Lock released for sandbox %s by %s', $sandboxId, $lockOwner));
                 } else {
-                    // 记录释放锁失败的情况，可能需要人工干预
+                    // Log lock release failure, may require manual intervention
                     $this->logger->error(sprintf('Failed to release lock for sandbox %s held by %s. Manual intervention may be required.', $sandboxId, $lockOwner));
                 }
             }
         }
 
-        // 获取消息ID（优先使用负载中的消息ID，如果没有则生成新的）
+        // Get message ID (prefer message ID from payload, generate new one if none)
         $messageId = $messageDTO->getPayload()?->getMessageId() ?: IdGenerator::getSnowId();
 
         return DeliverMessageResponseDTO::fromResult(true, $messageId)->toArray();
+    }
+
+    /**
+     * Update task status.
+     */
+    public function updateTaskStatus(DataIsolation $dataIsolation, TaskEntity $task, TaskStatus $status, string $errMsg = ''): void
+    {
+        $taskId = (string) $task?->getId();
+        try {
+            // Get current task status for validation
+            $currentStatus = $task?->getStatus();
+            // Use utility class to validate status transition
+            if (! TaskStatusValidator::isTransitionAllowed($currentStatus, $status)) {
+                $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
+                $this->logger->warning('Rejected status update', [
+                    'task_id' => $taskId,
+                    'current_status' => $currentStatus?->value ?? 'null',
+                    'new_status' => $status->value,
+                    'reason' => $reason,
+                    'error_msg' => $errMsg,
+                ]);
+                return; // Silently reject update
+            }
+
+            // Execute status update
+            $this->taskDomainService->updateTaskStatus(
+                dataIsolation: $dataIsolation,
+                topicId: $task->getTopicId(),
+                status: $status,
+                id: $task->getId(),
+                taskId: $taskId,
+                sandboxId: $task->getSandboxId(),
+                errMsg: $errMsg
+            );
+
+            // Log success
+            $this->logger->info('Task status update completed', [
+                'task_id' => $taskId,
+                'previous_status' => $currentStatus?->value ?? 'null',
+                'new_status' => $status->value,
+                'error_msg' => $errMsg,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to update task status', [
+                'task_id' => $taskId,
+                'status' => $status->value,
+                'error' => $e->getMessage(),
+                'error_msg' => $errMsg,
+            ]);
+            throw $e;
+        }
     }
 }

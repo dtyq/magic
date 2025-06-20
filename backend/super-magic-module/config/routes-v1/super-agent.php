@@ -63,6 +63,7 @@ Router::addGroup('/api/v1/super-agent', static function () {
             // 检查批量下载状态
             Router::get('/check', [FileApi::class, 'checkBatchDownload']);
         });
+
     });
 },
     ['middleware' => [RequestContextMiddlewareV2::class]]
@@ -88,5 +89,10 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/process-attachments', [FileApi::class, 'processAttachments']);
         // 新增话题附件列表(git 管理)
         Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
+
+        // 获取文件版本列表
+        Router::post('/versions', [FileApi::class, 'getFileVersions']);
+        // 获取文件版本内容
+        Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
     });
 });
