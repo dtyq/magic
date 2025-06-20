@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
@@ -26,6 +26,72 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     public function __construct(LoggerFactory $loggerFactory)
     {
         parent::__construct($loggerFactory);
+    }
+
+    /**
+     * 实现SandboxInterface的create方法
+     * 兼容原有接口，内部调用新的createSandbox方法.
+     */
+    public function create(SandboxStruct $struct): SandboxResult
+    {
+        $config = $struct->toArray();
+        $result = $this->createSandbox($config);
+
+        // 转换为SandboxResult格式
+        return new SandboxResult(
+            $result->isSuccess(),
+            $result->getMessage(),
+            $result->getCode(),
+            null // SandboxData需要根据实际需要构造
+        );
+    }
+
+    /**
+     * 实现SandboxInterface的getStatus方法
+     * 兼容原有接口，内部调用新的getSandboxStatus方法.
+     */
+    public function getStatus(string $sandboxId): SandboxResult
+    {
+        $result = $this->getSandboxStatus($sandboxId);
+
+        // 转换为SandboxResult格式
+        return new SandboxResult(
+            $result->isSuccess(),
+            $result->getMessage(),
+            $result->getCode(),
+            null // SandboxData需要根据实际需要构造
+        );
+    }
+
+    /**
+     * 实现SandboxInterface的destroy方法
+     * 目前Gateway API文档中没有销毁接口，返回未实现错误.
+     */
+    public function destroy(string $sandboxId): SandboxResult
+    {
+        $this->logger->warning('[Sandbox][Gateway] Destroy method not implemented in Gateway API', [
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        return new SandboxResult(
+            false,
+            'Destroy method not implemented in Gateway API',
+            2000,
+            null
+        );
+    }
+
+    /**
+     * 实现SandboxInterface的getWebsocketUrl方法
+     * 目前Gateway API文档中没有WebSocket接口，返回空字符串.
+     */
+    public function getWebsocketUrl(string $sandboxId): string
+    {
+        $this->logger->warning('[Sandbox][Gateway] WebSocket URL not available in Gateway API', [
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        return '';
     }
 
     /**
@@ -78,7 +144,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
-        $this->logger->info('[Sandbox][Gateway] Getting sandbox status', ['sandbox_id' => $sandboxId]);
+        $this->logger->debug('[Sandbox][Gateway] Getting sandbox status', ['sandbox_id' => $sandboxId]);
 
         try {
             $response = $this->client->get($this->buildApiPath("api/v1/sandboxes/{$sandboxId}"), [
@@ -89,16 +155,11 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $responseData = json_decode($response->getBody()->getContents(), true);
             $result = SandboxStatusResult::fromApiResponse($responseData);
 
-            $this->logger->info('[Sandbox][Gateway] Sandbox status retrieved', [
+            $this->logger->debug('[Sandbox][Gateway] Sandbox status retrieved', [
                 'sandbox_id' => $sandboxId,
                 'status' => $result->getStatus(),
                 'success' => $result->isSuccess(),
             ]);
-
-            if ($result->getCode() === ResponseCode::NOT_FOUND) {
-                $result->setStatus(SandboxStatus::NOT_FOUND);
-                $result->setSandboxId($sandboxId);
-            }
 
             return $result;
         } catch (GuzzleException $e) {
@@ -144,7 +205,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
 
         try {
-            $response = $this->client->post($this->buildApiPath('api/v1/sandboxes/queries'), [
+            // 根据沙箱通信文档，批量查询使用GET请求但需要JSON请求体
+            $response = $this->client->request('GET', $this->buildApiPath('api/v1/sandboxes/queries'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => ['sandbox_ids' => $sandboxIds],
                 'timeout' => 15,
@@ -213,7 +275,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 $requestOptions['json'] = $data;
             }
 
-            $proxyPath = $this->buildProxyPath($sandboxId, $path);
+            // $proxyPath = $this->buildProxyPath($sandboxId, $path);
+            $proxyPath =$path;
             $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
             $responseData = json_decode($response->getBody()->getContents(), true);
@@ -246,5 +309,66 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
             return GatewayResult::error('Unexpected error: ' . $e->getMessage());
         }
+    }
+
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir=".workspace"): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersions', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey]);
+
+        try {
+
+            var_dump($this->buildApiPath('api/v1/file/versions'),"buildApiPath ==============");
+            $response = $this->client->post($this->buildApiPath('api/v1/file/versions'), [
+                'headers' => $this->getAuthHeaders(),
+                'json' => ['sandbox_id' => $sandboxId, 'file_key' => $fileKey,"git_directory"=>$gitDir],
+                'timeout' => 60,
+            ]);
+
+            $contents = $response->getBody()->getContents();
+            var_dump($contents,"getContents==============");
+
+            if(empty(json_decode($contents, true))){
+                return GatewayResult::error('HTTP request failed: ' . $contents);
+            }
+
+
+            $responseData = json_decode($contents, true);
+
+            $result = GatewayResult::fromApiResponse($responseData);
+            var_dump($result,"result ==============");
+            if ($result->isSuccess()) {
+                $versions = $result->getDataValue('versions');
+                $this->logger->info('[Sandbox][Gateway] getFileVersions successfully', [
+                    'versions' => $versions,
+                ]);
+                return $result;
+            } else {
+                $this->logger->error('[Sandbox][Gateway] Failed to getFileVersions', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return GatewayResult::error('Failed to getFileVersions',['code'=>$result->getCode(),'message'=>$result->getMessage()]);
+            }
+
+        } catch (GuzzleException $e) {
+            $this->logger->error('[Sandbox][Gateway] HTTP error when getFileVersions', [
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+            return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Gateway] Unexpected error when getFileVersions', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+        }
+    }
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash,string $gitDir): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash,"git_directory"=>$gitDir]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash,"git_directory"=>$gitDir]);
     }
 }

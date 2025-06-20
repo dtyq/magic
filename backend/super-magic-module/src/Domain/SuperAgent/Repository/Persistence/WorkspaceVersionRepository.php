@@ -78,4 +78,13 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
         return $entity;
     }
+
+    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
+    {
+        $model = WorkspaceVersionModel::query()->where('project_id', $projectId)->orderBy('tag', 'desc')->first();
+        if (! $model) {
+            return null;
+        }
+        return $this->toEntity($model);
+    }
 }

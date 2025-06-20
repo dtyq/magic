@@ -16,17 +16,12 @@ class ResponseCode
     /**
      * Success response code.
      */
-    public const int SUCCESS = 1000;
+    public const SUCCESS = 1000;
 
     /**
      * Error response code.
      */
-    public const int ERROR = 2000;
-
-    /**
-     * Not found response code.
-     */
-    public const int NOT_FOUND = 4004;
+    public const ERROR = 2000;
 
     /**
      * Check if response code indicates success.
@@ -45,14 +40,6 @@ class ResponseCode
     }
 
     /**
-     * Check if response code indicates not found.
-     */
-    public static function isNotFound(int $code): bool
-    {
-        return $code === self::NOT_FOUND;
-    }
-
-    /**
      * Get response code description.
      */
     public static function getDescription(int $code): string
@@ -60,7 +47,6 @@ class ResponseCode
         return match ($code) {
             self::SUCCESS => 'Success',
             self::ERROR => 'Error',
-            self::NOT_FOUND => 'Not Found',
             default => 'Unknown',
         };
     }

@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -26,8 +27,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\Sandbo
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * Handle User Message Application Service
@@ -57,7 +56,7 @@ class HandleUserMessageAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         // Get task information
-        $taskEntity = $this->taskDomainService->getTaskById($topicEntity->getCurrentTaskId());
+        $taskEntity = $this->taskDomainService->getTaskByTaskId((string) $topicEntity->getCurrentTaskId());
         if (is_null($taskEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
         }
@@ -79,7 +78,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: $topicEntity->getCurrentTaskId() ?? '0',
                 chatTopicId: $dto->getChatTopicId(),
                 chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: trans('agent.agent_stopped')
+                interruptReason: $dto->getPrompt() ?: '任务已终止'
             );
         }
     }
@@ -150,7 +149,7 @@ class HandleUserMessageAppService extends AbstractAppService
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s',
+                'Failed to get topic information: %s, User: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId()
             ));
@@ -160,7 +159,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: $taskId,
                 chatTopicId: $dto->getChatTopicId(),
                 chatConversationId: $dto->getChatConversationId(),
-                errorMessage: trans('agent.initialize_error')
+                errorMessage: 'Initialize task failed'
             );
             throw new BusinessException('Initialize task failed', 500);
         }
@@ -189,15 +188,12 @@ class HandleUserMessageAppService extends AbstractAppService
         foreach ($topicEntities as $index => $topicEntityItem) {
             $sandboxIds[] = $topicEntityItem->getSandboxId();
         }
-        if (empty($sandboxIds)) {
-            return count($topicEntities);
-        }
         // Batch query status
         $updateSandboxIds = [];
         $result = $this->agentAppService->getBatchSandboxStatus($sandboxIds);
         foreach ($result->getSandboxStatuses() as $sandboxStatus) {
             if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
-                $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
+                $updateSandboxIds[] = $sandboxStatus['sandboxId'];
             }
         }
         // Update topic status
@@ -216,14 +212,11 @@ class HandleUserMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentAppService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $sandboxId = $this->agentAppService->createSandbox($taskContext->getSandboxId());
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent
         $this->agentAppService->initializeAgent($dataIsolation, $taskContext);
-
-        // Wait for workspace to be ready
-        $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
         $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);

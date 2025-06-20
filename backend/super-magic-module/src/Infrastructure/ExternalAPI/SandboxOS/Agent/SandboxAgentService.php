@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent;
 
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
@@ -27,6 +29,46 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         private SandboxGatewayInterface $gateway
     ) {
         parent::__construct($loggerFactory);
+    }
+
+    /**
+     * 实现SandboxInterface的create方法
+     * Agent服务不直接创建沙箱，委托给Gateway.
+     */
+    public function create(SandboxStruct $struct): SandboxResult
+    {
+        $this->logger->warning('[Sandbox][Agent] Create method called on Agent service, delegating to Gateway');
+        return $this->gateway->create($struct);
+    }
+
+    /**
+     * 实现SandboxInterface的getStatus方法
+     * Agent服务不直接查询沙箱状态，委托给Gateway.
+     */
+    public function getStatus(string $sandboxId): SandboxResult
+    {
+        $this->logger->debug('[Sandbox][Agent] GetStatus method called on Agent service, delegating to Gateway');
+        return $this->gateway->getStatus($sandboxId);
+    }
+
+    /**
+     * 实现SandboxInterface的destroy方法
+     * Agent服务不直接销毁沙箱，委托给Gateway.
+     */
+    public function destroy(string $sandboxId): SandboxResult
+    {
+        $this->logger->warning('[Sandbox][Agent] Destroy method called on Agent service, delegating to Gateway');
+        return $this->gateway->destroy($sandboxId);
+    }
+
+    /**
+     * 实现SandboxInterface的getWebsocketUrl方法
+     * Agent服务不直接获取WebSocket URL，委托给Gateway.
+     */
+    public function getWebsocketUrl(string $sandboxId): string
+    {
+        $this->logger->warning('[Sandbox][Agent] GetWebsocketUrl method called on Agent service, delegating to Gateway');
+        return $this->gateway->getWebsocketUrl($sandboxId);
     }
 
     /**
@@ -165,47 +207,6 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             return $response;
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Agent] Unexpected error when sending interrupt message', [
-                'sandbox_id' => $sandboxId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return AgentResponse::fromApiResponse([
-                'code' => 2000,
-                'message' => 'Unexpected error: ' . $e->getMessage(),
-                'data' => [],
-            ]);
-        }
-    }
-
-    /**
-     * 获取工作区状态.
-     */
-    public function getWorkspaceStatus(string $sandboxId): AgentResponse
-    {
-        $this->logger->debug('[Sandbox][Agent] Getting workspace status', [
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        try {
-            // 通过Gateway转发到Agent API - 获取工作区状态
-            $result = $this->gateway->proxySandboxRequest(
-                $sandboxId,
-                'GET',
-                'api/v1/workspace/status',
-                []
-            );
-
-            $response = AgentResponse::fromGatewayResult($result);
-
-            $this->logger->debug('[Sandbox][Agent] Workspace status retrieved', [
-                'sandbox_id' => $sandboxId,
-                'success' => $response->isSuccess(),
-                'status' => $response->getDataValue('status'),
-            ]);
-
-            return $response;
-        } catch (Exception $e) {
-            $this->logger->error('[Sandbox][Agent] Unexpected error when getting workspace status', [
                 'sandbox_id' => $sandboxId,
                 'error' => $e->getMessage(),
             ]);

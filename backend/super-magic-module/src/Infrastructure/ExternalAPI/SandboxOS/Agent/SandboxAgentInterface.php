@@ -44,12 +44,4 @@ interface SandboxAgentInterface
      * @return AgentResponse 中断响应
      */
     public function sendInterruptMessage(string $sandboxId, InterruptRequest $request): AgentResponse;
-
-    /**
-     * 获取工作区状态.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @return AgentResponse 工作区状态响应
-     */
-    public function getWorkspaceStatus(string $sandboxId): AgentResponse;
 }

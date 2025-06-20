@@ -145,13 +145,6 @@ class TopicRepository implements TopicRepositoryInterface
             ->update($entityArray) > 0;
     }
 
-    public function updateTopicByCondition(array $condition, array $data): bool
-    {
-        return $this->model::query()
-            ->where($condition)
-            ->update($data) > 0;
-    }
-
     public function deleteTopic(int $id): bool
     {
         return $this->model::query()
@@ -299,80 +292,6 @@ class TopicRepository implements TopicRepositoryInterface
                 'current_task_status' => $status,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]) > 0;
-    }
-
-    /**
-     * 根据项目ID获取话题列表.
-     */
-    public function getTopicsByProjectId(int $projectId, string $userId): array
-    {
-        $models = $this->model::query()
-            ->where('project_id', $projectId)
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc')
-            ->get();
-
-        $result = [];
-        foreach ($models as $model) {
-            $data = $this->convertModelToEntityData($model->toArray());
-            $result[] = new TopicEntity($data);
-        }
-
-        return $result;
-    }
-
-    /**
-     * 统计项目下的话题数量.
-     */
-    public function countTopicsByProjectId(int $projectId): int
-    {
-        return $this->model::query()
-            ->where('project_id', $projectId)
-            ->whereNull('deleted_at')
-            ->count();
-    }
-
-    /**
-     * 批量获取有运行中话题的工作区ID列表.
-     *
-     * @param array $workspaceIds 工作区ID数组
-     * @return array 有运行中话题的工作区ID数组
-     */
-    public function getRunningWorkspaceIds(array $workspaceIds): array
-    {
-        if (empty($workspaceIds)) {
-            return [];
-        }
-
-        return $this->model::query()
-            ->whereIn('workspace_id', $workspaceIds)
-            ->where('current_task_status', TaskStatus::RUNNING->value)
-            ->whereNull('deleted_at')
-            ->distinct()
-            ->pluck('workspace_id')
-            ->toArray();
-    }
-
-    /**
-     * 批量获取有运行中话题的项目ID列表.
-     *
-     * @param array $projectIds 项目ID数组
-     * @return array 有运行中话题的项目ID数组
-     */
-    public function getRunningProjectIds(array $projectIds): array
-    {
-        if (empty($projectIds)) {
-            return [];
-        }
-
-        return $this->model::query()
-            ->whereIn('project_id', $projectIds)
-            ->where('current_task_status', TaskStatus::RUNNING->value)
-            ->whereNull('deleted_at')
-            ->distinct()
-            ->pluck('project_id')
-            ->toArray();
     }
 
     /**

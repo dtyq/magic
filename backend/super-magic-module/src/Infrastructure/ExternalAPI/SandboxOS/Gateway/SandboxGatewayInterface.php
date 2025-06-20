@@ -10,6 +10,8 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 
 /**
  * Sandbox Gateway Interface
@@ -18,15 +20,47 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxS
 interface SandboxGatewayInterface
 {
     /**
-     * 创建沙箱.
+     * Create sandbox.
      *
-     * @param array $config 沙箱配置参数
-     * @return GatewayResult 创建结果，成功时data包含sandbox_id
+     * @param SandboxStruct $struct Sandbox configuration parameters
+     * @return SandboxResult Creation result, success when data contains sandbox_id
+     */
+    public function create(SandboxStruct $struct): SandboxResult;
+
+    /**
+     * Get sandbox status.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return SandboxResult Sandbox status result
+     */
+    public function getStatus(string $sandboxId): SandboxResult;
+
+    /**
+     * Destroy sandbox.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return SandboxResult Destruction result
+     */
+    public function destroy(string $sandboxId): SandboxResult;
+
+    /**
+     * Get WebSocket URL for sandbox.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return string WebSocket URL
+     */
+    public function getWebsocketUrl(string $sandboxId): string;
+
+    /**
+     * Create sandbox.
+     *
+     * @param array $config Sandbox configuration parameters
+     * @return GatewayResult Creation result, success when data contains sandbox_id
      */
     public function createSandbox(array $config = []): GatewayResult;
 
     /**
-     * Get single sandbox status.
+     * Get single sandbox status
      *
      * @param string $sandboxId Sandbox ID
      * @return SandboxStatusResult Sandbox status result
@@ -34,7 +68,7 @@ interface SandboxGatewayInterface
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult;
 
     /**
-     * Get batch sandbox status.
+     * Get batch sandbox status
      *
      * @param array $sandboxIds Sandbox ID list
      * @return BatchStatusResult Batch status result
@@ -58,4 +92,9 @@ interface SandboxGatewayInterface
         array $data = [],
         array $headers = []
     ): GatewayResult;
+
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
+
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash,string $gitDir): GatewayResult;
 }

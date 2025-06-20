@@ -34,11 +34,6 @@ class SandboxStatus
     public const UNKNOWN = 'Unknown';
 
     /**
-     * 沙箱未找到状态
-     */
-    public const NOT_FOUND = 'NotFound';
-
-    /**
      * 获取所有有效状态
      */
     public static function getAllStatuses(): array
@@ -48,7 +43,6 @@ class SandboxStatus
             self::RUNNING,
             self::EXITED,
             self::UNKNOWN,
-            self::NOT_FOUND,
         ];
     }
 

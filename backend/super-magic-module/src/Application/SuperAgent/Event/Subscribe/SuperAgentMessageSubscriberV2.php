@@ -50,8 +50,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
     private function handlerSuperMagicMessage(UserCallAgentEvent $userCallAgentEvent): void
     {
         try {
-            $this->logger->info(sprintf(
-                'Received super agent message, event: %s',
+            $this->logger->debug(sprintf(
+                'Received universal agent message, event: %s',
                 json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ));
 
@@ -105,12 +105,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             } else {
                 $this->handleUserMessageAppService->handleChatMessage($dataIsolation, $userMessageDTO);
             }
-            $this->logger->info('Super agent message processing completed');
+            $this->logger->info('Universal agent message processing completed');
 
             return;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Failed to process super agent message: %s, event: %s',
+                'Failed to process universal agent message: %s, event: %s',
                 $e->getMessage(),
                 json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ));

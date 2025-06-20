@@ -334,27 +334,7 @@ class TaskRepository implements TaskRepositoryInterface
             ->count();
     }
 
-    /**
-     * 根据项目ID获取任务列表.
-     */
-    public function getTasksByProjectId(int $projectId, string $userId): array
-    {
-        $models = $this->model::query()
-            ->where('project_id', $projectId)
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc')
-            ->get();
-
-        $result = [];
-        foreach ($models as $model) {
-            $result[] = new TaskEntity($model->toArray());
-        }
-
-        return $result;
-    }
-
-    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = ''): int
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = '')
     {
         return $this->model::query()
             ->whereIn('sandbox_id', $sandboxIds)
@@ -363,16 +343,5 @@ class TaskRepository implements TaskRepositoryInterface
                 'err_msg' => $errMsg,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
-    }
-
-    /**
-     * 统计项目下的任务数量.
-     */
-    public function countTasksByProjectId(int $projectId): int
-    {
-        return $this->model::query()
-            ->where('project_id', $projectId)
-            ->whereNull('deleted_at')
-            ->count();
     }
 }
