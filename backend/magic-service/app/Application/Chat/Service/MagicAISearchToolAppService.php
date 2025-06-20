@@ -36,7 +36,7 @@ use RedisException;
 use Throwable;
 
 /**
- * 深度搜索工具化，不再给用户推送消息，而是返回结果。
+ * Deep search tooling, no longer pushes messages to the user, but returns results.
  */
 class MagicAISearchToolAppService extends AbstractAppService
 {
@@ -53,37 +53,37 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 执行互联网搜索（支持简单和深度搜索）.
+     * Execute internet search (supports simple and deep search).
      * @throws Throwable
      * @throws RedisException
      */
     public function executeInternetSearch(MagicChatAggregateSearchReqDTO $dto, bool $isDeepSearch, string $errorFunction): ?MagicAggregateSearchSummaryDTO
     {
-        // 防重处理
+        // Anti-duplication handling
         if (! $this->checkAndSetAntiRepeat($dto, $isDeepSearch)) {
             return null;
         }
 
-        // 初始化DTO
+        // Initialize DTO
         $this->initializeSearchDTO($dto);
 
         try {
-            // 1.搜索用户问题.这里一定会拆分一次关联问题
-            $searchDetailItems = $this->searchUserQuestion($dto);
+            // 1. Search based on user's input message. This will deconstruct into keywords.
+            $searchDetailItems = $this->searchFromUserMessage($dto);
 
-            // 2.根据原始问题 + 搜索结果，按多个维度拆解关联问题.
-            // 2.1 生成关联问题
+            // 2. Deconstruct associated keywords in multiple dimensions based on the original input + search results.
+            // 2.1 Generate associated keywords
             $associateQuestionsQueryVo = $this->getAssociateQuestionsQueryVo($dto, $searchDetailItems);
-            $associateQuestions = $this->generateAssociateQuestions($associateQuestionsQueryVo, AggregateAISearchCardMessageV2::NULL_PARENT_ID);
-            // 2.2 根据关联问题，发起简单搜索（不拿网页详情),不再过滤重复内容
-            $allSearchContexts = $this->generateSearchResultsWithoutFilter($dto, $associateQuestions);
+            $associateKeywords = $this->generateAssociateKeywords($associateQuestionsQueryVo, AggregateAISearchCardMessageV2::NULL_PARENT_ID);
+            // 2.2 Initiate a simple search based on the associated keywords (without fetching web page details), and no longer filter duplicate content
+            $allSearchContexts = $this->generateSearchResultsWithoutFilter($dto, $associateKeywords);
 
-            // 3. 深度搜索处理（如需要）- 获取网页详情
+            // 3. Deep search processing (if needed) - get web page details
             if ($isDeepSearch) {
                 $this->deepSearch($allSearchContexts);
             }
 
-            // 4. 直接返回网页详情和列表，不再生成总结
+            // 4. Directly return web page details and list, no longer generate summary
             return $this->buildDirectResponse($allSearchContexts);
         } catch (Throwable $e) {
             $this->logSearchError($e, $errorFunction);
@@ -92,9 +92,9 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * @return array searchDetailItem 对象的二维数组形式，这里为了兼容和方便，不进行对象转换
+     * @return array 2D array of searchDetailItem objects, here for compatibility and convenience, no object conversion is performed
      */
-    protected function searchUserQuestion(MagicChatAggregateSearchReqDTO $dto): array
+    protected function searchFromUserMessage(MagicChatAggregateSearchReqDTO $dto): array
     {
         $start = microtime(true);
         $modelInterface = $this->getChatModel($dto->getOrganizationCode());
@@ -102,22 +102,22 @@ class MagicAISearchToolAppService extends AbstractAppService
             ->setFilterSearchContexts(false)
             ->setGenerateSearchKeywords(true);
 
-        // 根据用户的上下文，拆解子问题。需要理解用户想问什么，再去拆搜索关键词。
+        // Deconstruct sub-questions based on the user's context. Need to understand what the user wants to ask, then deconstruct search keywords.
         $searchKeywords = $this->magicLLMDomainService->generateSearchKeywordsByUserInput($dto, $modelInterface);
         $queryVo->setSearchKeywords($searchKeywords);
         $searchDetailItems = $this->magicLLMDomainService->getSearchResults($queryVo)['search'] ?? [];
         $this->logger->info(sprintf(
-            'getSearchResults searchUserQuestion 虚空拆解关键词并搜索用户问题 结束计时，耗时 %s 秒',
+            'getSearchResults searchUserQuestion: Deconstructing keywords from user input and searching. End timing, took %s seconds',
             microtime(true) - $start
         ));
         return $searchDetailItems;
     }
 
     /**
-     * 根据原始问题 + 搜索结果，按多个维度拆解问题.
+     * Deconstruct keywords in multiple dimensions based on the original question + search results.
      * @return QuestionItem[]
      */
-    protected function generateAssociateQuestions(AISearchCommonQueryVo $queryVo, string $parentQuestionId): array
+    protected function generateAssociateKeywords(AISearchCommonQueryVo $queryVo, string $parentQuestionId): array
     {
         $start = microtime(true);
         $relatedQuestions = [];
@@ -126,61 +126,61 @@ class MagicAISearchToolAppService extends AbstractAppService
         } catch (Throwable $exception) {
             $this->logSearchError($exception, 'generateAndSendAssociateQuestionsError');
         }
-        $associateQuestions = $this->buildAssociateQuestions($relatedQuestions, $parentQuestionId);
+        $associateKeywords = $this->buildAssociateQuestions($relatedQuestions, $parentQuestionId);
         $this->logger->info(sprintf(
-            'getSearchResults 问题：%s 关联问题: %s .根据原始问题 + 搜索结果，按多个维度拆解关联问题并推送完毕 结束计时，耗时 %s 秒',
+            'getSearchResults Question: %s Related questions: %s. Deconstructed and pushed associated questions based on original question + search results. End timing, took %s seconds',
             $queryVo->getUserMessage(),
             Json::encode($relatedQuestions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             TimeUtil::getMillisecondDiffFromNow($start) / 1000
         ));
-        return $associateQuestions;
+        return $associateKeywords;
     }
 
     /**
-     * 生成搜索结果但不过滤重复内容（提升响应速度）.
-     * @param QuestionItem[] $associateQuestions
+     * Generate search results without filtering duplicate content (to improve response speed).
+     * @param QuestionItem[] $associateKeywords
      * @return SearchDetailItem[]
      * @throws Throwable
      */
-    protected function generateSearchResultsWithoutFilter(MagicChatAggregateSearchReqDTO $dto, array $associateQuestions): array
+    protected function generateSearchResultsWithoutFilter(MagicChatAggregateSearchReqDTO $dto, array $associateKeywords): array
     {
         $start = microtime(true);
-        $searchKeywords = $this->getSearchKeywords($associateQuestions);
+        $searchKeywords = $this->getSearchKeywords($associateKeywords);
 
-        // 根据关联问题，发起简单搜索（不拿网页详情)
+        // Initiate a simple search based on the associated questions (without fetching web page details)
         $searchQueryVo = (new AISearchCommonQueryVo())
             ->setSearchKeywords($searchKeywords)
             ->setSearchEngine($dto->getSearchEngine())
             ->setLanguage($dto->getLanguage());
         $allSearchContexts = $this->magicLLMDomainService->getSearchResults($searchQueryVo)['search'] ?? [];
 
-        // 限制最多返回50个结果
+        // Limit to a maximum of 50 results
         if (count($allSearchContexts) > 50) {
             $allSearchContexts = array_slice($allSearchContexts, 0, 50);
         }
 
         $this->logger->info(sprintf(
-            'generateSearchResultsWithoutFilter 不过滤搜索结果，限制最多50个结果，实际返回 %d 个结果，耗时：%s 秒',
+            'generateSearchResultsWithoutFilter: Did not filter search results, limited to 50 results, actually returned %d results, took: %s seconds',
             count($allSearchContexts),
             microtime(true) - $start
         ));
 
-        // 数组转对象
+        // Convert array to objects
         return $this->convertToSearchDetailItems($allSearchContexts);
     }
 
     /**
-     * 生成搜索总结（统一方法，支持简单和深度搜索）.
-     * @param QuestionItem[] $associateQuestions
+     * Generate search summary (unified method, supports simple and deep search).
+     * @param QuestionItem[] $associateKeywords
      * @param SearchDetailItem[] $noRepeatSearchContexts
      * @throws Throwable
      */
     protected function generateSummary(
         MagicChatAggregateSearchReqDTO $dto,
         array $noRepeatSearchContexts,
-        array $associateQuestions
+        array $associateKeywords
     ): MagicAggregateSearchSummaryDTO {
-        $searchKeywords = $this->getSearchKeywords($associateQuestions);
+        $searchKeywords = $this->getSearchKeywords($associateKeywords);
         $dto->setRequestId(CoContext::getRequestId());
         $start = microtime(true);
         $llmConversationId = (string) IdGenerator::getSnowId();
@@ -193,7 +193,7 @@ class MagicAISearchToolAppService extends AbstractAppService
             ->setSearchKeywords($searchKeywords)
             ->setUserId($dto->getUserId())
             ->setOrganizationCode($dto->getOrganizationCode());
-        // 深度搜索的总结支持使用其他模型
+        // Summary for deep search supports using other models
         if ($dto->getSearchDeepLevel() === SearchDeepLevel::DEEP) {
             $modelInterface = $this->getChatModel($dto->getOrganizationCode(), LLMModelEnum::DEEPSEEK_V3->value);
         } else {
@@ -201,12 +201,12 @@ class MagicAISearchToolAppService extends AbstractAppService
         }
         $queryVo->setModel($modelInterface);
 
-        // 使用非流式总结方法
+        // Use non-streaming summarization method
         $summarizeStreamResponse = $this->magicLLMDomainService->summarizeNonStreaming($queryVo);
 
-        $this->logger->info(sprintf('getSearchResults generateSummary 生成总结，结束计时，耗时：%s 秒', microtime(true) - $start));
+        $this->logger->info(sprintf('getSearchResults generateSummary: Generated summary. End timing, took: %s seconds', microtime(true) - $start));
 
-        // 格式化搜索上下文
+        // Format search context
         $formattedSearchContexts = $this->formatSearchContexts($noRepeatSearchContexts);
 
         $summaryDTO = new MagicAggregateSearchSummaryDTO();
@@ -217,46 +217,46 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 直接构建响应结果，不生成总结（提升响应速度）.
+     * Directly build the response without generating a summary (to improve response speed).
      * @param SearchDetailItem[] $searchContexts
      */
     protected function buildDirectResponse(array $searchContexts): MagicAggregateSearchSummaryDTO
     {
         $start = microtime(true);
 
-        // 拼接所有网页详情，限制最多字符
+        // Concatenate all webpage details, limited to 60,000 characters
         $detailContents = [];
         $currentLength = 0;
-        $maxLength = 60000; // 字符限制
+        $maxLength = 60000; // Character limit
         $processedCount = 0;
 
         foreach ($searchContexts as $context) {
             $detail = $context->getDetail();
             if (! empty($detail)) {
                 $detailLength = mb_strlen($detail, 'UTF-8');
-                // 检查添加当前详情后是否会超过限制
-                if ($currentLength + $detailLength + 2 > $maxLength) { // +2 是为了 "\n\n" 分隔符
-                    // 如果会超过限制，截取剩余可用长度的内容
+                // Check if adding the current detail will exceed the limit
+                if ($currentLength + $detailLength + 2 > $maxLength) { // +2 for the "\n\n" separator
+                    // If it exceeds the limit, truncate the content to the remaining available length
                     $remainingLength = $maxLength - $currentLength - 2;
                     if ($remainingLength > 0) {
                         $truncatedDetail = mb_substr($detail, 0, $remainingLength, 'UTF-8');
                         $detailContents[] = $truncatedDetail;
                     }
-                    break; // 达到长度限制，停止处理
+                    break; // Reached the length limit, stop processing
                 }
                 $detailContents[] = $detail;
-                $currentLength += $detailLength + 2; // +2 是为了 "\n\n" 分隔符
+                $currentLength += $detailLength + 2; // +2 for the "\n\n" separator
             }
             ++$processedCount;
         }
 
         $concatenatedDetails = implode("\n\n", $detailContents);
 
-        // 格式化搜索上下文
+        // Format search context
         $formattedSearchContexts = $this->formatSearchContexts($searchContexts);
 
         $this->logger->info(sprintf(
-            'buildDirectResponse 直接构建响应结果，返回 %d 个搜索结果，处理了 %d 个网页详情，网页详情总长度：%d 字符（限制了字符数量），耗时：%s 秒',
+            'buildDirectResponse: Directly built response, returned %d search results, processed %d webpage details, total length of webpage details: %d characters (character limit applied), took: %s seconds',
             count($searchContexts),
             $processedCount,
             strlen($concatenatedDetails),
@@ -264,7 +264,7 @@ class MagicAISearchToolAppService extends AbstractAppService
         ));
 
         $summaryDTO = new MagicAggregateSearchSummaryDTO();
-        $summaryDTO->setLlmResponse($concatenatedDetails); // 用拼接的详情代替LLM总结
+        $summaryDTO->setLlmResponse($concatenatedDetails); // Use concatenated details instead of LLM summary
         $summaryDTO->setSearchContext($searchContexts);
         $summaryDTO->setFormattedSearchContext($formattedSearchContexts);
         return $summaryDTO;
@@ -276,7 +276,7 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 格式化搜索上下文为API返回格式.
+     * Format search context for API response.
      * @param SearchDetailItem[] $searchContexts
      */
     protected function formatSearchContexts(array $searchContexts): array
@@ -299,19 +299,19 @@ class MagicAISearchToolAppService extends AbstractAppService
      */
     protected function buildAssociateQuestions(array $relatedQuestions, string $parentQuestionId): array
     {
-        $associateQuestions = [];
+        $associateKeywords = [];
         foreach ($relatedQuestions as $question) {
-            $associateQuestions[] = new QuestionItem([
+            $associateKeywords[] = new QuestionItem([
                 'parent_question_id' => $parentQuestionId,
                 'question_id' => (string) IdGenerator::getSnowId(),
                 'question' => $question,
             ]);
         }
-        return $associateQuestions;
+        return $associateKeywords;
     }
 
     /**
-     * 检查并设置防重复键.
+     * Check and set anti-duplication key.
      */
     private function checkAndSetAntiRepeat(MagicChatAggregateSearchReqDTO $dto, bool $isDeepSearch): bool
     {
@@ -321,12 +321,12 @@ class MagicAISearchToolAppService extends AbstractAppService
         $suffix = $isDeepSearch ? 'deep_tool' : '';
         $antiRepeatKey = md5($conversationId . $topicId . $searchKeyword . $suffix);
 
-        // 防重:如果同一会话同一话题下,2秒内有重复的消息,不触发流程
+        // Anti-duplication: If there are duplicate messages in the same conversation and topic within 2 seconds, the process is not triggered
         return $this->redis->set($antiRepeatKey, '1', ['nx', 'ex' => 2]);
     }
 
     /**
-     * 初始化搜索DTO.
+     * Initialize search DTO.
      */
     private function initializeSearchDTO(MagicChatAggregateSearchReqDTO $dto): void
     {
@@ -338,7 +338,7 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 记录搜索错误日志.
+     * Log search error.
      */
     private function logSearchError(Throwable $e, string $functionName): void
     {
@@ -354,7 +354,7 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 构建搜索查询VO的通用方法.
+     * Common method for building search query VO.
      */
     private function buildSearchQueryVo(MagicChatAggregateSearchReqDTO $dto, ModelInterface $modelInterface): AISearchCommonQueryVo
     {
@@ -373,7 +373,7 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 将数组转换为SearchDetailItem对象
+     * Convert array to SearchDetailItem objects.
      */
     private function convertToSearchDetailItems(array $searchContexts): array
     {
@@ -386,67 +386,67 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
-     * 深度搜索工具版本，只精读网页详情，不发送websocket消息.
+     * Deep search tool version, only reads webpage details, does not send websocket messages.
      * @param SearchDetailItem[] $noRepeatSearchContexts
      */
     private function deepSearch(
         array $noRepeatSearchContexts
     ): void {
         $timeStart = microtime(true);
-        // 只精读网页详情，不生成关联问题的子问题
+        // Only read webpage details, do not generate sub-questions for associated questions
         $this->getSearchPageDetails($noRepeatSearchContexts);
         $this->logger->info(sprintf(
-            'mindSearch deepSearchForTool 精读所有搜索结果，结束 累计耗时：%s 秒',
+            'mindSearch deepSearchForTool: Read all search results, finished. Total time: %s seconds',
             number_format(TimeUtil::getMillisecondDiffFromNow($timeStart) / 1000, 2)
         ));
     }
 
     /**
-     * @param QuestionItem[] $associateQuestions
+     * @param QuestionItem[] $associateKeywords
      */
-    private function getSearchKeywords(array $associateQuestions): array
+    private function getSearchKeywords(array $associateKeywords): array
     {
         $searchKeywords = [];
-        foreach ($associateQuestions as $questionItem) {
+        foreach ($associateKeywords as $questionItem) {
             $searchKeywords[] = $questionItem->getQuestion();
         }
         return $searchKeywords;
     }
 
     /**
-     * 工具版本的精读网页详情方法，不使用Channel通信.
+     * Tool version of the method for reading webpage details, does not use Channel for communication.
      * @param SearchDetailItem[] $noRepeatSearchContexts
      */
     private function getSearchPageDetails(array $noRepeatSearchContexts): void
     {
         $timeStart = microtime(true);
         $detailReadMaxNum = max(20, count($noRepeatSearchContexts));
-        // 限制并发请求数量
+        // Limit the number of concurrent requests
         $parallel = new Parallel(5);
         $currentDetailReadCount = 0;
 
         foreach ($noRepeatSearchContexts as $context) {
             $requestId = CoContext::getRequestId();
             $parallel->add(function () use ($context, $detailReadMaxNum, $requestId, &$currentDetailReadCount) {
-                // 知乎读不了
+                // Cannot read zhihu.com
                 if (str_contains($context->getCachedPageUrl(), 'zhihu.com')) {
                     return;
                 }
-                // 只取指定数量网页的详细内容
+                // Only get the detailed content of a specified number of web pages
                 if ($currentDetailReadCount > $detailReadMaxNum) {
                     return;
                 }
                 CoContext::setRequestId($requestId);
                 $htmlReader = make(HTMLReader::class);
                 try {
-                    // 用快照去拿内容！！
+                    // Get content from snapshot!!
                     $content = $htmlReader->getText($context->getCachedPageUrl());
                     $content = mb_substr($content, 0, 2048);
                     $context->setDetail($content);
                     ++$currentDetailReadCount;
                 } catch (Throwable $e) {
                     $this->logger->error(sprintf(
-                        'mindSearch getSearchPageDetailsForTool 获取详细内容时发生错误:%s,file:%s,line:%s trace:%s',
+                        'mindSearch getSearchPageDetailsForTool An error occurred while getting detailed content:%s,file:%s,line:%s trace:%s',
                         $e->getMessage(),
                         $e->getFile(),
                         $e->getLine(),
@@ -458,7 +458,7 @@ class MagicAISearchToolAppService extends AbstractAppService
         $parallel->wait();
 
         $this->logger->info(sprintf(
-            'mindSearch getSearchPageDetailsForTool 精读网页详情完成，精读了 %d 个网页，耗时：%s 秒',
+            'mindSearch getSearchPageDetailsForTool: Finished reading webpage details, read %d webpages, took: %s seconds',
             $currentDetailReadCount,
             number_format(TimeUtil::getMillisecondDiffFromNow($timeStart) / 1000, 2)
         ));
@@ -492,13 +492,13 @@ class MagicAISearchToolAppService extends AbstractAppService
 
     private function getChatModel(string $orgCode, string $modelName = LLMModelEnum::DEEPSEEK_V3->value): ModelInterface
     {
-        // 通过降级链获取模型名称
+        // Get the model name through the fallback chain
         $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $modelName);
-        // 如果依旧未获取到有效模型，则使用默认 DEEPSEEK_V3 防止空模型导致后续异常
+        // If a valid model is still not obtained, use the default DEEPSEEK_V3 to prevent null model from causing subsequent exceptions
         if ($modelName === '' || $modelName === null) {
             $modelName = LLMModelEnum::DEEPSEEK_V3->value;
         }
-        // 获取模型代理
+        // Get the model proxy
         return di(ModelGatewayMapper::class)->getChatModelProxy($modelName, $orgCode);
     }
 }

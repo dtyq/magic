@@ -25,7 +25,7 @@ use function di;
 
 #[BuiltInToolDefine]
 /**
- * 麦吉互联网搜索工具版本，只返回搜索结果，不推送websocket消息。
+ * Magic internet search tool version, only returns search results, does not push websocket messages.
  */
 class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
 {
@@ -41,27 +41,27 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
 
     public function getDescription(): string
     {
-        return '麦吉互联网搜索总结纯工具版，不推送消息';
+        return 'Magic internet search summary tool-only version, does not push messages.';
     }
 
     public function getCallback(): ?Closure
     {
         return function (ExecutionData $executionData) {
             $args = $executionData->getTriggerData()?->getParams();
-            $questions = $args['questions'] ?? [];
+            $keywords = $args['keywords'] ?? [];
             $useDeepSearch = $args['use_deep_search'] ?? false;
 
-            if (empty($questions)) {
-                return ['error' => '问题列表不能为空'];
+            if (empty($keywords)) {
+                return ['error' => 'Keyword list cannot be empty'];
             }
 
-            $userQuestion = implode(' ', $questions);
+            $userQuestion = implode(' ', $keywords);
             $conversationId = $executionData->getOriginConversationId();
 
             if ($executionData->getExecutionType()->isDebug()) {
-                // debug 模式返回模拟结果
+                // Return mock results in debug mode
                 return [
-                    'web_details' => '这是多个网页详情拼接后的字符串',
+                    'web_details' => 'This is a concatenated string of multiple web page details',
                     'search_contexts' => [],
                 ];
             }
@@ -70,7 +70,7 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
             $searchKeywordMessage = new TextMessage();
             $searchKeywordMessage->setContent($userQuestion);
 
-            // 从ExecutionData中获取组织编码和用户ID
+            // Get organization code and user ID from ExecutionData
             $organizationCode = $executionData->getDataIsolation()->getCurrentOrganizationCode();
             $userId = $executionData->getDataIsolation()->getCurrentUserId();
 
@@ -84,25 +84,25 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
 
             try {
                 if ($useDeepSearch) {
-                    // 使用深度搜索工具
+                    // Use deep search tool
                     $searchResult = di(MagicAISearchToolAppService::class)->executeInternetSearch($magicChatAggregateSearchReqDTO, true, 'deepInternetSearchForToolError');
                 } else {
-                    // 使用简单搜索工具
+                    // Use simple search tool
                     $searchResult = di(MagicAISearchToolAppService::class)->executeInternetSearch($magicChatAggregateSearchReqDTO, false, 'aggregateSearchError');
                 }
 
                 if ($searchResult === null) {
-                    return ['error' => '搜索结果为空，可能是由于防重复机制或其他原因'];
+                    return ['error' => 'Search result is empty, may be due to anti-duplication mechanism or other reasons'];
                 }
 
-                // 返回搜索结果
+                // Return search results
                 return [
-                    'web_details' => $searchResult->getLlmResponse(), // 现在是拼接的网页详情字符串
+                    'web_details' => $searchResult->getLlmResponse(), // This is now the concatenated string of web page details
                     'search_contexts' => $this->formatSearchContexts($searchResult->getSearchContext()),
                 ];
             } catch (Throwable $e) {
                 return [
-                    'error' => '搜索过程中发生错误: ' . $e->getMessage(),
+                    'error' => 'An error occurred during the search process: ' . $e->getMessage(),
                     'user_question' => $userQuestion,
                 ];
             }
@@ -118,28 +118,28 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
     "type": "object",
     "key": "root",
     "sort": 0,
-    "title": "root节点",
+    "title": "root node",
     "description": "",
     "items": null,
     "value": null,
     "required": [
-        "questions"
+        "keywords"
     ],
     "properties": {
-        "questions": {
+        "keywords": {
             "type": "array",
-            "key": "questions",
-            "title": "用户问题列表",
-            "description": "用户问题列表",
+            "key": "keywords",
+            "title": "User Keyword List",
+            "description": "User Keyword List",
             "required": null,
             "value": null,
             "encryption": false,
             "encryption_value": null,
             "items": {
                 "type": "string",
-                "key": "question",
+                "key": "keyword",
                 "sort": 0,
-                "title": "question",
+                "title": "keyword",
                 "description": "",
                 "required": null,
                 "value": null,
@@ -153,8 +153,8 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
         "use_deep_search": {
             "type": "boolean",
             "key": "use_deep_search",
-            "title": "是否使用深度搜索",
-            "description": "是否使用深度搜索",
+            "title": "Use Deep Search",
+            "description": "Use Deep Search",
             "required": null,
             "value": null,
             "encryption": false,
@@ -172,7 +172,7 @@ JSON
     }
 
     /**
-     * 格式化搜索上下文，只返回必要的信息.
+     * Format the search context, returning only necessary information.
      */
     private function formatSearchContexts(array $searchContexts): array
     {
@@ -184,13 +184,13 @@ JSON
                 $contextArray = (array) $context;
             }
 
-            // 只保留关键信息，移除可能很大的detail字段
+            // Keep only key information, remove the potentially large detail field
             $formatted[] = [
                 'title' => $contextArray['title'] ?? '',
                 'url' => $contextArray['url'] ?? '',
                 'snippet' => $contextArray['snippet'] ?? '',
                 'cached_page_url' => $contextArray['cached_page_url'] ?? '',
-                // 不包含detail字段以减少数据量
+                // Does not include the detail field to reduce data volume
             ];
         }
         return $formatted;
