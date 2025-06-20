@@ -29,7 +29,6 @@ use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Contract\Model\ModelInterface;
-use Hyperf\Odin\Memory\MessageHistory;
 use Hyperf\Redis\Redis;
 use Hyperf\Snowflake\IdGeneratorInterface;
 use Psr\Log\LoggerInterface;
@@ -76,15 +75,16 @@ class MagicAISearchToolAppService extends AbstractAppService
             // 2.1 生成关联问题
             $associateQuestionsQueryVo = $this->getAssociateQuestionsQueryVo($dto, $searchDetailItems);
             $associateQuestions = $this->generateAssociateQuestions($associateQuestionsQueryVo, AggregateAISearchCardMessageV2::NULL_PARENT_ID);
-            // 2.2 根据关联问题，发起简单搜索（不拿网页详情),并过滤掉重复或者与问题关联性不高的网页内容
-            $noRepeatSearchContexts = $this->generateSearchResults($dto, $associateQuestions);
+            // 2.2 根据关联问题，发起简单搜索（不拿网页详情),不再过滤重复内容
+            $allSearchContexts = $this->generateSearchResultsWithoutFilter($dto, $associateQuestions);
 
-            // 3. 深度搜索处理（如需要）- 必须在生成总结之前执行，确保详情被写入
+            // 3. 深度搜索处理（如需要）- 获取网页详情
             if ($isDeepSearch) {
-                $this->deepSearch($noRepeatSearchContexts);
+                $this->deepSearch($allSearchContexts);
             }
-            // 4. 根据每个关联问题回复，生成总结.
-            return $this->generateSummary($dto, $noRepeatSearchContexts, $associateQuestions);
+
+            // 4. 直接返回网页详情和列表，不再生成总结
+            return $this->buildDirectResponse($allSearchContexts);
         } catch (Throwable $e) {
             $this->logSearchError($e, $errorFunction);
             throw $e;
@@ -137,11 +137,12 @@ class MagicAISearchToolAppService extends AbstractAppService
     }
 
     /**
+     * 生成搜索结果但不过滤重复内容（提升响应速度）.
      * @param QuestionItem[] $associateQuestions
      * @return SearchDetailItem[]
      * @throws Throwable
      */
-    protected function generateSearchResults(MagicChatAggregateSearchReqDTO $dto, array $associateQuestions): array
+    protected function generateSearchResultsWithoutFilter(MagicChatAggregateSearchReqDTO $dto, array $associateQuestions): array
     {
         $start = microtime(true);
         $searchKeywords = $this->getSearchKeywords($associateQuestions);
@@ -153,11 +154,19 @@ class MagicAISearchToolAppService extends AbstractAppService
             ->setLanguage($dto->getLanguage());
         $allSearchContexts = $this->magicLLMDomainService->getSearchResults($searchQueryVo)['search'] ?? [];
 
-        // 过滤重复或者与问题关联性不高的网页内容
-        $noRepeatSearchContexts = $this->filterDuplicateSearchContexts($dto, $searchKeywords, $allSearchContexts, $start);
+        // 限制最多返回50个结果
+        if (count($allSearchContexts) > 50) {
+            $allSearchContexts = array_slice($allSearchContexts, 0, 50);
+        }
+
+        $this->logger->info(sprintf(
+            'generateSearchResultsWithoutFilter 不过滤搜索结果，限制最多50个结果，实际返回 %d 个结果，耗时：%s 秒',
+            count($allSearchContexts),
+            microtime(true) - $start
+        ));
 
         // 数组转对象
-        return $this->convertToSearchDetailItems($noRepeatSearchContexts);
+        return $this->convertToSearchDetailItems($allSearchContexts);
     }
 
     /**
@@ -203,6 +212,60 @@ class MagicAISearchToolAppService extends AbstractAppService
         $summaryDTO = new MagicAggregateSearchSummaryDTO();
         $summaryDTO->setLlmResponse($summarizeStreamResponse);
         $summaryDTO->setSearchContext($noRepeatSearchContexts);
+        $summaryDTO->setFormattedSearchContext($formattedSearchContexts);
+        return $summaryDTO;
+    }
+
+    /**
+     * 直接构建响应结果，不生成总结（提升响应速度）.
+     * @param SearchDetailItem[] $searchContexts
+     */
+    protected function buildDirectResponse(array $searchContexts): MagicAggregateSearchSummaryDTO
+    {
+        $start = microtime(true);
+
+        // 拼接所有网页详情，限制最多字符
+        $detailContents = [];
+        $currentLength = 0;
+        $maxLength = 60000; // 字符限制
+        $processedCount = 0;
+
+        foreach ($searchContexts as $context) {
+            $detail = $context->getDetail();
+            if (! empty($detail)) {
+                $detailLength = mb_strlen($detail, 'UTF-8');
+                // 检查添加当前详情后是否会超过限制
+                if ($currentLength + $detailLength + 2 > $maxLength) { // +2 是为了 "\n\n" 分隔符
+                    // 如果会超过限制，截取剩余可用长度的内容
+                    $remainingLength = $maxLength - $currentLength - 2;
+                    if ($remainingLength > 0) {
+                        $truncatedDetail = mb_substr($detail, 0, $remainingLength, 'UTF-8');
+                        $detailContents[] = $truncatedDetail;
+                    }
+                    break; // 达到长度限制，停止处理
+                }
+                $detailContents[] = $detail;
+                $currentLength += $detailLength + 2; // +2 是为了 "\n\n" 分隔符
+            }
+            ++$processedCount;
+        }
+
+        $concatenatedDetails = implode("\n\n", $detailContents);
+
+        // 格式化搜索上下文
+        $formattedSearchContexts = $this->formatSearchContexts($searchContexts);
+
+        $this->logger->info(sprintf(
+            'buildDirectResponse 直接构建响应结果，返回 %d 个搜索结果，处理了 %d 个网页详情，网页详情总长度：%d 字符（限制了字符数量），耗时：%s 秒',
+            count($searchContexts),
+            $processedCount,
+            strlen($concatenatedDetails),
+            microtime(true) - $start
+        ));
+
+        $summaryDTO = new MagicAggregateSearchSummaryDTO();
+        $summaryDTO->setLlmResponse($concatenatedDetails); // 用拼接的详情代替LLM总结
+        $summaryDTO->setSearchContext($searchContexts);
         $summaryDTO->setFormattedSearchContext($formattedSearchContexts);
         return $summaryDTO;
     }
@@ -307,38 +370,6 @@ class MagicAISearchToolAppService extends AbstractAppService
             ->setUserId($dto->getUserId())
             ->setOrganizationCode($dto->getOrganizationCode())
             ->setModel($modelInterface);
-    }
-
-    /**
-     * 过滤重复的搜索结果.
-     */
-    private function filterDuplicateSearchContexts(MagicChatAggregateSearchReqDTO $dto, array $searchKeywords, array $allSearchContexts, float $start): array
-    {
-        if (empty($allSearchContexts)) {
-            return [];
-        }
-
-        $modelInterface = $this->getChatModel($dto->getOrganizationCode());
-        $filterQueryVo = (new AISearchCommonQueryVo())
-            ->setSearchKeywords($searchKeywords)
-            ->setUserMessage($dto->getUserMessage())
-            ->setModel($modelInterface)
-            ->setConversationId((string) IdGenerator::getSnowId())
-            ->setMessageHistory(new MessageHistory())
-            ->setSearchContexts($allSearchContexts)
-            ->setUserId($dto->getUserId())
-            ->setOrganizationCode($dto->getOrganizationCode());
-
-        $noRepeatSearchContexts = $this->magicLLMDomainService->filterSearchContexts($filterQueryVo);
-        $costMircoTime = TimeUtil::getMillisecondDiffFromNow($start);
-        $this->logger->info(sprintf(
-            'mindSearch getSearchResults filterSearchContexts 清洗搜索结果中的重复项 清洗前：%s 清洗后:%s 结束计时 累计耗时 %s 秒',
-            count($allSearchContexts),
-            count($noRepeatSearchContexts),
-            $costMircoTime / 1000
-        ));
-
-        return empty($noRepeatSearchContexts) ? $allSearchContexts : $noRepeatSearchContexts;
     }
 
     /**

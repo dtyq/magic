@@ -61,10 +61,8 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
             if ($executionData->getExecutionType()->isDebug()) {
                 // debug 模式返回模拟结果
                 return [
-                    'summary' => '这是调试模式下的模拟搜索结果',
+                    'web_details' => '这是多个网页详情拼接后的字符串',
                     'search_contexts' => [],
-                    'user_question' => $userQuestion,
-                    'search_deep_level' => $useDeepSearch ? 'DEEP' : 'SIMPLE',
                 ];
             }
 
@@ -99,10 +97,8 @@ class InternetSearchSummaryBuiltInTool extends AbstractBuiltInTool
 
                 // 返回搜索结果
                 return [
-                    'summary' => $searchResult->getLlmResponse(),
+                    'web_details' => $searchResult->getLlmResponse(), // 现在是拼接的网页详情字符串
                     'search_contexts' => $this->formatSearchContexts($searchResult->getSearchContext()),
-                    'user_question' => $userQuestion,
-                    'search_deep_level' => $useDeepSearch ? SearchDeepLevel::DEEP->value : SearchDeepLevel::SIMPLE->value,
                 ];
             } catch (Throwable $e) {
                 return [
