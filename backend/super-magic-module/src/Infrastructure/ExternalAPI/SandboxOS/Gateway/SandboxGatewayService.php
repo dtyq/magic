@@ -7,18 +7,19 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
+use Exception;
 use GuzzleHttp\Exception\GuzzleException;
 use Hyperf\Logger\LoggerFactory;
 
 /**
  * 沙箱网关服务实现
- * 提供沙箱生命周期管理和代理转发功能
+ * 提供沙箱生命周期管理和代理转发功能.
  */
 class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayInterface
 {
@@ -29,13 +30,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
     /**
      * 实现SandboxInterface的create方法
-     * 兼容原有接口，内部调用新的createSandbox方法
+     * 兼容原有接口，内部调用新的createSandbox方法.
      */
     public function create(SandboxStruct $struct): SandboxResult
     {
         $config = $struct->toArray();
         $result = $this->createSandbox($config);
-        
+
         // 转换为SandboxResult格式
         return new SandboxResult(
             $result->isSuccess(),
@@ -47,12 +48,12 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
     /**
      * 实现SandboxInterface的getStatus方法
-     * 兼容原有接口，内部调用新的getSandboxStatus方法
+     * 兼容原有接口，内部调用新的getSandboxStatus方法.
      */
     public function getStatus(string $sandboxId): SandboxResult
     {
         $result = $this->getSandboxStatus($sandboxId);
-        
+
         // 转换为SandboxResult格式
         return new SandboxResult(
             $result->isSuccess(),
@@ -64,14 +65,14 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
     /**
      * 实现SandboxInterface的destroy方法
-     * 目前Gateway API文档中没有销毁接口，返回未实现错误
+     * 目前Gateway API文档中没有销毁接口，返回未实现错误.
      */
     public function destroy(string $sandboxId): SandboxResult
     {
         $this->logger->warning('[Sandbox][Gateway] Destroy method not implemented in Gateway API', [
-            'sandbox_id' => $sandboxId
+            'sandbox_id' => $sandboxId,
         ]);
-        
+
         return new SandboxResult(
             false,
             'Destroy method not implemented in Gateway API',
@@ -82,19 +83,19 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
     /**
      * 实现SandboxInterface的getWebsocketUrl方法
-     * 目前Gateway API文档中没有WebSocket接口，返回空字符串
+     * 目前Gateway API文档中没有WebSocket接口，返回空字符串.
      */
     public function getWebsocketUrl(string $sandboxId): string
     {
         $this->logger->warning('[Sandbox][Gateway] WebSocket URL not available in Gateway API', [
-            'sandbox_id' => $sandboxId
+            'sandbox_id' => $sandboxId,
         ]);
-        
+
         return '';
     }
 
     /**
-     * 创建沙箱
+     * 创建沙箱.
      */
     public function createSandbox(array $config = []): GatewayResult
     {
@@ -113,12 +114,12 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             if ($result->isSuccess()) {
                 $sandboxId = $result->getDataValue('sandbox_id');
                 $this->logger->info('[Sandbox][Gateway] Sandbox created successfully', [
-                    'sandbox_id' => $sandboxId
+                    'sandbox_id' => $sandboxId,
                 ]);
             } else {
                 $this->logger->error('[Sandbox][Gateway] Failed to create sandbox', [
                     'code' => $result->getCode(),
-                    'message' => $result->getMessage()
+                    'message' => $result->getMessage(),
                 ]);
             }
 
@@ -126,13 +127,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         } catch (GuzzleException $e) {
             $this->logger->error('[Sandbox][Gateway] HTTP error when creating sandbox', [
                 'error' => $e->getMessage(),
-                'code' => $e->getCode()
+                'code' => $e->getCode(),
             ]);
             return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Unexpected error when creating sandbox', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return GatewayResult::error('Unexpected error: ' . $e->getMessage());
         }
@@ -157,7 +158,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $this->logger->debug('[Sandbox][Gateway] Sandbox status retrieved', [
                 'sandbox_id' => $sandboxId,
                 'status' => $result->getStatus(),
-                'success' => $result->isSuccess()
+                'success' => $result->isSuccess(),
             ]);
 
             return $result;
@@ -165,22 +166,22 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $this->logger->error('[Sandbox][Gateway] HTTP error when getting sandbox status', [
                 'sandbox_id' => $sandboxId,
                 'error' => $e->getMessage(),
-                'code' => $e->getCode()
+                'code' => $e->getCode(),
             ]);
             return SandboxStatusResult::fromApiResponse([
                 'code' => 2000,
                 'message' => 'HTTP request failed: ' . $e->getMessage(),
-                'data' => ['sandbox_id' => $sandboxId]
+                'data' => ['sandbox_id' => $sandboxId],
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Unexpected error when getting sandbox status', [
                 'sandbox_id' => $sandboxId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             return SandboxStatusResult::fromApiResponse([
                 'code' => 2000,
                 'message' => 'Unexpected error: ' . $e->getMessage(),
-                'data' => ['sandbox_id' => $sandboxId]
+                'data' => ['sandbox_id' => $sandboxId],
             ]);
         }
     }
@@ -192,19 +193,20 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     {
         $this->logger->debug('[Sandbox][Gateway] Getting batch sandbox status', [
             'sandbox_ids' => $sandboxIds,
-            'count' => count($sandboxIds)
+            'count' => count($sandboxIds),
         ]);
 
         if (empty($sandboxIds)) {
             return BatchStatusResult::fromApiResponse([
                 'code' => 1000,
                 'message' => 'Success',
-                'data' => []
+                'data' => [],
             ]);
         }
 
         try {
-            $response = $this->client->get($this->buildApiPath('api/v1/sandboxes/queries'), [
+            // 根据沙箱通信文档，批量查询使用GET请求但需要JSON请求体
+            $response = $this->client->request('GET', $this->buildApiPath('api/v1/sandboxes/queries'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => ['sandbox_ids' => $sandboxIds],
                 'timeout' => 15,
@@ -217,7 +219,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'requested_count' => count($sandboxIds),
                 'returned_count' => $result->getTotalCount(),
                 'running_count' => $result->getRunningCount(),
-                'success' => $result->isSuccess()
+                'success' => $result->isSuccess(),
             ]);
 
             return $result;
@@ -225,28 +227,28 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $this->logger->error('[Sandbox][Gateway] HTTP error when getting batch sandbox status', [
                 'sandbox_ids' => $sandboxIds,
                 'error' => $e->getMessage(),
-                'code' => $e->getCode()
+                'code' => $e->getCode(),
             ]);
             return BatchStatusResult::fromApiResponse([
                 'code' => 2000,
                 'message' => 'HTTP request failed: ' . $e->getMessage(),
-                'data' => []
+                'data' => [],
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Unexpected error when getting batch sandbox status', [
                 'sandbox_ids' => $sandboxIds,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             return BatchStatusResult::fromApiResponse([
                 'code' => 2000,
                 'message' => 'Unexpected error: ' . $e->getMessage(),
-                'data' => []
+                'data' => [],
             ]);
         }
     }
 
     /**
-     * 代理转发请求到沙箱
+     * 代理转发请求到沙箱.
      */
     public function proxySandboxRequest(
         string $sandboxId,
@@ -259,7 +261,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'sandbox_id' => $sandboxId,
             'method' => $method,
             'path' => $path,
-            'has_data' => !empty($data)
+            'has_data' => ! empty($data),
         ]);
 
         try {
@@ -269,7 +271,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ];
 
             // Add request body based on method
-            if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH']) && !empty($data)) {
+            if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH']) && ! empty($data)) {
                 $requestOptions['json'] = $data;
             }
 
@@ -284,7 +286,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'method' => $method,
                 'path' => $path,
                 'success' => $result->isSuccess(),
-                'response_code' => $result->getCode()
+                'response_code' => $result->getCode(),
             ]);
 
             return $result;
@@ -294,17 +296,17 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'method' => $method,
                 'path' => $path,
                 'error' => $e->getMessage(),
-                'code' => $e->getCode()
+                'code' => $e->getCode(),
             ]);
             return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Unexpected error when proxying request', [
                 'sandbox_id' => $sandboxId,
                 'method' => $method,
                 'path' => $path,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             return GatewayResult::error('Unexpected error: ' . $e->getMessage());
         }
     }
-} 
+}

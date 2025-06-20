@@ -284,6 +284,16 @@ class TopicRepository implements TopicRepositoryInterface
         return $result;
     }
 
+    public function updateTopicStatusBySandboxIds(array $sandboxIds, string $status): bool
+    {
+        return $this->model::query()
+            ->whereIn('sandbox_id', $sandboxIds)
+            ->update([
+                'current_task_status' => $status,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
     /**
      * 将数据库模型数据转换为实体数据.
      * @param array $modelData 模型数据

@@ -333,4 +333,15 @@ class TaskRepository implements TaskRepositoryInterface
             ->whereNull('deleted_at')
             ->count();
     }
+
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = '')
+    {
+        return $this->model::query()
+            ->whereIn('sandbox_id', $sandboxIds)
+            ->update([
+                'task_status' => $status,
+                'err_msg' => $errMsg,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
 }

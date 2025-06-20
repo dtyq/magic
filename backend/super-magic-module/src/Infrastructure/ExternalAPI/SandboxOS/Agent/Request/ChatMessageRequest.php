@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+
 /**
  * 聊天消息请求类
- * 严格按照沙箱通信文档的聊天消息请求格式
+ * 严格按照沙箱通信文档的聊天消息请求格式.
  */
 class ChatMessageRequest
 {
@@ -20,10 +22,11 @@ class ChatMessageRequest
         private string $prompt = '',
         private string $taskMode = 'chat',
         private array $attachments = []
-    ) {}
+    ) {
+    }
 
     /**
-     * 创建聊天消息请求
+     * 创建一个聊天消息请求对象
      */
     public static function create(
         string $messageId,
@@ -37,7 +40,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取提示内容
+     * 获取提示内容.
      */
     public function getPrompt(): string
     {
@@ -45,7 +48,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 设置提示内容
+     * 设置提示内容.
      */
     public function setPrompt(string $prompt): self
     {
@@ -54,7 +57,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取任务模式
+     * 获取任务模式.
      */
     public function getTaskMode(): string
     {
@@ -62,7 +65,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 设置任务模式
+     * 设置任务模式.
      */
     public function setTaskMode(string $taskMode): self
     {
@@ -71,7 +74,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取附件
+     * 获取附件.
      */
     public function getAttachments(): array
     {
@@ -79,7 +82,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 设置附件
+     * 设置附件.
      */
     public function setAttachments(array $attachments): self
     {
@@ -88,7 +91,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 设置用户ID
+     * 设置用户ID.
      */
     public function setUserId(string $userId): self
     {
@@ -97,7 +100,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取用户ID
+     * 获取用户ID.
      */
     public function getUserId(): string
     {
@@ -105,7 +108,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 设置任务ID
+     * 设置任务ID.
      */
     public function setTaskId(string $taskId): self
     {
@@ -114,7 +117,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取任务ID
+     * 获取任务ID.
      */
     public function getTaskId(): string
     {
@@ -122,7 +125,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 设置消息ID
+     * 设置消息ID.
      */
     public function setMessageId(string $messageId): self
     {
@@ -131,7 +134,7 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取消息ID
+     * 获取消息ID.
      */
     public function getMessageId(): string
     {
@@ -140,12 +143,12 @@ class ChatMessageRequest
 
     /**
      * 转换为API请求数组
-     * 根据沙箱通信文档的聊天消息请求格式
+     * 根据沙箱通信文档的聊天消息请求格式.
      */
     public function toArray(): array
     {
         return [
-            'message_id' => !empty($this->messageId) ? $this->messageId : (string) \App\Infrastructure\Util\IdGenerator\IdGenerator::getSnowId(),
+            'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
             'task_id' => $this->taskId,
             'type' => 'chat',
@@ -154,4 +157,4 @@ class ChatMessageRequest
             'attachments' => $this->attachments,
         ];
     }
-} 
+}

@@ -11,14 +11,14 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\Sandbo
 
 /**
  * 批量沙箱状态结果类
- * 专门处理批量沙箱状态查询结果
+ * 专门处理批量沙箱状态查询结果.
  */
 class BatchStatusResult extends GatewayResult
 {
     private array $sandboxStatuses = [];
 
     /**
-     * 从API响应创建批量状态结果
+     * 从API响应创建批量状态结果.
      */
     public static function fromApiResponse(array $response): self
     {
@@ -52,7 +52,7 @@ class BatchStatusResult extends GatewayResult
     public function getSandboxStatus(string $sandboxId): ?string
     {
         $statuses = $this->getSandboxStatuses();
-        
+
         foreach ($statuses as $sandbox) {
             if (isset($sandbox['sandbox_id']) && $sandbox['sandbox_id'] === $sandboxId) {
                 return $sandbox['status'] ?? null;
@@ -63,7 +63,7 @@ class BatchStatusResult extends GatewayResult
     }
 
     /**
-     * 检查指定沙箱是否运行中
+     * 检查指定沙箱是否运行中.
      */
     public function isSandboxRunning(string $sandboxId): bool
     {
@@ -72,7 +72,7 @@ class BatchStatusResult extends GatewayResult
     }
 
     /**
-     * 获取运行中的沙箱列表
+     * 获取运行中的沙箱列表.
      */
     public function getRunningSandboxes(): array
     {
@@ -89,7 +89,7 @@ class BatchStatusResult extends GatewayResult
     }
 
     /**
-     * 获取运行中的沙箱ID列表
+     * 获取运行中的沙箱ID列表.
      */
     public function getRunningSandboxIds(): array
     {
@@ -106,7 +106,7 @@ class BatchStatusResult extends GatewayResult
     }
 
     /**
-     * 获取沙箱总数
+     * 获取沙箱总数.
      */
     public function getTotalCount(): int
     {
@@ -114,10 +114,10 @@ class BatchStatusResult extends GatewayResult
     }
 
     /**
-     * 获取运行中沙箱数量
+     * 获取运行中沙箱数量.
      */
     public function getRunningCount(): int
     {
         return count($this->getRunningSandboxes());
     }
-} 
+}

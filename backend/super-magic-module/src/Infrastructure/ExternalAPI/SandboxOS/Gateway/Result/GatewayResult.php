@@ -10,8 +10,8 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 
 /**
- * 沙箱网关通用结果类
- * 统一处理网关API响应
+ * Sandbox Gateway Common Result Class
+ * Unified handling of gateway API responses.
  */
 class GatewayResult
 {
@@ -19,10 +19,11 @@ class GatewayResult
         private int $code,
         private string $message,
         private array $data = []
-    ) {}
+    ) {
+    }
 
     /**
-     * 创建成功结果
+     * Create success result.
      */
     public static function success(array $data = [], string $message = 'Success'): self
     {
@@ -30,7 +31,7 @@ class GatewayResult
     }
 
     /**
-     * 创建失败结果
+     * Create failure result.
      */
     public static function error(string $message, array $data = []): self
     {
@@ -38,7 +39,7 @@ class GatewayResult
     }
 
     /**
-     * 从API响应创建结果
+     * Create result from API response.
      */
     public static function fromApiResponse(array $response): self
     {
@@ -50,7 +51,7 @@ class GatewayResult
     }
 
     /**
-     * 检查是否成功
+     * Check if successful.
      */
     public function isSuccess(): bool
     {
@@ -58,7 +59,7 @@ class GatewayResult
     }
 
     /**
-     * 检查是否失败
+     * Check if failed.
      */
     public function isError(): bool
     {
@@ -66,7 +67,7 @@ class GatewayResult
     }
 
     /**
-     * 获取响应码
+     * Get response code.
      */
     public function getCode(): int
     {
@@ -74,7 +75,7 @@ class GatewayResult
     }
 
     /**
-     * 获取消息
+     * Get message.
      */
     public function getMessage(): string
     {
@@ -82,7 +83,7 @@ class GatewayResult
     }
 
     /**
-     * 获取数据
+     * Get data.
      */
     public function getData(): array
     {
@@ -90,7 +91,7 @@ class GatewayResult
     }
 
     /**
-     * 获取指定键的数据
+     * Get data value by specified key.
      */
     public function getDataValue(string $key, mixed $default = null): mixed
     {
@@ -98,7 +99,7 @@ class GatewayResult
     }
 
     /**
-     * 转换为数组
+     * Convert to array.
      */
     public function toArray(): array
     {
@@ -108,4 +109,4 @@ class GatewayResult
             'data' => $this->data,
         ];
     }
-} 
+}

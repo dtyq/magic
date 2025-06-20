@@ -127,4 +127,6 @@ interface TaskRepositoryInterface
      * 获取指定话题下的任务数量.
      */
     public function getTaskCountByTopicId(int $topicId): int;
+
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = '');
 }

@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+
 /**
  * 中断请求类
- * 严格按照沙箱通信文档的中断请求格式
+ * 严格按照沙箱通信文档的中断请求格式.
  */
 class InterruptRequest
 {
@@ -18,7 +20,8 @@ class InterruptRequest
         private string $userId = '',
         private string $taskId = '',
         private string $remark = ''
-    ) {}
+    ) {
+    }
 
     /**
      * 创建中断请求
@@ -29,7 +32,7 @@ class InterruptRequest
     }
 
     /**
-     * 设置用户ID
+     * 设置用户ID.
      */
     public function setUserId(string $userId): self
     {
@@ -38,7 +41,7 @@ class InterruptRequest
     }
 
     /**
-     * 获取用户ID
+     * 获取用户ID.
      */
     public function getUserId(): string
     {
@@ -46,7 +49,7 @@ class InterruptRequest
     }
 
     /**
-     * 设置任务ID
+     * 设置任务ID.
      */
     public function setTaskId(string $taskId): self
     {
@@ -55,7 +58,7 @@ class InterruptRequest
     }
 
     /**
-     * 获取任务ID
+     * 获取任务ID.
      */
     public function getTaskId(): string
     {
@@ -63,7 +66,7 @@ class InterruptRequest
     }
 
     /**
-     * 设置消息ID
+     * 设置消息ID.
      */
     public function setMessageId(string $messageId): self
     {
@@ -72,7 +75,7 @@ class InterruptRequest
     }
 
     /**
-     * 获取消息ID
+     * 获取消息ID.
      */
     public function getMessageId(): string
     {
@@ -80,7 +83,7 @@ class InterruptRequest
     }
 
     /**
-     * 设置备注
+     * 设置备注.
      */
     public function setRemark(string $remark): self
     {
@@ -89,7 +92,7 @@ class InterruptRequest
     }
 
     /**
-     * 获取备注
+     * 获取备注.
      */
     public function getRemark(): string
     {
@@ -98,22 +101,22 @@ class InterruptRequest
 
     /**
      * 转换为API请求数组
-     * 根据沙箱通信文档的中断请求格式
+     * 根据沙箱通信文档的中断请求格式.
      */
     public function toArray(): array
     {
         $data = [
-            'message_id' => !empty($this->messageId) ? $this->messageId : (string) \App\Infrastructure\Util\IdGenerator\IdGenerator::getSnowId(),
+            'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
             'task_id' => $this->taskId,
             'type' => 'interrupt',
         ];
 
         // 如果有备注则添加到请求中
-        if (!empty($this->remark)) {
+        if (! empty($this->remark)) {
             $data['remark'] = $this->remark;
         }
 
         return $data;
     }
-} 
+}
