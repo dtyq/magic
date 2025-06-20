@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.346.0",
+            "version": "3.346.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "be313721b8d786e515b5df3e09b1771befbad2c6"
+                "reference": "27401e70b1b01114e4e228861933eb7b78630be7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/be313721b8d786e515b5df3e09b1771befbad2c6",
-                "reference": "be313721b8d786e515b5df3e09b1771befbad2c6",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/27401e70b1b01114e4e228861933eb7b78630be7",
+                "reference": "27401e70b1b01114e4e228861933eb7b78630be7",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.346.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.346.1"
             },
-            "time": "2025-06-18T18:49:34+00:00"
+            "time": "2025-06-19T18:05:45+00:00"
         },
         {
             "name": "brick/math",
@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "a1c1d5211106a9c633f6888d026d298fa181af10"
+                "reference": "11b93b59bf2d0a00a37e52c968d1746e25f89b6a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=a1c1d5211106a9c633f6888d026d298fa181af10",
-                "reference": "a1c1d5211106a9c633f6888d026d298fa181af10",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=11b93b59bf2d0a00a37e52c968d1746e25f89b6a",
+                "reference": "11b93b59bf2d0a00a37e52c968d1746e25f89b6a",
                 "shasum": ""
             },
             "require": {
@@ -2316,7 +2316,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-06-19T18:15:53+08:00"
+            "time": "2025-06-20T10:47:21+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -14398,16 +14398,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.149",
+            "version": "v1.0.150",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "af758049c47c7809309b60efc968ff45ff97d822"
+                "reference": "4cbae00cc9b9c7ab4f0141ac60ef2bd053657ff7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/af758049c47c7809309b60efc968ff45ff97d822",
-                "reference": "af758049c47c7809309b60efc968ff45ff97d822",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/4cbae00cc9b9c7ab4f0141ac60ef2bd053657ff7",
+                "reference": "4cbae00cc9b9c7ab4f0141ac60ef2bd053657ff7",
                 "shasum": ""
             },
             "require": {
@@ -14442,9 +14442,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.149"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.150"
             },
-            "time": "2025-06-17T09:18:04+00:00"
+            "time": "2025-06-19T12:33:29+00:00"
         },
         {
             "name": "w7corp/easywechat",
@@ -17114,12 +17114,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "7dacc91c92dcf3b81a600376d2a2f693eff91e35"
+                "reference": "e3520a4c9a252831ae009f8bf79a8d2a32ba4936"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/7dacc91c92dcf3b81a600376d2a2f693eff91e35",
-                "reference": "7dacc91c92dcf3b81a600376d2a2f693eff91e35",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e3520a4c9a252831ae009f8bf79a8d2a32ba4936",
+                "reference": "e3520a4c9a252831ae009f8bf79a8d2a32ba4936",
                 "shasum": ""
             },
             "conflict": {
@@ -17703,7 +17703,7 @@
                 "processwire/processwire": "<=3.0.229",
                 "propel/propel": ">=2.0.0.0-alpha1,<=2.0.0.0-alpha7",
                 "propel/propel1": ">=1,<=1.7.1",
-                "pterodactyl/panel": "<1.11.8",
+                "pterodactyl/panel": "<=1.11.10",
                 "ptheofan/yii2-statemachine": ">=2.0.0.0-RC1-dev,<=2",
                 "ptrofimov/beanstalk_console": "<1.7.14",
                 "pubnub/pubnub": "<6.1",
@@ -18060,7 +18060,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-18T19:04:39+00:00"
+            "time": "2025-06-19T20:06:27+00:00"
         },
         {
             "name": "sebastian/cli-parser",
