@@ -128,5 +128,5 @@ interface TaskRepositoryInterface
      */
     public function getTaskCountByTopicId(int $topicId): int;
 
-    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = '');
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = ''): int;
 }
