@@ -334,7 +334,7 @@ class TaskRepository implements TaskRepositoryInterface
             ->count();
     }
 
-    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = '')
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = ''): int
     {
         return $this->model::query()
             ->whereIn('sandbox_id', $sandboxIds)
