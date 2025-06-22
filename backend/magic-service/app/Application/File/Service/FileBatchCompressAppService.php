@@ -61,6 +61,7 @@ class FileBatchCompressAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly FileDomainService $fileDomainService,
         private readonly FileBatchStatusManager $statusManager,
+        private readonly FileCleanupAppService $fileCleanupAppService,
     ) {
         $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('FileBatchCompress');
     }
@@ -887,6 +888,14 @@ class FileBatchCompressAppService extends AbstractAppService
                 'used_chunks' => $chunkUploadFile->shouldUseChunkUpload(),
             ]);
 
+            // Register file cleanup: automatically delete after 2 hours
+            $this->registerFileForCleanup(
+                $organizationCode,
+                $chunkUploadFile->getKey(),
+                $zipFileName,
+                $fileSize
+            );
+
             return [
                 'success' => true,
                 'file_key' => $chunkUploadFile->getKey(),
@@ -922,6 +931,48 @@ class FileBatchCompressAppService extends AbstractAppService
                 'error' => $e->getMessage(),
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Register file for cleanup.
+     */
+    private function registerFileForCleanup(
+        string $organizationCode,
+        string $fileKey,
+        string $fileName,
+        int $fileSize
+    ): void {
+        try {
+            $success = $this->fileCleanupAppService->registerFileForCleanup(
+                organizationCode: $organizationCode,
+                fileKey: $fileKey,
+                fileName: $fileName,
+                fileSize: $fileSize,
+                sourceType: 'batch_compress',
+                sourceId: null,
+                expireAfterSeconds: 7200, // Expires after 2 hours
+                bucketType: 'private'
+            );
+
+            if ($success) {
+                $this->logger->info('File cleanup registration successful', [
+                    'file_key' => $fileKey,
+                    'file_name' => $fileName,
+                    'organization_code' => $organizationCode,
+                ]);
+            } else {
+                $this->logger->warning('File cleanup registration failed', [
+                    'file_key' => $fileKey,
+                    'file_name' => $fileName,
+                    'organization_code' => $organizationCode,
+                ]);
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('File cleanup registration exception', [
+                'file_key' => $fileKey,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

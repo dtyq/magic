@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\TempDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckBatchDownloadResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateBatchDownloadResponseDTO;
@@ -28,8 +29,6 @@ use Psr\Log\LoggerInterface;
 
 class FileBatchAppService extends AbstractAppService
 {
-    public const string CompressDir = 'tmp/super_magic/batch/';
-
     protected LoggerInterface $logger;
 
     public function __construct(
@@ -66,7 +65,7 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Check topic access
-        $topicEntity = $this->topicDomainService->getTopicById((int)$requestDTO->getTopicId());
+        $topicEntity = $this->topicDomainService->getTopicById((int) $requestDTO->getTopicId());
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
@@ -253,7 +252,7 @@ class FileBatchAppService extends AbstractAppService
             $fileData,
             $workDir,
             $targetName,
-            self::CompressDir
+            TempDirectoryUtil::getCompressTempDir()
         );
 
         $publisher = new FileBatchCompressPublisher($event);
