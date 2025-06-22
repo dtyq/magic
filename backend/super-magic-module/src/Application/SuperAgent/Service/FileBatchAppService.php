@@ -87,7 +87,7 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Generate batch key
-        $batchKey = $this->generateBatchKey($fileIds, $userId);
+        $batchKey = $this->generateBatchKey($fileIds, $userId, $requestDTO->getTopicId());
 
         // Check if task already exists and completed
         $taskStatus = $this->statusManager->getTaskStatus($batchKey);
@@ -207,13 +207,14 @@ class FileBatchAppService extends AbstractAppService
      *
      * @param array $fileIds File ID array
      * @param string $userId User ID
+     * @param string $topicId Topic ID
      * @return string Batch key
      */
-    private function generateBatchKey(array $fileIds, string $userId): string
+    private function generateBatchKey(array $fileIds, string $userId, string $topicId): string
     {
         sort($fileIds);
-        $data = implode(',', $fileIds) . '|' . $userId;
-        return 'batch_' . substr(md5($data), 0, 16);
+        $data = implode(',', $fileIds) . '|' . $userId . '|' . $topicId;
+        return 'batch_' . md5($data);
     }
 
     /**
