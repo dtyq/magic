@@ -62,4 +62,14 @@ interface CloudFileRepositoryInterface
     public function getMetas(array $paths, string $organizationCode): array;
 
     public function getDefaultIconPaths(string $appId = 'open'): array;
+
+    /**
+     * Delete file from storage.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath File path to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @return bool True if deleted successfully, false otherwise
+     */
+    public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool;
 }

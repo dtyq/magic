@@ -28,7 +28,7 @@ readonly class FileDomainService
         $links = $this->cloudFileRepository->getLinks(CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE, array_values($paths), StorageBucketType::Public);
         $list = [];
         foreach ($links as $link) {
-            // 获取文件名称，不带后缀
+            // Get file name without extension
             $fileName = pathinfo($link->getPath(), PATHINFO_FILENAME);
             $list[$fileName] = $link->getUrl();
         }
@@ -125,5 +125,18 @@ readonly class FileDomainService
             }
         }
         return false;
+    }
+
+    /**
+     * Delete file from storage.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath File path to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @return bool True if deleted successfully, false otherwise
+     */
+    public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool
+    {
+        return $this->cloudFileRepository->deleteFile($organizationCode, $filePath, $bucketType);
     }
 }
