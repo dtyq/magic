@@ -27,6 +27,8 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Hyperf\Translation\trans;
+
 /**
  * Handle User Message Application Service
  * Responsible for handling the complete business process of users sending messages to agents.
@@ -77,7 +79,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: $topicEntity->getCurrentTaskId() ?? '0',
                 chatTopicId: $dto->getChatTopicId(),
                 chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: '任务已终止'
+                interruptReason: $dto->getPrompt() ?: trans('agent.agent_stopped')
             );
         }
     }
@@ -158,7 +160,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: $taskId,
                 chatTopicId: $dto->getChatTopicId(),
                 chatConversationId: $dto->getChatConversationId(),
-                errorMessage: 'Initialize task failed'
+                errorMessage: trans('agent.initialize_error')
             );
             throw new BusinessException('Initialize task failed', 500);
         }
