@@ -68,12 +68,12 @@ class CreateBatchDownloadRequestDTO
         $topicId = $requestData['topic_id'] ?? '';
 
         // Validation for topic_id
-        if (!is_string($topicId)) {
+        if (! is_string($topicId)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOPIC_ID_INVALID);
         }
 
         // Validation for file_ids
-        if (!is_array($fileIds)) {
+        if (! is_array($fileIds)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_INVALID);
         }
 
@@ -83,7 +83,7 @@ class CreateBatchDownloadRequestDTO
         }
 
         // If file_ids is provided, validate it
-        if (!empty($fileIds)) {
+        if (! empty($fileIds)) {
             if (count($fileIds) > 50) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
             }

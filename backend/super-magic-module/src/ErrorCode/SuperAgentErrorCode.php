@@ -17,7 +17,7 @@ use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
  * - Task: 51100-51149 (50个)
  * - File: 51150-51199 (50个)
  * - Reserved1: 51200-51249 (50个)
- * - Reserved2: 51250-51299 (50个)
+ * - Reserved2: 51250-51299 (50个).
  */
 enum SuperAgentErrorCode: int
 {

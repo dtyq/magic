@@ -46,7 +46,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         $filePaths = array_filter($filePaths);
 
         if ($bucketType === null) {
-            // 如果没有存储桶，进行一次自动归类
+            // If no storage bucket, perform automatic classification
             $publicStorageKey = md5(StorageBucketType::Public->value);
             $publicFilePaths = [];
 
@@ -62,7 +62,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 } elseif (Str::contains($filePath, $privateStorageKey)) {
                     $privateFilePaths[] = $filePath;
                 } else {
-                    // 兜底私有桶
+                    // Fallback to private bucket
                     $privateFilePaths[] = $filePath;
                 }
             }
@@ -88,13 +88,13 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 $defaultIconPaths[] = $filePath;
                 continue;
             }
-            // 如果不是组织开头的文件，忽略
+            // If file doesn't start with organization code, ignore
             if (! Str::startsWith($filePath, $organizationCode)) {
                 continue;
             }
             $paths[] = $filePath;
         }
-        // 临时提高下载链接有效期
+        // Temporarily increase download link validity period
         $expires = 60 * 60 * 24;
         if (! empty($defaultIconPaths)) {
             $defaultIconLinks = $this->cloudFile->get(StorageBucketType::Public->value)->getLinks($defaultIconPaths, [], $expires, $this->getOptions(self::DEFAULT_ICON_ORGANIZATION_CODE, $options));
@@ -121,7 +121,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         $credentialPolicy = new CredentialPolicy([
             'sts' => false,
             'role_session_name' => 'magic',
-            // 采用在文件路径中增加配置名的形式后续获取链接时自动识别
+            // Use configuration name in file path for automatic recognition when getting links later
             'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
             'content_type' => $contentType,
         ]);
@@ -231,7 +231,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         $credentialPolicy = new CredentialPolicy([
             'sts' => $sts,
             'role_session_name' => 'magic',
-            // 采用在文件路径中增加配置名的形式后续获取链接时自动识别
+            // Use configuration name in file path for automatic recognition when getting links later
             'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
             'content_type' => $contentType,
         ]);
@@ -275,6 +275,37 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         return array_map(static function ($file) use ($localPath, $appId) {
             return str_replace([BASE_PATH . '/storage/files/', $localPath], ['', self::DEFAULT_ICON_ORGANIZATION_CODE . '/' . $appId . '/default'], $file);
         }, $files);
+    }
+
+    /**
+     * Delete file from storage.
+     */
+    public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool
+    {
+        try {
+            // Validate if file path starts with organization code (security check)
+            if (! Str::startsWith($filePath, $organizationCode)) {
+                $this->logger->warning('File deletion failed: file path does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'file_path' => $filePath,
+                ]);
+                return false;
+            }
+
+            // Call cloudfile's destroy method to delete file
+            $this->cloudFile->get($bucketType->value)->destroy([$filePath], $this->getOptions($organizationCode));
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->error('File deletion exception', [
+                'organization_code' => $organizationCode,
+                'file_path' => $filePath,
+                'bucket_type' => $bucketType->value,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
     }
 
     protected function getOptions(string $organizationCode, array $options = []): array
