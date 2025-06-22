@@ -10,8 +10,6 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 
 /**
  * Sandbox Gateway Interface
@@ -20,42 +18,10 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 interface SandboxGatewayInterface
 {
     /**
-     * Create sandbox.
+     * 创建沙箱.
      *
-     * @param SandboxStruct $struct Sandbox configuration parameters
-     * @return SandboxResult Creation result, success when data contains sandbox_id
-     */
-    public function create(SandboxStruct $struct): SandboxResult;
-
-    /**
-     * Get sandbox status.
-     *
-     * @param string $sandboxId Sandbox ID
-     * @return SandboxResult Sandbox status result
-     */
-    public function getStatus(string $sandboxId): SandboxResult;
-
-    /**
-     * Destroy sandbox.
-     *
-     * @param string $sandboxId Sandbox ID
-     * @return SandboxResult Destruction result
-     */
-    public function destroy(string $sandboxId): SandboxResult;
-
-    /**
-     * Get WebSocket URL for sandbox.
-     *
-     * @param string $sandboxId Sandbox ID
-     * @return string WebSocket URL
-     */
-    public function getWebsocketUrl(string $sandboxId): string;
-
-    /**
-     * Create sandbox.
-     *
-     * @param array $config Sandbox configuration parameters
-     * @return GatewayResult Creation result, success when data contains sandbox_id
+     * @param array $config 沙箱配置参数
+     * @return GatewayResult 创建结果，成功时data包含sandbox_id
      */
     public function createSandbox(array $config = []): GatewayResult;
 

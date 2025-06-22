@@ -19,7 +19,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -217,6 +216,9 @@ class HandleUserMessageAppService extends AbstractAppService
 
         // Initialize agent
         $this->agentAppService->initializeAgent($dataIsolation, $taskContext);
+
+        // Wait for workspace to be ready
+        $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
         $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);

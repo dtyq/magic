@@ -7,20 +7,53 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS;
 
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\AbstractSandbox;
+use GuzzleHttp\Client;
 use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
 
 /**
  * SandboxOS Base Abstract Class
  * Provides shared infrastructure for SandboxOS Gateway and Agent modules.
+ * This class is independent and does not depend on the Sandbox package.
  */
-abstract class AbstractSandboxOS extends AbstractSandbox
+abstract class AbstractSandboxOS
 {
+    protected Client $client;
+
+    protected LoggerInterface $logger;
+
+    protected string $baseUrl = '';
+
+    protected string $token = '';
+
+    protected bool $enableSandbox = true;
+
     public function __construct(LoggerFactory $loggerFactory)
     {
-        parent::__construct($loggerFactory);
+        $this->logger = $loggerFactory->get('sandbox');
         // Initialize HTTP client
         $this->initializeClient();
+    }
+
+    /**
+     * Initialize HTTP client with configuration.
+     */
+    protected function initializeClient(): void
+    {
+        $this->baseUrl = config('super-magic.sandbox.gateway', '');
+        $this->token = config('super-magic.sandbox.token', '');
+        $this->enableSandbox = config('super-magic.sandbox.enabled', true);
+
+        if (empty($this->baseUrl)) {
+            throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set');
+        }
+
+        $this->client = new Client([
+            'base_uri' => $this->baseUrl,
+            'timeout' => 30,
+            'http_errors' => false,
+        ]);
     }
 
     /**

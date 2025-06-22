@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxStruct;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
@@ -26,72 +24,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     public function __construct(LoggerFactory $loggerFactory)
     {
         parent::__construct($loggerFactory);
-    }
-
-    /**
-     * 实现SandboxInterface的create方法
-     * 兼容原有接口，内部调用新的createSandbox方法.
-     */
-    public function create(SandboxStruct $struct): SandboxResult
-    {
-        $config = $struct->toArray();
-        $result = $this->createSandbox($config);
-
-        // 转换为SandboxResult格式
-        return new SandboxResult(
-            $result->isSuccess(),
-            $result->getMessage(),
-            $result->getCode(),
-            null // SandboxData需要根据实际需要构造
-        );
-    }
-
-    /**
-     * 实现SandboxInterface的getStatus方法
-     * 兼容原有接口，内部调用新的getSandboxStatus方法.
-     */
-    public function getStatus(string $sandboxId): SandboxResult
-    {
-        $result = $this->getSandboxStatus($sandboxId);
-
-        // 转换为SandboxResult格式
-        return new SandboxResult(
-            $result->isSuccess(),
-            $result->getMessage(),
-            $result->getCode(),
-            null // SandboxData需要根据实际需要构造
-        );
-    }
-
-    /**
-     * 实现SandboxInterface的destroy方法
-     * 目前Gateway API文档中没有销毁接口，返回未实现错误.
-     */
-    public function destroy(string $sandboxId): SandboxResult
-    {
-        $this->logger->warning('[Sandbox][Gateway] Destroy method not implemented in Gateway API', [
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        return new SandboxResult(
-            false,
-            'Destroy method not implemented in Gateway API',
-            2000,
-            null
-        );
-    }
-
-    /**
-     * 实现SandboxInterface的getWebsocketUrl方法
-     * 目前Gateway API文档中没有WebSocket接口，返回空字符串.
-     */
-    public function getWebsocketUrl(string $sandboxId): string
-    {
-        $this->logger->warning('[Sandbox][Gateway] WebSocket URL not available in Gateway API', [
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        return '';
     }
 
     /**
