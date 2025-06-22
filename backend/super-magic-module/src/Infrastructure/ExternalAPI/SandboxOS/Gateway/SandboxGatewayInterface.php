@@ -26,7 +26,7 @@ interface SandboxGatewayInterface
     public function createSandbox(array $config = []): GatewayResult;
 
     /**
-     * Get single sandbox status
+     * Get single sandbox status.
      *
      * @param string $sandboxId Sandbox ID
      * @return SandboxStatusResult Sandbox status result
@@ -34,7 +34,7 @@ interface SandboxGatewayInterface
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult;
 
     /**
-     * Get batch sandbox status
+     * Get batch sandbox status.
      *
      * @param array $sandboxIds Sandbox ID list
      * @return BatchStatusResult Batch status result
