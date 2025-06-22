@@ -25,6 +25,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -51,6 +52,7 @@ class FileProcessAppService extends AbstractAppService
     public function __construct(
         private readonly MagicChatFileAppService $magicChatFileAppService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileAppService $fileAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
@@ -277,19 +279,19 @@ class FileProcessAppService extends AbstractAppService
                         continue;
                     }
 
-                    // 创建文件锁的key
+                    // Create file lock key
                     $fileLockKey = sprintf('file_process_lock:%s:%d', $attachment['file_key'], $topicId);
                     $lockOwner = IdGenerator::getUniqueId32();
                     $lockExpireSeconds = 30;
                     $lockAcquired = false;
 
                     try {
-                        // 尝试获取分布式锁
+                        // Attempt to acquire distributed lock
                         $lockAcquired = $this->locker->mutexLock($fileLockKey, $lockOwner, $lockExpireSeconds);
 
                         if (! $lockAcquired) {
                             $this->logger->warning(sprintf(
-                                '无法获取文件处理锁，文件Key: %s，话题ID: %d，沙箱ID: %s',
+                                'Unable to acquire file processing lock, File Key: %s, Topic ID: %d, Sandbox ID: %s',
                                 $attachment['file_key'],
                                 $topicId,
                                 $sandboxId
@@ -299,7 +301,7 @@ class FileProcessAppService extends AbstractAppService
                         }
 
                         $this->logger->debug(sprintf(
-                            '获取文件处理锁成功，文件Key: %s，话题ID: %d，锁所有者: %s',
+                            'Successfully acquired file processing lock, File Key: %s, Topic ID: %d, Lock Owner: %s',
                             $attachment['file_key'],
                             $topicId,
                             $lockOwner
@@ -352,7 +354,7 @@ class FileProcessAppService extends AbstractAppService
                         ));
                     } catch (Throwable $e) {
                         $this->logger->error(sprintf(
-                            '处理附件异常: %s, 文件Key: %s, 沙箱ID: %s',
+                            'Processing attachment exception: %s, File Key: %s, Sandbox ID: %s',
                             $e->getMessage(),
                             $attachment['file_key'],
                             $sandboxId
@@ -360,16 +362,16 @@ class FileProcessAppService extends AbstractAppService
                         ++$stats['error'];
                         $stats['files'][] = [
                             'file_key' => $attachment['file_key'],
-                            'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? '未知',
+                            'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown',
                             'status' => 'error',
                             'error' => $e->getMessage(),
                         ];
                     } finally {
-                        // 确保锁被释放
+                        // Ensure lock is released
                         if ($lockAcquired) {
                             $this->locker->release($fileLockKey, $lockOwner);
                             $this->logger->debug(sprintf(
-                                '释放文件处理锁，文件Key: %s，话题ID: %d，锁所有者: %s',
+                                'Released file processing lock, File Key: %s, Topic ID: %d, Lock Owner: %s',
                                 $attachment['file_key'],
                                 $topicId,
                                 $lockOwner
@@ -378,7 +380,7 @@ class FileProcessAppService extends AbstractAppService
                     }
                 } catch (Throwable $e) {
                     $this->logger->error(sprintf(
-                        '处理附件异常: %s, 文件Key: %s, 沙箱ID: %s',
+                        'Processing attachment exception: %s, File Key: %s, Sandbox ID: %s',
                         $e->getMessage(),
                         $attachment['file_key'],
                         $sandboxId
@@ -386,7 +388,7 @@ class FileProcessAppService extends AbstractAppService
                     ++$stats['error'];
                     $stats['files'][] = [
                         'file_key' => $attachment['file_key'],
-                        'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? '未知',
+                        'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown',
                         'status' => 'error',
                         'error' => $e->getMessage(),
                     ];
@@ -461,7 +463,6 @@ class FileProcessAppService extends AbstractAppService
      * @param MagicUserAuthorization $authorization User authorization
      * @return array Response data
      */
-    #[RateLimit(create: 30, consume: 1, capacity: 10, waitTimeout: 3)]
     public function saveFileContent(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
     {
         $fileId = $requestDTO->getFileId();
@@ -518,7 +519,7 @@ class FileProcessAppService extends AbstractAppService
             $topic->setWorkspaceCommitHash($requestDTO->getCommitHash());
         }
 
-        // 新增 workspace version 记录
+        // Add new workspace version record
         $versionEntity = new WorkspaceVersionEntity();
         $versionEntity->setId(IdGenerator::getSnowId());
         $versionEntity->setTopicId((int) $topic->getId());
@@ -549,7 +550,7 @@ class FileProcessAppService extends AbstractAppService
 
             $this->logger->debug(sprintf('Lock acquired for topic %s by %s', $topic->getId(), $lockOwner));
 
-            // 使用事务确保 topic 更新和 workspace version 创建的原子性
+            // Use transaction to ensure atomicity of topic update and workspace version creation
             Db::transaction(function () use ($topic, $versionEntity) {
                 $bool = $this->topicDomainService->updateTopicWhereUpdatedAt($topic, $topic->getUpdatedAt());
                 if (! $bool) {
@@ -562,7 +563,7 @@ class FileProcessAppService extends AbstractAppService
             return ['success' => true];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                '新增 workspace version 记录失败: %s，话题ID: %s，沙箱ID: %s',
+                'Failed to add workspace version record: %s, Topic ID: %s, Sandbox ID: %s',
                 $e->getMessage(),
                 $topic->getId(),
                 $requestDTO->getSandboxId()
@@ -575,6 +576,29 @@ class FileProcessAppService extends AbstractAppService
                 $this->logger->debug(sprintf('Lock released for topic %s by %s', $topic->getId(), $lockOwner));
             }
         }
+    }
+
+    public function getFilesWithUrl(DataIsolation $dataIsolation, array $fileIds): array
+    {
+        $taskFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $dataIsolation->getCurrentUserId());
+        $files = [];
+        foreach ($taskFiles as $taskFile) {
+            $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey());
+            if (empty($fileLink)) {
+                // If URL retrieval fails, skip
+                continue;
+            }
+            $files[] = [
+                'file_extension' => $taskFile->getFileExtension(),
+                'file_key' => $taskFile->getFileKey(),
+                'file_size' => $taskFile->getFileSize(),
+                'filename' => $taskFile->getFileName(),
+                'display_filename' => $taskFile->getFileName(),
+                'file_tag' => $taskFile->getFileType(),
+                'file_url' => $fileLink->getUrl(),
+            ];
+        }
+        return $files;
     }
 
     /**
@@ -770,7 +794,7 @@ class FileProcessAppService extends AbstractAppService
             $fullFileKey = "{$organizationCode}/{$appId}/{$md5Key}" . '/' . trim($workDir, '/') . '/' . ltrim($fileKey, '/');
 
             // 1. Check if file already exists
-            $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey,$topicId);
+            $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey, $topicId);
             if ($existingFile) {
                 $this->logger->info(sprintf(
                     'File already exists, returning existing file ID: %d, File key: %s',
