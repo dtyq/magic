@@ -458,6 +458,7 @@ class MagicChatHttpApi extends AbstractApi
             $historyMessages = $this->magicChatMessageAppService->getConversationChatCompletionsHistory(
                 $authorization,
                 $conversationId,
+                '',
                 20,
                 $topicId
             );
