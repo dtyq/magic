@@ -126,7 +126,7 @@ class TaskApi extends AbstractApi
 
         // 构建options参数
         $options = [];
-        if (!$dto->getCache()) {
+        if (! $dto->getCache()) {
             $options['cache'] = false;
         }
 
