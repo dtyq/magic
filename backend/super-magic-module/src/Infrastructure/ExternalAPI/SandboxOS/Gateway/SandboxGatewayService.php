@@ -137,8 +137,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
 
         try {
-            // 根据沙箱通信文档，批量查询使用GET请求但需要JSON请求体
-            $response = $this->client->request('GET', $this->buildApiPath('api/v1/sandboxes/queries'), [
+            $response = $this->client->post($this->buildApiPath('api/v1/sandboxes/queries'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => ['sandbox_ids' => $sandboxIds],
                 'timeout' => 15,
