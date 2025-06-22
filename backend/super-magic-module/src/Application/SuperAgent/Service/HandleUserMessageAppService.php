@@ -150,7 +150,7 @@ class HandleUserMessageAppService extends AbstractAppService
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Failed to get topic information: %s, User: %s',
+                'handleChatMessage Error: %s, User: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId()
             ));
@@ -194,7 +194,7 @@ class HandleUserMessageAppService extends AbstractAppService
         $result = $this->agentAppService->getBatchSandboxStatus($sandboxIds);
         foreach ($result->getSandboxStatuses() as $sandboxStatus) {
             if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
-                $updateSandboxIds[] = $sandboxStatus['sandboxId'];
+                $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
             }
         }
         // Update topic status
