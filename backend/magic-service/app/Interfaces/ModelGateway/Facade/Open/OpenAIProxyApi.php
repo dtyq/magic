@@ -16,6 +16,7 @@ use App\Domain\ModelGateway\Entity\Dto\SpeechToTextDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -129,8 +130,10 @@ class OpenAIProxyApi extends AbstractOpenApi
             ExceptionBuilder::throw(AsrErrorCode::InvalidAudioUrl);
         }
 
+        $safeUrl = SSRFUtil::getSafeUrl($audioUrl, replaceIp: false);
+
         $speechToTextDTO = new SpeechToTextDTO();
-        $speechToTextDTO->setAudioUrl($audioUrl);
+        $speechToTextDTO->setAudioUrl($safeUrl);
         $speechToTextDTO->setAccessToken($this->getAccessToken());
         $speechToTextDTO->setIps($this->getClientIps());
 
