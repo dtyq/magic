@@ -1978,16 +1978,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.5",
+            "version": "v0.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "e6ca04406850aab0239800429bccf44d43dbe2bf"
+                "reference": "029509e2bdeafe377c0326e0aa1f8a08f033d508"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/e6ca04406850aab0239800429bccf44d43dbe2bf",
-                "reference": "e6ca04406850aab0239800429bccf44d43dbe2bf",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/029509e2bdeafe377c0326e0aa1f8a08f033d508",
+                "reference": "029509e2bdeafe377c0326e0aa1f8a08f033d508",
                 "shasum": ""
             },
             "require": {
@@ -2048,9 +2048,9 @@
             "description": "Package description here.",
             "support": {
                 "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.5"
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.6"
             },
-            "time": "2025-06-18T07:12:20+00:00"
+            "time": "2025-06-23T13:35:43+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.43",
+            "version": "0.0.44",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "f72398c12e514a2c2b5e7815c7575a87a1e0d094"
+                "reference": "4ef4f0b66384c43100abd15f1fd83da652d3efbb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f72398c12e514a2c2b5e7815c7575a87a1e0d094",
-                "reference": "f72398c12e514a2c2b5e7815c7575a87a1e0d094",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4ef4f0b66384c43100abd15f1fd83da652d3efbb",
+                "reference": "4ef4f0b66384c43100abd15f1fd83da652d3efbb",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.43"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.44"
             },
-            "time": "2025-06-20T14:44:10+08:00"
+            "time": "2025-06-23T13:14:58+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2567,16 +2567,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.43",
+            "version": "v0.0.45",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "f0a76ca2e9cbdf4bfb20350df2279bdd1ab60bb8"
+                "reference": "9b6879667065335d4d5a69c2201609786c626536"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/f0a76ca2e9cbdf4bfb20350df2279bdd1ab60bb8",
-                "reference": "f0a76ca2e9cbdf4bfb20350df2279bdd1ab60bb8",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/9b6879667065335d4d5a69c2201609786c626536",
+                "reference": "9b6879667065335d4d5a69c2201609786c626536",
                 "shasum": ""
             },
             "require": {
@@ -2668,10 +2668,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.43",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.45",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-06-18T14:07:49+00:00"
+            "time": "2025-06-23T13:35:43+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
