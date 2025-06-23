@@ -198,6 +198,7 @@ class FilesystemProxy extends Filesystem
         $unCachePaths = $paths;
         if ($isCache) {
             foreach ($paths as $path) {
+                unset($options['cache']);
                 $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));
                 if ($data = $this->getCache($cacheKey)) {
                     if ($data instanceof FileLink) {
