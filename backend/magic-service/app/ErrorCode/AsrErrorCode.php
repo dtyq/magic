@@ -23,21 +23,27 @@ enum AsrErrorCode: int
     #[ErrorMessage(message: 'asr.driver_error.driver_not_found')]
     case DriverNotFound = 43008;
 
-    #[ErrorMessage(message: 'asr.invalid_audio')]
+    #[ErrorMessage(message: 'asr.audio_error.invalid_audio')]
     case InvalidAudioFormat = 43012;
 
-    #[ErrorMessage(message: 'asr.recognize_error')]
+    #[ErrorMessage(message: 'asr.recognition_error.recognize_error')]
     case RecognitionError = 43022;
 
-    #[ErrorMessage(message: 'asr.websocket_connection_failed')]
+    #[ErrorMessage(message: 'asr.connection_error.websocket_connection_failed')]
     case WebSocketConnectionFailed = 43100;
 
-    #[ErrorMessage(message: 'asr.file_not_found')]
+    #[ErrorMessage(message: 'asr.file_error.file_not_found')]
     case FileNotFound = 43101;
 
-    #[ErrorMessage(message: 'asr.file_open_failed')]
+    #[ErrorMessage(message: 'asr.file_error.file_open_failed')]
     case FileOpenFailed = 43102;
 
-    #[ErrorMessage(message: 'asr.file_read_failed')]
+    #[ErrorMessage(message: 'asr.file_error.file_read_failed')]
     case FileReadFailed = 43103;
+
+    #[ErrorMessage(message: 'asr.invalid_audio_url')]
+    case InvalidAudioUrl = 43104;
+
+    #[ErrorMessage(message: 'asr.audio_url_required')]
+    case AudioUrlRequired = 43105;
 }
