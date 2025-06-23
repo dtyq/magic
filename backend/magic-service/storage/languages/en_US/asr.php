@@ -42,6 +42,8 @@ return [
         'file_open_failed' => 'Failed to open audio file',
         'file_read_failed' => 'Failed to read audio file',
     ],
+    'invalid_audio_url' => 'Invalid audio URL format',
+    'audio_url_required' => 'Audio URL is required',
     'processing_error' => [
         'decompression_failed' => 'Failed to decompress payload',
         'json_decode_failed' => 'Failed to decode JSON',

@@ -42,6 +42,8 @@ return [
         'file_open_failed' => '无法打开音频文件',
         'file_read_failed' => '读取音频文件失败',
     ],
+    'invalid_audio_url' => '音频URL格式无效',
+    'audio_url_required' => '音频URL不能为空',
     'processing_error' => [
         'decompression_failed' => '解压失败',
         'json_decode_failed' => 'JSON解码失败',
