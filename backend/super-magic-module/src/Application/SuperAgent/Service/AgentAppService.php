@@ -24,6 +24,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\Interrupt
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -87,7 +88,7 @@ class AgentAppService
 
         $result = $this->gateway->getSandboxStatus($sandboxId);
 
-        if (! $result->isSuccess()) {
+        if (! $result->isSuccess() && $result->getCode() !== ResponseCode::NOT_FOUND) {
             $this->logger->error('[Sandbox][App] Failed to get sandbox status', [
                 'sandbox_id' => $sandboxId,
                 'error' => $result->getMessage(),
@@ -119,7 +120,7 @@ class AgentAppService
 
         $result = $this->gateway->getBatchSandboxStatus($sandboxIds);
 
-        if (! $result->isSuccess()) {
+        if (! $result->isSuccess() && $result->getCode() !== ResponseCode::NOT_FOUND) {
             $this->logger->error('[Sandbox][App] Failed to get batch sandbox status', [
                 'sandbox_ids' => $sandboxIds,
                 'error' => $result->getMessage(),
