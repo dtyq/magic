@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
@@ -76,7 +78,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
-        $this->logger->debug('[Sandbox][Gateway] Getting sandbox status', ['sandbox_id' => $sandboxId]);
+        $this->logger->info('[Sandbox][Gateway] Getting sandbox status', ['sandbox_id' => $sandboxId]);
 
         try {
             $response = $this->client->get($this->buildApiPath("api/v1/sandboxes/{$sandboxId}"), [
@@ -87,11 +89,16 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $responseData = json_decode($response->getBody()->getContents(), true);
             $result = SandboxStatusResult::fromApiResponse($responseData);
 
-            $this->logger->debug('[Sandbox][Gateway] Sandbox status retrieved', [
+            $this->logger->info('[Sandbox][Gateway] Sandbox status retrieved', [
                 'sandbox_id' => $sandboxId,
                 'status' => $result->getStatus(),
                 'success' => $result->isSuccess(),
             ]);
+
+            if ($result->getCode() === ResponseCode::NOT_FOUND) {
+                $result->setStatus(SandboxStatus::NOT_FOUND);
+                $result->setSandboxId($sandboxId);
+            }
 
             return $result;
         } catch (GuzzleException $e) {

@@ -59,6 +59,24 @@ class SandboxStatusResult extends GatewayResult
     }
 
     /**
+     * 设置沙箱ID.
+     */
+    public function setSandboxId(?string $sandboxId): self
+    {
+        $this->sandboxId = $sandboxId;
+        return $this;
+    }
+
+    /**
+     * 设置沙箱状态
+     */
+    public function setStatus(?string $status): self
+    {
+        $this->status = $status;
+        return $this;
+    }
+
+    /**
      * 检查沙箱是否运行中.
      */
     public function isRunning(): bool
