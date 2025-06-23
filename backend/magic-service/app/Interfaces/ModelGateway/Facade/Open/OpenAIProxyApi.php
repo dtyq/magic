@@ -8,10 +8,14 @@ declare(strict_types=1);
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Application\ModelGateway\Service\SpeechToTextAppService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
+use App\Domain\ModelGateway\Entity\Dto\SpeechToTextDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -23,6 +27,9 @@ class OpenAIProxyApi extends AbstractOpenApi
 {
     #[Inject]
     protected LLMAppService $llmAppService;
+
+    #[Inject]
+    protected SpeechToTextAppService $speechToTextAppService;
 
     public function chatCompletions(RequestInterface $request)
     {
@@ -105,5 +112,30 @@ class OpenAIProxyApi extends AbstractOpenApi
         $imageEditDTO->valid();
 
         return $this->llmAppService->imageEdit($imageEditDTO);
+    }
+
+    /**
+     * Speech to text transcription API.
+     */
+    public function audioTranscriptions(RequestInterface $request)
+    {
+        $audioUrl = $request->input('audio_url');
+
+        if (empty($audioUrl)) {
+            ExceptionBuilder::throw(AsrErrorCode::AudioUrlRequired);
+        }
+
+        if (! filter_var($audioUrl, FILTER_VALIDATE_URL)) {
+            ExceptionBuilder::throw(AsrErrorCode::InvalidAudioUrl);
+        }
+
+        $speechToTextDTO = new SpeechToTextDTO();
+        $speechToTextDTO->setAudioUrl($audioUrl);
+        $speechToTextDTO->setAccessToken($this->getAccessToken());
+        $speechToTextDTO->setIps($this->getClientIps());
+
+        $result = $this->speechToTextAppService->convertSpeechToText($speechToTextDTO);
+
+        return ['text' => $result['text'] ?? ''];
     }
 }
