@@ -57,7 +57,7 @@ class HandleUserMessageAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         // Get task information
-        $taskEntity = $this->taskDomainService->getTaskByTaskId((string) $topicEntity->getCurrentTaskId());
+        $taskEntity = $this->taskDomainService->getTaskById($topicEntity->getCurrentTaskId());
         if (is_null($taskEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
         }
