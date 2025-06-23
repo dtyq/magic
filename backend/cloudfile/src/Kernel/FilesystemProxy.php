@@ -195,10 +195,10 @@ class FilesystemProxy extends Filesystem
             return $list;
         }
         $isCache = (bool) ($options['cache'] ?? true);
+        unset($options['cache']);
         $unCachePaths = $paths;
         if ($isCache) {
             foreach ($paths as $path) {
-                unset($options['cache']);
                 $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));
                 if ($data = $this->getCache($cacheKey)) {
                     if ($data instanceof FileLink) {
@@ -227,10 +227,8 @@ class FilesystemProxy extends Filesystem
                     $this->publicDomain = $noSignUrlParsed['scheme'] . '://' . $noSignUrlParsed['host'] . $port;
                 }
                 $list[$path] = $data;
-                if ($isCache) {
-                    $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));
-                    $this->setCache($cacheKey, $data, $expires - 60);
-                }
+                $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));
+                $this->setCache($cacheKey, $data, $expires - 60);
             }
         }
         return $list;
