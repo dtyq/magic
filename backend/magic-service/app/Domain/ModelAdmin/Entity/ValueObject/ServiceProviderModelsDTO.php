@@ -43,6 +43,8 @@ class ServiceProviderModelsDTO extends AbstractEntity
 
     protected array $visibleOrganizations = [];
 
+    protected array $visibleApplications = [];
+
     public function getDisabledBy(): ?string
     {
         return $this->disabledBy;
@@ -210,5 +212,15 @@ class ServiceProviderModelsDTO extends AbstractEntity
     public function setVisibleOrganizations(array $visibleOrganizations): void
     {
         $this->visibleOrganizations = $visibleOrganizations;
+    }
+
+    public function getVisibleApplications(): array
+    {
+        return $this->visibleApplications;
+    }
+
+    public function setVisibleApplications(array $visibleApplications): void
+    {
+        $this->visibleApplications = $visibleApplications;
     }
 }

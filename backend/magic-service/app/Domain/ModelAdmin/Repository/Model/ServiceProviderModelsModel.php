@@ -34,6 +34,7 @@ class ServiceProviderModelsModel extends Model
         'translate',
         'organization_code',
         'visible_organizations',
+        'visible_applications',
         'is_office',
         'created_at',
         'updated_at',
