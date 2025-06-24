@@ -129,7 +129,6 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                 ));
                 return Result::REQUEUE;
             }
-
             $this->logger->info(sprintf(
                 '已获取sandbox %s的锁，持有者: %s，开始处理消息，原始接收秒级时间: %d (%s), message_id: %s',
                 $sandboxId,

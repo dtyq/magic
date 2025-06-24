@@ -153,7 +153,7 @@ class ImageGenerateFactory
     private static function createAzureOpenAIImageEditRequest(array $data): AzureOpenAIImageEditRequest
     {
         $request = new AzureOpenAIImageEditRequest();
-        $request->setPrompt($data['user_prompt'] ?? $data['prompt'] ?? '');
+        $request->setPrompt($data['user_prompt']);
 
         // Handle image URLs from different sources
         if (isset($data['reference_images']) && is_array($data['reference_images'])) {

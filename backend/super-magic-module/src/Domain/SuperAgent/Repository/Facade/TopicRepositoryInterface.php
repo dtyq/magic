@@ -86,4 +86,6 @@ interface TopicRepositoryInterface
      * @return array<TopicEntity> 话题实体列表
      */
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array;
+
+    public function updateTopicStatusBySandboxIds(array $sandboxIds, string $status);
 }

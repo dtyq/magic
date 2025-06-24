@@ -18,6 +18,7 @@ use App\Domain\Chat\Entity\ValueObject\PlatformRootDepartmentId;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\DTO\FriendQueryDTO;
 use App\Domain\Contact\DTO\UserQueryDTO;
+use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\AddFriendType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -304,6 +305,25 @@ class MagicUserContactAppService extends AbstractAppService
             ExceptionBuilder::throw(ChatErrorCode::LOGIN_FAILED);
         }
         return $magicEnvironmentEntity;
+    }
+
+    /**
+     * 是否允许更新用户信息.
+     */
+    public function getUserUpdatePermission(MagicUserAuthorization $userAuthorization): bool
+    {
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        return $this->userDomainService->getUserUpdatePermission($dataIsolation);
+    }
+
+    /**
+     * 更新用户信息.
+     */
+    public function updateUserInfo(MagicUserAuthorization $userAuthorization, UserUpdateDTO $userUpdateDTO): MagicUserEntity
+    {
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $this->userDomainService->updateUserInfo($dataIsolation, $userUpdateDTO);
+        return $this->getByUserId($dataIsolation->getCurrentUserId());
     }
 
     /**

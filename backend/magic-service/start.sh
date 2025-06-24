@@ -15,23 +15,6 @@ php "${bin}" migrate --force
 # 执行扩展包迁移
 php "${bin}" migrate:vendor
 
-# 检查是否已经初始化过
-if [ ! -f "${base_dirname}/.initialized" ]; then
-    echo "Initializing magic-service for the first time..."
-    
-    # 执行 composer update
-    cd ${base_dirname}
-    
-    # 执行数据库种子
-    php "${bin}" db:seed
-    
-    # 创建标记文件，表示已经初始化过
-    touch ${base_dirname}/.initialized
-    echo "Initialization completed!"
-else
-    echo "magic-service has already been initialized, skipping..."
-fi 
-
 # 执行seeders
 #php "${bin}" db:seed
 

@@ -107,7 +107,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelConfigEntity = new ModelConfigEntity();
 
-            // Determine object type based on model type
+            // Determine object type based on model class name
             $isImageModel = $model instanceof ImageGenerationModel;
             $objectType = $isImageModel ? 'image' : 'model';
 

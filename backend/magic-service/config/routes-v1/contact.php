@@ -8,6 +8,7 @@ use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Chat\Facade\MagicChatAdminContactApi;
 use App\Interfaces\Chat\Facade\MagicChatHttpApi;
 use App\Interfaces\Chat\Facade\MagicChatUserApi;
+use App\Interfaces\Contact\Facade\MagicUserSettingApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 通讯录
@@ -16,12 +17,23 @@ Router::addGroup('/api/v1/contact', static function () {
     Router::addGroup('/users', static function () {
         // 用户所在群组列表
         Router::get('/self/groups', [MagicChatHttpApi::class, 'getUserGroupList']);
+        // 更新用户信息
+        Router::patch('/me', [MagicChatUserApi::class, 'updateUserInfo']);
+        // 是否允许更新用户信息
+        Router::get('/me/update-permission', [MagicChatUserApi::class, 'getUserUpdatePermission']);
         // 按用户 id 批量查询
         Router::post('/queries', [MagicChatAdminContactApi::class, 'userGetByIds']);
         // 按手机号/昵称等查询
         Router::get('/search', [MagicChatAdminContactApi::class, 'searchForSelect']);
         // 设置隐藏用户
         Router::put('/visibility', [MagicChatAdminContactApi::class, 'updateUsersOptionByIds']);
+
+        // 用户设置相关
+        Router::addGroup('/setting', static function () {
+            Router::post('', [MagicUserSettingApi::class, 'save']);
+            Router::get('/{key}', [MagicUserSettingApi::class, 'get']);
+            Router::post('/queries', [MagicUserSettingApi::class, 'queries']);
+        });
     });
 
     // 部门相关
