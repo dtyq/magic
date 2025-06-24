@@ -21,6 +21,8 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected string $modelId;
 
+    protected array $visibleApplications;
+
     public function getModelId(): string
     {
         return $this->modelId;
@@ -30,8 +32,6 @@ class UpdateConsumerModel extends AbstractEntity
     {
         $this->modelId = $modelId;
     }
-
-    protected array $visibleApplications;
 
     public function getName(): string
     {
