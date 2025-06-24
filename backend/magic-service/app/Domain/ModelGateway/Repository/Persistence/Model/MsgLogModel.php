@@ -39,6 +39,7 @@ class MsgLogModel extends Model
         'business_id',
         'source_id',
         'user_name',
+        'access_token_id',
         'created_at',
     ];
 
@@ -53,6 +54,7 @@ class MsgLogModel extends Model
         'business_id' => 'string',
         'source_id' => 'string',
         'user_name' => 'string',
+        'access_token_id' => 'string',
         'created_at' => 'datetime',
     ];
 }

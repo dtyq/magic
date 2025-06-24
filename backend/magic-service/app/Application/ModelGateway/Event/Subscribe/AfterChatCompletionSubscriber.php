@@ -49,17 +49,20 @@ class AfterChatCompletionSubscriber implements ListenerInterface
             );
         }
 
-        $modelId = $completionRequest->getModel();
+        $modelVersion = $completionRequest->getModel();
         $businessParams = $completionRequest->getBusinessParams();
+        $modelId = empty($businessParams['model_id']) ? $modelVersion : $businessParams['model_id'];
 
         $chatUsageEvent = new ModelUsageEvent(
             modelType: ModelType::CHAT,
             modelId: $modelId,
+            modelVersion: $modelVersion,
             usage: $usage,
             organizationCode: $businessParams['organization_id'] ?? '',
             userId: $businessParams['user_id'] ?? '',
             appId: $businessParams['app_id'] ?? '',
             serviceProviderModelId: $businessParams['service_provider_model_id'] ?? '',
+            businessParams: $businessParams,
         );
 
         AsyncEventUtil::dispatch($chatUsageEvent);

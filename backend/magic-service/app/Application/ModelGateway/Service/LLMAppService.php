@@ -50,7 +50,6 @@ use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
-use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
@@ -451,8 +450,14 @@ class LLMAppService extends AbstractLLMAppService
             // Record start time
             $startTime = microtime(true);
 
+            $proxyModelRequest->addBusinessParam('model_id', $proxyModelRequest->getModel());
             $proxyModelRequest->addBusinessParam('app_id', $contextData['app_code'] ?? '');
             $proxyModelRequest->addBusinessParam('service_provider_model_id', $modelAttributes?->getProviderModelId() ?? '');
+            $proxyModelRequest->addBusinessParam('source_id', $contextData['source_id'] ?? '');
+            $proxyModelRequest->addBusinessParam('user_name', $contextData['user_name'] ?? '');
+            $proxyModelRequest->addBusinessParam('organization_id', $contextData['organization_code'] ?? '');
+            $proxyModelRequest->addBusinessParam('user_id', $contextData['user_id'] ?? '');
+            $proxyModelRequest->addBusinessParam('access_token_id', $accessToken->getId());
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
@@ -482,9 +487,6 @@ class LLMAppService extends AbstractLLMAppService
                 0,   // Business status code marked as success
                 1
             );
-
-            // Asynchronous processing of usage records and billing
-            $this->scheduleUsageRecording($dataIsolation, $proxyModelRequest, $contextData, $usageData);
 
             return $response;
         } catch (BusinessException $exception) {
@@ -976,82 +978,6 @@ class LLMAppService extends AbstractLLMAppService
             },
             default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
         };
-    }
-
-    /**
-     * Schedule usage recording and billing.
-     */
-    private function scheduleUsageRecording(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
-    {
-        // Record logs
-        defer(function () use ($dataIsolation, $proxyModelRequest, $contextData, $usageData) {
-            try {
-                $this->recordMessageLog($dataIsolation, $proxyModelRequest, $contextData, $usageData);
-
-                // Process billing
-                if ($usageData['amount'] > 0) {
-                    $this->processUsageBilling($dataIsolation, $proxyModelRequest, $contextData, $usageData);
-                }
-            } catch (Throwable $e) {
-                // Usage record failure should not affect user request response
-                $this->logger->error('Failed to process usage records', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-            }
-        });
-    }
-
-    /**
-     * Record message log.
-     */
-    private function recordMessageLog(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
-    {
-        $msgLog = new MsgLogEntity();
-        $msgLog->setUseAmount((float) $usageData['amount']);
-        $msgLog->setUseToken($usageData['tokens']);
-        $msgLog->setModel($proxyModelRequest->getModel());
-        $msgLog->setUserId($contextData['user_id']);
-        $msgLog->setAppCode($contextData['app_code'] ?? '');
-        $msgLog->setOrganizationCode($contextData['organization_code'] ?? '');
-        $msgLog->setBusinessId($contextData['business_id'] ?? '');
-        $msgLog->setSourceId($contextData['source_id']);
-        $msgLog->setUserName($contextData['user_name']);
-        $msgLog->setCreatedAt(new DateTime());
-        $this->msgLogDomainService->create($dataIsolation, $msgLog);
-    }
-
-    /**
-     * Process usage billing.
-     */
-    private function processUsageBilling(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
-    {
-        $modelConfig = $this->modelConfigDomainService->getByModel($proxyModelRequest->getModel());
-        $accessToken = $this->accessTokenDomainService->getByAccessToken($proxyModelRequest->getAccessToken());
-
-        if (! $modelConfig || ! $accessToken) {
-            return;
-        }
-
-        $amount = (float) $usageData['amount'];
-
-        Db::transaction(function () use ($dataIsolation, $modelConfig, $contextData, $accessToken, $amount) {
-            // Add model quota
-            $this->modelConfigDomainService->incrementUseAmount($dataIsolation, $modelConfig, $amount);
-
-            // AccessToken quota
-            $this->accessTokenDomainService->incrementUseAmount($dataIsolation, $accessToken, $amount);
-
-            // Personal quota
-            if ($contextData['user_config']) {
-                $this->userConfigDomainService->incrementUseAmount($dataIsolation, $contextData['user_config'], $amount);
-            }
-
-            // Organization quota for application version
-            if ($contextData['organization_config'] && $accessToken?->getType()->isApplication()) {
-                $this->organizationConfigDomainService->incrementUseAmount($dataIsolation, $contextData['organization_config'], $amount);
-            }
-        });
     }
 
     /**
