@@ -32,6 +32,8 @@ class MsgLogEntity extends AbstractEntity
 
     protected string $userName = '';
 
+    protected string $accessTokenId = '';
+
     protected DateTime $createdAt;
 
     public function getId(): ?int
@@ -142,5 +144,15 @@ class MsgLogEntity extends AbstractEntity
     public function setUserName(string $userName): void
     {
         $this->userName = $userName;
+    }
+
+    public function getAccessTokenId(): string
+    {
+        return $this->accessTokenId;
+    }
+
+    public function setAccessTokenId(int|string $accessTokenId): void
+    {
+        $this->accessTokenId = (string) $accessTokenId;
     }
 }
