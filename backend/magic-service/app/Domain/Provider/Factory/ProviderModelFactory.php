@@ -38,6 +38,7 @@ class ProviderModelFactory
             ->setTranslate($model->translate)
             ->setModelParentId($model->model_parent_id)
             ->setVisibleOrganizations($model->visible_organizations)
+            ->setVisibleApplications($model->visible_applications)
             ->setIsOffice((bool) $model->is_office);
 
         return $entity;

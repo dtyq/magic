@@ -110,10 +110,10 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 预期是管理后台的 model_id，过度阶段接受传入 model_version
      */
-    public function getOrganizationChatModel(string $model, ?string $orgCode = null): ModelInterface|OdinModel
+    public function getOrganizationChatModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ModelInterface|OdinModel
     {
         // 优先从管理后台获取模型配置
-        $odinModel = $this->getByAdmin($model, $orgCode);
+        $odinModel = $this->getByAdmin($model, $orgCode, $filter);
         if ($odinModel) {
             return $odinModel;
         }
@@ -126,9 +126,9 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 模型名称 预期是管理后台的 model_id，过度阶段接受 model_version
      */
-    public function getOrganizationEmbeddingModel(string $model, ?string $orgCode = null): EmbeddingInterface
+    public function getOrganizationEmbeddingModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): EmbeddingInterface
     {
-        $odinModel = $this->getByAdmin($model, $orgCode);
+        $odinModel = $this->getByAdmin($model, $orgCode, $filter);
         if ($odinModel) {
             return $odinModel->getModel();
         }
@@ -139,18 +139,18 @@ class ModelGatewayMapper extends ModelMapper
      * 获取当前组织下的所有可用 chat 模型.
      * @return OdinModel[]
      */
-    public function getChatModels(string $organizationCode): array
+    public function getChatModels(string $organizationCode, ?ModelFilter $filter = null): array
     {
-        return $this->getModelsByType($organizationCode, 'chat', ModelType::LLM);
+        return $this->getModelsByType($organizationCode, 'chat', ModelType::LLM, $filter);
     }
 
     /**
      * 获取当前组织下的所有可用 embedding 模型.
      * @return OdinModel[]
      */
-    public function getEmbeddingModels(string $organizationCode): array
+    public function getEmbeddingModels(string $organizationCode, ?ModelFilter $filter = null): array
     {
-        return $this->getModelsByType($organizationCode, 'embedding', ModelType::EMBEDDING);
+        return $this->getModelsByType($organizationCode, 'embedding', ModelType::EMBEDDING, $filter);
     }
 
     /**
@@ -376,7 +376,7 @@ class ModelGatewayMapper extends ModelMapper
      * @param string $type 模型类型(chat|embedding)
      * @return OdinModel[]
      */
-    private function getModelsByType(string $organizationCode, string $type, ?ModelType $modelType = null): array
+    private function getModelsByType(string $organizationCode, string $type, ?ModelType $modelType = null, ?ModelFilter $filter = null): array
     {
         $list = [];
 
@@ -440,7 +440,7 @@ class ModelGatewayMapper extends ModelMapper
             }
 
             // 创建配置
-            $model = $this->createModelByProvider($organizationCode, $providerModel, $providerConfig, $provider);
+            $model = $this->createModelByProvider($organizationCode, $providerModel, $providerConfig, $provider, $filter);
             if (! $model) {
                 continue;
             }
@@ -450,10 +450,20 @@ class ModelGatewayMapper extends ModelMapper
         return $list;
     }
 
-    private function createModelByProvider(string $organizationCode, ProviderModelEntity $providerModelEntity, ProviderConfigEntity $providerConfigEntity, ProviderEntity $providerEntity): ?OdinModel
-    {
+    private function createModelByProvider(
+        string $organizationCode,
+        ProviderModelEntity $providerModelEntity,
+        ProviderConfigEntity $providerConfigEntity,
+        ProviderEntity $providerEntity,
+        ?ModelFilter $filter = null
+    ): ?OdinModel {
         if ($providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations())) {
             return null;
+        }
+        if ($filter) {
+            if ($filter->getAppId() && ! empty($providerModelEntity->getVisibleApplications()) && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
+                return null;
+            }
         }
         $chat = false;
         $functionCall = false;
@@ -502,7 +512,7 @@ class ModelGatewayMapper extends ModelMapper
         );
     }
 
-    private function getByAdmin(string $model, ?string $orgCode = null): ?OdinModel
+    private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?OdinModel
     {
         $providerDataIsolation = ProviderDataIsolation::create($orgCode ?? '');
         $providerDataIsolation->setContainOfficialOrganization(true);
@@ -533,7 +543,7 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
 
-        return $this->createModelByProvider($orgCode, $providerModel, $providerConfig, $provider);
+        return $this->createModelByProvider($orgCode, $providerModel, $providerConfig, $provider, $filter);
     }
 
     private function addAttributes(string $key, OdinModelAttributes $attributes): void

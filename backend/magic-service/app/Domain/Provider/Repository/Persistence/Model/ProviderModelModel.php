@@ -30,6 +30,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property array $translate
  * @property int $model_parent_id
  * @property array $visible_organizations
+ * @property array $visible_applications
  * @property int $is_office
  * @property DateTime $created_at
  * @property DateTime $updated_at
@@ -45,7 +46,7 @@ class ProviderModelModel extends AbstractModel
     protected array $fillable = [
         'id', 'service_provider_config_id', 'name', 'model_version', 'category', 'model_id',
         'model_type', 'config', 'description', 'sort', 'icon', 'organization_code',
-        'status', 'disabled_by', 'translate', 'model_parent_id', 'visible_organizations',
+        'status', 'disabled_by', 'translate', 'model_parent_id', 'visible_organizations', 'visible_applications',
         'is_office', 'created_at', 'updated_at', 'deleted_at',
     ];
 
@@ -67,6 +68,7 @@ class ProviderModelModel extends AbstractModel
         'translate' => 'array',
         'model_parent_id' => 'integer',
         'visible_organizations' => 'array',
+        'visible_applications' => 'array',
         'is_office' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
