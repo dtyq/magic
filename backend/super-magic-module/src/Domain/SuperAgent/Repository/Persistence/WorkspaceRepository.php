@@ -75,6 +75,14 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
     }
 
     /**
+     * 根据ID查找工作区.
+     */
+    public function findById(int $workspaceId): ?WorkspaceEntity
+    {
+        return $this->getWorkspaceById($workspaceId);
+    }
+
+    /**
      * 通过会话ID获取工作区.
      */
     public function getWorkspaceByConversationId(string $conversationId): ?WorkspaceEntity

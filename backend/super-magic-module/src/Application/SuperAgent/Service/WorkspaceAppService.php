@@ -10,7 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
-use App\Domain\Chat\Service\MagicTopicDomainService;
+use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -27,9 +27,12 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryCleanupUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
@@ -44,6 +47,7 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use function Hyperf\Translation\trans;
 
 class WorkspaceAppService extends AbstractAppService
 {
@@ -55,13 +59,15 @@ class WorkspaceAppService extends AbstractAppService
         protected WorkspaceDomainService $workspaceDomainService,
         protected MagicConversationDomainService $magicConversationDomainService,
         protected MagicUserDomainService $userDomainService,
-        protected MagicTopicDomainService $topicDomainService,
+        protected MagicChatTopicDomainService $magicTopicDomainService,
         protected FileAppService $fileAppService,
         protected TaskDomainService $taskDomainService,
         protected AccountAppService $accountAppService,
         protected SandboxService $sandboxService,
         protected LockerInterface $locker,
         protected ChatAppService $chatAppService,
+        protected ProjectDomainService $projectDomainService,
+        protected TopicDomainService $topicDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -88,48 +94,61 @@ class WorkspaceAppService extends AbstractAppService
             $conditions,
             $requestDTO->page,
             $requestDTO->pageSize,
+            'id',
+            'desc',
             $dataIsolation
         );
 
         // 设置默认值
         $result['auto_create'] = false;
 
-        // 如果有工作区列表，获取所有工作区的话题列表
-        if (! empty($result['list'])) {
-            $workspaceIds = [];
-            foreach ($result['list'] as $workspace) {
-                $workspaceIds[] = $workspace->getId();
-            }
-
-            // 获取所有工作区的话题列表，以工作区ID为键
-            $topicList = $this->workspaceDomainService->getWorkspaceTopics($workspaceIds, $dataIsolation, false);
-            $topics = [];
-            // 重新按工作区 ID 分组
-            foreach ($topicList['list'] as $topic) {
-                $workspaceId = (int) $topic->getWorkspaceId();
-                if (! isset($topics[$workspaceId])) {
-                    $topics[$workspaceId] = [];
-                }
-                $topics[$workspaceId][] = $topic;
-            }
-            $result['topics'] = $topics;
-        } else {
-            // 如果 result 为空则创建一个默认会话和话题，并新建一个工作区和目录与其绑定
-            // 使用默认的工作区名称和话题名称创建工作区
-            $creationResult = $this->initUserWorkspace($dataIsolation);
-
-            // 将新创建的工作区添加到结果中
-            if (! empty($creationResult['workspace'])) {
-                $result['list'] = [$creationResult['workspace']];
-                $result['total'] = 1;
-                $result['auto_create'] = $creationResult['auto_create']; // 使用创建结果中的auto_create
-                // 使用创建时返回的任务状态信息
-                $workspaceId = $creationResult['workspace']->getId();
-                $result['topics'][$workspaceId] = [$creationResult['topic']];
-            }
+        if (empty($result['list'])) {
+            $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+                $dataIsolation,
+                '',
+                ''
+            );
+            $result['list'] = [$workspaceEntity->toArray()];
+            $result['total'] = 1;
+            $result['auto_create'] = true;
         }
+
         // 转换为响应DTO
         return WorkspaceListResponseDTO::fromResult($result);
+    }
+
+    public function createWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+            $dataIsolation,
+            '',
+            $requestDTO->getWorkspaceName()
+        );
+
+        return SaveWorkspaceResultDTO::fromId((int) $workspaceEntity->getId());
+    }
+
+    public function updateWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        if (empty($requestDTO->getWorkspaceId())) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND);
+        }
+
+        $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+
+        return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
     }
 
     /**
@@ -140,7 +159,6 @@ class WorkspaceAppService extends AbstractAppService
      */
     public function saveWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
     {
-        Db::beginTransaction();
         try {
             // Get user authorization information
             $userAuthorization = $requestContext->getUserAuthorization();
@@ -302,7 +320,25 @@ class WorkspaceAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 调用领域服务执行删除
-        $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
+        Db::beginTransaction();
+        try {
+            // 删除工作区
+            $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
+
+            // 删除工作区下的项目
+            $this->projectDomainService->deleteProjectsByWorkspaceId($dataIsolation, $workspaceId);
+
+            // 删除工作的话题
+            $this->topicDomainService->deleteTopicsByWorkspaceId($dataIsolation, $workspaceId);
+
+            // TODO 停止所有运行中的任务
+
+            Db::commit();
+        } catch (\Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('删除工作区失败：' . $e->getMessage());
+            throw $e;
+        }
 
         return true;
     }
@@ -805,34 +841,79 @@ class WorkspaceAppService extends AbstractAppService
      */
     private function initUserWorkspace(
         DataIsolation $dataIsolation,
-        string $workspaceName = AgentConstant::DEFAULT_WORKSPACE_NAME
+        string $workspaceName = ''
     ): array {
         $this->logger->info('开始初始化用户工作区');
-        // 获取超级麦吉用户
-        [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
-        $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
-        // 新建工作区，绑定会话id
-        $result = $this->workspaceDomainService->createWorkspace(
-            $dataIsolation,
-            new WorkspaceCreationParams(
-                $chatConversationId,
-                $workspaceName, // 使用参数中的工作区名称
-                $chatConversationTopicId,
-                AgentConstant::DEFAULT_TOPIC_NAME // 使用固定的话题名称
-            )
-        );
-        $workspaceEntity = $result['workspace'];
-        $topicEntity = $result['topic'];
+        Db::beginTransaction();
+        try {
+            // Step 1: Initialize Magic Chat Conversation
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+            $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
 
-        if (empty($workspaceEntity)) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
+            // Step 2: Create workspace
+            $this->logger->info('开始创建默认工作区');
+            $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+                $dataIsolation,
+                $chatConversationId,
+                $workspaceName
+            );
+            $this->logger->info(sprintf('创建默认工作区成功, workspaceId=%s', $workspaceEntity->getId()));
+            if (!$workspaceEntity->getId()) {
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
+            }
+
+            // 创建默认项目
+            $this->logger->info('开始创建默认项目');
+            $projectEntity = $this->projectDomainService->createProject(
+                $workspaceEntity->getId(),
+                '',
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+            $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
+            // 获取工作区目录
+            $workDir = WorkDirectoryCleanupUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+
+            // Step 4: Create default topic
+            $this->logger->info('开始创建默认话题');
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                $workspaceEntity->getId(),
+                $projectEntity->getId(),
+                $chatConversationId,
+                $chatConversationTopicId,
+                '',
+                $workDir
+            );
+            $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
+
+            // Step 5: Update workspace current topic
+            if ($topicEntity->getId()) {
+                // 设置工作区信息
+                $workspaceEntity->setCurrentTopicId($topicEntity->getId());
+                $workspaceEntity->setCurrentProjectId($projectEntity->getId());
+                $this->workspaceDomainService->saveWorkspaceEntity($workspaceEntity);
+                $this->logger->info(sprintf('工作区%s已设置当前话题%s', $workspaceEntity->getId(), $topicEntity->getId()));
+                // 设置项目信息
+                $projectEntity->setCurrentTopicId($topicEntity->getId());
+                $projectEntity->setWorkspaceId($workspaceEntity->getId());
+                $projectEntity->setWorkDir($workDir);
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+                $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
+            }
+            Db::commit();
+
+            // Return creation result
+            return [
+                'workspace' => $workspaceEntity,
+                'topic' => $topicEntity,
+                'project' => $projectEntity,
+                'auto_create' => true,
+            ];
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
         }
-        // 返回创建的结果，包含实体对象和auto_create=true
-        return [
-            'workspace' => $workspaceEntity,  // 直接返回实体对象
-            'topic' => $topicEntity,  // 直接返回实体对象
-            'auto_create' => true,  // 添加auto_create字段
-        ];
     }
 
     /**

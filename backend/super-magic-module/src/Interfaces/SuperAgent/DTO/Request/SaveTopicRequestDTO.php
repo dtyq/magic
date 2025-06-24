@@ -7,35 +7,33 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
-use App\Infrastructure\Core\AbstractDTO;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use App\Infrastructure\Core\AbstractRequestDTO;
 
 /**
- * 保存话题请求DTO
- * 用于接收新增或更新话题的请求参数.
+ * Save topic request DTO
+ * Used to receive request parameters for creating or updating topic.
  */
-class SaveTopicRequestDTO extends AbstractDTO
+class SaveTopicRequestDTO extends AbstractRequestDTO
 {
     /**
-     * 话题ID，为空时表示新增
-     * 字符串类型，对应任务状态表的主键.
+     * Topic ID, empty means create new topic.
      */
     public string $id = '';
 
     /**
-     * 工作区ID.
+     * Workspace ID.
      */
-    public string $workspace_id = '';
+    public string $workspaceId = '';
 
     /**
-     * 话题名称.
+     * Topic name.
      */
-    public string $topic_name = '';
+    public string $topicName = '';
 
     /**
-     * 获取验证规则.
+     * Get validation rules.
      */
-    public function rules(): array
+    protected static function getHyperfValidationRules(): array
     {
         return [
             'id' => 'nullable|string',
@@ -45,32 +43,20 @@ class SaveTopicRequestDTO extends AbstractDTO
     }
 
     /**
-     * 获取验证失败的自定义错误信息.
+     * Get custom error messages for validation failures.
      */
-    public function messages(): array
+    protected static function getHyperfValidationMessage(): array
     {
         return [
-            'workspace_id.required' => '工作区ID不能为空',
-            'workspace_id.string' => '工作区ID必须是字符串',
-            'topic_name.required' => '话题名称不能为空',
-            'topic_name.max' => '话题名称不能超过100个字符',
+            'workspace_id.required' => 'Workspace ID cannot be empty',
+            'workspace_id.string' => 'Workspace ID must be a string',
+            'topic_name.required' => 'Topic name cannot be empty',
+            'topic_name.max' => 'Topic name cannot exceed 100 characters',
         ];
     }
 
     /**
-     * 从请求中创建DTO实例.
-     */
-    public static function fromRequest(RequestInterface $request): self
-    {
-        $data = new self();
-        $data->id = $request->input('id', '');
-        $data->workspace_id = $request->input('workspace_id', '');
-        $data->topic_name = $request->input('topic_name', '');
-        return $data;
-    }
-
-    /**
-     * 获取任务状态ID(主键).
+     * Get topic ID (primary key).
      */
     public function getId(): string
     {
@@ -78,23 +64,23 @@ class SaveTopicRequestDTO extends AbstractDTO
     }
 
     /**
-     * 获取工作区ID.
+     * Get workspace ID.
      */
     public function getWorkspaceId(): string
     {
-        return $this->workspace_id;
+        return $this->workspaceId;
     }
 
     /**
-     * 获取话题名称.
+     * Get topic name.
      */
     public function getTopicName(): string
     {
-        return $this->topic_name;
+        return $this->topicName;
     }
 
     /**
-     * 是否为更新操作.
+     * Check if this is an update operation.
      */
     public function isUpdate(): bool
     {

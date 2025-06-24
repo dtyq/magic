@@ -88,10 +88,32 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.batch_file_ids_or_topic_id_required')]
     case BATCH_FILE_IDS_OR_TOPIC_ID_REQUIRED = 51162;
 
-    // Reserved1 area - keeping original error codes that were outside planned ranges
+    // Project related error codes (51200-51249)
+    #[ErrorMessage('project.project_not_found')]
+    case PROJECT_NOT_FOUND = 51200;
+
+    #[ErrorMessage('project.project_name_already_exists')]
+    case PROJECT_NAME_ALREADY_EXISTS = 51201;
+
+    #[ErrorMessage('project.project_access_denied')]
+    case PROJECT_ACCESS_DENIED = 51202;
+
+    #[ErrorMessage('project.create_project_failed')]
+    case CREATE_PROJECT_FAILED = 51203;
+
+    #[ErrorMessage('project.update_project_failed')]
+    case UPDATE_PROJECT_FAILED = 51204;
+
+    #[ErrorMessage('project.delete_project_failed')]
+    case DELETE_PROJECT_FAILED = 51205;
+
+    #[ErrorMessage('workspace.workspace_not_found')]
+    case WORKSPACE_NOT_FOUND = 51206;
+
+    // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
-    case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51202;
+    case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
 
     #[ErrorMessage('topic.concurrent_operation_failed')]
-    case TOPIC_LOCK_FAILED_LEGACY = 51203;
+    case TOPIC_LOCK_FAILED_LEGACY = 51253;
 }

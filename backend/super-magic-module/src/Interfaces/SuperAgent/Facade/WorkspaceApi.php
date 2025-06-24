@@ -61,6 +61,31 @@ class WorkspaceApi extends AbstractApi
         )->toArray();
     }
 
+    public function createWorkspace(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 从请求创建DTO
+        $requestDTO = SaveWorkspaceRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务层处理业务逻辑
+        return $this->workspaceAppService->createWorkspace($requestContext, $requestDTO)->toArray();
+    }
+
+    public function updateWorkspace(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 从请求创建DTO
+        $requestDTO = SaveWorkspaceRequestDTO::fromRequest($this->request);
+        $requestDTO->id = $id;
+
+        // 调用应用服务层处理业务逻辑
+        return $this->workspaceAppService->updateWorkspace($requestContext, $requestDTO)->toArray();
+    }
+
     /**
      * 保存工作区（创建或更新）.
      * 接口层负责处理HTTP请求和响应，不包含业务逻辑.
@@ -86,23 +111,16 @@ class WorkspaceApi extends AbstractApi
      * @return array 操作结果
      * @throws BusinessException 如果参数无效或操作失败则抛出异常
      */
-    public function deleteWorkspace(RequestContext $requestContext): array
+    public function deleteWorkspace(RequestContext $requestContext, string $id): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        // 获取路由参数中的工作区ID
-        $workspaceId = (int) $this->request->input('id', 0);
-
-        if (empty($workspaceId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace.id_required');
-        }
-
         // 调用应用服务层处理业务逻辑
-        $this->workspaceAppService->deleteWorkspace($requestContext, $workspaceId);
+        $this->workspaceAppService->deleteWorkspace($requestContext, (int)$id);
 
         // 返回规范化的响应结果
-        return ['id' => $workspaceId];
+        return ['id' => $id];
     }
 
     /**
