@@ -877,6 +877,7 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($accessToken->getType()->isUser()) {
             $context['user_id'] = $accessToken->getRelationId();
+            $context['source_id'] = "{$accessToken->getName()}";
             // Personal users also have the organization they were in when creating the token
             $context['organization_code'] = $accessToken->getOrganizationCode();
         }
