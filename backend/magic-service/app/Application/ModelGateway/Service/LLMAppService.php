@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
@@ -93,8 +94,10 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
 
-        $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode());
-        $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode());
+        $modelFilter = new ModelFilter(appId: $accessTokenEntity->getRelationId());
+
+        $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
+        $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
         $imageModels = $this->modelGatewayMapper->getImageModels($accessTokenEntity->getOrganizationCode());
 
         $models = array_merge($chatModels, $embeddingModels, $imageModels);
@@ -411,9 +414,11 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelAttributes = null;
 
+            $modelFilter = new ModelFilter(appId: $accessToken->getRelationId());
+
             $model = match ($proxyModelRequest->getType()) {
-                'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode),
-                'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode),
+                'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),
+                'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode, $modelFilter),
                 default => null
             };
             if (! $model) {
