@@ -31,6 +31,11 @@ class TaskEntity extends AbstractEntity
     protected int $workspaceId = 0;
 
     /**
+     * @var int 项目ID
+     */
+    protected int $projectId = 0;
+
+    /**
      * @var int 话题ID
      */
     protected int $topicId = 0;
@@ -111,6 +116,7 @@ class TaskEntity extends AbstractEntity
             'id' => $this->id,
             'user_id' => $this->userId,
             'workspace_id' => $this->workspaceId,
+            'project_id' => $this->projectId,
             'topic_id' => $this->topicId,
             'task_id' => $this->taskId,
             'sandbox_id' => $this->sandboxId,
@@ -162,6 +168,17 @@ class TaskEntity extends AbstractEntity
     public function setWorkspaceId(int $workspaceId): self
     {
         $this->workspaceId = $workspaceId;
+        return $this;
+    }
+
+    public function getProjectId(): int
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId(int $projectId): self
+    {
+        $this->projectId = $projectId;
         return $this;
     }
 

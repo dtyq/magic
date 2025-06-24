@@ -37,6 +37,11 @@ class TopicEntity extends AbstractEntity
     protected int $workspaceId = 0;
 
     /**
+     * @var int 项目ID
+     */
+    protected int $projectId = 0;
+
+    /**
      * @var string Chat话题ID
      */
     protected string $chatTopicId = '';
@@ -138,6 +143,7 @@ class TopicEntity extends AbstractEntity
             'user_id' => $this->userId ?? 0,
             'user_organization_code' => $this->userOrganizationCode ?? '',
             'workspace_id' => $this->workspaceId ?? 0,
+            'project_id' => $this->projectId ?? 0,
             'chat_topic_id' => $this->chatTopicId ?? '',
             'chat_conversation_id' => $this->chatConversationId ?? '',
             'sandbox_id' => $this->sandboxId ?? '',
@@ -215,6 +221,22 @@ class TopicEntity extends AbstractEntity
         }
 
         $this->workspaceId = $workspaceId;
+        return $this;
+    }
+
+    public function getProjectId(): int
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId($projectId): self
+    {
+        // 当输入不是整数时进行转换
+        if (! is_int($projectId)) {
+            $projectId = (int) $projectId;
+        }
+
+        $this->projectId = $projectId;
         return $this;
     }
 

@@ -32,6 +32,11 @@ interface WorkspaceRepositoryInterface
     public function getWorkspaceById(int $workspaceId): ?WorkspaceEntity;
 
     /**
+     * 根据ID查找工作区.
+     */
+    public function findById(int $workspaceId): ?WorkspaceEntity;
+
+    /**
      * 通过会话ID获取工作区.
      */
     public function getWorkspaceByConversationId(string $conversationId): ?WorkspaceEntity;

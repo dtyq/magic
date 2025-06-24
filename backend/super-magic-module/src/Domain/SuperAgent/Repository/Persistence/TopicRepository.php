@@ -145,6 +145,13 @@ class TopicRepository implements TopicRepositoryInterface
             ->update($entityArray) > 0;
     }
 
+    public function updateTopicByCondition(array $condition, array $data): bool
+    {
+        return $this->model::query()
+            ->where($condition)
+            ->update($data) > 0;
+    }
+
     public function deleteTopic(int $id): bool
     {
         return $this->model::query()
@@ -308,6 +315,38 @@ class TopicRepository implements TopicRepositoryInterface
             $entityData[$camelKey] = $value;
         }
         return $entityData;
+    }
+
+    /**
+     * 根据项目ID获取话题列表
+     */
+    public function getTopicsByProjectId(int $projectId, string $userId): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $data = $this->convertModelToEntityData($model->toArray());
+            $result[] = new TopicEntity($data);
+        }
+
+        return $result;
+    }
+
+    /**
+     * 统计项目下的话题数量
+     */
+    public function countTopicsByProjectId(int $projectId): int
+    {
+        return $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at')
+            ->count();
     }
 
     /**

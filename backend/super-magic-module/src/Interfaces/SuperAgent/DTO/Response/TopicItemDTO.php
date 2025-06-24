@@ -43,6 +43,11 @@ class TopicItemDTO extends AbstractDTO
     protected string $taskMode = 'chat';
 
     /**
+     * @var string 项目ID
+     */
+    protected string $projectId = '';
+
+    /**
      * 从实体创建 DTO.
      */
     public static function fromEntity(TopicEntity $entity): self
@@ -53,6 +58,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTopicName($entity->getTopicName());
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setTaskMode($entity->getTaskMode());
+        $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
         return $dto;
     }
 
@@ -122,6 +128,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId(string $projectId): self
+    {
+        $this->projectId = $projectId;
+        return $this;
+    }
+
     /**
      * 从数组创建DTO.
      */
@@ -134,6 +151,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->taskStatus = $data['task_status'] ?? $data['current_task_status'] ?? '';
         $dto->userId = $data['user_id'] ?? '';
         $dto->taskMode = $data['task_mode'] ?? 'chat';
+        $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
 
         return $dto;
     }
@@ -151,6 +169,7 @@ class TopicItemDTO extends AbstractDTO
             'task_status' => $this->taskStatus,
             'user_id' => $this->userId,
             'task_mode' => $this->taskMode,
+            'project_id' => $this->projectId,
         ];
     }
 }

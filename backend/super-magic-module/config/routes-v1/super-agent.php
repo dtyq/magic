@@ -10,21 +10,42 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/super-agent', static function () {
     // 工作区管理
     Router::addGroup('/workspaces', static function () {
         // 获取工作区列表
-        Router::post('/queries', [WorkspaceApi::class, 'getWorkspaceList']);
+        Router::get('', [WorkspaceApi::class, 'getWorkspaceList']);
         // 获取工作区下的话题列表（优化时再实现）
         Router::post('/{id}/topics', [WorkspaceApi::class, 'getWorkspaceTopics']);
-        // 保存工作区（创建或更新）
-        Router::post('/save', [WorkspaceApi::class, 'saveWorkspace']);
+        // 创建工作区
+        Router::post('', [WorkspaceApi::class, 'createWorkspace']);
+        // 更新工作区
+        Router::put('/{id}', [WorkspaceApi::class, 'updateWorkspace']);
         // 删除工作区（逻辑删除）
-        Router::post('/delete', [WorkspaceApi::class, 'deleteWorkspace']);
+        Router::delete('/{id}', [WorkspaceApi::class, 'deleteWorkspace']);
         // 设置工作区归档状态
         Router::post('/set-archived', [WorkspaceApi::class, 'setArchived']);
+    });
+
+    // 项目管理
+    Router::addGroup('/projects', static function () {
+        // 获取项目列表
+        Router::get('', [ProjectApi::class, 'index']);
+        // 获取最近使用的项目列表
+        Router::get('/recent', [ProjectApi::class, 'getRecentProjects']);
+        // 获取项目详情
+        Router::get('/{id}', [ProjectApi::class, 'show']);
+        // 创建项目
+        Router::post('', [ProjectApi::class, 'store']);
+        // 更新项目
+        Router::put('/{id}', [ProjectApi::class, 'update']);
+        // 删除项目
+        Router::delete('/{id}', [ProjectApi::class, 'destroy']);
+        // 获取工作区下的项目列表
+        Router::get('/workspace/{workspaceId}', [ProjectApi::class, 'getWorkspaceProjects']);
     });
 
     // 话题相关

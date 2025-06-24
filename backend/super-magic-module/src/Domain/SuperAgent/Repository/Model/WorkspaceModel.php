@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model;
 
 use App\Infrastructure\Core\AbstractModel;
 use Hyperf\Database\Model\SoftDeletes;
-use Hyperf\Snowflake\Concern\Snowflake;
 
 /**
  * @property int $id
@@ -22,11 +21,11 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $updated_at
  * @property string $deleted_at
  * @property int $current_topic_id
+ * @property int $current_project_id 当前项目ID
  * @property int $status 状态 0:正常 1:不显示 2：删除
  */
 class WorkspaceModel extends AbstractModel
 {
-    use Snowflake;
     use SoftDeletes;
 
     /**
@@ -40,7 +39,7 @@ class WorkspaceModel extends AbstractModel
     protected array $fillable = [
         'id', 'user_id', 'user_organization_code', 'chat_conversation_id', 'name',
         'is_archived', 'created_uid', 'updated_uid', 'created_at', 'updated_at', 'deleted_at',
-        'current_topic_id', 'status',
+        'current_topic_id', 'current_project_id', 'status',
     ];
 
     /**
@@ -51,6 +50,7 @@ class WorkspaceModel extends AbstractModel
         'is_archived' => 'integer',
         'status' => 'integer',
         'current_topic_id' => 'integer',
+        'current_project_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

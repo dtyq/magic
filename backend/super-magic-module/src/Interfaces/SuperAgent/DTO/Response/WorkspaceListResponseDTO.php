@@ -12,26 +12,26 @@ use App\Infrastructure\Core\AbstractDTO;
 class WorkspaceListResponseDTO extends AbstractDTO
 {
     /**
-     * 总数.
+     * Total count.
      */
     public int $total = 0;
 
     /**
-     * 是否自动创建的.
+     * Whether auto created.
      */
     public bool $autoCreate = false;
 
     /**
-     * 工作区列表.
+     * Workspace list.
      *
      * @var WorkspaceItemDTO[]
      */
     public array $list = [];
 
     /**
-     * 从结果创建 DTO.
+     * Create DTO from result.
      *
-     * @param array $result [total, list, topics, auto_create]
+     * @param array $result [total, list, auto_create]
      */
     public static function fromResult(array $result): self
     {
@@ -39,19 +39,11 @@ class WorkspaceListResponseDTO extends AbstractDTO
         $dto->total = $result['total'];
         $dto->autoCreate = $result['auto_create'] ?? false;
 
-        foreach ($result['list'] as $index => $workspace) {
-            $topics = [];
-            $workspaceId = is_array($workspace) ? (string) $workspace['id'] : (string) $workspace->getId();
-
-            // 获取该工作区对应的话题列表
-            if (isset($result['topics']) && ! empty($result['topics'][$workspaceId])) {
-                $topics = $result['topics'][$workspaceId];
-            }
-
+        foreach ($result['list'] as $workspace) {
             if (is_array($workspace)) {
-                $dto->list[] = WorkspaceItemDTO::fromArray($workspace, $topics);
+                $dto->list[] = WorkspaceItemDTO::fromArray($workspace);
             } else {
-                $dto->list[] = WorkspaceItemDTO::fromEntity($workspace, $topics);
+                $dto->list[] = WorkspaceItemDTO::fromEntity($workspace);
             }
         }
 
@@ -59,8 +51,8 @@ class WorkspaceListResponseDTO extends AbstractDTO
     }
 
     /**
-     * 转换为数组.
-     * 输出保持下划线命名，以保持API兼容性.
+     * Convert to array.
+     * Output maintains underscore naming for API compatibility.
      */
     public function toArray(): array
     {
