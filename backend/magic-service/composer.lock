@@ -2567,16 +2567,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.45",
+            "version": "v0.0.46",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/super-magic-module.git",
-                "reference": "9b6879667065335d4d5a69c2201609786c626536"
+                "reference": "d32566fcf281e9f8be37724df5d32109f8192235"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/9b6879667065335d4d5a69c2201609786c626536",
-                "reference": "9b6879667065335d4d5a69c2201609786c626536",
+                "url": "https://api.github.com/repos/dtyq/super-magic-module/zipball/d32566fcf281e9f8be37724df5d32109f8192235",
+                "reference": "d32566fcf281e9f8be37724df5d32109f8192235",
                 "shasum": ""
             },
             "require": {
@@ -2668,10 +2668,10 @@
                 }
             ],
             "support": {
-                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.45",
+                "source": "https://github.com/dtyq/super-magic-module/tree/v0.0.46",
                 "issues": "https://github.com/dtyq/super-magic-module/issues"
             },
-            "time": "2025-06-23T13:35:43+00:00"
+            "time": "2025-06-24T15:29:01+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
