@@ -20,6 +20,7 @@ class MsgLogRepository extends AbstractRepository implements MsgLogRepositoryInt
         $model->fill($this->getAttributes($msgLogEntity));
         $model->save();
         $msgLogEntity->setCreatedAt($model->created_at);
+        $msgLogEntity->setId($model->id);
         return $msgLogEntity;
     }
 }

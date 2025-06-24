@@ -89,6 +89,7 @@ class MagicFlowAppService extends AbstractFlowAppService
         );
 
         $operator = $this->createExecutionOperator($authorization);
+        $operator->setSourceId('single_debug');
         $conversationId = ConversationId::SingleDebugNode->gen($authorization->getId() . '_' . $node->getNodeId());
         $executionData = new ExecutionData(
             flowDataIsolation: $this->createFlowDataIsolation($authorization),
