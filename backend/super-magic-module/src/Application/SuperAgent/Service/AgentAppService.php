@@ -35,10 +35,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Odin\Mcp\McpServerConfig;
 use Hyperf\Odin\Mcp\McpType;
 use Psr\Log\LoggerInterface;
-use Qbhy\HyperfAuth\Authenticatable;
 use Throwable;
 
 /**
@@ -187,6 +185,8 @@ class AgentAppService extends AbstractKernelAppService
             $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
         }
 
+        $mcpConfig = $this->getMcpConfig($dataIsolation);
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: (string) IdGenerator::getSnowId(),
@@ -195,6 +195,7 @@ class AgentAppService extends AbstractKernelAppService
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
             attachments: $attachmentUrls,
+            mcpConfig: $mcpConfig
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -431,7 +432,7 @@ class AgentAppService extends AbstractKernelAppService
         ];
     }
 
-    private function getMcpConfig(Authenticatable $authorization, DataIsolation $dataIsolation): array
+    private function getMcpConfig(DataIsolation $dataIsolation): array
     {
         $result = [];
 
@@ -444,8 +445,13 @@ class AgentAppService extends AbstractKernelAppService
         if (empty($mcpServerIds)) {
             return $result;
         }
+        $authorization = new MagicUserAuthorization();
+        $authorization->setId($dataIsolation->getCurrentUserId());
+        $authorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+
         $query = new MCPServerQuery();
         $query->setEnabled(true);
+        $query->setCodes($mcpServerIds);
         $data = $this->MCPServerAppService->queries($authorization, $query, Page::createNoPage());
         $mcpServers = $data['list'] ?? [];
 
@@ -475,6 +481,8 @@ class AgentAppService extends AbstractKernelAppService
 
             $result[$mcpServer->getName()] = $mcpServerConfig->toArray();
         }
-        return $result;
+        return [
+            'mcpServers' => $result,
+        ];
     }
 }

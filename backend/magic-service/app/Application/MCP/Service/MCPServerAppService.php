@@ -58,6 +58,10 @@ class MCPServerAppService extends AbstractMCPAppService
         )[$authorization->getId()] ?? [];
         $resourceIds = array_keys($resources);
 
+        if (! empty($query->getCodes())) {
+            $resourceIds = array_intersect($resourceIds, $query->getCodes());
+        }
+
         $query->setCodes($resourceIds);
         $data = $this->mcpServerDomainService->queries(
             $this->createMCPDataIsolation($authorization),
