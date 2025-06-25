@@ -40,6 +40,8 @@ abstract class AbstractSandbox implements SandboxInterface
             throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set');
         }
 
+        var_dump($this->baseUrl,"==============");
+
         $this->client = new Client([
             'base_uri' => $this->baseUrl,
             'timeout' => 30,
