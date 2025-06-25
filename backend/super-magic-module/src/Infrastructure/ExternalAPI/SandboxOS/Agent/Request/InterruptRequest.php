@@ -109,9 +109,9 @@ class InterruptRequest
             'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
             'task_id' => $this->taskId,
-            "prompt" => "",
+            'prompt' => '',
             'type' => 'chat',
-            'context_type' => 'interrupt'
+            'context_type' => 'interrupt',
         ];
 
         // 如果有备注则添加到请求中

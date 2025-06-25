@@ -22,7 +22,8 @@ class InitAgentRequest
         private array $messageSubscriptionConfig = [],
         private array $stsTokenRefresh = [],
         private array $metadata = [],
-        private string $taskMode = 'plan'
+        private string $taskMode = 'plan',
+        private array $mcpConfig = []
     ) {
     }
 
@@ -185,6 +186,23 @@ class InitAgentRequest
     }
 
     /**
+     * 获取MCP配置.
+     */
+    public function getMcpConfig(): array
+    {
+        return $this->mcpConfig;
+    }
+
+    /**
+     * 设置MCP配置.
+     */
+    public function setMcpConfig(array $mcpConfig): self
+    {
+        $this->mcpConfig = $mcpConfig;
+        return $this;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
      */
@@ -199,6 +217,7 @@ class InitAgentRequest
             'sts_token_refresh' => $this->stsTokenRefresh,
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
+            'mcp_config' => $this->mcpConfig,
         ];
     }
 }
