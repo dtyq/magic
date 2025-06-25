@@ -145,6 +145,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
         try {
             $response = $this->client->post($this->buildApiPath('api/v1/sandboxes/queries'), [
+            // 根据沙箱通信文档，批量查询使用GET请求但需要JSON请求体
+            $response = $this->client->request('GET', $this->buildApiPath('api/v1/sandboxes/queries'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => ['sandbox_ids' => $sandboxIds],
                 'timeout' => 15,
@@ -246,5 +248,66 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
             return GatewayResult::error('Unexpected error: ' . $e->getMessage());
         }
+    }
+
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir=".workspace"): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersions', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey]);
+
+        try {
+
+            var_dump($this->buildApiPath('api/v1/file/versions'),"buildApiPath ==============");
+            $response = $this->client->post($this->buildApiPath('api/v1/file/versions'), [
+                'headers' => $this->getAuthHeaders(),
+                'json' => ['sandbox_id' => $sandboxId, 'file_key' => $fileKey,"git_directory"=>$gitDir],
+                'timeout' => 60,
+            ]);
+
+            $contents = $response->getBody()->getContents();
+            var_dump($contents,"getContents==============");
+
+            if(empty(json_decode($contents, true))){
+                return GatewayResult::error('HTTP request failed: ' . $contents);
+            }
+
+
+            $responseData = json_decode($contents, true);
+
+            $result = GatewayResult::fromApiResponse($responseData);
+            var_dump($result,"result ==============");
+            if ($result->isSuccess()) {
+                $versions = $result->getDataValue('versions');
+                $this->logger->info('[Sandbox][Gateway] getFileVersions successfully', [
+                    'versions' => $versions,
+                ]);
+                return $result;
+            } else {
+                $this->logger->error('[Sandbox][Gateway] Failed to getFileVersions', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return GatewayResult::error('Failed to getFileVersions',['code'=>$result->getCode(),'message'=>$result->getMessage()]);
+            }
+
+        } catch (GuzzleException $e) {
+            $this->logger->error('[Sandbox][Gateway] HTTP error when getFileVersions', [
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+            return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Gateway] Unexpected error when getFileVersions', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+        }
+    }
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash,string $gitDir): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash,"git_directory"=>$gitDir]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash,"git_directory"=>$gitDir]);
     }
 }
