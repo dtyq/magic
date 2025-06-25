@@ -401,9 +401,6 @@ class AgentAppService extends AbstractKernelAppService
             userInfo: $userInfo
         );
 
-        // 查询已开启的全局 MCP 服务
-        $mcpServers = $this->getMcpConfig($userAuthorization, $dataIsolation);
-
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
