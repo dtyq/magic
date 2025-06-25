@@ -7,9 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
-use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
@@ -117,7 +115,7 @@ class WorkspaceApi extends AbstractApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         // 调用应用服务层处理业务逻辑
-        $this->workspaceAppService->deleteWorkspace($requestContext, (int)$id);
+        $this->workspaceAppService->deleteWorkspace($requestContext, (int) $id);
 
         // 返回规范化的响应结果
         return ['id' => $id];

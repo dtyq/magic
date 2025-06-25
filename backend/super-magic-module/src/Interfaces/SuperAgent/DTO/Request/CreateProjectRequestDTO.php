@@ -31,6 +31,30 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     public string $projectDescription = '';
 
     /**
+     * Get workspace ID.
+     */
+    public function getWorkspaceId(): int
+    {
+        return (int) $this->workspaceId;
+    }
+
+    /**
+     * Get project name.
+     */
+    public function getProjectName(): string
+    {
+        return $this->projectName;
+    }
+
+    /**
+     * Get project description.
+     */
+    public function getProjectDescription(): string
+    {
+        return $this->projectDescription;
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -54,29 +78,5 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'project_name.max' => 'Project name cannot exceed 1 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
         ];
-    }
-
-    /**
-     * Get workspace ID.
-     */
-    public function getWorkspaceId(): int
-    {
-        return (int) $this->workspaceId;
-    }
-
-    /**
-     * Get project name.
-     */
-    public function getProjectName(): string
-    {
-        return $this->projectName;
-    }
-
-    /**
-     * Get project description.
-     */
-    public function getProjectDescription(): string
-    {
-        return $this->projectDescription;
     }
 }

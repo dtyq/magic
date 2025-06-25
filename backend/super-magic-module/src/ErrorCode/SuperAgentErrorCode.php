@@ -38,6 +38,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('topic.concurrent_operation_failed')]
     case TOPIC_LOCK_FAILED = 51052;
 
+    #[ErrorMessage('topic.topic_access_denied')]
+    case TOPIC_ACCESS_DENIED = 51053;
+
     // Task related error codes (51100-51149)
     #[ErrorMessage('task.not_found')]
     case TASK_NOT_FOUND = 51100;

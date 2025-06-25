@@ -11,7 +11,7 @@ use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 
 /**
- * Project Entity
+ * Project Entity.
  */
 class ProjectEntity extends AbstractEntity
 {
@@ -51,7 +51,7 @@ class ProjectEntity extends AbstractEntity
     protected ProjectStatus $projectStatus = ProjectStatus::ACTIVE;
 
     /**
-     * @var int|null 当前话题ID
+     * @var null|int 当前话题ID
      */
     protected ?int $currentTopicId = null;
 
@@ -91,7 +91,7 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 转换为数组
+     * 转换为数组.
      */
     public function toArray(): array
     {
@@ -200,7 +200,7 @@ class ProjectEntity extends AbstractEntity
         return $this->currentTopicId;
     }
 
-    public function setCurrentTopicId(int|string|null $currentTopicId): self
+    public function setCurrentTopicId(null|int|string $currentTopicId): self
     {
         $this->currentTopicId = $currentTopicId ? (int) $currentTopicId : null;
         return $this;
@@ -273,11 +273,11 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 检查项目是否已删除
+     * 检查项目是否已删除.
      */
     public function isDeleted(): bool
     {
-        return !empty($this->deletedAt);
+        return ! empty($this->deletedAt);
     }
 
     /**
@@ -286,14 +286,14 @@ class ProjectEntity extends AbstractEntity
     public function getStatus(): ProjectStatus
     {
         // Sync status with deleted_at field
-        if ($this->isDeleted() && !$this->projectStatus->isDeleted()) {
+        if ($this->isDeleted() && ! $this->projectStatus->isDeleted()) {
             $this->projectStatus = ProjectStatus::DELETED;
         }
         return $this->projectStatus;
     }
 
     /**
-     * 标记项目为已删除
+     * 标记项目为已删除.
      */
     public function markAsDeleted(): self
     {
@@ -303,7 +303,7 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 恢复已删除的项目
+     * 恢复已删除的项目.
      */
     public function restore(): self
     {
@@ -313,7 +313,7 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 归档项目
+     * 归档项目.
      */
     public function archive(): self
     {
@@ -322,7 +322,7 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 激活项目
+     * 激活项目.
      */
     public function activate(): self
     {
@@ -331,7 +331,7 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 检查项目是否活跃
+     * 检查项目是否活跃.
      */
     public function isActive(): bool
     {
@@ -339,7 +339,7 @@ class ProjectEntity extends AbstractEntity
     }
 
     /**
-     * 检查项目是否已归档
+     * 检查项目是否已归档.
      */
     public function isArchived(): bool
     {

@@ -18,9 +18,19 @@ class TopicItemDTO extends AbstractDTO
     protected string $id = '';
 
     /**
+     * @var string 用户ID
+     */
+    protected string $userId = '';
+
+    /**
      * @var string 聊天话题ID
      */
     protected string $chatTopicId = '';
+
+    /**
+     * @var string 聊天会话ID
+     */
+    protected string $chatConversationId = '';
 
     /**
      * @var string 话题名称
@@ -33,11 +43,6 @@ class TopicItemDTO extends AbstractDTO
     protected string $taskStatus = '';
 
     /**
-     * @var string 用户id
-     */
-    protected string $userId = '';
-
-    /**
      * @var string 任务模式
      */
     protected string $taskMode = 'chat';
@@ -48,17 +53,25 @@ class TopicItemDTO extends AbstractDTO
     protected string $projectId = '';
 
     /**
+     * @var string 话题模式
+     */
+    protected string $topicMode = 'general';
+
+    /**
      * 从实体创建 DTO.
      */
     public static function fromEntity(TopicEntity $entity): self
     {
         $dto = new self();
         $dto->setId((string) $entity->getId());
+        $dto->setUserId($entity->getUserId() ? (string) $entity->getUserId() : '');
         $dto->setChatTopicId($entity->getChatTopicId());
+        $dto->setChatConversationId($entity->getChatConversationId());
         $dto->setTopicName($entity->getTopicName());
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setTaskMode($entity->getTaskMode());
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
+        $dto->setTopicMode($entity->getTopicMode()->value);
         return $dto;
     }
 
@@ -73,6 +86,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getUserId(): string
+    {
+        return $this->userId;
+    }
+
+    public function setUserId(string $userId): self
+    {
+        $this->userId = $userId;
+        return $this;
+    }
+
     public function getChatTopicId(): string
     {
         return $this->chatTopicId;
@@ -81,6 +105,17 @@ class TopicItemDTO extends AbstractDTO
     public function setChatTopicId(string $chatTopicId): self
     {
         $this->chatTopicId = $chatTopicId;
+        return $this;
+    }
+
+    public function getChatConversationId(): string
+    {
+        return $this->chatConversationId;
+    }
+
+    public function setChatConversationId(string $chatConversationId): self
+    {
+        $this->chatConversationId = $chatConversationId;
         return $this;
     }
 
@@ -106,17 +141,6 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
-    public function setUserId(string $userId): self
-    {
-        $this->userId = $userId;
-        return $this;
-    }
-
-    public function getUserId(): string
-    {
-        return $this->userId;
-    }
-
     public function getTaskMode(): string
     {
         return $this->taskMode;
@@ -139,6 +163,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getTopicMode(): string
+    {
+        return $this->topicMode;
+    }
+
+    public function setTopicMode(string $topicMode): self
+    {
+        $this->topicMode = $topicMode;
+        return $this;
+    }
+
     /**
      * 从数组创建DTO.
      */
@@ -146,12 +181,14 @@ class TopicItemDTO extends AbstractDTO
     {
         $dto = new self();
         $dto->id = (string) $data['id'];
+        $dto->userId = isset($data['user_id']) ? (string) $data['user_id'] : '';
         $dto->chatTopicId = $data['chat_topic_id'] ?? '';
+        $dto->chatConversationId = $data['chat_conversation_id'] ?? '';
         $dto->topicName = $data['topic_name'] ?? $data['name'] ?? '';
         $dto->taskStatus = $data['task_status'] ?? $data['current_task_status'] ?? '';
-        $dto->userId = $data['user_id'] ?? '';
         $dto->taskMode = $data['task_mode'] ?? 'chat';
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
+        $dto->topicMode = $data['topic_mode'] ?? 'general';
 
         return $dto;
     }
@@ -164,12 +201,14 @@ class TopicItemDTO extends AbstractDTO
     {
         return [
             'id' => $this->id,
+            'user_id' => $this->userId,
             'chat_topic_id' => $this->chatTopicId,
+            'chat_conversation_id' => $this->chatConversationId,
             'topic_name' => $this->topicName,
             'task_status' => $this->taskStatus,
-            'user_id' => $this->userId,
             'task_mode' => $this->taskMode,
             'project_id' => $this->projectId,
+            'topic_mode' => $this->topicMode,
         ];
     }
 }

@@ -10,11 +10,12 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+use Exception;
 
 class TopicDomainService
 {
@@ -102,11 +103,6 @@ class TopicDomainService
         return $result['list'][0];
     }
 
-    public function updateTopic(TopicEntity $topicEntity): bool
-    {
-        return $this->topicRepository->updateTopic($topicEntity);
-    }
-
     public function updateTopicWhereUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool
     {
         return $this->topicRepository->updateTopicWithUpdatedAt($topicEntity, $updatedAt);
@@ -115,6 +111,23 @@ class TopicDomainService
     public function updateTopicStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus): bool
     {
         return $this->topicRepository->updateTopicStatusBySandboxIds($sandboxIds, $taskStatus->value);
+    }
+
+    public function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): TopicEntity
+    {
+        // 查找当前的话题是否是自己的
+        $topicEntity = $this->topicRepository->getTopicById((int) $requestDTO->getId());
+        if (empty($topicEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+        $topicEntity->setTopicName($requestDTO->getTopicName());
+
+        $this->topicRepository->updateTopic($topicEntity);
+
+        return $topicEntity;
     }
 
     /**
@@ -165,22 +178,26 @@ class TopicDomainService
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
 
-        // Save topic
-        $topicEntity = $this->topicRepository->createTopic($topicEntity);
-
-        // Update work directory after topic is created
-        if ($topicEntity->getId()) {
-            $topicEntity->setUpdatedAt($currentTime);
-            $this->topicRepository->updateTopic($topicEntity);
-        }
-
-        return $topicEntity;
+        return $this->topicRepository->createTopic($topicEntity);
     }
 
     public function deleteTopicsByWorkspaceId(DataIsolation $dataIsolation, int $workspaceId)
     {
         $conditions = [
-          'workspace_id' => $workspaceId,
+            'workspace_id' => $workspaceId,
+        ];
+        $data = [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
+
+    public function deleteTopicsByProjectId(DataIsolation $dataIsolation, int $projectId)
+    {
+        $conditions = [
+            'project_id' => $projectId,
         ];
         $data = [
             'deleted_at' => date('Y-m-d H:i:s'),
@@ -211,46 +228,41 @@ class TopicDomainService
 
         // 检查用户权限（检查话题是否属于当前用户）
         if ($topicEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
         }
-
-        // 检查任务状态，如果是运行中则不允许删除
-        if ($topicEntity->getCurrentTaskStatus() === TaskStatus::RUNNING) {
-            // 向 agent 发送停止命令
-            $taskEntity = $this->taskRepository->getTaskById($topicEntity->getCurrentTaskId());
-            if (! empty($taskEntity)) {
-                $this->taskDomainService->handleInterruptInstruction($dataIsolation, $taskEntity);
-            }
-        }
-
-        // 获取工作区详情，检查工作区是否存在
-        $workspaceEntity = $this->workspaceRepository->getWorkspaceById($topicEntity->getWorkspaceId());
-        if (! $workspaceEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.not_found');
-        }
-
-        // 检查工作区是否已归档
-        if ($workspaceEntity->getArchiveStatus() === WorkspaceArchiveStatus::Archived) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.archived');
-        }
-
-        // 删除该话题下的所有任务（调用仓储层的批量删除方法）
-        $this->taskRepository->deleteTasksByTopicId($id);
 
         // 设置删除时间
         $topicEntity->setDeletedAt(date('Y-m-d H:i:s'));
         // 设置更新者用户ID
         $topicEntity->setUpdatedUid($userId);
+        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
 
         // 保存更新
         return $this->topicRepository->updateTopic($topicEntity);
     }
 
     /**
-     * Generate work directory.
+     * Get project topics with pagination
+     * 获取项目下的话题列表，支持分页和排序.
      */
-    private function generateWorkDir(string $userId, int $topicId): string
-    {
-        return sprintf('/%s/%s/topic_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $topicId);
+    public function getProjectTopicsWithPagination(
+        int $projectId,
+        string $userId,
+        int $page = 1,
+        int $pageSize = 10
+    ): array {
+        $conditions = [
+            'project_id' => $projectId,
+            'user_id' => $userId,
+        ];
+
+        return $this->topicRepository->getTopicsByConditions(
+            $conditions,
+            true, // needPagination
+            $pageSize,
+            $page,
+            'updated_at', // 按更新时间排序
+            'desc' // 降序
+        );
     }
 }

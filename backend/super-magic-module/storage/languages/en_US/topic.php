@@ -8,4 +8,5 @@ return [
     'default_topic_name' => 'New Topic',
     'topic_not_found' => 'Topic not found',
     'create_topic_failed' => 'Create topic failed',
+    'topic_access_denied' => 'Topic access denied',
 ];

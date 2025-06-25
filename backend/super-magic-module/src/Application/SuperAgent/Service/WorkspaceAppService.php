@@ -22,17 +22,15 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryCleanupUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
@@ -42,12 +40,10 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveWorkspaceResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
-use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use function Hyperf\Translation\trans;
 
 class WorkspaceAppService extends AbstractAppService
 {
@@ -159,6 +155,7 @@ class WorkspaceAppService extends AbstractAppService
      */
     public function saveWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
     {
+        Db::beginTransaction();
         try {
             // Get user authorization information
             $userAuthorization = $requestContext->getUserAuthorization();
@@ -334,7 +331,7 @@ class WorkspaceAppService extends AbstractAppService
             // TODO 停止所有运行中的任务
 
             Db::commit();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('删除工作区失败：' . $e->getMessage());
             throw $e;
@@ -858,7 +855,7 @@ class WorkspaceAppService extends AbstractAppService
                 $workspaceName
             );
             $this->logger->info(sprintf('创建默认工作区成功, workspaceId=%s', $workspaceEntity->getId()));
-            if (!$workspaceEntity->getId()) {
+            if (! $workspaceEntity->getId()) {
                 ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
             }
 
@@ -872,7 +869,7 @@ class WorkspaceAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
             // 获取工作区目录
-            $workDir = WorkDirectoryCleanupUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
 
             // Step 4: Create default topic
             $this->logger->info('开始创建默认话题');
