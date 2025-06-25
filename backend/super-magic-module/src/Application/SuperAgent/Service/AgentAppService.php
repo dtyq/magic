@@ -422,10 +422,7 @@ class AgentAppService extends AbstractKernelAppService
             ],
             'metadata' => $messageMetadata->toArray(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),
-            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
-            'mcp_config' => [
-                'mcpServers' => $mcpServers,
-            ],
+            'magic_service_host' => config('super-magic.sandbox.callback_host', '')
         ];
     }
 
