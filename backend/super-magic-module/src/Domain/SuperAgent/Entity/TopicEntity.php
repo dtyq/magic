@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Throwable;
 
 /**
@@ -82,6 +83,11 @@ class TopicEntity extends AbstractEntity
     protected string $taskMode = 'chat';
 
     /**
+     * @var TopicMode 话题模式
+     */
+    protected TopicMode $topicMode = TopicMode::GENERAL;
+
+    /**
      * @var float 话题成本
      */
     protected float $cost = 0.0;
@@ -152,6 +158,7 @@ class TopicEntity extends AbstractEntity
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
             'task_mode' => $this->taskMode ?? 'chat',
+            'topic_mode' => $this->topicMode->value,
             'cost' => $this->cost ?? 0.0,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,
@@ -514,6 +521,33 @@ class TopicEntity extends AbstractEntity
     public function setChatHistoryCommitHash(?string $chatHistoryCommitHash): self
     {
         $this->chatHistoryCommitHash = $chatHistoryCommitHash;
+        return $this;
+    }
+
+    /**
+     * 获取话题模式.
+     */
+    public function getTopicMode(): TopicMode
+    {
+        return $this->topicMode;
+    }
+
+    /**
+     * 设置话题模式.
+     */
+    public function setTopicMode(string|TopicMode $topicMode): self
+    {
+        // 如果输入是字符串，尝试转换为TopicMode枚举
+        if (is_string($topicMode)) {
+            try {
+                $topicMode = TopicMode::from($topicMode);
+            } catch (Throwable $e) {
+                // 转换失败时使用默认值
+                $topicMode = TopicMode::GENERAL;
+            }
+        }
+
+        $this->topicMode = $topicMode;
         return $this;
     }
 }

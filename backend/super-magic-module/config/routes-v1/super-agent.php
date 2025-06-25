@@ -34,8 +34,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::addGroup('/projects', static function () {
         // 获取项目列表
         Router::get('', [ProjectApi::class, 'index']);
-        // 获取最近使用的项目列表
-        Router::get('/recent', [ProjectApi::class, 'getRecentProjects']);
         // 获取项目详情
         Router::get('/{id}', [ProjectApi::class, 'show']);
         // 创建项目
@@ -44,8 +42,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::put('/{id}', [ProjectApi::class, 'update']);
         // 删除项目
         Router::delete('/{id}', [ProjectApi::class, 'destroy']);
-        // 获取工作区下的项目列表
-        Router::get('/workspace/{workspaceId}', [ProjectApi::class, 'getWorkspaceProjects']);
+        // 获取项目下的话题列表
+        Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
     });
 
     // 话题相关

@@ -8,139 +8,52 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
-use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TopicModel;
 use Hyperf\DbConnection\Db;
 
 /**
- * 项目仓储实现
+ * 项目仓储实现.
  */
 class ProjectRepository extends AbstractRepository implements ProjectRepositoryInterface
 {
     public function __construct(
-        public ProjectModel $projectModel
+        protected ProjectModel $projectModel
     ) {
     }
 
     /**
-     * 根据ID查找项目
+     * 根据ID查找项目.
      */
     public function findById(int $id): ?ProjectEntity
     {
         $model = $this->projectModel::query()->find($id);
-        if (!$model) {
+        if (! $model) {
             return null;
         }
-
-        return $this->modelToEntity($model->toArray());
+        /**
+         * @var ProjectModel $model
+         */
+        return $this->modelToEntity($model);
     }
 
     /**
-     * 根据工作区ID和用户ID查找项目列表
-     */
-    public function findByWorkspaceIdAndUserId(int $workspaceId, string $userId): array
-    {
-        $query = $this->projectModel::query()
-            ->where('workspace_id', $workspaceId)
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc');
-
-        $results = Db::select($query->toSql(), $query->getBindings());
-        return $this->toEntities($results);
-    }
-
-    /**
-     * 根据用户ID获取项目列表（支持分页）
-     */
-    public function findByUserId(string $userId, ?Page $page = null): array
-    {
-        $baseQuery = $this->projectModel::query()
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc');
-
-        if ($page) {
-            // 手动处理分页
-            $total = $baseQuery->count();
-            $offset = ($page->getPage() - 1) * $page->getPageNum();
-            $results = Db::select(
-                $baseQuery->offset($offset)->limit($page->getPageNum())->toSql(),
-                $baseQuery->getBindings()
-            );
-            return [
-                'list' => $this->toEntities($results),
-                'total' => $total
-            ];
-        }
-
-        $results = Db::select($baseQuery->toSql(), $baseQuery->getBindings());
-        return $this->toEntities($results);
-    }
-
-    /**
-     * 根据用户ID获取最近使用的项目列表
-     */
-    public function findRecentProjectsByUserId(string $userId, int $limit = 10): array
-    {
-        $query = $this->projectModel::query()
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc')
-            ->limit($limit);
-
-        $results = Db::select($query->toSql(), $query->getBindings());
-        return $this->toEntities($results);
-    }
-
-    /**
-     * 根据用户ID和组织编码获取项目列表
-     */
-    public function findByUserIdAndOrganizationCode(string $userId, string $organizationCode, ?Page $page = null): array
-    {
-        $baseQuery = $this->projectModel::query()
-            ->where('user_id', $userId)
-            ->where('user_organization_code', $organizationCode)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc');
-
-        if ($page) {
-            // 手动处理分页
-            $total = $baseQuery->count();
-            $offset = ($page->getPage() - 1) * $page->getPageNum();
-            $results = Db::select(
-                $baseQuery->offset($offset)->limit($page->getPageNum())->toSql(),
-                $baseQuery->getBindings()
-            );
-            return [
-                'list' => $this->toEntities($results),
-                'total' => $total
-            ];
-        }
-
-        $results = Db::select($baseQuery->toSql(), $baseQuery->getBindings());
-        return $this->toEntities($results);
-    }
-
-    /**
-     * 保存项目
+     * 保存项目.
      */
     public function save(ProjectEntity $project): ProjectEntity
     {
         $attributes = $this->entityToModelAttributes($project);
 
         if ($project->getId() > 0) {
-            // 更新
+            /**
+             * @var ProjectModel $model
+             */
             $model = $this->projectModel::query()->find($project->getId());
-            if ($model) {
-                $model->fill($attributes);
-                $model->save();
-                return $this->modelToEntity($model->toArray());
-            }
+            $model->fill($attributes);
+            $model->save();
+            return $this->modelToEntity($model);
         }
 
         // 创建
@@ -151,12 +64,12 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
-     * 删除项目（软删除）
+     * 删除项目（软删除）.
      */
     public function delete(ProjectEntity $project): bool
     {
         $model = $this->projectModel::query()->find($project->getId());
-        if (!$model) {
+        if (! $model) {
             return false;
         }
 
@@ -164,47 +77,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
-     * 根据项目名称和工作区ID查找项目
-     */
-    public function findByProjectNameAndWorkspaceId(string $projectName, int $workspaceId): ?ProjectEntity
-    {
-        $model = $this->projectModel::query()
-            ->where('project_name', $projectName)
-            ->where('workspace_id', $workspaceId)
-            ->whereNull('deleted_at')
-            ->first();
-
-        if (!$model) {
-            return null;
-        }
-
-        return $this->modelToEntity($model->toArray());
-    }
-
-    /**
-     * 检查项目是否存在
-     */
-    public function exists(int $id): bool
-    {
-        return $this->projectModel::query()
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->exists();
-    }
-
-    /**
-     * 统计用户的项目数量
-     */
-    public function countByUserId(string $userId): int
-    {
-        return $this->projectModel::query()
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->count();
-    }
-
-    /**
-     * 统计工作区下的项目数量
+     * 统计工作区下的项目数量.
      */
     public function countByWorkspaceId(int $workspaceId): int
     {
@@ -215,7 +88,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
-     * 批量获取项目信息
+     * 批量获取项目信息.
      */
     public function findByIds(array $ids): array
     {
@@ -240,29 +113,72 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
-     * 模型转实体
+     * 根据条件获取项目列表
+     * 支持分页和排序.
      */
-    protected function modelToEntity(array $data): ProjectEntity
+    public function getProjectsByConditions(
+        array $conditions = [],
+        int $page = 1,
+        int $pageSize = 10,
+        string $orderBy = 'updated_at',
+        string $orderDirection = 'desc'
+    ): array {
+        $query = $this->projectModel::query();
+
+        // 默认过滤已删除的数据
+        $query->whereNull('deleted_at');
+
+        // 应用查询条件
+        foreach ($conditions as $field => $value) {
+            // 默认等于查询
+            $query->where($field, $value);
+        }
+
+        // 获取总数
+        $total = $query->count();
+
+        // 排序和分页
+        $list = $query->orderBy($orderBy, $orderDirection)
+            ->offset(($page - 1) * $pageSize)
+            ->limit($pageSize)
+            ->get();
+
+        // 转换为实体对象
+        $entities = [];
+        foreach ($list as $model) {
+            $entities[] = $this->modelToEntity($model);
+        }
+
+        return [
+            'total' => $total,
+            'list' => $entities,
+        ];
+    }
+
+    /**
+     * 模型转实体.
+     */
+    protected function modelToEntity(ProjectModel $model): ProjectEntity
     {
         return new ProjectEntity([
-            'id' => $data['id'] ?? 0,
-            'user_id' => $data['user_id'] ?? '',
-            'user_organization_code' => $data['user_organization_code'] ?? '',
-            'workspace_id' => $data['workspace_id'] ?? 0,
-            'project_name' => $data['project_name'] ?? '',
-            'work_dir' => $data['work_dir'] ?? '',
-            'current_topic_id' => $data['current_topic_id'] ?? '',
-            'current_topic_status' => $data['current_topic_status'] ?? '',
-            'created_uid' => $data['created_uid'] ?? '',
-            'updated_uid' => $data['updated_uid'] ?? '',
-            'created_at' => $data['created_at'] ?? null,
-            'updated_at' => $data['updated_at'] ?? null,
-            'deleted_at' => $data['deleted_at'] ?? null,
+            'id' => $model->id ?? 0,
+            'user_id' => $model->user_id ?? '',
+            'user_organization_code' => $model->user_organization_code ?? '',
+            'workspace_id' => $model->workspace_id ?? 0,
+            'project_name' => $model->project_name ?? '',
+            'work_dir' => $model->work_dir ?? '',
+            'current_topic_id' => $model->current_topic_id ?? '',
+            'current_topic_status' => $model->current_topic_status ?? '',
+            'created_uid' => $model->created_uid ?? '',
+            'updated_uid' => $model->updated_uid ?? '',
+            'created_at' => $model->created_at ? $model->created_at->format('Y-m-d H:i:s') : null,
+            'updated_at' => $model->updated_at ? $model->updated_at->format('Y-m-d H:i:s') : null,
+            'deleted_at' => $model->deleted_at ? $model->deleted_at->format('Y-m-d H:i:s') : null,
         ]);
     }
 
     /**
-     * 数组结果转实体数组
+     * 数组结果转实体数组.
      */
     protected function toEntities(array $results): array
     {
@@ -272,12 +188,12 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
-     * 数组转实体
+     * 数组转实体.
      */
     protected function toEntity(array|object $data): ProjectEntity
     {
         $data = is_object($data) ? (array) $data : $data;
-        
+
         return new ProjectEntity([
             'id' => $data['id'] ?? 0,
             'user_id' => $data['user_id'] ?? '',
@@ -296,7 +212,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
-     * 实体转模型属性
+     * 实体转模型属性.
      */
     protected function entityToModelAttributes(ProjectEntity $entity): array
     {

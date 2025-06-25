@@ -10,22 +10,27 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model;
 use App\Infrastructure\Core\AbstractModel;
 
 /**
- * 项目文件模型（原任务文件模型）
+ * 项目文件模型（原任务文件模型）.
  */
 class ProjectFileModel extends AbstractModel
 {
     /**
-     * 表名
+     * 软删除字段.
+     */
+    public const DELETED_AT = 'deleted_at';
+
+    /**
+     * 表名.
      */
     protected ?string $table = 'magic_super_agent_project_files';
 
     /**
-     * 主键
+     * 主键.
      */
     protected string $primaryKey = 'file_id';
 
     /**
-     * 可填充字段
+     * 可填充字段.
      */
     protected array $fillable = [
         'user_id',
@@ -44,7 +49,7 @@ class ProjectFileModel extends AbstractModel
     ];
 
     /**
-     * 字段类型转换
+     * 字段类型转换.
      */
     protected array $casts = [
         'file_id' => 'integer',
@@ -59,7 +64,7 @@ class ProjectFileModel extends AbstractModel
     ];
 
     /**
-     * 日期字段
+     * 日期字段.
      */
     protected array $dates = [
         'created_at',
@@ -68,12 +73,7 @@ class ProjectFileModel extends AbstractModel
     ];
 
     /**
-     * 软删除字段
-     */
-    public const DELETED_AT = 'deleted_at';
-
-    /**
-     * 获取文件所属的项目
+     * 获取文件所属的项目.
      */
     public function project()
     {
@@ -81,7 +81,7 @@ class ProjectFileModel extends AbstractModel
     }
 
     /**
-     * 获取文件所属的话题
+     * 获取文件所属的话题.
      */
     public function topic()
     {

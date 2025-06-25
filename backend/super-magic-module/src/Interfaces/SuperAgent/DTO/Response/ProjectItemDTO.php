@@ -10,38 +10,31 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 
 /**
- * 项目条目DTO
+ * 项目条目DTO.
  */
 class ProjectItemDTO
 {
     public function __construct(
         public readonly string $id,
-        public readonly string $userId,
-        public readonly string $userOrganizationCode,
         public readonly string $workspaceId,
         public readonly string $projectName,
         public readonly string $workDir,
         public readonly string $currentTopicId,
         public readonly string $currentTopicStatus,
-        public readonly string $createdUid,
-        public readonly string $updatedUid,
         public readonly ?string $createdAt,
         public readonly ?string $updatedAt
-    ) {}
+    ) {
+    }
 
     public static function fromEntity(ProjectEntity $project): self
     {
         return new self(
             id: (string) $project->getId(),
-            userId: $project->getUserId(),
-            userOrganizationCode: $project->getUserOrganizationCode(),
             workspaceId: (string) $project->getWorkspaceId(),
             projectName: $project->getProjectName(),
             workDir: $project->getWorkDir(),
             currentTopicId: (string) $project->getCurrentTopicId(),
             currentTopicStatus: $project->getCurrentTopicStatus(),
-            createdUid: $project->getCreatedUid(),
-            updatedUid: $project->getUpdatedUid(),
             createdAt: $project->getCreatedAt(),
             updatedAt: $project->getUpdatedAt()
         );
@@ -51,15 +44,11 @@ class ProjectItemDTO
     {
         return [
             'id' => $this->id,
-            'user_id' => $this->userId,
-            'user_organization_code' => $this->userOrganizationCode,
             'workspace_id' => $this->workspaceId,
             'project_name' => $this->projectName,
             'work_dir' => $this->workDir,
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
-            'created_uid' => $this->createdUid,
-            'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

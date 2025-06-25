@@ -8,18 +8,17 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 /**
- * 项目列表响应DTO
+ * 项目列表响应DTO.
  */
 class ProjectListResponseDTO
 {
     public function __construct(
         public readonly array $list,
-        public readonly int $total,
-        public readonly int $page,
-        public readonly int $pageSize
-    ) {}
+        public readonly int $total
+    ) {
+    }
 
-    public static function create(array $projects, int $total = 0, int $page = 1, int $pageSize = 20): self
+    public static function create(array $projects, int $total = 0): self
     {
         $list = array_map(function ($project) {
             return ProjectItemDTO::fromEntity($project)->toArray();
@@ -28,8 +27,6 @@ class ProjectListResponseDTO
         return new self(
             list: $list,
             total: $total ?: count($projects),
-            page: $page,
-            pageSize: $pageSize
         );
     }
 
@@ -37,7 +34,7 @@ class ProjectListResponseDTO
     {
         $projects = $result['list'] ?? $result;
         $total = $result['total'] ?? count($projects);
-        
+
         $list = array_map(function ($project) {
             return ProjectItemDTO::fromEntity($project)->toArray();
         }, $projects);
@@ -45,8 +42,6 @@ class ProjectListResponseDTO
         return new self(
             list: $list,
             total: $total,
-            page: 1,
-            pageSize: count($projects)
         );
     }
 
@@ -55,8 +50,6 @@ class ProjectListResponseDTO
         return [
             'list' => $this->list,
             'total' => $this->total,
-            'page' => $this->page,
-            'page_size' => $this->pageSize,
         ];
     }
 }

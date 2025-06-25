@@ -11,18 +11,15 @@ use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\CreateTopicBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
@@ -83,10 +80,11 @@ class TopicAppService extends AbstractAppService
 
         // 如果有ID，表示更新；否则是创建
         if ($requestDTO->isUpdate()) {
-            return $this->updateTopic($dataIsolation, $requestDTO);
+            $this->topicDomainService->updateTopic($dataIsolation, $requestDTO);
+            return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
         }
 
-        return $this->createNewTopic($dataIsolation, $requestDTO);
+        return $this->createTopic($dataIsolation, $requestDTO);
     }
 
     public function renameTopic(MagicUserAuthorization $authorization, int $topicId, string $userQuestion): array
@@ -95,11 +93,6 @@ class TopicAppService extends AbstractAppService
         $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
-        }
-
-        // 如果当前话题已经被命名，则不进行重命名
-        if ($topicEntity->getTopicName() !== AgentConstant::DEFAULT_TOPIC_NAME) {
-            return ['topic_name' => $topicEntity->getTopicName()];
         }
 
         // 调用领域服务执行重命名（这一步与magic-service进行绑定）
@@ -136,7 +129,9 @@ class TopicAppService extends AbstractAppService
         $topicId = $requestDTO->getId();
 
         // 调用领域服务执行删除
-        $result = $this->workspaceDomainService->deleteTopic($dataIsolation, (int) $topicId);
+        $result = $this->topicDomainService->deleteTopic($dataIsolation, (int) $topicId);
+
+        // todo 投递事件，停止服务
 
         // 如果删除失败，抛出异常
         if (! $result) {
@@ -160,30 +155,6 @@ class TopicAppService extends AbstractAppService
     }
 
     /**
-     * 更新话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 更新结果
-     * @throws BusinessException 如果更新失败则抛出异常
-     */
-    private function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 更新话题名称
-        $result = $this->workspaceDomainService->updateTopicName(
-            $dataIsolation,
-            (int) $requestDTO->getId(), // 传递主键ID
-            $requestDTO->getTopicName()
-        );
-
-        if (! $result) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
-        }
-
-        return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
-    }
-
-    /**
      * 创建新话题.
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
@@ -191,35 +162,28 @@ class TopicAppService extends AbstractAppService
      * @return SaveTopicResultDTO 创建结果
      * @throws BusinessException|Throwable 如果创建失败则抛出异常
      */
-    private function createNewTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
+    private function createTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
     {
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();
         try {
-            // 触发话题创建前事件
-            AsyncEventUtil::dispatch(new CreateTopicBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), (int) $requestDTO->getWorkspaceId(), $requestDTO->getTopicName()));
-
             // 1. 初始化 chat 的会话和话题
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
             // 2. 创建话题
-            $topicEntity = $this->workspaceDomainService->createTopic(
+            $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
                 (int) $requestDTO->getWorkspaceId(),
+                (int) $requestDTO->getProjectId(),
+                $chatConversationId,
                 $chatConversationTopicId, // 会话的话题ID
-                $requestDTO->getTopicName()
+                $requestDTO->getTopicName(),
+                WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), (int) $requestDTO->getProjectId())
             );
-
             // 提交事务
             Db::commit();
-
             // 返回结果
-            return SaveTopicResultDTO::fromId((int) $topicEntity->getId());
-        } catch (EventException $e) {
-            // 回滚事务
-            Db::rollBack();
-            $this->logger->error(sprintf("Error creating new topic event: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
-            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, $e->getMessage());
+            return SaveTopicResultDTO::fromId($topicEntity->getId());
         } catch (Throwable $e) {
             // 回滚事务
             Db::rollBack();

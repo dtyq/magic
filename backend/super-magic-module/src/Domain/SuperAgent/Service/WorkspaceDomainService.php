@@ -44,7 +44,7 @@ class WorkspaceDomainService
 
     /**
      * Create workspace only (without topic creation).
-     * 
+     *
      * @param DataIsolation $dataIsolation Data isolation object
      * @param string $chatConversationId Chat conversation ID
      * @param string $workspaceName Workspace name
@@ -432,13 +432,13 @@ class WorkspaceDomainService
     {
         // Get topic entity by ID
         $topicEntity = $this->topicRepository->getTopicById($topicId);
-        if (!$topicEntity) {
+        if (! $topicEntity) {
             ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
         }
 
         // Update project association
         $topicEntity->setProjectId($projectId);
-        
+
         // Save update
         return $this->topicRepository->updateTopic($topicEntity);
     }

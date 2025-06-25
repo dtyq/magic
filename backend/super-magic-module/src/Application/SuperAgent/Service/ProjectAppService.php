@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -17,11 +17,14 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
-use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
+use Throwable;
 
 /**
  * 项目应用服务
@@ -41,7 +44,7 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
-     * 创建项目
+     * 创建项目.
      */
     public function createProject(RequestContext $requestContext, CreateProjectRequestDTO $requestDTO): array
     {
@@ -103,8 +106,8 @@ class ProjectAppService extends AbstractAppService
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
 
             Db::commit();
-            return ['id' => $projectEntity->getId()];
-        } catch (\Throwable $e) {
+            return ['id' => $projectEntity->getId(), 'topic' => TopicItemDTO::fromEntity($topicEntity)];
+        } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Create Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
@@ -112,7 +115,7 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
-     * 更新项目
+     * 更新项目.
      */
     public function updateProject(RequestContext $requestContext, UpdateProjectRequestDTO $requestDTO): array
     {
@@ -129,7 +132,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 获取项目信息
-        $projectEntity = $this->projectDomainService->getProject((int)$requestDTO->getId(), $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
         $projectEntity->setProjectName($requestDTO->getProjectName());
         $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
         $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
@@ -140,24 +143,29 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
-     * 删除项目
+     * 删除项目.
      */
-    public function deleteProject(int $projectId, string $userId): bool
+    public function deleteProject(RequestContext $requestContext, int $projectId): bool
     {
-        $result = $this->projectDomainService->deleteProject($projectId, $userId);
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 删除话题
+        $result = $this->projectDomainService->deleteProject($projectId, $dataIsolation->getCurrentUserId());
 
         if ($result) {
-            $this->logger->info('项目删除成功', [
-                'project_id' => $projectId,
-                'user_id' => $userId,
-            ]);
+            $this->topicDomainService->deleteTopicsByProjectId($dataIsolation, $projectId);
+            // todo 投递消息，停止正在运行的话题
         }
 
         return $result;
     }
 
     /**
-     * 获取项目详情
+     * 获取项目详情.
      */
     public function getProject(int $projectId, string $userId): ProjectEntity
     {
@@ -165,60 +173,68 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
-     * 获取用户的项目列表
+     * 获取项目列表（带分页）.
      */
-    public function getUserProjects(
-        string $userId,
-        ?string $organizationCode = null,
-        ?Page $page = null
-    ): array {
-        return $this->projectDomainService->getUserProjects($userId, $organizationCode, $page);
-    }
+    public function getProjectList(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
 
-    /**
-     * 获取项目列表（带分页）
-     */
-    public function getProjectList(
-        string $userId,
-        string $userOrganizationCode,
-        ?int $workspaceId = null,
-        ?Page $page = null
-    ): array {
-        if ($workspaceId) {
-            return $this->projectDomainService->getWorkspaceProjects($workspaceId, $userId);
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $conditions = [];
+        $conditions['user_id'] = $dataIsolation->getCurrentUserId();
+        $conditions['user_organization_code'] = $dataIsolation->getCurrentOrganizationCode();
+
+        if ($requestDTO->getWorkspaceId()) {
+            $conditions['workspace_id'] = $requestDTO->getWorkspaceId();
         }
-        return $this->projectDomainService->getUserProjects($userId, $userOrganizationCode, $page);
+
+        $result = $this->projectDomainService->getProjectsByConditions(
+            $conditions,
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            'updated_at',
+            'desc'
+        );
+
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result);
+
+        return $listResponseDTO->toArray();
     }
 
     /**
-     * 获取工作区下的项目列表
+     * 获取项目下的话题列表.
      */
-    public function getWorkspaceProjects(int $workspaceId, string $userId): array
+    public function getProjectTopics(RequestContext $requestContext, int $projectId, int $page = 1, int $pageSize = 10): array
     {
-        return $this->projectDomainService->getWorkspaceProjects($workspaceId, $userId);
-    }
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
 
-    /**
-     * 获取用户最近使用的项目列表
-     */
-    public function getRecentProjects(string $userId, int $limit = 10): array
-    {
-        return $this->projectDomainService->getRecentProjects($userId, $limit);
-    }
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-    /**
-     * 检查项目是否存在
-     */
-    public function existsProject(int $projectId): bool
-    {
-        return $this->projectDomainService->existsProject($projectId);
-    }
+        // 验证项目权限
+        $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
-    /**
-     * 统计用户的项目数量
-     */
-    public function countUserProjects(string $userId): int
-    {
-        return $this->projectDomainService->countUserProjects($userId);
+        // 通过话题领域服务获取项目下的话题列表
+        $result = $this->topicDomainService->getProjectTopicsWithPagination(
+            $projectId,
+            $dataIsolation->getCurrentUserId(),
+            $page,
+            $pageSize
+        );
+
+        // 转换为 TopicItemDTO
+        $topicDTOs = [];
+        foreach ($result['list'] as $topic) {
+            $topicDTOs[] = TopicItemDTO::fromEntity($topic)->toArray();
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $topicDTOs,
+        ];
     }
 }

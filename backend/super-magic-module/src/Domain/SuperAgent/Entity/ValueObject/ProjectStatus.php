@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
 /**
- * 项目状态枚举
+ * 项目状态枚举.
  */
 enum ProjectStatus: int
 {
@@ -18,17 +18,17 @@ enum ProjectStatus: int
     case ACTIVE = 1;
 
     /**
-     * 已归档
+     * 已归档.
      */
     case ARCHIVED = 2;
 
     /**
-     * 已删除
+     * 已删除.
      */
     case DELETED = 3;
 
     /**
-     * 获取状态描述
+     * 获取状态描述.
      */
     public function getDescription(): string
     {
@@ -48,7 +48,7 @@ enum ProjectStatus: int
     }
 
     /**
-     * 是否已归档
+     * 是否已归档.
      */
     public function isArchived(): bool
     {
@@ -56,7 +56,7 @@ enum ProjectStatus: int
     }
 
     /**
-     * 是否已删除
+     * 是否已删除.
      */
     public function isDeleted(): bool
     {

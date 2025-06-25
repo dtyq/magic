@@ -31,29 +31,9 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     public string $topicName = '';
 
     /**
-     * Get validation rules.
+     * Project ID.
      */
-    protected static function getHyperfValidationRules(): array
-    {
-        return [
-            'id' => 'nullable|string',
-            'workspace_id' => 'required|string',
-            'topic_name' => 'required|string|max:100',
-        ];
-    }
-
-    /**
-     * Get custom error messages for validation failures.
-     */
-    protected static function getHyperfValidationMessage(): array
-    {
-        return [
-            'workspace_id.required' => 'Workspace ID cannot be empty',
-            'workspace_id.string' => 'Workspace ID must be a string',
-            'topic_name.required' => 'Topic name cannot be empty',
-            'topic_name.max' => 'Topic name cannot exceed 100 characters',
-        ];
-    }
+    public string $projectId = '';
 
     /**
      * Get topic ID (primary key).
@@ -80,10 +60,46 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get project ID.
+     */
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
+    /**
      * Check if this is an update operation.
      */
     public function isUpdate(): bool
     {
         return ! empty($this->id);
+    }
+
+    /**
+     * Get validation rules.
+     */
+    protected static function getHyperfValidationRules(): array
+    {
+        return [
+            'id' => 'nullable|string',
+            'workspace_id' => 'required|string',
+            'topic_name' => 'required|string|max:100',
+            'project_id' => 'required|string',
+        ];
+    }
+
+    /**
+     * Get custom error messages for validation failures.
+     */
+    protected static function getHyperfValidationMessage(): array
+    {
+        return [
+            'workspace_id.required' => 'Workspace ID cannot be empty',
+            'workspace_id.string' => 'Workspace ID must be a string',
+            'topic_name.required' => 'Topic name cannot be empty',
+            'topic_name.max' => 'Topic name cannot exceed 100 characters',
+            'project_id.required' => 'Project ID cannot be empty',
+            'project_id.string' => 'Project ID must be a string',
+        ];
     }
 }

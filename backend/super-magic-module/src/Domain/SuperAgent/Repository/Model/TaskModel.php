@@ -59,7 +59,7 @@ class TaskModel extends AbstractModel
     ];
 
     /**
-     * 获取任务所属的工作区
+     * 获取任务所属的工作区.
      */
     public function workspace()
     {
@@ -67,7 +67,7 @@ class TaskModel extends AbstractModel
     }
 
     /**
-     * 获取任务所属的项目
+     * 获取任务所属的项目.
      */
     public function project()
     {
@@ -75,7 +75,7 @@ class TaskModel extends AbstractModel
     }
 
     /**
-     * 获取任务所属的话题
+     * 获取任务所属的话题.
      */
     public function topic()
     {

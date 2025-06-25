@@ -26,28 +26,6 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
     public string $workspaceName = '';
 
     /**
-     * Get validation rules.
-     */
-    protected static function getHyperfValidationRules(): array
-    {
-        return [
-            'id' => 'nullable|string',
-            'workspace_name' => 'required|string|max:100',
-        ];
-    }
-
-    /**
-     * Get custom error messages for validation failures.
-     */
-    protected static function getHyperfValidationMessage(): array
-    {
-        return [
-            'workspace_name.required' => 'Workspace name cannot be empty',
-            'workspace_name.max' => 'Workspace name cannot exceed 100 characters',
-        ];
-    }
-
-    /**
      * Get workspace ID (if exists).
      */
     public function getWorkspaceId(): ?string
@@ -69,5 +47,27 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
     public function isUpdate(): bool
     {
         return ! empty($this->id);
+    }
+
+    /**
+     * Get validation rules.
+     */
+    protected static function getHyperfValidationRules(): array
+    {
+        return [
+            'id' => 'nullable|string',
+            'workspace_name' => 'required|string|max:100',
+        ];
+    }
+
+    /**
+     * Get custom error messages for validation failures.
+     */
+    protected static function getHyperfValidationMessage(): array
+    {
+        return [
+            'workspace_name.required' => 'Workspace name cannot be empty',
+            'workspace_name.max' => 'Workspace name cannot exceed 100 characters',
+        ];
     }
 }

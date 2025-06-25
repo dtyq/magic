@@ -335,7 +335,7 @@ class TaskRepository implements TaskRepositoryInterface
     }
 
     /**
-     * 根据项目ID获取任务列表
+     * 根据项目ID获取任务列表.
      */
     public function getTasksByProjectId(int $projectId, string $userId): array
     {
@@ -366,7 +366,7 @@ class TaskRepository implements TaskRepositoryInterface
     }
 
     /**
-     * 统计项目下的任务数量
+     * 统计项目下的任务数量.
      */
     public function countTasksByProjectId(int $projectId): int
     {

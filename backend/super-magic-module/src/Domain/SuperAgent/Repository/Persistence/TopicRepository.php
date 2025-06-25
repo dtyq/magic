@@ -302,23 +302,7 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
-     * 将数据库模型数据转换为实体数据.
-     * @param array $modelData 模型数据
-     * @return array 实体数据
-     */
-    private function convertModelToEntityData(array $modelData): array
-    {
-        // 将下划线命名转换为驼峰命名
-        $entityData = [];
-        foreach ($modelData as $key => $value) {
-            $camelKey = $this->snakeToCamel($key);
-            $entityData[$camelKey] = $value;
-        }
-        return $entityData;
-    }
-
-    /**
-     * 根据项目ID获取话题列表
+     * 根据项目ID获取话题列表.
      */
     public function getTopicsByProjectId(int $projectId, string $userId): array
     {
@@ -339,7 +323,7 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
-     * 统计项目下的话题数量
+     * 统计项目下的话题数量.
      */
     public function countTopicsByProjectId(int $projectId): int
     {
@@ -347,6 +331,22 @@ class TopicRepository implements TopicRepositoryInterface
             ->where('project_id', $projectId)
             ->whereNull('deleted_at')
             ->count();
+    }
+
+    /**
+     * 将数据库模型数据转换为实体数据.
+     * @param array $modelData 模型数据
+     * @return array 实体数据
+     */
+    private function convertModelToEntityData(array $modelData): array
+    {
+        // 将下划线命名转换为驼峰命名
+        $entityData = [];
+        foreach ($modelData as $key => $value) {
+            $camelKey = $this->snakeToCamel($key);
+            $entityData[$camelKey] = $value;
+        }
+        return $entityData;
     }
 
     /**
