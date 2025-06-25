@@ -323,6 +323,45 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $account->getPhone();
     }
 
+    /**
+     * Get user details for all organizations under the account from authorization token.
+     *
+     * @param string $authorization Authorization token
+     * @return array<UserDetailDTO> List of user details
+     * @throws Throwable
+     */
+    public function getUsersDetailByAccountFromAuthorization(string $authorization): array
+    {
+        // Verify if token is of account type
+        $tokenDTO = new MagicTokenEntity();
+        $tokenDTO->setType(MagicTokenType::Account);
+        $tokenDTO->setToken($tokenDTO->getMagicShortToken($authorization));
+        $magicToken = $this->magicTokenRepository->getTokenEntity($tokenDTO);
+
+        if ($magicToken === null || $magicToken->getType() !== MagicTokenType::Account) {
+            ExceptionBuilder::throw(ChatErrorCode::AUTHORIZATION_INVALID);
+        }
+
+        // Get account's magic_id
+        $magicId = $magicToken->getTypeRelationValue();
+
+        // Get users under this account across all organizations
+        $magicUserEntities = $this->userRepository->getUserByMagicIds([$magicId]);
+
+        if (empty($magicUserEntities)) {
+            return [];
+        }
+
+        // Get account information
+        $accountEntity = $this->accountRepository->getAccountInfoByMagicId($magicId);
+        if ($accountEntity === null) {
+            return [];
+        }
+
+        // Use existing UserAssembler to build user details
+        return UserAssembler::getUsersDetail($magicUserEntities, [$accountEntity]);
+    }
+
     protected function setUserIdsByAiCodes(FriendQueryDTO $friendQueryDTO, DataIsolation $dataIsolation): array
     {
         $userIdToFlowCodeMaps = [];

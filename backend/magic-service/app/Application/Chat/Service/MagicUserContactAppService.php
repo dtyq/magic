@@ -286,7 +286,30 @@ class MagicUserContactAppService extends AbstractAppService
         return $this->magicOrganizationEnvDomainService->getEnvironmentEntityByAuthorization($authorization);
     }
 
-    // 根据用户id查询用户信息
+    /**
+     * Get user details for all organizations under the account from authorization token.
+     *
+     * @param string $authorization Authorization token
+     * @return array Paginated format consistent with existing queries interface
+     * @throws Throwable
+     */
+    public function getUsersDetailByAccountAuthorization(string $authorization): array
+    {
+        // Get user details list
+        $usersDetailDTOList = $this->userDomainService->getUsersDetailByAccountFromAuthorization($authorization);
+
+        if (empty($usersDetailDTOList)) {
+            return PageListAssembler::pageByMysql([], 0, 0, 0);
+        }
+
+        // Note: Since this interface is not within RequestContextMiddleware, organization context cannot be obtained
+        // Therefore, avatar processing is not performed, and raw data is returned directly
+        // Avatar processing requires specific organization context and file service configuration
+
+        // Return paginated format consistent with existing interfaces
+        return PageListAssembler::pageByMysql($usersDetailDTOList, 0, 0, count($usersDetailDTOList));
+    }
+
     public function getByUserId(string $userId): ?MagicUserEntity
     {
         return $this->userDomainService->getByUserId($userId);
