@@ -146,4 +146,31 @@ class MagicChatUserApi extends AbstractApi
         $userEntity = $this->userAppService->updateUserInfo($authorization, $userUpdateDTO);
         return $userEntity->toArray();
     }
+
+    /**
+     * Get user details for all organizations under the current account.
+     *
+     * @throws Throwable
+     */
+    public function getAccountUsersDetail(RequestInterface $request): array
+    {
+        // Prioritize getting authorization from header, complying with RESTful standards
+        $authorization = (string) $request->header('authorization', '');
+
+        // If not in header, try to get from query parameters (for compatibility)
+        if (empty($authorization)) {
+            $authorization = (string) $request->query('authorization', '');
+        }
+
+        if (empty($authorization)) {
+            return [
+                'items' => [],
+                'has_more' => false,
+                'page_token' => '',
+                'error' => 'Authorization token cannot be empty',
+            ];
+        }
+
+        return $this->userAppService->getUsersDetailByAccountAuthorization($authorization);
+    }
 }
