@@ -327,10 +327,11 @@ class MagicUserDomainService extends AbstractContactDomainService
      * Get user details for all organizations under the account from authorization token.
      *
      * @param string $authorization Authorization token
+     * @param null|string $organizationCode Optional organization code to filter users
      * @return array<UserDetailDTO> List of user details
      * @throws Throwable
      */
-    public function getUsersDetailByAccountFromAuthorization(string $authorization): array
+    public function getUsersDetailByAccountFromAuthorization(string $authorization, ?string $organizationCode = null): array
     {
         // Verify if token is of account type
         $tokenDTO = new MagicTokenEntity();
@@ -345,8 +346,14 @@ class MagicUserDomainService extends AbstractContactDomainService
         // Get account's magic_id
         $magicId = $magicToken->getTypeRelationValue();
 
-        // Get users under this account across all organizations
-        $magicUserEntities = $this->userRepository->getUserByMagicIds([$magicId]);
+        // Get users under this account, optionally filtered by organization
+        if ($organizationCode) {
+            // If organization code is provided, only get users from that organization
+            $magicUserEntities = $this->userRepository->getUsersByMagicIdAndOrganizationCode([$magicId], $organizationCode);
+        } else {
+            // If no organization code, get users from all organizations
+            $magicUserEntities = $this->userRepository->getUserByMagicIds([$magicId]);
+        }
 
         if (empty($magicUserEntities)) {
             return [];

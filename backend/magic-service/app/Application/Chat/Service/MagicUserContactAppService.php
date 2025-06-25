@@ -290,13 +290,14 @@ class MagicUserContactAppService extends AbstractAppService
      * Get user details for all organizations under the account from authorization token.
      *
      * @param string $authorization Authorization token
+     * @param null|string $organizationCode Optional organization code to filter users
      * @return array Paginated format consistent with existing queries interface
      * @throws Throwable
      */
-    public function getUsersDetailByAccountAuthorization(string $authorization): array
+    public function getUsersDetailByAccountAuthorization(string $authorization, ?string $organizationCode = null): array
     {
         // Get user details list
-        $usersDetailDTOList = $this->userDomainService->getUsersDetailByAccountFromAuthorization($authorization);
+        $usersDetailDTOList = $this->userDomainService->getUsersDetailByAccountFromAuthorization($authorization, $organizationCode);
 
         if (empty($usersDetailDTOList)) {
             return PageListAssembler::pageByMysql([], 0, 0, 0);
