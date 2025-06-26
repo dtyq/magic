@@ -652,7 +652,7 @@ class TaskDomainService
         return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
     }
 
-    public function updateTaskStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus, ?string $errMsg = null): int
+    public function updateTaskStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus, ?string $errMsg = null): bool
     {
         return $this->taskRepository->updateTaskStatusBySandboxIds($sandboxIds, $taskStatus->value, $errMsg);
     }

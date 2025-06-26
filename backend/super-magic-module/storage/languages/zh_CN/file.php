@@ -10,7 +10,7 @@ return [
     'concurrent_modification' => '文件并发修改冲突',
     'save_rate_limit' => '文件保存频率限制',
     'upload_failed' => '文件上传失败',
-    
+
     // Batch download related
     'batch_file_ids_required' => '文件ID列表不能为空',
     'batch_file_ids_invalid' => '文件ID格式无效',

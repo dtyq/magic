@@ -18,7 +18,7 @@ function remote()
     git remote add $1 $2 || true
 }
 
-git pull origin $CURRENT_BRANCH
+# git pull origin $CURRENT_BRANCH
 
 if [[ $# -eq 0 ]]; then
     REPOS=$(ls $BASEPATH)

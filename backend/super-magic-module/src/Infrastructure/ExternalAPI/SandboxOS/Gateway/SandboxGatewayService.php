@@ -214,6 +214,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             }
 
             $proxyPath = $this->buildProxyPath($sandboxId, $path);
+            // $proxyPath = $path;
             $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
             $responseData = json_decode($response->getBody()->getContents(), true);
@@ -246,5 +247,19 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
             return GatewayResult::error('Unexpected error: ' . $e->getMessage());
         }
+    }
+
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir = '.workspace'): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersions', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey, 'git_directory' => $gitDir]);
+    }
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
     }
 }

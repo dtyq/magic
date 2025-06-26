@@ -7,10 +7,10 @@ declare(strict_types=1);
 use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\RequestContextMiddlewareV2;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/super-agent', static function () {
@@ -111,5 +111,10 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/process-attachments', [FileApi::class, 'processAttachments']);
         // 新增话题附件列表(git 管理)
         Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
+
+        // 获取文件版本列表
+        Router::post('/versions', [FileApi::class, 'getFileVersions']);
+        // 获取文件版本内容
+        Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
     });
 });
