@@ -22,7 +22,8 @@ class InitAgentRequest
         private array $messageSubscriptionConfig = [],
         private array $stsTokenRefresh = [],
         private array $metadata = [],
-        private string $taskMode = 'plan'
+        private string $taskMode = 'plan',
+        private string $magicServiceHost = ''
     ) {
     }
 
@@ -38,7 +39,8 @@ class InitAgentRequest
             $data['message_subscription_config'] ?? [],
             $data['sts_token_refresh'] ?? [],
             $data['metadata'] ?? [],
-            $data['task_mode'] ?? 'plan'
+            $data['task_mode'] ?? 'plan',
+            $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', '')
         );
     }
 
@@ -60,9 +62,10 @@ class InitAgentRequest
         array $messageSubscriptionConfig = [],
         array $stsTokenRefresh = [],
         array $metadata = [],
-        string $taskMode = 'plan'
+        string $taskMode = 'plan',
+        string $magicServiceHost = ''
     ): self {
-        return new self($messageId, $userId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode);
+        return new self($messageId, $userId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $magicServiceHost);
     }
 
     /**
@@ -199,6 +202,18 @@ class InitAgentRequest
             'sts_token_refresh' => $this->stsTokenRefresh,
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
+            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
+    }
+
+    public function getMagicServiceHost(): string
+    {
+        return $this->magicServiceHost;
+    }
+
+    public function setMagicServiceHost(string $magicServiceHost): self
+    {
+        $this->magicServiceHost = $magicServiceHost;
+        return $this;
     }
 }
