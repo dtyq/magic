@@ -11,9 +11,9 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
@@ -95,8 +95,6 @@ class FileApi extends AbstractApi
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
     }
 
-
-
     /**
      * 刷新 STS Token.
      *
@@ -120,8 +118,6 @@ class FileApi extends AbstractApi
 
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
     }
-
-
 
     public function workspaceAttachments(RequestContext $requestContext): array
     {
@@ -157,23 +153,23 @@ class FileApi extends AbstractApi
     }
 
     /**
-     * 获取文件版本列表
+     * 获取文件版本列表.
      */
     public function getFileVersions(RequestContext $requestContext)
     {
-        $fileId = $this->request->input('file_id', '');
-        return $this->agentFileAppService->getFileVersions($fileId);
+        $fileId = (int) $this->request->input('file_id', '');
+        $topicId = (int) $this->request->input('topic_id', '');
+        return $this->agentFileAppService->getFileVersions($fileId, $topicId);
     }
 
-
     /**
-     * 获取文件版本内容
+     * 获取文件版本内容.
      */
     public function getFileVersionContent(RequestContext $requestContext)
     {
-        $fileId = $this->request->input('file_id', '');
+        $fileId = (int) $this->request->input('file_id', '');
         $commitHash = $this->request->input('commit_hash', '');
-        $topicId = $this->request->input('topic_id', '');
+        $topicId = (int) $this->request->input('topic_id', '');
         return $this->agentFileAppService->getFileVersionContent($fileId, $commitHash, $topicId);
     }
 

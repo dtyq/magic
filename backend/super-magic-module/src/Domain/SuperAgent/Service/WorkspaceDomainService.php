@@ -758,6 +758,19 @@ class WorkspaceDomainService
         return $this->workspaceVersionRepository->findByCommitHashAndTopicId($commitHash, $topicId, $folder);
     }
 
+    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
+    {
+        return $this->workspaceVersionRepository->getLatestVersionByProjectId($projectId);
+    }
+
+    /**
+     * 根据commit_hash 和project_id 获取tag号.
+     */
+    public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int
+    {
+        return $this->workspaceVersionRepository->getTagByCommitHashAndProjectId($commitHash, $projectId);
+    }
+
     /**
      * 应用数据隔离到查询条件.
      */
@@ -775,18 +788,5 @@ class WorkspaceDomainService
     private function generateWorkDir(string $userId, int $topicId): string
     {
         return sprintf('/%s/%s/topic_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $topicId);
-    }
-
-    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
-    {
-        return $this->workspaceVersionRepository->getLatestVersionByProjectId($projectId);
-    }
-
-    /**
-     * 根据commit_hash 和project_id 获取tag号
-     */
-    public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int
-    {
-        return $this->workspaceVersionRepository->getTagByCommitHashAndProjectId($commitHash, $projectId);
     }
 }

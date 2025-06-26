@@ -17,7 +17,7 @@ class WorkspaceVersionModel extends AbstractModel
     protected ?string $table = 'magic_super_agent_workspace_versions';
 
     protected array $fillable = [
-        'id', 'topic_id', 'sandbox_id', 'commit_hash', 'dir', 'folder', 'tag', 'created_at', 'updated_at', 'deleted_at','project_id'
+        'id', 'topic_id', 'sandbox_id', 'commit_hash', 'dir', 'folder', 'tag', 'created_at', 'updated_at', 'deleted_at', 'project_id',
     ];
 
     protected array $casts = [
@@ -36,21 +36,22 @@ class WorkspaceVersionModel extends AbstractModel
     }
 
     /**
-     * Boot the model and add the auto-increment tag logic
+     * Boot the model and add the auto-increment tag logic.
      */
-    protected static function booted()
-    {
-        parent::booted();
+    // protected static function booted()
+    // {
+    //     // Call the parent Model's booted method directly
+    //     \Hyperf\DbConnection\Model\Model::booted();
 
-        static::creating(function ($model) {
-            if (!isset($model->tag)) {
-                $model->tag = $model->getNextTag();
-            }
-        });
-    }
+    //     static::creating(function ($model) {
+    //         if (!isset($model->tag)) {
+    //             $model->tag = $model->getNextTag();
+    //         }
+    //     });
+    // }
 
     /**
-     * Get the next tag number for the given commit_hash and topic_id
+     * Get the next tag number for the given commit_hash and topic_id.
      */
     protected function getNextTag(): int
     {

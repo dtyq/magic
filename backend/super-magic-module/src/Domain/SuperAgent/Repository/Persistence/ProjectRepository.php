@@ -13,7 +13,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
 use Hyperf\DbConnection\Db;
-use RuntimeException;
 
 /**
  * 项目仓储实现.
@@ -30,11 +29,13 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
      */
     public function findById(int $id): ?ProjectEntity
     {
-        /** @var ProjectModel|null $model */
         $model = $this->projectModel::query()->find($id);
         if (! $model) {
             return null;
         }
+        /*
+         * @var ProjectModel $model
+         */
         return $this->modelToEntity($model);
     }
 
@@ -47,12 +48,9 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
 
         if ($project->getId() > 0) {
             /**
-             * @var ProjectModel|null $model
+             * @var ProjectModel $model
              */
             $model = $this->projectModel::query()->find($project->getId());
-            if (!$model) {
-                throw new RuntimeException('Project not found for update: ' . $project->getId());
-            }
             $model->fill($attributes);
             $model->save();
             return $this->modelToEntity($model);
@@ -61,9 +59,8 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         // 创建
         $attributes['id'] = IdGenerator::getSnowId();
         $project->setId($attributes['id']);
-        /** @var ProjectModel $model */
         $model = $this->projectModel::query()->create($attributes);
-        return $this->modelToEntity($model);
+        return $project;
     }
 
     /**
@@ -71,7 +68,6 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
      */
     public function delete(ProjectEntity $project): bool
     {
-        /** @var ProjectModel|null $model */
         $model = $this->projectModel::query()->find($project->getId());
         if (! $model) {
             return false;
@@ -150,7 +146,6 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         // 转换为实体对象
         $entities = [];
         foreach ($list as $model) {
-            /** @var ProjectModel $model */
             $entities[] = $this->modelToEntity($model);
         }
 

@@ -153,5 +153,4 @@ class WorkspaceVersionEntity extends AbstractEntity
         $this->projectId = $projectId;
         return $this;
     }
-
 }

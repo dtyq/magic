@@ -8,9 +8,14 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+use Exception;
 
 class TopicDomainService
 {
@@ -104,11 +109,6 @@ class TopicDomainService
         return $result['list'][0];
     }
 
-    public function updateTopic(TopicEntity $topicEntity): bool
-    {
-        return $this->topicRepository->updateTopic($topicEntity);
-    }
-
     public function updateTopicWhereUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool
     {
         return $this->topicRepository->updateTopicWithUpdatedAt($topicEntity, $updatedAt);
@@ -117,5 +117,158 @@ class TopicDomainService
     public function updateTopicStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus): bool
     {
         return $this->topicRepository->updateTopicStatusBySandboxIds($sandboxIds, $taskStatus->value);
+    }
+
+    public function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): TopicEntity
+    {
+        // 查找当前的话题是否是自己的
+        $topicEntity = $this->topicRepository->getTopicById((int) $requestDTO->getId());
+        if (empty($topicEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+        $topicEntity->setTopicName($requestDTO->getTopicName());
+
+        $this->topicRepository->updateTopic($topicEntity);
+
+        return $topicEntity;
+    }
+
+    /**
+     * Create topic.
+     *
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $workspaceId Workspace ID
+     * @param int $projectId Project ID
+     * @param string $chatConversationId Chat conversation ID
+     * @param string $chatTopicId Chat topic ID
+     * @param string $topicName Topic name
+     * @return TopicEntity Created topic entity
+     * @throws Exception If creation fails
+     */
+    public function createTopic(
+        DataIsolation $dataIsolation,
+        int $workspaceId,
+        int $projectId,
+        string $chatConversationId,
+        string $chatTopicId,
+        string $topicName = '',
+        string $workDir = ''
+    ): TopicEntity {
+        // Get current user info
+        $userId = $dataIsolation->getCurrentUserId();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $currentTime = date('Y-m-d H:i:s');
+
+        // Validate required parameters
+        if (empty($chatTopicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic.id_required');
+        }
+
+        // Create topic entity
+        $topicEntity = new TopicEntity();
+        $topicEntity->setUserId($userId);
+        $topicEntity->setUserOrganizationCode($organizationCode);
+        $topicEntity->setWorkspaceId($workspaceId);
+        $topicEntity->setProjectId($projectId);
+        $topicEntity->setChatTopicId($chatTopicId);
+        $topicEntity->setChatConversationId($chatConversationId);
+        $topicEntity->setTopicName($topicName);
+        $topicEntity->setSandboxId(''); // Initially empty
+        $topicEntity->setWorkDir($workDir); // Initially empty
+        $topicEntity->setCurrentTaskId(0);
+        $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // Default status: waiting
+        $topicEntity->setCreatedUid($userId); // Set creator user ID
+        $topicEntity->setUpdatedUid($userId); // Set updater user ID
+        $topicEntity->setCreatedAt($currentTime);
+
+        return $this->topicRepository->createTopic($topicEntity);
+    }
+
+    public function deleteTopicsByWorkspaceId(DataIsolation $dataIsolation, int $workspaceId)
+    {
+        $conditions = [
+            'workspace_id' => $workspaceId,
+        ];
+        $data = [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
+
+    public function deleteTopicsByProjectId(DataIsolation $dataIsolation, int $projectId)
+    {
+        $conditions = [
+            'project_id' => $projectId,
+        ];
+        $data = [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
+
+    /**
+     * 删除话题（逻辑删除）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param int $id 话题ID(主键)
+     * @return bool 是否删除成功
+     * @throws Exception 如果删除失败或任务状态为运行中
+     */
+    public function deleteTopic(DataIsolation $dataIsolation, int $id): bool
+    {
+        // 获取当前用户ID
+        $userId = $dataIsolation->getCurrentUserId();
+
+        // 通过主键ID获取话题
+        $topicEntity = $this->topicRepository->getTopicById($id);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
+        }
+
+        // 检查用户权限（检查话题是否属于当前用户）
+        if ($topicEntity->getUserId() !== $userId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+
+        // 设置删除时间
+        $topicEntity->setDeletedAt(date('Y-m-d H:i:s'));
+        // 设置更新者用户ID
+        $topicEntity->setUpdatedUid($userId);
+        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        // 保存更新
+        return $this->topicRepository->updateTopic($topicEntity);
+    }
+
+    /**
+     * Get project topics with pagination
+     * 获取项目下的话题列表，支持分页和排序.
+     */
+    public function getProjectTopicsWithPagination(
+        int $projectId,
+        string $userId,
+        int $page = 1,
+        int $pageSize = 10
+    ): array {
+        $conditions = [
+            'project_id' => $projectId,
+            'user_id' => $userId,
+        ];
+
+        return $this->topicRepository->getTopicsByConditions(
+            $conditions,
+            true, // needPagination
+            $pageSize,
+            $page,
+            'updated_at', // 按更新时间排序
+            'desc' // 降序
+        );
     }
 }
