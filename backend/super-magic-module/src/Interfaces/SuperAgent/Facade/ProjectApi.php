@@ -11,6 +11,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
@@ -110,5 +111,19 @@ class ProjectApi extends AbstractApi
         $pageSize = (int) $this->request->input('page_size', 10);
 
         return $this->projectAppService->getProjectTopics($requestContext, (int) $id, $page, $pageSize);
+    }
+
+    /**
+     * Get project attachments.
+     */
+    public function getProjectAttachments(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 使用 fromRequest 方法从请求中创建 DTO，这样可以从路由参数中获取 project_id
+        $dto = GetProjectAttachmentsRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->getProjectAttachments($requestContext, $dto);
     }
 }

@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -16,10 +15,10 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
@@ -37,6 +36,7 @@ class TopicAppService extends AbstractAppService
 
     public function __construct(
         protected WorkspaceDomainService $workspaceDomainService,
+        protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
         protected MagicChatMessageAppService $magicChatMessageAppService,
         protected ChatAppService $chatAppService,
@@ -56,15 +56,7 @@ class TopicAppService extends AbstractAppService
         return TopicItemDTO::fromEntity($topicEntity);
     }
 
-    /**
-     * 保存话题（创建或更新）.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 保存结果
-     * @throws BusinessException|Exception 如果保存失败则抛出异常
-     */
-    public function saveTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
+    public function createTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
     {
         // 获取用户授权信息
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -78,13 +70,47 @@ class TopicAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
         }
 
-        // 如果有ID，表示更新；否则是创建
-        if ($requestDTO->isUpdate()) {
-            $this->topicDomainService->updateTopic($dataIsolation, $requestDTO);
-            return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
-        }
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
 
-        return $this->createTopic($dataIsolation, $requestDTO);
+        // 创建新话题，使用事务确保原子性
+        Db::beginTransaction();
+        try {
+            // 1. 初始化 chat 的会话和话题
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+
+            // 2. 创建话题
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                (int) $requestDTO->getWorkspaceId(),
+                (int) $requestDTO->getProjectId(),
+                $chatConversationId,
+                $chatConversationTopicId, // 会话的话题ID
+                $requestDTO->getTopicName(),
+                $projectEntity->getWorkDir(),
+            );
+            // 提交事务
+            Db::commit();
+            // 返回结果
+            return SaveTopicResultDTO::fromId($topicEntity->getId());
+        } catch (Throwable $e) {
+            // 回滚事务
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new topic: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, 'topic.create_topic_failed');
+        }
+    }
+
+    public function updateTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
+    {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $this->topicDomainService->updateTopic($dataIsolation, (int) $requestDTO->getId(), $requestDTO->getTopicName());
+
+        return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
     }
 
     public function renameTopic(MagicUserAuthorization $authorization, int $topicId, string $userQuestion): array
@@ -152,43 +178,5 @@ class TopicAppService extends AbstractAppService
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
         return $this->topicDomainService->getTopicsExceedingUpdateTime($timeThreshold, $limit);
-    }
-
-    /**
-     * 创建新话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param SaveTopicRequestDTO $requestDTO 请求DTO
-     * @return SaveTopicResultDTO 创建结果
-     * @throws BusinessException|Throwable 如果创建失败则抛出异常
-     */
-    private function createTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
-    {
-        // 创建新话题，使用事务确保原子性
-        Db::beginTransaction();
-        try {
-            // 1. 初始化 chat 的会话和话题
-            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
-
-            // 2. 创建话题
-            $topicEntity = $this->topicDomainService->createTopic(
-                $dataIsolation,
-                (int) $requestDTO->getWorkspaceId(),
-                (int) $requestDTO->getProjectId(),
-                $chatConversationId,
-                $chatConversationTopicId, // 会话的话题ID
-                $requestDTO->getTopicName(),
-                WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), (int) $requestDTO->getProjectId())
-            );
-            // 提交事务
-            Db::commit();
-            // 返回结果
-            return SaveTopicResultDTO::fromId($topicEntity->getId());
-        } catch (Throwable $e) {
-            // 回滚事务
-            Db::rollBack();
-            $this->logger->error(sprintf("Error creating new topic: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
-            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, 'topic.create_topic_failed');
-        }
     }
 }

@@ -32,8 +32,9 @@ class WorkspaceListResponseDTO extends AbstractDTO
      * Create DTO from result.
      *
      * @param array $result [total, list, auto_create]
+     * @param array $workspaceStatusMap ['workspace_id' => 'status'] mapping
      */
-    public static function fromResult(array $result): self
+    public static function fromResult(array $result, array $workspaceStatusMap = []): self
     {
         $dto = new self();
         $dto->total = $result['total'];
@@ -41,9 +42,11 @@ class WorkspaceListResponseDTO extends AbstractDTO
 
         foreach ($result['list'] as $workspace) {
             if (is_array($workspace)) {
-                $dto->list[] = WorkspaceItemDTO::fromArray($workspace);
+                $workspaceStatus = $workspaceStatusMap[$workspace['id']] ?? null;
+                $dto->list[] = WorkspaceItemDTO::fromArray($workspace, $workspaceStatus);
             } else {
-                $dto->list[] = WorkspaceItemDTO::fromEntity($workspace);
+                $workspaceStatus = $workspaceStatusMap[$workspace->getId()] ?? null;
+                $dto->list[] = WorkspaceItemDTO::fromEntity($workspace, $workspaceStatus);
             }
         }
 

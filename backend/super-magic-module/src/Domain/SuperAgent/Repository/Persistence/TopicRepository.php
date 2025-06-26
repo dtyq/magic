@@ -334,6 +334,48 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
+     * 批量获取有运行中话题的工作区ID列表.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array 有运行中话题的工作区ID数组
+     */
+    public function getRunningWorkspaceIds(array $workspaceIds): array
+    {
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        return $this->model::query()
+            ->whereIn('workspace_id', $workspaceIds)
+            ->where('current_task_status', TaskStatus::RUNNING->value)
+            ->whereNull('deleted_at')
+            ->distinct()
+            ->pluck('workspace_id')
+            ->toArray();
+    }
+
+    /**
+     * 批量获取有运行中话题的项目ID列表.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array 有运行中话题的项目ID数组
+     */
+    public function getRunningProjectIds(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        return $this->model::query()
+            ->whereIn('project_id', $projectIds)
+            ->where('current_task_status', TaskStatus::RUNNING->value)
+            ->whereNull('deleted_at')
+            ->distinct()
+            ->pluck('project_id')
+            ->toArray();
+    }
+
+    /**
      * 将数据库模型数据转换为实体数据.
      * @param array $modelData 模型数据
      * @return array 实体数据

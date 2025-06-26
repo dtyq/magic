@@ -100,4 +100,8 @@ interface TopicRepositoryInterface
      * 统计项目下的话题数量.
      */
     public function countTopicsByProjectId(int $projectId): int;
+
+    public function getRunningWorkspaceIds(array $workspaceIds): array;
+
+    public function getRunningProjectIds(array $projectIds): array;
 }

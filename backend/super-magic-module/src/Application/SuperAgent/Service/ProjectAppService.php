@@ -7,19 +7,25 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\File\Service\FileAppService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
@@ -37,7 +43,9 @@ class ProjectAppService extends AbstractAppService
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
+        private readonly TaskDomainService $taskDomainService,
         private readonly ChatAppService $chatAppService,
+        private readonly FileAppService $fileAppService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -106,7 +114,7 @@ class ProjectAppService extends AbstractAppService
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
 
             Db::commit();
-            return ['id' => $projectEntity->getId(), 'topic' => TopicItemDTO::fromEntity($topicEntity)];
+            return ['project' => ProjectItemDTO::fromEntity($projectEntity), 'topic' => TopicItemDTO::fromEntity($topicEntity)];
         } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Create Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
@@ -139,7 +147,7 @@ class ProjectAppService extends AbstractAppService
 
         $this->projectDomainService->saveProjectEntity($projectEntity);
 
-        return ['id' => $projectEntity->getId()];
+        return ProjectItemDTO::fromEntity($projectEntity)->toArray();
     }
 
     /**
@@ -199,7 +207,14 @@ class ProjectAppService extends AbstractAppService
             'desc'
         );
 
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result);
+        // 提取所有项目ID
+        $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
+
+        // 批量获取项目状态
+        $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds);
+
+        // 创建响应DTO并传入项目状态映射
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $projectStatusMap);
 
         return $listResponseDTO->toArray();
     }
@@ -235,6 +250,88 @@ class ProjectAppService extends AbstractAppService
         return [
             'total' => $result['total'],
             'list' => $topicDTOs,
+        ];
+    }
+
+    /**
+     * 获取项目附件列表.
+     */
+    public function getProjectAttachments(RequestContext $requestContext, GetProjectAttachmentsRequestDTO $requestDTO): array
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 验证项目权限
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+
+        // 通过任务领域服务获取项目下的附件列表
+        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
+            (int) $requestDTO->getProjectId(),
+            $dataIsolation,
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            $requestDTO->getFileType()
+        );
+
+        // 处理文件 URL
+        $list = [];
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        // 遍历附件列表，使用TaskFileItemDTO处理
+        foreach ($result['list'] as $entity) {
+            // 创建DTO
+            $dto = new TaskFileItemDTO();
+            $dto->fileId = (string) $entity->getFileId();
+            $dto->taskId = (string) $entity->getTaskId();
+            $dto->fileType = $entity->getFileType();
+            $dto->fileName = $entity->getFileName();
+            $dto->fileExtension = $entity->getFileExtension();
+            $dto->fileKey = $entity->getFileKey();
+            $dto->fileSize = $entity->getFileSize();
+            $dto->isHidden = $entity->getIsHidden();
+
+            // 添加 project_id 字段
+            $dto->projectId = (string) $entity->getProjectId();
+
+            // Calculate relative file path by removing workDir from fileKey
+            $fileKey = $entity->getFileKey();
+            $workDir = $projectEntity->getWorkDir();
+            if (! empty($workDir)) {
+                $workDirPos = strpos($fileKey, $workDir);
+                if ($workDirPos !== false) {
+                    $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
+                } else {
+                    $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
+                }
+            } else {
+                $dto->relativeFilePath = $fileKey;
+            }
+
+            // 添加 file_url 字段
+            if (! empty($fileKey)) {
+                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey);
+                if ($fileLink) {
+                    $dto->fileUrl = $fileLink->getUrl();
+                } else {
+                    $dto->fileUrl = '';
+                }
+            } else {
+                $dto->fileUrl = '';
+            }
+
+            $list[] = $dto->toArray();
+        }
+
+        // 构建树状结构
+        $tree = FileTreeUtil::assembleFilesTree($projectEntity->getWorkDir() ?? '', $list);
+
+        return [
+            'list' => $list,
+            'tree' => $tree,
+            'total' => $result['total'],
         ];
     }
 }

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 
 /**
  * 项目条目DTO.
@@ -21,12 +22,13 @@ class ProjectItemDTO
         public readonly string $workDir,
         public readonly string $currentTopicId,
         public readonly string $currentTopicStatus,
+        public readonly string $projectStatus,
         public readonly ?string $createdAt,
         public readonly ?string $updatedAt
     ) {
     }
 
-    public static function fromEntity(ProjectEntity $project): self
+    public static function fromEntity(ProjectEntity $project, ?string $projectStatus = null): self
     {
         return new self(
             id: (string) $project->getId(),
@@ -35,6 +37,7 @@ class ProjectItemDTO
             workDir: $project->getWorkDir(),
             currentTopicId: (string) $project->getCurrentTopicId(),
             currentTopicStatus: $project->getCurrentTopicStatus(),
+            projectStatus: $projectStatus ?? TaskStatus::WAITING->value,
             createdAt: $project->getCreatedAt(),
             updatedAt: $project->getUpdatedAt()
         );
@@ -49,6 +52,7 @@ class ProjectItemDTO
             'work_dir' => $this->workDir,
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
+            'project_status' => $this->projectStatus,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

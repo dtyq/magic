@@ -17,7 +17,7 @@ Router::addGroup('/api/v1/super-agent', static function () {
     // 工作区管理
     Router::addGroup('/workspaces', static function () {
         // 获取工作区列表
-        Router::get('', [WorkspaceApi::class, 'getWorkspaceList']);
+        Router::get('/queries', [WorkspaceApi::class, 'getWorkspaceList']);
         // 获取工作区下的话题列表（优化时再实现）
         Router::post('/{id}/topics', [WorkspaceApi::class, 'getWorkspaceTopics']);
         // 创建工作区
@@ -33,7 +33,7 @@ Router::addGroup('/api/v1/super-agent', static function () {
     // 项目管理
     Router::addGroup('/projects', static function () {
         // 获取项目列表
-        Router::get('', [ProjectApi::class, 'index']);
+        Router::get('/queries', [ProjectApi::class, 'index']);
         // 获取项目详情
         Router::get('/{id}', [ProjectApi::class, 'show']);
         // 创建项目
@@ -44,6 +44,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::delete('/{id}', [ProjectApi::class, 'destroy']);
         // 获取项目下的话题列表
         Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
+        // 获取项目下的附件列表
+        Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachments']);
     });
 
     // 话题相关
@@ -52,8 +54,10 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::get('/{id}', [TopicApi::class, 'getTopic']);
         // 通过话题ID获取消息列表
         Router::post('/{id}/messages', [TopicApi::class, 'getMessagesByTopicId']);
-        // 保存话题
-        Router::post('/save', [TopicApi::class, 'saveTopic']);
+        // 创建话题
+        Router::post('', [TopicApi::class, 'createTopic']);
+        // 更新话题
+        Router::put('/{id}', [TopicApi::class, 'updateTopic']);
         // 删除话题
         Router::post('/delete', [TopicApi::class, 'deleteTopic']);
         // 智能重命名话题
