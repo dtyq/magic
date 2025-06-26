@@ -191,15 +191,13 @@ class FileAppService extends AbstractAppService
             $expires
         );
 
-
-        //获取tmp dir目录的临时凭证
+        // 获取tmp dir目录的临时凭证
         $data['tmp_dir_credential'] = $this->fileDomainService->getStsTemporaryCredential(
             $organizationCode,
             StorageBucketType::from($storage),
             '/tmp/super-magic',
             $expires
         );
-
 
         // 如果是本地驱动，那么增加一个临时 key
         if ($data['platform'] === AdapterName::LOCAL) {

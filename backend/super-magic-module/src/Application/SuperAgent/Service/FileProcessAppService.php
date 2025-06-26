@@ -33,7 +33,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\DbConnection\Db;
@@ -524,7 +523,7 @@ class FileProcessAppService extends AbstractAppService
         $versionEntity = new WorkspaceVersionEntity();
         $versionEntity->setId(IdGenerator::getSnowId());
         $versionEntity->setTopicId((int) $topic->getId());
-        $versionEntity->setProjectId( $task->getProjectId());
+        $versionEntity->setProjectId($task->getProjectId());
         $versionEntity->setSandboxId($requestDTO->getSandboxId());
         $versionEntity->setCommitHash($requestDTO->getCommitHash());
         $versionEntity->setDir(json_encode($requestDTO->getDir()));
@@ -532,7 +531,7 @@ class FileProcessAppService extends AbstractAppService
         $versionEntity->setCreatedAt(date('Y-m-d H:i:s'));
         $versionEntity->setUpdatedAt(date('Y-m-d H:i:s'));
 
-        #根据project_id 获取最新的一条tag，如果tag为0，则设置为1，否则设置为tag+1
+        # 根据project_id 获取最新的一条tag，如果tag为0，则设置为1，否则设置为tag+1
         $latestVersion = $this->workspaceDomainService->getLatestVersionByProjectId($versionEntity->getProjectId());
         if ($latestVersion) {
             $versionEntity->setTag($latestVersion->getTag() + 1);
@@ -868,6 +867,25 @@ class FileProcessAppService extends AbstractAppService
         }
     }
 
+    public function getFileVersions(int $fileId): array
+    {
+        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        $gitDir = $this->getGitDir($taskFileEntity->getFileKey());
+        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
+
+        return [];
+        // return $this->fileDomainService->getFileVersionList($taskFileEntity->getFileKey());
+    }
+
+    public function getGitDir(string $fileKey): string
+    {
+        return '.workspace';
+    }
+
     /**
      * Perform actual file save logic.
      *
@@ -1047,25 +1065,5 @@ class FileProcessAppService extends AbstractAppService
 
         // Save updated entity
         $this->taskDomainService->updateTaskFile($taskFileEntity);
-    }
-
-    public function getFileVersions(int $fileId): array
-    {
-        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
-        if (empty($taskFileEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
-        }
-
-        $gitDir = $this->getGitDir($taskFileEntity->getFileKey());
-        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
-
-        return [];
-       // return $this->fileDomainService->getFileVersionList($taskFileEntity->getFileKey());
-    }
-
-
-    public function getGitDir(string $fileKey): string
-    {
-        return ".workspace";
     }
 }

@@ -15,10 +15,10 @@ return new class extends Migration {
     public function up(): void
     {
         // 1. 重命名表
-        if (Schema::hasTable('magic_super_agent_task_files') && !Schema::hasTable('magic_super_agent_project_files')) {
+        if (Schema::hasTable('magic_super_agent_task_files') && ! Schema::hasTable('magic_super_agent_project_files')) {
             Schema::rename('magic_super_agent_task_files', 'magic_super_agent_project_files');
         }
-        
+
         // 2. 修改表结构
         if (Schema::hasTable('magic_super_agent_project_files')) {
             Schema::table('magic_super_agent_project_files', function (Blueprint $table) {
@@ -26,19 +26,19 @@ return new class extends Migration {
                 if (Schema::hasColumn('magic_super_agent_project_files', 'menu')) {
                     $table->dropColumn('menu');
                 }
-                
+
                 // 在 topic_id 前添加 project_id 字段
-                if (!Schema::hasColumn('magic_super_agent_project_files', 'project_id')) {
+                if (! Schema::hasColumn('magic_super_agent_project_files', 'project_id')) {
                     $table->unsignedBigInteger('project_id')->after('file_id')->comment('项目ID');
                 }
-                
+
                 // 删除原有的 topic_id 索引
                 try {
                     $table->dropIndex('idx_topic_id');
                 } catch (Exception $e) {
                     // 索引可能不存在，忽略错误
                 }
-                
+
                 // 添加新索引
                 $table->index('project_id', 'idx_project_id');
                 $table->index('topic_id', 'idx_topic_id');
@@ -60,13 +60,13 @@ return new class extends Migration {
                 } catch (Exception $e) {
                     // 索引可能不存在，忽略错误
                 }
-                
+
                 // 删除 project_id 字段
                 if (Schema::hasColumn('magic_super_agent_project_files', 'project_id')) {
                     $table->dropColumn('project_id');
                 }
             });
-            
+
             // 重命名表回原名
             Schema::rename('magic_super_agent_project_files', 'magic_super_agent_task_files');
         }

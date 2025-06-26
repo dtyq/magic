@@ -145,8 +145,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
         try {
             $response = $this->client->post($this->buildApiPath('api/v1/sandboxes/queries'), [
-            // 根据沙箱通信文档，批量查询使用GET请求但需要JSON请求体
-            $response = $this->client->request('GET', $this->buildApiPath('api/v1/sandboxes/queries'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => ['sandbox_ids' => $sandboxIds],
                 'timeout' => 15,
@@ -216,6 +214,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             }
 
             $proxyPath = $this->buildProxyPath($sandboxId, $path);
+            // $proxyPath = $path;
             $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
             $responseData = json_decode($response->getBody()->getContents(), true);
@@ -250,17 +249,17 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
     }
 
-    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir=".workspace"): GatewayResult
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir = '.workspace'): GatewayResult
     {
         $this->logger->info('[Sandbox][Gateway] getFileVersions', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey]);
 
-        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey,"git_directory"=>$gitDir]);
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey, 'git_directory' => $gitDir]);
     }
 
-    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash,string $gitDir): GatewayResult
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult
     {
-        $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash,"git_directory"=>$gitDir]);
+        $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
-        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash,"git_directory"=>$gitDir]);
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
     }
 }

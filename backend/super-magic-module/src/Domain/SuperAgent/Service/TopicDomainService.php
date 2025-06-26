@@ -146,7 +146,7 @@ class TopicDomainService
      * @param string $chatTopicId Chat topic ID
      * @param string $topicName Topic name
      * @return TopicEntity Created topic entity
-     * @throws \Exception If creation fails
+     * @throws Exception If creation fails
      */
     public function createTopic(
         DataIsolation $dataIsolation,

@@ -66,23 +66,6 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         return $this->toEntity($model);
     }
 
-    private function toEntity($model): WorkspaceVersionEntity
-    {
-        $entity = new WorkspaceVersionEntity();
-        $entity->setId((int) $model->id);
-        $entity->setTopicId((int) $model->topic_id);
-        $entity->setSandboxId((string) $model->sandbox_id);
-        $entity->setCommitHash((string) $model->commit_hash);
-        $entity->setDir((string) $model->dir);
-        $entity->setFolder((string) $model->folder);
-        $entity->setCreatedAt($model->created_at ? (string) $model->created_at : null);
-        $entity->setUpdatedAt($model->updated_at ? (string) $model->updated_at : null);
-        $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
-        $entity->setProjectId((int) $model->project_id);
-        $entity->setTag((int) $model->tag);
-        return $entity;
-    }
-
     public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
     {
         $model = WorkspaceVersionModel::query()->where('project_id', $projectId)->orderBy('tag', 'desc')->first();
@@ -98,6 +81,24 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         if (! $model) {
             return 0;
         }
-        return (int) $model->tag;
+        $entity = $this->toEntity($model);
+        return $entity->getTag();
+    }
+
+    private function toEntity($model): WorkspaceVersionEntity
+    {
+        $entity = new WorkspaceVersionEntity();
+        $entity->setId((int) $model->id);
+        $entity->setTopicId((int) $model->topic_id);
+        $entity->setSandboxId((string) $model->sandbox_id);
+        $entity->setCommitHash((string) $model->commit_hash);
+        $entity->setDir((string) $model->dir);
+        $entity->setFolder((string) $model->folder);
+        $entity->setCreatedAt($model->created_at ? (string) $model->created_at : null);
+        $entity->setUpdatedAt($model->updated_at ? (string) $model->updated_at : null);
+        $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
+        $entity->setProjectId((int) $model->project_id);
+        $entity->setTag((int) $model->tag);
+        return $entity;
     }
 }

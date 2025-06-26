@@ -33,7 +33,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         if (! $model) {
             return null;
         }
-        /**
+        /*
          * @var ProjectModel $model
          */
         return $this->modelToEntity($model);

@@ -4,9 +4,9 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-use Hyperf\Database\Schema\Schema;
-use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
 
 return new class extends Migration {
     /**
@@ -30,7 +30,7 @@ return new class extends Migration {
             $table->timestamp('created_at')->nullable()->comment('Created time');
             $table->timestamp('updated_at')->nullable()->comment('Updated time');
             $table->timestamp('deleted_at')->nullable()->comment('Deleted time');
-            
+
             $table->index(['workspace_id', 'user_id'], 'idx_workspace_user');
             $table->index(['user_id', 'user_organization_code'], 'idx_user_org');
             $table->index(['project_name', 'workspace_id'], 'idx_name_workspace');

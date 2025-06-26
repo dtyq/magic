@@ -1,5 +1,9 @@
 <?php
 
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 return [
     'default_project_name' => 'New Project',
     'project_not_found' => 'Project not found',
