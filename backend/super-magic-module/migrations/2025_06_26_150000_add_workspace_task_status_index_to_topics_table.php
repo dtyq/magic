@@ -10,28 +10,24 @@ use Hyperf\Database\Schema\Schema;
 
 return new class extends Migration {
     /**
-     * 运行迁移.
+     * Run the migrations.
      */
     public function up(): void
     {
-        // 为 magic_super_agent_topics 表增加 topic_mode 字段
         Schema::table('magic_super_agent_topics', function (Blueprint $table) {
-            $table->string('topic_mode', 50)->default('general')->comment('话题模式: general-通用, presentation-PPT, data_analysis-数据分析, document-文档')->after('current_task_status');
+            // 添加复合索引：workspace_id + current_task_status + deleted_at
+            // 用于优化根据工作区ID查询运行中话题的性能
+            $table->index(['workspace_id', 'current_task_status', 'deleted_at'], 'idx_workspace_task_status');
         });
-
-        echo '为话题表添加话题模式字段完成' . PHP_EOL;
     }
 
     /**
-     * 回滚迁移.
+     * Reverse the migrations.
      */
     public function down(): void
     {
-        // 删除 magic_super_agent_topics 表的 topic_mode 字段
         Schema::table('magic_super_agent_topics', function (Blueprint $table) {
-            $table->dropColumn('topic_mode');
+            $table->dropIndex('idx_workspace_task_status');
         });
-
-        echo '删除话题表的话题模式字段完成' . PHP_EOL;
     }
 };

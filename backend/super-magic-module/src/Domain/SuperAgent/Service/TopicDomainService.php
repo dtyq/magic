@@ -14,7 +14,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Exception;
 
 class TopicDomainService
@@ -113,17 +112,17 @@ class TopicDomainService
         return $this->topicRepository->updateTopicStatusBySandboxIds($sandboxIds, $taskStatus->value);
     }
 
-    public function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): TopicEntity
+    public function updateTopic(DataIsolation $dataIsolation, int $id, string $topicName): TopicEntity
     {
         // 查找当前的话题是否是自己的
-        $topicEntity = $this->topicRepository->getTopicById((int) $requestDTO->getId());
+        $topicEntity = $this->topicRepository->getTopicById($id);
         if (empty($topicEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
         }
-        $topicEntity->setTopicName($requestDTO->getTopicName());
+        $topicEntity->setTopicName($topicName);
 
         $this->topicRepository->updateTopic($topicEntity);
 
@@ -140,7 +139,7 @@ class TopicDomainService
      * @param string $chatTopicId Chat topic ID
      * @param string $topicName Topic name
      * @return TopicEntity Created topic entity
-     * @throws \Exception If creation fails
+     * @throws Exception If creation fails
      */
     public function createTopic(
         DataIsolation $dataIsolation,
@@ -264,5 +263,57 @@ class TopicDomainService
             'updated_at', // 按更新时间排序
             'desc' // 降序
         );
+    }
+
+    /**
+     * 批量计算工作区状态.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array ['workspace_id' => 'status'] 键值对
+     */
+    public function calculateWorkspaceStatusBatch(array $workspaceIds): array
+    {
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        // 从仓储层获取有运行中话题的工作区ID列表
+        $runningWorkspaceIds = $this->topicRepository->getRunningWorkspaceIds($workspaceIds);
+
+        // 计算每个工作区的状态
+        $result = [];
+        foreach ($workspaceIds as $workspaceId) {
+            $result[$workspaceId] = in_array($workspaceId, $runningWorkspaceIds, true)
+                ? TaskStatus::RUNNING->value
+                : TaskStatus::WAITING->value;
+        }
+
+        return $result;
+    }
+
+    /**
+     * 批量计算项目状态.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array ['project_id' => 'status'] 键值对
+     */
+    public function calculateProjectStatusBatch(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        // 从仓储层获取有运行中话题的项目ID列表
+        $runningProjectIds = $this->topicRepository->getRunningProjectIds($projectIds);
+
+        // 计算每个项目的状态
+        $result = [];
+        foreach ($projectIds as $projectId) {
+            $result[$projectId] = in_array($projectId, $runningProjectIds, true)
+                ? TaskStatus::RUNNING->value
+                : TaskStatus::WAITING->value;
+        }
+
+        return $result;
     }
 }

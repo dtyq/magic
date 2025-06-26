@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceEntity;
 
 class WorkspaceItemDTO extends AbstractDTO
@@ -43,11 +44,17 @@ class WorkspaceItemDTO extends AbstractDTO
     public int $status;
 
     /**
+     * Workspace status: running or waiting.
+     */
+    public string $workspaceStatus;
+
+    /**
      * Create DTO from entity.
      *
      * @param WorkspaceEntity $entity Workspace entity
+     * @param null|string $workspaceStatus Workspace status
      */
-    public static function fromEntity(WorkspaceEntity $entity): self
+    public static function fromEntity(WorkspaceEntity $entity, ?string $workspaceStatus = null): self
     {
         $dto = new self();
         $dto->id = (string) $entity->getId();
@@ -56,6 +63,7 @@ class WorkspaceItemDTO extends AbstractDTO
         $dto->currentTopicId = $entity->getCurrentTopicId() ? (string) $entity->getCurrentTopicId() : null;
         $dto->currentProjectId = $entity->getCurrentProjectId() ? (string) $entity->getCurrentProjectId() : null;
         $dto->status = $entity->getStatus();
+        $dto->workspaceStatus = $workspaceStatus ?? TaskStatus::WAITING->value;
 
         return $dto;
     }
@@ -64,8 +72,9 @@ class WorkspaceItemDTO extends AbstractDTO
      * Create DTO from array.
      *
      * @param array $data Workspace data
+     * @param null|string $workspaceStatus Workspace status
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(array $data, ?string $workspaceStatus = null): self
     {
         $dto = new self();
         $dto->id = (string) $data['id'];
@@ -74,6 +83,7 @@ class WorkspaceItemDTO extends AbstractDTO
         $dto->currentTopicId = $data['current_topic_id'] ? (string) $data['current_topic_id'] : null;
         $dto->currentProjectId = $data['current_project_id'] ? (string) $data['current_project_id'] : null;
         $dto->status = $data['status'];
+        $dto->workspaceStatus = $workspaceStatus ?? TaskStatus::WAITING->value;
 
         return $dto;
     }

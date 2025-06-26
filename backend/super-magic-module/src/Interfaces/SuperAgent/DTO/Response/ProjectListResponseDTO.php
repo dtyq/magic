@@ -18,10 +18,11 @@ class ProjectListResponseDTO
     ) {
     }
 
-    public static function create(array $projects, int $total = 0): self
+    public static function create(array $projects, int $total = 0, array $projectStatusMap = []): self
     {
-        $list = array_map(function ($project) {
-            return ProjectItemDTO::fromEntity($project)->toArray();
+        $list = array_map(function ($project) use ($projectStatusMap) {
+            $projectStatus = $projectStatusMap[$project->getId()] ?? null;
+            return ProjectItemDTO::fromEntity($project, $projectStatus)->toArray();
         }, $projects);
 
         return new self(
@@ -30,13 +31,14 @@ class ProjectListResponseDTO
         );
     }
 
-    public static function fromResult(array $result): self
+    public static function fromResult(array $result, array $projectStatusMap = []): self
     {
         $projects = $result['list'] ?? $result;
         $total = $result['total'] ?? count($projects);
 
-        $list = array_map(function ($project) {
-            return ProjectItemDTO::fromEntity($project)->toArray();
+        $list = array_map(function ($project) use ($projectStatusMap) {
+            $projectStatus = $projectStatusMap[$project->getId()] ?? null;
+            return ProjectItemDTO::fromEntity($project, $projectStatus)->toArray();
         }, $projects);
 
         return new self(

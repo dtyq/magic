@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
@@ -109,8 +110,22 @@ class WorkspaceAppService extends AbstractAppService
             $result['auto_create'] = true;
         }
 
-        // 转换为响应DTO
-        return WorkspaceListResponseDTO::fromResult($result);
+        // 提取所有工作区ID
+        $workspaceIds = [];
+        foreach ($result['list'] as $workspace) {
+            if (is_array($workspace)) {
+                $workspaceIds[] = $workspace['id'];
+            } else {
+                $workspaceIds[] = $workspace->getId();
+            }
+        }
+        $workspaceIds = array_unique($workspaceIds);
+
+        // 批量获取工作区状态
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch($workspaceIds);
+
+        // 转换为响应DTO并传入状态映射
+        return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap);
     }
 
     public function createWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
@@ -641,190 +656,13 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         // 构建树状结构
-        $tree = $this->assembleTaskFilesTree($sandboxId, $workDir, $list);
+        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
 
         return [
             'list' => $list,
             'tree' => $tree,
             'total' => $result['total'],
         ];
-    }
-
-    /**
-     * 将文件列表组装成树状结构，支持无限极嵌套.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @param string $workDir 工作目录
-     * @param array $files 文件列表数据
-     * @return array 组装后的树状结构数据
-     */
-    private function assembleTaskFilesTree(string $sandboxId, string $workDir, array $files): array
-    {
-        if (empty($files)) {
-            return [];
-        }
-
-        // 文件树根节点
-        $root = [
-            'type' => 'root',
-            'is_directory' => true,
-            'is_hidden' => false,
-            'children' => [],
-        ];
-
-        // 目录映射，用于快速查找目录节点
-        $directoryMap = ['' => &$root]; // 根目录的引用
-
-        // 去掉workDir开头可能的斜杠，确保匹配
-        $workDir = ltrim($workDir, '/');
-
-        // 遍历所有文件路径，确定根目录
-        $rootDir = '';
-        foreach ($files as $file) {
-            if (empty($file['file_key'])) {
-                continue; // 跳过没有文件路径的记录
-            }
-
-            $filePath = $file['file_key'];
-
-            // 查找workDir在文件路径中的位置
-            $workDirPos = strpos($filePath, $workDir);
-            if ($workDirPos === false) {
-                continue; // 找不到workDir，跳过
-            }
-
-            // 获取workDir结束的位置
-            $rootDir = substr($filePath, 0, $workDirPos + strlen($workDir));
-            break;
-        }
-
-        // 如果没有找到有效的根目录，创建一个扁平的目录结构
-        if (empty($rootDir)) {
-            // 直接将所有文件作为根节点的子节点
-            foreach ($files as $file) {
-                if (empty($file['file_key'])) {
-                    continue; // 跳过没有文件路径的记录
-                }
-
-                // 提取文件名，通常是路径最后一部分
-                $pathParts = explode('/', $file['file_key']);
-                $fileName = end($pathParts);
-
-                // 创建文件节点
-                $fileNode = $file;
-                $fileNode['type'] = 'file';
-                $fileNode['is_directory'] = false;
-                $fileNode['children'] = [];
-                $fileNode['name'] = $fileName;
-
-                // 添加到根节点
-                $root['children'][] = $fileNode;
-            }
-
-            return $root['children'];
-        }
-
-        // 处理所有文件
-        foreach ($files as $file) {
-            if (empty($file['file_key'])) {
-                continue; // 跳过没有文件路径的记录
-            }
-
-            $filePath = $file['file_key'];
-
-            // 提取相对路径
-            if (strpos($filePath, $rootDir) === 0) {
-                // 移除根目录前缀，获取相对路径
-                $relativePath = substr($filePath, strlen($rootDir));
-                $relativePath = ltrim($relativePath, '/');
-
-                // 创建文件节点
-                $fileNode = $file;
-                $fileNode['type'] = 'file';
-                $fileNode['is_directory'] = false;
-                $fileNode['children'] = [];
-
-                // 如果相对路径为空，表示文件直接位于根目录
-                if (empty($relativePath)) {
-                    $root['children'][] = $fileNode;
-                    continue;
-                }
-
-                // 分析相对路径，提取目录部分和文件名
-                $pathParts = explode('/', $relativePath);
-                $fileName = array_pop($pathParts); // 移除并获取最后一部分作为文件名
-
-                if (empty($pathParts)) {
-                    // 没有目录部分，文件直接位于根目录下
-                    $root['children'][] = $fileNode;
-                    continue;
-                }
-
-                // 逐级构建目录
-                $currentPath = '';
-                $parent = &$root;
-                $parentIsHidden = false; // 父级是否为隐藏目录
-
-                foreach ($pathParts as $dirName) {
-                    if (empty($dirName)) {
-                        continue; // 跳过空目录名
-                    }
-
-                    // 更新当前路径
-                    $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
-
-                    // 如果当前路径的目录不存在，创建它
-                    if (! isset($directoryMap[$currentPath])) {
-                        // 判断当前目录是否为隐藏目录
-                        $isHiddenDir = $this->isHiddenDirectory($dirName) || $parentIsHidden;
-
-                        // 创建新目录节点
-                        $newDir = [
-                            'name' => $dirName,
-                            'path' => $currentPath,
-                            'type' => 'directory',
-                            'is_directory' => true,
-                            'is_hidden' => $isHiddenDir,
-                            'children' => [],
-                        ];
-
-                        // 将新目录添加到父目录的子项中
-                        $parent['children'][] = $newDir;
-
-                        // 保存目录引用到映射中
-                        $directoryMap[$currentPath] = &$parent['children'][count($parent['children']) - 1];
-                    }
-
-                    // 更新父目录引用为当前目录
-                    $parent = &$directoryMap[$currentPath];
-                    // 更新父级隐藏状态，如果当前目录是隐藏的，那么其子级都应该是隐藏的
-                    $parentIsHidden = $parent['is_hidden'] ?? false;
-                }
-
-                // 如果父目录是隐藏的，那么文件也应该被标记为隐藏
-                if ($parentIsHidden) {
-                    $fileNode['is_hidden'] = true;
-                }
-
-                // 将文件添加到最终目录的子项中
-                $parent['children'][] = $fileNode;
-            }
-        }
-
-        // 返回根目录的子项作为结果
-        return $root['children'];
-    }
-
-    /**
-     * 判断目录名是否为隐藏目录
-     * 隐藏目录的判断规则：目录名以 . 开头.
-     *
-     * @param string $dirName 目录名
-     * @return bool true-隐藏目录，false-普通目录
-     */
-    private function isHiddenDirectory(string $dirName): bool
-    {
-        return str_starts_with($dirName, '.');
     }
 
     /**

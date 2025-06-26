@@ -18,12 +18,12 @@ class InitAgentRequest
     public function __construct(
         private string $messageId = '',
         private string $userId = '',
+        private string $projectId = '',
         private array $uploadConfig = [],
         private array $messageSubscriptionConfig = [],
         private array $stsTokenRefresh = [],
         private array $metadata = [],
-        private string $taskMode = 'plan',
-        private string $magicServiceHost = ''
+        private string $taskMode = 'plan'
     ) {
     }
 
@@ -35,12 +35,12 @@ class InitAgentRequest
         return new self(
             $data['message_id'] ?? '',
             $data['user_id'] ?? '',
+            $data['project_id'] ?? '',
             $data['upload_config'] ?? [],
             $data['message_subscription_config'] ?? [],
             $data['sts_token_refresh'] ?? [],
             $data['metadata'] ?? [],
-            $data['task_mode'] ?? 'plan',
-            $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', '')
+            $data['task_mode'] ?? 'plan'
         );
     }
 
@@ -58,14 +58,14 @@ class InitAgentRequest
     public static function create(
         string $messageId,
         string $userId,
+        string $projectId = '',
         array $uploadConfig = [],
         array $messageSubscriptionConfig = [],
         array $stsTokenRefresh = [],
         array $metadata = [],
-        string $taskMode = 'plan',
-        string $magicServiceHost = ''
+        string $taskMode = 'plan'
     ): self {
-        return new self($messageId, $userId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $magicServiceHost);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode);
     }
 
     /**
@@ -188,6 +188,23 @@ class InitAgentRequest
     }
 
     /**
+     * 设置项目ID.
+     */
+    public function setProjectId(string $projectId): self
+    {
+        $this->projectId = $projectId;
+        return $this;
+    }
+
+    /**
+     * 获取项目ID.
+     */
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
      */
@@ -196,24 +213,13 @@ class InitAgentRequest
         return [
             'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
+            'project_id' => $this->projectId,
             'type' => 'init',
             'upload_config' => $this->uploadConfig,
             'message_subscription_config' => $this->messageSubscriptionConfig,
             'sts_token_refresh' => $this->stsTokenRefresh,
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
-            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
-    }
-
-    public function getMagicServiceHost(): string
-    {
-        return $this->magicServiceHost;
-    }
-
-    public function setMagicServiceHost(string $magicServiceHost): self
-    {
-        $this->magicServiceHost = $magicServiceHost;
-        return $this;
     }
 }

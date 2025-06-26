@@ -9,7 +9,8 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
+use App\Infrastructure\Util\Locker\LockerInterface;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Annotation\Consumer;
 use Hyperf\Amqp\Message\ConsumerMessage;
@@ -48,7 +49,8 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
      * 构造函数.
      */
     public function __construct(
-        private readonly TaskAppService $superAgentAppService,
+        private readonly HandleAgentMessageAppService $superAgentAppService,
+        protected LockerInterface $locker,
         private readonly StdoutLoggerInterface $logger
     ) {
         // 设置队列优先级参数
@@ -117,7 +119,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
             $lockOwner = IdGenerator::getUniqueId32();
             $lockExpireSeconds = 30;
 
-            $lockAcquired = (bool) $this->superAgentAppService->acquireLock($lockKey, $lockOwner, $lockExpireSeconds);
+            $lockAcquired = $this->acquireLock($lockKey, $lockOwner, $lockExpireSeconds);
 
             if (! $lockAcquired) {
                 $this->logger->info(sprintf(
@@ -140,10 +142,10 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
             ));
 
             try {
-                $this->superAgentAppService->handleTopicTaskMessage($messageDTO);
+                $this->superAgentAppService->handleAgentMessage($messageDTO);
                 return Result::ACK;
             } finally {
-                if ($this->superAgentAppService->releaseLock($lockKey, $lockOwner)) {
+                if ($this->releaseLock($lockKey, $lockOwner)) {
                     $this->logger->info(sprintf(
                         '已释放sandbox %s的锁，持有者: %s, message_id: %s',
                         $sandboxId,
@@ -174,6 +176,11 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
             ));
             return Result::ACK;
         }
+    }
+
+    public function acquireLock(string $lockKey, string $lockOwner, int $lockExpireSeconds): bool
+    {
+        return $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
     }
 
     /**
@@ -230,5 +237,10 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                 }
             }
         }
+    }
+
+    private function releaseLock(string $lockKey, string $lockOwner): bool
+    {
+        return $this->locker->release($lockKey, $lockOwner);
     }
 }

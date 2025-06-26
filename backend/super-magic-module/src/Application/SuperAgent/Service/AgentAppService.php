@@ -63,16 +63,18 @@ class AgentAppService extends AbstractKernelAppService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $sandboxID): string
+    public function createSandbox(string $projectId, string $sandboxID): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
+            'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['sandbox_id' => $sandboxID]);
+        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
+                'project_id' => $projectId,
                 'sandbox_id' => $sandboxID,
                 'error' => $result->getMessage(),
                 'code' => $result->getCode(),
@@ -404,6 +406,7 @@ class AgentAppService extends AbstractKernelAppService
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
+            'project_id' => (string) $taskContext->getTask()->getProjectId(),
             'type' => MessageType::Init->value,
             'upload_config' => $stsConfig,
             'message_subscription_config' => [

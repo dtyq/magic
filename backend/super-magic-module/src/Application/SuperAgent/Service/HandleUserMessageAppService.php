@@ -216,7 +216,7 @@ class HandleUserMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentAppService->createSandbox($taskContext->getSandboxId());
+        $sandboxId = $this->agentAppService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent

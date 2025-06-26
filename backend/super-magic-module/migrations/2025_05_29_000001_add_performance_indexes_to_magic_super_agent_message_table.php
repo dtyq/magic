@@ -14,18 +14,18 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        if (!Schema::hasTable('magic_super_agent_message')) {
+        if (! Schema::hasTable('magic_super_agent_message')) {
             return;
         }
 
         Schema::table('magic_super_agent_message', function (Blueprint $table) {
             // Check if idx_id index exists
-            if (!Schema::hasIndex('magic_super_agent_message', 'idx_id')) {
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_id')) {
                 $table->index(['id'], 'idx_id');
             }
 
             // Check if idx_topic_show_deleted index exists
-            if (!Schema::hasIndex('magic_super_agent_message', 'idx_topic_show_deleted')) {
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_topic_show_deleted')) {
                 $table->index(['topic_id', 'show_in_ui', 'deleted_at'], 'idx_topic_show_deleted');
             }
         });
@@ -36,7 +36,7 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        if (!Schema::hasTable('magic_super_agent_message')) {
+        if (! Schema::hasTable('magic_super_agent_message')) {
             return;
         }
 
