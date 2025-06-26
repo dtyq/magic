@@ -17,13 +17,14 @@ class WorkspaceVersionModel extends AbstractModel
     protected ?string $table = 'magic_super_agent_workspace_versions';
 
     protected array $fillable = [
-        'id', 'topic_id', 'sandbox_id', 'commit_hash', 'dir', 'folder', 'tag', 'created_at', 'updated_at', 'deleted_at',
+        'id', 'topic_id', 'sandbox_id', 'commit_hash', 'dir', 'folder', 'tag', 'created_at', 'updated_at', 'deleted_at','project_id'
     ];
 
     protected array $casts = [
         'id' => 'integer',
         'topic_id' => 'integer',
         'tag' => 'integer',
+        'project_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

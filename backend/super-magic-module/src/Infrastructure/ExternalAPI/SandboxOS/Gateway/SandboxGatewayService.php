@@ -315,54 +315,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     {
         $this->logger->info('[Sandbox][Gateway] getFileVersions', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey]);
 
-        try {
-
-            var_dump($this->buildApiPath('api/v1/file/versions'),"buildApiPath ==============");
-            $response = $this->client->post($this->buildApiPath('api/v1/file/versions'), [
-                'headers' => $this->getAuthHeaders(),
-                'json' => ['sandbox_id' => $sandboxId, 'file_key' => $fileKey,"git_directory"=>$gitDir],
-                'timeout' => 60,
-            ]);
-
-            $contents = $response->getBody()->getContents();
-            var_dump($contents,"getContents==============");
-
-            if(empty(json_decode($contents, true))){
-                return GatewayResult::error('HTTP request failed: ' . $contents);
-            }
-
-
-            $responseData = json_decode($contents, true);
-
-            $result = GatewayResult::fromApiResponse($responseData);
-            var_dump($result,"result ==============");
-            if ($result->isSuccess()) {
-                $versions = $result->getDataValue('versions');
-                $this->logger->info('[Sandbox][Gateway] getFileVersions successfully', [
-                    'versions' => $versions,
-                ]);
-                return $result;
-            } else {
-                $this->logger->error('[Sandbox][Gateway] Failed to getFileVersions', [
-                    'code' => $result->getCode(),
-                    'message' => $result->getMessage(),
-                ]);
-                return GatewayResult::error('Failed to getFileVersions',['code'=>$result->getCode(),'message'=>$result->getMessage()]);
-            }
-
-        } catch (GuzzleException $e) {
-            $this->logger->error('[Sandbox][Gateway] HTTP error when getFileVersions', [
-                'error' => $e->getMessage(),
-                'code' => $e->getCode(),
-            ]);
-            return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
-        } catch (Exception $e) {
-            $this->logger->error('[Sandbox][Gateway] Unexpected error when getFileVersions', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return GatewayResult::error('Unexpected error: ' . $e->getMessage());
-        }
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey,"git_directory"=>$gitDir]);
     }
 
     public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash,string $gitDir): GatewayResult

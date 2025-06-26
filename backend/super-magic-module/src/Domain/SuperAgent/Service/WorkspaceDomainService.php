@@ -781,4 +781,12 @@ class WorkspaceDomainService
     {
         return $this->workspaceVersionRepository->getLatestVersionByProjectId($projectId);
     }
+
+    /**
+     * 根据commit_hash 和project_id 获取tag号
+     */
+    public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int
+    {
+        return $this->workspaceVersionRepository->getTagByCommitHashAndProjectId($commitHash, $projectId);
+    }
 }
