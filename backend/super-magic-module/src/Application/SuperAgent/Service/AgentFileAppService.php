@@ -95,11 +95,16 @@ class AgentFileAppService
         $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($topicId);
 
 
-        // $fileKey = $taskFileEntity->getFileKey();
-        $fileKey = "hello.html";
-
-
+        $fileKey = $taskFileEntity->getFileKey();
+        // $fileKey = "hello.html";
         $result = $this->gateway->getFileVersions($sandboxId, $fileKey, $this->getWorkspaceDir());
+
+        #获取tag号
+
+        foreach($result->getData() as $item){
+            $tag = $this->workspaceDomainService->getTagByCommitHashAndProjectId($item['commit_hash'], $taskFileEntity->getProjectId());
+            $item['tag'] = $tag;
+        }
 
         var_dump($result->getData(),"getFileVersions ==============");
         return $result->getData();
@@ -119,11 +124,12 @@ class AgentFileAppService
         }
 
         $fileKey = "index.html";
-        $commitHash = "0204935a68ba0afacd8b60caeacce85ae4e0bf53";
-        $sandboxId = "1234567890";
-        // $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($topicId);
+        // $commitHash = "0204935a68ba0afacd8b60caeacce85ae4e0bf53";
+        // $sandboxId = "1234567890";
+        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($topicId);
 
         $result=$this->gateway->getFileVersionContent($sandboxId, $fileKey, $commitHash,$this->getWorkspaceDir());
+
 
         var_dump($result->getData(),"getFileVersionContent ==============");
         return $result->getData();
