@@ -26,9 +26,9 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 {
     public const string DEFAULT_ICON_ORGANIZATION_CODE = 'MAGIC';
 
-    private CloudFile $cloudFile;
+    protected CloudFile $cloudFile;
 
-    private LoggerInterface $logger;
+    protected LoggerInterface $logger;
 
     public function __construct(
         CloudFileFactory $cloudFileFactory,
