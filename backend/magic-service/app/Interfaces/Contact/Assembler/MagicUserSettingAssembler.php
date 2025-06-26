@@ -17,14 +17,8 @@ class MagicUserSettingAssembler
     public static function createEntity(MagicUserSettingDTO $dto): MagicUserSettingEntity
     {
         $entity = new MagicUserSettingEntity();
-
-        if ($dto->getId()) {
-            $entity->setId($dto->getId());
-        }
-
         $entity->setKey($dto->getKey());
         $entity->setValue($dto->getValue());
-
         return $entity;
     }
 

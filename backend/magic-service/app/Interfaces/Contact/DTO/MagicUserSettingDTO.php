@@ -8,10 +8,11 @@ declare(strict_types=1);
 namespace App\Interfaces\Contact\DTO;
 
 use App\Infrastructure\Core\AbstractDTO;
+use App\Interfaces\Kernel\DTO\Traits\StringIdDTOTrait;
 
 class MagicUserSettingDTO extends AbstractDTO
 {
-    protected ?int $id = null;
+    use StringIdDTOTrait;
 
     protected string $key = '';
 
@@ -20,16 +21,6 @@ class MagicUserSettingDTO extends AbstractDTO
     protected ?string $createdAt = null;
 
     protected ?string $updatedAt = null;
-
-    public function getId(): ?int
-    {
-        return $this->id;
-    }
-
-    public function setId(?int $id): void
-    {
-        $this->id = $id;
-    }
 
     public function getKey(): string
     {
