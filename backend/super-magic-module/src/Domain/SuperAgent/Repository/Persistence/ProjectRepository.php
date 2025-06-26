@@ -30,7 +30,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
      */
     public function findById(int $id): ?ProjectEntity
     {
-        /** @var ProjectModel|null $model */
+        /** @var null|ProjectModel $model */
         $model = $this->projectModel::query()->find($id);
         if (! $model) {
             return null;
@@ -47,10 +47,10 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
 
         if ($project->getId() > 0) {
             /**
-             * @var ProjectModel|null $model
+             * @var null|ProjectModel $model
              */
             $model = $this->projectModel::query()->find($project->getId());
-            if (!$model) {
+            if (! $model) {
                 throw new RuntimeException('Project not found for update: ' . $project->getId());
             }
             $model->fill($attributes);
@@ -71,7 +71,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
      */
     public function delete(ProjectEntity $project): bool
     {
-        /** @var ProjectModel|null $model */
+        /** @var null|ProjectModel $model */
         $model = $this->projectModel::query()->find($project->getId());
         if (! $model) {
             return false;
@@ -150,7 +150,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         // 转换为实体对象
         $entities = [];
         foreach ($list as $model) {
-            /** @var ProjectModel $model */
+            /* @var ProjectModel $model */
             $entities[] = $this->modelToEntity($model);
         }
 

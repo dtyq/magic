@@ -7,14 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\Chat\Service\MagicUserInfoAppService;
-use App\Application\File\Service\FileAppService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -32,9 +29,6 @@ class AgentFileAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
-        private SandboxAgentInterface $agent,
-        private readonly FileAppService $fileAppService,
-        private readonly MagicUserInfoAppService $userInfoAppService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
@@ -85,7 +79,7 @@ class AgentFileAppService
         }
 
         $topicEntity = $this->topicDomainService->getTopicById($topicId);
-        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($topicId ?? $taskFileEntity->getTopicId());
+        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
 
         $fileKey = $taskFileEntity->getFileKey();
         $workDir = $topicEntity->getWorkDir() . '/';
