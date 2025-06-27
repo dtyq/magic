@@ -59,6 +59,14 @@ class OpenAIProxyApi extends AbstractOpenApi
         $embeddingDTO = new EmbeddingsDTO($requestData);
         $embeddingDTO->setAccessToken($this->getAccessToken());
         $embeddingDTO->setIps($this->getClientIps());
+
+        $headerConfigs = [];
+        foreach ($request->getHeaders() as $key => $value) {
+            $key = strtolower($key);
+            $headerConfigs[strtolower($key)] = $request->getHeader($key)[0] ?? '';
+        }
+        $embeddingDTO->setHeaderConfigs($headerConfigs);
+
         $response = $this->llmAppService->embeddings($embeddingDTO);
         if ($response instanceof EmbeddingResponse) {
             return LLMAssembler::createEmbeddingsResponse($response);

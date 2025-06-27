@@ -20,9 +20,9 @@ readonly class ProviderConfigDomainService
     ) {
     }
 
-    public function getById(ProviderDataIsolation $dataIsolation, int $id): ?ProviderConfigEntity
+    public function getById(ProviderDataIsolation $dataIsolation, int $id, bool $checkProviderEnabled = true): ?ProviderConfigEntity
     {
-        return $this->serviceProviderConfigRepository->getById($dataIsolation, $id);
+        return $this->serviceProviderConfigRepository->getById($dataIsolation, $id, $checkProviderEnabled);
     }
 
     /**

@@ -423,6 +423,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray['config'] = Json::encode($entityArray['config'] ?: []);
         $entityArray['translate'] = Json::encode($entityArray['translate'] ?: []);
         $entityArray['visible_organizations'] = Json::encode($entityArray['visible_organizations'] ?: []);
+        $entityArray['visible_applications'] = Json::encode($entityArray['visible_applications'] ?: []);
         $this->serviceProviderModelsModel::query()->where('id', $id)->update($entityArray);
     }
 
@@ -431,6 +432,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray = $updateConsumerModel->toArray();
         $modelArray['translate'] = Json::encode($modelArray['translate'] ?: []);
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
+        $modelArray['visible_applications'] = Json::encode($modelArray['visible_applications'] ?: []);
         $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
@@ -651,6 +653,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray['config'] = Json::encode($entity->getConfig() ? $entity->getConfig()->toArray() : []);
         $entityArray['translate'] = Json::encode($entity->getTranslate() ?: []);
         $entityArray['visible_organizations'] = Json::encode($entity->getVisibleOrganizations());
+        $entityArray['visible_applications'] = Json::encode($entity->getVisibleApplications());
 
         return $entityArray;
     }
