@@ -455,8 +455,11 @@ class ModelGatewayMapper extends ModelMapper
         ProviderEntity $providerEntity,
         ?ModelFilter $filter = null
     ): ?OdinModel {
-        $checkVisibleOrganization = $filter?->isCheckVisibleOrganization() ?? true;
-        $checkVisibleApplication = $filter?->isCheckVisibleApplication() ?? true;
+        if (! $filter) {
+            $filter = new ModelFilter();
+        }
+        $checkVisibleOrganization = $filter->isCheckVisibleOrganization() ?? true;
+        $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
 
         if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations(), true)) {
             return null;
