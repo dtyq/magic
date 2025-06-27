@@ -20,7 +20,6 @@ use Throwable;
 
 class VolcengineStandardClient
 {
-    // 火山引擎录音文件识别标准版API端点
     private const SUBMIT_URL = 'https://openspeech.bytedance.com/api/v1/auc/submit';
 
     private const QUERY_URL = 'https://openspeech.bytedance.com/api/v1/auc/query';
@@ -41,17 +40,9 @@ class VolcengineStandardClient
         $this->config = $this->getVolcengineConfig();
     }
 
-    /**
-     * 提交语音识别任务
-     */
     public function submitTask(SpeechSubmitDTO $submitDTO): array
     {
         $requestData = $this->buildSubmitRequest($submitDTO);
-
-        $this->logger->info('调用火山引擎提交语音识别任务', [
-            'audio_url' => $submitDTO->getAudio()->getUrl(),
-            'request_data' => $requestData,
-        ]);
 
         try {
             $response = $this->httpClient->post(self::SUBMIT_URL, [
@@ -66,46 +57,40 @@ class VolcengineStandardClient
             $result = json_decode($responseBody, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
-                $this->logger->error('火山引擎响应JSON解析失败', [
+                $this->logger->error('Failed to parse Volcengine response JSON', [
                     'response_body' => $responseBody,
                     'json_error' => json_last_error_msg(),
                 ]);
-                ExceptionBuilder::throw(AsrErrorCode::Error, '火山引擎响应格式错误');
+                ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.invalid_response_format');
             }
 
-            $this->logger->info('火山引擎语音识别任务提交成功', [
+            $this->logger->info('Volcengine speech recognition task submitted successfully', [
                 'response' => $result,
             ]);
 
             return $result;
         } catch (GuzzleException $e) {
-            $this->logger->error('调用火山引擎提交任务失败', [
+            $this->logger->error('Failed to submit task to Volcengine', [
                 'error' => $e->getMessage(),
                 'request_data' => $requestData,
             ]);
 
-            ExceptionBuilder::throw(AsrErrorCode::Error, '调用火山引擎失败: ' . $e->getMessage());
+            ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
         } catch (Throwable $e) {
-            $this->logger->error('调用火山引擎提交任务异常', [
+            $this->logger->error('Exception occurred while submitting task to Volcengine', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            ExceptionBuilder::throw(AsrErrorCode::Error, '调用火山引擎异常: ' . $e->getMessage());
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.submit_exception', [
+                'original_error' => $e->getMessage(),
+            ]);
         }
     }
 
-    /**
-     * 查询语音识别结果.
-     */
     public function queryResult(SpeechQueryDTO $queryDTO): array
     {
         $requestData = $this->buildQueryRequest($queryDTO);
-
-        $this->logger->info('调用火山引擎查询语音识别结果', [
-            'task_id' => $queryDTO->getTaskId(),
-            'request_data' => $requestData,
-        ]);
 
         try {
             $response = $this->httpClient->post(self::QUERY_URL, [
@@ -120,60 +105,49 @@ class VolcengineStandardClient
             $result = json_decode($responseBody, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
-                $this->logger->error('火山引擎响应JSON解析失败', [
+                $this->logger->error('Failed to parse Volcengine response JSON', [
                     'response_body' => $responseBody,
                     'json_error' => json_last_error_msg(),
                 ]);
-                ExceptionBuilder::throw(AsrErrorCode::Error, '火山引擎响应格式错误');
+                ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.invalid_response_format');
             }
-
-            $this->logger->info('火山引擎语音识别结果查询成功', [
-                'task_id' => $queryDTO->getTaskId(),
-                'response' => $result,
-            ]);
 
             return $result;
         } catch (GuzzleException $e) {
-            $this->logger->error('调用火山引擎查询结果失败', [
+            $this->logger->error('Failed to query result from Volcengine', [
                 'task_id' => $queryDTO->getTaskId(),
                 'error' => $e->getMessage(),
             ]);
 
-            ExceptionBuilder::throw(AsrErrorCode::Error, '调用火山引擎失败: ' . $e->getMessage());
+            ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
         } catch (Throwable $e) {
-            $this->logger->error('调用火山引擎查询结果异常', [
+            $this->logger->error('Exception occurred while querying result from Volcengine', [
                 'task_id' => $queryDTO->getTaskId(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            ExceptionBuilder::throw(AsrErrorCode::Error, '调用火山引擎异常: ' . $e->getMessage());
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.query_exception', [
+                'original_error' => $e->getMessage(),
+            ]);
         }
     }
 
-    /**
-     * 获取火山引擎配置.
-     */
     private function getVolcengineConfig(): array
     {
         $config = config('asr.volcengine', []);
 
         if (empty($config['app_id']) || empty($config['token']) || empty($config['cluster'])) {
-            ExceptionBuilder::throw(AsrErrorCode::InvalidConfig, '火山引擎配置不完整');
+            ExceptionBuilder::throw(AsrErrorCode::InvalidConfig, 'speech.volcengine.config_incomplete');
         }
 
         return $config;
     }
 
-    /**
-     * 组装提交请求参数.
-     */
     private function buildSubmitRequest(SpeechSubmitDTO $submitDTO): array
     {
-        // 获取用户传入的完整参数结构（不包含app字段）
         $userRequestData = $submitDTO->toVolcengineRequestData();
 
-        // 内部组装app认证信息
         $requestData = [
             'app' => [
                 'appid' => $this->config['app_id'],
@@ -182,13 +156,9 @@ class VolcengineStandardClient
             ],
         ];
 
-        // 合并用户参数（user、audio、additions等）
         return array_merge($requestData, $userRequestData);
     }
 
-    /**
-     * 组装查询请求参数.
-     */
     private function buildQueryRequest(SpeechQueryDTO $queryDTO): array
     {
         return [
