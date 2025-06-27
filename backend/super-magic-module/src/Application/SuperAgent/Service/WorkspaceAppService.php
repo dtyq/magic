@@ -29,6 +29,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\Request\PdfConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
@@ -60,6 +62,7 @@ class WorkspaceAppService extends AbstractAppService
         protected TaskDomainService $taskDomainService,
         protected AccountAppService $accountAppService,
         protected SandboxService $sandboxService,
+        protected PdfConverterInterface $pdfConverterService,
         protected LockerInterface $locker,
         protected ChatAppService $chatAppService,
         LoggerFactory $loggerFactory
@@ -882,5 +885,74 @@ class WorkspaceAppService extends AbstractAppService
         $result['list'] = array_unique($tempResult, SORT_REGULAR);
         $result['total'] = count($result['list']);
         return $result;
+    }
+
+    /**
+     * 批量转换文件为 PDF.
+     *
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param array $fileIds 文件ID列表
+     * @param array $options PDF转换选项
+     * @return array 转换结果
+     * @throws BusinessException
+     */
+    public function convertFilesToPdf(MagicUserAuthorization $userAuthorization, array $fileIds, array $options = []): array
+    {
+        // 1. 获取文件下载链接
+        $fileUrls = $this->getFileUrls($userAuthorization, $fileIds, 'download', ['cache' => false]);
+        if (empty($fileUrls)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'no_accessible_files');
+        }
+
+        // 2. 获取沙箱ID
+        $firstFileId = $fileIds[0];
+        $fileEntity = $this->taskDomainService->getTaskFile((int) $firstFileId);
+        if (empty($fileEntity)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'file_not_found');
+        }
+
+        $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
+        if (empty($topicEntity)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic_not_found');
+        }
+
+        // 获取或生成沙箱ID
+        $sandboxId = $topicEntity->getSandboxId();
+        if (empty($sandboxId)) {
+            // 如果topic没有沙箱ID，生成一个新的沙箱ID
+            // 使用topic ID和当前时间戳生成唯一的沙箱ID
+            $sandboxId = 'pdf-' . $topicEntity->getId() . '-' . time();
+            $this->logger->info('[PDF Converter] Generated new sandbox ID for PDF conversion', [
+                'topic_id' => $topicEntity->getId(),
+                'sandbox_id' => $sandboxId,
+            ]);
+        }
+
+        // 3. 构建PDF转换请求
+        $urls = array_column($fileUrls, 'url');
+        $pdfRequest = new PdfConverterRequest($urls, $options);
+
+        // 4. 调用PDF转换服务
+        $result = $this->pdfConverterService->convert($sandboxId, $pdfRequest);
+
+        if (! $result->isSuccess()) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'pdf_conversion_failed: ' . $result->getMessage());
+        }
+
+        // 5. 提取转换后的文件信息
+        $convertedFiles = $result->getConvertedFiles();
+        $filesInfo = array_map(function ($file) {
+            return [
+                'download_url' => $file['url'],
+            ];
+        }, $convertedFiles);
+
+        // 6. 返回转换结果
+        return [
+            'success' => true,
+            'files' => $filesInfo,
+            'sandbox_id' => $sandboxId,
+            'message' => 'PDF conversion completed successfully',
+        ];
     }
 }

@@ -77,6 +77,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
 
     // 获取任务附件
     Router::post('/tasks/get-file-url', [TaskApi::class, 'getFileUrls']);
+    // 批量转换文件为 PDF
+    Router::post('/tasks/convert-files-to-pdf', [TaskApi::class, 'convertFilesToPdf']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
