@@ -95,7 +95,8 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
 
-        $modelFilter = new ModelFilter(appId: $accessTokenEntity->getRelationId());
+        $modelFilter = new ModelFilter();
+        $modelFilter->setAppId($accessTokenEntity->getRelationId());
 
         $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
         $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
@@ -416,32 +417,33 @@ class LLMAppService extends AbstractLLMAppService
             $modelAttributes = null;
 
             $modelFilter->setAppId($accessToken->getRelationId());
+            $modelFilter->setOriginModel($proxyModelRequest->getModel());
 
-            $model = match ($proxyModelRequest->getType()) {
-                'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),
-                'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode, $modelFilter),
-                default => null
-            };
-            if (! $model) {
-                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
-            }
-            if ($model instanceof OdinModel) {
-                $modelAttributes = $model->getAttributes();
-                $model = $model->getModel();
-            }
-
-            // Try to use model_name to get real data again
-            if ($model instanceof MagicAILocalModel) {
-                $modelId = $model->getModelName();
+            try {
                 $model = match ($proxyModelRequest->getType()) {
-                    'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode),
-                    'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode),
+                    'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),
+                    'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode, $modelFilter),
                     default => null
                 };
                 if ($model instanceof OdinModel) {
                     $modelAttributes = $model->getAttributes();
                     $model = $model->getModel();
                 }
+                // Try to use model_name to get real data again
+                if ($model instanceof MagicAILocalModel) {
+                    $modelId = $model->getModelName();
+                    $model = match ($proxyModelRequest->getType()) {
+                        'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode),
+                        'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode),
+                        default => null
+                    };
+                    if ($model instanceof OdinModel) {
+                        $modelAttributes = $model->getAttributes();
+                        $model = $model->getModel();
+                    }
+                }
+            } catch (Throwable $throwable) {
+                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT, throwable: $throwable);
             }
 
             // Prevent infinite loop

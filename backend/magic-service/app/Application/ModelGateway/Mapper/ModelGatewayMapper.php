@@ -33,7 +33,6 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
-use Hyperf\Odin\Exception\LLMException\LLMModelException;
 use Hyperf\Odin\Factory\ModelFactory;
 use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\ModelOptions;
@@ -113,17 +112,11 @@ class ModelGatewayMapper extends ModelMapper
      */
     public function getOrganizationChatModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ModelInterface|OdinModel
     {
-        try {
-            // 优先从管理后台获取模型配置
-            $odinModel = $this->getByAdmin($model, $orgCode, $filter);
-            if ($odinModel) {
-                return $odinModel;
-            }
-            // 最后一次尝试，从被预加载的模型中获取。注意，被预加载的模型是即将被废弃，后续需要迁移到管理后台
-            return $this->getChatModel($model);
-        } catch (Throwable $exception) {
-            throw new LLMModelException('Failed to get chat model: ' . $exception->getMessage(), 0, $exception, 0, $model);
+        $odinModel = $this->getByAdmin($model, $orgCode, $filter);
+        if ($odinModel) {
+            return $odinModel;
         }
+        return $this->getChatModel($model);
     }
 
     /**
@@ -133,15 +126,11 @@ class ModelGatewayMapper extends ModelMapper
      */
     public function getOrganizationEmbeddingModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): EmbeddingInterface
     {
-        try {
-            $odinModel = $this->getByAdmin($model, $orgCode, $filter);
-            if ($odinModel) {
-                return $odinModel->getModel();
-            }
-            return $this->getEmbeddingModel($model);
-        } catch (Throwable $exception) {
-            throw new LLMModelException('Failed to get chat model: ' . $exception->getMessage(), 0, $exception, 0, $model);
+        $odinModel = $this->getByAdmin($model, $orgCode, $filter);
+        if ($odinModel) {
+            return $odinModel->getModel();
         }
+        return $this->getEmbeddingModel($model);
     }
 
     /**
@@ -466,14 +455,16 @@ class ModelGatewayMapper extends ModelMapper
         ProviderEntity $providerEntity,
         ?ModelFilter $filter = null
     ): ?OdinModel {
-        if ($providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations())) {
+        $checkVisibleOrganization = $filter?->isCheckVisibleOrganization() ?? true;
+        $checkVisibleApplication = $filter?->isCheckVisibleApplication() ?? true;
+
+        if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations(), true)) {
             return null;
         }
-        if ($filter) {
-            if ($filter->getAppId() && ! empty($providerModelEntity->getVisibleApplications()) && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
-                return null;
-            }
+        if ($checkVisibleApplication && $providerModelEntity->getVisibleApplications() && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
+            return null;
         }
+
         $chat = false;
         $functionCall = false;
         $multiModal = false;

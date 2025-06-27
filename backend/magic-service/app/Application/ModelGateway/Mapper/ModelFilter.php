@@ -9,10 +9,15 @@ namespace App\Application\ModelGateway\Mapper;
 
 class ModelFilter
 {
+    protected ?string $appId = null;
+
+    protected ?string $originModel = null;
+
     public function __construct(
-        protected ?string $appId = null,
         protected bool $checkModelEnabled = true,
         protected bool $checkProviderEnabled = true,
+        protected bool $checkVisibleOrganization = true,
+        protected bool $checkVisibleApplication = true,
     ) {
     }
 
@@ -44,5 +49,35 @@ class ModelFilter
     public function setCheckProviderEnabled(bool $checkProviderEnabled): void
     {
         $this->checkProviderEnabled = $checkProviderEnabled;
+    }
+
+    public function isCheckVisibleOrganization(): bool
+    {
+        return $this->checkVisibleOrganization;
+    }
+
+    public function setCheckVisibleOrganization(bool $checkVisibleOrganization): void
+    {
+        $this->checkVisibleOrganization = $checkVisibleOrganization;
+    }
+
+    public function isCheckVisibleApplication(): bool
+    {
+        return $this->checkVisibleApplication;
+    }
+
+    public function setCheckVisibleApplication(bool $checkVisibleApplication): void
+    {
+        $this->checkVisibleApplication = $checkVisibleApplication;
+    }
+
+    public function getOriginModel(): ?string
+    {
+        return $this->originModel;
+    }
+
+    public function setOriginModel(?string $originModel): void
+    {
+        $this->originModel = $originModel;
     }
 }
