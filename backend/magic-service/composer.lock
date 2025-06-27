@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "98e94577311df7ead35bf4591d66c06d1f673090"
+                "reference": "d9b0399b5f5220c9feaff80aaf216ceb57161d17"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=98e94577311df7ead35bf4591d66c06d1f673090",
-                "reference": "98e94577311df7ead35bf4591d66c06d1f673090",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=d9b0399b5f5220c9feaff80aaf216ceb57161d17",
+                "reference": "d9b0399b5f5220c9feaff80aaf216ceb57161d17",
                 "shasum": ""
             },
             "require": {
@@ -1975,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-06-26T12:56:40+00:00"
+            "time": "2025-06-27T13:04:52+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2136,16 +2136,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.8",
+            "version": "v0.1.9",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51"
+                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
-                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
+                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
                 "shasum": ""
             },
             "require": {
@@ -2198,9 +2198,9 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.8"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.9"
             },
-            "time": "2025-06-18T07:59:49+00:00"
+            "time": "2025-06-27T15:01:33+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
