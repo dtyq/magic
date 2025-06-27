@@ -140,21 +140,21 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * Chat completion.
      */
-    public function chatCompletion(CompletionDTO $sendMsgDTO): ResponseInterface
+    public function chatCompletion(CompletionDTO $sendMsgDTO, ?ModelFilter $modelFilter = null): ResponseInterface
     {
         return $this->processRequest($sendMsgDTO, function (ModelInterface $model, CompletionDTO $request) {
             return $this->callChatModel($model, $request);
-        });
+        }, $modelFilter ?? new ModelFilter());
     }
 
     /**
      * Process embedding requests.
      */
-    public function embeddings(EmbeddingsDTO $proxyModelRequest): ResponseInterface
+    public function embeddings(EmbeddingsDTO $proxyModelRequest, ?ModelFilter $modelFilter = null): ResponseInterface
     {
         return $this->processRequest($proxyModelRequest, function (EmbeddingInterface $model, EmbeddingsDTO $request) {
             return $this->callEmbeddingsModel($model, $request);
-        });
+        }, $modelFilter ?? new ModelFilter());
     }
 
     /**
@@ -392,7 +392,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param ProxyModelRequestInterface $proxyModelRequest Request object
      * @param callable $modelCallFunction Model calling function that receives model configuration and request object, returns response
      */
-    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction): ResponseInterface
+    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): ResponseInterface
     {
         /** @var null|EndpointDTO $endpointDTO */
         $endpointDTO = null;
@@ -415,7 +415,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelAttributes = null;
 
-            $modelFilter = new ModelFilter(appId: $accessToken->getRelationId());
+            $modelFilter->setAppId($accessToken->getRelationId());
 
             $model = match ($proxyModelRequest->getType()) {
                 'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),

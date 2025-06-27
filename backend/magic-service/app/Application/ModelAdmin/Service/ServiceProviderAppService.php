@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelAdmin\Service;
 
+use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelAdmin\Constant\ModelType;
@@ -273,7 +274,8 @@ class ServiceProviderAppService
             'source_id' => 'connectivity_test',
         ]);
         try {
-            $llmAppService->embeddings($proxyModelRequest);
+            $modelFilter = new ModelFilter(checkModelEnabled: false, checkProviderEnabled: false);
+            $llmAppService->embeddings($proxyModelRequest, $modelFilter);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);
             $connectResponse->setMessage($exception->getMessage());
@@ -300,7 +302,8 @@ class ServiceProviderAppService
         ]);
         /* @var ChatCompletionResponse $response */
         try {
-            $llmAppService->chatCompletion($completionDTO);
+            $modelFilter = new ModelFilter(checkModelEnabled: false, checkProviderEnabled: false);
+            $llmAppService->chatCompletion($completionDTO, $modelFilter);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);
             $connectResponse->setMessage($exception->getMessage());

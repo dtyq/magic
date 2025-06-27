@@ -21,12 +21,17 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
 {
     protected bool $filterOrganizationCode = true;
 
-    public function getById(ProviderDataIsolation $dataIsolation, int $id): ?ProviderModelEntity
+    public function getById(ProviderDataIsolation $dataIsolation, int $id, bool $checkModelEnabled = true): ?ProviderModelEntity
     {
         $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
 
+        $builder->where('id', $id);
+        if ($checkModelEnabled) {
+            $builder->where('status', Status::Enabled->value);
+        }
+
         /** @var null|ProviderModelModel $model */
-        $model = $builder->where('id', $id)->first();
+        $model = $builder->first();
 
         if (! $model) {
             return null;
@@ -38,15 +43,19 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
     /**
      * 通过ID或ModelID查询模型，拆分为两次查询以有效利用索引.
      */
-    public function getByIdOrModelId(ProviderDataIsolation $dataIsolation, string $id): ?ProviderModelEntity
+    public function getByIdOrModelId(ProviderDataIsolation $dataIsolation, string $id, bool $checkModelEnabled = true): ?ProviderModelEntity
     {
         // 先尝试按数字ID查询（如果$id是数字）
         if (is_numeric($id)) {
             $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
-            /** @var null|ProviderModelModel $model */
-            $model = $builder->where('id', (int) $id)
-                ->where('status', Status::Enabled->value)
-                ->first();
+
+            $builder->where('id', (int) $id);
+            if ($checkModelEnabled) {
+                $builder->where('status', Status::Enabled->value);
+            }
+
+            /* @var null|ProviderModelModel $model */
+            $model = $builder->first();
 
             if ($model) {
                 return ProviderModelFactory::modelToEntity($model);
@@ -55,10 +64,13 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
 
         // 如果按ID没找到，再按model_id查询
         $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+
+        $builder->where('model_id', $id);
+        if ($checkModelEnabled) {
+            $builder->where('status', Status::Enabled->value);
+        }
         /** @var null|ProviderModelModel $model */
-        $model = $builder->where('model_id', $id)
-            ->where('status', Status::Enabled->value)
-            ->first();
+        $model = $builder->first();
 
         if (! $model) {
             return null;
