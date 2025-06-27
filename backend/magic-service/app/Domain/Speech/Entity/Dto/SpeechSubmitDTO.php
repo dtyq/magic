@@ -14,7 +14,7 @@ class SpeechSubmitDTO extends AbstractRequestDTO
     /**
      * 用户配置.
      */
-    protected SpeechUserDTO $user;
+    protected ?SpeechUserDTO $user = null;
 
     /**
      * 音频配置.
@@ -47,8 +47,11 @@ class SpeechSubmitDTO extends AbstractRequestDTO
         return $this->user;
     }
 
-    public function setUser(SpeechUserDTO $user): void
+    public function setUser(null|array|SpeechUserDTO $user): void
     {
+        if (is_array($user)) {
+            $user = new SpeechUserDTO($user);
+        }
         $this->user = $user;
     }
 
@@ -57,8 +60,11 @@ class SpeechSubmitDTO extends AbstractRequestDTO
         return $this->audio;
     }
 
-    public function setAudio(SpeechAudioDTO $audio): void
+    public function setAudio(array|SpeechAudioDTO $audio): void
     {
+        if (is_array($audio)) {
+            $audio = new SpeechAudioDTO($audio);
+        }
         $this->audio = $audio;
     }
 
@@ -67,8 +73,11 @@ class SpeechSubmitDTO extends AbstractRequestDTO
         return $this->additions;
     }
 
-    public function setAdditions(?SpeechAdditionsDTO $additions): void
+    public function setAdditions(null|array|SpeechAdditionsDTO $additions): void
     {
+        if (is_array($additions)) {
+            $additions = new SpeechAdditionsDTO($additions);
+        }
         $this->additions = $additions;
     }
 

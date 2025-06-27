@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Speech\Entity\Dto;
 
-use App\Domain\Chat\Entity\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 
-class SpeechAdditionsDTO extends AbstractEntity
+class SpeechAdditionsDTO extends AbstractDTO
 {
     /**
      * 识别语言
@@ -75,25 +75,6 @@ class SpeechAdditionsDTO extends AbstractEntity
      * 热词.
      */
     protected string $hotWords = '';
-
-    public function __construct(array $data = [])
-    {
-        parent::__construct($data);
-
-        $this->language = (string) ($data['language'] ?? '');
-        $this->callbackUrl = (string) ($data['callback_url'] ?? '');
-        $this->withSpeakerInfo = (string) ($data['with_speaker_info'] ?? '');
-        $this->enableWords = (string) ($data['enable_words'] ?? '');
-        $this->enableItn = (string) ($data['enable_itn'] ?? '');
-        $this->enableItnPhone = (string) ($data['enable_itn_phone'] ?? '');
-        $this->enableItnNumber = (string) ($data['enable_itn_number'] ?? '');
-        $this->enableItnUrl = (string) ($data['enable_itn_url'] ?? '');
-        $this->enableItnEmail = (string) ($data['enable_itn_email'] ?? '');
-        $this->enableItnIdCard = (string) ($data['enable_itn_id_card'] ?? '');
-        $this->enablePunctuation = (string) ($data['enable_punctuation'] ?? '');
-        $this->maxSpeakerNum = (int) ($data['max_speaker_num'] ?? 0);
-        $this->hotWords = (string) ($data['hot_words'] ?? '');
-    }
 
     public function getLanguage(): string
     {

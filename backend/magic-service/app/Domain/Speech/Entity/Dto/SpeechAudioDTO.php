@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Speech\Entity\Dto;
 
-use App\Domain\Chat\Entity\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 
-class SpeechAudioDTO extends AbstractEntity
+class SpeechAudioDTO extends AbstractDTO
 {
     /**
      * 音频文件URL.
