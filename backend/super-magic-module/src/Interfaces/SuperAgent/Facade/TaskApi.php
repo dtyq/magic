@@ -16,8 +16,10 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesToPdfRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ConvertFilesToPdfResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Qbhy\HyperfAuth\AuthManager;
@@ -148,5 +150,32 @@ class TaskApi extends AbstractApi
             $dto->getDownloadMode(),
             $options
         );
+    }
+
+    /**
+     * 批量转换文件为 PDF.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 转换结果
+     * @throws BusinessException 如果参数无效则抛出异常
+     */
+    public function convertFilesToPdf(RequestContext $requestContext): array
+    {
+        // 获取请求DTO
+        $dto = ConvertFilesToPdfRequestDTO::fromRequest($this->request);
+        
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 调用应用服务获取结果
+        $result = $this->workspaceAppService->convertFilesToPdf(
+            $userAuthorization,
+            $dto->getFileIds(),
+            $dto->getOptions()
+        );
+
+        // 转换为标准响应格式
+        return ConvertFilesToPdfResponseDTO::fromArray($result)->toArray();
     }
 }

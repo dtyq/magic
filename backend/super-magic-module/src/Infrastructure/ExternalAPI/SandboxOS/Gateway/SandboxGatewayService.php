@@ -514,4 +514,101 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
         return false;
     }
+
+    /**
+     * 确保沙箱可用并代理请求.
+     */
+    public function ensureSandboxAndProxy(
+        string $sandboxId,
+        string $method,
+        string $path,
+        array $data = [],
+        array $headers = []
+    ): GatewayResult {
+        try {
+            // 1. 确保沙箱存在并且可用
+            $actualSandboxId = $this->ensureSandboxAvailable($sandboxId);
+            if (empty($actualSandboxId)) {
+                return GatewayResult::error('Failed to create or access sandbox');
+            }
+
+            // 2. 代理请求到沙箱
+            $result = $this->proxySandboxRequest($actualSandboxId, $method, $path, $data, $headers);
+
+            // 3. 在结果中包含实际使用的沙箱ID
+            if ($result->isSuccess()) {
+                $resultData = $result->getData();
+                $resultData['actual_sandbox_id'] = $actualSandboxId;
+                $result = GatewayResult::success($resultData, $result->getMessage());
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Gateway] Error in ensureSandboxAndProxy', [
+                'sandbox_id' => $sandboxId,
+                'method' => $method,
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * 确保沙箱存在并且可用
+     */
+    private function ensureSandboxAvailable(string $sandboxId): string
+    {
+        try {
+            // 如果沙箱ID不为空，先检查沙箱状态
+            if (! empty($sandboxId)) {
+                $statusResult = $this->getSandboxStatus($sandboxId);
+
+                // 如果沙箱存在且状态为运行中，直接返回
+                if ($statusResult->isSuccess() &&
+                    $statusResult->getCode() === ResponseCode::SUCCESS &&
+                    SandboxStatus::isAvailable($statusResult->getStatus())) {
+                    $this->logger->debug('[Sandbox][Gateway] Sandbox is available, using existing sandbox', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+                    return $sandboxId;
+                }
+
+                // 记录需要创建新沙箱的原因
+                if ($statusResult->getCode() === ResponseCode::NOT_FOUND) {
+                    $this->logger->info('[Sandbox][Gateway] Sandbox not found, creating new sandbox', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+                } else {
+                    $this->logger->info('[Sandbox][Gateway] Sandbox status is not available, creating new sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'current_status' => $statusResult->getStatus(),
+                    ]);
+                }
+            } else {
+                $this->logger->info('[Sandbox][Gateway] Sandbox ID is empty, creating new sandbox');
+            }
+
+            $createResult = $this->createSandbox(['sandbox_id' => $sandboxId]);
+
+            if (!$createResult->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to create sandbox', [
+                    'requested_sandbox_id' => $sandboxId,
+                    'code' => $createResult->getCode(),
+                    'message' => $createResult->getMessage(),
+                ]);
+                return '';
+            }
+
+            return $createResult->getDataValue('sandbox_id');
+
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Gateway] Error ensuring sandbox availability', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return '';
+        }
+    }
 }
