@@ -14,7 +14,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 
 interface ProviderConfigRepositoryInterface
 {
-    public function getById(ProviderDataIsolation $dataIsolation, int $id): ?ProviderConfigEntity;
+    public function getById(ProviderDataIsolation $dataIsolation, int $id, bool $checkProviderEnabled = true): ?ProviderConfigEntity;
 
     /**
      * @param array<int> $ids
