@@ -354,7 +354,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $retryDelay = 2; // 每次间隔2秒
 
             for ($i = 0; $i < $maxRetries; ++$i) {
-                sleep($retryDelay);
                 $statusResult = $this->getSandboxStatus($newSandboxId);
                 if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
                     $this->logger->info('[Sandbox][Gateway] Sandbox is now running', [
@@ -368,6 +367,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     'current_status' => $statusResult->getStatus(),
                     'attempt' => $i + 1,
                 ]);
+                sleep($retryDelay);
             }
 
             $this->logger->error('[Sandbox][Gateway] Timeout waiting for sandbox to become running', [
