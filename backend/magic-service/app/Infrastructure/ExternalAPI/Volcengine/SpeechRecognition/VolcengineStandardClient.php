@@ -57,6 +57,7 @@ class VolcengineStandardClient
             $response = $this->httpClient->post(self::SUBMIT_URL, [
                 'headers' => [
                     'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer; ' . $this->config['token'],
                 ],
                 'json' => $requestData,
             ]);
@@ -110,6 +111,7 @@ class VolcengineStandardClient
             $response = $this->httpClient->post(self::QUERY_URL, [
                 'headers' => [
                     'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer; ' . $this->config['token'],
                 ],
                 'json' => $requestData,
             ]);

@@ -47,7 +47,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
      * 查询语音识别结果
      * POST /api/v1/speech/query/{taskId}.
      */
-    public function query(RequestInterface $request, string $taskId): array
+    public function query(RequestInterface $request, string $taskId)
     {
         if (empty($taskId)) {
             ExceptionBuilder::throw(AsrErrorCode::Error, '任务ID不能为空');
