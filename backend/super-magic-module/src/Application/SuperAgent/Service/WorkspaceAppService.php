@@ -40,6 +40,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveWorkspaceResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
@@ -126,6 +127,33 @@ class WorkspaceAppService extends AbstractAppService
 
         // 转换为响应DTO并传入状态映射
         return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap);
+    }
+
+    /**
+     * 获取工作区详情.
+     */
+    public function getWorkspaceDetail(RequestContext $requestContext, int $workspaceId): WorkspaceItemDTO
+    {
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
+
+        // 获取工作区详情
+        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+        if (empty($workspaceEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+        }
+
+        // 验证工作区是否属于当前用户
+        if ($workspaceEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'workspace.access_denied');
+        }
+
+        // 计算工作区状态
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch([$workspaceId]);
+        $workspaceStatus = $workspaceStatusMap[$workspaceId] ?? null;
+
+        // 返回工作区详情DTO
+        return WorkspaceItemDTO::fromEntity($workspaceEntity, $workspaceStatus);
     }
 
     public function createWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO

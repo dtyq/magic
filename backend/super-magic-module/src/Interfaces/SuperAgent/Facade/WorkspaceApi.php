@@ -46,6 +46,18 @@ class WorkspaceApi extends AbstractApi
     }
 
     /**
+     * 获取工作区详情.
+     */
+    public function getWorkspaceDetail(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 调用应用服务
+        return $this->workspaceAppService->getWorkspaceDetail($requestContext, (int) $id)->toArray();
+    }
+
+    /**
      * 获取工作区下的话题列表.
      */
     public function getWorkspaceTopics(RequestContext $requestContext): array

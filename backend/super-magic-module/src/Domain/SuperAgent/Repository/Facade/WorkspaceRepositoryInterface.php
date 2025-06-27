@@ -99,4 +99,12 @@ interface WorkspaceRepositoryInterface
      * @return array 唯一的组织代码列表
      */
     public function getUniqueOrganizationCodes(): array;
+
+    /**
+     * 批量获取工作区名称映射.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array ['workspace_id' => 'workspace_name'] 键值对
+     */
+    public function getWorkspaceNamesBatch(array $workspaceIds): array;
 }

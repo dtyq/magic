@@ -772,6 +772,21 @@ class WorkspaceDomainService
     }
 
     /**
+     * 批量获取工作区名称映射.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array ['workspace_id' => 'workspace_name'] 键值对
+     */
+    public function getWorkspaceNamesBatch(array $workspaceIds): array
+    {
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        return $this->workspaceRepository->getWorkspaceNamesBatch($workspaceIds);
+    }
+
+    /**
      * 应用数据隔离到查询条件.
      */
     private function applyDataIsolation(array $conditions, DataIsolation $dataIsolation): array
