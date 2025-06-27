@@ -157,11 +157,17 @@ class TaskApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
+        // 准备 options 参数
+        $options = $dto->getOptions();
+        if ($dto->isDebug()) {
+            $options['is_debug'] = true;
+        }
+
         // 调用应用服务获取结果
         $result = $this->workspaceAppService->convertFilesToPdf(
             $userAuthorization,
             $dto->getFileIds(),
-            $dto->getOptions()
+            $options
         );
 
         // 转换为标准响应格式

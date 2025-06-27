@@ -65,13 +65,29 @@ class PdfConverterResponse implements ResponseInterface
         return $this->data;
     }
 
-    public function getConvertedFileId(): ?string
+    public function getBatchId(): ?string
     {
-        return $this->data['file_id'] ?? null;
+        return $this->data['batch_id'] ?? null;
     }
 
     public function getConvertedFiles(): array
     {
-        return $this->data['results'] ?? [];
+        return $this->data['files'] ?? [];
+    }
+
+    public function getDownloadUrls(): array
+    {
+        return array_map(
+            fn ($file) => $file['oss_download_url'] ?? null,
+            $this->getConvertedFiles()
+        );
+    }
+
+    public function getOssKeys(): array
+    {
+        return array_map(
+            fn ($file) => $file['oss_key'] ?? null,
+            $this->getConvertedFiles()
+        );
     }
 } 

@@ -17,6 +17,12 @@ interface TopicRepositoryInterface
      */
     public function getTopicById(int $id): ?TopicEntity;
 
+    /**
+     * 批量获取话题.
+     * @return TopicEntity[]
+     */
+    public function getTopicsByIds(array $ids): array;
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity;
 
     /**

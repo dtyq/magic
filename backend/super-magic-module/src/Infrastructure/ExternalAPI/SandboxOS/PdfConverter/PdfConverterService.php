@@ -22,18 +22,14 @@ class PdfConverterService extends AbstractSandboxOS implements PdfConverterInter
 
     public function convert(string $sandboxId, PdfConverterRequest $request): PdfConverterResponse
     {
-        $this->logger->info('[PDF Converter] Converting HTML to PDF', [
-            'sandbox_id' => $sandboxId,
-            'urls_count' => count($request->getUrls()),
-        ]);
-
+        $requestData = $request->toArray();
         try {
             // 使用网关的 ensureSandboxAndProxy 方法，自动处理沙箱检查和创建
             $result = $this->gateway->ensureSandboxAndProxy(
                 $sandboxId,
                 'POST',
-                'api/pdf/convert-urls',
-                $request->toArray()
+                'api/pdf/converts',
+                $requestData
             );
 
             $response = PdfConverterResponse::fromGatewayResult($result);
@@ -43,7 +39,8 @@ class PdfConverterService extends AbstractSandboxOS implements PdfConverterInter
                 $this->logger->info('[PDF Converter] Conversion successful', [
                     'original_sandbox_id' => $sandboxId,
                     'actual_sandbox_id' => $actualSandboxId,
-                    'file_id' => $response->getConvertedFileId(),
+                    'batch_id' => $response->getBatchId(),
+                    'converted_files_count' => count($response->getConvertedFiles()),
                 ]);
             } else {
                 $this->logger->error('[PDF Converter] Conversion failed', [

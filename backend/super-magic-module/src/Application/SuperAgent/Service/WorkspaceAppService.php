@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Chat\Service\MagicTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -65,7 +66,8 @@ class WorkspaceAppService extends AbstractAppService
         protected PdfConverterInterface $pdfConverterService,
         protected LockerInterface $locker,
         protected ChatAppService $chatAppService,
-        LoggerFactory $loggerFactory
+        LoggerFactory $loggerFactory,
+        protected FileCleanupAppService $fileCleanupAppService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -457,7 +459,7 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             $downloadNames = [];
-            if ($downloadMode == 'download') {
+            if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames, $options);
@@ -898,61 +900,139 @@ class WorkspaceAppService extends AbstractAppService
      */
     public function convertFilesToPdf(MagicUserAuthorization $userAuthorization, array $fileIds, array $options = []): array
     {
-        // 1. 获取文件下载链接
-        $fileUrls = $this->getFileUrls($userAuthorization, $fileIds, 'download', ['cache' => false]);
-        if (empty($fileUrls)) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'no_accessible_files');
+        if (empty($fileIds)) {
+            throw new BusinessException('File IDs cannot be empty.', SuperAgentErrorCode::BATCH_FILE_IDS_REQUIRED->value);
         }
 
-        // 2. 获取沙箱ID
-        $firstFileId = $fileIds[0];
-        $fileEntity = $this->taskDomainService->getTaskFile((int) $firstFileId);
-        if (empty($fileEntity)) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'file_not_found');
+        $this->logger->info('[PDF Converter] Received request to convert files to PDF', [
+            'user_id' => $userAuthorization->getId(),
+            'file_ids_count' => count($fileIds),
+        ]);
+
+        // 1. 批量获取文件实体
+        $fileEntities = $this->taskDomainService->getTaskFiles($fileIds);
+        if (empty($fileEntities)) {
+            throw new BusinessException('No accessible files found.', SuperAgentErrorCode::BATCH_NO_VALID_FILES->value);
         }
 
-        $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
-        if (empty($topicEntity)) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic_not_found');
+        // 2. 批量获取话题并校验归属权
+        $topicIds = array_unique(array_map(fn ($file) => $file->getTopicId(), $fileEntities));
+        $topics = $this->workspaceDomainService->getTopicsByIds($topicIds);
+
+        $topicsById = [];
+        foreach ($topics as $topic) {
+            $topicsById[$topic->getId()] = $topic;
         }
 
-        // 获取或生成沙箱ID
-        $sandboxId = $topicEntity->getSandboxId();
-        if (empty($sandboxId)) {
-            // 如果topic没有沙箱ID，生成一个新的沙箱ID
-            // 使用topic ID和当前时间戳生成唯一的沙箱ID
-            $sandboxId = 'pdf-' . $topicEntity->getId() . '-' . time();
-            $this->logger->info('[PDF Converter] Generated new sandbox ID for PDF conversion', [
-                'topic_id' => $topicEntity->getId(),
-                'sandbox_id' => $sandboxId,
-            ]);
+        // 3. 验证文件归属，收集 file_key，并统一校验沙箱ID
+        $fileKeys = [];
+        $failedFileIds = array_flip($fileIds);
+        $sandboxId = null;
+        $allowedExtensions = ['html', 'md', 'markdown'];
+
+        foreach ($fileEntities as $fileEntity) {
+            // 校验文件类型
+            if (! in_array(strtolower($fileEntity->getFileExtension()), $allowedExtensions, true)) {
+                $this->logger->warning('[PDF Converter] Unsupported file type for conversion, skipping.', [
+                    'file_id' => $fileEntity->getFileId(),
+                    'file_name' => $fileEntity->getFileName(),
+                    'extension' => $fileEntity->getFileExtension(),
+                ]);
+                continue;
+            }
+
+            $topic = $topicsById[$fileEntity->getTopicId()] ?? null;
+
+            if (! $topic || $topic->getUserId() !== $userAuthorization->getId()) {
+                $this->logger->warning('[PDF Converter] User does not have permission for file, skipping.', [
+                    'file_id' => $fileEntity->getFileId(), 'user_id' => $userAuthorization->getId(),
+                ]);
+                continue;
+            }
+
+            $currentSandboxId = $topic->getSandboxId();
+            if (empty($currentSandboxId)) {
+                $this->logger->error('File topic has no sandbox_id', ['file_id' => $fileEntity->getFileId(), 'topic_id' => $topic->getId()]);
+                continue;
+            }
+
+            if ($sandboxId === null) {
+                $sandboxId = $currentSandboxId;
+            } elseif ($sandboxId !== $currentSandboxId) {
+                throw new BusinessException('Files must be in the same sandbox.', SuperAgentErrorCode::VALIDATE_FAILED->value);
+            }
+
+            $fileKeys[] = $fileEntity->getFileKey();
+            unset($failedFileIds[$fileEntity->getFileId()]);
         }
 
-        // 3. 构建PDF转换请求
-        $urls = array_column($fileUrls, 'url');
-        $pdfRequest = new PdfConverterRequest($urls, $options);
+        if (empty($fileKeys)) {
+            throw new BusinessException('No accessible files with permission.', SuperAgentErrorCode::BATCH_ACCESS_DENIED->value);
+        }
+        // 4. 创建PDF转换请求
+        $pdfRequest = new PdfConverterRequest($fileKeys, $options);
 
-        // 4. 调用PDF转换服务
-        $result = $this->pdfConverterService->convert($sandboxId, $pdfRequest);
-
-        if (! $result->isSuccess()) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'pdf_conversion_failed: ' . $result->getMessage());
+        // 5. 调用PDF转换服务
+        $response = $this->pdfConverterService->convert($sandboxId, $pdfRequest);
+        if (! $response->isSuccess() || empty($response->getConvertedFiles())) {
+            $errorMessage = $response->isSuccess()
+                ? 'PDF conversion resulted in no files.'
+                : $response->getMessage();
+            throw new BusinessException($errorMessage, SuperAgentErrorCode::FILE_UPLOAD_FAILED->value);
         }
 
-        // 5. 提取转换后的文件信息
-        $convertedFiles = $result->getConvertedFiles();
-        $filesInfo = array_map(function ($file) {
-            return [
-                'download_url' => $file['url'],
-            ];
-        }, $convertedFiles);
+        // 6. 注册临时文件以供清理
+        $this->registerConvertedPdfsForCleanup($userAuthorization, $response->getConvertedFiles());
 
-        // 6. 返回转换结果
+        // 7. 返回下载链接
+        $downloadUrls = $response->getDownloadUrls();
+        $this->logger->info('[PDF Converter] Successfully converted files to PDF', [
+            'user_id' => $userAuthorization->getId(),
+            'download_urls_count' => count($downloadUrls),
+            'batch_id' => $response->getBatchId(),
+        ]);
+
         return [
             'success' => true,
-            'files' => $filesInfo,
-            'sandbox_id' => $sandboxId,
-            'message' => 'PDF conversion completed successfully',
+            'download_urls' => array_filter($downloadUrls),
+            'failed_files' => array_keys($failedFileIds),
+            'batch_id' => $response->getBatchId(),
         ];
+    }
+
+    /**
+     * 注册转换后的PDF文件以供定时清理
+     */
+    private function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
+    {
+        if (empty($convertedFiles)) {
+            return;
+        }
+
+        $filesForCleanup = [];
+        foreach ($convertedFiles as $file) {
+            if (empty($file['oss_key']) || empty($file['filename'])) {
+                continue;
+            }
+
+            $filesForCleanup[] = [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'file_key' => $file['oss_key'],
+                'file_name' => $file['filename'],
+                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
+                'source_type' => 'pdf_conversion',
+                'source_id' => $file['batch_id'] ?? null,
+                'expire_after_seconds' => 7200, // 2 小时后过期
+                'bucket_type' => 'private',
+            ];
+        }
+
+        if (! empty($filesForCleanup)) {
+            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
+            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
+                'user_id' => $userAuthorization->getId(),
+                'files_count' => count($filesForCleanup),
+            ]);
+        }
     }
 }

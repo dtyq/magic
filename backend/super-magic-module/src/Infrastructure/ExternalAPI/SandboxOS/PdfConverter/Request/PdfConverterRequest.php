@@ -11,14 +11,21 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Contract\RequestInterfa
  */
 class PdfConverterRequest implements RequestInterface
 {
-    private array $urls = [];
+    private array $fileKeys = [];
     private array $options = [];
     private string $outputFormat = 'zip';
     private bool $mergePdfs = false;
+    private bool $isDebug = false;
 
-    public function __construct(array $urls, array $options = [])
+    public function __construct(array $fileKeys, array $options = [])
     {
-        $this->urls = $urls;
+        $this->fileKeys = $fileKeys;
+
+        if (isset($options['is_debug'])) {
+            $this->isDebug = (bool) $options['is_debug'];
+            unset($options['is_debug']);
+        }
+
         $this->options = array_merge([
             'format' => 'A4',
             'orientation' => 'portrait',
@@ -33,18 +40,14 @@ class PdfConverterRequest implements RequestInterface
         ], $options);
     }
 
-    public function getUrls(): array
-    {
-        return $this->urls;
-    }
-
     public function toArray(): array
     {
         return [
-            'urls' => $this->urls,
+            'file_keys' => $this->fileKeys,
             'options' => $this->options,
             'output_format' => $this->outputFormat,
             'merge_pdfs' => $this->mergePdfs,
+            'is_debug' => $this->isDebug,
         ];
     }
 } 
