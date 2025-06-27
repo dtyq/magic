@@ -31,42 +31,18 @@ class SpeechToTextStandardAppService
         $this->volcengineClient = new VolcengineStandardClient();
     }
 
-    /**
-     * 提交语音识别任务
-     */
     public function submitTask(SpeechSubmitDTO $submitDTO): array
     {
-        // 验证访问令牌
         $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
-
-        $this->logger->info('提交语音识别任务', [
-            'audio_url' => $submitDTO->getAudio()->getUrl(),
-            'user_uid' => $submitDTO->getUser()->getUid(),
-        ]);
-
-        // 调用基础设施层
         return $this->volcengineClient->submitTask($submitDTO);
     }
 
-    /**
-     * 查询语音识别结果.
-     */
     public function queryResult(SpeechQueryDTO $queryDTO): array
     {
-        // 验证访问令牌
         $this->validateAccessToken($queryDTO->getAccessToken(), $queryDTO->getIps());
-
-        $this->logger->info('查询语音识别结果', [
-            'task_id' => $queryDTO->getTaskId(),
-        ]);
-
-        // 调用基础设施层
         return $this->volcengineClient->queryResult($queryDTO);
     }
 
-    /**
-     * 验证访问令牌.
-     */
     private function validateAccessToken(string $accessToken, array $clientIps): AccessTokenEntity
     {
         $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
@@ -74,7 +50,6 @@ class SpeechToTextStandardAppService
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
 
-        // 检查IP和过期时间
         $accessTokenEntity->checkIps($clientIps);
         $accessTokenEntity->checkExpiredTime(new DateTime());
 
