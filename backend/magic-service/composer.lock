@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.19",
+            "version": "1.0.20",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "3d5de4bc0eccf10d08cb86dc9a38af2273971a36"
+                "reference": "583e6f613dc9402ae9de149512ba20834b88a520"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=3d5de4bc0eccf10d08cb86dc9a38af2273971a36",
-                "reference": "3d5de4bc0eccf10d08cb86dc9a38af2273971a36",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=583e6f613dc9402ae9de149512ba20834b88a520",
+                "reference": "583e6f613dc9402ae9de149512ba20834b88a520",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.19"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.20"
             },
-            "time": "2025-06-27T14:56:37+00:00"
+            "time": "2025-06-27T15:31:27+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2121,16 +2121,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.9",
+            "version": "v0.1.10",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e"
+                "reference": "50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
-                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0",
+                "reference": "50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0",
                 "shasum": ""
             },
             "require": {
@@ -2183,22 +2183,22 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.9"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.10"
             },
-            "time": "2025-06-27T15:01:33+00:00"
+            "time": "2025-06-27T15:23:39+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.49",
+            "version": "0.0.51",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "91ef5810b3bc14a78a69d4d9af353683e4be5768"
+                "reference": "15ef7c594cc86ba78191f58338c46b5eef903651"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=91ef5810b3bc14a78a69d4d9af353683e4be5768",
-                "reference": "91ef5810b3bc14a78a69d4d9af353683e4be5768",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=15ef7c594cc86ba78191f58338c46b5eef903651",
+                "reference": "15ef7c594cc86ba78191f58338c46b5eef903651",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.49"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.51"
             },
-            "time": "2025-06-26T19:16:25+08:00"
+            "time": "2025-06-27T15:19:52+00:00"
         },
         {
             "name": "dtyq/php-mcp",
