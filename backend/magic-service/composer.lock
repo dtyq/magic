@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.347.2",
+            "version": "3.348.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "34dca6ffe2c307c5a617c6412efdc559b5e89af8"
+                "reference": "7ad94071b0429470e8d4f714c0bead44ea080ef2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/34dca6ffe2c307c5a617c6412efdc559b5e89af8",
-                "reference": "34dca6ffe2c307c5a617c6412efdc559b5e89af8",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/7ad94071b0429470e8d4f714c0bead44ea080ef2",
+                "reference": "7ad94071b0429470e8d4f714c0bead44ea080ef2",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.347.2"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.348.0"
             },
-            "time": "2025-06-25T18:12:42+00:00"
+            "time": "2025-06-26T18:14:07+00:00"
         },
         {
             "name": "brick/math",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.17",
+            "version": "1.0.19",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "4b76f428542f17127c961bb0c85fd2b64061b884"
+                "reference": "3d5de4bc0eccf10d08cb86dc9a38af2273971a36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=4b76f428542f17127c961bb0c85fd2b64061b884",
-                "reference": "4b76f428542f17127c961bb0c85fd2b64061b884",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=3d5de4bc0eccf10d08cb86dc9a38af2273971a36",
+                "reference": "3d5de4bc0eccf10d08cb86dc9a38af2273971a36",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.17"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.19"
             },
-            "time": "2025-06-17T15:13:40+00:00"
+            "time": "2025-06-27T14:56:37+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2121,16 +2121,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.8",
+            "version": "v0.1.9",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51"
+                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
-                "reference": "ab5cc2918a03ef5024e93f0ba2c18198127c3c51",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
+                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
                 "shasum": ""
             },
             "require": {
@@ -2183,9 +2183,9 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.8"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.9"
             },
-            "time": "2025-06-18T07:59:49+00:00"
+            "time": "2025-06-27T15:01:33+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
@@ -14459,16 +14459,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.150",
+            "version": "v1.0.151",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "4cbae00cc9b9c7ab4f0141ac60ef2bd053657ff7"
+                "reference": "849a817531af8ca72d514ebffb47883f931e6d83"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/4cbae00cc9b9c7ab4f0141ac60ef2bd053657ff7",
-                "reference": "4cbae00cc9b9c7ab4f0141ac60ef2bd053657ff7",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/849a817531af8ca72d514ebffb47883f931e6d83",
+                "reference": "849a817531af8ca72d514ebffb47883f931e6d83",
                 "shasum": ""
             },
             "require": {
@@ -14503,9 +14503,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.150"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.151"
             },
-            "time": "2025-06-19T12:33:29+00:00"
+            "time": "2025-06-26T12:20:29+00:00"
         },
         {
             "name": "w7corp/easywechat",
