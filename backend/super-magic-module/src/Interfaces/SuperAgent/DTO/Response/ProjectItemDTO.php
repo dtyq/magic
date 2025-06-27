@@ -23,12 +23,13 @@ class ProjectItemDTO
         public readonly string $currentTopicId,
         public readonly string $currentTopicStatus,
         public readonly string $projectStatus,
+        public readonly ?string $workspaceName,
         public readonly ?string $createdAt,
         public readonly ?string $updatedAt
     ) {
     }
 
-    public static function fromEntity(ProjectEntity $project, ?string $projectStatus = null): self
+    public static function fromEntity(ProjectEntity $project, ?string $projectStatus = null, ?string $workspaceName = null): self
     {
         return new self(
             id: (string) $project->getId(),
@@ -38,6 +39,7 @@ class ProjectItemDTO
             currentTopicId: (string) $project->getCurrentTopicId(),
             currentTopicStatus: $project->getCurrentTopicStatus(),
             projectStatus: $projectStatus ?? TaskStatus::WAITING->value,
+            workspaceName: $workspaceName,
             createdAt: $project->getCreatedAt(),
             updatedAt: $project->getUpdatedAt()
         );
@@ -53,6 +55,7 @@ class ProjectItemDTO
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
             'project_status' => $this->projectStatus,
+            'workspace_name' => $this->workspaceName,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

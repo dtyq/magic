@@ -234,6 +234,32 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
     }
 
     /**
+     * 批量获取工作区名称映射.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array ['workspace_id' => 'workspace_name'] 键值对
+     */
+    public function getWorkspaceNamesBatch(array $workspaceIds): array
+    {
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        $results = $this->model::query()
+            ->whereIn('id', $workspaceIds)
+            ->whereNull('deleted_at')
+            ->select(['id', 'name'])
+            ->get();
+
+        $workspaceNames = [];
+        foreach ($results as $result) {
+            $workspaceNames[(string) $result->id] = $result->name;
+        }
+
+        return $workspaceNames;
+    }
+
+    /**
      * 将模型对象转换为实体对象
      *
      * @param null|WorkspaceModel $model 模型对象

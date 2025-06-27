@@ -9,6 +9,7 @@ namespace App\Application\File\Service;
 
 use App\Domain\File\Constant\FileBatchConstant;
 use App\Domain\File\Event\FileBatchCompressEvent;
+use App\Domain\File\Service\FileCleanupDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadConfig;
@@ -58,10 +59,9 @@ class FileBatchCompressAppService extends AbstractAppService
     private string $currentCacheKey = '';
 
     public function __construct(
-        private readonly FileAppService $fileAppService,
         private readonly FileDomainService $fileDomainService,
+        private readonly FileCleanupDomainService $fileCleanupDomainService,
         private readonly FileBatchStatusManager $statusManager,
-        private readonly FileCleanupAppService $fileCleanupAppService,
     ) {
         $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('FileBatchCompress');
     }
@@ -715,11 +715,11 @@ class FileBatchCompressAppService extends AbstractAppService
             // Use downloadByChunks, which automatically determines if chunking is needed
             // Specify custom temp_dir to solve chunk download temporary directory issue
             $chunksDir = $this->createTempDirectory($this->getCurrentCacheKey(), 'chunks');
-            $this->fileAppService->downloadByChunks(
+            $this->fileDomainService->downloadByChunks(
                 $organizationCode,
                 $filePath,
                 $tempPath,
-                'private',
+                StorageBucketType::Private,
                 [
                     'chunk_size' => 2 * 1024 * 1024,  // 2MB chunks
                     'max_concurrency' => 3,           // 3 concurrent downloads
@@ -944,7 +944,7 @@ class FileBatchCompressAppService extends AbstractAppService
         int $fileSize
     ): void {
         try {
-            $success = $this->fileCleanupAppService->registerFileForCleanup(
+            $success = $this->fileCleanupDomainService->registerFileForCleanup(
                 organizationCode: $organizationCode,
                 fileKey: $fileKey,
                 fileName: $fileName,

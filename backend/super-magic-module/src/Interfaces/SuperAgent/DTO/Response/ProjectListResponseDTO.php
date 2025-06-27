@@ -18,11 +18,12 @@ class ProjectListResponseDTO
     ) {
     }
 
-    public static function create(array $projects, int $total = 0, array $projectStatusMap = []): self
+    public static function create(array $projects, int $total = 0, array $projectStatusMap = [], array $workspaceNameMap = []): self
     {
-        $list = array_map(function ($project) use ($projectStatusMap) {
+        $list = array_map(function ($project) use ($projectStatusMap, $workspaceNameMap) {
             $projectStatus = $projectStatusMap[$project->getId()] ?? null;
-            return ProjectItemDTO::fromEntity($project, $projectStatus)->toArray();
+            $workspaceName = $workspaceNameMap[$project->getWorkspaceId()] ?? null;
+            return ProjectItemDTO::fromEntity($project, $projectStatus, $workspaceName)->toArray();
         }, $projects);
 
         return new self(
@@ -31,14 +32,15 @@ class ProjectListResponseDTO
         );
     }
 
-    public static function fromResult(array $result, array $projectStatusMap = []): self
+    public static function fromResult(array $result, array $projectStatusMap = [], array $workspaceNameMap = []): self
     {
         $projects = $result['list'] ?? $result;
         $total = $result['total'] ?? count($projects);
 
-        $list = array_map(function ($project) use ($projectStatusMap) {
+        $list = array_map(function ($project) use ($projectStatusMap, $workspaceNameMap) {
             $projectStatus = $projectStatusMap[$project->getId()] ?? null;
-            return ProjectItemDTO::fromEntity($project, $projectStatus)->toArray();
+            $workspaceName = $workspaceNameMap[$project->getWorkspaceId()] ?? null;
+            return ProjectItemDTO::fromEntity($project, $projectStatus, $workspaceName)->toArray();
         }, $projects);
 
         return new self(
