@@ -10,10 +10,8 @@ base_dirname=$(
 # 执行脚本文件位置
 bin="${base_dirname}/bin/hyperf.php"
 # ........................
-# 执行迁移
-php "${bin}" migrate --force
-# 执行扩展包迁移
-php "${bin}" migrate:vendor
+# 执行迁移 (使用分布式锁保护，防止并发执行)
+php "${bin}" shell:locker migrate
 
 # 执行seeders
 #php "${bin}" db:seed
