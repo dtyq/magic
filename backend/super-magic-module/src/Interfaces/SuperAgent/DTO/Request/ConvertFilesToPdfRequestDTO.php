@@ -14,11 +14,13 @@ class ConvertFilesToPdfRequestDTO
 {
     private array $fileIds;
     private array $options;
+    private bool $isDebug;
 
     public function __construct(array $params)
     {
         $this->fileIds = $params['file_ids'] ?? [];
         $this->options = $params['options'] ?? [];
+        $this->isDebug = $params['is_debug'] ?? false;
         $this->validate($params);
     }
 
@@ -36,6 +38,11 @@ class ConvertFilesToPdfRequestDTO
     {
         return $this->options;
     }
+
+    public function isDebug(): bool
+    {
+        return $this->isDebug;
+    }
     
     /**
      * @throws BusinessException
@@ -47,6 +54,7 @@ class ConvertFilesToPdfRequestDTO
             [
                 'file_ids' => 'required|array',
                 'options' => 'sometimes|array',
+                'is_debug' => 'sometimes|boolean',
             ],
             [
                 'file_ids.required' => 'file_ids is required',

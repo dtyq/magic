@@ -9,25 +9,25 @@ use Dtyq\ApiResponse\Response\AbstractResponse;
 class ConvertFilesToPdfResponseDTO extends AbstractResponse
 {
     public bool $success;
-    public array $files;
-    public string $sandbox_id;
-    public string $message;
+    public array $download_urls;
+    public array $failed_files;
+    public ?string $batch_id;
 
-    public function __construct(bool $success, array $files, string $sandboxId, string $message)
+    public function __construct(bool $success, array $downloadUrls, array $failedFiles, ?string $batchId)
     {
         $this->success = $success;
-        $this->files = $files;
-        $this->sandbox_id = $sandboxId;
-        $this->message = $message;
+        $this->download_urls = $downloadUrls;
+        $this->failed_files = $failedFiles;
+        $this->batch_id = $batchId;
     }
 
     public static function fromArray(array $data): self
     {
         return new self(
             $data['success'] ?? false,
-            $data['files'] ?? [],
-            $data['sandbox_id'] ?? '',
-            $data['message'] ?? 'An unknown error occurred.'
+            $data['download_urls'] ?? [],
+            $data['failed_files'] ?? [],
+            $data['batch_id'] ?? null
         );
     }
 
@@ -35,9 +35,9 @@ class ConvertFilesToPdfResponseDTO extends AbstractResponse
     {
         return [
             'success' => $this->success,
-            'files' => $this->files,
-            'sandbox_id' => $this->sandbox_id,
-            'message' => $this->message,
+            'download_urls' => $this->download_urls,
+            'failed_files' => $this->failed_files,
+            'batch_id' => $this->batch_id,
         ];
     }
 

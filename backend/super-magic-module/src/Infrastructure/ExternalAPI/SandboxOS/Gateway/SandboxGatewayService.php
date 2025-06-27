@@ -592,7 +592,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
             $createResult = $this->createSandbox(['sandbox_id' => $sandboxId]);
 
-            if (!$createResult->isSuccess()) {
+            if (! $createResult->isSuccess()) {
                 $this->logger->error('[Sandbox][Gateway] Failed to create sandbox', [
                     'requested_sandbox_id' => $sandboxId,
                     'code' => $createResult->getCode(),
@@ -601,8 +601,34 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 return '';
             }
 
-            return $createResult->getDataValue('sandbox_id');
+            $newSandboxId = $createResult->getDataValue('sandbox_id');
 
+            // 轮询等待沙箱进入 Running 状态
+            $maxRetries = 15; // 最多等待约30秒
+            $retryDelay = 2; // 每次间隔2秒
+
+            for ($i = 0; $i < $maxRetries; ++$i) {
+                sleep($retryDelay);
+                $statusResult = $this->getSandboxStatus($newSandboxId);
+                if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                    $this->logger->info('[Sandbox][Gateway] Sandbox is now running', [
+                        'sandbox_id' => $newSandboxId,
+                        'attempts' => $i + 1,
+                    ]);
+                    return $newSandboxId;
+                }
+                $this->logger->info('[Sandbox][Gateway] Waiting for sandbox to become ready...', [
+                    'sandbox_id' => $newSandboxId,
+                    'current_status' => $statusResult->getStatus(),
+                    'attempt' => $i + 1,
+                ]);
+            }
+
+            $this->logger->error('[Sandbox][Gateway] Timeout waiting for sandbox to become running', [
+                'sandbox_id' => $newSandboxId,
+            ]);
+
+            return ''; // 超时后返回空
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Error ensuring sandbox availability', [
                 'sandbox_id' => $sandboxId,
