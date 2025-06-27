@@ -2136,16 +2136,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.9",
+            "version": "v0.1.10",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e"
+                "reference": "50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
-                "reference": "baa3fa403fb21b85d438c56a931b2ae8a6c8e83e",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0",
+                "reference": "50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0",
                 "shasum": ""
             },
             "require": {
@@ -2198,9 +2198,9 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.9"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.10"
             },
-            "time": "2025-06-27T15:01:33+00:00"
+            "time": "2025-06-27T15:23:39+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
