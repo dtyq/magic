@@ -40,6 +40,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInter
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
 use Dtyq\SuperMagic\Listener\I18nLoadListener;
 use RecursiveDirectoryIterator;
@@ -89,6 +91,7 @@ class ConfigProvider
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
+                PdfConverterInterface::class => PdfConverterService::class,
                 AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入
                 FileProcessAppService::class => FileProcessAppService::class,
