@@ -11,9 +11,6 @@ use App\Domain\Chat\Entity\AbstractEntity;
 
 class SpeechUserDTO extends AbstractEntity
 {
-    /**
-     * 用户ID.
-     */
     protected string $uid = '';
 
     public function __construct(array $data = [])

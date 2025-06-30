@@ -11,19 +11,10 @@ use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 
 class SpeechSubmitDTO extends AbstractRequestDTO
 {
-    /**
-     * 用户配置.
-     */
     protected ?SpeechUserDTO $user = null;
 
-    /**
-     * 音频配置.
-     */
     protected SpeechAudioDTO $audio;
 
-    /**
-     * 附加配置（可选）.
-     */
     protected ?array $additions = null;
 
     public function __construct(array $data = [])

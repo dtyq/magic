@@ -22,12 +22,10 @@ use Throwable;
 
 class VolcengineStandardClient
 {
-    // 传统ASR接口
     private const SUBMIT_URL = 'https://openspeech.bytedance.com/api/v1/auc/submit';
 
     private const QUERY_URL = 'https://openspeech.bytedance.com/api/v1/auc/query';
 
-    // 大模型ASR接口
     private const BIGMODEL_SUBMIT_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit';
 
     private const BIGMODEL_QUERY_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/query';
@@ -178,7 +176,6 @@ class VolcengineStandardClient
                 'response' => $result,
             ]);
 
-            // 返回结果中包含request_id，用于后续查询
             $result['request_id'] = $requestId;
             return $result;
         } catch (GuzzleException $e) {
@@ -202,9 +199,6 @@ class VolcengineStandardClient
         }
     }
 
-    /**
-     * 查询大模型ASR结果.
-     */
     public function queryBigModelResult(string $requestId): array
     {
         $queryData = [
@@ -300,14 +294,10 @@ class VolcengineStandardClient
         ];
     }
 
-    /**
-     * 构建大模型ASR提交请求
-     */
     private function buildBigModelSubmitRequest(BigModelSpeechSubmitDTO $submitDTO): array
     {
         $userRequestData = $submitDTO->toVolcenArray();
 
-        // 根据官方文档，大模型ASR的请求格式
         $requestData = [
             'appkey' => $this->config['app_id'],
             'token' => $this->config['token'],
@@ -316,7 +306,6 @@ class VolcengineStandardClient
             'sequence' => -1,
         ];
 
-        // 合并用户请求数据
         return array_merge($requestData, $userRequestData);
     }
 }

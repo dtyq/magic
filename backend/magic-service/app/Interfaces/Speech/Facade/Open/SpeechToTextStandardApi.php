@@ -41,7 +41,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
     public function query(RequestInterface $request, string $taskId)
     {
         if (empty($taskId)) {
-            ExceptionBuilder::throw(AsrErrorCode::Error, '任务ID不能为空');
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.task_id_required');
         }
 
         $queryDTO = new SpeechQueryDTO(['task_id' => $taskId]);
@@ -68,7 +68,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
     public function queryBigModel(RequestInterface $request, string $requestId)
     {
         if (empty($requestId)) {
-            ExceptionBuilder::throw(AsrErrorCode::Error, '请求ID不能为空');
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.task_id_required');
         }
 
         $speechQueryDTO = new SpeechQueryDTO(['task_id' => $requestId]);
