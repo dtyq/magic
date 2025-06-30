@@ -59,7 +59,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         }
 
         $submitDTO = new BigModelSpeechSubmitDTO($requestData);
-        $submitDTO->setaccessToken($this->getAccessToken());
+        $submitDTO->setAccessToken($this->getAccessToken());
         $submitDTO->setIps($this->getClientIps());
         $submitDTO->setUser(new SpeechUserDTO(['uid' => $this->getAccessToken()]));
         return $this->speechToTextStandardAppService->submitBigModelTask($submitDTO);

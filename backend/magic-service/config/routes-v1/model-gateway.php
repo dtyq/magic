@@ -17,8 +17,6 @@ Router::addGroup('/v1', function () {
     Router::get('/models', [OpenAIProxyApi::class, 'models']);
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImage']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEdit']);
-    // Speech to text transcription API
-    Router::post('/audio/transcriptions', [OpenAIProxyApi::class, 'audioTranscriptions']);
 });
 
 Router::addGroup('/api/v1', static function () {
