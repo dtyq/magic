@@ -366,50 +366,6 @@ class WorkspaceDomainService
     }
 
     /**
-     * 更新话题名称.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param int $id 话题主键ID
-     * @param string $topicName 话题名称
-     * @return bool 是否更新成功
-     * @throws Exception 如果更新失败
-     */
-    public function updateTopicName(DataIsolation $dataIsolation, int $id, string $topicName): bool
-    {
-        // 获取当前用户ID
-        $userId = $dataIsolation->getCurrentUserId();
-
-        // 通过主键ID获取话题
-        $topicEntity = $this->topicRepository->getTopicById($id);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
-        }
-
-        // 检查用户权限（检查话题是否属于当前用户）
-        if ($topicEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
-        }
-
-        // 获取工作区详情，检查工作区是否存在
-        $workspaceEntity = $this->workspaceRepository->getWorkspaceById($topicEntity->getWorkspaceId());
-        if (! $workspaceEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.not_found');
-        }
-
-        // 检查工作区是否已归档
-        if ($workspaceEntity->getArchiveStatus() === WorkspaceArchiveStatus::Archived) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.archived');
-        }
-
-        // 更新话题名称
-        $topicEntity->setTopicName($topicName);
-        // 设置更新者用户ID
-        $topicEntity->setUpdatedUid($userId);
-        // 保存更新
-        return $this->topicRepository->updateTopic($topicEntity);
-    }
-
-    /**
      * 通过ID获取话题实体.
      *
      * @param int $id 话题ID(主键)

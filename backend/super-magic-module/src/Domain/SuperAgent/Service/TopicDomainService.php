@@ -12,9 +12,9 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Exception;
 
 class TopicDomainService
@@ -119,17 +119,17 @@ class TopicDomainService
         return $this->topicRepository->updateTopicStatusBySandboxIds($sandboxIds, $taskStatus->value);
     }
 
-    public function updateTopic(DataIsolation $dataIsolation, SaveTopicRequestDTO $requestDTO): TopicEntity
+    public function updateTopic(DataIsolation $dataIsolation, int $id, string $topicName): TopicEntity
     {
         // 查找当前的话题是否是自己的
-        $topicEntity = $this->topicRepository->getTopicById((int) $requestDTO->getId());
+        $topicEntity = $this->topicRepository->getTopicById($id);
         if (empty($topicEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
         }
-        $topicEntity->setTopicName($requestDTO->getTopicName());
+        $topicEntity->setTopicName($topicName);
 
         $this->topicRepository->updateTopic($topicEntity);
 
@@ -270,5 +270,90 @@ class TopicDomainService
             'updated_at', // 按更新时间排序
             'desc' // 降序
         );
+    }
+
+    /**
+     * 批量计算工作区状态.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array ['workspace_id' => 'status'] 键值对
+     */
+    public function calculateWorkspaceStatusBatch(array $workspaceIds): array
+    {
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        // 从仓储层获取有运行中话题的工作区ID列表
+        $runningWorkspaceIds = $this->topicRepository->getRunningWorkspaceIds($workspaceIds);
+
+        // 计算每个工作区的状态
+        $result = [];
+        foreach ($workspaceIds as $workspaceId) {
+            $result[$workspaceId] = in_array($workspaceId, $runningWorkspaceIds, true)
+                ? TaskStatus::RUNNING->value
+                : TaskStatus::WAITING->value;
+        }
+
+        return $result;
+    }
+
+    /**
+     * 批量计算项目状态.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array ['project_id' => 'status'] 键值对
+     */
+    public function calculateProjectStatusBatch(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        // 从仓储层获取有运行中话题的项目ID列表
+        $runningProjectIds = $this->topicRepository->getRunningProjectIds($projectIds);
+
+        // 计算每个项目的状态
+        $result = [];
+        foreach ($projectIds as $projectId) {
+            $result[$projectId] = in_array($projectId, $runningProjectIds, true)
+                ? TaskStatus::RUNNING->value
+                : TaskStatus::WAITING->value;
+        }
+
+        return $result;
+    }
+
+    /**
+     * 更新话题名称.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param int $id 话题主键ID
+     * @param string $topicName 话题名称
+     * @return bool 是否更新成功
+     * @throws Exception 如果更新失败
+     */
+    public function updateTopicName(DataIsolation $dataIsolation, int $id, string $topicName): bool
+    {
+        // 获取当前用户ID
+        $userId = $dataIsolation->getCurrentUserId();
+
+        // 通过主键ID获取话题
+        $topicEntity = $this->topicRepository->getTopicById($id);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
+        }
+
+        // 检查用户权限（检查话题是否属于当前用户）
+        if ($topicEntity->getUserId() !== $userId) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
+        }
+
+        // 更新话题名称
+        $topicEntity->setTopicName($topicName);
+        // 设置更新者用户ID
+        $topicEntity->setUpdatedUid($userId);
+        // 保存更新
+        return $this->topicRepository->updateTopic($topicEntity);
     }
 }
