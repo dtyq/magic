@@ -15,6 +15,7 @@ use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition\VolcengineStandardClient;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 use DateTime;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
@@ -35,12 +36,14 @@ class SpeechToTextStandardAppService
     public function submitTask(SpeechSubmitDTO $submitDTO): array
     {
         $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
+        $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
         return $this->volcengineClient->submitTask($submitDTO);
     }
 
     public function submitBigModelTask(BigModelSpeechSubmitDTO $submitDTO): array
     {
         $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
+        $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
         return $this->volcengineClient->submitBigModelTask($submitDTO);
     }
 
