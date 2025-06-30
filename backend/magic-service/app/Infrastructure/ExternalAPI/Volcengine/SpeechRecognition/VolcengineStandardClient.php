@@ -232,11 +232,6 @@ class VolcengineStandardClient
                 ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.bigmodel.invalid_response_format');
             }
 
-            $this->logger->info('Volcengine BigModel query result retrieved successfully', [
-                'request_id' => $requestId,
-                'result' => $result,
-            ]);
-
             return $result;
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to query BigModel result from Volcengine', [
