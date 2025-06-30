@@ -7,7 +7,7 @@ declare(strict_types=1);
 use App\Interfaces\Speech\Facade\Open\SpeechToTextStandardApi;
 use Hyperf\HttpServer\Router\Router;
 
-Router::addGroup('/v1', static function () {
+Router::addGroup('/api/v1', static function () {
     Router::addGroup('/volcano/speech', static function () {
         // 普通语音识别
         Router::post('/submit', [SpeechToTextStandardApi::class, 'submit']);
