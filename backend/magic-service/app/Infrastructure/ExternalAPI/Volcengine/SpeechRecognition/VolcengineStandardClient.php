@@ -7,10 +7,12 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition;
 
+use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Hyperf\Context\ApplicationContext;
@@ -22,10 +24,12 @@ class VolcengineStandardClient
 {
     // 传统ASR接口
     private const SUBMIT_URL = 'https://openspeech.bytedance.com/api/v1/auc/submit';
+
     private const QUERY_URL = 'https://openspeech.bytedance.com/api/v1/auc/query';
-    
+
     // 大模型ASR接口
     private const BIGMODEL_SUBMIT_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit';
+
     private const BIGMODEL_QUERY_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/query';
 
     protected LoggerInterface $logger;
@@ -140,17 +144,17 @@ class VolcengineStandardClient
     /**
      * 提交大模型ASR任务
      */
-    public function submitBigModelTask(SpeechSubmitDTO $submitDTO): array
+    public function submitBigModelTask(BigModelSpeechSubmitDTO $submitDTO): array
     {
         $requestData = $this->buildBigModelSubmitRequest($submitDTO);
-        $requestId = $this->generateRequestId();
+        $requestId = $requestData['req_id'];
 
         try {
             $response = $this->httpClient->post(self::BIGMODEL_SUBMIT_URL, [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'X-Api-App-Key' => $this->config['app_id'],
-                    'X-Api-Access-Key' => $this->config['access_key'],
+                    'X-Api-Access-Key' => $this->config['token'],
                     'X-Api-Resource-Id' => 'volc.bigasr.auc',
                     'X-Api-Request-Id' => $requestId,
                     'X-Api-Sequence' => '-1',
@@ -199,20 +203,27 @@ class VolcengineStandardClient
     }
 
     /**
-     * 查询大模型ASR结果
+     * 查询大模型ASR结果.
      */
     public function queryBigModelResult(string $requestId): array
     {
+        $queryData = [
+            'appkey' => $this->config['app_id'],
+            'token' => $this->config['token'],
+            'resource_id' => 'volc.bigasr.auc',
+            'req_id' => $requestId,
+        ];
+
         try {
             $response = $this->httpClient->post(self::BIGMODEL_QUERY_URL, [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'X-Api-App-Key' => $this->config['app_id'],
-                    'X-Api-Access-Key' => $this->config['access_key'],
+                    'X-Api-Access-Key' => $this->config['token'],
                     'X-Api-Resource-Id' => 'volc.bigasr.auc',
                     'X-Api-Request-Id' => $requestId,
                 ],
-                'json' => [],
+                'json' => $queryData,
             ]);
 
             $responseBody = $response->getBody()->getContents();
@@ -261,11 +272,6 @@ class VolcengineStandardClient
             ExceptionBuilder::throw(AsrErrorCode::InvalidConfig, 'speech.volcengine.config_incomplete');
         }
 
-        // 大模型ASR需要access_key
-        if (empty($config['access_key'])) {
-            $this->logger->warning('BigModel ASR requires access_key in config');
-        }
-
         return $config;
     }
 
@@ -297,52 +303,20 @@ class VolcengineStandardClient
     /**
      * 构建大模型ASR提交请求
      */
-    private function buildBigModelSubmitRequest(SpeechSubmitDTO $submitDTO): array
+    private function buildBigModelSubmitRequest(BigModelSpeechSubmitDTO $submitDTO): array
     {
-        $userRequestData = $submitDTO->toVolcengineRequestData();
-        
+        $userRequestData = $submitDTO->toVolcenArray();
+
         // 根据官方文档，大模型ASR的请求格式
         $requestData = [
-            'user' => [
-                'uid' => $userRequestData['user']['uid'] ?? 'default_uid',
-            ],
-            'audio' => [
-                'url' => $userRequestData['audio']['url'],
-                'format' => $userRequestData['audio']['format'] ?? 'wav',
-                'language' => $userRequestData['audio']['language'] ?? 'zh-CN',
-                'use_itn' => $userRequestData['audio']['use_itn'] ?? true,
-                'use_capitalize' => $userRequestData['audio']['use_capitalize'] ?? false,
-                'max_lines' => $userRequestData['audio']['max_lines'] ?? 1,
-                'words_per_line' => $userRequestData['audio']['words_per_line'] ?? 20,
-                'speaker_number' => $userRequestData['audio']['speaker_number'] ?? 0,
-                'show_utterances' => $userRequestData['audio']['show_utterances'] ?? true,
-                'emotion_recognition' => $userRequestData['audio']['emotion_recognition'] ?? false,
-            ],
+            'appkey' => $this->config['app_id'],
+            'token' => $this->config['token'],
+            'resource_id' => 'volc.bigasr.auc',
+            'req_id' => IdGenerator::getSnowId(),
+            'sequence' => -1,
         ];
 
-        // 如果有热词配置
-        if (!empty($userRequestData['audio']['words'])) {
-            $requestData['audio']['words'] = $userRequestData['audio']['words'];
-        }
-
-        return $requestData;
-    }
-
-    /**
-     * 生成请求ID
-     */
-    private function generateRequestId(): string
-    {
-        return sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        );
+        // 合并用户请求数据
+        return array_merge($requestData, $userRequestData);
     }
 }

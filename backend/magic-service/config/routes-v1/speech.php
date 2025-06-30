@@ -9,10 +9,12 @@ use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/v1', static function () {
     Router::addGroup('/volcano/speech', static function () {
-        // 提交语音识别任务
+        // 普通语音识别
         Router::post('/submit', [SpeechToTextStandardApi::class, 'submit']);
-
-        // 查询语音识别结果
         Router::post('/query/{taskId}', [SpeechToTextStandardApi::class, 'query']);
+
+        // 大模型语音识别
+        Router::post('/bigmodel/submit', [SpeechToTextStandardApi::class, 'submitBigModel']);
+        Router::post('/bigmodel/query/{requestId}', [SpeechToTextStandardApi::class, 'queryBigModel']);
     });
 });

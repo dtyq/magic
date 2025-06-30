@@ -24,21 +24,18 @@ class SpeechSubmitDTO extends AbstractRequestDTO
     /**
      * 附加配置（可选）.
      */
-    protected ?SpeechAdditionsDTO $additions = null;
+    protected ?array $additions = null;
 
     public function __construct(array $data = [])
     {
         parent::__construct($data);
-
-        // 初始化用户配置
-        $this->user = new SpeechUserDTO($data['user'] ?? []);
 
         // 初始化音频配置
         $this->audio = new SpeechAudioDTO($data['audio'] ?? []);
 
         // 初始化附加配置
         if (isset($data['additions'])) {
-            $this->additions = new SpeechAdditionsDTO($data['additions']);
+            $this->additions = $data['additions'];
         }
     }
 
@@ -68,16 +65,13 @@ class SpeechSubmitDTO extends AbstractRequestDTO
         $this->audio = $audio;
     }
 
-    public function getAdditions(): ?SpeechAdditionsDTO
+    public function getAdditions(): ?array
     {
         return $this->additions;
     }
 
-    public function setAdditions(null|array|SpeechAdditionsDTO $additions): void
+    public function setAdditions(?array $additions): void
     {
-        if (is_array($additions)) {
-            $additions = new SpeechAdditionsDTO($additions);
-        }
         $this->additions = $additions;
     }
 
@@ -93,10 +87,7 @@ class SpeechSubmitDTO extends AbstractRequestDTO
 
         // 添加可选的附加配置
         if ($this->additions) {
-            $additions = $this->additions->toArray();
-            if (! empty($additions)) {
-                $requestData['additions'] = $additions;
-            }
+            $requestData['additions'] = $this->additions;
         }
 
         return $requestData;

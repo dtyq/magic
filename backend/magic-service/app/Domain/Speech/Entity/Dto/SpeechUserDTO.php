@@ -32,11 +32,4 @@ class SpeechUserDTO extends AbstractEntity
     {
         $this->uid = $uid;
     }
-
-    public function toArray(): array
-    {
-        return [
-            'uid' => $this->getUid(),
-        ];
-    }
 }
