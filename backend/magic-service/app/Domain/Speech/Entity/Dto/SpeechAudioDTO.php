@@ -11,46 +11,21 @@ use App\Infrastructure\Core\AbstractDTO;
 
 class SpeechAudioDTO extends AbstractDTO
 {
-    /**
-     * 音频文件URL.
-     */
     protected string $url = '';
 
-    /**
-     * 音频容器格式: raw / wav / ogg / mp3 / mp4.
-     */
     protected string $format = '';
 
-    /**
-     * 音频编码格式: raw / opus.
-     */
-    protected string $codec = '';
+    protected string $codec = 'raw';
 
-    /**
-     * 音频采样率.
-     */
-    protected int $rate = 0;
+    protected int $rate = 16000;
 
-    /**
-     * 音频采样点位数.
-     */
-    protected int $bits = 0;
+    protected int $bits = 16;
 
-    /**
-     * 音频声道数: 1(mono) / 2(stereo).
-     */
-    protected int $channel = 0;
+    protected int $channel = 1;
 
     public function __construct(array $data = [])
     {
         parent::__construct($data);
-
-        $this->url = (string) ($data['url'] ?? '');
-        $this->format = (string) ($data['format'] ?? '');
-        $this->codec = (string) ($data['codec'] ?? '');
-        $this->rate = (int) ($data['rate'] ?? 0);
-        $this->bits = (int) ($data['bits'] ?? 0);
-        $this->channel = (int) ($data['channel'] ?? 0);
     }
 
     public function getUrl(): string
@@ -111,31 +86,5 @@ class SpeechAudioDTO extends AbstractDTO
     public function setChannel(int $channel): void
     {
         $this->channel = $channel;
-    }
-
-    public function toArray(): array
-    {
-        $result = [];
-
-        if ($this->url) {
-            $result['url'] = $this->url;
-        }
-        if ($this->format) {
-            $result['format'] = $this->format;
-        }
-        if ($this->codec) {
-            $result['codec'] = $this->codec;
-        }
-        if ($this->rate > 0) {
-            $result['rate'] = $this->rate;
-        }
-        if ($this->bits > 0) {
-            $result['bits'] = $this->bits;
-        }
-        if ($this->channel > 0) {
-            $result['channel'] = $this->channel;
-        }
-
-        return $result;
     }
 }
