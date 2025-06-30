@@ -12,6 +12,7 @@ return [
         'query_failed' => 'ไม่สามารถสอบถามผลลัพธ์จาก API ของ Volcengine ได้',
         'query_exception' => 'เกิดข้อยกเว้นขณะสอบถามผลลัพธ์จาก Volcengine',
         'config_incomplete' => 'การกำหนดค่า Volcengine ไม่สมบูรณ์ ขาด app_id, token หรือ cluster',
+        'task_id_required' => 'รหัสงานไม่สามารถเป็นค่าว่างได้',
         'bigmodel' => [
             'invalid_response_format' => 'รูปแบบการตอบสนองจาก BigModel ASR ไม่ถูกต้อง',
             'submit_exception' => 'เกิดข้อยกเว้นขณะส่งงานไปยัง BigModel ASR',
