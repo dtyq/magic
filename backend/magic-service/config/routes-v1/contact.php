@@ -10,7 +10,13 @@ use App\Interfaces\Chat\Facade\MagicChatHttpApi;
 use App\Interfaces\Chat\Facade\MagicChatUserApi;
 use Hyperf\HttpServer\Router\Router;
 
-// 通讯录
+// Account-related routes (independent of RequestContextMiddleware to support cross-organization queries)
+Router::addGroup('/api/v1/contact/accounts', function () {
+    // Get user details for all organizations under the current account
+    Router::get('/me/users', [MagicChatUserApi::class, 'getAccountUsersDetail']);
+});
+
+// 通讯录（需要组织上下文）
 Router::addGroup('/api/v1/contact', static function () {
     // 用户相关
     Router::addGroup('/users', static function () {
