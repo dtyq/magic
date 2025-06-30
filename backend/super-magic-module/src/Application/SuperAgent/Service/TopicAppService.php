@@ -56,7 +56,7 @@ class TopicAppService extends AbstractAppService
         return TopicItemDTO::fromEntity($topicEntity);
     }
 
-    public function createTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
+    public function createTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): TopicItemDTO
     {
         // 获取用户授权信息
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -91,7 +91,7 @@ class TopicAppService extends AbstractAppService
             // 提交事务
             Db::commit();
             // 返回结果
-            return SaveTopicResultDTO::fromId($topicEntity->getId());
+            return TopicItemDTO::fromEntity($topicEntity);
         } catch (Throwable $e) {
             // 回滚事务
             Db::rollBack();
@@ -126,7 +126,7 @@ class TopicAppService extends AbstractAppService
             $text = $this->magicChatMessageAppService->summarizeText($authorization, $userQuestion);
             // 更新话题名称
             $dataIsolation = $this->createDataIsolation($authorization);
-            $this->workspaceDomainService->updateTopicName($dataIsolation, $topicId, $text);
+            $this->topicDomainService->updateTopicName($dataIsolation, $topicId, $text);
         } catch (Exception $e) {
             $this->logger->error('rename topic error: ' . $e->getMessage());
             $text = $topicEntity->getTopicName();

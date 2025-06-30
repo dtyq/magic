@@ -12,6 +12,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Exception;
@@ -321,5 +322,38 @@ class TopicDomainService
         }
 
         return $result;
+    }
+
+    /**
+     * 更新话题名称.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param int $id 话题主键ID
+     * @param string $topicName 话题名称
+     * @return bool 是否更新成功
+     * @throws Exception 如果更新失败
+     */
+    public function updateTopicName(DataIsolation $dataIsolation, int $id, string $topicName): bool
+    {
+        // 获取当前用户ID
+        $userId = $dataIsolation->getCurrentUserId();
+
+        // 通过主键ID获取话题
+        $topicEntity = $this->topicRepository->getTopicById($id);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
+        }
+
+        // 检查用户权限（检查话题是否属于当前用户）
+        if ($topicEntity->getUserId() !== $userId) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
+        }
+
+        // 更新话题名称
+        $topicEntity->setTopicName($topicName);
+        // 设置更新者用户ID
+        $topicEntity->setUpdatedUid($userId);
+        // 保存更新
+        return $this->topicRepository->updateTopic($topicEntity);
     }
 }
