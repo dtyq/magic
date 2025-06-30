@@ -7,10 +7,15 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Domain\ModelGateway\Entity\AccessTokenEntity;
+use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
 use App\Domain\ModelGateway\Entity\Dto\SpeechToTextDTO;
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\ErrorCode\AsrErrorCode;
+use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Asr\AsrFacade;
+use DateTime;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -20,7 +25,7 @@ class SpeechToTextAppService
 {
     protected LoggerInterface $logger;
 
-    public function __construct()
+    public function __construct(protected readonly AccessTokenDomainService $accessTokenDomainService)
     {
         $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(self::class);
     }
@@ -31,6 +36,8 @@ class SpeechToTextAppService
     public function convertSpeechToText(SpeechToTextDTO $dto): array
     {
         $audioUrl = $dto->getAudioUrl();
+
+        $this->validateAccessToken($dto);
 
         $this->logger->info('Starting speech to text conversion', [
             'audio_url' => $audioUrl,
@@ -85,5 +92,19 @@ class SpeechToTextAppService
             }
         }
         return implode('', $texts);
+    }
+
+    private function validateAccessToken(ProxyModelRequestInterface $proxyModelRequest): AccessTokenEntity
+    {
+        $accessToken = $this->accessTokenDomainService->getByAccessToken($proxyModelRequest->getAccessToken());
+        if (! $accessToken) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
+        }
+
+        $accessToken->checkModel($proxyModelRequest->getModel());
+        $accessToken->checkIps($proxyModelRequest->getIps());
+        $accessToken->checkExpiredTime(new DateTime());
+
+        return $accessToken;
     }
 }
