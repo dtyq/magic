@@ -74,7 +74,8 @@ class VolcengineStandardClient
                 'response' => $result,
             ]);
 
-            return $result;
+            $responseHeaders = $this->extractResponseHeaders($response);
+            return array_merge($result, $responseHeaders);
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to submit task to Volcengine', [
                 'error' => $e->getMessage(),
@@ -118,7 +119,8 @@ class VolcengineStandardClient
                 ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.invalid_response_format');
             }
 
-            return $result;
+            $responseHeaders = $this->extractResponseHeaders($response);
+            return array_merge($result, $responseHeaders);
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to query result from Volcengine', [
                 'task_id' => $queryDTO->getTaskId(),
@@ -177,7 +179,8 @@ class VolcengineStandardClient
             ]);
 
             $result['request_id'] = $requestId;
-            return $result;
+            $responseHeaders = $this->extractResponseHeaders($response);
+            return array_merge($result, $responseHeaders);
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to submit BigModel task to Volcengine', [
                 'error' => $e->getMessage(),
@@ -232,7 +235,8 @@ class VolcengineStandardClient
                 ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.bigmodel.invalid_response_format');
             }
 
-            return $result;
+            $responseHeaders = $this->extractResponseHeaders($response);
+            return array_merge($result, $responseHeaders);
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to query BigModel result from Volcengine', [
                 'request_id' => $requestId,
@@ -302,5 +306,25 @@ class VolcengineStandardClient
         ];
 
         return array_merge($requestData, $userRequestData);
+    }
+
+    private function extractResponseHeaders($response): array
+    {
+        $headers = $response->getHeaders();
+        $result = [];
+
+        if (isset($headers['X-Tt-Logid'][0]) && $headers['X-Tt-Logid'][0]) {
+            $result['volcengine_log_id'] = $headers['X-Tt-Logid'][0];
+        }
+
+        if (isset($headers['X-Api-Status-Code'][0]) && $headers['X-Api-Status-Code'][0]) {
+            $result['volcengine_status_code'] = $headers['X-Api-Status-Code'][0];
+        }
+
+        if (isset($headers['X-Api-Message'][0]) && $headers['X-Api-Message'][0]) {
+            $result['volcengine_message'] = $headers['X-Api-Message'][0];
+        }
+
+        return $result;
     }
 }
