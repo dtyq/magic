@@ -114,7 +114,7 @@ class ProjectAppService extends AbstractAppService
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
 
             Db::commit();
-            return ['project' => ProjectItemDTO::fromEntity($projectEntity), 'topic' => TopicItemDTO::fromEntity($topicEntity)];
+            return ['project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(), 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray()];
         } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Create Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
