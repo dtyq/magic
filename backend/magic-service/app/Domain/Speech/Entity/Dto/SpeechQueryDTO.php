@@ -11,9 +11,6 @@ use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 
 class SpeechQueryDTO extends AbstractRequestDTO
 {
-    /**
-     * 任务ID.
-     */
     protected string $taskId = '';
 
     public function __construct(array $data = [])

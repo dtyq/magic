@@ -12,6 +12,7 @@ return [
         'query_failed' => 'Gagal menanyakan keputusan dari API Volcengine',
         'query_exception' => 'Pengecualian berlaku semasa menanyakan keputusan dari Volcengine',
         'config_incomplete' => 'Konfigurasi Volcengine tidak lengkap. Tiada app_id, token, atau cluster',
+        'task_id_required' => 'ID tugas tidak boleh kosong',
         'bigmodel' => [
             'invalid_response_format' => 'Format respons BigModel ASR tidak sah',
             'submit_exception' => 'Pengecualian berlaku semasa menghantar tugas ke BigModel ASR',
