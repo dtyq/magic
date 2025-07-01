@@ -59,9 +59,13 @@ interface SandboxGatewayInterface
         array $headers = []
     ): GatewayResult;
 
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult;
+
     /**
      * 确保沙箱可用并代理请求.
-     * 
+     *
      * 此方法会自动检查沙箱状态，如果沙箱不存在或不可用，会先创建沙箱，然后再代理请求。
      * 这是一个便捷方法，避免每个服务都需要重复实现沙箱检查和创建逻辑。
      *

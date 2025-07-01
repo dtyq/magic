@@ -22,15 +22,22 @@ class TopicMessagesResponseDTO implements JsonSerializable
     protected int $total = 0;
 
     /**
+     * @var int 当前页码
+     */
+    protected int $page = 1;
+
+    /**
      * 构造函数.
      *
      * @param array $list 消息列表
      * @param int $total 总记录数
+     * @param int $page 当前页码
      */
-    public function __construct(array $list = [], int $total = 0)
+    public function __construct(array $list = [], int $total = 0, int $page = 1)
     {
         $this->list = $list;
         $this->total = $total;
+        $this->page = $page;
     }
 
     /**
@@ -50,6 +57,14 @@ class TopicMessagesResponseDTO implements JsonSerializable
     }
 
     /**
+     * 获取当前页码.
+     */
+    public function getPage(): int
+    {
+        return $this->page;
+    }
+
+    /**
      * 转换为数组.
      */
     public function toArray(): array
@@ -57,6 +72,7 @@ class TopicMessagesResponseDTO implements JsonSerializable
         return [
             'list' => $this->list,
             'total' => $this->total,
+            'page' => $this->page,
         ];
     }
 

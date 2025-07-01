@@ -28,4 +28,4 @@ return new class extends Migration {
             $table->dropColumn('show_in_ui');
         });
     }
-}; 
+};

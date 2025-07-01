@@ -120,6 +120,14 @@ class TaskContext
     }
 
     /**
+     * 获取项目ID.
+     */
+    public function getProjectId(): int
+    {
+        return $this->task->getProjectId();
+    }
+
+    /**
      * 获取当前用户ID.
      */
     public function getCurrentUserId(): string

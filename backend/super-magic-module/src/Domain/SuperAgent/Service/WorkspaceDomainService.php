@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Exception;
 use RuntimeException;
 
@@ -42,11 +43,44 @@ class WorkspaceDomainService
     }
 
     /**
-     * 创建工作区. 默认会初始化一个话题
+     * Create workspace only (without topic creation).
+     *
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param string $chatConversationId Chat conversation ID
+     * @param string $workspaceName Workspace name
+     * @return WorkspaceEntity Created workspace entity
+     */
+    public function createWorkspace(DataIsolation $dataIsolation, string $chatConversationId, string $workspaceName): WorkspaceEntity
+    {
+        // Get current user info from DataIsolation
+        $currentUserId = $dataIsolation->getCurrentUserId();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        // Create workspace entity
+        $currentTime = date('Y-m-d H:i:s');
+        $workspaceEntity = new WorkspaceEntity();
+        $workspaceEntity->setUserId($currentUserId);
+        $workspaceEntity->setUserOrganizationCode($organizationCode);
+        $workspaceEntity->setChatConversationId($chatConversationId);
+        $workspaceEntity->setName($workspaceName);
+        $workspaceEntity->setArchiveStatus(WorkspaceArchiveStatus::NotArchived);
+        $workspaceEntity->setWorkspaceStatus(WorkspaceStatus::Normal);
+        $workspaceEntity->setCreatedUid($currentUserId);
+        $workspaceEntity->setUpdatedUid($currentUserId);
+        $workspaceEntity->setCreatedAt($currentTime);
+        $workspaceEntity->setUpdatedAt($currentTime);
+
+        // Save workspace using repository
+        return $this->workspaceRepository->createWorkspace($workspaceEntity);
+    }
+
+    /**
+     * 创建工作区. 默认会初始化一个话题 (DEPRECATED - use createWorkspace + TopicDomainService::createTopic)
      * 遵循DDD风格，领域服务负责处理业务逻辑.
      * @return array 包含工作区实体和话题实体的数组 ['workspace' => WorkspaceEntity, 'topic' => TopicEntity|null]
+     * @deprecated Use createWorkspace() and TopicDomainService::createTopic() separately
      */
-    public function createWorkspace(DataIsolation $dataIsolation, WorkspaceCreationParams $creationParams): array
+    public function createWorkspaceWithTopic(DataIsolation $dataIsolation, WorkspaceCreationParams $creationParams): array
     {
         // 从DataIsolation获取当前用户ID作为创建者ID
         $currentUserId = $dataIsolation->getCurrentUserId();
@@ -172,24 +206,7 @@ class WorkspaceDomainService
 
         if (! $workspaceEntity) {
             // 使用ExceptionBuilder抛出"未找到"类型的错误
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.not_found');
-        }
-
-        // 获取工作区下的话题列表
-        $conditions = [
-            'workspace_id' => $workspaceId,
-            'user_id' => $dataIsolation->getCurrentUserId(),
-        ];
-
-        $topics = $this->topicRepository->getTopicsByConditions($conditions, false);
-        if (! empty($topics['list'])) {
-            // 检查是否有正在运行的话题任务
-            foreach ($topics['list'] as $topic) {
-                if ($topic->getCurrentTaskStatus() === TaskStatus::RUNNING) {
-                    // 如果有正在运行的话题任务，不允许删除工作区
-                    ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.cannot_delete_with_running_topics');
-                }
-            }
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
         }
 
         // 设置删除时间
@@ -217,6 +234,8 @@ class WorkspaceDomainService
         array $conditions,
         int $page,
         int $pageSize,
+        string $orderBy,
+        string $orderDirection,
         DataIsolation $dataIsolation
     ): array {
         // 应用数据隔离
@@ -226,7 +245,9 @@ class WorkspaceDomainService
         return $this->workspaceRepository->getWorkspacesByConditions(
             $conditions,
             $page,
-            $pageSize
+            $pageSize,
+            $orderBy,
+            $orderDirection
         );
     }
 
@@ -345,50 +366,6 @@ class WorkspaceDomainService
     }
 
     /**
-     * 更新话题名称.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param int $id 话题主键ID
-     * @param string $topicName 话题名称
-     * @return bool 是否更新成功
-     * @throws Exception 如果更新失败
-     */
-    public function updateTopicName(DataIsolation $dataIsolation, int $id, string $topicName): bool
-    {
-        // 获取当前用户ID
-        $userId = $dataIsolation->getCurrentUserId();
-
-        // 通过主键ID获取话题
-        $topicEntity = $this->topicRepository->getTopicById($id);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
-        }
-
-        // 检查用户权限（检查话题是否属于当前用户）
-        if ($topicEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
-        }
-
-        // 获取工作区详情，检查工作区是否存在
-        $workspaceEntity = $this->workspaceRepository->getWorkspaceById($topicEntity->getWorkspaceId());
-        if (! $workspaceEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.not_found');
-        }
-
-        // 检查工作区是否已归档
-        if ($workspaceEntity->getArchiveStatus() === WorkspaceArchiveStatus::Archived) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.archived');
-        }
-
-        // 更新话题名称
-        $topicEntity->setTopicName($topicName);
-        // 设置更新者用户ID
-        $topicEntity->setUpdatedUid($userId);
-        // 保存更新
-        return $this->topicRepository->updateTopic($topicEntity);
-    }
-
-    /**
      * 通过ID获取话题实体.
      *
      * @param int $id 话题ID(主键)
@@ -397,6 +374,29 @@ class WorkspaceDomainService
     public function getTopicById(int $id): ?TopicEntity
     {
         return $this->topicRepository->getTopicById($id);
+    }
+
+    /**
+     * Update topic project association.
+     *
+     * @param int $topicId Topic ID
+     * @param int $projectId Project ID
+     * @return bool Whether the update was successful
+     * @throws Exception If the update fails
+     */
+    public function updateTopicProject(int $topicId, int $projectId): bool
+    {
+        // Get topic entity by ID
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
+        }
+
+        // Update project association
+        $topicEntity->setProjectId($projectId);
+
+        // Save update
+        return $this->topicRepository->updateTopic($topicEntity);
     }
 
     /**
@@ -724,6 +724,34 @@ class WorkspaceDomainService
     {
         // Get all versions for the topic
         return $this->workspaceVersionRepository->findByCommitHashAndTopicId($commitHash, $topicId, $folder);
+    }
+
+    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
+    {
+        return $this->workspaceVersionRepository->getLatestVersionByProjectId($projectId);
+    }
+
+    /**
+     * 根据commit_hash 和project_id 获取tag号.
+     */
+    public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int
+    {
+        return $this->workspaceVersionRepository->getTagByCommitHashAndProjectId($commitHash, $projectId);
+    }
+
+    /**
+     * 批量获取工作区名称映射.
+     *
+     * @param array $workspaceIds 工作区ID数组
+     * @return array ['workspace_id' => 'workspace_name'] 键值对
+     */
+    public function getWorkspaceNamesBatch(array $workspaceIds): array
+    {
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        return $this->workspaceRepository->getWorkspaceNamesBatch($workspaceIds);
     }
 
     /**
