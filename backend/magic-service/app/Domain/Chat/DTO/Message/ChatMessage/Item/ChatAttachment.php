@@ -29,7 +29,7 @@ class ChatAttachment extends AbstractEntity
 
     protected string $fileName = '';
 
-    public function __construct(array $attachment)
+    public function __construct(array $attachment = [])
     {
         parent::__construct($attachment);
     }
