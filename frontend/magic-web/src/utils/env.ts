@@ -41,7 +41,7 @@ export const env = (
 
 	return {
 		...import.meta.env,
-		...(window?.CONFIG ?? {})
+		...(window?.CONFIG ?? {}),
 	}[key]
 }
 

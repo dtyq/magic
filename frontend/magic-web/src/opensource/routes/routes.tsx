@@ -2,7 +2,6 @@ import type { RouteObject } from "react-router"
 import { lazy } from "react"
 import { RoutePath } from "@/const/routes"
 import BaseLayout from "@/opensource/layouts/BaseLayout"
-import { Navigate } from "react-router-dom"
 
 export function registerRoutes(): Array<RouteObject> {
 	/** 404页面 */
