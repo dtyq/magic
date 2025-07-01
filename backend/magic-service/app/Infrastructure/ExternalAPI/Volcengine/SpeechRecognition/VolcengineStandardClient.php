@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition;
 
 use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\AsrErrorCode;
@@ -29,6 +30,8 @@ class VolcengineStandardClient
     private const BIGMODEL_SUBMIT_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit';
 
     private const BIGMODEL_QUERY_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/query';
+
+    private const FLASH_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash';
 
     protected LoggerInterface $logger;
 
@@ -257,6 +260,64 @@ class VolcengineStandardClient
         }
     }
 
+    public function submitFlashTask(FlashSpeechSubmitDTO $submitDTO): array
+    {
+        $requestData = $this->buildFlashSubmitRequest($submitDTO);
+        $requestId = $requestData['req_id'];
+
+        try {
+            $response = $this->httpClient->post(self::FLASH_URL, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'X-Api-App-Key' => $this->config['app_id'],
+                    'X-Api-Access-Key' => $this->config['token'],
+                    'X-Api-Resource-Id' => 'volc.bigasr.auc_turbo',
+                    'X-Api-Request-Id' => $requestId,
+                    'X-Api-Sequence' => '-1',
+                ],
+                'json' => $requestData,
+            ]);
+
+            $responseBody = $response->getBody()->getContents();
+            $result = json_decode($responseBody, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->logger->error('Failed to parse Volcengine Flash response JSON', [
+                    'response_body' => $responseBody,
+                    'json_error' => json_last_error_msg(),
+                ]);
+                ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.flash.invalid_response_format');
+            }
+
+            $this->logger->info('Volcengine Flash speech recognition task submitted successfully', [
+                'request_id' => $requestId,
+                'response' => $result,
+            ]);
+
+            $result['request_id'] = $requestId;
+            $responseHeaders = $this->extractResponseHeaders($response);
+            return array_merge($result, $responseHeaders);
+        } catch (GuzzleException $e) {
+            $this->logger->error('Failed to submit Flash task to Volcengine', [
+                'error' => $e->getMessage(),
+                'request_data' => $requestData,
+                'request_id' => $requestId,
+            ]);
+
+            ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
+        } catch (Throwable $e) {
+            $this->logger->error('Exception occurred while submitting Flash task to Volcengine', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_id' => $requestId,
+            ]);
+
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.flash.submit_exception', [
+                'original_error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function getVolcengineConfig(): array
     {
         $config = config('asr.volcengine', []);
@@ -301,6 +362,21 @@ class VolcengineStandardClient
             'appkey' => $this->config['app_id'],
             'token' => $this->config['token'],
             'resource_id' => 'volc.bigasr.auc',
+            'req_id' => IdGenerator::getSnowId(),
+            'sequence' => -1,
+        ];
+
+        return array_merge($requestData, $userRequestData);
+    }
+
+    private function buildFlashSubmitRequest(FlashSpeechSubmitDTO $submitDTO): array
+    {
+        $userRequestData = $submitDTO->toVolcenArray();
+
+        $requestData = [
+            'appkey' => $this->config['app_id'],
+            'token' => $this->config['token'],
+            'resource_id' => 'volc.bigasr.auc_turbo',
             'req_id' => IdGenerator::getSnowId(),
             'sequence' => -1,
         ];

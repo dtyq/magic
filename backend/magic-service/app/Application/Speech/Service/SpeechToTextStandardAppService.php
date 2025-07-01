@@ -10,6 +10,7 @@ namespace App\Application\Speech\Service;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\MagicApiErrorCode;
@@ -57,6 +58,13 @@ class SpeechToTextStandardAppService
     {
         $this->validateAccessToken($speechQueryDTO->getAccessToken(), []);
         return $this->volcengineClient->queryBigModelResult($speechQueryDTO->getTaskId());
+    }
+
+    public function submitFlashTask(FlashSpeechSubmitDTO $submitDTO): array
+    {
+        $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
+        $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
+        return $this->volcengineClient->submitFlashTask($submitDTO);
     }
 
     private function validateAccessToken(string $accessToken, array $clientIps): AccessTokenEntity
