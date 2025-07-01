@@ -9,6 +9,7 @@ namespace App\Interfaces\Speech\Facade\Open;
 
 use App\Application\Speech\Service\SpeechToTextStandardAppService;
 use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechUserDTO;
@@ -84,6 +85,23 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $speechQueryDTO->setIps($this->getClientIps());
 
         $result = $this->speechToTextStandardAppService->queryBigModelResult($speechQueryDTO);
+        return $this->setVolcengineHeaders($result);
+    }
+
+    public function flash(RequestInterface $request): array
+    {
+        $requestData = $request->all();
+
+        if (empty($requestData['audio']['url'])) {
+            ExceptionBuilder::throw(AsrErrorCode::AudioUrlRequired);
+        }
+
+        $submitDTO = new FlashSpeechSubmitDTO($requestData);
+        $submitDTO->setAccessToken($this->getAccessToken());
+        $submitDTO->setIps($this->getClientIps());
+        $submitDTO->setUser(new SpeechUserDTO(['uid' => $this->getAccessToken()]));
+
+        $result = $this->speechToTextStandardAppService->submitFlashTask($submitDTO);
         return $this->setVolcengineHeaders($result);
     }
 
