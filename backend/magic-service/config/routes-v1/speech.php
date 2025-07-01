@@ -16,5 +16,8 @@ Router::addGroup('/api/v1', static function () {
         // 大模型语音识别
         Router::post('/bigmodel/submit', [SpeechToTextStandardApi::class, 'submitBigModel']);
         Router::post('/bigmodel/query/{requestId}', [SpeechToTextStandardApi::class, 'queryBigModel']);
+
+        // 极速版语音识别
+        Router::post('/flash', [SpeechToTextStandardApi::class, 'flash']);
     });
 });
