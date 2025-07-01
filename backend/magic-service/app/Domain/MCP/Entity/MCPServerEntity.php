@@ -136,17 +136,18 @@ class MCPServerEntity extends AbstractEntity
         $this->enabled = ! $this->enabled;
     }
 
-    public function createMcpServerConfig(): ?McpServerConfig
+    public function createMcpServerConfig(string $localHttpUrl = ''): ?McpServerConfig
     {
         if (! $this->isEnabled()) {
             return null;
         }
+        $localHttpUrl = $localHttpUrl ?: LOCAL_HTTP_URL;
         switch ($this->type) {
             case ServiceType::SSE:
                 return new McpServerConfig(
                     type: McpType::Http,
                     name: $this->name,
-                    url: LOCAL_HTTP_URL . '/api/v1/mcp/sse/' . $this->code,
+                    url: $localHttpUrl . '/api/v1/mcp/sse/' . $this->code,
                 );
             case ServiceType::ExternalSSE:
                 if (empty($this->externalSseUrl)) {
