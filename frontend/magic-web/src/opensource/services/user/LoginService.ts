@@ -45,7 +45,7 @@ export class LoginService {
 				case Login.LoginType.LarkScanCode:
 				case Login.LoginType.WecomScanCode:
 				case Login.LoginType.WechatOfficialAccount:
-					return this.userApi.thirdPartyLogins(values as Login.DingtalkLoginsFormValues)
+					return this.userApi.thirdPartyLogins(values as Login.ThirdPartyLoginsFormValues)
 				default:
 					throw new Error("缺少登录类型")
 			}
