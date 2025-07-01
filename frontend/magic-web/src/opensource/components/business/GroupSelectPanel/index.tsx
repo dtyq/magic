@@ -1,11 +1,12 @@
 import MagicInfiniteScrollList from "@/opensource/components/MagicInfiniteScrollList"
 import type { MagicListItemData } from "@/opensource/components/MagicList/types"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
+import { contactStore } from "@/opensource/stores/contact"
 import type { GroupConversationDetailWithConversationId } from "@/types/chat/conversation"
 import { StructureItemType } from "@/types/organization"
 import { useControllableValue } from "ahooks"
-import { memo, useMemo } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import type { OrganizationSelectItem } from "../MemberDepartmentSelectPanel/types"
+import { observer } from "mobx-react-lite"
 
 type GroupSelectItem = OrganizationSelectItem & MagicListItemData
 
@@ -28,8 +29,21 @@ interface GroupSelectPanelProps {
 /**
  * 群组选择面板
  */
-const GroupSelectPanel = memo((props: GroupSelectPanelProps) => {
-	const { trigger, data } = useContactStore((s) => s.useUserGroups)()
+const GroupSelectPanel = observer((props: GroupSelectPanelProps) => {
+	// 使用状态管理数据和加载状态
+	const [data, setData] = useState<any>(undefined)
+
+	// 使用useCallback定义获取数据的方法
+	const fetchData = useCallback(async (params = {}) => {
+		const result = await contactStore.getUserGroups(params)
+		setData(result)
+		return result
+	}, [])
+
+	// 初始加载
+	useEffect(() => {
+		fetchData()
+	}, [fetchData])
 
 	const [value, setValue] = useControllableValue<GroupSelectItem[]>(props, {
 		defaultValue: [],
@@ -47,7 +61,7 @@ const GroupSelectPanel = memo((props: GroupSelectPanelProps) => {
 	return (
 		<MagicInfiniteScrollList<GroupConversationDetailWithConversationId, GroupSelectItem>
 			data={data}
-			trigger={trigger}
+			trigger={fetchData}
 			itemsTransform={itemsTransform}
 			checkboxOptions={checkboxOptions}
 			className={props.className}

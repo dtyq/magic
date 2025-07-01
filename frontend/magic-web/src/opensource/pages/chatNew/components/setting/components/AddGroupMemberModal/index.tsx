@@ -1,7 +1,7 @@
 import { StructureItemType } from "@/types/organization"
 import { useMemoizedFn, useMount } from "ahooks"
 import { message } from "antd"
-import { useState, useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type {
 	OrganizationSelectItem,
@@ -9,11 +9,10 @@ import type {
 	UserSelectItem,
 } from "@/opensource/components/business/MemberDepartmentSelectPanel/types"
 import MemberDepartmentSelectPanel from "@/opensource/components/business/MemberDepartmentSelectPanel"
-import { useContactStore } from "@/opensource/stores/contact/hooks"
 import type { MagicModalProps } from "@/opensource/components/base/MagicModal"
-import userInfoStore from "@/opensource/stores/userInfo"
-import { observer } from "mobx-react-lite"
 import { ChatApi } from "@/apis"
+import { observer } from "mobx-react-lite"
+import { contactStore } from "@/opensource/stores/contact"
 
 interface AddGroupMemberModalProps extends MagicModalProps {
 	groupId: string
@@ -29,24 +28,26 @@ const AddGroupMemberModal = observer((props: AddGroupMemberModalProps) => {
 
 	const [organizationChecked, setOrganizationChecked] = useState<OrganizationSelectItem[]>([])
 
-	const { trigger } = useContactStore((state) => state.useUserInfos)()
-
+	const [disabledValues, setDisabledValues] = useState<any[]>([])
 	useMount(() => {
-		trigger({
-			user_ids: extraUserIds,
-			query_type: 2,
-		})
+		if (extraUserIds.length > 0) {
+			contactStore
+				.getUserInfos({
+					user_ids: extraUserIds,
+					query_type: 2,
+				})
+				.then((res) => {
+					setDisabledValues(
+						res.map((item) => ({
+							...item,
+							name: item.real_name,
+							id: item.user_id,
+							dataType: StructureItemType.User,
+						})) as UserSelectItem[],
+					)
+				})
+		}
 	})
-
-	const disabledValues = useMemo(
-		() =>
-			extraUserIds.map((id) => ({
-				id,
-				dataType: StructureItemType.User,
-				...(userInfoStore.get(id) ?? {}),
-			})) as UserSelectItem[],
-		[extraUserIds],
-	)
 
 	const onClose = useMemoizedFn(() => {
 		onCloseInProps?.()

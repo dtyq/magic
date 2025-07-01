@@ -1,4 +1,4 @@
-import { useContactStore } from "@/opensource/stores/contact/hooks"
+import { contactStore } from "@/opensource/stores/contact"
 import { useMemo } from "react"
 import magicIconLogo from "@/assets/logos/magic-icon.svg"
 import { getUserName } from "@/utils/modules/chat"
@@ -6,7 +6,7 @@ import { useOrganization } from "@/opensource/models/user/hooks"
 import conversationStore from "@/opensource/stores/chatNew/conversation"
 
 export default function useConversations() {
-	const userInfos = useContactStore((state) => state.userInfos)
+	const userInfos = contactStore.userInfos
 	const { conversations } = conversationStore
 	const { organizationCode } = useOrganization()
 

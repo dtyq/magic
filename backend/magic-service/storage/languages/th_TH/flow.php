@@ -190,6 +190,7 @@ return [
         'has_circular_dependencies' => '[:label] มีการพึ่งพาเป็นวงกลม',
         'unsupported_trigger_type' => 'ประเภททริกเกอร์ไม่รองรับ',
         'unsupported_flow_type' => 'ประเภทโฟลว์ไม่รองรับ',
+        'node_execute_count_reached' => 'จำนวนการดำเนินการโหนดโกลบอลสูงสุด (:max_count) ถึงแล้ว',
     ],
     'component' => [
         'format_error' => '[:label] ข้อผิดพลาดรูปแบบ',

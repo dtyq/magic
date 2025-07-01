@@ -21,13 +21,10 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\CreateWorkspaceBeforeEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\DeleteWorkspaceAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -155,11 +152,9 @@ class WorkspaceAppService extends AbstractAppService
             if ($requestDTO->getWorkspaceId()) {
                 // Update, currently only updates workspace name
                 $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+                Db::commit();
                 return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
             }
-
-            // Dispatch event before creating workspace
-            AsyncEventUtil::dispatch(new CreateWorkspaceBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $requestDTO->getWorkspaceName()));
 
             // 提交事务
             Db::commit();
@@ -309,9 +304,6 @@ class WorkspaceAppService extends AbstractAppService
         // 调用领域服务执行删除
         $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
 
-        // Dispatch event after delete workspace
-        AsyncEventUtil::dispatch(new DeleteWorkspaceAfterEvent($workspaceId, $userAuthorization->getOrganizationCode(), $userAuthorization->getId()));
-
         return true;
     }
 
@@ -437,9 +429,10 @@ class WorkspaceAppService extends AbstractAppService
      * @param MagicUserAuthorization $userAuthorization 用户授权信息
      * @param array $fileIds 文件ID列表
      * @param string $downloadMode 下载模式（download:下载, preview:预览）
+     * @param array $options 其他选项
      * @return array 文件URL列表
      */
-    public function getFileUrls(MagicUserAuthorization $userAuthorization, array $fileIds, string $downloadMode): array
+    public function getFileUrls(MagicUserAuthorization $userAuthorization, array $fileIds, string $downloadMode, array $options = []): array
     {
         // 创建数据隔离对象
         $organizationCode = $userAuthorization->getOrganizationCode();
@@ -464,7 +457,7 @@ class WorkspaceAppService extends AbstractAppService
             if ($downloadMode == 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
-            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames);
+            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames, $options);
             if (empty($fileLink)) {
                 // 如果获取URL失败，跳过
                 continue;
@@ -569,6 +562,8 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getPageSize(),
             $requestDto->getFileType()
         );
+
+        $result = $this->filterResultByGitVersion($result, $topicEntity->getWorkspaceCommitHash(), $topicEntity->getId());
 
         // 处理文件 URL
         $list = [];
@@ -838,5 +833,54 @@ class WorkspaceAppService extends AbstractAppService
             'topic' => $topicEntity,  // 直接返回实体对象
             'auto_create' => true,  // 添加auto_create字段
         ];
+    }
+
+    /**
+     * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
+     */
+    private function filterResultByGitVersion(array $result, string $commitHash, int $topicId): array
+    {
+        $dir = '.workspace';
+        $workspaceVersion = $this->workspaceDomainService->getWorkspaceVersionByCommitAndTopic($commitHash, $topicId, $dir);
+        if (empty($workspaceVersion)) {
+            return $result;
+        }
+
+        if (empty($workspaceVersion->getDir())) {
+            return $result;
+        }
+
+        # 遍历result的updatedAt ，如果updatedAt 小于workspaceVersion 的updated_at ，则保持在一个临时数组
+        $tempResult1 = [];
+        foreach ($result['list'] as $item) {
+            if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
+                $tempResult1[] = $item;
+            }
+        }
+        $dir = json_decode($workspaceVersion->getDir(), true);
+        # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
+        # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
+        $dir = array_filter($dir, function ($item) {
+            if (strpos($item, '.') === false) {
+                return false;
+            }
+            return true;
+        });
+
+        # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
+        $tempResult2 = [];
+        foreach ($result['list'] as $item) {
+            foreach ($dir as $dirItem) {
+                if (strpos($item['file_key'], $dirItem) !== false) {
+                    $tempResult2[] = $item;
+                }
+            }
+        }
+        $tempResult = array_merge($tempResult1, $tempResult2);
+
+        # 对tempResult进行去重
+        $result['list'] = array_unique($tempResult, SORT_REGULAR);
+        $result['total'] = count($result['list']);
+        return $result;
     }
 }

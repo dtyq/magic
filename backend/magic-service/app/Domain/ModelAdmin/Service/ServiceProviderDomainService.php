@@ -1053,6 +1053,29 @@ class ServiceProviderDomainService
         });
     }
 
+    /**
+     * 根据可见应用过滤模型.
+     *
+     * @param $serviceProviderModels ServiceProviderModelsDTO[] 服务提供商模型数组
+     * @param string $currentApplicationCode 当前应用代码
+     * @return array 过滤后的模型数组
+     */
+    public function filterModelsByVisibleApplications(array $serviceProviderModels, string $currentApplicationCode): array
+    {
+        return array_filter($serviceProviderModels, function ($model) use ($currentApplicationCode) {
+            // 获取模型的可见应用列表
+            $visibleApplications = $model->getVisibleApplications();
+
+            // 如果可见应用为空，则所有应用可见
+            if (empty($visibleApplications)) {
+                return true;
+            }
+
+            // 如果可见应用不为空，检查当前应用是否在可见应用列表中
+            return in_array($currentApplicationCode, $visibleApplications);
+        });
+    }
+
     public function maskString(string $value): string
     {
         if (empty($value)) {
@@ -1286,12 +1309,17 @@ class ServiceProviderDomainService
     /**
      * @param $models ServiceProviderModelsDTO[]
      */
-    private function buildServiceProviderConfigDTO(ServiceProviderEntity $serviceProviderEntity, ServiceProviderConfigEntity $serviceProviderConfigEntity, array $models = []): ServiceProviderConfigDTO
+    private function buildServiceProviderConfigDTO(ServiceProviderEntity $serviceProviderEntity, ServiceProviderConfigEntity $serviceProviderConfigEntity, array $models = [], ?string $applicationCode = null): ServiceProviderConfigDTO
     {
         $data = array_merge($serviceProviderConfigEntity->toArray(), $serviceProviderEntity->toArray());
         $serviceProviderConfigDTO = new ServiceProviderConfigDTO($data);
 
         $models = $this->filterModelsByVisibleOrganizations($models, $serviceProviderConfigEntity->getOrganizationCode());
+
+        // 如果提供了应用编码，则按应用可见性过滤 TODO xhy
+        if ($applicationCode !== null) {
+            $models = $this->filterModelsByVisibleApplications($models, $applicationCode);
+        }
 
         // 修改过滤逻辑
         $isOfficial = ServiceProviderType::from($serviceProviderEntity->getProviderType()) === ServiceProviderType::OFFICIAL;
@@ -1635,6 +1663,7 @@ class ServiceProviderDomainService
             $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
             $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
             $updateConsumerModel->setModelId($serviceProviderModelsEntity->getModelId());
+            $updateConsumerModel->setVisibleApplications($serviceProviderModelsEntity->getVisibleApplications());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }

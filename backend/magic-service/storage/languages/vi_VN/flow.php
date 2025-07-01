@@ -190,6 +190,7 @@ return [
         'has_circular_dependencies' => '[:label] Tồn tại phụ thuộc vòng',
         'unsupported_trigger_type' => 'Loại kích hoạt không được hỗ trợ',
         'unsupported_flow_type' => 'Loại luồng không được hỗ trợ',
+        'node_execute_count_reached' => 'Đã đạt số lần thực thi nút toàn cục tối đa (:max_count)',
     ],
     'component' => [
         'format_error' => '[:label] Lỗi định dạng',

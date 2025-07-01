@@ -9,6 +9,7 @@ import { observer } from "mobx-react-lite"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
 import ComponentRender from "@/opensource/components/ComponentRender"
 import MagicDropdown from "@/opensource/components/base/MagicDropdown"
 
@@ -110,9 +111,13 @@ export default observer(function AccountActions({
 
 				if (info?.magic_id) {
 					await accountLogout(info?.magic_id)
+					/** 广播删除账号 */
+					BroadcastChannelSender.deleteAccount(info?.magic_id, { navigateToLogin: false })
 				}
 			} else {
 				await accountLogout()
+				/** 广播删除账号 */
+				BroadcastChannelSender.deleteAccount(undefined, { navigateToLogin: true })
 				navigate(RoutePath.Login)
 			}
 			onLogout?.()

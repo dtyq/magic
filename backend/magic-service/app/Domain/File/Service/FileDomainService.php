@@ -10,6 +10,7 @@ namespace App\Domain\File\Service;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -27,16 +28,16 @@ readonly class FileDomainService
         $links = $this->cloudFileRepository->getLinks(CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE, array_values($paths), StorageBucketType::Public);
         $list = [];
         foreach ($links as $link) {
-            // 获取文件名称，不带后缀
+            // Get file name without extension
             $fileName = pathinfo($link->getPath(), PATHINFO_FILENAME);
             $list[$fileName] = $link->getUrl();
         }
         return $list;
     }
 
-    public function getLink(string $organizationCode, string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = []): ?FileLink
+    public function getLink(string $organizationCode, string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
     {
-        return $this->cloudFileRepository->getLinks($organizationCode, [$filePath], $bucketType, $downloadNames)[$filePath] ?? null;
+        return $this->cloudFileRepository->getLinks($organizationCode, [$filePath], $bucketType, $downloadNames, $options)[$filePath] ?? null;
     }
 
     public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
@@ -49,9 +50,22 @@ readonly class FileDomainService
         $this->cloudFileRepository->upload($organizationCode, $uploadFile, $storage);
     }
 
-    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, ?string $contentType = null): array
+    /**
+     * Upload file using chunk upload.
+     *
+     * @param string $organizationCode Organization code
+     * @param ChunkUploadFile $chunkUploadFile Chunk upload file object
+     * @param StorageBucketType $storage Storage bucket type
+     * @param bool $autoDir Whether to auto-generate directory
+     */
+    public function uploadByChunks(string $organizationCode, ChunkUploadFile $chunkUploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
     {
-        return $this->cloudFileRepository->getSimpleUploadTemporaryCredential($organizationCode, $storage, contentType: $contentType);
+        $this->cloudFileRepository->uploadByChunks($organizationCode, $chunkUploadFile, $storage, $autoDir);
+    }
+
+    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, ?string $contentType = null, bool $sts = false): array
+    {
+        return $this->cloudFileRepository->getSimpleUploadTemporaryCredential($organizationCode, $storage, contentType: $contentType, sts: $sts);
     }
 
     /**
@@ -67,7 +81,21 @@ readonly class FileDomainService
      */
     public function getLinks(string $organizationCode, array $filePaths, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): array
     {
-        return $this->cloudFileRepository->getLinks($organizationCode, $filePaths, $bucketType, $downloadNames);
+        return $this->cloudFileRepository->getLinks($organizationCode, $filePaths, $bucketType, $downloadNames, $options);
+    }
+
+    /**
+     * Download file using chunk download.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath Remote file path
+     * @param string $localPath Local save path
+     * @param null|StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (chunk_size, max_concurrency, etc.)
+     */
+    public function downloadByChunks(string $organizationCode, string $filePath, string $localPath, ?StorageBucketType $bucketType = null, array $options = []): void
+    {
+        $this->cloudFileRepository->downloadByChunks($organizationCode, $filePath, $localPath, $bucketType, $options);
     }
 
     public function getMetas(array $paths, string $organizationCode): array
@@ -97,5 +125,18 @@ readonly class FileDomainService
             }
         }
         return false;
+    }
+
+    /**
+     * Delete file from storage.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath File path to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @return bool True if deleted successfully, false otherwise
+     */
+    public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool
+    {
+        return $this->cloudFileRepository->deleteFile($organizationCode, $filePath, $bucketType);
     }
 }

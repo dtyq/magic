@@ -594,6 +594,18 @@ class ConversationStore {
 		})
 	}
 
+	replaceConversations(filteredConversationList: ConversationFromService[]) {
+		const object: Record<string, Conversation> = {}
+		filteredConversationList.forEach((conversation) => {
+			object[conversation.id] = new Conversation({
+				...this.getConversation(conversation.id)?.toObject(),
+				...conversation,
+			})
+		})
+
+		this.conversations = object
+	}
+
 	reset() {
 		this.conversations = {}
 		this.currentConversation = undefined

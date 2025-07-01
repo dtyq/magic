@@ -20,7 +20,6 @@ use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\CreateTopicBeforeEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\DeleteTopicAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -143,9 +142,6 @@ class TopicAppService extends AbstractAppService
         if (! $result) {
             ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.delete_failed');
         }
-
-        // 触发删除后事件
-        AsyncEventUtil::dispatch(new DeleteTopicAfterEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), (int) $requestDTO->getId()));
 
         // 返回删除结果
         return DeleteTopicResultDTO::fromId((int) $topicId);

@@ -164,6 +164,7 @@ class LoopMainNodeRunner extends NodeRunner
     {
         try {
             $subExecutor = new MagicFlowExecutor($loopMagicFlow, $executionData);
+            $subExecutor->setInLoop(true);
             // 复用当前的执行数据，循环体内可访问和修改
             $subExecutor->execute(TriggerType::LoopStart);
         } catch (Throwable $throwable) {

@@ -60,11 +60,13 @@ use App\Domain\Contact\Repository\Facade\MagicDepartmentRepositoryInterface;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentUserRepositoryInterface;
 use App\Domain\Contact\Repository\Facade\MagicUserIdRelationRepositoryInterface;
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
+use App\Domain\Contact\Repository\Facade\MagicUserSettingRepositoryInterface;
 use App\Domain\Contact\Repository\Persistence\MagicAccountRepository;
 use App\Domain\Contact\Repository\Persistence\MagicDepartmentRepository;
 use App\Domain\Contact\Repository\Persistence\MagicDepartmentUserRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserIdRelationRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
+use App\Domain\Contact\Repository\Persistence\MagicUserSettingRepository;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowAIModelRepositoryInterface;
@@ -295,6 +297,7 @@ $dependencies = [
     MagicUserIdRelationRepositoryInterface::class => MagicUserIdRelationRepository::class,
     MagicDepartmentUserRepositoryInterface::class => MagicDepartmentUserRepository::class,
     MagicDepartmentRepositoryInterface::class => MagicDepartmentRepository::class,
+    MagicUserSettingRepositoryInterface::class => MagicUserSettingRepository::class,
 
     // 认证体系
 

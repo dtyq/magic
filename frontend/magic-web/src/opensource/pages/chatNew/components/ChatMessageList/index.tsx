@@ -10,7 +10,7 @@ import MessageDropdownService from "@/opensource/services/chat/message/MessageDr
 import MessageDropdownStore from "@/opensource/stores/chatNew/messageUI/Dropdown"
 import MagicIcon from "@/opensource/components/base/MagicIcon"
 import { useTranslation } from "react-i18next"
-import { autorun } from "mobx"
+import { autorun, toJS } from "mobx"
 import { cx } from "antd-style"
 import { DomClassName } from "@/const/dom"
 import { debounce, throttle } from "lodash-es"
@@ -23,6 +23,7 @@ import GroupSeenPanelStore, {
 } from "@/opensource/stores/chatNew/groupSeenPanel"
 import { isMessageInView } from "./utils"
 import MessageRender from "./components/MessageRender"
+import { safeBtoaToJson } from "@/utils/encoding"
 
 let canScroll = true
 let isScrolling = false
@@ -445,13 +446,15 @@ const ChatMessageList = observer(() => {
 			const fileInfo = target.getAttribute("data-file-info")
 			if (fileInfo) {
 				try {
-					const fileInfoObj = JSON.parse(atob(fileInfo))
-					// 如果是同一张图片，先重置状态
-					MessageImagePreview.setPreviewInfo({
-						...fileInfoObj,
-						messageId,
-						conversationId: conversationStore.currentConversation?.id,
-					})
+					const fileInfoObj = safeBtoaToJson(fileInfo)
+					if (fileInfoObj) {
+						// 如果是同一张图片，先重置状态
+						MessageImagePreview.setPreviewInfo({
+							...fileInfoObj,
+							messageId,
+							conversationId: conversationStore.currentConversation?.id,
+						})
+					}
 				} catch (error) {
 					console.error("解析文件信息失败", error)
 				}
@@ -516,7 +519,10 @@ const ChatMessageList = observer(() => {
 						MessageStore.messages
 							.filter((message) => {
 								// 过滤消息，确保只显示当前会话的消息
-								return message.conversation_id === MessageStore.conversationId
+								return (
+									message.conversation_id === MessageStore.conversationId &&
+									message.message.topic_id === MessageStore.topicId
+								)
 							})
 							.map((message) => {
 								// 使用复合key防止不同会话间的组件复用

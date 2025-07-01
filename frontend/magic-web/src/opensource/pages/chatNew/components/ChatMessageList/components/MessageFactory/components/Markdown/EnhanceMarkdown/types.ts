@@ -1,10 +1,12 @@
-import type { Options as MarkdownOptions } from "react-markdown"
+import type { ComponentType } from "react"
 
-export interface MarkdownProps extends MarkdownOptions {
+export interface MarkdownProps {
 	content?: string
 	allowHtml?: boolean
 	enableLatex?: boolean
 	isSelf?: boolean
 	hiddenDetail?: boolean
 	isStreaming?: boolean
+	className?: string
+	components?: Record<string, ComponentType<any>>
 }

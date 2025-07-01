@@ -13,6 +13,7 @@ use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\Model\MagicMessageModel;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Hyperf\Cache\Annotation\Cacheable;
+use Hyperf\Cache\Annotation\CacheEvict;
 use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 
@@ -66,6 +67,7 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         );
     }
 
+    #[CacheEvict(prefix: 'getMessageByMagicMessageId', value: '_#{messageEntity.magicMessageId}')]
     public function updateMessageContentAndVersionId(MagicMessageEntity $messageEntity, MagicMessageVersionEntity $magicMessageVersionEntity): void
     {
         $this->magicMessage::query()->where('magic_message_id', $messageEntity->getMagicMessageId())->update(
@@ -78,7 +80,7 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         );
     }
 
-    #[Cacheable(prefix: 'getMessageByMagicMessageId', ttl: 10)]
+    #[Cacheable(prefix: 'getMessageByMagicMessageId', value: '_#{magicMessageId}', ttl: 10)]
     private function getMessageDataByMagicMessageId(string $magicMessageId)
     {
         $query = $this->magicMessage::query()->where('magic_message_id', $magicMessageId);

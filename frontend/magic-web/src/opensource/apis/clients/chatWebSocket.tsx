@@ -13,7 +13,7 @@ import { interfaceStore } from "@/opensource/stores/interface"
 import { UrlUtils } from "../utils"
 import { userService } from "@/services"
 
-const console = new Logger("chat websocket")
+const logger = new Logger("chat websocket")
 
 export type ChatWebSocketEventMap = {
 	businessMessage: [{ type: EventType; payload: unknown }]
@@ -38,7 +38,7 @@ export class ChatWebSocket extends EventBus {
 	private socket: WebSocket | null = null
 
 	// WebSocket服务端连接地址
-	private url: string = env("MAGIC_SOCKET_BASE_URL")
+	private url: string = env("MAGIC_SOCKET_BASE_URL") || ""
 
 	// 当前重连尝试次数计数器
 	private reconnectAttempts = 0
@@ -121,7 +121,7 @@ export class ChatWebSocket extends EventBus {
 			clearTimeout(this.reconnectTimer)
 			this.reconnectTimer = null
 		}
-		console.log("连接成功", event)
+		logger.log("连接成功", event)
 
 		// 触发连接恢复事件，以便处理离线期间的消息队列
 		if (this.reconnectAttempts > 0) {
@@ -131,13 +131,13 @@ export class ChatWebSocket extends EventBus {
 	}
 
 	closeCallback(event: CloseEvent) {
-		console.log("连接关闭", event)
+		logger.log("连接关闭", event)
 		this.reconnect()
 		this.emit("close", event)
 	}
 
 	errorCallback(error: Event) {
-		console.error("连接错误", error)
+		logger.error("连接错误", error)
 		this.emit("error", error)
 	}
 
@@ -159,7 +159,7 @@ export class ChatWebSocket extends EventBus {
 					break
 			}
 		} catch (error) {
-			console.error("onmessage error:", error)
+			logger.error("onmessage error:", error)
 		}
 	}
 
@@ -182,17 +182,17 @@ export class ChatWebSocket extends EventBus {
 				clearTimeout(this.reconnectTimer)
 				this.reconnectTimer = null
 			}
-			console.log("连接成功", event)
+			logger.log("连接成功", event)
 		})
 		// 连接关闭回调：更新状态并尝试重连
 		this.socket.addEventListener("close", (event: CloseEvent) => {
-			console.log("连接关闭", event)
+			logger.log("连接关闭", event)
 			this.reconnect()
 			this.emit("close", event)
 		})
 		// 错误处理回调：记录错误并更新状态
 		this.socket.addEventListener("error", (error: Event) => {
-			console.error("连接错误", error)
+			logger.error("连接错误", error)
 			this.emit("error", error)
 		})
 		// 消息接收处理：解析消息并分发到对应处理器
@@ -214,7 +214,7 @@ export class ChatWebSocket extends EventBus {
 						break
 				}
 			} catch (error) {
-				console.error("onmessage error:", error)
+				logger.error("onmessage error:", error)
 			}
 		})
 	}
@@ -248,7 +248,7 @@ export class ChatWebSocket extends EventBus {
 		if (this.lastHeartbeatTime) {
 			const timeout = Date.now() - this.lastHeartbeatTime
 			if (this.heartbeatTimeout && timeout > this.heartbeatTimeout) {
-				console.log("心跳超时", timeout)
+				logger.log("心跳超时", timeout)
 				// this.socket?.close()
 			}
 			this.lastHeartbeatTime = 0
@@ -310,12 +310,11 @@ export class ChatWebSocket extends EventBus {
 	 * 重连次数达到上限后将停止尝试
 	 */
 	private reconnect() {
-
 		return new Promise<WebSocket | null>((resolve, reject) => {
 			userService.clearLastLogin()
 
 			if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-				console.log("达到最大重连次数")
+				logger.log("达到最大重连次数")
 				interfaceStore.setShowReloadButton(true)
 				interfaceStore.setIsConnecting(false)
 				reject(new Error("达到最大重连次数"))
@@ -331,7 +330,7 @@ export class ChatWebSocket extends EventBus {
 
 			// 设置新的重连定时器
 			this.reconnectTimer = setTimeout(() => {
-				console.log(`尝试重连 (${that.reconnectAttempts + 1}/${that.maxReconnectAttempts})`)
+				logger.log(`尝试重连 (${that.reconnectAttempts + 1}/${that.maxReconnectAttempts})`)
 				that.reconnectAttempts += 1
 				resolve(that.connect(true)) // 执行实际连接操作
 			}, this.reconnectInterval)
@@ -387,7 +386,7 @@ export class ChatWebSocket extends EventBus {
 								})
 							} else {
 								reject(data)
-								console.error("ws response error:", data)
+								logger.error("ws response error:", data)
 							}
 							socket?.removeEventListener("message", handler)
 						}

@@ -51,6 +51,8 @@ import MessageFileService from "./MessageFileService"
 import { getStringSizeInBytes } from "@/opensource/utils/size"
 import { JSONContent } from "@tiptap/core"
 import ChatFileService from "../file/ChatFileService"
+import { BroadcastChannelSender } from "@/opensource/broadcastChannel"
+
 import AiSearchApplyService from "./MessageApplyServices/ChatMessageApplyServices/AiSearchApplyService"
 import { SeqRecord } from "@/opensource/apis/modules/chat/types"
 const console = new Logger("MessageService", "blue")
@@ -276,8 +278,8 @@ class MessageService {
 	 * @param currentUserInfo 当前用户信息
 	 * @returns 格式化后的消息
 	 */
-	private formatMessage(
-		message: SeqResponse<ConversationMessage>,
+	public formatMessage(
+		message: ConversationMessageSend | SeqResponse<ConversationMessage>,
 		currentUserInfo: User.UserInfo | null,
 	): FullMessage {
 		const isUnReceived = isAppMessageId(message.message_id)
@@ -294,6 +296,7 @@ class MessageService {
 		return {
 			temp_id: message.message.app_message_id,
 			message_id: message.message_id,
+			// @ts-ignore
 			seq_id: message.seq_id,
 			sender_id: message.message.sender_id,
 			magic_id: message.message.sender_id,
@@ -304,13 +307,17 @@ class MessageService {
 			is_unreceived: isUnReceived,
 			name: senderInfo?.nickname ?? "", // 用户名
 			avatar: senderInfo?.avatar ?? "", // 头像
+			// @ts-ignore
 			message: message.message,
+			// @ts-ignore
 			seen_status: message.message.status,
 			send_status: SendStatus.Success,
+			// @ts-ignore
 			unread_count: message.message.unread_count,
 			refer_message_id: message.refer_message_id,
 			revoked:
 				message.message?.revoked ||
+				// @ts-ignore
 				message.message?.status === ConversationMessageStatus.Revoked ||
 				false,
 		}
@@ -493,7 +500,12 @@ class MessageService {
 	 * 添加待发送的消息
 	 * @param message 消息
 	 */
-	private async addPendingMessage(message: ConversationMessageSend) {
+	public async addPendingMessage(message: ConversationMessageSend) {
+		// 已经存在不需重复添加
+		if (this.pendingMessages.has(message.message_id)) {
+			return
+		}
+
 		this.pendingMessages.set(message.message_id, message)
 		// 增加到数据库
 		setTimeout(() => {
@@ -529,34 +541,36 @@ class MessageService {
 			},
 		}
 
+		const renderMessage: FullMessage = {
+			temp_id: sendId,
+			message_id: sendId,
+			magic_id: "",
+			seq_id: "",
+			refer_message_id: "",
+			sender_message_id: sendId,
+			conversation_id: conversationId,
+			type: message.message.type,
+			send_time: message.message.send_time.toString(),
+			sender_id: userInfo?.user_id ?? "",
+			is_self: true,
+			is_unreceived: isAppMessageId(sendId),
+			name: userInfo?.nickname ?? "",
+			avatar: userInfo?.avatar ?? "", // 使用新方法处理头像
+			message: {
+				...message.message,
+				unread_count: 1,
+				status: ConversationMessageStatus.Unread,
+				magic_message_id: sendId,
+			},
+			send_status: SendStatus.Pending, // 发送中
+			seen_status: ConversationMessageStatus.Unread, // 未读
+			unread_count: 1,
+		}
+
 		// 如果是当前会话，则添加到消息列表中
 		const { currentConversation } = conversationStore
+
 		if (currentConversation?.id === conversationId) {
-			const renderMessage: FullMessage = {
-				temp_id: sendId,
-				message_id: sendId,
-				magic_id: "",
-				seq_id: "",
-				refer_message_id: "",
-				sender_message_id: sendId,
-				conversation_id: conversationId,
-				type: message.message.type,
-				send_time: message.message.send_time.toString(),
-				sender_id: userInfo?.user_id ?? "",
-				is_self: true,
-				is_unreceived: isAppMessageId(sendId),
-				name: userInfo?.nickname ?? "",
-				avatar: userInfo?.avatar ?? "", // 使用新方法处理头像
-				message: {
-					...message.message,
-					unread_count: 1,
-					status: ConversationMessageStatus.Unread,
-					magic_message_id: sendId,
-				},
-				send_status: SendStatus.Pending, // 发送中
-				seen_status: ConversationMessageStatus.Unread, // 未读
-				unread_count: 1,
-			}
 			MessageStore.addSendMessage(renderMessage)
 			console.log("发送消息到当前会话", conversationId, "消息ID", sendId)
 		} else {
@@ -572,6 +586,8 @@ class MessageService {
 		// 发送
 		console.log("发送消息 ========> ", message)
 		this.send(conversationId, referMessageId, message)
+		// 广播
+		BroadcastChannelSender.addSendMessage(renderMessage, message)
 		// 添加消息到数据库中
 		this.addPendingMessage(message)
 	}
@@ -607,8 +623,14 @@ class MessageService {
 					// 更新数据中pending的状态
 					this.updatePendingMessageStatus(tempId, SendStatus.Success)
 					this.addReceivedMessage(response.seq as SeqResponse<ConversationMessage>)
+					console.log("发送成功，更新消息状态", response.seq)
 					// 更新数据库
 					// this.messageDbService.addMessage(message.conversation_id, response.seq)
+					// 广播，更新状态和消息
+					BroadcastChannelSender.updateSendMessage(
+						response.seq as SeqResponse<ConversationMessage>,
+						SendStatus.Success,
+					)
 					// 拉取离线消息
 					this.messagePullService.pullOfflineMessages(response.seq.seq_id)
 				}
@@ -617,6 +639,8 @@ class MessageService {
 				// 发送失败
 				console.log("发送失败 ======> ", message)
 				MessageStore.updateMessageSendStatus(message.message_id, SendStatus.Failed)
+				// 广播
+				BroadcastChannelSender.updateMessageStatus(message.message_id, SendStatus.Failed)
 				this.updatePendingMessageStatus(message.message_id, SendStatus.Failed)
 				if (err?.message) AntdMessage.error(err.message)
 			})
@@ -857,8 +881,13 @@ class MessageService {
 	 * 更新待发送的消息
 	 * @param messageId 消息 ID
 	 * @param status 消息状态
+	 * @param updateDb 是否更新数据库
 	 */
-	private async updatePendingMessageStatus(messageId: string, status: SendStatus) {
+	public async updatePendingMessageStatus(
+		messageId: string,
+		status: SendStatus,
+		updateDb: boolean = true,
+	) {
 		// 更新内存中的pendingMessages对象
 		if (this.pendingMessages.has(messageId)) {
 			this.pendingMessages.set(messageId, {
@@ -868,10 +897,12 @@ class MessageService {
 			console.log("更新消息状态", messageId, status, this.pendingMessages.get(messageId))
 		}
 
-		// 更新数据库
-		setTimeout(() => {
-			this.messageDbService.updatePendingMessageStatus(messageId, status)
-		})
+		if (updateDb) {
+			// 更新数据库
+			setTimeout(() => {
+				this.messageDbService.updatePendingMessageStatus(messageId, status)
+			})
+		}
 	}
 
 	/**

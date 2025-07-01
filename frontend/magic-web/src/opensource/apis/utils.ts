@@ -82,14 +82,14 @@ export class UrlUtils {
 	static transformToSocketIoUrl(url: string) {
 		return `${url}/socket.io/?EIO=3&transport=websocket&timestamp=${Date.now()}`
 	}
-	
+
 	/**
 	 * @description request body parsing
 	 * @param response
 	 */
 	static async responseParse(response: Response) {
 		const contentType = response.headers.get("Content-Type") || ""
-		
+
 		if (contentType.includes("application/json")) {
 			return { data: await response.json(), type: "json" }
 		}
@@ -99,7 +99,7 @@ export class UrlUtils {
 		if (contentType.includes("image/")) {
 			return { data: await response.blob(), type: "blob" }
 		}
-		
+
 		return { data: await response.arrayBuffer(), type: "buffer" }
 	}
 }

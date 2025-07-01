@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\CloudFile\Kernel\Driver\FileService;
 
 use Dtyq\CloudFile\Kernel\Driver\ExpandInterface;
+use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
+use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadConfig;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
@@ -95,5 +97,10 @@ class FileServiceExpand implements ExpandInterface
     public function duplicate(string $source, string $destination, array $options = []): string
     {
         return $this->fileServiceApi->copy($source, $destination, $options);
+    }
+
+    public function downloadByChunks(string $filePath, string $localPath, ChunkDownloadConfig $config, array $options = []): void
+    {
+        throw new CloudFileException('暂不支持');
     }
 }

@@ -1,6 +1,9 @@
 import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
 import { forwardRef, useImperativeHandle, useRef } from "react"
-import type { MentionSelectItem, MentionSelectRef } from "@/opensource/components/business/MentionSelect"
+import type {
+	MentionSelectItem,
+	MentionSelectRef,
+} from "@/opensource/components/business/MentionSelect"
 import MentionSelect from "@/opensource/components/business/MentionSelect"
 
 export type MentionListRef = {

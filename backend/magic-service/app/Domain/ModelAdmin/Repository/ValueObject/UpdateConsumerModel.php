@@ -19,6 +19,8 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleOrganizations;
 
+    protected array $visibleApplications;
+
     protected string $modelId;
 
     public function getModelId(): string
@@ -69,5 +71,15 @@ class UpdateConsumerModel extends AbstractEntity
     public function setVisibleOrganizations(array $visibleOrganizations): void
     {
         $this->visibleOrganizations = $visibleOrganizations;
+    }
+
+    public function getVisibleApplications(): array
+    {
+        return $this->visibleApplications;
+    }
+
+    public function setVisibleApplications(array $visibleApplications): void
+    {
+        $this->visibleApplications = $visibleApplications;
     }
 }

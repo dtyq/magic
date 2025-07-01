@@ -35,11 +35,11 @@ class TopicDomainService
     }
 
     /**
-     * 获取最近更新时间超过指定时间的话题列表.
+     * Get topic list whose update time exceeds specified time.
      *
-     * @param string $timeThreshold 时间阈值，如果话题的更新时间早于此时间，则会被包含在结果中
-     * @param int $limit 返回结果的最大数量
-     * @return array<TopicEntity> 话题实体列表
+     * @param string $timeThreshold Time threshold, if topic update time is earlier than this time, it will be included in the result
+     * @param int $limit Maximum number of results returned
+     * @return array<TopicEntity> Topic entity list
      */
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
@@ -47,7 +47,7 @@ class TopicDomainService
     }
 
     /**
-     * 通过ChatTopicId获取话题实体.
+     * Get topic entity by ChatTopicId.
      */
     public function getTopicByChatTopicId(DataIsolation $dataIsolation, string $chatTopicId): ?TopicEntity
     {
@@ -79,5 +79,37 @@ class TopicDomainService
         }
 
         return $result['list'];
+    }
+
+    /**
+     * Get topic entity by ChatTopicId.
+     */
+    public function getTopicOnlyByChatTopicId(string $chatTopicId): ?TopicEntity
+    {
+        $conditions = [
+            'chat_topic_id' => $chatTopicId,
+        ];
+
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return null;
+        }
+
+        return $result['list'][0];
+    }
+
+    public function updateTopic(TopicEntity $topicEntity): bool
+    {
+        return $this->topicRepository->updateTopic($topicEntity);
+    }
+
+    public function updateTopicWhereUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool
+    {
+        return $this->topicRepository->updateTopicWithUpdatedAt($topicEntity, $updatedAt);
+    }
+
+    public function updateTopicStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus): bool
+    {
+        return $this->topicRepository->updateTopicStatusBySandboxIds($sandboxIds, $taskStatus->value);
     }
 }

@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace Dtyq\CloudFile\Kernel\Driver\Local;
 
 use Dtyq\CloudFile\Kernel\Driver\ExpandInterface;
+use Dtyq\CloudFile\Kernel\Exceptions\ChunkDownloadException;
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
+use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadConfig;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
@@ -111,5 +113,43 @@ class LocalExpand implements ExpandInterface
         }
 
         return '';
+    }
+
+    public function downloadByChunks(string $filePath, string $localPath, ChunkDownloadConfig $config, array $options = []): void
+    {
+        // For local storage, "download" means the file is already local
+        // We need to determine the actual source path
+        $sourcePath = $this->config['root'] . '/' . ltrim($filePath, '/');
+
+        // Check if source file exists
+        if (! file_exists($sourcePath)) {
+            throw ChunkDownloadException::createFileNotFound($filePath);
+        }
+
+        // If source and target are the same, no operation needed
+        if (realpath($sourcePath) === realpath($localPath)) {
+            return;
+        }
+
+        // If target already exists and is the same file, no operation needed
+        if (file_exists($localPath) && fileinode($sourcePath) === fileinode($localPath)) {
+            return;
+        }
+
+        // Create target directory if it doesn't exist
+        $targetDir = dirname($localPath);
+        if (! is_dir($targetDir)) {
+            if (! mkdir($targetDir, 0755, true)) {
+                throw ChunkDownloadException::createTempFileOperationFailed("Failed to create directory: {$targetDir}", '');
+            }
+        }
+
+        // For local files, use hard link first (more efficient), fallback to copy
+        if (! link($sourcePath, $localPath)) {
+            // Hard link failed, try copy
+            if (! copy($sourcePath, $localPath)) {
+                throw ChunkDownloadException::createTempFileOperationFailed("Failed to copy file from {$sourcePath} to {$localPath}", '');
+            }
+        }
     }
 }

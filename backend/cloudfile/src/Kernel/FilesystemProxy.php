@@ -9,8 +9,11 @@ namespace Dtyq\CloudFile\Kernel;
 
 use Dtyq\CloudFile\Kernel\Driver\ExpandInterface;
 use Dtyq\CloudFile\Kernel\Driver\FileService\FileServiceApi;
+use Dtyq\CloudFile\Kernel\Exceptions\ChunkDownloadException;
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
+use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadConfig;
+use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
@@ -98,6 +101,30 @@ class FilesystemProxy extends Filesystem
     }
 
     /**
+     * Upload file by chunks using STS credentials.
+     *
+     * @param ChunkUploadFile $chunkUploadFile Chunk upload file object
+     * @param CredentialPolicy $credentialPolicy Credential policy
+     * @param array $options Additional options
+     * @throws CloudFileException
+     */
+    public function uploadByChunks(ChunkUploadFile $chunkUploadFile, CredentialPolicy $credentialPolicy, array $options = []): void
+    {
+        // Force STS mode for chunk upload
+        $credentialPolicy->setSts(true);
+        $credentialPolicy->setContentType($chunkUploadFile->getMimeType());
+
+        // Get STS temporary credentials
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+
+        // Call platform-specific chunk upload implementation
+        $this->getSimpleUploadInstance($this->adapterName)->uploadObjectByChunks($credential, $chunkUploadFile);
+
+        // Release file resources
+        $chunkUploadFile->release();
+    }
+
+    /**
      * 追加上传文件 - 通过临时凭证直传.
      */
     public function appendUploadByCredential(AppendUploadFile $appendUploadFile, CredentialPolicy $credentialPolicy, array $options = []): void
@@ -168,6 +195,7 @@ class FilesystemProxy extends Filesystem
             return $list;
         }
         $isCache = (bool) ($options['cache'] ?? true);
+        unset($options['cache']);
         $unCachePaths = $paths;
         if ($isCache) {
             foreach ($paths as $path) {
@@ -199,10 +227,8 @@ class FilesystemProxy extends Filesystem
                     $this->publicDomain = $noSignUrlParsed['scheme'] . '://' . $noSignUrlParsed['host'] . $port;
                 }
                 $list[$path] = $data;
-                if ($isCache) {
-                    $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));
-                    $this->setCache($cacheKey, $data, $expires - 60);
-                }
+                $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));
+                $this->setCache($cacheKey, $data, $expires - 60);
             }
         }
         return $list;
@@ -222,6 +248,31 @@ class FilesystemProxy extends Filesystem
     public function duplicate(string $source, string $destination, array $options = []): string
     {
         return $this->expand->duplicate($source, $destination, $options);
+    }
+
+    /**
+     * Download file by chunks.
+     *
+     * @param string $filePath Remote file path
+     * @param string $localPath Local file path to save
+     * @param null|ChunkDownloadConfig $config Download configuration
+     * @param array $options Additional options
+     * @throws ChunkDownloadException
+     */
+    public function downloadByChunks(string $filePath, string $localPath, ?ChunkDownloadConfig $config = null, array $options = []): void
+    {
+        $credentialPolicy = new CredentialPolicy([
+            'sts' => true,
+            'role_session_name' => 'magic',
+            'dir' => '',
+        ]);
+
+        $platform = $this->config['platform'] ?? $this->adapterName;
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $expandConfig = $this->createExpandConfigByCredential($platform, $credential);
+        $config = $config ?? ChunkDownloadConfig::createDefault();
+        $expandObject = $this->createExpand($platform, $expandConfig);
+        $expandObject->downloadByChunks($filePath, $localPath, $config, $options);
     }
 
     public function setIsPublicRead(bool $isPublicRead): void
@@ -280,6 +331,38 @@ class FilesystemProxy extends Filesystem
                 return new Driver\FileService\FileServiceExpand($fileServiceApi);
             case AdapterName::LOCAL:
                 return new Driver\Local\LocalExpand($config);
+            default:
+                throw new CloudFileException("expand not found | [{$adapterName}]");
+        }
+    }
+
+    private function createExpandConfigByCredential(string $adapterName, array $credential): array
+    {
+        switch ($adapterName) {
+            case AdapterName::TOS:
+                $tempCred = $credential['temporary_credential'];
+                $credentials = $tempCred['credentials'];
+                return [
+                    'region' => $tempCred['region'],
+                    'endpoint' => $tempCred['endpoint'],
+                    'ak' => $credentials['AccessKeyId'],
+                    'sk' => $credentials['SecretAccessKey'],
+                    'securityToken' => $credentials['SessionToken'], // STS token for temporary access
+                    'bucket' => $tempCred['bucket'],
+                ];
+            case AdapterName::ALIYUN:
+                $temp = $credential['temporary_credential'];
+                $region = $temp['region'];
+                $actualRegion = str_replace('oss-', '', $region);
+                return [
+                    'accessId' => $temp['access_key_id'],
+                    'accessSecret' => $temp['access_key_secret'],
+                    'securityToken' => $temp['sts_token'],
+                    'endpoint' => 'https://oss-' . $actualRegion . '.aliyuncs.com',
+                    'bucket' => $temp['bucket'],
+                    'timeout' => 3600,
+                    'connectTimeout' => 10,
+                ];
             default:
                 throw new CloudFileException("expand not found | [{$adapterName}]");
         }

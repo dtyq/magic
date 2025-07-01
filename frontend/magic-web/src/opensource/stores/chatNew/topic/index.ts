@@ -55,7 +55,7 @@ class TopicStore {
 		if (this.topicList.find((tt) => tt.id === topic.id)) {
 			return
 		}
-		this.topicList.unshift(topic)
+		this.topicList = [topic, ...this.topicList]
 	}
 
 	/**
@@ -76,8 +76,12 @@ class TopicStore {
 	 */
 	updateTopic(topicId: string, updates: Partial<Topic>) {
 		const index = this.topicList.findIndex((topic) => topic.id === topicId)
+		console.log("updateTopic ====== ", index, updates)
+
 		if (index !== -1) {
-			const topic = this.topicList[index]
+			// 创建新的话题数组，以触发mobx的响应式更新
+			const updatedTopicList = [...this.topicList]
+			const topic = updatedTopicList[index]
 
 			// 更新属性
 			Object.entries(updates).forEach(([key, value]) => {
@@ -94,6 +98,9 @@ class TopicStore {
 			if (updates.description) {
 				topic.updateDescription(updates.description)
 			}
+
+			// 替换整个数组以确保视图更新
+			this.topicList = updatedTopicList
 		}
 	}
 

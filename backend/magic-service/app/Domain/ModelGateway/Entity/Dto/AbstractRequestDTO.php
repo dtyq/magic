@@ -101,11 +101,28 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
     public function setHeaderConfigs(array $headerConfigs): void
     {
         $this->headerConfigs = $headerConfigs;
+        $this->formatHeaderBusinessParams($headerConfigs);
     }
 
     public function getHeaderConfig(string $key, mixed $default = null): mixed
     {
         $key = strtolower($key);
         return $this->headerConfigs[$key] ?? $default;
+    }
+
+    private function formatHeaderBusinessParams(array $headerConfigs): void
+    {
+        if (isset($headerConfigs['magic-organization-id'])) {
+            $this->businessParams['organization_id'] = $headerConfigs['magic-organization-id'];
+        }
+        if (isset($headerConfigs['magic-organization-code'])) {
+            $this->businessParams['organization_id'] = $headerConfigs['magic-organization-code'];
+        }
+        if (isset($headerConfigs['magic-user-id'])) {
+            $this->businessParams['user_id'] = $headerConfigs['magic-user-id'];
+        }
+        if (isset($headerConfigs['business_id'])) {
+            $this->businessParams['business_id'] = $headerConfigs['business_id'];
+        }
     }
 }

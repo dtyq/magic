@@ -80,7 +80,7 @@ class FlowBreakpointRetryCrontab
             $this->magicFlowExecuteLogDomainService->incrementRetryCount($flowDataIsolation, $magicFlowExecuteLogEntity);
 
             $extParams = $magicFlowExecuteLogEntity->getExtParams();
-            $archive = FlowExecutorArchiveCloud::get($extParams['organization_code'], (string) $magicFlowExecuteLogEntity->getId());
+            $archive = FlowExecutorArchiveCloud::get($extParams['organization_code'], (string) $magicFlowExecuteLogEntity->getExecuteDataId());
             $flowEntity = $archive['magic_flow'];
             /** @var ExecutionData $executionData */
             $executionData = $archive['execution_data'];

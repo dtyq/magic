@@ -30,7 +30,11 @@ function EmojiButton({
 		<Popover
 			content={<MagicEmojiPanel onClick={onEmojiClick} />}
 			trigger="click"
-			overlayInnerStyle={{ padding: 0 }}
+			styles={{
+				body: {
+					padding: 0,
+				},
+			}}
 		>
 			<MagicButton
 				type="text"

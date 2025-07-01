@@ -6,7 +6,6 @@ import type {
 	ConversationMessage,
 } from "@/types/chat/conversation_message"
 import {
-	AggregateAISearchCardDataType,
 	AggregateAISearchCardV2Status,
 	AIImagesDataType,
 	ConversationMessageStatus,
@@ -29,12 +28,12 @@ import chatTopicService from "@/opensource/services/chat/topic"
 import DotsService from "@/opensource/services/chat/dots/DotsService"
 import AiImageApplyService from "./AiImageApplyService"
 import AiSearchApplyService from "./AiSearchApplyService"
-import type { ApplyMessageOptions } from "./types"
 import { bigNumCompare } from "@/utils/string"
 import OrganizationDotsStore from "@/opensource/stores/chatNew/dots/OrganizationDotsStore"
 import { userStore } from "@/opensource/models/user"
 import StreamMessageApplyServiceV2 from "../StreamMessageApplyServiceV2"
 import ConversationDbService from "../../../conversation/ConversationDbService"
+import { ApplyMessageOptions } from "@/types/chat/message"
 
 // 消息事件监听器类型
 type MessageEventListener = (message: SeqResponse<CMessage>, options?: ApplyMessageOptions) => void

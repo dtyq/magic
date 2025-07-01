@@ -16,6 +16,7 @@ import { useStyles } from "./styles"
 import { IconPhotoX } from "@tabler/icons-react"
 import MagicButton from "@/opensource/components/base/MagicButton"
 import MagicIcon from "@/opensource/components/base/MagicIcon"
+import { safeJsonToBtoa } from "@/utils/encoding"
 
 type HTMLImageElementProps = JSX.IntrinsicElements["img"]
 
@@ -167,7 +168,7 @@ const ImageWrapper = observer((props: ImageWrapperProps) => {
 	})
 
 	const fileInfoBase64 = useMemo(() => {
-		return btoa(JSON.stringify(fileInfo ?? {}))
+		return safeJsonToBtoa(fileInfo ?? {})
 	}, [fileInfo])
 
 	const ImageNode = useMemo(() => {

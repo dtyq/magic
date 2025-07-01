@@ -77,7 +77,7 @@ function LoginPage() {
 					.then(loginService.organizationSyncStep)
 					.then(userSyncStep)
 					.then(() => {
-						return Promise.resolve(userService.login(false))
+						return Promise.resolve(userService.wsLogin({ showLoginLoading: false }))
 					})
 					.then(redirect)
 					.catch((error) => {

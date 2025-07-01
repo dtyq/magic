@@ -51,6 +51,11 @@ interface TopicRepositoryInterface
     public function updateTopic(TopicEntity $topicEntity): bool;
 
     /**
+     * 使用updated_at 作为乐观锁更新话题.
+     */
+    public function updateTopicWithUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool;
+
+    /**
      * 删除话题.
      */
     public function deleteTopic(int $id): bool;
@@ -81,4 +86,6 @@ interface TopicRepositoryInterface
      * @return array<TopicEntity> 话题实体列表
      */
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array;
+
+    public function updateTopicStatusBySandboxIds(array $sandboxIds, string $status);
 }

@@ -190,6 +190,7 @@ return [
         'has_circular_dependencies' => '[:label] Circular dependencies exist',
         'unsupported_trigger_type' => 'Unsupported trigger type',
         'unsupported_flow_type' => 'Unsupported flow type',
+        'node_execute_count_reached' => 'Maximum global node execution count (:max_count) reached',
     ],
     'component' => [
         'format_error' => '[:label] Format error',

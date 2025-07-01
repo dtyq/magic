@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
@@ -50,7 +51,6 @@ use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
-use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
@@ -94,8 +94,11 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
 
-        $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode());
-        $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode());
+        $modelFilter = new ModelFilter();
+        $modelFilter->setAppId($accessTokenEntity->getRelationId());
+
+        $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
+        $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
         $imageModels = $this->modelGatewayMapper->getImageModels($accessTokenEntity->getOrganizationCode());
 
         $models = array_merge($chatModels, $embeddingModels, $imageModels);
@@ -136,21 +139,21 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * Chat completion.
      */
-    public function chatCompletion(CompletionDTO $sendMsgDTO): ResponseInterface
+    public function chatCompletion(CompletionDTO $sendMsgDTO, ?ModelFilter $modelFilter = null): ResponseInterface
     {
         return $this->processRequest($sendMsgDTO, function (ModelInterface $model, CompletionDTO $request) {
             return $this->callChatModel($model, $request);
-        });
+        }, $modelFilter ?? new ModelFilter());
     }
 
     /**
      * Process embedding requests.
      */
-    public function embeddings(EmbeddingsDTO $proxyModelRequest): ResponseInterface
+    public function embeddings(EmbeddingsDTO $proxyModelRequest, ?ModelFilter $modelFilter = null): ResponseInterface
     {
         return $this->processRequest($proxyModelRequest, function (EmbeddingInterface $model, EmbeddingsDTO $request) {
             return $this->callEmbeddingsModel($model, $request);
-        });
+        }, $modelFilter ?? new ModelFilter());
     }
 
     /**
@@ -388,7 +391,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param ProxyModelRequestInterface $proxyModelRequest Request object
      * @param callable $modelCallFunction Model calling function that receives model configuration and request object, returns response
      */
-    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction): ResponseInterface
+    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): ResponseInterface
     {
         /** @var null|EndpointDTO $endpointDTO */
         $endpointDTO = null;
@@ -411,31 +414,34 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelAttributes = null;
 
-            $model = match ($proxyModelRequest->getType()) {
-                'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode),
-                'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode),
-                default => null
-            };
-            if (! $model) {
-                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
-            }
-            if ($model instanceof OdinModel) {
-                $modelAttributes = $model->getAttributes();
-                $model = $model->getModel();
-            }
+            $modelFilter->setAppId($accessToken->getRelationId());
+            $modelFilter->setOriginModel($proxyModelRequest->getModel());
 
-            // Try to use model_name to get real data again
-            if ($model instanceof MagicAILocalModel) {
-                $modelId = $model->getModelName();
+            try {
                 $model = match ($proxyModelRequest->getType()) {
-                    'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode),
-                    'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode),
+                    'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),
+                    'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode, $modelFilter),
                     default => null
                 };
                 if ($model instanceof OdinModel) {
                     $modelAttributes = $model->getAttributes();
                     $model = $model->getModel();
                 }
+                // Try to use model_name to get real data again
+                if ($model instanceof MagicAILocalModel) {
+                    $modelId = $model->getModelName();
+                    $model = match ($proxyModelRequest->getType()) {
+                        'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode),
+                        'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode),
+                        default => null
+                    };
+                    if ($model instanceof OdinModel) {
+                        $modelAttributes = $model->getAttributes();
+                        $model = $model->getModel();
+                    }
+                }
+            } catch (Throwable $throwable) {
+                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT, throwable: $throwable);
             }
 
             // Prevent infinite loop
@@ -450,8 +456,14 @@ class LLMAppService extends AbstractLLMAppService
             // Record start time
             $startTime = microtime(true);
 
+            $proxyModelRequest->addBusinessParam('model_id', $proxyModelRequest->getModel());
             $proxyModelRequest->addBusinessParam('app_id', $contextData['app_code'] ?? '');
             $proxyModelRequest->addBusinessParam('service_provider_model_id', $modelAttributes?->getProviderModelId() ?? '');
+            $proxyModelRequest->addBusinessParam('source_id', $contextData['source_id'] ?? '');
+            $proxyModelRequest->addBusinessParam('user_name', $contextData['user_name'] ?? '');
+            $proxyModelRequest->addBusinessParam('organization_id', $contextData['organization_code'] ?? '');
+            $proxyModelRequest->addBusinessParam('user_id', $contextData['user_id'] ?? '');
+            $proxyModelRequest->addBusinessParam('access_token_id', $accessToken->getId());
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
@@ -481,9 +493,6 @@ class LLMAppService extends AbstractLLMAppService
                 0,   // Business status code marked as success
                 1
             );
-
-            // Asynchronous processing of usage records and billing
-            $this->scheduleUsageRecording($dataIsolation, $proxyModelRequest, $contextData, $usageData);
 
             return $response;
         } catch (BusinessException $exception) {
@@ -874,6 +883,7 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($accessToken->getType()->isUser()) {
             $context['user_id'] = $accessToken->getRelationId();
+            $context['source_id'] = "{$accessToken->getName()}";
             // Personal users also have the organization they were in when creating the token
             $context['organization_code'] = $accessToken->getOrganizationCode();
         }
@@ -978,82 +988,6 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * Schedule usage recording and billing.
-     */
-    private function scheduleUsageRecording(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
-    {
-        // Record logs
-        defer(function () use ($dataIsolation, $proxyModelRequest, $contextData, $usageData) {
-            try {
-                $this->recordMessageLog($dataIsolation, $proxyModelRequest, $contextData, $usageData);
-
-                // Process billing
-                if ($usageData['amount'] > 0) {
-                    $this->processUsageBilling($dataIsolation, $proxyModelRequest, $contextData, $usageData);
-                }
-            } catch (Throwable $e) {
-                // Usage record failure should not affect user request response
-                $this->logger->error('Failed to process usage records', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-            }
-        });
-    }
-
-    /**
-     * Record message log.
-     */
-    private function recordMessageLog(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
-    {
-        $msgLog = new MsgLogEntity();
-        $msgLog->setUseAmount((float) $usageData['amount']);
-        $msgLog->setUseToken($usageData['tokens']);
-        $msgLog->setModel($proxyModelRequest->getModel());
-        $msgLog->setUserId($contextData['user_id']);
-        $msgLog->setAppCode($contextData['app_code'] ?? '');
-        $msgLog->setOrganizationCode($contextData['organization_code'] ?? '');
-        $msgLog->setBusinessId($contextData['business_id'] ?? '');
-        $msgLog->setSourceId($contextData['source_id']);
-        $msgLog->setUserName($contextData['user_name']);
-        $msgLog->setCreatedAt(new DateTime());
-        $this->msgLogDomainService->create($dataIsolation, $msgLog);
-    }
-
-    /**
-     * Process usage billing.
-     */
-    private function processUsageBilling(LLMDataIsolation $dataIsolation, ProxyModelRequestInterface $proxyModelRequest, array $contextData, array $usageData): void
-    {
-        $modelConfig = $this->modelConfigDomainService->getByModel($proxyModelRequest->getModel());
-        $accessToken = $this->accessTokenDomainService->getByAccessToken($proxyModelRequest->getAccessToken());
-
-        if (! $modelConfig || ! $accessToken) {
-            return;
-        }
-
-        $amount = (float) $usageData['amount'];
-
-        Db::transaction(function () use ($dataIsolation, $modelConfig, $contextData, $accessToken, $amount) {
-            // Add model quota
-            $this->modelConfigDomainService->incrementUseAmount($dataIsolation, $modelConfig, $amount);
-
-            // AccessToken quota
-            $this->accessTokenDomainService->incrementUseAmount($dataIsolation, $accessToken, $amount);
-
-            // Personal quota
-            if ($contextData['user_config']) {
-                $this->userConfigDomainService->incrementUseAmount($dataIsolation, $contextData['user_config'], $amount);
-            }
-
-            // Organization quota for application version
-            if ($contextData['organization_config'] && $accessToken?->getType()->isApplication()) {
-                $this->organizationConfigDomainService->incrementUseAmount($dataIsolation, $contextData['organization_config'], $amount);
-            }
-        });
-    }
-
-    /**
      * Log model call failure.
      */
     private function logModelCallFailure(string $model, Throwable $throwable): void
@@ -1133,37 +1067,13 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * Generate conversation endpoint cache key (based on messages hash + model).
-     * Now reuses the optimized calculateMultipleMessagesHashes method.
-     *
-     * @param array $messages Messages array
-     * @param string $model Model name
-     * @return string Cache key
-     */
-    private function generateEndpointCacheKey(array $messages, string $model): string
-    {
-        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
-        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
-        $messagesHash = $hashes[0] ?? hash('sha256', '');
-
-        // Generate cache key using messages hash + model
-        $cacheKey = $messagesHash . ':' . $model;
-
-        return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
-    }
-
-    /**
-     * 计算宽高比例的字符串格式.
-     * @param int $width 宽度
-     * @param int $height 高度
-     * @return string 比例字符串，如"1:1", "3:4", "16:9"
+     * Calculate the width-to-height ratio.
+     * @return string "1:1", "3:4", "16:9"
      */
     private function calculateRatio(int $width, int $height): string
     {
-        // 计算最大公约数
         $gcd = $this->gcd($width, $height);
 
-        // 计算简化后的比例
         $ratioWidth = $width / $gcd;
         $ratioHeight = $height / $gcd;
 
@@ -1229,5 +1139,25 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $processedImages;
+    }
+
+    /**
+     * Generate conversation endpoint cache key (based on messages hash + model).
+     * Now reuses the optimized calculateMultipleMessagesHashes method.
+     *
+     * @param array $messages Messages array
+     * @param string $model Model name
+     * @return string Cache key
+     */
+    private function generateEndpointCacheKey(array $messages, string $model): string
+    {
+        // Reuse the optimized multiple hash calculation method (removeCount = 0 for full array)
+        $hashes = $this->calculateMultipleMessagesHashes($messages, 0);
+        $messagesHash = $hashes[0] ?? hash('sha256', '');
+
+        // Generate cache key using messages hash + model
+        $cacheKey = $messagesHash . ':' . $model;
+
+        return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
     }
 }

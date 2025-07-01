@@ -88,7 +88,7 @@ export namespace Login {
 	}
 
 	/** 钉钉扫码登录 */
-	export interface DingtalkLoginsFormValues extends LoginFormCommonValues {
+	export interface ThirdPartyLoginsFormValues extends LoginFormCommonValues {
 		/** 第三方登录平台（Omit<Login.LoginType, "SMSVerificationCode" | "MobilePhonePassword">） */
 		platform_type: Login.LoginType
 		/** 第三方平台临时授权Code */
