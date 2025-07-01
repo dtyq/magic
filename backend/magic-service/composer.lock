@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "63a36093e698591bd4e3336e4ce42a0b",
+    "content-hash": "dbe0ee8cd7cd7db109f715a7b8502c13",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.24",
+            "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "98d4b9a595842acc207354be048fc970dc4b3b4d"
+                "reference": "b2b651677f8f7e911add17aa20ecd64e41d4f3c2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=98d4b9a595842acc207354be048fc970dc4b3b4d",
-                "reference": "98d4b9a595842acc207354be048fc970dc4b3b4d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=b2b651677f8f7e911add17aa20ecd64e41d4f3c2",
+                "reference": "b2b651677f8f7e911add17aa20ecd64e41d4f3c2",
                 "shasum": ""
             },
             "require": {
@@ -1929,6 +1929,7 @@
                 "phpstan/phpstan": "^1.0",
                 "phpunit/phpunit": "^10.0"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -1972,9 +1973,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.24"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-06-30T12:15:18+00:00"
+            "time": "2025-06-30T09:09:57+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2204,14 +2205,20 @@
         {
             "name": "dtyq/magic-enterprise-service",
             "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
+                "reference": "21a1f95321178d5d111cc3ce33e7d7381162cd0a"
+            },
             "dist": {
-                "type": "path",
-                "url": "/Users/huzhanhong/php/magic-enterprise-service",
-                "reference": "9d15e3f2338a5c35db2b68ca8449b10738e4c5ce"
+                "type": "zip",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=21a1f95321178d5d111cc3ce33e7d7381162cd0a",
+                "reference": "21a1f95321178d5d111cc3ce33e7d7381162cd0a",
+                "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
-                "dtyq/billing-manager": "^1.0.1",
+                "dtyq/billing-manager": "dev-master",
                 "ext-openssl": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
@@ -2306,9 +2313,10 @@
                     "email": "team@dtyq.com"
                 }
             ],
-            "transport-options": {
-                "relative": false
-            }
+            "support": {
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
+            },
+            "time": "2025-07-01T14:17:16+08:00"
         },
         {
             "name": "dtyq/php-mcp",
