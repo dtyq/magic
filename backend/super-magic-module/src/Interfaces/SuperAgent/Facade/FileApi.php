@@ -11,6 +11,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
@@ -29,6 +30,7 @@ class FileApi extends AbstractApi
         private readonly FileBatchAppService $fileBatchAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
+        protected AgentFileAppService $agentFileAppService,
     ) {
     }
 
@@ -93,6 +95,30 @@ class FileApi extends AbstractApi
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
     }
 
+    /**
+     * 刷新 STS Token.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 刷新结果
+     */
+    public function refreshTmpStsToken(RequestContext $requestContext): array
+    {
+        $token = $this->request->header('token', '');
+        if (empty($token)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
+        }
+
+        if ($token !== config('super-magic.sandbox.token', '')) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
+        }
+
+        // 创建DTO并从请求中解析数据
+        $requestData = $this->request->all();
+        $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
+
+        return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
+    }
+
     public function workspaceAttachments(RequestContext $requestContext): array
     {
         // $topicId = $this->request->input('topic_id', '');
@@ -124,6 +150,27 @@ class FileApi extends AbstractApi
         }
 
         return $this->fileProcessAppService->workspaceAttachments($requestDTO);
+    }
+
+    /**
+     * 获取文件版本列表.
+     */
+    public function getFileVersions(RequestContext $requestContext)
+    {
+        $fileId = (int) $this->request->input('file_id', '');
+        $topicId = (int) $this->request->input('topic_id', '');
+        return $this->agentFileAppService->getFileVersions($fileId, $topicId);
+    }
+
+    /**
+     * 获取文件版本内容.
+     */
+    public function getFileVersionContent(RequestContext $requestContext)
+    {
+        $fileId = (int) $this->request->input('file_id', '');
+        $commitHash = $this->request->input('commit_hash', '');
+        $topicId = (int) $this->request->input('topic_id', '');
+        return $this->agentFileAppService->getFileVersionContent($fileId, $commitHash, $topicId);
     }
 
     /**

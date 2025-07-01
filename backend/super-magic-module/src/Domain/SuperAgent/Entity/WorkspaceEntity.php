@@ -37,6 +37,8 @@ class WorkspaceEntity extends AbstractEntity
 
     protected ?int $currentTopicId = null;
 
+    protected ?int $currentProjectId = null;
+
     protected int $status = 0;
 
     public function getId(): int
@@ -194,6 +196,17 @@ class WorkspaceEntity extends AbstractEntity
         return $this;
     }
 
+    public function getCurrentProjectId(): ?int
+    {
+        return $this->currentProjectId;
+    }
+
+    public function setCurrentProjectId(?int $currentProjectId): self
+    {
+        $this->currentProjectId = $currentProjectId;
+        return $this;
+    }
+
     /**
      * 获取工作区状态
      */
@@ -243,6 +256,7 @@ class WorkspaceEntity extends AbstractEntity
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
             'current_topic_id' => $this->currentTopicId,
+            'current_project_id' => $this->currentProjectId,
             'status' => $this->status,
         ];
     }

@@ -15,9 +15,11 @@ use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -25,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordReposito
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskRepository;
@@ -40,6 +43,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInter
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
 use Dtyq\SuperMagic\Listener\I18nLoadListener;
 use RecursiveDirectoryIterator;
@@ -85,13 +90,17 @@ class ConfigProvider
                 TaskRepositoryInterface::class => TaskRepository::class,
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
+                ProjectRepositoryInterface::class => ProjectRepository::class,
                 SandboxInterface::class => SandboxService::class,
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
+                PdfConverterInterface::class => PdfConverterService::class,
                 AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入
                 FileProcessAppService::class => FileProcessAppService::class,
+                // 添加HandleAgentMessageAppService的依赖注入
+                HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
                 // 添加分享相关服务
                 ShareableResourceFactory::class => ShareableResourceFactory::class,
                 TopicShareableResource::class => TopicShareableResource::class,

@@ -19,7 +19,9 @@ export const enum RequestUrl {
 	/** 修改手机号 */
 	changePhone = "/v4/users/phone",
 	/** 登录 */
-	Login = "/v4/user/login",
+	Login = "/api/v1/sessions",
+	/** 登出 */
+	Logout = "/v4/users/logout",
 	/** 第三方登录 */
 	thirdPartyLogins = "/v4/user/fast_login",
 
@@ -352,14 +354,12 @@ export const enum RequestUrl {
 	/** 话题智能重命名 */
 	getMagicTopicName = "/api/v1/im/conversations/${conversationId}/topics/${topicId}/name",
 
-	
 	/** 获取文件 */
 	getFiles = "/api/v1/teamshare/multi-table/file/queries",
 	/** 获取数据表 */
 	getSheets = "/api/v1/teamshare/multi-table/${fileId}/sheets",
 	/** 获取文件详情 */
 	getFile = "/api/v1/teamshare/multi-table/${fileId}",
-    
 
 	/** Auth */
 	/** 更新资源授权 */

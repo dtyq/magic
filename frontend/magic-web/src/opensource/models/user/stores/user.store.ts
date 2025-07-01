@@ -2,7 +2,6 @@ import { makeAutoObservable } from "mobx"
 import type { User } from "@/types/user"
 import { platformKey } from "@/utils/storage"
 import { keyBy } from "lodash-es"
-import { AuthApi } from "@/apis"
 
 export class UserStore {
 	authorization: string | null = localStorage.getItem(platformKey("store:authentication"))
@@ -60,7 +59,9 @@ export class UserStore {
 		const { organizations, magicOrganizationMap } = this
 		const orgMap = keyBy(organizations, "organization_code")
 		// 获取 teamshare 组织 Code
-		return orgMap?.[magicOrganizationMap?.[organizationCode]?.third_platform_organization_code ?? ""]
+		return orgMap?.[
+			magicOrganizationMap?.[organizationCode]?.third_platform_organization_code ?? ""
+		]
 	}
 
 	/**

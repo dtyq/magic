@@ -63,16 +63,18 @@ class AgentAppService extends AbstractKernelAppService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $sandboxID): string
+    public function createSandbox(string $projectId, string $sandboxID): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
+            'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['sandbox_id' => $sandboxID]);
+        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
+                'project_id' => $projectId,
                 'sandbox_id' => $sandboxID,
                 'error' => $result->getMessage(),
                 'code' => $result->getCode(),
@@ -301,11 +303,11 @@ class AgentAppService extends AbstractKernelAppService
      * 轮询工作区状态，直到初始化完成、失败或超时.
      *
      * @param string $sandboxId 沙箱ID
-     * @param int $timeoutSeconds 超时时间（秒），默认20分钟
+     * @param int $timeoutSeconds 超时时间（秒），默认10分钟
      * @param int $intervalSeconds 轮询间隔（秒），默认2秒
      * @throws SandboxOperationException 当初始化失败或超时时抛出异常
      */
-    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 1200, int $intervalSeconds = 2): void
+    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 600, int $intervalSeconds = 2): void
     {
         $this->logger->info('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
@@ -404,6 +406,7 @@ class AgentAppService extends AbstractKernelAppService
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
+            'project_id' => (string) $taskContext->getTask()->getProjectId(),
             'type' => MessageType::Init->value,
             'upload_config' => $stsConfig,
             'message_subscription_config' => [

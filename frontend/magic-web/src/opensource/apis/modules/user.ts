@@ -6,7 +6,7 @@ import { isNil } from "lodash-es"
 import type { Login } from "@/types/login"
 import { configStore } from "@/opensource/models/config"
 import { RequestUrl } from "../constant"
-import type { HttpClient } from "../core/HttpClient"
+import type { HttpClient, RequestConfig } from "../core/HttpClient"
 
 export interface TeamshareUserInfo {
 	id: string
@@ -61,14 +61,21 @@ export const generateUserApi = (fetch: HttpClient) => ({
 
 	/**
 	 * @description 第三方登录（钉钉登录、企业微信登录、飞书登录）
-	 * @param {Login.DingtalkLoginsFormValues | Login.WechatOfficialAccountLoginsFormValues} values 登录表单
+	 * @param {Login.ThirdPartyLoginsFormValues | Login.WechatOfficialAccountLoginsFormValues} values 登录表单
 	 */
 	thirdPartyLogins(
-		values: Login.DingtalkLoginsFormValues | Login.WechatOfficialAccountLoginsFormValues,
+		values: Login.ThirdPartyLoginsFormValues | Login.WechatOfficialAccountLoginsFormValues,
+		options?: Omit<RequestConfig, "url" | "body">,
 	) {
 		return fetch.post<Login.UserLoginsResponse>(
 			genRequestUrl(RequestUrl.thirdPartyLogins),
 			values,
+			{
+				enableErrorMessagePrompt: false,
+				enableRequestUnion: true,
+				enableAuthorization: false,
+				...options,
+			},
 		)
 	},
 
@@ -95,10 +102,12 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 */
 	getUserOrganizations(headers?: Record<string, string>, deployCode?: string) {
 		const { clusterConfig } = configStore.cluster
-		const url = !isNil(deployCode) ? clusterConfig?.[deployCode]?.services?.keewoodAPI?.url : ""
+		const url =
+			(!isNil(deployCode) ? clusterConfig?.[deployCode]?.services?.keewoodAPI?.url : "") || ""
 
 		return fetch.get<User.UserOrganization[]>(url + genRequestUrl(RequestUrl.getUserAccounts), {
 			headers: headers ?? {},
+			enableRequestUnion: true,
 		})
 	},
 
@@ -122,6 +131,9 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		return fetch.post(
 			genRequestUrl(RequestUrl.getUsersVerificationCode),
 			shake({ type, phone }),
+			{
+				enableRequestUnion: true,
+			},
 		)
 	},
 
@@ -136,6 +148,9 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		return fetch.post(
 			genRequestUrl(RequestUrl.getUserVerificationCode),
 			shake({ type, phone, state_code }),
+			{
+				enableRequestUnion: true,
+			},
 		)
 	},
 

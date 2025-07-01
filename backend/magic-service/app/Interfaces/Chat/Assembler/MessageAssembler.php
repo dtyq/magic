@@ -14,8 +14,6 @@ use App\Domain\Chat\DTO\Message\ChatMessage\FilesMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\ImageConvertHighCardMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\ImagesMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\MarkdownMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\RecordingSummaryMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\RecordingSummaryStreamMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextFormMessage;
@@ -47,8 +45,6 @@ use App\Domain\Chat\DTO\Message\ControlMessage\TopicDeleteMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicUpdateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\UnknowControlMessage;
 use App\Domain\Chat\DTO\Message\MessageInterface;
-use App\Domain\Chat\DTO\Message\StreamMessage\StreamMessageStatus;
-use App\Domain\Chat\DTO\Message\StreamMessageInterface;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\ControlRequest;
 use App\Domain\Chat\DTO\Request\StreamRequest;
@@ -209,7 +205,6 @@ class MessageAssembler
             ChatMessageType::Image => new ImagesMessage($messageStructArray),
             ChatMessageType::Video => new VideosMessage($messageStructArray),
             ChatMessageType::Voice => new VoicesMessage($messageStructArray),
-            ChatMessageType::RecordingSummary => new RecordingSummaryMessage($messageStructArray),
             ChatMessageType::SuperAgentCard => make(SuperAgentMessageInterface::class, ['messageStruct' => $messageStructArray]),
             ChatMessageType::TextForm => new TextFormMessage($messageStructArray),
             default => new UnknowChatMessage()
@@ -250,16 +245,12 @@ class MessageAssembler
         };
     }
 
-    public static function getStreamMessageEntity(array $message): ?RecordingSummaryStreamMessage
+    public static function getStreamMessageEntity(array $message): ?array
     {
         if (empty($message)) {
             return null;
         }
-        $streamMessage = new RecordingSummaryStreamMessage($message);
-        if (isset($message['streamStatus']) && $streamMessage instanceof StreamMessageInterface) {
-            $streamMessage->getStreamOptions()?->setStatus(StreamMessageStatus::from($message['streamStatus']));
-        }
-        return $streamMessage;
+        return $message;
     }
 
     /**

@@ -216,7 +216,28 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $proxyPath = $this->buildProxyPath($sandboxId, $path);
             $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
-            $responseData = json_decode($response->getBody()->getContents(), true);
+            $body = $response->getBody()->getContents();
+            if (empty($body)) {
+                $this->logger->warning('[Sandbox][Gateway] Received empty response body from sandbox', [
+                    'sandbox_id' => $sandboxId,
+                    'method' => $method,
+                    'path' => $path,
+                ]);
+                return GatewayResult::error('Received empty response from sandbox');
+            }
+
+            if (! json_validate($body)) {
+                $this->logger->warning('[Sandbox][Gateway] Invalid JSON response from sandbox', [
+                    'sandbox_id' => $sandboxId,
+                    'method' => $method,
+                    'path' => $path,
+                    'raw_body' => $body,
+                ]);
+                return GatewayResult::error('Invalid JSON response from sandbox');
+            }
+
+            $responseData = json_decode($body, true);
+
             $result = GatewayResult::fromApiResponse($responseData);
 
             $this->logger->debug('[Sandbox][Gateway] Proxy request completed', [
@@ -245,6 +266,142 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'error' => $e->getMessage(),
             ]);
             return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+        }
+    }
+
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir = '.workspace'): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersions', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey, 'git_directory' => $gitDir]);
+    }
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+    }
+
+    /**
+     * 确保沙箱可用并代理请求.
+     */
+    public function ensureSandboxAndProxy(
+        string $sandboxId,
+        string $method,
+        string $path,
+        array $data = [],
+        array $headers = []
+    ): GatewayResult {
+        try {
+            // 1. 确保沙箱存在并且可用
+            $actualSandboxId = $this->ensureSandboxAvailable($sandboxId);
+            if (empty($actualSandboxId)) {
+                return GatewayResult::error('Failed to create or access sandbox');
+            }
+
+            // 2. 代理请求到沙箱
+            $result = $this->proxySandboxRequest($actualSandboxId, $method, $path, $data, $headers);
+
+            // 3. 在结果中包含实际使用的沙箱ID
+            if ($result->isSuccess()) {
+                $resultData = $result->getData();
+                $resultData['actual_sandbox_id'] = $actualSandboxId;
+                $result = GatewayResult::success($resultData, $result->getMessage());
+            }
+
+            return $result;
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Gateway] Error in ensureSandboxAndProxy', [
+                'sandbox_id' => $sandboxId,
+                'method' => $method,
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * 确保沙箱存在并且可用.
+     */
+    private function ensureSandboxAvailable(string $sandboxId): string
+    {
+        try {
+            // 如果沙箱ID不为空，先检查沙箱状态
+            if (! empty($sandboxId)) {
+                $statusResult = $this->getSandboxStatus($sandboxId);
+
+                // 如果沙箱存在且状态为运行中，直接返回
+                if ($statusResult->isSuccess()
+                    && $statusResult->getCode() === ResponseCode::SUCCESS
+                    && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                    $this->logger->debug('[Sandbox][Gateway] Sandbox is available, using existing sandbox', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+                    return $sandboxId;
+                }
+
+                // 记录需要创建新沙箱的原因
+                if ($statusResult->getCode() === ResponseCode::NOT_FOUND) {
+                    $this->logger->info('[Sandbox][Gateway] Sandbox not found, creating new sandbox', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+                } else {
+                    $this->logger->info('[Sandbox][Gateway] Sandbox status is not available, creating new sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'current_status' => $statusResult->getStatus(),
+                    ]);
+                }
+            } else {
+                $this->logger->info('[Sandbox][Gateway] Sandbox ID is empty, creating new sandbox');
+            }
+
+            $createResult = $this->createSandbox(['sandbox_id' => $sandboxId]);
+
+            if (! $createResult->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to create sandbox', [
+                    'requested_sandbox_id' => $sandboxId,
+                    'code' => $createResult->getCode(),
+                    'message' => $createResult->getMessage(),
+                ]);
+                return '';
+            }
+
+            $newSandboxId = $createResult->getDataValue('sandbox_id');
+
+            // 轮询等待沙箱进入 Running 状态
+            $maxRetries = 15; // 最多等待约30秒
+            $retryDelay = 2; // 每次间隔2秒
+
+            for ($i = 0; $i < $maxRetries; ++$i) {
+                $statusResult = $this->getSandboxStatus($newSandboxId);
+                if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                    $this->logger->info('[Sandbox][Gateway] Sandbox is now running', [
+                        'sandbox_id' => $newSandboxId,
+                        'attempts' => $i + 1,
+                    ]);
+                    return $newSandboxId;
+                }
+                $this->logger->info('[Sandbox][Gateway] Waiting for sandbox to become ready...', [
+                    'sandbox_id' => $newSandboxId,
+                    'current_status' => $statusResult->getStatus(),
+                    'attempt' => $i + 1,
+                ]);
+                sleep($retryDelay);
+            }
+
+            $this->logger->error('[Sandbox][Gateway] Timeout waiting for sandbox to become running', [
+                'sandbox_id' => $newSandboxId,
+            ]);
+
+            return ''; // 超时后返回空
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Gateway] Error ensuring sandbox availability', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return '';
         }
     }
 }

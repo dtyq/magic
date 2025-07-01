@@ -5,10 +5,10 @@ import type { User } from "@/types/user"
 export type LoginFormValuesMap = {
 	[Login.LoginType.SMSVerificationCode]: Login.SMSVerificationCodeFormValues
 	[Login.LoginType.MobilePhonePassword]: Login.MobilePhonePasswordFormValues
-	[Login.LoginType.DingTalkScanCode]: Login.DingtalkLoginsFormValues
-	[Login.LoginType.DingTalkAvoid]: Login.DingtalkLoginsFormValues
-	[Login.LoginType.LarkScanCode]: Login.DingtalkLoginsFormValues
-	[Login.LoginType.WecomScanCode]: Login.DingtalkLoginsFormValues
+	[Login.LoginType.DingTalkScanCode]: Login.ThirdPartyLoginsFormValues
+	[Login.LoginType.DingTalkAvoid]: Login.ThirdPartyLoginsFormValues
+	[Login.LoginType.LarkScanCode]: Login.ThirdPartyLoginsFormValues
+	[Login.LoginType.WecomScanCode]: Login.ThirdPartyLoginsFormValues
 	[Login.LoginType.WechatOfficialAccount]: Login.WechatOfficialAccountLoginsFormValues
 }
 

@@ -10,6 +10,7 @@ namespace App\Domain\Provider\Repository\Persistence;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderConfigQuery;
+use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Factory\ProviderConfigFactory;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
@@ -17,12 +18,17 @@ use App\Infrastructure\Core\ValueObject\Page;
 
 class ProviderConfigRepository extends ProviderAbstractRepository implements ProviderConfigRepositoryInterface
 {
-    public function getById(ProviderDataIsolation $dataIsolation, int $id): ?ProviderConfigEntity
+    public function getById(ProviderDataIsolation $dataIsolation, int $id, bool $checkProviderEnabled = true): ?ProviderConfigEntity
     {
         $builder = $this->createBuilder($dataIsolation, ProviderConfigModel::query());
 
+        $builder->where('id', $id);
+        if ($checkProviderEnabled) {
+            $builder->where('status', Status::Enabled->value);
+        }
+
         /** @var null|ProviderConfigModel $model */
-        $model = $builder->where('id', $id)->first();
+        $model = $builder->first();
 
         if (! $model) {
             return null;

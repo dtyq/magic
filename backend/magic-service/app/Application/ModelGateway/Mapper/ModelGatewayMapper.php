@@ -112,12 +112,10 @@ class ModelGatewayMapper extends ModelMapper
      */
     public function getOrganizationChatModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ModelInterface|OdinModel
     {
-        // 优先从管理后台获取模型配置
         $odinModel = $this->getByAdmin($model, $orgCode, $filter);
         if ($odinModel) {
             return $odinModel;
         }
-        // 最后一次尝试，从被预加载的模型中获取。注意，被预加载的模型是即将被废弃，后续需要迁移到管理后台
         return $this->getChatModel($model);
     }
 
@@ -457,14 +455,19 @@ class ModelGatewayMapper extends ModelMapper
         ProviderEntity $providerEntity,
         ?ModelFilter $filter = null
     ): ?OdinModel {
-        if ($providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations())) {
+        if (! $filter) {
+            $filter = new ModelFilter();
+        }
+        $checkVisibleOrganization = $filter->isCheckVisibleOrganization() ?? true;
+        $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
+
+        if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations(), true)) {
             return null;
         }
-        if ($filter) {
-            if ($filter->getAppId() && ! empty($providerModelEntity->getVisibleApplications()) && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
-                return null;
-            }
+        if ($checkVisibleApplication && $providerModelEntity->getVisibleApplications() && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
+            return null;
         }
+
         $chat = false;
         $functionCall = false;
         $multiModal = false;
@@ -514,27 +517,30 @@ class ModelGatewayMapper extends ModelMapper
 
     private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?OdinModel
     {
+        $checkModelEnabled = $filter?->isCheckModelEnabled() ?? true;
+        $checkProviderEnabled = $filter?->isCheckProviderEnabled() ?? true;
+
         $providerDataIsolation = ProviderDataIsolation::create($orgCode ?? '');
         $providerDataIsolation->setContainOfficialOrganization(true);
         if (is_null($orgCode)) {
             $providerDataIsolation->disabled();
         }
-        $providerModel = di(ProviderModelDomainService::class)->getByIdOrModelId($providerDataIsolation, $model);
+        $providerModel = di(ProviderModelDomainService::class)->getByIdOrModelId($providerDataIsolation, $model, $checkModelEnabled);
 
-        if (! $providerModel || ! $providerModel->getStatus()->isEnabled()) {
+        if (! $providerModel) {
             return null;
         }
         if (! in_array($providerModel->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
             if ($providerModel->getModelParentId() && $providerModel->getId() !== $providerModel->getModelParentId()) {
-                $providerModel = di(ProviderModelDomainService::class)->getById($providerDataIsolation, $providerModel->getModelParentId());
-                if (! $providerModel || ! $providerModel->getStatus()->isEnabled()) {
+                $providerModel = di(ProviderModelDomainService::class)->getById($providerDataIsolation, $providerModel->getModelParentId(), $checkModelEnabled);
+                if (! $providerModel) {
                     return null;
                 }
             }
         }
 
-        $providerConfig = di(ProviderConfigDomainService::class)->getById($providerDataIsolation, $providerModel->getProviderConfigId());
-        if (! $providerConfig || ! $providerConfig->getStatus()->isEnabled()) {
+        $providerConfig = di(ProviderConfigDomainService::class)->getById($providerDataIsolation, $providerModel->getProviderConfigId(), $checkProviderEnabled);
+        if (! $providerConfig) {
             return null;
         }
 

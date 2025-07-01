@@ -284,6 +284,114 @@ readonly class FileCleanupDomainService
     }
 
     /**
+     * Register file for cleanup.
+     *
+     * @param string $organizationCode organization code
+     * @param string $fileKey file storage key
+     * @param string $fileName file name
+     * @param int $fileSize file size
+     * @param string $sourceType source type
+     * @param null|string $sourceId source ID
+     * @param int $expireAfterSeconds expire time in seconds
+     * @param string $bucketType bucket type
+     * @return bool registration success
+     */
+    public function registerFileForCleanup(
+        string $organizationCode,
+        string $fileKey,
+        string $fileName,
+        int $fileSize,
+        string $sourceType,
+        ?string $sourceId = null,
+        int $expireAfterSeconds = 7200,
+        string $bucketType = 'private'
+    ): bool {
+        try {
+            // Parameter validation
+            if (empty($organizationCode) || empty($fileKey) || empty($fileName) || empty($sourceType)) {
+                $this->logger->error('File cleanup registration parameters incomplete', [
+                    'organization_code' => $organizationCode,
+                    'file_key' => $fileKey,
+                    'file_name' => $fileName,
+                    'source_type' => $sourceType,
+                ]);
+                return false;
+            }
+
+            if ($expireAfterSeconds <= 0) {
+                $this->logger->error('Expire time must be greater than 0', ['expire_after_seconds' => $expireAfterSeconds]);
+                return false;
+            }
+
+            // Check if same record already exists
+            $existingRecord = $this->repository->findByFileKey($fileKey, $organizationCode);
+            if ($existingRecord && $existingRecord->isPending()) {
+                $this->logger->warning('File cleanup record already exists', [
+                    'file_key' => $fileKey,
+                    'organization_code' => $organizationCode,
+                    'existing_id' => $existingRecord->getId(),
+                ]);
+                return true; // Already exists pending cleanup record, return success directly
+            }
+
+            // Create entity
+            $entity = new FileCleanupRecordEntity();
+            $entity->setOrganizationCode($organizationCode);
+            $entity->setFileKey($fileKey);
+            $entity->setFileName($fileName);
+            $entity->setFileSize($fileSize);
+            $entity->setBucketType($bucketType);
+            $entity->setSourceType($sourceType);
+            $entity->setSourceId($sourceId);
+            $entity->setExpireAt(date('Y-m-d H:i:s', time() + $expireAfterSeconds));
+            $entity->setStatus(0); // pending cleanup
+            $entity->setRetryCount(0);
+            $entity->setErrorMessage(null);
+
+            // Save to database
+            $this->repository->create($entity);
+
+            $this->logger->info('File cleanup registration successful', [
+                'id' => $entity->getId(),
+                'organization_code' => $organizationCode,
+                'file_key' => $fileKey,
+                'file_name' => $fileName,
+                'source_type' => $sourceType,
+                'expire_at' => $entity->getExpireAt(),
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->error('File cleanup registration failed', [
+                'organization_code' => $organizationCode,
+                'file_key' => $fileKey,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Get file cleanup record details.
+     *
+     * @param int $recordId record ID
+     * @return null|FileCleanupRecordEntity record details
+     */
+    public function getCleanupRecord(int $recordId): ?FileCleanupRecordEntity
+    {
+        try {
+            return $this->repository->findById($recordId);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to get cleanup record', [
+                'record_id' => $recordId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Get cleanup statistics.
      */
     public function getCleanupStats(?string $sourceType = null): array

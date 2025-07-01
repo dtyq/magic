@@ -2,41 +2,49 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon1.svg" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg?t=20250417" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+		<meta name="google" content="notranslate">
 		<title>麦吉 (Magic) - 灯塔引擎新一代企业级 AI 应用创新引擎</title>
 		<script src="/config.js"></script>
-		<!-- <script src="https://unpkg.com/react-scan/dist/auto.global.js"></script> -->
-		<!-- 钉钉控制台远程调试 -->
-		<script src="https://g.alicdn.com/code/npm/@ali/dingtalk-h5-remote-debug/0.1.3/index.js"></script>
 		<!-- 钉钉登录 -->
-		<script
-			type="text/javascript"
-			src="https://g.alicdn.com/dingding/h5-dingtalk-login/0.21.0/ddlogin.js"
-		></script>
-		<!-- 飞书 js sdk -->
-		<script
-			type="text/javascript"
-			src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.35.js"
-		></script>
-		<!-- 飞书二维码登录 -->
-		<script
-			type="text/javascript"
-			src="https://lf-package-cn.feishucdn.com/obj/feishu-static/lark/passport/qrcode/LarkSSOSDKWebQRCode-1.0.3.js"
-		></script>
-		<!--    <script src="https://cdn.jsdelivr.net/npm/darkmode-js@1.5.7/lib/darkmode-js.min.js"></script>-->
-		<!--    <script>-->
-		<!--        function addDarkmodeWidget() {-->
-		<!--            new Darkmode().showWidget();-->
-		<!--        }-->
-		<!--        window.addEventListener('load', addDarkmodeWidget);-->
-		<!--    </script>-->
-		<style>
-			.module-qrcode-area {
-				background: red;
+		<script src="https://g.alicdn.com/dingding/h5-dingtalk-login/0.21.0/ddlogin.js"></script>
+		<!-- 飞书登录 -->
+		<script src="https://lf-package-cn.feishucdn.com/obj/feishu-static/lark/passport/qrcode/LarkSSOSDKWebQRCode-1.0.3.js"></script>
+		<script>
+			// 环境判断和SDK按需加载
+			var userAgent = navigator.userAgent || '';
+			var isDingtalk = /dingtalk/.test(userAgent?.toLowerCase?.());
+			var isLark = /lark/.test(userAgent?.toLowerCase?.());
+			var isWeWork = /wxwork/.test(userAgent);
+
+			// 动态加载SDK的通用函数
+			function loadScript(src, onSuccess, onError) {
+				const script = document.createElement('script');
+				script.src = src;
+				script.onload = onSuccess || function() {};
+				script.onerror = onError || function() {
+					console.error('Failed to load script:', src);
+				};
+				document.head.appendChild(script);
 			}
-		</style>
-		<script src="/vconsole.min.js"></script>
+
+			if (isDingtalk) {
+				<!-- 钉钉 js sdk -->
+				loadScript('https://g.alicdn.com/dingding/dingtalk-jsapi/3.0.42/dingtalk.open.js',
+					function() { console.log('钉钉SDK加载成功'); },
+					function() { console.error('钉钉SDK加载失败'); }
+				);
+			}
+
+			if (isLark) {
+				<!-- 飞书 js sdk -->
+				loadScript('https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.35.js',
+					function() { console.log('飞书SDK加载成功'); },
+					function() { console.error('飞书SDK加载失败'); }
+				);
+			}
+		</script>
 		<script>
 			var url = new URL(window.location.href)
 			var searchParams = url.searchParams
@@ -45,7 +53,16 @@
 				sessionStorage.setItem("debug", "true")
 			}
 			if (searchParams.get("debug") === "true" || sessionStorage.getItem("debug")) {
-				new VConsole()
+				// 动态加载 vconsole.min.js
+				const script = document.createElement('script');
+				script.src = '/vconsole.min.js';
+				script.onload = function() {
+					new VConsole();
+				};
+				script.onerror = function() {
+					console.error("加载VConsole失败");
+				};
+				document.head.appendChild(script);
 			}
 		</script>
 	</head>

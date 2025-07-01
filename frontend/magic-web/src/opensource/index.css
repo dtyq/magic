@@ -1,11 +1,17 @@
+:root {
+	width: 100vw;
+	height: 100vh;
+	margin: 0;
+
+	/* scrollbar-gutter: stable; */
+	scroll-behavior: smooth;
+}
 
 html,
-body, #root, .magic-app {
-	width: 100%;
-	height: 100%;
-	overflow: hidden;
+body {
 	margin: 0;
 	padding: 0;
+	overflow: hidden;
 	-webkit-font-smoothing: antialiased;
 }
 

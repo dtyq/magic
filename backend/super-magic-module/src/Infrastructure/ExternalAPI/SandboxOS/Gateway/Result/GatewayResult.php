@@ -47,6 +47,11 @@ class GatewayResult
         $message = $response['message'] ?? 'Unknown error';
         $data = $response['data'] ?? [];
 
+        // 智能处理嵌套的JSON字符串
+        if (is_string($data) && json_validate($data)) {
+            $data = json_decode($data, true);
+        }
+
         return new self($code, $message, $data);
     }
 

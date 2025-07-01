@@ -23,6 +23,8 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
             'commit_hash' => $entity->getCommitHash(),
             'dir' => $entity->getDir(),
             'folder' => $entity->getFolder(),
+            'project_id' => $entity->getProjectId(),
+            'tag' => $entity->getTag(),
             'created_at' => $entity->getCreatedAt(),
             'updated_at' => $entity->getUpdatedAt(),
             'deleted_at' => $entity->getDeletedAt(),
@@ -64,6 +66,25 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         return $this->toEntity($model);
     }
 
+    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity
+    {
+        $model = WorkspaceVersionModel::query()->where('project_id', $projectId)->orderBy('tag', 'desc')->first();
+        if (! $model) {
+            return null;
+        }
+        return $this->toEntity($model);
+    }
+
+    public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int
+    {
+        $model = WorkspaceVersionModel::query()->where('commit_hash', $commitHash)->where('project_id', $projectId)->orderBy('tag', 'desc')->first();
+        if (! $model) {
+            return 0;
+        }
+        $entity = $this->toEntity($model);
+        return $entity->getTag();
+    }
+
     private function toEntity($model): WorkspaceVersionEntity
     {
         $entity = new WorkspaceVersionEntity();
@@ -76,6 +97,8 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         $entity->setCreatedAt($model->created_at ? (string) $model->created_at : null);
         $entity->setUpdatedAt($model->updated_at ? (string) $model->updated_at : null);
         $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
+        $entity->setProjectId((int) $model->project_id);
+        $entity->setTag((int) $model->tag);
         return $entity;
     }
 }

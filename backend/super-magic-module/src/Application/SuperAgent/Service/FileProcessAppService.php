@@ -69,6 +69,7 @@ class FileProcessAppService extends AbstractAppService
      * @param string $fileKey File key
      * @param DataIsolation $dataIsolation Data isolation object
      * @param array $fileData File data
+     * @param int $projectId Project ID
      * @param int $topicId Topic ID
      * @param int $taskId Task ID
      * @param string $fileType File type
@@ -78,6 +79,7 @@ class FileProcessAppService extends AbstractAppService
         string $fileKey,
         DataIsolation $dataIsolation,
         array $fileData,
+        int $projectId,
         int $topicId,
         int $taskId,
         string $fileType = TaskFileType::PROCESS->value
@@ -86,6 +88,7 @@ class FileProcessAppService extends AbstractAppService
             dataIsolation: $dataIsolation,
             fileKey: $fileKey,
             fileData: $fileData,
+            projectId: $projectId,
             topicId: $topicId,
             taskId: $taskId,
             fileType: $fileType,
@@ -177,6 +180,7 @@ class FileProcessAppService extends AbstractAppService
                         $completeAttachment['file_key'],
                         $dataIsolation,
                         $completeAttachment,
+                        $task->getProjectId(),
                         $task->getTopicId(),
                         (int) $task->getId(),
                         'user_upload'
@@ -334,6 +338,7 @@ class FileProcessAppService extends AbstractAppService
                             dataIsolation: $dataIsolation,
                             fileKey: $attachment['file_key'],
                             fileData: $attachment,
+                            projectId: $task->getProjectId(),
                             topicId: $topicId,
                             taskId: $task->getId(),
                             fileType: $attachment['file_type'] ?? 'system_auto_upload'
@@ -523,12 +528,21 @@ class FileProcessAppService extends AbstractAppService
         $versionEntity = new WorkspaceVersionEntity();
         $versionEntity->setId(IdGenerator::getSnowId());
         $versionEntity->setTopicId((int) $topic->getId());
+        $versionEntity->setProjectId($task->getProjectId());
         $versionEntity->setSandboxId($requestDTO->getSandboxId());
         $versionEntity->setCommitHash($requestDTO->getCommitHash());
         $versionEntity->setDir(json_encode($requestDTO->getDir()));
         $versionEntity->setFolder($requestDTO->getFolder());
         $versionEntity->setCreatedAt(date('Y-m-d H:i:s'));
         $versionEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        # 根据project_id 获取最新的一条tag，如果tag为0，则设置为1，否则设置为tag+1
+        $latestVersion = $this->workspaceDomainService->getLatestVersionByProjectId($versionEntity->getProjectId());
+        if ($latestVersion) {
+            $versionEntity->setTag($latestVersion->getTag() + 1);
+        } else {
+            $versionEntity->setTag(1);
+        }
 
         // Add Redis lock for topic_id to prevent concurrent modifications
         $lockKey = 'workspace_attachments_topic_lock:' . $topic->getId();
@@ -766,6 +780,7 @@ class FileProcessAppService extends AbstractAppService
      * @param string $fileKey File key
      * @param string $content File content
      * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $projectId Project ID
      * @param int $topicId Topic ID
      * @param int $taskId Task ID
      * @return int Returns file ID
@@ -776,6 +791,7 @@ class FileProcessAppService extends AbstractAppService
         string $fileKey,
         string $content,
         DataIsolation $dataIsolation,
+        int $projectId,
         int $topicId,
         int $taskId
     ): int {
@@ -831,6 +847,7 @@ class FileProcessAppService extends AbstractAppService
                 dataIsolation: $dataIsolation,
                 fileKey: $fullFileKey,
                 fileData: $fileData,
+                projectId: $projectId,
                 topicId: $topicId,
                 taskId: $taskId,
                 fileType: 'tool_message_content'
@@ -856,6 +873,25 @@ class FileProcessAppService extends AbstractAppService
             ));
             throw $e;
         }
+    }
+
+    public function getFileVersions(int $fileId): array
+    {
+        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        $gitDir = $this->getGitDir($taskFileEntity->getFileKey());
+        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
+
+        return [];
+        // return $this->fileDomainService->getFileVersionList($taskFileEntity->getFileKey());
+    }
+
+    public function getGitDir(string $fileKey): string
+    {
+        return '.workspace';
     }
 
     /**

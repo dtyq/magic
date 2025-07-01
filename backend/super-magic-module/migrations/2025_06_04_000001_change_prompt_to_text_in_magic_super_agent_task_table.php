@@ -28,4 +28,4 @@ return new class extends Migration {
             $table->string('prompt', 5000)->comment('用户的问题。')->change();
         });
     }
-}; 
+};

@@ -10,7 +10,7 @@ return [
     'concurrent_modification' => 'File concurrent modification conflict',
     'save_rate_limit' => 'File save rate limit exceeded',
     'upload_failed' => 'File upload failed',
-    
+
     // Batch download related
     'batch_file_ids_required' => 'File IDs are required',
     'batch_file_ids_invalid' => 'Invalid file ID format',
