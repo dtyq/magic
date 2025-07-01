@@ -62,9 +62,6 @@ enum ChatMessageType: string
     // AI文生图卡片
     case AIImageCard = 'ai_image_card';
 
-    // 录音纪要
-    case RecordingSummary = 'recording_summary';
-
     // 图片转高清
     case ImageConvertHighCard = 'image_convert_high_card';
 

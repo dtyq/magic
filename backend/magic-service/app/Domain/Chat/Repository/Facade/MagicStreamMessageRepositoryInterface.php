@@ -7,13 +7,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Repository\Facade;
 
-use App\Domain\Chat\DTO\Message\ChatMessage\RecordingSummaryStreamMessage;
-
 interface MagicStreamMessageRepositoryInterface
 {
     public function create(array $message): void;
 
-    public function getByAppMessageId(string $appMessageId): ?RecordingSummaryStreamMessage;
+    public function getByAppMessageId(string $appMessageId): ?array;
 
     public function updateById(string $id, array $message): void;
 

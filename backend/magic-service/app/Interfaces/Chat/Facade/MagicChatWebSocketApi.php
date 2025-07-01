@@ -11,12 +11,10 @@ use App\Application\Chat\Event\Publish\MessageDispatchPublisher;
 use App\Application\Chat\Event\Publish\MessagePushPublisher;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Chat\Service\MagicControlMessageAppService;
-use App\Application\Chat\Service\MagicRecordingSummaryAppService;
 use App\Domain\Chat\Annotation\VerifyStructure;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\Common\MagicContext;
 use App\Domain\Chat\DTO\Request\ControlRequest;
-use App\Domain\Chat\DTO\Request\StreamRequest;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessagePriority;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
@@ -74,7 +72,6 @@ class MagicChatWebSocketApi extends BaseNamespace
         private readonly Timer $timer,
         private readonly AuthManager $authManager,
         private readonly MagicControlMessageAppService $magicControlMessageAppService,
-        private readonly MagicRecordingSummaryAppService $magicStreamMessageAppService,
         private readonly TranslatorInterface $translator
     ) {
         $this->config->setPingTimeout(2000); // ping 超时
@@ -260,45 +257,13 @@ class MagicChatWebSocketApi extends BaseNamespace
     #[VerifyStructure]
     /**
      * 流式消息.
+     * 录音功能已移除，此方法返回功能不可用错误.
      * @throws Throwable
      */
     public function onStreamMessage(Socket $socket, array $params)
     {
-        // 判断消息类型,如果是控制消息,分发到对应的处理模块
-        try {
-            $appendRules = [
-                'data.conversation_id' => 'required|string',
-                'data.refer_message_id' => 'string',
-                'data.message' => 'required|array',
-                'data.message.type' => 'required|string',
-                'data.message.app_message_id' => 'required|string',
-            ];
-            $this->relationAppMsgIdAndRequestId($params['data']['message']['app_message_id'] ?? '');
-            $this->checkParams($appendRules, $params);
-            # 使用 magicChatContract 校验参数
-            $streamRequest = new StreamRequest($params);
-            // 兼容历史版本,从query中获取token
-            $userToken = $socket->getRequest()->getQueryParams()['authorization'] ?? '';
-            $this->magicStreamMessageAppService->setUserContext($userToken, $streamRequest->getContext());
-            // 根据消息类型,分发到对应的处理模块
-            $userAuthorization = $this->getAuthorization();
-            return $this->magicStreamMessageAppService->onStreamMessage($streamRequest, $userAuthorization);
-        } catch (BusinessException $businessException) {
-            throw $businessException;
-        } catch (Throwable $exception) {
-            $errMsg = [
-                'file' => $exception->getFile(),
-                'line' => $exception->getLine(),
-                'message' => $exception->getMessage(),
-                'code' => $exception->getCode(),
-                'trace' => $exception->getTraceAsString(),
-            ];
-            ExceptionBuilder::throw(
-                ChatErrorCode::OPERATION_FAILED,
-                Json::encode($errMsg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                throwable: $exception
-            );
-        }
+        $this->logger->info('Stream message request received but recording functionality has been removed');
+        ExceptionBuilder::throw(ChatErrorCode::OPERATION_FAILED, 'Recording functionality has been removed');
     }
 
     /**

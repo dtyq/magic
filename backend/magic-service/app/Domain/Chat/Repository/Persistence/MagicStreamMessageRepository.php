@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Repository\Persistence;
 
-use App\Domain\Chat\DTO\Message\ChatMessage\RecordingSummaryStreamMessage;
 use App\Domain\Chat\Repository\Facade\MagicStreamMessageRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\Model\MagicStreamMessageModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -26,7 +25,7 @@ class MagicStreamMessageRepository implements MagicStreamMessageRepositoryInterf
         $model->save();
     }
 
-    public function getByAppMessageId(string $appMessageId): ?RecordingSummaryStreamMessage
+    public function getByAppMessageId(string $appMessageId): ?array
     {
         $model = new MagicStreamMessageModel();
 
@@ -34,7 +33,7 @@ class MagicStreamMessageRepository implements MagicStreamMessageRepositoryInterf
         if ($message === null) {
             return null;
         }
-        return MessageAssembler::getStreamMessageEntity($message->toArray());
+        return $message->toArray();
     }
 
     public function updateById(string $id, array $message): void
