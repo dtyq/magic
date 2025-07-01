@@ -10,6 +10,7 @@ namespace App\Application\MCP\BuiltInMCP\SuperMagicChat;
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
 use App\Application\Permission\Service\OperationPermissionAppService;
+use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -65,10 +66,92 @@ class SuperMagicChatManager
         $userId = $decodedData['user_id'] ?? '';
         $flowDataIsolation = FlowDataIsolation::create($organizationCode, $userId);
 
-        $agents = [];
+        $agents = self::getAgents($flowDataIsolation, $decodedData['agent_ids'] ?? []);
         $tools = self::getTools($flowDataIsolation, $decodedData['tool_ids'] ?? []);
 
         return array_merge($tools, $agents);
+    }
+
+    /**
+     * @return array<RegisteredTool>
+     */
+    private static function getAgents(FlowDataIsolation $flowDataIsolation, array $agentIds): array
+    {
+        // 1. 查询所有可用 agent
+        $agents = di(MagicAgentDomainService::class)->getAgentByIds($agentIds);
+
+        // 如果没有可用的 agents，直接返回空数组
+        if (empty($agents)) {
+            return [];
+        }
+
+        $hasAgents = false;
+
+        // 2. 生成一份大模型调用工具可阅读的描述
+        $description = '调用麦吉 AI 助理进行对话。可用的 AI 助理列表：\n';
+        foreach ($agents as $agent) {
+            if (! $agent->isAvailable()) {
+                continue;
+            }
+            $description .= sprintf(
+                "- ID: %s | 名称: %s | 描述: %s\n",
+                $agent->getId(),
+                $agent->getAgentName(),
+                $agent->getAgentDescription() ?: '暂无描述'
+            );
+            $hasAgents = true;
+        }
+        $description .= '使用时请提供对应的 agent_id 和要发送的消息内容。';
+
+        if (! $hasAgents) {
+            return [];
+        }
+
+        $registeredAgent = new RegisteredTool(
+            tool: new Tool(
+                name: 'call_magic_agent',
+                inputSchema: [
+                    'type' => 'object',
+                    'properties' => [
+                        'agent_id' => [
+                            'type' => 'string',
+                            'description' => '要调用的 AI 助理 ID',
+                        ],
+                        'message' => [
+                            'type' => 'string',
+                            'description' => '发送给 AI 助理的消息内容',
+                        ],
+                        'conversation_id' => [
+                            'type' => 'string',
+                            'description' => '会话ID，用于记忆功能，相同会话ID的消息将具有共享的上下文',
+                        ],
+                    ],
+                    'required' => ['agent_id', 'message'],
+                    'additionalProperties' => false,
+                ],
+                description: $description,
+            ),
+            callable: function (array $arguments) use ($flowDataIsolation) {
+                $agentId = $arguments['agent_id'] ?? null;
+                if (! $agentId) {
+                    ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.required', ['label' => 'agent_id']);
+                }
+                $message = $arguments['message'] ?? null;
+                if (! $message) {
+                    ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.required', ['label' => 'message']);
+                }
+                $agent = di(MagicAgentDomainService::class)->getAgentById($agentId);
+                if (! $agent) {
+                    ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.not_found', ['label' => $agentId]);
+                }
+                $apiChatDTO = new MagicFlowApiChatDTO();
+                $apiChatDTO->setFlowCode($agent->getFlowCode());
+                $apiChatDTO->setMessage($message);
+                $apiChatDTO->setConversationId($arguments['conversation_id'] ?? '');
+                return di(MagicFlowExecuteAppService::class)->apiChatByMCPTool($flowDataIsolation, $apiChatDTO);
+            },
+        );
+        return [$registeredAgent];
     }
 
     /**
