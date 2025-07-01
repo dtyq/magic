@@ -19,8 +19,8 @@ use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextFormMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\UnknowChatMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\VideosMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\VoicesMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\VideoMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\AddFriendMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\ConversationEndInputMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\ConversationHideMessage;
@@ -203,8 +203,8 @@ class MessageAssembler
             ChatMessageType::ImageConvertHighCard => new ImageConvertHighCardMessage($messageStructArray),
             ChatMessageType::Files => new FilesMessage($messageStructArray),
             ChatMessageType::Image => new ImagesMessage($messageStructArray),
-            ChatMessageType::Video => new VideosMessage($messageStructArray),
-            ChatMessageType::Voice => new VoicesMessage($messageStructArray),
+            ChatMessageType::Video => new VideoMessage($messageStructArray),
+            ChatMessageType::Voice => new VoiceMessage($messageStructArray),
             ChatMessageType::SuperAgentCard => make(SuperAgentMessageInterface::class, ['messageStruct' => $messageStructArray]),
             ChatMessageType::TextForm => new TextFormMessage($messageStructArray),
             default => new UnknowChatMessage()
