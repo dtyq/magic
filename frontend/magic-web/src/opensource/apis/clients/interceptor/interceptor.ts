@@ -25,12 +25,10 @@ const enum HttpStatusCode {
 }
 
 const enum BusinessResponseCode {
-	/** Response successful */
+	/** 响应成功 */
 	Success = 1000,
-	/** Invalid organization */
+	/** 组织无效 */
 	InvalidOrganization = 40101,
-	/** Invalid authorization */
-	InvalidAuthorization = 3103,
 }
 
 /**
@@ -40,18 +38,31 @@ const enum BusinessResponseCode {
 export const genLoginRedirectUrl = () => {
 	const redirectUrl = new URL(RoutePath.Login, window.location.origin)
 	if (window.location.pathname !== RoutePath.Login) {
+		const redirectTarget = new URLSearchParams(window.location.search).get(
+			LoginValueKey.REDIRECT_URL,
+		)
+
 		// 获取当前页面地址
-		redirectUrl.searchParams.set(LoginValueKey.REDIRECT_URL, window.location.href)
+		redirectUrl.searchParams.set(
+			LoginValueKey.REDIRECT_URL,
+			redirectTarget ?? window.location.href,
+		)
 	}
 	return redirectUrl.toString()
 }
 
 /** 登录无效 */
 export function generateUnauthorizedResInterceptor(service: Container) {
-	return async (response: ResponseData) => {
-		if (response.status === HttpStatusCode.Unauthorized || response?.data?.code === BusinessResponseCode.InvalidAuthorization) {
+	return async function unauthorized(response: ResponseData) {
+		const { enableAuthorizationVerification = true } = response.options
+		if (
+			(enableAuthorizationVerification && response.status === HttpStatusCode.Unauthorized) ||
+			response?.data?.code === 3103
+		) {
 			await service.get<UserService>("userService").deleteAccount()
-			window.history.pushState({}, "", genLoginRedirectUrl())
+			if (window.location.pathname !== RoutePath.Login) {
+				window.history.pushState({}, "", genLoginRedirectUrl())
+			}
 			throw new Error("Unauthorized")
 		}
 		return response
@@ -60,8 +71,8 @@ export function generateUnauthorizedResInterceptor(service: Container) {
 
 /** 组织无效 */
 export function generateInvalidOrgResInterceptor(service: Container) {
-	return async (response: ResponseData) => {
-		const jsonResponse = await response.data
+	return async function invalidOr(response: ResponseData) {
+		const jsonResponse = response.data
 		if (jsonResponse?.code === BusinessResponseCode.InvalidOrganization) {
 			service
 				.get<UserService>("userService")
@@ -74,10 +85,10 @@ export function generateInvalidOrgResInterceptor(service: Container) {
 
 /** 成功响应 */
 export function generateSuccessResInterceptor() {
-	return async (response: ResponseData) => {
+	return async function success(response: ResponseData) {
 		const jsonResponse = response.data
 		if (jsonResponse?.code !== BusinessResponseCode.Success) {
-			if (response.options?.showErrorMessage && jsonResponse?.message) {
+			if (response.options?.enableErrorMessagePrompt && jsonResponse?.message) {
 				message.error(jsonResponse.message)
 			}
 			throw jsonResponse

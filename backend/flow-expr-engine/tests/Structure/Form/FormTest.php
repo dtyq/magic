@@ -945,6 +945,112 @@ JSON,
         $this->assertEquals($result, $form->getKeyValue(execExpression: false));
     }
 
+    public function testAppendConstValue2()
+    {
+        $form = $this->builder->build(json_decode(<<<'JSON'
+{
+    "type": "object",
+    "key": "root",
+    "sort": 0,
+    "title": null,
+    "description": null,
+    "required": [
+        "data"
+    ],
+    "value": null,
+    "encryption": false,
+    "encryption_value": null,
+    "items": null,
+    "properties": {
+        "data": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "title": "",
+                        "description": "",
+                        "value": null,
+                        "encryption": false,
+                        "properties": {}
+                    },
+                    "properties": {
+                        "0": {
+                            "type": "object",
+                            "title": "",
+                            "description": "",
+                            "value": null,
+                            "encryption": false,
+                            "properties": {
+                                "sku": {
+                                    "type": "string",
+                                    "title": "",
+                                    "description": "",
+                                    "value": null,
+                                    "encryption": false
+                                },
+                                "qty": {
+                                    "type": "string",
+                                    "title": "",
+                                    "description": "",
+                                    "value": null,
+                                    "encryption": false
+                                }
+                            },
+                            "required": [
+                                "sku",
+                                "qty"
+                            ]
+                        }
+                    },
+                    "title": "",
+                    "description": "",
+                    "value": null,
+                    "encryption": false,
+                    "required": [
+                        "0"
+                    ]
+                }
+            },
+            "required": [
+                "details"
+            ],
+            "title": "",
+            "description": "",
+            "value": null,
+            "encryption": false
+        }
+    }
+}
+JSON, true));
+        $data = [
+            'data' => [
+                'details' => [
+                    [
+                        'sku' => 'SKU123',
+                        'qty' => '123',
+                    ],
+                    [
+                        'sku' => 'SKU456',
+                        'qty' => '456',
+                    ],
+                    [
+                        'sku' => 'SKU789',
+                        'qty' => '789',
+                    ],
+                    [
+                        'sku' => 'SKU000',
+                        'qty' => '000',
+                    ],
+                ],
+            ],
+        ];
+        $form->appendConstValue($data);
+        $responseResult = $form->getKeyValue(check: true);
+        $this->assertEquals($data, $responseResult);
+    }
+
     public function testGetKeyValue()
     {
         $form = $this->builder->build($this->getFormJsonArray());

@@ -1,16 +1,22 @@
-import { pick } from "lodash-es"
+import { isFunction, pick } from "lodash-es"
 import { UrlUtils } from "../utils"
 
-/** 请求配置 */
+/** Request configuration */
 export interface RequestOptions {
-	/** 基础URL */
+	/** Base URL */
 	baseURL?: string
-	/** 请求URL */
+	/** Request URL Path */
 	url?: string
-	/** 是否解包数据 */
+	/** want to unpack the data */
 	unwrapData?: boolean
-	/** 是否显示错误信息 */
-	showErrorMessage?: boolean
+	/** Enable authorization request header */
+	enableAuthorization?: boolean
+	/** Whether to display error messages */
+	enableErrorMessagePrompt?: boolean
+	/** Enable authorization request verification (401 not submitted for verification) */
+	enableAuthorizationVerification?: boolean
+	/** Enable request deduplication */
+	enableRequestUnion?: boolean
 }
 
 /** 请求响应体 */
@@ -32,28 +38,31 @@ export type ErrorInterceptor = (error: any) => any
 export interface RequestConfig extends RequestOptions, RequestInit {}
 
 export class HttpClient {
-	private requestInterceptors: RequestInterceptor[] = []
+	private requestInterceptors: Record<string, RequestInterceptor> = {}
 
-	private responseInterceptors: ResponseInterceptor[] = []
+	private responseInterceptors: Record<string, ResponseInterceptor> = {}
 
-	private errorInterceptors: ErrorInterceptor[] = []
+	private errorInterceptors: Record<string, ErrorInterceptor> = {}
 
 	private baseURL: string
 
+	private controller: AbortController = new AbortController()
+
 	constructor(baseURL: string = "") {
 		this.baseURL = baseURL
+		this.controller = new AbortController()
 	}
 
 	public addRequestInterceptor(interceptor: RequestInterceptor): void {
-		this.requestInterceptors.push(interceptor)
+		this.requestInterceptors[interceptor?.name] = interceptor
 	}
 
 	public addResponseInterceptor(interceptor: ResponseInterceptor): void {
-		this.responseInterceptors.push(interceptor)
+		this.responseInterceptors[interceptor?.name] = interceptor
 	}
 
 	public addErrorInterceptor(interceptor: ErrorInterceptor): void {
-		this.errorInterceptors.push(interceptor)
+		this.errorInterceptors[interceptor?.name] = interceptor
 	}
 
 	public setBaseURL(baseURL: string): void {
@@ -61,34 +70,40 @@ export class HttpClient {
 	}
 
 	private getFullURL(url: string): string {
-		// 如果 url 已经是完整连接情况下直接返回
+		// If the URL is already fully connected, return directly
 		return UrlUtils.join(this.baseURL, url)
 	}
 
-	/** 运行请求拦截器 */
+	/** Run request interceptor */
 	private async runRequestInterceptors(config: RequestConfig): Promise<RequestConfig> {
-		return this.requestInterceptors.reduce(async (promiseConfig, interceptor) => {
-			const currentConfig = await promiseConfig
-			return interceptor(currentConfig)
-		}, Promise.resolve(config))
+		return Object.values(this.requestInterceptors)?.reduce(
+			async (promiseConfig, interceptor) => {
+				const currentConfig = await promiseConfig
+				return interceptor(currentConfig)
+			},
+			Promise.resolve(config),
+		)
 	}
 
-	/** 运行响应拦截器 */
-	private async runResponseInterceptors(response: Response, options: RequestOptions): Promise<any> {
-		// 首先克隆 response 对象以保留原始状态信息
+	/** Run response interceptor */
+	private async runResponseInterceptors(
+		response: Response,
+		options: RequestOptions,
+	): Promise<any> {
+		// First, clone the response object to preserve the original state information
 		const responseForStatus = response.clone()
 
-		// 解析 JSON 数据（只需执行一次）
+		// Parse JSON data (only needs to be executed once)
 		let jsonData
 		try {
 			jsonData = (await UrlUtils.responseParse(responseForStatus)).data
 		} catch (error) {
-			// 处理 JSON 解析错误
+			// Handling JSON parsing errors
 			console.error("Failed to parse response as JSON:", error)
 			throw error
 		}
 
-		// 将原始响应状态和解析后的数据一起传递给拦截器
+		// Pass the original response state and parsed data together to the interceptor
 		const initialValue: ResponseData = {
 			status: responseForStatus.status,
 			statusText: responseForStatus.statusText,
@@ -97,15 +112,18 @@ export class HttpClient {
 			options,
 		}
 
-		// 运行拦截器链
-		return this.responseInterceptors.reduce(async (promiseResult, interceptor) => {
-			const currentResult = await promiseResult
-			return interceptor(currentResult)
-		}, Promise.resolve(initialValue))
+		// Run interceptor chain
+		return Object.values(this.responseInterceptors).reduce(
+			async (promiseResult, interceptor) => {
+				const currentResult = await promiseResult
+				return interceptor(currentResult)
+			},
+			Promise.resolve(initialValue),
+		)
 	}
 
 	private async runErrorInterceptors(error: any): Promise<any> {
-		const finalError = await this.errorInterceptors.reduce(
+		const finalError = await Object.values(this.errorInterceptors).reduce(
 			async (promiseError, interceptor) => {
 				const currentError = await promiseError
 				return interceptor(currentError)
@@ -117,14 +135,17 @@ export class HttpClient {
 
 	public async request<T = any>(config: RequestConfig): Promise<T> {
 		try {
+			const options = this.genRequestOptions(config)
+
 			const { url, ...finalConfig } = await this.runRequestInterceptors({
 				...config,
+				...options,
+				signal: config?.signal || this.controller.signal,
 				url: this.getFullURL(config.url || ""),
 			})
 
-			const options = this.genRequestOptions(finalConfig)
-
 			const response = await fetch(url!, finalConfig)
+
 			return await this.runResponseInterceptors(response, options)
 		} catch (error) {
 			console.error("Request failed:", error)
@@ -140,8 +161,17 @@ export class HttpClient {
 	public genRequestOptions(config: RequestConfig): RequestOptions {
 		return {
 			unwrapData: true,
-			showErrorMessage: true,
-			...pick(config, ["url"]),
+			enableRequestUnion: false,
+			enableAuthorization: true,
+			enableErrorMessagePrompt: true,
+			enableAuthorizationVerification: true,
+			...pick(config, [
+				"unwrapData",
+				"enableRequestUnion",
+				"enableAuthorization",
+				"enableErrorMessagePrompt",
+				"enableAuthorizationVerification",
+			]),
 		}
 	}
 
@@ -151,10 +181,7 @@ export class HttpClient {
 	 * @param config 请求配置
 	 * @returns unwrapData 为 true 时，返回数据为 T，否则返回 ResponseData
 	 */
-	public async get<T = any>(
-		url: string,
-		config?: Omit<RequestConfig, "url">,
-	): Promise<T> {
+	public async get<T = any>(url: string, config?: Omit<RequestConfig, "url">): Promise<T> {
 		return this.request({
 			...config,
 			url,
@@ -199,5 +226,21 @@ export class HttpClient {
 			method: "DELETE",
 			body: JSON.stringify(data),
 		})
+	}
+
+	/**
+	 * @description 取消请求队列中的所有请求
+	 */
+	public async abort(callback?: () => Promise<void>): Promise<void> {
+		this.controller?.abort?.()
+		try {
+			if (isFunction(callback)) {
+				await callback?.()
+			}
+		} catch (error) {
+			console.error("abort fetch error", error)
+		} finally {
+			this.controller = new AbortController()
+		}
 	}
 }

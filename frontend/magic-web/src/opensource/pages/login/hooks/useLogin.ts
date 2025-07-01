@@ -56,7 +56,7 @@
 // 					case Login.LoginType.WecomScanCode:
 // 					case Login.LoginType.WechatOfficialAccount:
 // 						return UserService.thirdPartyLogins(
-// 							values as Login.DingtalkLoginsFormValues,
+// 							values as Login.ThirdPartyLoginsFormValues,
 // 						)
 // 					default:
 // 						throw new Error("缺少登录类型")
