@@ -291,11 +291,11 @@ class AgentAppService
      * 轮询工作区状态，直到初始化完成、失败或超时.
      *
      * @param string $sandboxId 沙箱ID
-     * @param int $timeoutSeconds 超时时间（秒），默认20分钟
+     * @param int $timeoutSeconds 超时时间（秒），默认10分钟
      * @param int $intervalSeconds 轮询间隔（秒），默认2秒
      * @throws SandboxOperationException 当初始化失败或超时时抛出异常
      */
-    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 1200, int $intervalSeconds = 2): void
+    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 600, int $intervalSeconds = 2): void
     {
         $this->logger->info('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
