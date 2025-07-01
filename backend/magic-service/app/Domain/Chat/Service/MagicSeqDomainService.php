@@ -338,12 +338,6 @@ class MagicSeqDomainService extends AbstractDomainService
 
         // 只有聊天消息和已读回执才触发flow
         $messageType = $messageEntity?->getMessageType();
-        $ignoreTypes = [
-            ChatMessageType::RecordingSummary,
-        ];
-        if (in_array($messageType, $ignoreTypes, true)) {
-            return;
-        }
         if ($messageType instanceof ChatMessageType || $seqEntity->canTriggerFlow()) {
             // 获取用户的真名
             $senderAccountEntity = $this->magicAccountRepository->getAccountInfoByMagicId($senderUserEntity->getMagicId());
