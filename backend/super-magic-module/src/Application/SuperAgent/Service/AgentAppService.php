@@ -17,17 +17,20 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Agent消息应用服务
@@ -51,16 +54,18 @@ class AgentAppService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $sandboxID): string
+    public function createSandbox(string $projectId, string $sandboxID): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
+            'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['sandbox_id' => $sandboxID]);
+        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
+                'project_id' => $projectId,
                 'sandbox_id' => $sandboxID,
                 'error' => $result->getMessage(),
                 'code' => $result->getCode(),
@@ -85,7 +90,7 @@ class AgentAppService
 
         $result = $this->gateway->getSandboxStatus($sandboxId);
 
-        if (! $result->isSuccess()) {
+        if (! $result->isSuccess() && $result->getCode() !== ResponseCode::NOT_FOUND) {
             $this->logger->error('[Sandbox][App] Failed to get sandbox status', [
                 'sandbox_id' => $sandboxId,
                 'error' => $result->getMessage(),
@@ -117,7 +122,7 @@ class AgentAppService
 
         $result = $this->gateway->getBatchSandboxStatus($sandboxIds);
 
-        if (! $result->isSuccess()) {
+        if (! $result->isSuccess() && $result->getCode() !== ResponseCode::NOT_FOUND) {
             $this->logger->error('[Sandbox][App] Failed to get batch sandbox status', [
                 'sandbox_ids' => $sandboxIds,
                 'error' => $result->getMessage(),
@@ -251,6 +256,112 @@ class AgentAppService
     }
 
     /**
+     * 获取工作区状态.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @return AgentResponse 工作区状态响应
+     */
+    public function getWorkspaceStatus(string $sandboxId): AgentResponse
+    {
+        $this->logger->debug('[Sandbox][App] Getting workspace status', [
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        $result = $this->agent->getWorkspaceStatus($sandboxId);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Failed to get workspace status', [
+                'sandbox_id' => $sandboxId,
+                'error' => $result->getMessage(),
+                'code' => $result->getCode(),
+            ]);
+            throw new SandboxOperationException('Get workspace status', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->debug('[Sandbox][App] Workspace status retrieved', [
+            'sandbox_id' => $sandboxId,
+            'status' => $result->getDataValue('status'),
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * 等待工作区就绪.
+     * 轮询工作区状态，直到初始化完成、失败或超时.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param int $timeoutSeconds 超时时间（秒），默认10分钟
+     * @param int $intervalSeconds 轮询间隔（秒），默认2秒
+     * @throws SandboxOperationException 当初始化失败或超时时抛出异常
+     */
+    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 600, int $intervalSeconds = 2): void
+    {
+        $this->logger->info('[Sandbox][App] Waiting for workspace to be ready', [
+            'sandbox_id' => $sandboxId,
+            'timeout_seconds' => $timeoutSeconds,
+            'interval_seconds' => $intervalSeconds,
+        ]);
+
+        $startTime = time();
+        $endTime = $startTime + $timeoutSeconds;
+
+        while (time() < $endTime) {
+            try {
+                $response = $this->getWorkspaceStatus($sandboxId);
+                $status = $response->getDataValue('status');
+
+                $this->logger->debug('[Sandbox][App] Workspace status check', [
+                    'sandbox_id' => $sandboxId,
+                    'status' => $status,
+                    'status_description' => WorkspaceStatus::getDescription($status),
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+
+                // 状态为就绪时退出
+                if (WorkspaceStatus::isReady($status)) {
+                    $this->logger->info('[Sandbox][App] Workspace is ready', [
+                        'sandbox_id' => $sandboxId,
+                        'elapsed_seconds' => time() - $startTime,
+                    ]);
+                    return;
+                }
+
+                // 状态为错误时抛出异常
+                if (WorkspaceStatus::isError($status)) {
+                    $this->logger->error('[Sandbox][App] Workspace initialization failed', [
+                        'sandbox_id' => $sandboxId,
+                        'status' => $status,
+                        'status_description' => WorkspaceStatus::getDescription($status),
+                        'elapsed_seconds' => time() - $startTime,
+                    ]);
+                    throw new SandboxOperationException('Wait for workspace ready', 'Workspace initialization failed with status: ' . WorkspaceStatus::getDescription($status), 3001);
+                }
+
+                // 等待下一次轮询
+                sleep($intervalSeconds);
+            } catch (SandboxOperationException $e) {
+                // 重新抛出沙箱操作异常
+                throw $e;
+            } catch (Throwable $e) {
+                $this->logger->error('[Sandbox][App] Error while checking workspace status', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+                throw new SandboxOperationException('Wait for workspace ready', 'Error checking workspace status: ' . $e->getMessage(), 3002);
+            }
+        }
+
+        // 超时
+        $this->logger->error('[Sandbox][App] Workspace ready timeout', [
+            'sandbox_id' => $sandboxId,
+            'timeout_seconds' => $timeoutSeconds,
+        ]);
+        throw new SandboxOperationException('Wait for workspace ready', 'Workspace ready timeout after ' . $timeoutSeconds . ' seconds', 3003);
+    }
+
+    /**
      * 构建初始化消息.
      */
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
@@ -282,6 +393,7 @@ class AgentAppService
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
+            'project_id' => (string) $taskContext->getTask()->getProjectId(),
             'type' => MessageType::Init->value,
             'upload_config' => $stsConfig,
             'message_subscription_config' => [
