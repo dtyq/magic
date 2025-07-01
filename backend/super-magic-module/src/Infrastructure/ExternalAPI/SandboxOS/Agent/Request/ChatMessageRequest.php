@@ -22,7 +22,7 @@ class ChatMessageRequest
         private string $prompt = '',
         private string $taskMode = 'chat',
         private array $attachments = [],
-        private array $mcpConfig = []
+        private array $mcpConfig = [],
     ) {
     }
 
