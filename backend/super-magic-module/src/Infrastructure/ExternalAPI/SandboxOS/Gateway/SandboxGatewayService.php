@@ -311,7 +311,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             }
 
             return $result;
-
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Error in ensureSandboxAndProxy', [
                 'sandbox_id' => $sandboxId,
@@ -324,7 +323,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
-     * 确保沙箱存在并且可用
+     * 确保沙箱存在并且可用.
      */
     private function ensureSandboxAvailable(string $sandboxId): string
     {
@@ -334,9 +333,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 $statusResult = $this->getSandboxStatus($sandboxId);
 
                 // 如果沙箱存在且状态为运行中，直接返回
-                if ($statusResult->isSuccess() &&
-                    $statusResult->getCode() === ResponseCode::SUCCESS &&
-                    SandboxStatus::isAvailable($statusResult->getStatus())) {
+                if ($statusResult->isSuccess()
+                    && $statusResult->getCode() === ResponseCode::SUCCESS
+                    && SandboxStatus::isAvailable($statusResult->getStatus())) {
                     $this->logger->debug('[Sandbox][Gateway] Sandbox is available, using existing sandbox', [
                         'sandbox_id' => $sandboxId,
                     ]);

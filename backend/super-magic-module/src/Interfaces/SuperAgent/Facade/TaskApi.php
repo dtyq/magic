@@ -152,7 +152,7 @@ class TaskApi extends AbstractApi
     {
         // 获取请求DTO
         $dto = ConvertFilesToPdfRequestDTO::fromRequest($this->request);
-        
+
         // 设置用户授权信息
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();

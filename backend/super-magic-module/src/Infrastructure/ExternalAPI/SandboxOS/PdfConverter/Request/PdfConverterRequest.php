@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\Request;
 
@@ -12,9 +15,13 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Contract\RequestInterfa
 class PdfConverterRequest implements RequestInterface
 {
     private array $fileKeys = [];
+
     private array $options = [];
+
     private string $outputFormat = 'zip';
+
     private bool $mergePdfs = false;
+
     private bool $isDebug = false;
 
     public function __construct(array $fileKeys, array $options = [])
@@ -50,4 +57,4 @@ class PdfConverterRequest implements RequestInterface
             'is_debug' => $this->isDebug,
         ];
     }
-} 
+}

@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
@@ -13,7 +16,9 @@ use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 class ConvertFilesToPdfRequestDTO
 {
     private array $fileIds;
+
     private array $options;
+
     private bool $isDebug;
 
     public function __construct(array $params)
@@ -43,7 +48,7 @@ class ConvertFilesToPdfRequestDTO
     {
         return $this->isDebug;
     }
-    
+
     /**
      * @throws BusinessException
      */
@@ -66,4 +71,4 @@ class ConvertFilesToPdfRequestDTO
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, $validator->errors()->first());
         }
     }
-} 
+}

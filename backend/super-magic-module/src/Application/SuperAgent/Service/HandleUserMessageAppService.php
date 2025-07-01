@@ -171,8 +171,7 @@ class HandleUserMessageAppService extends AbstractAppService
      */
     private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
     {
-        // $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
-        $currentTaskRunCount = 0;
+        $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
         AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount));
         $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));

@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter;
 
@@ -51,7 +54,6 @@ class PdfConverterService extends AbstractSandboxOS implements PdfConverterInter
             }
 
             return $response;
-
         } catch (Exception $e) {
             $this->logger->error('[PDF Converter] Unexpected error during conversion', [
                 'sandbox_id' => $sandboxId,
@@ -65,4 +67,4 @@ class PdfConverterService extends AbstractSandboxOS implements PdfConverterInter
             ]);
         }
     }
-} 
+}

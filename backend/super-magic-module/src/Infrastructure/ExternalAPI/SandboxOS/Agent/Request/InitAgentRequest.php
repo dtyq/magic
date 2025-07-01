@@ -68,7 +68,7 @@ class InitAgentRequest
         string $taskMode = 'plan',
         string $magicServiceHost = ''
     ): self {
-        return new self($messageId, $userId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $magicServiceHost);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $magicServiceHost);
     }
 
     /**

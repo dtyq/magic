@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
@@ -9,8 +12,11 @@ use Dtyq\ApiResponse\Response\AbstractResponse;
 class ConvertFilesToPdfResponseDTO extends AbstractResponse
 {
     public bool $success;
+
     public array $download_urls;
+
     public array $failed_files;
+
     public ?string $batch_id;
 
     public function __construct(bool $success, array $downloadUrls, array $failedFiles, ?string $batchId)
@@ -45,4 +51,4 @@ class ConvertFilesToPdfResponseDTO extends AbstractResponse
     {
         return $this->toArray();
     }
-} 
+}
