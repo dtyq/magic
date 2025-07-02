@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.348.2",
+            "version": "3.349.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "6acc8e4f8b7468e604d6f0442284937398c2959a"
+                "reference": "6bc013005c2c8df186abc823754deb1bb6c0f1ca"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6acc8e4f8b7468e604d6f0442284937398c2959a",
-                "reference": "6acc8e4f8b7468e604d6f0442284937398c2959a",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6bc013005c2c8df186abc823754deb1bb6c0f1ca",
+                "reference": "6bc013005c2c8df186abc823754deb1bb6c0f1ca",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.348.2"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.0"
             },
-            "time": "2025-06-30T18:12:03+00:00"
+            "time": "2025-07-01T18:04:21+00:00"
         },
         {
             "name": "brick/math",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.52",
+            "version": "0.0.53",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "c25f8e7ab571fc8adc6e1a51c60c9866c5e55456"
+                "reference": "11946e85886f38ca140b24ebedf6f4a25ce47e22"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c25f8e7ab571fc8adc6e1a51c60c9866c5e55456",
-                "reference": "c25f8e7ab571fc8adc6e1a51c60c9866c5e55456",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=11946e85886f38ca140b24ebedf6f4a25ce47e22",
+                "reference": "11946e85886f38ca140b24ebedf6f4a25ce47e22",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.52"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.53"
             },
-            "time": "2025-07-01T09:59:00+00:00"
+            "time": "2025-07-02T18:27:23+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -11988,16 +11988,16 @@
         },
         {
             "name": "stripe/stripe-php",
-            "version": "v17.3.0",
+            "version": "v17.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/stripe/stripe-php.git",
-                "reference": "cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c"
+                "reference": "893946057e43b145826b0dfd7f398673e381e2ae"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c",
-                "reference": "cfe8244f7e5f910b7fdb5c2cf77428c0acbb9f7c",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/893946057e43b145826b0dfd7f398673e381e2ae",
+                "reference": "893946057e43b145826b0dfd7f398673e381e2ae",
                 "shasum": ""
             },
             "require": {
@@ -12041,9 +12041,9 @@
             ],
             "support": {
                 "issues": "https://github.com/stripe/stripe-php/issues",
-                "source": "https://github.com/stripe/stripe-php/tree/v17.3.0"
+                "source": "https://github.com/stripe/stripe-php/tree/v17.4.0"
             },
-            "time": "2025-05-28T18:59:29+00:00"
+            "time": "2025-07-01T20:23:15+00:00"
         },
         {
             "name": "swow/swow",
