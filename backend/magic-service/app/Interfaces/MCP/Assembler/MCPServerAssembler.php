@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\MCP\Assembler;
 
 use App\Domain\MCP\Entity\MCPServerEntity;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
@@ -27,7 +28,17 @@ class MCPServerAssembler
         $DTO->setIcon(FileAssembler::getUrl($icons[$mcpServerEntity->getIcon()] ?? null));
         $DTO->setType($mcpServerEntity->getType()->value);
         $DTO->setEnabled($mcpServerEntity->isEnabled());
-        $DTO->setExternalSseUrl($mcpServerEntity->getExternalSseUrl());
+
+        $serviceConfig = $mcpServerEntity->getServiceConfig();
+
+        if ($serviceConfig instanceof ExternalSSEServiceConfig) {
+            // For backward compatibility, extract externalSseUrl from service_config
+            $DTO->setExternalSseUrl($serviceConfig->getUrl());
+        }
+
+        // Handle service_config - convert from ServiceConfigInterface to array
+        $DTO->setServiceConfig($serviceConfig->toArray());
+
         $DTO->setCreator($mcpServerEntity->getCreator());
         $DTO->setCreatedAt($mcpServerEntity->getCreatedAt());
         $DTO->setModifier($mcpServerEntity->getModifier());
@@ -55,7 +66,24 @@ class MCPServerAssembler
             $mcpServerEntity->setEnabled($mcpServerDTO->getEnabled());
         }
 
-        $mcpServerEntity->setExternalSseUrl($mcpServerDTO->getExternalSseUrl());
+        // Handle service_config with backward compatibility for externalSseUrl
+        if ($mcpServerDTO->getServiceConfig() !== null && $mcpServerDTO->getType()) {
+            // Use service_config from DTO
+            $mcpServerEntity->setServiceConfig($mcpServerDTO->getServiceConfig());
+        } elseif (! empty($mcpServerDTO->getExternalSseUrl()) && $mcpServerDTO->getType()) {
+            // For backward compatibility, create service_config from externalSseUrl
+            $serviceType = ServiceType::from($mcpServerDTO->getType());
+            if ($serviceType === ServiceType::ExternalSSE || $serviceType === ServiceType::ExternalStreamableHttp) {
+                $serviceConfigData = ['url' => $mcpServerDTO->getExternalSseUrl()];
+                $mcpServerEntity->setServiceConfig($serviceConfigData);
+            }
+        } else {
+            // Ensure we always have a serviceConfig
+            if ($mcpServerDTO->getType()) {
+                $serviceType = ServiceType::from($mcpServerDTO->getType());
+                $mcpServerEntity->setServiceConfig($serviceType->createServiceConfig([]));
+            }
+        }
 
         return $mcpServerEntity;
     }

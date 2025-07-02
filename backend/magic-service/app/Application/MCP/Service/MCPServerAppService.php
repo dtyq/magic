@@ -10,7 +10,7 @@ namespace App\Application\MCP\Service;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
-use App\Domain\MCP\Entity\ValueObject\ServiceType;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\ErrorCode\MCPErrorCode;
@@ -127,9 +127,12 @@ class MCPServerAppService extends AbstractMCPAppService
         if (! $entity) {
             ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
-        if ($entity->getType() !== ServiceType::ExternalSSE || empty($entity->getExternalSseUrl())) {
+        if (! $entity->getType()->canCheckStatus()) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.server.not_support_check_status', ['label' => $code]);
         }
+        /** @var ExternalSSEServiceConfig $serviceConfig */
+        $serviceConfig = $entity->getServiceConfig();
+        $externalSseUrl = $serviceConfig->getUrl();
 
         $tools = [];
         $error = '';
@@ -137,7 +140,7 @@ class MCPServerAppService extends AbstractMCPAppService
             $app = new Application(di());
             $client = new McpClient('magic-client', '1.0.0', $app);
             $session = $client->connect(ProtocolConstants::TRANSPORT_TYPE_HTTP, [
-                'base_url' => $entity->getExternalSseUrl(),
+                'base_url' => $externalSseUrl,
                 'timeout' => 15.0,
                 'sse_timeout' => 300.0,
                 'max_retries' => 1,
