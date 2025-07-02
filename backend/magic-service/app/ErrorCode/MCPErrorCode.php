@@ -36,4 +36,51 @@ enum MCPErrorCode: int
 
     #[ErrorMessage(message: 'mcp.tool.execute_failed')]
     case ToolExecuteFailed = 51523; // 工具执行失败
+
+    // OAuth2认证相关错误码
+    #[ErrorMessage(message: 'mcp.oauth2.authorization_url_generation_failed')]
+    case OAuth2AuthorizationUrlGenerationFailed = 51530; // OAuth2授权URL生成失败
+
+    #[ErrorMessage(message: 'mcp.oauth2.callback_handling_failed')]
+    case OAuth2CallbackHandlingFailed = 51531; // OAuth2回调处理失败
+
+    #[ErrorMessage(message: 'mcp.oauth2.token_refresh_failed')]
+    case OAuth2TokenRefreshFailed = 51532; // OAuth2令牌刷新失败
+
+    #[ErrorMessage(message: 'mcp.oauth2.invalid_response')]
+    case OAuth2InvalidResponse = 51533; // OAuth2提供商响应无效
+
+    #[ErrorMessage(message: 'mcp.oauth2.provider_error')]
+    case OAuth2ProviderError = 51534; // OAuth2提供商返回错误
+
+    #[ErrorMessage(message: 'mcp.oauth2.missing_access_token')]
+    case OAuth2MissingAccessToken = 51535; // OAuth2响应中缺少访问令牌
+
+    // OAuth2绑定验证相关错误码
+    #[ErrorMessage(message: 'mcp.oauth2.binding.code_empty')]
+    case OAuth2BindingCodeEmpty = 51540; // OAuth2绑定授权码为空
+
+    #[ErrorMessage(message: 'mcp.oauth2.binding.state_empty')]
+    case OAuth2BindingStateEmpty = 51541; // OAuth2绑定状态参数为空
+
+    #[ErrorMessage(message: 'mcp.oauth2.binding.mcp_server_code_empty')]
+    case OAuth2BindingMcpServerCodeEmpty = 51542; // OAuth2绑定MCP服务代码为空
+
+    // 必填字段验证相关错误码
+    #[ErrorMessage(message: 'mcp.required_fields.missing')]
+    case RequiredFieldsMissing = 51550; // 必填字段缺失
+
+    #[ErrorMessage(message: 'mcp.required_fields.empty')]
+    case RequiredFieldsEmpty = 51551; // 必填字段为空
+
+    // STDIO执行器相关错误码
+    #[ErrorMessage(message: 'mcp.executor.stdio.connection_failed')]
+    case ExecutorStdioConnectionFailed = 51560; // STDIO执行器连接失败
+
+    #[ErrorMessage(message: 'mcp.executor.stdio.access_denied')]
+    case ExecutorStdioAccessDenied = 51561; // STDIO执行器访问被拒绝
+
+    // HTTP执行器相关错误码
+    #[ErrorMessage(message: 'mcp.executor.http.connection_failed')]
+    case ExecutorHttpConnectionFailed = 51562; // HTTP执行器连接失败
 }

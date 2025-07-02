@@ -9,8 +9,12 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
+use App\Application\MCP\Utils\McpServerConfigUtil;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -43,6 +47,8 @@ class AgentAppService
 {
     private LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
@@ -52,6 +58,9 @@ class AgentAppService
         private readonly MagicUserInfoAppService $userInfoAppService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
+        if (container()->has(SupperMagicAgentMCPInterface::class)) {
+            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
+        }
     }
 
     /**
@@ -199,6 +208,12 @@ class AgentAppService
             $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
         }
 
+        $mcpDataIsolation = MCPDataIsolation::create(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId()
+        );
+        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation) ?? [];
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: (string) IdGenerator::getSnowId(),
@@ -209,6 +224,7 @@ class AgentAppService
             agentMode: $taskContext->getAgentMode(),
             attachments: $attachmentUrls,
             mentions: $mentionsJsonStruct,
+            mcpConfig: $mcpConfig,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);

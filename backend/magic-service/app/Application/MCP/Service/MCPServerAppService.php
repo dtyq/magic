@@ -7,19 +7,18 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\Service;
 
+use App\Application\MCP\Utils\MCPExecutor\MCPExecutorFactory;
+use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\MCP\Entity\MCPServerEntity;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
-use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
-use Dtyq\PhpMcp\Client\McpClient;
-use Dtyq\PhpMcp\Shared\Kernel\Application;
-use Dtyq\PhpMcp\Types\Core\ProtocolConstants;
 use Dtyq\PhpMcp\Types\Tools\Tool;
 use Qbhy\HyperfAuth\Authenticatable;
 use Throwable;
@@ -47,24 +46,29 @@ class MCPServerAppService extends AbstractMCPAppService
     /**
      * @return array{total: int, list: array<MCPServerEntity>, icons: array<string, FileLink>, users: array<string, MagicUserEntity>}
      */
-    public function queries(Authenticatable $authorization, MCPServerQuery $query, Page $page): array
+    public function queries(Authenticatable $authorization, MCPServerQuery $query, Page $page, bool $office = false): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
+        if ($office) {
+            $dataIsolation->setOnlyOfficialOrganization(true);
+        } else {
+            if (! $dataIsolation->isOfficialOrganization()) {
+                $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                    $dataIsolation,
+                    ResourceType::MCPServer,
+                    [$authorization->getId()]
+                )[$authorization->getId()] ?? [];
+                $resourceIds = array_keys($resources);
 
-        $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-            $dataIsolation,
-            ResourceType::MCPServer,
-            [$authorization->getId()]
-        )[$authorization->getId()] ?? [];
-        $resourceIds = array_keys($resources);
-
-        if (! empty($query->getCodes())) {
-            $resourceIds = array_intersect($resourceIds, $query->getCodes());
+                if (! empty($query->getCodes())) {
+                    $resourceIds = array_intersect($resourceIds, $query->getCodes());
+                }
+                $query->setCodes($resourceIds);
+            }
         }
 
-        $query->setCodes($resourceIds);
         $data = $this->mcpServerDomainService->queries(
-            $this->createMCPDataIsolation($authorization),
+            $dataIsolation,
             $query,
             $page
         );
@@ -72,7 +76,11 @@ class MCPServerAppService extends AbstractMCPAppService
         $userIds = [];
         foreach ($data['list'] ?? [] as $item) {
             $filePaths[] = $item->getIcon();
-            $operation = $resources[$item->getCode()] ?? Operation::None;
+            if ($dataIsolation->isOfficialOrganization()) {
+                $operation = Operation::Admin;
+            } else {
+                $operation = $resources[$item->getCode()] ?? Operation::None;
+            }
             $item->setUserOperation($operation->value);
             $userIds[] = $item->getCreator();
             $userIds[] = $item->getModifier();
@@ -80,6 +88,73 @@ class MCPServerAppService extends AbstractMCPAppService
         $data['icons'] = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $filePaths);
         $data['users'] = $this->getUsers($dataIsolation->getCurrentOrganizationCode(), $userIds);
         return $data;
+    }
+
+    /**
+     * @return array{total: int, list: array<MCPServerEntity>, icons: array<string, FileLink>}
+     */
+    public function availableQueries(Authenticatable|MCPDataIsolation $authorization, MCPServerQuery $query, Page $page, ?bool $office = null): array
+    {
+        if ($authorization instanceof MCPDataIsolation) {
+            $dataIsolation = $authorization;
+        } else {
+            $dataIsolation = $this->createMCPDataIsolation($authorization);
+        }
+
+        $resources = [];
+        if (is_null($office)) {
+            // 官方数据和组织内的，一并查询
+            $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                $dataIsolation,
+                ResourceType::MCPServer,
+                [$dataIsolation->getCurrentUserId()]
+            )[$dataIsolation->getCurrentUserId()] ?? [];
+            $resourceIds = array_keys($resources);
+            // 获取官方的 code
+            $officialCodes = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);
+            $resourceIds = array_merge($resourceIds, $officialCodes);
+        } else {
+            if ($office) {
+                // 只查官方数据
+                $resourceIds = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);
+            } else {
+                // 只查组织内数据
+                $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                    $dataIsolation,
+                    ResourceType::MCPServer,
+                    [$dataIsolation->getCurrentUserId()]
+                )[$dataIsolation->getCurrentUserId()] ?? [];
+                $resourceIds = array_keys($resources);
+            }
+        }
+        if (! empty($query->getCodes())) {
+            $resourceIds = array_intersect($resourceIds, $query->getCodes());
+        }
+        $query->setCodes($resourceIds);
+
+        $orgData = $this->mcpServerDomainService->queries($dataIsolation->disabled(), $query, $page);
+
+        $icons = [];
+        foreach ($orgData['list'] ?? [] as $item) {
+            if (in_array($item->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes(), true)) {
+                $item->setOffice(true);
+            }
+            $icons[$item->getIcon()] = $this->getFileLink($item->getOrganizationCode(), $item->getIcon());
+
+            $operation = Operation::None;
+            if (in_array($item->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes(), true)) {
+                // 如果是官方组织数据，并且当前组织所在的组织是官方组织，则设置操作权限为管理员
+                if ($dataIsolation->isOfficialOrganization()) {
+                    $operation = Operation::Admin;
+                }
+            } else {
+                $operation = $resources[$item->getCode()] ?? Operation::None;
+            }
+            $item->setUserOperation($operation->value);
+        }
+        $orgData['icons'] = $icons;
+
+        return $orgData;
     }
 
     public function save(Authenticatable $authorization, MCPServerEntity $entity): MCPServerEntity
@@ -127,24 +202,15 @@ class MCPServerAppService extends AbstractMCPAppService
         if (! $entity) {
             ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
-        if ($entity->getType() !== ServiceType::ExternalSSE || empty($entity->getExternalSseUrl())) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.server.not_support_check_status', ['label' => $code]);
-        }
 
         $tools = [];
         $error = '';
+        $success = true;
         try {
-            $app = new Application(di());
-            $client = new McpClient('magic-client', '1.0.0', $app);
-            $session = $client->connect(ProtocolConstants::TRANSPORT_TYPE_HTTP, [
-                'base_url' => $entity->getExternalSseUrl(),
-                'timeout' => 15.0,
-                'sse_timeout' => 300.0,
-                'max_retries' => 1,
-            ]);
-            $session->initialize();
-            $toolsResult = $session->listTools();
-            $status = 'success';
+            $mcpServerConfig = MCPServerConfigUtil::create($dataIsolation, $entity);
+            $executor = MCPExecutorFactory::createExecutor($dataIsolation, $entity);
+            $toolsResult = $executor->getListToolsResult($mcpServerConfig);
+
             $tools = array_map(function (Tool $tool) use ($code) {
                 return [
                     'mcp_server_code' => $code,
@@ -158,14 +224,25 @@ class MCPServerAppService extends AbstractMCPAppService
                         'latest_version_name' => '',
                     ],
                 ];
-            }, $toolsResult->getTools());
+            }, $toolsResult?->getTools() ?? []);
+
+            // 每次检测成功，都存下一次工具列表
+            $this->mcpUserSettingDomainService->updateAdditionalConfig(
+                $dataIsolation,
+                $code,
+                'history_check_tools',
+                [
+                    'tools' => $tools,
+                    'last_check_at' => date('Y-m-d H:i:s'),
+                ]
+            );
         } catch (Throwable $throwable) {
-            $status = 'error';
+            $success = false;
             $error = $throwable->getMessage();
         }
 
         return [
-            'success' => $status,
+            'success' => $success,
             'tools' => $tools,
             'error' => $error,
         ];

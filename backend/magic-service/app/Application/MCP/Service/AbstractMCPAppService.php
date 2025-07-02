@@ -13,15 +13,23 @@ use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\Domain\Flow\Service\MagicFlowVersionDomainService;
 use App\Domain\MCP\Service\MCPServerDomainService;
 use App\Domain\MCP\Service\MCPServerToolDomainService;
+use App\Domain\MCP\Service\MCPUserSettingDomainService;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 abstract class AbstractMCPAppService extends AbstractKernelAppService
 {
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected readonly MCPServerDomainService $mcpServerDomainService,
         protected readonly MCPServerToolDomainService $mcpServerToolDomainService,
         protected readonly MagicFlowDomainService $magicFlowDomainService,
         protected readonly MagicFlowVersionDomainService $magicFlowVersionDomainService,
         protected readonly OperationPermissionAppService $operationPermissionAppService,
+        protected readonly MCPUserSettingDomainService $mcpUserSettingDomainService,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 }

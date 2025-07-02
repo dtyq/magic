@@ -65,4 +65,10 @@ readonly class MCPServerDomainService
 
         return $this->mcpServerRepository->delete($dataIsolation, $code);
     }
+
+    public function getOfficialMCPServerCodes(MCPDataIsolation $dataIsolation): array
+    {
+        $dataIsolation->setOnlyOfficialOrganization(true);
+        return $this->mcpServerRepository->getOrgCodes($dataIsolation);
+    }
 }
