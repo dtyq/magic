@@ -189,6 +189,9 @@ class HandleUserMessageAppService extends AbstractAppService
         foreach ($topicEntities as $index => $topicEntityItem) {
             $sandboxIds[] = $topicEntityItem->getSandboxId();
         }
+        if (empty($sandboxIds)) {
+            return count($topicEntities);
+        }
         // Batch query status
         $updateSandboxIds = [];
         $result = $this->agentAppService->getBatchSandboxStatus($sandboxIds);

@@ -45,8 +45,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray = $this->prepareEntityForSave($serviceProviderModelsEntity, $isNew);
 
         if ($isNew) {
-            $snowId = IdGenerator::getSnowId();
-            $entityArray['model_parent_id'] = $snowId;
+            $entityArray['model_parent_id'] = 0;
             $this->serviceProviderModelsModel::query()->insert($entityArray);
             $serviceProviderModelsEntity->setId($entityArray['id']);
         } else {
@@ -534,10 +533,10 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 根据服务商配置IDs、modelId和激活状态查找对应的模型.
-     * @param array $configIds 服务商配置ID数组
-     * @param string $modelVersion 模型ID
-     * @return ServiceProviderModelsEntity[] 找到的激活模型数组
+     * find active models by config ids, model version and status.
+     * @param array $configIds provider config ids
+     * @param string $modelVersion model version
+     * @return ServiceProviderModelsEntity[] found active models
      */
     public function getActiveModelsByConfigIdsAndModelVersion(array $configIds, string $modelVersion): array
     {
@@ -549,7 +548,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->whereIn('service_provider_config_id', $configIds)
             ->where('model_version', $modelVersion)
             ->where('status', Status::ACTIVE->value)
-            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
+            ->orderBy('created_at', 'desc'); // order by created at desc
 
         return $this->executeQueryAndToEntities($query);
     }

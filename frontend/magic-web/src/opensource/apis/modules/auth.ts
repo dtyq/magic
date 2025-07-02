@@ -32,12 +32,12 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 * @description 登录后需要将 授权码 + authorization 在 magic service 进行绑定
 	 * @param {string} authorization 用户token
 	 * @param {string} authCode 登录授权码（私有化部署就有用，非私有化传空字符串）
-	 * @param {string} teamshareOrganizationCode 第一次创建组织时，返回的 Teamshare组织code，后端同步用户账号信息
+	 * @param {string} thirdPlatformOrganizationCode 第一次创建组织时，返回的 第三方平台组织code，后端同步用户账号信息
 	 */
 	bindMagicAuthorization(
 		authorization: string,
 		authCode: string,
-		teamshareOrganizationCode?: string,
+		thirdPlatformOrganizationCode?: string,
 	) {
 		return fetch.get<Array<User.MagicOrganization>>(
 			genRequestUrl(
@@ -51,9 +51,10 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 			{
 				headers: {
 					authorization,
-					["Organization-Code"]: teamshareOrganizationCode || "",
+					["Organization-Code"]: thirdPlatformOrganizationCode || "",
 				},
-				showErrorMessage: false,
+				enableErrorMessagePrompt: false,
+				enableRequestUnion: true,
 			},
 		)
 	},
@@ -63,9 +64,11 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 */
 	getAccountDeployCode() {
 		if (!isCommercial()) {
-			return { login_code: "", teamshare_login_code: "" }
+			return { login_code: "" }
 		}
-		return fetch.get<{ login_code: string, teamshare_login_code?: string }>(genRequestUrl(RequestUrl.getDeploymentCode))
+		return fetch.get<{ login_code: string }>(genRequestUrl(RequestUrl.getDeploymentCode), {
+			enableRequestUnion: true,
+		})
 	},
 
 	/**
@@ -83,6 +86,9 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 			genRequestUrl(RequestUrl.tempTokenToUserToken, {
 				tempToken,
 			}),
+			{
+				enableRequestUnion: true,
+			},
 		)
 	},
 
@@ -91,6 +97,8 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 * @returns {Promise<User.UserInfo>}
 	 */
 	getAdminPermission() {
-		return fetch.get<{ is_admin: boolean }>(genRequestUrl(RequestUrl.getAdminPermission))
+		return fetch.get<{ is_admin: boolean }>(genRequestUrl(RequestUrl.getAdminPermission), {
+			enableRequestUnion: true,
+		})
 	},
 })

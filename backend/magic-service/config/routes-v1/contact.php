@@ -8,6 +8,7 @@ use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Chat\Facade\MagicChatAdminContactApi;
 use App\Interfaces\Chat\Facade\MagicChatHttpApi;
 use App\Interfaces\Chat\Facade\MagicChatUserApi;
+use App\Interfaces\Contact\Facade\MagicUserSettingApi;
 use Hyperf\HttpServer\Router\Router;
 
 // Account-related routes (independent of RequestContextMiddleware to support cross-organization queries)
@@ -28,6 +29,13 @@ Router::addGroup('/api/v1/contact', static function () {
         Router::get('/search', [MagicChatAdminContactApi::class, 'searchForSelect']);
         // 设置隐藏用户
         Router::put('/visibility', [MagicChatAdminContactApi::class, 'updateUsersOptionByIds']);
+
+        // 用户设置相关
+        Router::addGroup('/setting', static function () {
+            Router::post('', [MagicUserSettingApi::class, 'save']);
+            Router::get('/{key}', [MagicUserSettingApi::class, 'get']);
+            Router::post('/queries', [MagicUserSettingApi::class, 'queries']);
+        });
     });
 
     // 部门相关
