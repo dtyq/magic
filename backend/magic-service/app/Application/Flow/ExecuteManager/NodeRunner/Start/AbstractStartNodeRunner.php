@@ -13,8 +13,10 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\Memory\LLMMemoryMessage;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
 use App\Domain\Chat\DTO\Message\ChatMessage\AIImageCardMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
+use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\MagicFlowMessage;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\StartNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\Branch;
@@ -23,7 +25,9 @@ use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Tiptap\TiptapUtil;
 use Carbon\Carbon;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Odin\Message\Role;
+use Throwable;
 
 abstract class AbstractStartNodeRunner extends NodeRunner
 {
@@ -74,11 +78,11 @@ abstract class AbstractStartNodeRunner extends NodeRunner
             'topic_id' => $executionData->getTopicIdString(),
         ];
 
-        // 获取上次打开触发的时间
+        // Get the last time the opening was triggered
         $key = 'open_chat_notice_' . $executionData->getConversationId();
         $lastNoticeTime = $this->cache->get($key);
 
-        // 如果没有上次，或者距离上次的时间秒已经超过了，那么就需要执行
+        // If there is no last time, or the seconds since the last time have exceeded, then it needs to be executed
         $config = $triggerBranch->getConfig();
         $intervalSeconds = $this->getIntervalSeconds($config['interval'] ?? 0, $config['unit'] ?? '');
         if (! $lastNoticeTime || (Carbon::make($openChatTime)->diffInSeconds(Carbon::make($lastNoticeTime)) > $intervalSeconds)) {
@@ -115,12 +119,12 @@ abstract class AbstractStartNodeRunner extends NodeRunner
             $result = $outputForm->getKeyValue(check: true);
         }
 
-        // 增加系统输出
+        // Add system output
         $systemOutputResult = $this->getChatMessageResult($executionData);
         $executionData->saveNodeContext($this->node->getSystemNodeId(), $systemOutputResult);
         $vertexResult->addDebugLog('system_response', $executionData->getNodeContext($this->node->getSystemNodeId()));
 
-        // 增加自定义的系统输出
+        // Add custom system output
         $customSystemOutput = $triggerBranch->getCustomSystemOutput()?->getFormComponent()?->getForm();
         if ($customSystemOutput) {
             $customSystemOutput->appendConstValue($executionData->getTriggerData()->getSystemParams());
@@ -134,10 +138,10 @@ abstract class AbstractStartNodeRunner extends NodeRunner
 
     protected function routine(VertexResult $vertexResult, ExecutionData $executionData, StartNodeParamsConfig $startNodeParamsConfig): array
     {
-        // 定时入参，都由外部调用，判断是哪个分支
+        // Scheduled parameters, all called externally, determine which branch
         $branchId = $executionData->getTriggerData()->getParams()['branch_id'] ?? '';
         if (empty($branchId)) {
-            // 没有找到任何分支，直接运行
+            // No branch found, run directly
             $vertexResult->setChildrenIds([]);
             return [];
         }
@@ -162,14 +166,14 @@ abstract class AbstractStartNodeRunner extends NodeRunner
 
     private function getChatMessageResult(ExecutionData $executionData): array
     {
-        // 处理成目前的参数格式
+        // Process into current parameter format
         $userEntity = $executionData->getTriggerData()->getUserEntity();
         $messageEntity = $executionData->getTriggerData()->getMessageEntity();
 
-        // 处理附件
+        // Process attachments
         $this->appendAttachments($executionData, $messageEntity);
 
-        // 其他类型的消息待补充
+        // Other types of messages to be supplemented
         switch ($messageEntity->getMessageType()) {
             case ChatMessageType::Text:
             case ChatMessageType::Markdown:
@@ -187,8 +191,10 @@ abstract class AbstractStartNodeRunner extends NodeRunner
             case ChatMessageType::Image:
             case ChatMessageType::Video:
             case ChatMessageType::Attachment:
-            case ChatMessageType::Voice:
                 $content = '';
+                break;
+            case ChatMessageType::Voice:
+                $content = $this->handleVoiceMessage($messageEntity, $executionData);
                 break;
             case ChatMessageType::AIImageCard:
                 /** @var AIImageCardMessage $messageContent */
@@ -227,6 +233,70 @@ abstract class AbstractStartNodeRunner extends NodeRunner
         $attachments = AttachmentUtil::getByMagicMessageEntity($messageEntity);
         foreach ($attachments as $attachment) {
             $executionData->getTriggerData()->addAttachment($attachment);
+        }
+    }
+
+    /**
+     * Handle voice messages with timing and update logic.
+     */
+    private function handleVoiceMessage(MagicMessageEntity $messageEntity, ExecutionData $executionData): string
+    {
+        $messageContent = $messageEntity->getContent();
+
+        // Ensure it's a VoiceMessage instance
+        if (! $messageContent instanceof VoiceMessage) {
+            return '';
+        }
+
+        // Set magicMessageId for subsequent updates
+        $messageContent->setMagicMessageId($messageEntity->getMagicMessageId());
+
+        // Record start time
+        $startTime = microtime(true);
+
+        // Call getTextContent to get voice-to-text content
+        $textContent = $messageContent->getTextContent();
+
+        // Calculate duration
+        $endTime = microtime(true);
+        $duration = $endTime - $startTime;
+
+        // If duration is greater than 1 second, update message content to database
+        if ($duration > 1.0) {
+            $this->updateVoiceMessageContent($messageEntity->getMagicMessageId(), $messageContent);
+        }
+
+        // Clear audio attachments as they have been converted to text content
+        $executionData->getTriggerData()->setAttachments([]);
+
+        return $textContent;
+    }
+
+    /**
+     * Update voice message content to database.
+     */
+    private function updateVoiceMessageContent(string $magicMessageId, VoiceMessage $voiceMessage): void
+    {
+        try {
+            $container = ApplicationContext::getContainer();
+            $messageRepository = $container->get(MagicMessageRepositoryInterface::class);
+
+            // Convert VoiceMessage to array format for update
+            $messageContent = $voiceMessage->toArray();
+
+            $messageRepository->updateMessageContent($magicMessageId, $messageContent);
+
+            $this->logger->info('Voice message content updated successfully', [
+                'magic_message_id' => $magicMessageId,
+                'has_transcription' => $voiceMessage->hasTranscription(),
+                'transcription_length' => strlen($voiceMessage->getTranscriptionText() ?? ''),
+            ]);
+        } catch (Throwable $e) {
+            // Silently handle update failure, does not affect main process
+            $this->logger->warning('Failed to update voice message content', [
+                'magic_message_id' => $magicMessageId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }
