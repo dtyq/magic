@@ -14,10 +14,12 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\Memory\LLMMemoryMessage;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
 use App\Domain\Chat\DTO\Message\ChatMessage\Item\InstructionConfig;
+use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\ValueObject\InstructionType;
+use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\MagicFlowMessage;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\Branch;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\TriggerType;
@@ -26,7 +28,9 @@ use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Carbon\Carbon;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Odin\Message\Role;
+use Throwable;
 
 abstract class AbstractStartNodeRunner extends NodeRunner
 {
@@ -190,22 +194,22 @@ abstract class AbstractStartNodeRunner extends NodeRunner
 
     private function getChatMessageResult(ExecutionData $executionData): array
     {
-        // 处理成目前的参数格式
+        // Process into current parameter format
         $userEntity = $executionData->getTriggerData()->getUserEntity();
         $accountEntity = $executionData->getTriggerData()->getAccountEntity();
         $messageEntity = $executionData->getTriggerData()->getMessageEntity();
 
-        // 处理附件
+        // Process attachments
         $this->appendAttachments($executionData, $messageEntity);
 
-        // 处理流程指令
+        // Process flow instructions
         $this->appendInstructions($executionData, $messageEntity);
 
         $content = '';
         if (in_array($executionData->getTriggerType(), [TriggerType::ChatMessage, TriggerType::WaitMessage, TriggerType::ParamCall])) {
             $messageContent = $messageEntity->getContent();
             if ($messageContent instanceof TextContentInterface) {
-                $content = $messageContent->getTextContent();
+                $content = $this->getTextContentWithTiming($messageContent, $messageEntity, $executionData);
             }
             $content = trim($content);
             if ($content === '' && ! empty($messageContent->toArray()) && $executionData->getTriggerType() === TriggerType::ChatMessage) {
@@ -295,5 +299,76 @@ abstract class AbstractStartNodeRunner extends NodeRunner
         }
 
         return $result;
+    }
+
+    /**
+     * Get text content with timing and update processing for voice messages.
+     */
+    private function getTextContentWithTiming(TextContentInterface $messageContent, MagicMessageEntity $messageEntity, ExecutionData $executionData): string
+    {
+        // If it's a voice message, perform special processing
+        if ($messageContent instanceof VoiceMessage) {
+            return $this->handleVoiceMessage($messageContent, $messageEntity, $executionData);
+        }
+
+        // For other types of messages, directly call getTextContent
+        return $messageContent->getTextContent();
+    }
+
+    /**
+     * Handle voice messages with timing and update logic.
+     */
+    private function handleVoiceMessage(VoiceMessage $voiceMessage, MagicMessageEntity $messageEntity, ExecutionData $executionData): string
+    {
+        // Set magicMessageId for subsequent updates
+        $voiceMessage->setMagicMessageId($messageEntity->getMagicMessageId());
+
+        // Record start time
+        $startTime = microtime(true);
+
+        // Call getTextContent to get voice-to-text content
+        $textContent = $voiceMessage->getTextContent();
+
+        // Calculate duration
+        $endTime = microtime(true);
+        $duration = $endTime - $startTime;
+
+        // If duration is greater than 1 second, update message content to database
+        if ($duration > 1.0) {
+            $this->updateVoiceMessageContent($messageEntity->getMagicMessageId(), $voiceMessage);
+        }
+
+        // Clear audio attachments as they have been converted to text content
+        $executionData->getTriggerData()->setAttachments([]);
+
+        return $textContent;
+    }
+
+    /**
+     * Update voice message content to database.
+     */
+    private function updateVoiceMessageContent(string $magicMessageId, VoiceMessage $voiceMessage): void
+    {
+        try {
+            $container = ApplicationContext::getContainer();
+            $messageRepository = $container->get(MagicMessageRepositoryInterface::class);
+
+            // 将 VoiceMessage 转换为数组格式用于更新
+            $messageContent = $voiceMessage->toArray();
+
+            $messageRepository->updateMessageContent($magicMessageId, $messageContent);
+
+            $this->logger->info('Voice message content updated successfully (V1)', [
+                'magic_message_id' => $magicMessageId,
+                'has_transcription' => $voiceMessage->hasTranscription(),
+                'transcription_length' => strlen($voiceMessage->getTranscriptionText() ?? ''),
+            ]);
+        } catch (Throwable $e) {
+            // 静默处理更新失败，不影响主要流程
+            $this->logger->warning('Failed to update voice message content (V1)', [
+                'magic_message_id' => $magicMessageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
