@@ -7,90 +7,120 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\ChatMessage;
 
+use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
-use App\Domain\Chat\Entity\ValueObject\VoiceTranscription;
+use App\Domain\Chat\Repository\Facade\MagicChatFileRepositoryInterface;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\SpeechAudioDTO;
+use App\Domain\Speech\Entity\Dto\SpeechUserDTO;
+use App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition\VolcengineStandardClient;
+use Hyperf\Context\ApplicationContext;
+use Throwable;
 
-class VoiceMessage extends FileMessage
+class VoiceMessage extends FileMessage implements TextContentInterface
 {
     /**
-     * 语音转文字结果.
+     * Speech to text result.
      */
-    protected ?VoiceTranscription $transcription;
+    protected ?string $transcriptionText = null;
 
     /**
-     * 语音时长（秒）.
+     * Voice duration (seconds).
      */
-    protected ?int $duration;
+    protected ?int $duration = null;
 
     /**
-     * 获取语音转文字结果.
+     * Transcription timestamp.
      */
-    public function getTranscription(): ?VoiceTranscription
+    protected ?int $transcribedAt = null;
+
+    /**
+     * Transcription error message.
+     */
+    protected ?string $transcriptionError = null;
+
+    /**
+     * Message ID (used for updating message content).
+     */
+    protected ?string $magicMessageId = null;
+
+    public function __construct(array $data = [])
     {
-        return $this->transcription ?? null;
+        parent::__construct($data);
+
+        // Initialize transcription related fields
+        if (isset($data['transcription_text'])) {
+            $this->transcriptionText = $data['transcription_text'];
+        }
+        if (isset($data['transcribed_at'])) {
+            $this->transcribedAt = $data['transcribed_at'];
+        }
+        if (isset($data['transcription_error'])) {
+            $this->transcriptionError = $data['transcription_error'];
+        }
+        if (isset($data['duration'])) {
+            $this->duration = $data['duration'];
+        }
+        if (isset($data['magic_message_id'])) {
+            $this->magicMessageId = $data['magic_message_id'];
+        }
     }
 
     /**
-     * 设置语音转文字结果.
+     * Get transcription text.
      */
-    public function setTranscription(null|array|VoiceTranscription $transcription): self
+    public function getTranscriptionText(): ?string
     {
-        if ($transcription instanceof VoiceTranscription) {
-            $this->transcription = $transcription;
-        } elseif (is_array($transcription)) {
-            $this->transcription = VoiceTranscription::fromArray($transcription);
-        } else {
-            $this->transcription = null;
-        }
+        return $this->transcriptionText;
+    }
+
+    /**
+     * Set transcription text.
+     */
+    public function setTranscriptionText(?string $text): self
+    {
+        $this->transcriptionText = $text;
+        $this->transcribedAt = $text ? time() : null;
+        $this->transcriptionError = null; // Clear error message
         return $this;
     }
 
     /**
-     * 检查是否有转录结果.
+     * Check if transcription result exists.
      */
     public function hasTranscription(): bool
     {
-        return $this->transcription !== null && ! $this->transcription->isEmpty();
+        return ! empty($this->transcriptionText);
     }
 
     /**
-     * 获取指定语言的转录文本.
+     * Get transcription error message.
      */
-    public function getTranscriptionText(string $language): ?string
+    public function getTranscriptionError(): ?string
     {
-        return $this->transcription?->getTranscription($language);
+        return $this->transcriptionError;
     }
 
     /**
-     * 获取主要语言的转录文本.
+     * Set transcription error message.
      */
-    public function getPrimaryTranscriptionText(): ?string
+    public function setTranscriptionError(?string $error): self
     {
-        return $this->transcription?->getPrimaryTranscription();
-    }
-
-    /**
-     * 添加转录结果.
-     */
-    public function addTranscription(string $language, string $text): self
-    {
-        if ($this->transcription === null) {
-            $this->transcription = new VoiceTranscription();
-        }
-        $this->transcription->addTranscription($language, $text);
+        $this->transcriptionError = $error;
         return $this;
     }
 
     /**
-     * 获取转录错误信息.
+     * Get transcription timestamp.
      */
-    public function getTranscriptionError(): ?string
+    public function getTranscribedAt(): ?int
     {
-        return $this->transcription?->getErrorMessage();
+        return $this->transcribedAt;
     }
 
     /**
-     * 获取语音时长
+     * Get voice duration.
      */
     public function getDuration(): ?int
     {
@@ -98,7 +128,7 @@ class VoiceMessage extends FileMessage
     }
 
     /**
-     * 设置语音时长
+     * Set voice duration.
      */
     public function setDuration(?int $duration): self
     {
@@ -107,33 +137,152 @@ class VoiceMessage extends FileMessage
     }
 
     /**
-     * 创建一个新的转录对象
+     * Get message ID.
      */
-    public function createTranscription(array $data = []): VoiceTranscription
+    public function getMagicMessageId(): ?string
     {
-        $this->transcription = new VoiceTranscription($data);
-        return $this->transcription;
+        return $this->magicMessageId;
     }
 
     /**
-     * 获取所有支持的转录语言
-     * @return string[]
+     * Set message ID.
      */
-    public function getTranscriptionLanguages(): array
+    public function setMagicMessageId(?string $magicMessageId): self
     {
-        return $this->transcription?->getSupportedLanguages() ?? [];
+        $this->magicMessageId = $magicMessageId;
+        return $this;
     }
 
     /**
-     * 检查是否支持指定语言的转录.
+     * Get text content of voice message
+     * If no transcription content, call speech recognition service to get it.
      */
-    public function hasTranscriptionForLanguage(string $language): bool
+    public function getTextContent(): string
     {
-        return $this->transcription?->hasTranscription($language) ?? false;
+        // First check if transcription content already exists
+        if ($this->hasTranscription()) {
+            return $this->getTranscriptionText() ?? '';
+        }
+
+        // If no transcription content, try to call speech recognition service
+        try {
+            $transcriptionText = $this->performSpeechRecognition();
+            // Save recognition result to transcription object (can be empty)
+            $this->setTranscriptionText($transcriptionText);
+            return $transcriptionText ?: '[Voice Message]';
+        } catch (Throwable $e) {
+            // Log error but don't throw exception, return fallback text
+            $this->setTranscriptionError('Speech recognition failed: ' . $e->getMessage());
+        }
+
+        // If speech recognition fails, return fallback text
+        return '[Voice Message]';
+    }
+
+    /**
+     * Get transcription related data.
+     */
+    public function getTranscriptionData(): array
+    {
+        return [
+            'transcription_text' => $this->transcriptionText,
+            'transcribed_at' => $this->transcribedAt,
+            'transcription_error' => $this->transcriptionError,
+            'duration' => $this->duration,
+            'has_transcription' => $this->hasTranscription(),
+        ];
     }
 
     protected function setMessageType(): void
     {
         $this->chatMessageType = ChatMessageType::Voice;
+    }
+
+    /**
+     * Perform speech recognition.
+     */
+    private function performSpeechRecognition(): string
+    {
+        $fileUrl = $this->getVoiceFileUrl();
+        if (empty($fileUrl)) {
+            return '';
+        }
+        $container = ApplicationContext::getContainer();
+        $speechClient = $container->get(VolcengineStandardClient::class);
+
+        // 构建Flash语音识别请求
+        $submitDTO = new FlashSpeechSubmitDTO();
+
+        // 设置音频信息
+        $audioDTO = new SpeechAudioDTO([
+            'url' => $fileUrl,
+        ]);
+
+        // 设置用户信息
+        $userDTO = new SpeechUserDTO([
+            'uid' => config('asr.volcengine.app_id'),
+        ]);
+
+        $submitDTO->setAudio($audioDTO);
+        $submitDTO->setUser($userDTO);
+        $submitDTO->setRequest(['model_name' => 'bigmodel']);
+
+        // 调用Flash语音识别并获取响应
+        $flashResponse = $speechClient->submitFlashTask($submitDTO);
+
+        // If response contains audio duration info, set it to current object (convert to seconds)
+        $audioDuration = $flashResponse->getAudioDuration();
+        if ($audioDuration !== null) {
+            $this->setDuration((int) ceil($audioDuration / 1000)); // Convert milliseconds to seconds, round up
+        }
+
+        // 提取并返回文本内容
+        return $flashResponse->extractTextContent();
+    }
+
+    /**
+     * Get voice file URL.
+     */
+    private function getVoiceFileUrl(): string
+    {
+        $fileId = $this->getFileId();
+        if (empty($fileId)) {
+            return '';
+        }
+
+        try {
+            $container = ApplicationContext::getContainer();
+            $chatFileRepository = $container->get(MagicChatFileRepositoryInterface::class);
+            $cloudFileRepository = $container->get(CloudFileRepositoryInterface::class);
+
+            // 获取文件实体
+            $fileEntities = $chatFileRepository->getChatFileByIds([$fileId]);
+            if (empty($fileEntities)) {
+                return '';
+            }
+
+            $fileEntity = $fileEntities[0];
+
+            // 如果有外链URL，直接使用
+            if (! empty($fileEntity->getExternalUrl())) {
+                return $fileEntity->getExternalUrl();
+            }
+
+            // 通过CloudFile Repository获取URL
+            if (! empty($fileEntity->getFileKey()) && ! empty($fileEntity->getOrganizationCode())) {
+                $fileLinks = $cloudFileRepository->getLinks(
+                    $fileEntity->getOrganizationCode(),
+                    [$fileEntity->getFileKey()]
+                );
+
+                if (! empty($fileLinks)) {
+                    return array_values($fileLinks)[0]->getUrl();
+                }
+            }
+
+            return '';
+        } catch (Throwable) {
+            return '';
+        }
     }
 }
