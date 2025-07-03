@@ -5,16 +5,16 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Domain\Chat\DTO\Message\Common\MessageExtra;
+namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent;
 
 use App\Infrastructure\Core\AbstractDTO;
 
-class SuperAgent extends AbstractDTO
+class SuperAgentExtra extends AbstractDTO
 {
     /**
      * Mention related data for @ references.
      */
-    protected ?array $mention;
+    protected ?array $mentions;
 
     /**
      * Input mode: chat | plan (only effective in general mode, deprecated in new version).
@@ -31,14 +31,14 @@ class SuperAgent extends AbstractDTO
      */
     protected ?string $taskPattern;
 
-    public function getMention(): ?array
+    public function getMentions(): ?array
     {
-        return $this->mention ?? null;
+        return $this->mentions ?? null;
     }
 
-    public function setMention(?array $mention): void
+    public function setMentions(?array $mentions): void
     {
-        $this->mention = $mention;
+        $this->mentions = $mentions;
     }
 
     public function getInputMode(): ?string
