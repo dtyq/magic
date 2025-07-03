@@ -9,7 +9,7 @@ namespace App\Application\Speech\Service;
 
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
-use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
@@ -41,7 +41,7 @@ class SpeechToTextStandardAppService
         return $this->volcengineClient->submitTask($submitDTO);
     }
 
-    public function submitBigModelTask(BigModelSpeechSubmitDTO $submitDTO): array
+    public function submitLargeModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
     {
         $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
         $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
@@ -54,7 +54,7 @@ class SpeechToTextStandardAppService
         return $this->volcengineClient->queryResult($queryDTO);
     }
 
-    public function queryBigModelResult(SpeechQueryDTO $speechQueryDTO): array
+    public function queryLargeModelResult(SpeechQueryDTO $speechQueryDTO): array
     {
         $this->validateAccessToken($speechQueryDTO->getAccessToken(), []);
         return $this->volcengineClient->queryBigModelResult($speechQueryDTO->getTaskId());

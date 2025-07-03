@@ -9,7 +9,7 @@ namespace App\Domain\Speech\Entity\Dto;
 
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 
-class BigModelSpeechSubmitDTO extends AbstractRequestDTO
+class LargeModelSpeechSubmitDTO extends AbstractRequestDTO
 {
     protected ?SpeechUserDTO $user = null;
 

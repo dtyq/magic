@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition;
 
-use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
@@ -147,7 +147,11 @@ class VolcengineStandardClient
     /**
      * 提交大模型ASR任务
      */
+<<<<<<< HEAD
     public function submitBigModelTask(BigModelSpeechSubmitDTO $submitDTO): array
+=======
+    public function submitBigModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
+>>>>>>> fix/change-speech-route
     {
         $requestData = $this->buildBigModelSubmitRequest($submitDTO);
         $requestId = $requestData['req_id'];
@@ -354,7 +358,11 @@ class VolcengineStandardClient
         ];
     }
 
+<<<<<<< HEAD
     private function buildBigModelSubmitRequest(BigModelSpeechSubmitDTO $submitDTO): array
+=======
+    private function buildBigModelSubmitRequest(LargeModelSpeechSubmitDTO $submitDTO): array
+>>>>>>> fix/change-speech-route
     {
         $userRequestData = $submitDTO->toVolcenArray();
 
