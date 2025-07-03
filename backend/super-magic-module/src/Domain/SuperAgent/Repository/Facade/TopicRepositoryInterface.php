@@ -55,6 +55,8 @@ interface TopicRepositoryInterface
      */
     public function updateTopicWithUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool;
 
+    public function updateTopicByCondition(array $condition, array $data): bool;
+
     /**
      * 删除话题.
      */
@@ -87,5 +89,19 @@ interface TopicRepositoryInterface
      */
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array;
 
+    /**
+     * 根据项目ID获取话题列表.
+     */
+    public function getTopicsByProjectId(int $projectId, string $userId): array;
+
     public function updateTopicStatusBySandboxIds(array $sandboxIds, string $status);
+
+    /**
+     * 统计项目下的话题数量.
+     */
+    public function countTopicsByProjectId(int $projectId): int;
+
+    public function getRunningWorkspaceIds(array $workspaceIds): array;
+
+    public function getRunningProjectIds(array $projectIds): array;
 }

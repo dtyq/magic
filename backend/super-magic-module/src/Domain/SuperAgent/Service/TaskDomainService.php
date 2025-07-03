@@ -60,14 +60,6 @@ class TaskDomainService
         $topicId = $topicEntity->getId();
 
         // If instruction is interrupt or follow-up
-        // If there are other changes later, pass task_id from frontend
-        if ($instruction == ChatInstruction::Interrupted) {
-            $taskList = $this->taskRepository->getTasksByTopicId($topicId, 1, 1, ['task_status' => TaskStatus::RUNNING]);
-            if (empty($taskList['list'])) {
-                ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
-            }
-            return $taskList['list'][0];
-        }
         // If $taskMode is empty, use topic's task_mode
         if ($taskMode == '') {
             $taskMode = $topicEntity->getTaskMode();
@@ -76,6 +68,7 @@ class TaskDomainService
         $taskEntity = new TaskEntity([
             'user_id' => $userId,
             'workspace_id' => $topicEntity->getWorkspaceId(),
+            'project_id' => $topicEntity->getProjectId(),
             'topic_id' => $topicId,
             'task_id' => '', // Initially empty, this is agent's task id
             'task_mode' => $taskMode,
@@ -381,6 +374,7 @@ class TaskDomainService
         DataIsolation $dataIsolation,
         string $fileKey,
         array $fileData,
+        int $projectId,
         int $topicId,
         int $taskId,
         string $fileType = TaskFileType::PROCESS->value,
@@ -421,19 +415,20 @@ class TaskDomainService
         $taskFileEntity->setFileId($fileId);
         $taskFileEntity->setFileKey($fileKey);
 
+        // Always get task entity to obtain project_id and user_id if needed
+        $taskEntity = $this->taskRepository->getTaskById($taskId);
+
         // Process user ID: Priority use user ID from DataIsolation, if null use from task
         $userId = $dataIsolation->getCurrentUserId();
-        if (empty($userId)) {
-            // Get task entity by task ID, get user ID
-            $taskEntity = $this->taskRepository->getTaskById($taskId);
-            if ($taskEntity) {
-                $userId = $taskEntity->getUserId();
-            }
+        if (empty($userId) && $taskEntity) {
+            $userId = $taskEntity->getUserId();
         }
+
         $taskFileEntity->setUserId($userId ?? 'system');
         $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $taskFileEntity->setTopicId($topicId);
         $taskFileEntity->setTaskId($taskId);
+        $taskFileEntity->setProjectId($projectId);
         $taskFileEntity->setFileType($fileType);
         $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
         $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
@@ -480,6 +475,21 @@ class TaskDomainService
         // Call TaskFileRepository to get file list
         return $this->taskFileRepository->getByTopicId($topicId, $page, $pageSize, $fileType, $storageType);
         // Directly return entity object list, let application layer handle URL acquisition
+    }
+
+    /**
+     * 获取项目下的任务附件列表.
+     *
+     * @param int $projectId Project ID
+     * @param DataIsolation $dataIsolation Data isolation
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param array $fileType File type filter
+     * @return array Attachment list and total
+     */
+    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = []): array
+    {
+        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType);
     }
 
     public function getTaskBySandboxId(string $sandboxId): ?TaskEntity

@@ -433,6 +433,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $attachment['file_key'],
                 $dataIsolation,
                 $attachment,
+                $task->getProjectId(),
                 $task->getTopicId(),
                 (int) $task->getId(),
                 $attachment['file_tag'] ?? TaskFileType::PROCESS->value
@@ -503,6 +504,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 fileKey: $fileKey,
                 content: $content,
                 dataIsolation: $taskContext->getDataIsolation(),
+                projectId: $task->getProjectId(),
                 topicId: $task->getTopicId(),
                 taskId: (int) $task->getId()
             );
