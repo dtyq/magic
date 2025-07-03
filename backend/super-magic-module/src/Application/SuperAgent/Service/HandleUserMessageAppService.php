@@ -186,8 +186,12 @@ class HandleUserMessageAppService extends AbstractAppService
         $topicEntities = $this->topicDomainService->getUserRunningTopics($dataIsolation);
         // Get sandbox IDs
         $sandboxIds = [];
-        foreach ($topicEntities as $index => $topicEntityItem) {
-            $sandboxIds[] = $topicEntityItem->getSandboxId();
+        foreach ($topicEntities as $topicEntityItem) {
+            $sandboxId = $topicEntityItem->getSandboxId();
+            if ($sandboxId === '') {
+                continue;
+            }
+            $sandboxIds[] = $sandboxId;
         }
         // Batch query status
         $updateSandboxIds = [];
