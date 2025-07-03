@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.349.0",
+            "version": "3.349.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "6bc013005c2c8df186abc823754deb1bb6c0f1ca"
+                "reference": "037ffa3dd4c9f25768743cf796955bf2d50cffac"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6bc013005c2c8df186abc823754deb1bb6c0f1ca",
-                "reference": "6bc013005c2c8df186abc823754deb1bb6c0f1ca",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/037ffa3dd4c9f25768743cf796955bf2d50cffac",
+                "reference": "037ffa3dd4c9f25768743cf796955bf2d50cffac",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.1"
             },
-            "time": "2025-07-01T18:04:21+00:00"
+            "time": "2025-07-02T18:04:45+00:00"
         },
         {
             "name": "brick/math",
@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "4b1f81e309d51fa4c70fc55515d69ed99c0d4483"
+                "reference": "b53f369cf511653583a19bf573895c341c08cec4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4b1f81e309d51fa4c70fc55515d69ed99c0d4483",
-                "reference": "4b1f81e309d51fa4c70fc55515d69ed99c0d4483",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b53f369cf511653583a19bf573895c341c08cec4",
+                "reference": "b53f369cf511653583a19bf573895c341c08cec4",
                 "shasum": ""
             },
             "require": {
@@ -2316,7 +2316,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-02T15:26:03+08:00"
+            "time": "2025-07-03T04:05:24+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "8c8c5f07493d92c065cc07d641f37324026d1ed7"
+                "reference": "4f565c1266f02f30da4fe6e0200e4047882ffb6c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=8c8c5f07493d92c065cc07d641f37324026d1ed7",
-                "reference": "8c8c5f07493d92c065cc07d641f37324026d1ed7",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=4f565c1266f02f30da4fe6e0200e4047882ffb6c",
+                "reference": "4f565c1266f02f30da4fe6e0200e4047882ffb6c",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-01T19:11:24+08:00"
+            "time": "2025-07-03T12:12:27+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
