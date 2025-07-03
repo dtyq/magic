@@ -26,6 +26,9 @@ class SpeechToTextStandardApi extends AbstractOpenApi
     #[Inject]
     protected SpeechToTextStandardAppService $speechToTextStandardAppService;
 
+    #定义type 常量
+    const VOLCENGINE_TYPE = 'volcengine';
+
     public function submit(RequestInterface $request): array
     {
         $requestData = $request->all();
@@ -40,7 +43,13 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $submitDTO->setUser(new SpeechUserDTO(['uid' => $this->getAccessToken()]));
 
         $result = $this->speechToTextStandardAppService->submitTask($submitDTO);
-        return $this->setVolcengineHeaders($result);
+        $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
+
+        if($type === self::VOLCENGINE_TYPE) {
+            return $this->setVolcengineHeaders($result);
+        }else{
+            return $result;
+        }
     }
 
     public function query(RequestInterface $request, string $taskId)
@@ -52,40 +61,59 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $queryDTO = new SpeechQueryDTO(['task_id' => $taskId]);
         $queryDTO->setaccessToken($this->getAccessToken());
         $queryDTO->setIps($this->getClientIps());
+        $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
         $result = $this->speechToTextStandardAppService->queryResult($queryDTO);
-        return $this->setVolcengineHeaders($result);
+
+        if($type === self::VOLCENGINE_TYPE) {
+            return $this->setVolcengineHeaders($result);
+        }else{
+            return $result;
+        }
     }
 
-    public function submitBigModel(RequestInterface $request): array
+    public function submitLargeModel(RequestInterface $request): array
     {
         $requestData = $request->all();
 
         if (empty($requestData['audio']['url'])) {
             ExceptionBuilder::throw(AsrErrorCode::AudioUrlRequired);
         }
+        $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
+
 
         $submitDTO = new BigModelSpeechSubmitDTO($requestData);
         $submitDTO->setAccessToken($this->getAccessToken());
         $submitDTO->setIps($this->getClientIps());
         $submitDTO->setUser(new SpeechUserDTO(['uid' => $this->getAccessToken()]));
 
-        $result = $this->speechToTextStandardAppService->submitBigModelTask($submitDTO);
-        return $this->setVolcengineHeaders($result);
+        $result = $this->speechToTextStandardAppService->submitLargeModelTask($submitDTO);
+
+        if($type === self::VOLCENGINE_TYPE) {
+            return $this->setVolcengineHeaders($result);
+        }else{
+            return $result;
+        }
     }
 
-    public function queryBigModel(RequestInterface $request, string $requestId)
+    public function queryLargeModel(RequestInterface $request, string $requestId)
     {
         if (empty($requestId)) {
             ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.task_id_required');
         }
+        $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
         $speechQueryDTO = new SpeechQueryDTO(['task_id' => $requestId]);
         $speechQueryDTO->setAccessToken($this->getAccessToken());
         $speechQueryDTO->setIps($this->getClientIps());
 
-        $result = $this->speechToTextStandardAppService->queryBigModelResult($speechQueryDTO);
-        return $this->setVolcengineHeaders($result);
+        $result = $this->speechToTextStandardAppService->queryLargeModelResult($speechQueryDTO);
+
+        if($type === self::VOLCENGINE_TYPE) {
+            return $this->setVolcengineHeaders($result);
+        }else{
+            return $result;
+        }
     }
 
     public function flash(RequestInterface $request): array
@@ -102,7 +130,13 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $submitDTO->setUser(new SpeechUserDTO(['uid' => $this->getAccessToken()]));
 
         $result = $this->speechToTextStandardAppService->submitFlashTask($submitDTO);
-        return $this->setVolcengineHeaders($result);
+        $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
+
+        if($type === self::VOLCENGINE_TYPE) {
+            return $this->setVolcengineHeaders($result);
+        }else{
+            return $result;
+        }
     }
 
     private function setVolcengineHeaders(array $result): array
