@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Interfaces\MCP\DTO;
+
+use App\Infrastructure\Core\AbstractDTO;
+use App\Interfaces\Kernel\DTO\Traits\StringIdDTOTrait;
+
+class MCPServerSelectListDTO extends AbstractDTO
+{
+    use StringIdDTOTrait;
+
+    /**
+     * MCP服务名称.
+     */
+    public string $name = '';
+
+    /**
+     * MCP服务描述.
+     */
+    public string $description = '';
+
+    /**
+     * MCP服务图标.
+     */
+    public string $icon = '';
+
+    /**
+     * 服务类型.
+     */
+    public string $type = '';
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(?string $name): void
+    {
+        $this->name = $name ?? '';
+    }
+
+    public function getDescription(): string
+    {
+        return $this->description;
+    }
+
+    public function setDescription(?string $description): void
+    {
+        $this->description = $description ?? '';
+    }
+
+    public function getIcon(): string
+    {
+        return $this->icon;
+    }
+
+    public function setIcon(?string $icon): void
+    {
+        $this->icon = $icon ?? '';
+    }
+
+    public function getType(): string
+    {
+        return $this->type;
+    }
+
+    public function setType(?string $type): void
+    {
+        $this->type = $type ?? '';
+    }
+}

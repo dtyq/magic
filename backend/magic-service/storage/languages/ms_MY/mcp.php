@@ -25,4 +25,8 @@ return [
         'created_at' => 'Dicipta Pada',
         'updated_at' => 'Dikemas kini Pada',
     ],
+    'auth_type' => [
+        'none' => 'Tiada Pengesahan',
+        'oauth2' => 'Pengesahan OAuth2',
+    ],
 ];

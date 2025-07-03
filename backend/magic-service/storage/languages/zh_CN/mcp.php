@@ -15,7 +15,7 @@ return [
         'command' => '命令',
         'arguments' => '参数',
         'headers' => '请求头',
-        'oauth2_config' => 'OAuth2 配置',
+        'oauth2_config' => 'OAuth2配置',
         'client_id' => '客户端ID',
         'client_secret' => '客户端密钥',
         'client_url' => '客户端URL',
@@ -24,5 +24,9 @@ return [
         'authorization_content_type' => '授权内容类型',
         'created_at' => '创建时间',
         'updated_at' => '更新时间',
+    ],
+    'auth_type' => [
+        'none' => '无认证',
+        'oauth2' => 'OAuth2认证',
     ],
 ];

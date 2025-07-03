@@ -151,11 +151,10 @@ class MagicFlowFlowAdminApi extends AbstractFlowAdminApi
         $query->setEnabled(true);
         $result = $this->mcpServerAppService->queries($authorization, $query, $page);
 
-        return MCPServerAssembler::createPageListDTO(
+        return MCPServerAssembler::createSelectPageListDTO(
             total: $result['total'],
             list: $result['list'],
             page: $page,
-            users: $result['users'],
             icons: $result['icons'],
         );
     }

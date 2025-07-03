@@ -15,6 +15,7 @@ use App\Interfaces\Kernel\Assembler\FileAssembler;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use App\Interfaces\Kernel\DTO\PageDTO;
 use App\Interfaces\MCP\DTO\MCPServerDTO;
+use App\Interfaces\MCP\DTO\MCPServerSelectListDTO;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 
 class MCPServerAssembler
@@ -94,6 +95,26 @@ class MCPServerAssembler
     public static function createPageListDTO(int $total, array $list, Page $page, array $users = [], array $icons = []): PageDTO
     {
         $list = array_map(fn (MCPServerEntity $mcpServerEntity) => self::createDTO($mcpServerEntity, $icons, $users), $list);
+        return new PageDTO($page->getPage(), $total, $list);
+    }
+
+    public static function createSelectListDTO(MCPServerEntity $mcpServerEntity, array $icons = []): MCPServerSelectListDTO
+    {
+        $DTO = new MCPServerSelectListDTO();
+        $DTO->setId($mcpServerEntity->getCode());
+        $DTO->setName($mcpServerEntity->getName());
+        $DTO->setDescription($mcpServerEntity->getDescription());
+        $DTO->setIcon(FileAssembler::getUrl($icons[$mcpServerEntity->getIcon()] ?? null));
+        $DTO->setType($mcpServerEntity->getType()->value);
+        return $DTO;
+    }
+
+    /**
+     * @param array<string, FileLink> $icons
+     */
+    public static function createSelectPageListDTO(int $total, array $list, Page $page, array $icons = []): PageDTO
+    {
+        $list = array_map(fn (MCPServerEntity $mcpServerEntity) => self::createSelectListDTO($mcpServerEntity, $icons), $list);
         return new PageDTO($page->getPage(), $total, $list);
     }
 }

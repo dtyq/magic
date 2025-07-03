@@ -25,4 +25,8 @@ return [
         'created_at' => 'Created At',
         'updated_at' => 'Updated At',
     ],
+    'auth_type' => [
+        'none' => 'No Authentication',
+        'oauth2' => 'OAuth2 Authentication',
+    ],
 ];
