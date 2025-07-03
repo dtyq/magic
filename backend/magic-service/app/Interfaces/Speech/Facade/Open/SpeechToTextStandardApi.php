@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace App\Interfaces\Speech\Facade\Open;
 
 use App\Application\Speech\Service\SpeechToTextStandardAppService;
-use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechUserDTO;
@@ -23,11 +23,11 @@ use Psr\Http\Message\ResponseInterface;
 
 class SpeechToTextStandardApi extends AbstractOpenApi
 {
+    # 定义type 常量
+    public const VOLCENGINE_TYPE = 'volcengine';
+
     #[Inject]
     protected SpeechToTextStandardAppService $speechToTextStandardAppService;
-
-    #定义type 常量
-    const VOLCENGINE_TYPE = 'volcengine';
 
     public function submit(RequestInterface $request): array
     {
@@ -45,11 +45,10 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $result = $this->speechToTextStandardAppService->submitTask($submitDTO);
         $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
-        if($type === self::VOLCENGINE_TYPE) {
+        if ($type === self::VOLCENGINE_TYPE) {
             return $this->setVolcengineHeaders($result);
-        }else{
-            return $result;
         }
+        return $result;
     }
 
     public function query(RequestInterface $request, string $taskId)
@@ -65,11 +64,10 @@ class SpeechToTextStandardApi extends AbstractOpenApi
 
         $result = $this->speechToTextStandardAppService->queryResult($queryDTO);
 
-        if($type === self::VOLCENGINE_TYPE) {
+        if ($type === self::VOLCENGINE_TYPE) {
             return $this->setVolcengineHeaders($result);
-        }else{
-            return $result;
         }
+        return $result;
     }
 
     public function submitLargeModel(RequestInterface $request): array
@@ -81,7 +79,6 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         }
         $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
-
         $submitDTO = new LargeModelSpeechSubmitDTO($requestData);
         $submitDTO->setAccessToken($this->getAccessToken());
         $submitDTO->setIps($this->getClientIps());
@@ -89,11 +86,10 @@ class SpeechToTextStandardApi extends AbstractOpenApi
 
         $result = $this->speechToTextStandardAppService->submitLargeModelTask($submitDTO);
 
-        if($type === self::VOLCENGINE_TYPE) {
+        if ($type === self::VOLCENGINE_TYPE) {
             return $this->setVolcengineHeaders($result);
-        }else{
-            return $result;
         }
+        return $result;
     }
 
     public function queryLargeModel(RequestInterface $request, string $requestId)
@@ -109,11 +105,10 @@ class SpeechToTextStandardApi extends AbstractOpenApi
 
         $result = $this->speechToTextStandardAppService->queryLargeModelResult($speechQueryDTO);
 
-        if($type === self::VOLCENGINE_TYPE) {
+        if ($type === self::VOLCENGINE_TYPE) {
             return $this->setVolcengineHeaders($result);
-        }else{
-            return $result;
         }
+        return $result;
     }
 
     public function flash(RequestInterface $request): array
@@ -132,11 +127,10 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $result = $this->speechToTextStandardAppService->submitFlashTask($submitDTO);
         $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
-        if($type === self::VOLCENGINE_TYPE) {
+        if ($type === self::VOLCENGINE_TYPE) {
             return $this->setVolcengineHeaders($result);
-        }else{
-            return $result;
         }
+        return $result;
     }
 
     private function setVolcengineHeaders(array $result): array

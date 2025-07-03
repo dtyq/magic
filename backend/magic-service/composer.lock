@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "b53f369cf511653583a19bf573895c341c08cec4"
+                "reference": "32d619c749318299a92630720e543f0b43f5662f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b53f369cf511653583a19bf573895c341c08cec4",
-                "reference": "b53f369cf511653583a19bf573895c341c08cec4",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=32d619c749318299a92630720e543f0b43f5662f",
+                "reference": "32d619c749318299a92630720e543f0b43f5662f",
                 "shasum": ""
             },
             "require": {
@@ -2316,7 +2316,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-03T04:05:24+00:00"
+            "time": "2025-07-03T15:28:48+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -5965,16 +5965,16 @@
         },
         {
             "name": "hyperf/http-server",
-            "version": "v3.1.58",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/http-server.git",
-                "reference": "34321483e6e3fc3794263e232fbea4051bf803f2"
+                "reference": "b5f8dbd03578adb101fbf98ab7407510d553130f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/http-server/zipball/34321483e6e3fc3794263e232fbea4051bf803f2",
-                "reference": "34321483e6e3fc3794263e232fbea4051bf803f2",
+                "url": "https://api.github.com/repos/hyperf/http-server/zipball/b5f8dbd03578adb101fbf98ab7407510d553130f",
+                "reference": "b5f8dbd03578adb101fbf98ab7407510d553130f",
                 "shasum": ""
             },
             "require": {
@@ -6046,7 +6046,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-23T03:55:31+00:00"
+            "time": "2025-06-30T01:39:01+00:00"
         },
         {
             "name": "hyperf/logger",
@@ -6865,16 +6865,16 @@
         },
         {
             "name": "hyperf/redis",
-            "version": "v3.1.57",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/redis.git",
-                "reference": "9fa4e43fe45825e86bfe6624d46c0631d4e9f7f3"
+                "reference": "e7bd1b5ce85c06a766ad599dfa64238596c5fb11"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/redis/zipball/9fa4e43fe45825e86bfe6624d46c0631d4e9f7f3",
-                "reference": "9fa4e43fe45825e86bfe6624d46c0631d4e9f7f3",
+                "url": "https://api.github.com/repos/hyperf/redis/zipball/e7bd1b5ce85c06a766ad599dfa64238596c5fb11",
+                "reference": "e7bd1b5ce85c06a766ad599dfa64238596c5fb11",
                 "shasum": ""
             },
             "require": {
@@ -6934,7 +6934,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-07-03T04:20:32+00:00"
         },
         {
             "name": "hyperf/retry",
@@ -7426,16 +7426,16 @@
         },
         {
             "name": "hyperf/support",
-            "version": "v3.1.57",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/support.git",
-                "reference": "ea0d41f825595bf26daf6f41d0bb1bf2f48dfe2a"
+                "reference": "659e404a10041c064f8c2521ed2d0a00877196a2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/support/zipball/ea0d41f825595bf26daf6f41d0bb1bf2f48dfe2a",
-                "reference": "ea0d41f825595bf26daf6f41d0bb1bf2f48dfe2a",
+                "url": "https://api.github.com/repos/hyperf/support/zipball/659e404a10041c064f8c2521ed2d0a00877196a2",
+                "reference": "659e404a10041c064f8c2521ed2d0a00877196a2",
                 "shasum": ""
             },
             "require": {
@@ -7493,7 +7493,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-07-03T03:12:55+00:00"
         },
         {
             "name": "hyperf/tappable",
@@ -7756,16 +7756,16 @@
         },
         {
             "name": "hyperf/validation",
-            "version": "v3.1.57",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/validation.git",
-                "reference": "cc5e6202d2ba0ac11f0fa4b5237f2ebe5169ef12"
+                "reference": "efcadb42314a7493850455ce34b7623ed8f35353"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/validation/zipball/cc5e6202d2ba0ac11f0fa4b5237f2ebe5169ef12",
-                "reference": "cc5e6202d2ba0ac11f0fa4b5237f2ebe5169ef12",
+                "url": "https://api.github.com/repos/hyperf/validation/zipball/efcadb42314a7493850455ce34b7623ed8f35353",
+                "reference": "efcadb42314a7493850455ce34b7623ed8f35353",
                 "shasum": ""
             },
             "require": {
@@ -7816,7 +7816,7 @@
             ],
             "support": {
                 "issues": "https://github.com/hyperf/validation/issues",
-                "source": "https://github.com/hyperf/validation/tree/v3.1.57"
+                "source": "https://github.com/hyperf/validation/tree/v3.1.59"
             },
             "funding": [
                 {
@@ -7828,7 +7828,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-06-30T03:02:24+00:00"
         },
         {
             "name": "hyperf/websocket-client",
@@ -15846,16 +15846,16 @@
         },
         {
             "name": "hyperf/watcher",
-            "version": "v3.1.58",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/watcher.git",
-                "reference": "0f84459bbf3168adc9f1542c8d2bec42044b8f86"
+                "reference": "0d0d72555e920b9e5ffe41dd9272554b1a2f47ca"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/watcher/zipball/0f84459bbf3168adc9f1542c8d2bec42044b8f86",
-                "reference": "0f84459bbf3168adc9f1542c8d2bec42044b8f86",
+                "url": "https://api.github.com/repos/hyperf/watcher/zipball/0d0d72555e920b9e5ffe41dd9272554b1a2f47ca",
+                "reference": "0d0d72555e920b9e5ffe41dd9272554b1a2f47ca",
                 "shasum": ""
             },
             "require": {
@@ -15901,7 +15901,7 @@
             ],
             "support": {
                 "issues": "https://github.com/hyperf/watcher/issues",
-                "source": "https://github.com/hyperf/watcher/tree/v3.1.58"
+                "source": "https://github.com/hyperf/watcher/tree/v3.1.59"
             },
             "funding": [
                 {
@@ -15913,7 +15913,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-23T03:55:31+00:00"
+            "time": "2025-06-30T03:16:39+00:00"
         },
         {
             "name": "mockery/mockery",

@@ -9,8 +9,8 @@ namespace App\Application\Speech\Service;
 
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
-use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\MagicApiErrorCode;
