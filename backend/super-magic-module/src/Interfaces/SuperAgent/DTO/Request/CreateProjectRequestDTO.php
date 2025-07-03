@@ -61,7 +61,7 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     {
         return [
             'workspace_id' => 'required|integer',
-            'project_name' => 'required|string|max:100',
+            'project_name' => 'present|string|max:100',
             'project_description' => 'nullable|string|max:500',
         ];
     }
@@ -74,8 +74,8 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
         return [
             'workspace_id.required' => 'Workspace ID cannot be empty',
             'workspace_id.integer' => 'Workspace ID must be an integer',
-            'project_name.required' => 'Project name cannot be empty',
-            'project_name.max' => 'Project name cannot exceed 1 characters',
+            'project_name.present' => 'Project name field is required',
+            'project_name.max' => 'Project name cannot exceed 100 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
         ];
     }
