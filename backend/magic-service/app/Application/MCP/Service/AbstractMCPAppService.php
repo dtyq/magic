@@ -13,6 +13,7 @@ use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\Domain\Flow\Service\MagicFlowVersionDomainService;
 use App\Domain\MCP\Service\MCPServerDomainService;
 use App\Domain\MCP\Service\MCPServerToolDomainService;
+use App\Domain\MCP\Service\MCPUserSettingDomainService;
 
 abstract class AbstractMCPAppService extends AbstractKernelAppService
 {
@@ -22,6 +23,7 @@ abstract class AbstractMCPAppService extends AbstractKernelAppService
         protected readonly MagicFlowDomainService $magicFlowDomainService,
         protected readonly MagicFlowVersionDomainService $magicFlowVersionDomainService,
         protected readonly OperationPermissionAppService $operationPermissionAppService,
+        protected readonly MCPUserSettingDomainService $mcpUserSettingDomainService,
     ) {
     }
 }

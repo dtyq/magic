@@ -107,8 +107,10 @@ use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseDocumentReposit
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseFragmentRepository;
 use App\Domain\MCP\Repository\Facade\MCPServerRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPServerToolRepositoryInterface;
+use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
 use App\Domain\MCP\Repository\Persistence\MCPServerRepository;
 use App\Domain\MCP\Repository\Persistence\MCPServerToolRepository;
+use App\Domain\MCP\Repository\Persistence\MCPUserSettingRepository;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -266,6 +268,7 @@ $dependencies = [
     MCPServerRepositoryInterface::class => MCPServerRepository::class,
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
     AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
+    MCPUserSettingRepositoryInterface::class => MCPUserSettingRepository::class,
 
     // api-key
     ApiKeyProviderRepositoryInterface::class => ApiKeyProviderRepository::class,
