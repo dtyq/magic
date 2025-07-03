@@ -191,14 +191,6 @@ class FileAppService extends AbstractAppService
             $expires
         );
 
-        // 获取tmp dir目录的临时凭证
-        $data['tmp_dir_credential'] = $this->fileDomainService->getStsTemporaryCredential(
-            $organizationCode,
-            StorageBucketType::from($storage),
-            '/tmp/super-magic',
-            $expires
-        );
-
         // 如果是本地驱动，那么增加一个临时 key
         if ($data['platform'] === AdapterName::LOCAL) {
             $localCredential = 'local_credential:' . IdGenerator::getUniqueId32();
@@ -206,7 +198,6 @@ class FileAppService extends AbstractAppService
             $data['temporary_credential']['credential'] = $localCredential;
             $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DOCKER_READ_HOST', 'http://magic-caddy/files');
             $data['temporary_credential']['host'] = env('FILE_LOCAL_DOCKER_WRITE_HOST', '');
-            $data['tmp_dir_credential']['credential'] = $localCredential;
             $this->cache->set($localCredential, ['organization_code' => $organizationCode], (int) ($data['expires'] - time()));
         }
 
