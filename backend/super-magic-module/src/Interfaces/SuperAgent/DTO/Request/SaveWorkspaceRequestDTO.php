@@ -56,7 +56,7 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
     {
         return [
             'id' => 'nullable|string',
-            'workspace_name' => 'required|string|max:100',
+            'workspace_name' => 'present|string|max:100',
         ];
     }
 
@@ -66,7 +66,7 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'workspace_name.required' => 'Workspace name cannot be empty',
+            'workspace_name.present' => 'Workspace name field is required',
             'workspace_name.max' => 'Workspace name cannot exceed 100 characters',
         ];
     }

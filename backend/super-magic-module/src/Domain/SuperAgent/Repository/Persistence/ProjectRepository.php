@@ -61,7 +61,6 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         // 创建
         $attributes['id'] = IdGenerator::getSnowId();
         $project->setId($attributes['id']);
-        /* @var ProjectModel $model */
         $this->projectModel::query()->create($attributes);
         return $project;
     }
