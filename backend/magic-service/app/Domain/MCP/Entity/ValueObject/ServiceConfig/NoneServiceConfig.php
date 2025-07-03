@@ -14,7 +14,7 @@ class NoneServiceConfig extends AbstractServiceConfig
         return [];
     }
 
-    public static function fromArray(array $array): ServiceConfigInterface
+    public static function fromArray(array $array): self
     {
         return new self();
     }
@@ -22,5 +22,16 @@ class NoneServiceConfig extends AbstractServiceConfig
     public function validate(): void
     {
         // No validation required for NoneServiceConfig
+    }
+
+    public function getRequireFields(): array
+    {
+        return [];
+    }
+
+    public function replaceRequiredFields(array $fieldValues): self
+    {
+        // No fields to replace, return current instance
+        return $this;
     }
 }

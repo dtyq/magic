@@ -10,59 +10,30 @@ namespace App\Domain\MCP\Entity\ValueObject\ServiceConfig;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\AbstractValueObject;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 
 class Oauth2Config extends AbstractValueObject
 {
-    protected string $clientId;
+    protected string $clientId = '';
 
-    protected string $clientSecret;
+    protected string $clientSecret = '';
 
-    protected string $clientUrl;
+    protected string $clientUrl = '';
 
     protected string $scope = '';
 
-    protected string $authorizationUrl;
+    protected string $authorizationUrl = '';
 
-    protected string $authorizationContentType = 'application/json';
-
-    public function setClientId(string $clientId): void
-    {
-        $this->clientId = $clientId;
-    }
-
-    public function setClientSecret(string $clientSecret): void
-    {
-        $this->clientSecret = $clientSecret;
-    }
-
-    public function setClientUrl(string $clientUrl): void
-    {
-        $this->clientUrl = $clientUrl;
-    }
-
-    public function setScope(string $scope): void
-    {
-        $this->scope = $scope;
-    }
-
-    public function setAuthorizationUrl(string $authorizationUrl): void
-    {
-        $this->authorizationUrl = $authorizationUrl;
-    }
-
-    public function setAuthorizationContentType(string $authorizationContentType): void
-    {
-        $this->authorizationContentType = $authorizationContentType;
-    }
-
-    public function getAuthorizationUrl(): string
-    {
-        return $this->authorizationUrl;
-    }
+    protected string $authorizationContentType = '';
 
     public function getClientId(): string
     {
         return $this->clientId;
+    }
+
+    public function setClientId(string $clientId): void
+    {
+        $this->clientId = $clientId;
     }
 
     public function getClientSecret(): string
@@ -70,9 +41,19 @@ class Oauth2Config extends AbstractValueObject
         return $this->clientSecret;
     }
 
+    public function setClientSecret(string $clientSecret): void
+    {
+        $this->clientSecret = $clientSecret;
+    }
+
     public function getClientUrl(): string
     {
         return $this->clientUrl;
+    }
+
+    public function setClientUrl(string $clientUrl): void
+    {
+        $this->clientUrl = $clientUrl;
     }
 
     public function getScope(): string
@@ -80,35 +61,59 @@ class Oauth2Config extends AbstractValueObject
         return $this->scope;
     }
 
+    public function setScope(string $scope): void
+    {
+        $this->scope = $scope;
+    }
+
+    public function getAuthorizationUrl(): string
+    {
+        return $this->authorizationUrl;
+    }
+
+    public function setAuthorizationUrl(string $authorizationUrl): void
+    {
+        $this->authorizationUrl = $authorizationUrl;
+    }
+
     public function getAuthorizationContentType(): string
     {
         return $this->authorizationContentType;
     }
 
+    public function setAuthorizationContentType(string $authorizationContentType): void
+    {
+        $this->authorizationContentType = $authorizationContentType;
+    }
+
     public function validate(): void
     {
-        if (empty(trim($this->clientId))) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.client_id']);
+        // Validate required fields
+        $requiredFields = [
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'client_url' => $this->clientUrl,
+            'authorization_url' => $this->authorizationUrl,
+        ];
+
+        foreach ($requiredFields as $fieldKey => $fieldValue) {
+            if (empty(trim($fieldValue))) {
+                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.' . $fieldKey]);
+            }
         }
 
-        if (empty(trim($this->clientSecret))) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.client_secret']);
-        }
+        // Validate URLs
+        $urls = [
+            'client_url' => $this->clientUrl,
+            'authorization_url' => $this->authorizationUrl,
+        ];
 
-        if (empty(trim($this->clientUrl))) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.client_url']);
-        }
-
-        if (! is_url($this->clientUrl)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.client_url']);
-        }
-
-        if (empty(trim($this->authorizationUrl))) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.authorization_url']);
-        }
-
-        if (! is_url($this->authorizationUrl)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.authorization_url']);
+        foreach ($urls as $fieldKey => $url) {
+            if (! is_url($url)) {
+                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.' . $fieldKey]);
+            }
+            // Validate URL for SSRF protection
+            SSRFUtil::getSafeUrl($url, replaceIp: false, allowRedirect: true);
         }
     }
 
@@ -120,7 +125,7 @@ class Oauth2Config extends AbstractValueObject
         $instance->setClientUrl($array['client_url'] ?? '');
         $instance->setScope($array['scope'] ?? '');
         $instance->setAuthorizationUrl($array['authorization_url'] ?? '');
-        $instance->setAuthorizationContentType($array['authorization_content_type'] ?? 'application/json');
+        $instance->setAuthorizationContentType($array['authorization_content_type'] ?? '');
         return $instance;
     }
 }

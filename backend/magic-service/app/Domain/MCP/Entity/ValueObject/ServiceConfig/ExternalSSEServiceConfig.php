@@ -117,9 +117,9 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
         ];
     }
 
-    public static function fromArray(array $array): ServiceConfigInterface
+    public static function fromArray(array $array): self
     {
-        $instance = new self();
+        $instance = new static();
         $instance->setUrl($array['url'] ?? '');
         $instance->setHeaders(array_map(
             fn (array $headerData) => HeaderConfig::fromArray($headerData),
@@ -128,5 +128,100 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
         $instance->setAuthType($array['auth_type'] ?? 0);
         $instance->setOauth2Config($array['oauth2_config'] ?? $array['oauth2config'] ?? null);
         return $instance;
+    }
+
+    /**
+     * Extract required fields from URL path and query parameters, and headers.
+     *
+     * @return array<string> Array of field names
+     */
+    public function getRequireFields(): array
+    {
+        $fields = [];
+
+        // Extract from URL path and query parameters only (exclude domain)
+        if (! empty($this->url)) {
+            $urlParts = parse_url($this->url);
+
+            // Extract from path
+            if (isset($urlParts['path']) && ! empty($urlParts['path'])) {
+                $pathFields = $this->extractRequiredFields($urlParts['path']);
+                $fields = array_merge($fields, $pathFields);
+            }
+
+            // Extract from query parameters
+            if (isset($urlParts['query']) && ! empty($urlParts['query'])) {
+                $queryFields = $this->extractRequiredFields($urlParts['query']);
+                $fields = array_merge($fields, $queryFields);
+            }
+        }
+
+        // Extract from headers - only process header values
+        foreach ($this->headers as $header) {
+            $headerValue = $header->getValue();
+            if (! empty($headerValue)) {
+                $headerFields = $this->extractRequiredFields($headerValue);
+                $fields = array_merge($fields, $headerFields);
+            }
+        }
+
+        return array_unique($fields);
+    }
+
+    public function replaceRequiredFields(array $fieldValues): self
+    {
+        // Replace fields in URL path and query parameters only
+        $this->setUrl($this->replaceUrlFields($this->url, $fieldValues));
+
+        // Replace fields in headers directly
+        foreach ($this->headers as $header) {
+            // Only replace value field, keep key and mapper_system_input unchanged
+            $header->setValue($this->replaceFields($header->getValue(), $fieldValues));
+        }
+
+        return $this;
+    }
+
+    /**
+     * Replace fields in URL path and query parameters only.
+     *
+     * @param string $url Original URL
+     * @param array<string, string> $fieldValues Field values for replacement
+     * @return string URL with replaced fields
+     */
+    private function replaceUrlFields(string $url, array $fieldValues): string
+    {
+        if (empty($url) || empty($fieldValues)) {
+            return $url;
+        }
+
+        $urlParts = parse_url($url);
+        if (! $urlParts) {
+            return $url;
+        }
+
+        $newUrl = $urlParts['scheme'] . '://' . ($urlParts['host'] ?? '');
+
+        // Add port if present
+        if (isset($urlParts['port'])) {
+            $newUrl .= ':' . $urlParts['port'];
+        }
+
+        // Replace fields in path
+        if (isset($urlParts['path'])) {
+            $newUrl .= $this->replaceFields($urlParts['path'], $fieldValues);
+        }
+
+        // Replace fields in query
+        if (isset($urlParts['query'])) {
+            $newUrl .= '?' . $this->replaceFields($urlParts['query'], $fieldValues);
+        }
+
+        // Add fragment if present
+        if (isset($urlParts['fragment'])) {
+            $newUrl .= '#' . $urlParts['fragment'];
+        }
+
+        return $newUrl;
     }
 }

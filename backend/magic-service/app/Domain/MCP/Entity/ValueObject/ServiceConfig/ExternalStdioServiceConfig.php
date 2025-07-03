@@ -26,11 +26,17 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
         $this->command = $command;
     }
 
+    /**
+     * @return array<string>
+     */
     public function getArguments(): array
     {
         return $this->arguments;
     }
 
+    /**
+     * @param array<string> $arguments
+     */
     public function setArguments(array $arguments): void
     {
         $this->arguments = $arguments;
@@ -47,7 +53,7 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
         }
     }
 
-    public static function fromArray(array $array): ServiceConfigInterface
+    public static function fromArray(array $array): self
     {
         $instance = new self();
         $instance->setCommand($array['command'] ?? '');
@@ -61,5 +67,35 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
             'command' => $this->command,
             'arguments' => $this->arguments,
         ];
+    }
+
+    /**
+     * Extract required fields from arguments only.
+     *
+     * @return array<string> Array of field names
+     */
+    public function getRequireFields(): array
+    {
+        $fields = [];
+
+        // Extract from arguments only
+        if (! empty($this->arguments)) {
+            $argumentFields = $this->extractRequiredFieldsFromArray($this->arguments);
+            $fields = array_merge($fields, $argumentFields);
+        }
+
+        return array_unique($fields);
+    }
+
+    public function replaceRequiredFields(array $fieldValues): self
+    {
+        // Replace fields in arguments directly
+        $newArguments = [];
+        foreach ($this->arguments as $argument) {
+            $newArguments[] = $this->replaceFields($argument, $fieldValues);
+        }
+        $this->setArguments($newArguments);
+
+        return $this;
     }
 }

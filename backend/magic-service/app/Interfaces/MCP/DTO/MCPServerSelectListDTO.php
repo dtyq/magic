@@ -34,6 +34,13 @@ class MCPServerSelectListDTO extends AbstractDTO
      */
     public string $type = '';
 
+    /**
+     * 需要的动态字段.
+     *
+     * @var array<array<string, string>>
+     */
+    public array $requireFields = [];
+
     public function getName(): string
     {
         return $this->name;
@@ -72,5 +79,21 @@ class MCPServerSelectListDTO extends AbstractDTO
     public function setType(?string $type): void
     {
         $this->type = $type ?? '';
+    }
+
+    /**
+     * @return array<array<string, string>>
+     */
+    public function getRequireFields(): array
+    {
+        return $this->requireFields;
+    }
+
+    /**
+     * @param array<array<string, string>> $requireFields
+     */
+    public function setRequireFields(array $requireFields): void
+    {
+        $this->requireFields = $requireFields;
     }
 }

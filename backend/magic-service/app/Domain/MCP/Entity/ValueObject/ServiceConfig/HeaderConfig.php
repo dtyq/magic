@@ -13,30 +13,20 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
 class HeaderConfig extends AbstractValueObject
 {
-    protected string $key;
+    protected string $key = '';
 
-    protected string $value;
+    protected string $value = '';
 
     protected string $mapperSystemInput = '';
-
-    public function setKey(string $key): void
-    {
-        $this->key = $key;
-    }
-
-    public function setValue(string $value): void
-    {
-        $this->value = $value;
-    }
-
-    public function setMapperSystemInput(string $mapperSystemInput): void
-    {
-        $this->mapperSystemInput = $mapperSystemInput;
-    }
 
     public function getKey(): string
     {
         return $this->key;
+    }
+
+    public function setKey(string $key): void
+    {
+        $this->key = $key;
     }
 
     public function getValue(): string
@@ -44,36 +34,27 @@ class HeaderConfig extends AbstractValueObject
         return $this->value;
     }
 
+    public function setValue(string $value): void
+    {
+        $this->value = $value;
+    }
+
     public function getMapperSystemInput(): string
     {
         return $this->mapperSystemInput;
     }
 
-    public function validate(): void
+    public function setMapperSystemInput(string $mapperSystemInput): void
     {
-        $key = trim($this->key);
-        $value = trim($this->value);
-
-        // Skip if both key and value are empty (header not configured)
-        if (empty($key) && empty($value)) {
-            return;
-        }
-
-        // If key is empty but value is not, this is invalid
-        if (empty($key)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'Header Key']);
-        }
-
-        // If key is provided, value can be empty (some headers don't need values)
+        $this->mapperSystemInput = $mapperSystemInput;
     }
 
-    public function toArray(): array
+    public function validate(): void
     {
-        return [
-            'key' => $this->key,
-            'value' => $this->value,
-            'mapper_system_input' => $this->mapperSystemInput,
-        ];
+        // If value is provided, key must be provided
+        if (! empty($this->value) && empty($this->key)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.headers']);
+        }
     }
 
     public static function fromArray(array $array): self

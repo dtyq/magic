@@ -106,6 +106,10 @@ class MCPServerAssembler
         $DTO->setDescription($mcpServerEntity->getDescription());
         $DTO->setIcon(FileAssembler::getUrl($icons[$mcpServerEntity->getIcon()] ?? null));
         $DTO->setType($mcpServerEntity->getType()->value);
+        $DTO->setRequireFields(array_map(
+            fn ($field) => ['field_name' => $field],
+            $mcpServerEntity->getServiceConfig()->getRequireFields()
+        ));
         return $DTO;
     }
 
