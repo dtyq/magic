@@ -191,7 +191,7 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
      */
     private function replaceUrlFields(string $url, array $fieldValues): string
     {
-        if (empty($url) || empty($fieldValues)) {
+        if (empty($url)) {
             return $url;
         }
 

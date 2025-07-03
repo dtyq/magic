@@ -542,4 +542,171 @@ class ServiceConfigTest extends BaseTest
         // Domain should remain unchanged, but path and query should be replaced
         $this->assertEquals('https://${domain}.api.com/sse/user/12345?key=secret123', $config->getUrl());
     }
+
+    public function testReplaceRequiredFieldsWithDefaultValues()
+    {
+        // Test ExternalSSEServiceConfig with default values
+        $config = new ExternalSSEServiceConfig();
+        $config->setUrl('https://api.github.com/sse/user/${user_id|12345}?key=${api_key}&timeout=${timeout|30}');
+        $config->setAuthType(ServiceConfigAuthType::NONE);
+
+        $header = HeaderConfig::fromArray([
+            'key' => 'Authorization',
+            'value' => 'Bearer ${access_token|default_token}',
+            'mapper_system_input' => 'system_input',
+        ]);
+        $config->setHeaders([$header]);
+
+        // Test 1: Provide some values, use defaults for others
+        $result = $config->replaceRequiredFields([
+            'api_key' => 'provided_key',
+            // user_id not provided - should use default "12345"
+            // access_token not provided - should use default "default_token"
+            // timeout not provided - should use default "30"
+        ]);
+
+        $this->assertSame($config, $result);
+        $this->assertEquals('https://api.github.com/sse/user/12345?key=provided_key&timeout=30', $config->getUrl());
+        $this->assertEquals('Bearer default_token', $config->getHeaders()[0]->getValue());
+
+        // Test 2: Override some default values
+        $config->setUrl('https://api.github.com/sse/user/${user_id|12345}?key=${api_key}&timeout=${timeout|30}');
+        $config->getHeaders()[0]->setValue('Bearer ${access_token|default_token}');
+
+        $config->replaceRequiredFields([
+            'user_id' => '67890', // Override default
+            'api_key' => 'new_key',
+            'timeout' => '60', // Override default
+            // access_token not provided - should use default
+        ]);
+
+        $this->assertEquals('https://api.github.com/sse/user/67890?key=new_key&timeout=60', $config->getUrl());
+        $this->assertEquals('Bearer default_token', $config->getHeaders()[0]->getValue());
+    }
+
+    public function testReplaceRequiredFieldsWithoutDefaultValues()
+    {
+        // Test fields without default values become empty string when not provided
+        $config = new ExternalSSEServiceConfig();
+        $config->setUrl('https://api.github.com/sse/user/${user_id}?key=${api_key|default_key}');
+        $config->setAuthType(ServiceConfigAuthType::NONE);
+
+        $config->replaceRequiredFields([
+            // user_id not provided and has no default - should become empty string
+            // api_key not provided but has default - should use default
+        ]);
+
+        $this->assertEquals('https://api.github.com/sse/user/?key=default_key', $config->getUrl());
+    }
+
+    public function testGetRequireFieldsWithDefaultValues()
+    {
+        // Test that getRequireFields returns field names without default values
+        $config = new ExternalSSEServiceConfig();
+        $config->setUrl('https://api.github.com/sse/user/${user_id|12345}?key=${api_key}&timeout=${timeout|30}');
+
+        $header = HeaderConfig::fromArray([
+            'key' => 'Authorization',
+            'value' => 'Bearer ${access_token|default_token}',
+            'mapper_system_input' => '',
+        ]);
+        $config->setHeaders([$header]);
+
+        $requiredFields = $config->getRequireFields();
+
+        // Should extract field names without default values
+        $expectedFields = ['user_id', 'api_key', 'timeout', 'access_token'];
+
+        foreach ($expectedFields as $field) {
+            $this->assertContains($field, $requiredFields, "Missing required field: {$field}");
+        }
+
+        $this->assertEquals(4, count($requiredFields));
+    }
+
+    public function testDefaultValuesWithSpecialCharacters()
+    {
+        // Test default values containing special characters
+        $config = new ExternalStdioServiceConfig();
+        $config->setCommand('python');
+        $config->setArguments([
+            'script.py',
+            '--param=${param|value with spaces}',
+            '--url=${url|https://example.com/path?query=value}',
+            '--data=${data|{"key":"value","number":123}}',
+        ]);
+
+        $config->replaceRequiredFields([
+            'param' => 'overridden_param',
+            // url and data not provided - should use defaults
+        ]);
+
+        $expectedArgs = [
+            'script.py',
+            '--param=overridden_param',
+            '--url=https://example.com/path?query=value',
+            '--data={"key":"value","number":123}',
+        ];
+
+        $this->assertEquals($expectedArgs, $config->getArguments());
+    }
+
+    public function testReplaceRequiredFieldsWithEmptyStringForMissingFields()
+    {
+        // Test that fields without default values are replaced with empty string
+
+        // Test ExternalStdioServiceConfig
+        $stdioConfig = new ExternalStdioServiceConfig();
+        $stdioConfig->setCommand('python');
+        $stdioConfig->setArguments([
+            'script.py',
+            '--param=${param}', // No default value
+            '--value=${value|default_value}', // Has default value
+            '--empty=${empty}', // No default value
+        ]);
+
+        $stdioConfig->replaceRequiredFields([
+            'param' => 'provided_param',
+            // value not provided - should use default
+            // empty not provided - should become empty string
+        ]);
+
+        $expectedArgs = [
+            'script.py',
+            '--param=provided_param',
+            '--value=default_value',
+            '--empty=',
+        ];
+
+        $this->assertEquals($expectedArgs, $stdioConfig->getArguments());
+
+        // Test SSEServiceConfig
+        $sseConfig = new SSEServiceConfig();
+        $header = HeaderConfig::fromArray([
+            'key' => 'Authorization',
+            'value' => 'Bearer ${token} ${extra}', // Both without default values
+            'mapper_system_input' => 'system',
+        ]);
+        $sseConfig->setHeaders([$header]);
+
+        $sseConfig->replaceRequiredFields([
+            'token' => 'abc123',
+            // extra not provided - should become empty string
+        ]);
+
+        $this->assertEquals('Bearer abc123 ', $sseConfig->getHeaders()[0]->getValue());
+
+        // Test ExternalSSEServiceConfig
+        $externalConfig = new ExternalSSEServiceConfig();
+        $externalConfig->setUrl('https://api.example.com/user/${user_id}/data/${data_id}?key=${api_key|default_key}');
+        $externalConfig->setAuthType(ServiceConfigAuthType::NONE);
+
+        $externalConfig->replaceRequiredFields([
+            'user_id' => '123',
+            // data_id not provided - should become empty string
+            // api_key not provided - should use default
+        ]);
+
+        $this->assertEquals('https://api.example.com/user/123/data/?key=default_key', $externalConfig->getUrl());
+    }
 }
