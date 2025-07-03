@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Speech\Facade\Open;
 
 use App\Application\Speech\Service\SpeechToTextStandardAppService;
-use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
@@ -82,7 +82,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
 
-        $submitDTO = new BigModelSpeechSubmitDTO($requestData);
+        $submitDTO = new LargeModelSpeechSubmitDTO($requestData);
         $submitDTO->setAccessToken($this->getAccessToken());
         $submitDTO->setIps($this->getClientIps());
         $submitDTO->setUser(new SpeechUserDTO(['uid' => $this->getAccessToken()]));
