@@ -48,11 +48,6 @@ class TopicItemDTO extends AbstractDTO
     protected string $projectId = '';
 
     /**
-     * @var string 话题模式
-     */
-    protected string $topicMode = 'general';
-
-    /**
      * 从实体创建 DTO.
      */
     public static function fromEntity(TopicEntity $entity): self
@@ -65,7 +60,6 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTopicName($entity->getTopicName());
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
-        $dto->setTopicMode($entity->getTopicMode()->value);
         return $dto;
     }
 
@@ -146,17 +140,6 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
-    public function getTopicMode(): string
-    {
-        return $this->topicMode;
-    }
-
-    public function setTopicMode(string $topicMode): self
-    {
-        $this->topicMode = $topicMode;
-        return $this;
-    }
-
     /**
      * 从数组创建DTO.
      */
@@ -170,7 +153,6 @@ class TopicItemDTO extends AbstractDTO
         $dto->topicName = $data['topic_name'] ?? $data['name'] ?? '';
         $dto->taskStatus = $data['task_status'] ?? $data['current_task_status'] ?? '';
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
-        $dto->topicMode = $data['topic_mode'] ?? 'general';
 
         return $dto;
     }
@@ -189,7 +171,6 @@ class TopicItemDTO extends AbstractDTO
             'topic_name' => $this->topicName,
             'task_status' => $this->taskStatus,
             'project_id' => $this->projectId,
-            'topic_mode' => $this->topicMode,
         ];
     }
 }

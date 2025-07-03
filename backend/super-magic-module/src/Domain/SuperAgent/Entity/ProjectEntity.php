@@ -41,9 +41,19 @@ class ProjectEntity extends AbstractEntity
     protected string $projectName = '';
 
     /**
+     * @var string 项目描述
+     */
+    protected string $projectDescription = '';
+
+    /**
      * @var string 项目目录
      */
     protected string $workDir = '';
+
+    /**
+     * @var string 项目模式
+     */
+    protected string $projectMode = '';
 
     /**
      * @var ProjectStatus Project status
@@ -106,6 +116,7 @@ class ProjectEntity extends AbstractEntity
             'user_organization_code' => $this->userOrganizationCode,
             'workspace_id' => $this->workspaceId,
             'project_name' => $this->projectName,
+            'project_description' => $this->projectDescription,
             'work_dir' => $this->workDir,
             'project_status' => $this->projectStatus->value,
             'current_topic_id' => $this->currentTopicId,
@@ -176,6 +187,17 @@ class ProjectEntity extends AbstractEntity
     public function setProjectName(string $projectName): self
     {
         $this->projectName = $projectName;
+        return $this;
+    }
+
+    public function getProjectDescription(): string
+    {
+        return $this->projectDescription;
+    }
+
+    public function setProjectDescription(string $projectDescription): self
+    {
+        $this->projectDescription = $projectDescription;
         return $this;
     }
 

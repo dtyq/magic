@@ -45,7 +45,6 @@ class TopicModel extends AbstractModel
         'topic_name',
         'work_dir',
         'task_mode',
-        'topic_mode',
         'cost',
         'created_at',
         'updated_at',
