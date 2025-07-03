@@ -147,11 +147,7 @@ class VolcengineStandardClient
     /**
      * 提交大模型ASR任务
      */
-<<<<<<< HEAD
-    public function submitBigModelTask(BigModelSpeechSubmitDTO $submitDTO): array
-=======
     public function submitBigModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
->>>>>>> fix/change-speech-route
     {
         $requestData = $this->buildBigModelSubmitRequest($submitDTO);
         $requestId = $requestData['req_id'];
@@ -358,11 +354,7 @@ class VolcengineStandardClient
         ];
     }
 
-<<<<<<< HEAD
-    private function buildBigModelSubmitRequest(BigModelSpeechSubmitDTO $submitDTO): array
-=======
     private function buildBigModelSubmitRequest(LargeModelSpeechSubmitDTO $submitDTO): array
->>>>>>> fix/change-speech-route
     {
         $userRequestData = $submitDTO->toVolcenArray();
 
