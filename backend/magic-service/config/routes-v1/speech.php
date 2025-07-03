@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 /**
- * Copyright (c) The Magic , Distributed under the software license.
+ * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Interfaces\Speech\Facade\Open\SpeechToTextStandardApi;
 use Hyperf\HttpServer\Router\Router;
