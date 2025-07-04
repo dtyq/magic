@@ -901,6 +901,138 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
+     * 获取项目文件上传STS Token.
+     *
+     * @param ProjectUploadTokenRequestDTO $requestDTO Request DTO
+     * @return array 获取结果
+     */
+    public function getProjectUploadToken(RequestContext $requestContext, ProjectUploadTokenRequestDTO $requestDTO): array
+    {
+        try {
+            $projectId = $requestDTO->getProjectId();
+            $expires = $requestDTO->getExpires();
+
+            // 获取当前用户信息
+            $userAuthorization = $requestContext->getUserAuthorization();
+
+            // 创建数据隔离对象
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
+            $userId = $dataIsolation->getCurrentUserId();
+            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+            // 情况1：有项目ID，获取项目的work_dir
+            if (! empty($projectId)) {
+                $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+                $workDir = $projectEntity->getWorkDir();
+                if (empty($workDir)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'project.work_dir.not_found');
+                }
+                $returnProjectId = $projectId;
+            } else {
+                // 情况2：无项目ID，使用雪花ID生成临时项目ID
+                $tempProjectId = IdGenerator::getSnowId();
+                $workDir = WorkDirectoryUtil::generateWorkDir($userId, $tempProjectId);
+                $returnProjectId = (string) $tempProjectId;
+            }
+
+            // 获取STS Token
+            $userAuthorization = new MagicUserAuthorization();
+            $userAuthorization->setOrganizationCode($organizationCode);
+            $storageType = StorageBucketType::Private->value;
+
+            $stsData = $this->fileAppService->getStsTemporaryCredential(
+                $userAuthorization,
+                $storageType,
+                $workDir,
+                $expires
+            );
+
+            // 返回结果包含项目ID、work_dir和STS凭证
+            return [
+                'project_id' => $returnProjectId,
+                'work_dir' => $workDir,
+                'upload_config' => $stsData,
+            ];
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to get project upload token: %s, Project ID: %s',
+                $e->getMessage(),
+                $requestDTO->getProjectId()
+            ));
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
+        }
+    }
+
+    /**
+     * 保存项目文件.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param SaveProjectFileRequestDTO $requestDTO Request DTO
+     * @return array 保存结果
+     */
+    public function saveProjectFile(RequestContext $requestContext, SaveProjectFileRequestDTO $requestDTO): array
+    {
+        try {
+            // 获取用户授权信息
+            $userAuthorization = $requestContext->getUserAuthorization();
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+            // 参数验证
+            if (empty($requestDTO->getProjectId())) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id_required');
+            }
+
+            if (empty($requestDTO->getFileKey())) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_key_required');
+            }
+
+            if (empty($requestDTO->getFileName())) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_name_required');
+            }
+
+            if ($requestDTO->getFileSize() <= 0) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_size_required');
+            }
+
+            // 校验项目归属权限 - 确保用户只能保存到自己的项目
+            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+
+            // 调用领域服务保存文件
+            $taskFileEntity = $this->taskFileDomainService->saveProjectFile(
+                $dataIsolation,
+                $requestDTO->getProjectId(),
+                $requestDTO->getTopicId(),
+                $requestDTO->getTaskId(),
+                $requestDTO->getFileKey(),
+                $requestDTO->getFileName(),
+                $requestDTO->getFileSize(),
+                $requestDTO->getFileType()
+            );
+
+            // 返回保存结果
+            return [
+                'file_id' => $taskFileEntity->getFileId(),
+                'file_key' => $taskFileEntity->getFileKey(),
+                'file_name' => $taskFileEntity->getFileName(),
+                'file_size' => $taskFileEntity->getFileSize(),
+                'file_type' => $taskFileEntity->getFileType(),
+                'project_id' => $taskFileEntity->getProjectId(),
+                'topic_id' => $taskFileEntity->getTopicId(),
+                'task_id' => $taskFileEntity->getTaskId(),
+                'created_at' => $taskFileEntity->getCreatedAt(),
+            ];
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to save project file: %s, Project ID: %s, File Key: %s',
+                $e->getMessage(),
+                $requestDTO->getProjectId(),
+                $requestDTO->getFileKey()
+            ));
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
+        }
+    }
+
+    /**
      * Perform actual file save logic.
      *
      * @param SaveFileContentRequestDTO $requestDTO Request DTO
@@ -1079,137 +1211,5 @@ class FileProcessAppService extends AbstractAppService
 
         // Save updated entity
         $this->taskDomainService->updateTaskFile($taskFileEntity);
-    }
-
-    /**
-     * 获取项目文件上传STS Token.
-     *
-     * @param ProjectUploadTokenRequestDTO $requestDTO Request DTO
-     * @return array 获取结果
-     */
-    public function getProjectUploadToken(RequestContext $requestContext, ProjectUploadTokenRequestDTO $requestDTO): array
-    {
-        try {
-            $projectId = $requestDTO->getProjectId();
-            $expires = $requestDTO->getExpires();
-
-            // 获取当前用户信息
-            $userAuthorization = $requestContext->getUserAuthorization();
-
-            // 创建数据隔离对象
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
-            $userId = $dataIsolation->getCurrentUserId();
-            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-            // 情况1：有项目ID，获取项目的work_dir
-            if (!empty($projectId)) {
-                $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-                $workDir = $projectEntity->getWorkDir();
-                if (empty($workDir)) {
-                    ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'project.work_dir.not_found');
-                }
-                $returnProjectId = $projectId;
-            } else {
-                // 情况2：无项目ID，使用雪花ID生成临时项目ID
-                $tempProjectId = IdGenerator::getSnowId();
-                $workDir = WorkDirectoryUtil::generateWorkDir($userId, $tempProjectId);
-                $returnProjectId = (string) $tempProjectId;
-            }
-
-            // 获取STS Token
-            $userAuthorization = new MagicUserAuthorization();
-            $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
-
-            $stsData = $this->fileAppService->getStsTemporaryCredential(
-                $userAuthorization,
-                $storageType,
-                $workDir,
-                $expires
-            );
-
-            // 返回结果包含项目ID、work_dir和STS凭证
-            return [
-                'project_id' => $returnProjectId,
-                'work_dir' => $workDir,
-                'upload_config' => $stsData
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'Failed to get project upload token: %s, Project ID: %s',
-                $e->getMessage(),
-                $requestDTO->getProjectId()
-            ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
-        }
-    }
-
-    /**
-     * 保存项目文件.
-     *
-     * @param RequestContext $requestContext Request context
-     * @param SaveProjectFileRequestDTO $requestDTO Request DTO
-     * @return array 保存结果
-     */
-    public function saveProjectFile(RequestContext $requestContext, SaveProjectFileRequestDTO $requestDTO): array
-    {
-        try {
-            // 获取用户授权信息
-            $userAuthorization = $requestContext->getUserAuthorization();
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-            // 参数验证
-            if (empty($requestDTO->getProjectId())) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id_required');
-            }
-
-            if (empty($requestDTO->getFileKey())) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_key_required');
-            }
-
-            if (empty($requestDTO->getFileName())) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_name_required');
-            }
-
-            if ($requestDTO->getFileSize() <= 0) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_size_required');
-            }
-
-            // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
-
-            // 调用领域服务保存文件
-            $taskFileEntity = $this->taskFileDomainService->saveProjectFile(
-                $dataIsolation,
-                $requestDTO->getProjectId(),
-                $requestDTO->getTopicId(),
-                $requestDTO->getTaskId(),
-                $requestDTO->getFileKey(),
-                $requestDTO->getFileName(),
-                $requestDTO->getFileSize(),
-                $requestDTO->getFileType()
-            );
-
-            // 返回保存结果
-            return [
-                'file_id' => $taskFileEntity->getFileId(),
-                'file_key' => $taskFileEntity->getFileKey(),
-                'file_name' => $taskFileEntity->getFileName(),
-                'file_size' => $taskFileEntity->getFileSize(),
-                'file_type' => $taskFileEntity->getFileType(),
-                'project_id' => $taskFileEntity->getProjectId(),
-                'topic_id' => $taskFileEntity->getTopicId(),
-                'task_id' => $taskFileEntity->getTaskId(),
-                'created_at' => $taskFileEntity->getCreatedAt()
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'Failed to save project file: %s, Project ID: %s, File Key: %s',
-                $e->getMessage(),
-                $requestDTO->getProjectId(),
-                $requestDTO->getFileKey()
-            ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
-        }
     }
 }

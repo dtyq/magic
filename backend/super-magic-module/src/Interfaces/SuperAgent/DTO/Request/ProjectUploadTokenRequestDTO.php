@@ -48,7 +48,6 @@ class ProjectUploadTokenRequestDTO implements JsonSerializable
         return $this;
     }
 
-
     public function getExpires(): int
     {
         return $this->expires;

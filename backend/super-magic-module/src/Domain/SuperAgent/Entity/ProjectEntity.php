@@ -95,11 +95,6 @@ class ProjectEntity extends AbstractEntity
      */
     protected ?string $deletedAt = null;
 
-    /**
-     * @var null|string 项目模式
-     */
-    protected ?string $projectMode = null;
-
     public function __construct(array $data = [])
     {
         $this->initProperty($data);

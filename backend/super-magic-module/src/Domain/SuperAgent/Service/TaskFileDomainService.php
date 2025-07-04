@@ -194,8 +194,8 @@ class TaskFileDomainService
         $entity->setUserId($dataIsolation->getCurrentUserId());
         $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $entity->setProjectId((int) $projectId);
-        $entity->setTopicId(!empty($topicId) ? (int) $topicId : 0);
-        $entity->setTaskId(!empty($taskId) ? (int) $taskId : 0);
+        $entity->setTopicId(! empty($topicId) ? (int) $topicId : 0);
+        $entity->setTaskId(! empty($taskId) ? (int) $taskId : 0);
         $entity->setFileKey($fileKey);
         $entity->setFileName($fileName);
         $entity->setFileSize($fileSize);
