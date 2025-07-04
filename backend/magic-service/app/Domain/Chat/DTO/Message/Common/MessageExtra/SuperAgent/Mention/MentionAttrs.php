@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention;
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Agent\AgentData;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\File\ProjectFileData;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\File\FileData;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Mcp\McpData;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Tool\ToolData;
 use App\Infrastructure\Core\AbstractDTO;
@@ -51,7 +51,7 @@ final class MentionAttrs extends AbstractDTO
             $this->data = $data;
         } else {
             $this->data = match ($this->getType()) {
-                MentionType::PROJECT_FILE => new ProjectFileData($data),
+                MentionType::PROJECT_FILE,MentionType::UPLOAD_FILE => new FileData($data),
                 MentionType::AGENT => new AgentData($data),
                 MentionType::MCP => new McpData($data),
                 MentionType::TOOL => new ToolData($data),

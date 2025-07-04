@@ -7,13 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent;
 
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Agent\AgentMention;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\File\ProjectFileMention;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Mcp\McpMention;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionInterface;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Tool\ToolMention;
 use App\Infrastructure\Core\AbstractDTO;
+use App\Interfaces\Agent\Assembler\MentionAssembler;
 use Hyperf\Codec\Json;
 
 class SuperAgentExtra extends AbstractDTO
@@ -42,11 +38,14 @@ class SuperAgentExtra extends AbstractDTO
     /**
      * 为了方便大模型进行 function call，这里将 @ 的内容转为文本格式.
      */
-    public function getMentionsTextStruct(): string
+    public function getMentionsTextStruct(): ?string
     {
         $textStruct = [];
         foreach ($this->mentions as $mention) {
-            $textStruct[] = $mention->getTextStruct();
+            $textStruct[] = $mention->getMentionTextStruct();
+        }
+        if (empty($textStruct)) {
+            return null;
         }
         return Json::encode($textStruct);
     }
@@ -68,18 +67,11 @@ class SuperAgentExtra extends AbstractDTO
                 continue;
             }
 
-            if (! is_array($mention) || ! isset($mention['attrs']['type'])) {
+            if (! is_array($mention)) {
                 continue;
             }
 
-            $mentionAttrType = MentionType::tryFrom($mention['attrs']['type']);
-            $mentionObj = match ($mentionAttrType) {
-                MentionType::PROJECT_FILE => new ProjectFileMention($mention),
-                MentionType::AGENT => new AgentMention($mention),
-                MentionType::MCP => new McpMention($mention),
-                MentionType::TOOL => new ToolMention($mention),
-                default => null,
-            };
+            $mentionObj = MentionAssembler::fromArray($mention);
             if ($mentionObj instanceof MentionInterface) {
                 $converted[] = $mentionObj;
             }

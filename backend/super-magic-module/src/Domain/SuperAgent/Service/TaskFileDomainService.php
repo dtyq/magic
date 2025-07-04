@@ -9,11 +9,13 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 
 class TaskFileDomainService
 {
     public function __construct(
         protected TaskFileRepositoryInterface $taskFileRepository,
+        protected TopicRepositoryInterface $topicRepository,
     ) {
     }
 
@@ -116,5 +118,36 @@ class TaskFileDomainService
     public function deleteById(int $id): void
     {
         $this->taskFileRepository->deleteById($id);
+    }
+
+    /**
+     * 根据文件key和topicId获取相对于工作目录的文件路径。
+     * 逻辑参考 AgentFileAppService::getFileVersions 方法。
+     *
+     * @param string $fileKey 完整的文件key（包含 workDir 前缀）
+     * @param int $topicId 话题 ID
+     *
+     * @return string 相对于 workDir 的文件路径（当未匹配到 workDir 时返回原始 $fileKey）
+     */
+    public function getFileWorkspacePath(string $fileKey, int $topicId): string
+    {
+        // 通过仓储直接获取话题，避免领域服务之间的依赖
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+
+        // 若话题不存在或 workDir 为空，直接返回原始 fileKey
+        if (empty($topicEntity) || empty($topicEntity->getWorkDir())) {
+            return $fileKey;
+        }
+
+        $workDir = rtrim($topicEntity->getWorkDir(), '/') . '/';
+
+        // 使用 workDir 在 fileKey 中找到最后一次出现的位置，截取其后内容
+        $pos = strrpos($fileKey, $workDir);
+        if ($pos === false) {
+            // 未找到 workDir，返回原始 fileKey
+            return $fileKey;
+        }
+
+        return substr($fileKey, $pos + strlen($workDir));
     }
 }

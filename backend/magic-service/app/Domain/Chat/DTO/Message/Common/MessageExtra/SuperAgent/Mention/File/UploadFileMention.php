@@ -9,16 +9,16 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Fil
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractMention;
 
-final class ProjectFileMention extends AbstractMention
+final class UploadFileMention extends AbstractMention
 {
     public function getMentionTextStruct(): string
     {
-        // 如果file_path为空，需要根据 file_id拿到 file_key，从 file_key解析到 file_path
         $data = $this->getAttrs()->getData();
         if (! $data instanceof FileData) {
             return '';
         }
-        $filePath = $data->getFilePath() ?? '';
+        // @todo 上传的文件目前直接放在工作区的根目录。后面可能会调整路径，到时再改。
+        $filePath = $data->getFileName() ?? '';
         return sprintf('@<file_path>%s</file_path>', $filePath);
     }
 }

@@ -57,6 +57,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
             ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.task_id_required');
         }
 
+        $requestData = $request->all();
         $queryDTO = new SpeechQueryDTO(['task_id' => $taskId]);
         $queryDTO->setaccessToken($this->getAccessToken());
         $queryDTO->setIps($this->getClientIps());
@@ -97,6 +98,8 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         if (empty($requestId)) {
             ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.task_id_required');
         }
+
+        $requestData = $request->all();
         $type = $requestData['type'] ?? self::VOLCENGINE_TYPE;
 
         $speechQueryDTO = new SpeechQueryDTO(['task_id' => $requestId]);

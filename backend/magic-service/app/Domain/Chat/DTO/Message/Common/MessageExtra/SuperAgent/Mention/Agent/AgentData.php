@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Agent;
 
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Data\MentionDataInterface;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionDataInterface;
 use App\Infrastructure\Core\AbstractDTO;
 
 final class AgentData extends AbstractDTO implements MentionDataInterface

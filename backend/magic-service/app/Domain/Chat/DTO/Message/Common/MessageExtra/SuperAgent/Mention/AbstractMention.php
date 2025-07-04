@@ -42,5 +42,5 @@ abstract class AbstractMention extends AbstractDTO implements MentionInterface
         return $this->attrs;
     }
 
-    abstract public function getTextStruct(): string;
+    abstract public function getMentionTextStruct(): string;
 }

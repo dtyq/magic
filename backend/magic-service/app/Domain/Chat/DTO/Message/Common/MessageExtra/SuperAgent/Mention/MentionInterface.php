@@ -14,5 +14,5 @@ use JsonSerializable;
  */
 interface MentionInterface extends JsonSerializable
 {
-    public function getTextStruct(): string;
+    public function getMentionTextStruct(): string;
 }

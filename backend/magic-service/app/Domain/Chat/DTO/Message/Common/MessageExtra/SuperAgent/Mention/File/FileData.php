@@ -10,11 +10,15 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Fil
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionDataInterface;
 use App\Infrastructure\Core\AbstractDTO;
 
-final class ProjectFileData extends AbstractDTO implements MentionDataInterface
+final class FileData extends AbstractDTO implements MentionDataInterface
 {
     protected string $fileId;
 
     protected string $fileKey;
+
+    protected string $filePath;
+
+    protected string $fileName;
 
     public function __construct(array $data = [])
     {
@@ -32,6 +36,16 @@ final class ProjectFileData extends AbstractDTO implements MentionDataInterface
         return $this->fileKey ?? null;
     }
 
+    public function getFilePath(): ?string
+    {
+        return $this->filePath ?? null;
+    }
+
+    public function getFileName(): ?string
+    {
+        return $this->fileName ?? null;
+    }
+
     /* Setters */
     public function setFileId(string $fileId): void
     {
@@ -41,5 +55,15 @@ final class ProjectFileData extends AbstractDTO implements MentionDataInterface
     public function setFileKey(string $fileKey): void
     {
         $this->fileKey = $fileKey;
+    }
+
+    public function setFilePath(string $filePath): void
+    {
+        $this->filePath = $filePath;
+    }
+
+    public function setFileName(string $fileName): void
+    {
+        $this->fileName = $fileName;
     }
 }

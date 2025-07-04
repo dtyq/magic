@@ -11,10 +11,14 @@ use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractM
 
 final class McpMention extends AbstractMention
 {
-    public function getTextStruct(): string
+    public function getMentionTextStruct(): string
     {
         /** @var McpData $data */
         $data = $this->getAttrs()->getData();
-        return $data instanceof McpData ? (string) ($data->getName() ?? '') : '';
+        if (! $data instanceof McpData) {
+            return '';
+        }
+
+        return (string) ($data->getName() ?? '');
     }
 }

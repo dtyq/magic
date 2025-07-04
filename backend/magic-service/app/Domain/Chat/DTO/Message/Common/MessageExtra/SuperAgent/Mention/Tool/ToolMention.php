@@ -11,10 +11,14 @@ use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractM
 
 final class ToolMention extends AbstractMention
 {
-    public function getTextStruct(): string
+    public function getMentionTextStruct(): string
     {
         /** @var ToolData $data */
         $data = $this->getAttrs()->getData();
-        return $data instanceof ToolData ? (string) ($data->getName() ?? '') : '';
+        if (! $data instanceof ToolData) {
+            return '';
+        }
+
+        return (string) ($data->getName() ?? '');
     }
 }

@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
+use App\Domain\Chat\DTO\Message\MagicMessageStruct;
+use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -54,16 +56,25 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 'Received super agent message, event: %s',
                 json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ));
-
+            /** @var null|MagicMessageStruct $messageStruct */
+            $messageStruct = $userCallAgentEvent->messageEntity?->getContent();
+            if ($messageStruct instanceof TextContentInterface) {
+                // 可能是富文本，需要处理 @
+                $prompt = $messageStruct->getTextContent();
+            } else {
+                $prompt = '';
+            }
+            // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
+            $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
+            $attachments = $superAgentExtra?->getMentionsTextStruct();
             // Extract necessary information
             $conversationId = $userCallAgentEvent->seqEntity->getConversationId() ?? '';
             $chatTopicId = $userCallAgentEvent->seqEntity->getExtra()?->getTopicId() ?? '';
             $organizationCode = $userCallAgentEvent->senderUserEntity->getOrganizationCode() ?? '';
             $userId = $userCallAgentEvent->senderUserEntity->getUserId() ?? '';
             $agentUserId = $userCallAgentEvent->agentUserEntity->getUserId() ?? '';
-            $prompt = $userCallAgentEvent->messageEntity?->getMessageContent()?->getContent() ?? '';
-            $attachments = $userCallAgentEvent->messageEntity?->getMessageContent()?->getAttachments() ?? [];
-            $instructions = $userCallAgentEvent->messageEntity?->getMessageContent()?->getInstructs() ?? [];
+            //            $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
+            $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
 
             // Parameter validation
             if (empty($conversationId) || empty($chatTopicId) || empty($organizationCode)
