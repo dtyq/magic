@@ -7,38 +7,22 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention;
 
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Agent\AgentData;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\File\ProjectFileData;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Mcp\McpData;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Tool\ToolData;
 use App\Infrastructure\Core\AbstractDTO;
-use InvalidArgumentException;
 
-class MentionAttrs extends AbstractDTO
+final class MentionAttrs extends AbstractDTO
 {
-    /**
-     * Attribute type enum.
-     */
     protected MentionType $type;
 
-    /**
-     * Attribute data object.
-     */
-    protected MentionData $data;
+    protected MentionDataInterface $data;
 
     public function __construct(?array $data = null)
     {
-        if ($data) {
-            if (isset($data['type'])) {
-                $this->setType($data['type']);
-                unset($data['type']);
-            }
-
-            if (isset($data['data'])) {
-                $this->setData($data['data']);
-                unset($data['data']);
-            } elseif (isset($this->type)) {
-                // If type is set but data is not, create an empty data object.
-                $this->data = MentionDataFactory::create($this->type->value, []);
-            }
-        }
-
+        // 需要先设置 type
+        $this->setType($data['type'] ?? '');
         parent::__construct($data);
     }
 
@@ -49,38 +33,29 @@ class MentionAttrs extends AbstractDTO
 
     public function setType(MentionType|string $type): void
     {
-        if (is_string($type)) {
-            $this->type = MentionType::fromString($type);
-        } else {
+        if ($type instanceof MentionType) {
             $this->type = $type;
-        }
-
-        // When the type changes, recreate the data object if it already exists, otherwise create an empty one.
-        if (isset($this->data)) {
-            $oldData = $this->data->toArray();
-            $this->data = MentionDataFactory::create($this->type->value, $oldData);
         } else {
-            $this->data = MentionDataFactory::create($this->type->value, []);
+            $this->type = MentionType::from($type);
         }
     }
 
-    public function getData(): MentionData
+    public function getData(): MentionDataInterface
     {
         return $this->data;
     }
 
-    public function setData(array|MentionData $data): void
+    public function setData(array|MentionDataInterface $data): void
     {
-        if (is_array($data)) {
-            // If a type is available, create a data object based on it.
-            if (isset($this->type)) {
-                $this->data = MentionDataFactory::create($this->type->value, $data);
-            } else {
-                throw new InvalidArgumentException('Type must be set before setting data from array');
-            }
-        } else {
+        if ($data instanceof MentionDataInterface) {
             $this->data = $data;
-            $this->type = MentionType::fromString($data->getDataType());
+        } else {
+            $this->data = match ($this->getType()) {
+                MentionType::PROJECT_FILE => new ProjectFileData($data),
+                MentionType::AGENT => new AgentData($data),
+                MentionType::MCP => new McpData($data),
+                MentionType::TOOL => new ToolData($data),
+            };
         }
     }
 }

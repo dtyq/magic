@@ -7,10 +7,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention;
 
-enum MentionType: string
+use JsonSerializable;
+
+/**
+ * 通用 Mention 接口，所有提及对象均需实现。
+ */
+interface MentionInterface extends JsonSerializable
 {
-    case PROJECT_FILE = 'project_file';
-    case AGENT = 'agent';
-    case MCP = 'mcp';
-    case TOOL = 'tool';
+    public function getTextStruct(): string;
 }

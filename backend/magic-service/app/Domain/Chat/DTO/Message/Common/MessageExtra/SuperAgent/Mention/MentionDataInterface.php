@@ -7,10 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention;
 
-enum MentionType: string
+interface MentionDataInterface
 {
-    case PROJECT_FILE = 'project_file';
-    case AGENT = 'agent';
-    case MCP = 'mcp';
-    case TOOL = 'tool';
+    public function toArray(): array;
 }
