@@ -18,11 +18,6 @@ class CreateBatchDownloadRequestDTO
     private array $fileIds = [];
 
     /**
-     * @var string Topic ID
-     */
-    private string $topicId = '';
-
-    /**
      * @var string Project ID
      */
     private string $projectId = '';
@@ -41,23 +36,6 @@ class CreateBatchDownloadRequestDTO
     public function setFileIds(array $fileIds): self
     {
         $this->fileIds = $fileIds;
-        return $this;
-    }
-
-    /**
-     * Get topic ID.
-     */
-    public function getTopicId(): string
-    {
-        return $this->topicId;
-    }
-
-    /**
-     * Set topic ID.
-     */
-    public function setTopicId(string $topicId): self
-    {
-        $this->topicId = $topicId;
         return $this;
     }
 
@@ -87,13 +65,7 @@ class CreateBatchDownloadRequestDTO
     {
         $dto = new self();
         $fileIds = $requestData['file_ids'] ?? [];
-        $topicId = $requestData['topic_id'] ?? '';
         $projectId = $requestData['project_id'] ?? '';
-
-        // Validation for topic_id
-        if (! is_string($topicId)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOPIC_ID_INVALID);
-        }
 
         // Validation for project_id
         if (! is_string($projectId)) {
@@ -106,7 +78,7 @@ class CreateBatchDownloadRequestDTO
         }
 
         // Either file_ids or topic_id must be provided
-        if (empty($fileIds) && empty($topicId)) {
+        if (empty($fileIds) && empty($projectId)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_OR_TOPIC_ID_REQUIRED);
         }
 
@@ -124,7 +96,6 @@ class CreateBatchDownloadRequestDTO
         }
 
         $dto->setFileIds($fileIds);
-        $dto->setTopicId($topicId);
         $dto->setProjectId($projectId);
         return $dto;
     }

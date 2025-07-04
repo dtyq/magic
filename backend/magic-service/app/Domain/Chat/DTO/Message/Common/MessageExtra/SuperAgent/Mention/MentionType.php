@@ -7,46 +7,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention;
 
-use InvalidArgumentException;
-
-/**
- * Mention type enum.
- */
 enum MentionType: string
 {
     case PROJECT_FILE = 'project_file';
+
+    /**
+     * 本次消息中临时上传的文件，后续会统一到 project_file 中.
+     */
+    case UPLOAD_FILE = 'upload_file';
+
     case AGENT = 'agent';
-
-    /**
-     * Base mention type constant.
-     */
-    public const BASE_TYPE = 'mention';
-
-    /**
-     * Get all supported types.
-     */
-    public static function getAllTypes(): array
-    {
-        return array_map(fn ($case) => $case->value, self::cases());
-    }
-
-    /**
-     * Create enum from string.
-     */
-    public static function fromString(string $type): self
-    {
-        return match ($type) {
-            self::PROJECT_FILE->value => self::PROJECT_FILE,
-            self::AGENT->value => self::AGENT,
-            default => throw new InvalidArgumentException("Unsupported mention type: {$type}")
-        };
-    }
-
-    /**
-     * Get the string value of the enum.
-     */
-    public function toString(): string
-    {
-        return $this->value;
-    }
+    case MCP = 'mcp';
+    case TOOL = 'tool';
 }

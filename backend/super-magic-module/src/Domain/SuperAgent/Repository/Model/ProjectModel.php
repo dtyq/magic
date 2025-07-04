@@ -36,9 +36,12 @@ class ProjectModel extends AbstractModel
         'user_organization_code',
         'workspace_id',
         'project_name',
+        'project_description',
         'work_dir',
+        'project_status',
         'current_topic_id',
         'current_topic_status',
+        'project_mode',
         'created_uid',
         'updated_uid',
     ];

@@ -7,13 +7,16 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 
 class TaskFileDomainService
 {
     public function __construct(
         protected TaskFileRepositoryInterface $taskFileRepository,
+        protected TopicRepositoryInterface $topicRepository,
     ) {
     }
 
@@ -31,6 +34,14 @@ class TaskFileDomainService
     public function getByFileKey(string $fileKey): ?TaskFileEntity
     {
         return $this->taskFileRepository->getByFileKey($fileKey);
+    }
+
+    /**
+     * Get file by project ID and file key.
+     */
+    public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->getByProjectIdAndFileKey($projectId, $fileKey);
     }
 
     /**
@@ -116,5 +127,94 @@ class TaskFileDomainService
     public function deleteById(int $id): void
     {
         $this->taskFileRepository->deleteById($id);
+    }
+
+    /**
+     * 根据文件key和topicId获取相对于工作目录的文件路径。
+     * 逻辑参考 AgentFileAppService::getFileVersions 方法。
+     *
+     * @param string $fileKey 完整的文件key（包含 workDir 前缀）
+     * @param int $topicId 话题 ID
+     *
+     * @return string 相对于 workDir 的文件路径（当未匹配到 workDir 时返回原始 $fileKey）
+     */
+    public function getFileWorkspacePath(string $fileKey, int $topicId): string
+    {
+        // 通过仓储直接获取话题，避免领域服务之间的依赖
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+
+        // 若话题不存在或 workDir 为空，直接返回原始 fileKey
+        if (empty($topicEntity) || empty($topicEntity->getWorkDir())) {
+            return $fileKey;
+        }
+
+        $workDir = rtrim($topicEntity->getWorkDir(), '/') . '/';
+
+        // 使用 workDir 在 fileKey 中找到最后一次出现的位置，截取其后内容
+        $pos = strrpos($fileKey, $workDir);
+        if ($pos === false) {
+            // 未找到 workDir，返回原始 fileKey
+            return $fileKey;
+        }
+
+        return substr($fileKey, $pos + strlen($workDir));
+    }
+
+    /**
+     * Save project file.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $projectId Project ID
+     * @param string $topicId Topic ID (optional)
+     * @param string $taskId Task ID (optional)
+     * @param string $fileKey File key in OSS
+     * @param string $fileName File name
+     * @param int $fileSize File size in bytes
+     * @param string $fileType File type
+     * @return TaskFileEntity Saved file entity
+     */
+    public function saveProjectFile(
+        DataIsolation $dataIsolation,
+        string $projectId,
+        string $topicId,
+        string $taskId,
+        string $fileKey,
+        string $fileName,
+        int $fileSize,
+        string $fileType
+    ): TaskFileEntity {
+        // Check if file already exists by project_id and file_key
+        $existingFile = $this->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+        if ($existingFile !== null) {
+            return $existingFile;
+        }
+
+        // Create new file entity
+        $entity = new TaskFileEntity();
+        $entity->setUserId($dataIsolation->getCurrentUserId());
+        $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $entity->setProjectId((int) $projectId);
+        $entity->setTopicId(! empty($topicId) ? (int) $topicId : 0);
+        $entity->setTaskId(! empty($taskId) ? (int) $taskId : 0);
+        $entity->setFileKey($fileKey);
+        $entity->setFileName($fileName);
+        $entity->setFileSize($fileSize);
+        $entity->setFileType($fileType);
+
+        // Set default values as per requirements
+        $entity->setStorageType(''); // Default empty string
+        $entity->setIsHidden(false); // Default 0 (false)
+
+        // Extract file extension from file name
+        $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
+        $entity->setFileExtension($fileExtension);
+
+        // Set timestamps
+        $now = date('Y-m-d H:i:s');
+        $entity->setCreatedAt($now);
+        $entity->setUpdatedAt($now);
+
+        // Save to repository
+        return $this->insert($entity);
     }
 }

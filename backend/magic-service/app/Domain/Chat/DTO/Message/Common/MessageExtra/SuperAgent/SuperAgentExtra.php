@@ -7,12 +7,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent;
 
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionInterface;
 use App\Infrastructure\Core\AbstractDTO;
+use App\Interfaces\Agent\Assembler\MentionAssembler;
+use Hyperf\Codec\Json;
 
 class SuperAgentExtra extends AbstractDTO
 {
     /**
      * Mention related data for @ references.
+     * @var null|MentionInterface[]
      */
     protected ?array $mentions;
 
@@ -31,6 +35,21 @@ class SuperAgentExtra extends AbstractDTO
      */
     protected ?string $taskPattern;
 
+    /**
+     * 为了方便大模型进行 function call，这里将 @ 的内容转为文本格式.
+     */
+    public function getMentionsTextStruct(): ?string
+    {
+        $textStruct = [];
+        foreach ($this->mentions as $mention) {
+            $textStruct[] = $mention->getMentionTextStruct();
+        }
+        if (empty($textStruct)) {
+            return null;
+        }
+        return Json::encode($textStruct);
+    }
+
     public function getMentions(): ?array
     {
         return $this->mentions ?? null;
@@ -38,7 +57,26 @@ class SuperAgentExtra extends AbstractDTO
 
     public function setMentions(?array $mentions): void
     {
-        $this->mentions = $mentions;
+        if (empty($mentions)) {
+            return;
+        }
+        $converted = [];
+        foreach ($mentions as $mention) {
+            if ($mention instanceof MentionInterface) {
+                $converted[] = $mention;
+                continue;
+            }
+
+            if (! is_array($mention)) {
+                continue;
+            }
+
+            $mentionObj = MentionAssembler::fromArray($mention);
+            if ($mentionObj instanceof MentionInterface) {
+                $converted[] = $mentionObj;
+            }
+        }
+        $this->mentions = $converted;
     }
 
     public function getInputMode(): ?string

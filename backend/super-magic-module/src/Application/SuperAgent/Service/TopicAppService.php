@@ -104,6 +104,13 @@ class TopicAppService extends AbstractAppService
                 $requestDTO->getTopicName(),
                 $projectEntity->getWorkDir(),
             );
+
+            // 3. 如果传入了 project_mode，更新项目的模式
+            if (! empty($requestDTO->getProjectMode())) {
+                $projectEntity->setProjectMode($requestDTO->getProjectMode());
+                $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+            }
             // 提交事务
             Db::commit();
             // 返回结果
