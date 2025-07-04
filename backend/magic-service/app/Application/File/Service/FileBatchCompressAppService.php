@@ -107,6 +107,7 @@ class FileBatchCompressAppService extends AbstractAppService
             $this->currentCacheKey = $cacheKey;
 
             // Initialize base temporary directory for this batch
+            // Initialize base temporary directory for this batch
             $this->createTempDirectory($cacheKey);
 
             $this->statusManager->setTaskProgress($cacheKey, 0, count($files), 'Starting batch compress');

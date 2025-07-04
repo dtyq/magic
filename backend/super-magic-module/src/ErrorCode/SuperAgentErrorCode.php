@@ -113,6 +113,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('workspace.workspace_not_found')]
     case WORKSPACE_NOT_FOUND = 51206;
 
+    #[ErrorMessage('project.project_id_required')]
+    case BATCH_PROJECT_ID_REQUIRED = 51207;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
