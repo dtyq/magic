@@ -11,7 +11,7 @@ use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
-use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainService;
+use App\Domain\Chat\Service\MagicTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -23,10 +23,12 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
@@ -45,6 +47,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -150,7 +153,7 @@ class WorkspaceAppService extends AbstractAppService
 
         // 验证工作区是否属于当前用户
         if ($workspaceEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'workspace.access_denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
         }
 
         // 计算工作区状态
@@ -376,7 +379,22 @@ class WorkspaceAppService extends AbstractAppService
             // 删除工作的话题
             $this->topicDomainService->deleteTopicsByWorkspaceId($dataIsolation, $workspaceId);
 
-            // TODO 停止所有运行中的任务
+            // 投递消息，停止所有运行中的任务
+            $event = new StopRunningTaskEvent(
+                DeleteDataType::WORKSPACE,
+                $workspaceId,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                '工作区已被删除'
+            );
+            $publisher = new StopRunningTaskPublisher($event);
+            $this->producer->produce($publisher);
+
+            $this->logger->info(sprintf(
+                '已投递停止任务消息，工作区ID: %d, 事件ID: %s',
+                $workspaceId,
+                $event->getEventId()
+            ));
 
             Db::commit();
         } catch (Throwable $e) {

@@ -85,6 +85,11 @@ class ProjectEntity extends AbstractEntity
      */
     protected ?string $deletedAt = null;
 
+    /**
+     * @var null|string 项目模式
+     */
+    protected ?string $projectMode = null;
+
     public function __construct(array $data = [])
     {
         $this->initProperty($data);
@@ -105,6 +110,7 @@ class ProjectEntity extends AbstractEntity
             'project_status' => $this->projectStatus->value,
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
+            'project_mode' => $this->projectMode,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,
@@ -344,5 +350,22 @@ class ProjectEntity extends AbstractEntity
     public function isArchived(): bool
     {
         return $this->getStatus()->isArchived();
+    }
+
+    /**
+     * 获取项目模式.
+     */
+    public function getProjectMode(): ?string
+    {
+        return $this->projectMode;
+    }
+
+    /**
+     * 设置项目模式.
+     */
+    public function setProjectMode(?string $projectMode): self
+    {
+        $this->projectMode = $projectMode;
+        return $this;
     }
 }

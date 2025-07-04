@@ -9,13 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
-use App\Application\Kernel\AbstractKernelAppService;
-use App\Application\MCP\Service\MCPServerAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Contact\Service\MagicUserSettingDomainService;
-use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
-use App\Infrastructure\Core\TempAuth\TempAuthInterface;
-use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -35,7 +29,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Odin\Mcp\McpType;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -43,7 +36,7 @@ use Throwable;
  * Agent消息应用服务
  * 提供高级Agent通信功能，包括自动初始化和状态管理.
  */
-class AgentAppService extends AbstractKernelAppService
+class AgentAppService
 {
     private LoggerInterface $logger;
 
@@ -54,8 +47,6 @@ class AgentAppService extends AbstractKernelAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
-        private readonly MagicUserSettingDomainService $userSettingDomainService,
-        private readonly MCPServerAppService $MCPServerAppService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -187,8 +178,6 @@ class AgentAppService extends AbstractKernelAppService
             $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
         }
 
-        $mcpConfig = $this->getMcpConfig($dataIsolation);
-
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: (string) IdGenerator::getSnowId(),
@@ -197,7 +186,6 @@ class AgentAppService extends AbstractKernelAppService
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
             attachments: $attachmentUrls,
-            mcpConfig: $mcpConfig
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -384,7 +372,6 @@ class AgentAppService extends AbstractKernelAppService
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $userAuthorization->setId($dataIsolation->getCurrentUserId());
         // Use unified FileAppService to get STS Token
         $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
 
@@ -426,60 +413,6 @@ class AgentAppService extends AbstractKernelAppService
             'metadata' => $messageMetadata->toArray(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
-        ];
-    }
-
-    private function getMcpConfig(DataIsolation $dataIsolation): array
-    {
-        $result = [];
-
-        $mcpSettings = $this->userSettingDomainService->get($dataIsolation, 'super_magic_mcp_servers');
-        if (! $mcpSettings) {
-            return $result;
-        }
-        $mcpServerIds = array_column($mcpSettings->getValue()['servers'], 'id');
-        $mcpServerIds = array_filter($mcpServerIds);
-        if (empty($mcpServerIds)) {
-            return $result;
-        }
-        $authorization = new MagicUserAuthorization();
-        $authorization->setId($dataIsolation->getCurrentUserId());
-        $authorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-
-        $query = new MCPServerQuery();
-        $query->setEnabled(true);
-        $query->setCodes($mcpServerIds);
-        $data = $this->MCPServerAppService->queries($authorization, $query, Page::createNoPage());
-        $mcpServers = $data['list'] ?? [];
-
-        $localHttpUrl = config('super-magic.sandbox.callback_host', '');
-        $tempAuth = di(TempAuthInterface::class);
-
-        foreach ($mcpServers as $mcpServer) {
-            if (! in_array($mcpServer->getCode(), $mcpServerIds, true)) {
-                continue;
-            }
-
-            $mcpServerConfig = $mcpServer->createMcpServerConfig($localHttpUrl);
-            if (! $mcpServerConfig) {
-                continue;
-            }
-            if ($mcpServerConfig->getType() !== McpType::Http) {
-                continue; // Only HTTP type servers are supported
-            }
-            if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
-                $token = $tempAuth->create([
-                    'user_id' => $dataIsolation->getCurrentUserId(),
-                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                    'server_code' => $mcpServer->getCode(),
-                ], 1800);
-                $mcpServerConfig->setToken($token);
-            }
-
-            $result[$mcpServer->getName()] = $mcpServerConfig->toArray();
-        }
-        return [
-            'mcpServers' => $result,
         ];
     }
 }

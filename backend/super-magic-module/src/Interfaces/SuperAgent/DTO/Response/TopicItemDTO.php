@@ -43,11 +43,6 @@ class TopicItemDTO extends AbstractDTO
     protected string $taskStatus = '';
 
     /**
-     * @var string 任务模式
-     */
-    protected string $taskMode = 'chat';
-
-    /**
      * @var string 项目ID
      */
     protected string $projectId = '';
@@ -69,7 +64,6 @@ class TopicItemDTO extends AbstractDTO
         $dto->setChatConversationId($entity->getChatConversationId());
         $dto->setTopicName($entity->getTopicName());
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
-        $dto->setTaskMode($entity->getTaskMode());
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
         $dto->setTopicMode($entity->getTopicMode()->value);
         return $dto;
@@ -141,17 +135,6 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
-    public function getTaskMode(): string
-    {
-        return $this->taskMode;
-    }
-
-    public function setTaskMode(string $taskMode): self
-    {
-        $this->taskMode = $taskMode;
-        return $this;
-    }
-
     public function getProjectId(): string
     {
         return $this->projectId;
@@ -186,7 +169,6 @@ class TopicItemDTO extends AbstractDTO
         $dto->chatConversationId = $data['chat_conversation_id'] ?? '';
         $dto->topicName = $data['topic_name'] ?? $data['name'] ?? '';
         $dto->taskStatus = $data['task_status'] ?? $data['current_task_status'] ?? '';
-        $dto->taskMode = $data['task_mode'] ?? 'chat';
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
         $dto->topicMode = $data['topic_mode'] ?? 'general';
 
@@ -206,7 +188,6 @@ class TopicItemDTO extends AbstractDTO
             'chat_conversation_id' => $this->chatConversationId,
             'topic_name' => $this->topicName,
             'task_status' => $this->taskStatus,
-            'task_mode' => $this->taskMode,
             'project_id' => $this->projectId,
             'topic_mode' => $this->topicMode,
         ];

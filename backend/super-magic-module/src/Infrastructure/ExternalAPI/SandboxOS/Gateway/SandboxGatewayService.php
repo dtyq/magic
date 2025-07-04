@@ -151,7 +151,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
 
             $responseData = json_decode($response->getBody()->getContents(), true);
-            $result = BatchStatusResult::fromApiResponse($responseData);
+            $result = BatchStatusResult::fromApiResponse($responseData ?? []);
 
             $this->logger->debug('[Sandbox][Gateway] Batch sandbox status retrieved', [
                 'requested_count' => count($sandboxIds),

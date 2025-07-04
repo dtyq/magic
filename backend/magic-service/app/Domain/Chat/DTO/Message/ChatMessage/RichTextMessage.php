@@ -18,9 +18,9 @@ class RichTextMessage extends AbstractAttachmentMessage implements TextContentIn
 {
     protected string $content = '';
 
-    public function setContent(string $content): void
+    public function setContent(array|string $content): void
     {
-        $this->content = $content;
+        $this->content = is_array($content) ? Json::encode($content) : $content;
     }
 
     public function getContent(): string

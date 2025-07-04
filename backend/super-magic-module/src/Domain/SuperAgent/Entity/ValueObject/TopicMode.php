@@ -13,10 +13,10 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
  */
 enum TopicMode: string
 {
-    case GENERAL = 'general';           // 通用
-    case PRESENTATION = 'presentation'; // PPT
-    case DATA_ANALYSIS = 'data_analysis'; // 数据分析
-    case DOCUMENT = 'document';         // 文档
+    case GENERAL = 'general';           // 通用模式
+    case PPT = 'ppt';                   // PPT模式
+    case DATA_ANALYSIS = 'data_analysis'; // 数据分析模式
+    case REPORT = 'report';             // 研报模式
 
     /**
      * Get all available topic modes.
@@ -25,9 +25,9 @@ enum TopicMode: string
     {
         return [
             self::GENERAL->value,
-            self::PRESENTATION->value,
+            self::PPT->value,
             self::DATA_ANALYSIS->value,
-            self::DOCUMENT->value,
+            self::REPORT->value,
         ];
     }
 
@@ -37,10 +37,10 @@ enum TopicMode: string
     public function getDescription(): string
     {
         return match ($this) {
-            self::GENERAL => '通用',
-            self::PRESENTATION => 'PPT',
-            self::DATA_ANALYSIS => '数据分析',
-            self::DOCUMENT => '文档',
+            self::GENERAL => '通用模式',
+            self::PPT => 'PPT模式',
+            self::DATA_ANALYSIS => '数据分析模式',
+            self::REPORT => '研报模式',
         };
     }
 }
