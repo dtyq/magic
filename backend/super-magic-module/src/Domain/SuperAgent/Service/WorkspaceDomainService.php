@@ -162,6 +162,10 @@ class WorkspaceDomainService
             throw new RuntimeException('Workspace not found');
         }
 
+        if ($workspaceEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            throw new RuntimeException('You are not allowed to update this workspace');
+        }
+
         // 如果有传入工作区名称，则更新名称
         if (! empty($workspaceName)) {
             $workspaceEntity->setName($workspaceName);
@@ -207,6 +211,11 @@ class WorkspaceDomainService
         if (! $workspaceEntity) {
             // 使用ExceptionBuilder抛出"未找到"类型的错误
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+        }
+
+        // 如果不是自己的工作区，不能删除
+        if ($workspaceEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
         }
 
         // 设置删除时间

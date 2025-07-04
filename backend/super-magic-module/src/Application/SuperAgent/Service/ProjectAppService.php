@@ -82,7 +82,9 @@ class ProjectAppService extends AbstractAppService
                 $workspaceEntity->getId(),
                 $requestDTO->getProjectName(),
                 $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode()
+                $dataIsolation->getCurrentOrganizationCode(),
+                '',
+                $requestDTO->getProjectMode() ?: null
             );
             $this->logger->info(sprintf('创建默认项目, projectId=%s', $projectEntity->getId()));
             // 获取项目目录

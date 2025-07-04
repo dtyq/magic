@@ -52,10 +52,21 @@ class TopicAppService extends AbstractAppService
 
     public function getTopic(RequestContext $requestContext, int $id): TopicItemDTO
     {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
         // 获取话题内容
         $topicEntity = $this->topicDomainService->getTopicById($id);
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // 判断话题是否是本人
+        if ($topicEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
         }
 
         return TopicItemDTO::fromEntity($topicEntity);

@@ -144,6 +144,7 @@ class TopicDomainService
      * @param string $chatConversationId Chat conversation ID
      * @param string $chatTopicId Chat topic ID
      * @param string $topicName Topic name
+     * @param string $workDir Work directory
      * @return TopicEntity Created topic entity
      * @throws Exception If creation fails
      */
@@ -154,7 +155,7 @@ class TopicDomainService
         string $chatConversationId,
         string $chatTopicId,
         string $topicName = '',
-        string $workDir = ''
+        string $workDir = '',
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();

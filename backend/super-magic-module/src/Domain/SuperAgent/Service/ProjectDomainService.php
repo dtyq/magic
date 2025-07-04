@@ -32,7 +32,8 @@ class ProjectDomainService
         string $projectName,
         string $userId,
         string $userOrganizationCode,
-        string $workDir = ''
+        string $workDir = '',
+        ?string $projectMode = null
     ): ProjectEntity {
         $currentTime = date('Y-m-d H:i:s');
         $project = new ProjectEntity();
@@ -41,6 +42,7 @@ class ProjectDomainService
             ->setWorkspaceId($workspaceId)
             ->setProjectName($projectName)
             ->setWorkDir($workDir)
+            ->setProjectMode($projectMode)
             ->setProjectStatus(ProjectStatus::ACTIVE->value)
             ->setCurrentTopicId(null)
             ->setCurrentTopicStatus('')

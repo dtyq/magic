@@ -31,6 +31,11 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     public string $projectDescription = '';
 
     /**
+     * Project mode.
+     */
+    public string $projectMode = '';
+
+    /**
      * Get workspace ID.
      */
     public function getWorkspaceId(): int
@@ -55,6 +60,14 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get project mode.
+     */
+    public function getProjectMode(): string
+    {
+        return $this->projectMode;
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -63,6 +76,7 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'workspace_id' => 'required|integer',
             'project_name' => 'present|string|max:100',
             'project_description' => 'nullable|string|max:500',
+            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report',
         ];
     }
 
@@ -77,6 +91,7 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'project_name.present' => 'Project name field is required',
             'project_name.max' => 'Project name cannot exceed 100 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
+            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report',
         ];
     }
 }

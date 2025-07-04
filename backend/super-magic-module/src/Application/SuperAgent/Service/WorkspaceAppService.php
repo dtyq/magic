@@ -150,7 +150,7 @@ class WorkspaceAppService extends AbstractAppService
 
         // 验证工作区是否属于当前用户
         if ($workspaceEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'workspace.access_denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
         }
 
         // 计算工作区状态

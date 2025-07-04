@@ -23,6 +23,7 @@ class ProjectItemDTO
         public readonly string $currentTopicId,
         public readonly string $currentTopicStatus,
         public readonly string $projectStatus,
+        public readonly ?string $projectMode,
         public readonly ?string $workspaceName,
         public readonly ?string $createdAt,
         public readonly ?string $updatedAt
@@ -39,6 +40,7 @@ class ProjectItemDTO
             currentTopicId: (string) $project->getCurrentTopicId(),
             currentTopicStatus: $project->getCurrentTopicStatus(),
             projectStatus: $projectStatus ?? TaskStatus::WAITING->value,
+            projectMode: $project->getProjectMode(),
             workspaceName: $workspaceName,
             createdAt: $project->getCreatedAt(),
             updatedAt: $project->getUpdatedAt()
@@ -55,6 +57,7 @@ class ProjectItemDTO
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
             'project_status' => $this->projectStatus,
+            'project_mode' => $this->projectMode,
             'workspace_name' => $this->workspaceName,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
