@@ -47,24 +47,28 @@ class MCPServerAppService extends AbstractMCPAppService
     /**
      * @return array{total: int, list: array<MCPServerEntity>, icons: array<string, FileLink>, users: array<string, MagicUserEntity>}
      */
-    public function queries(Authenticatable $authorization, MCPServerQuery $query, Page $page): array
+    public function queries(Authenticatable $authorization, MCPServerQuery $query, Page $page, bool $office = false): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
+        if ($office) {
+            $dataIsolation->setOnlyOfficialOrganization(true);
+        } else {
+            $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                $dataIsolation,
+                ResourceType::MCPServer,
+                [$authorization->getId()]
+            )[$authorization->getId()] ?? [];
+            $resourceIds = array_keys($resources);
 
-        $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-            $dataIsolation,
-            ResourceType::MCPServer,
-            [$authorization->getId()]
-        )[$authorization->getId()] ?? [];
-        $resourceIds = array_keys($resources);
+            if (! empty($query->getCodes())) {
+                $resourceIds = array_intersect($resourceIds, $query->getCodes());
+            }
 
-        if (! empty($query->getCodes())) {
-            $resourceIds = array_intersect($resourceIds, $query->getCodes());
+            $query->setCodes($resourceIds);
         }
 
-        $query->setCodes($resourceIds);
         $data = $this->mcpServerDomainService->queries(
-            $this->createMCPDataIsolation($authorization),
+            $dataIsolation,
             $query,
             $page
         );
