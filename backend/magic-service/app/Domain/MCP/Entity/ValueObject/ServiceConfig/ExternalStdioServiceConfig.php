@@ -37,8 +37,11 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
     /**
      * @param array<string> $arguments
      */
-    public function setArguments(array $arguments): void
+    public function setArguments(array|string $arguments): void
     {
+        if (is_string($arguments)) {
+            $arguments = explode(' ', $arguments);
+        }
         $this->arguments = $arguments;
     }
 
@@ -66,6 +69,14 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
         return [
             'command' => $this->command,
             'arguments' => $this->arguments,
+        ];
+    }
+
+    public function toWebArray(): array
+    {
+        return [
+            'command' => $this->command,
+            'arguments' => implode(' ', $this->arguments),
         ];
     }
 

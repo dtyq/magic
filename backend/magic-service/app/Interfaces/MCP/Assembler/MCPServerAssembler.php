@@ -9,6 +9,7 @@ namespace App\Interfaces\MCP\Assembler;
 
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStdioServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
@@ -39,6 +40,9 @@ class MCPServerAssembler
 
         // Handle service_config - convert from ServiceConfigInterface to array
         $DTO->setServiceConfig($serviceConfig->toArray());
+        if ($serviceConfig instanceof ExternalStdioServiceConfig) {
+            $DTO->setServiceConfig($serviceConfig->toWebArray());
+        }
 
         $DTO->setCreator($mcpServerEntity->getCreator());
         $DTO->setCreatedAt($mcpServerEntity->getCreatedAt());
