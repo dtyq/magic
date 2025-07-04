@@ -11,6 +11,7 @@ use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
+use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -28,6 +29,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
@@ -46,6 +48,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -71,6 +74,7 @@ class WorkspaceAppService extends AbstractAppService
         protected ChatAppService $chatAppService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
+        protected Producer $producer,
         LoggerFactory $loggerFactory,
         protected FileCleanupAppService $fileCleanupAppService
     ) {
