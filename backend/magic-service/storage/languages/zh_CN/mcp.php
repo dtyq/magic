@@ -22,11 +22,60 @@ return [
         'scope' => '授权范围',
         'authorization_url' => '授权URL',
         'authorization_content_type' => '授权内容类型',
+        'issuer_url' => '发行方URL',
+        'redirect_uri' => '重定向URI',
+        'use_pkce' => '使用PKCE',
+        'response_type' => '响应类型',
+        'grant_type' => '授权类型',
+        'additional_params' => '附加参数',
         'created_at' => '创建时间',
         'updated_at' => '更新时间',
     ],
     'auth_type' => [
         'none' => '无认证',
         'oauth2' => 'OAuth2认证',
+    ],
+
+    // 错误消息
+    'validate_failed' => '验证失败',
+    'not_found' => '数据不存在',
+
+    // 服务相关错误
+    'service' => [
+        'already_exists' => 'MCP服务已存在',
+        'not_enabled' => 'MCP服务未启用',
+    ],
+
+    // 资源关联错误
+    'rel' => [
+        'not_found' => '关联资源不存在',
+        'not_enabled' => '关联资源未启用',
+    ],
+    'rel_version' => [
+        'not_found' => '关联资源版本不存在',
+    ],
+
+    // 工具错误
+    'tool' => [
+        'execute_failed' => '工具执行失败',
+    ],
+
+    // OAuth2认证错误
+    'oauth2' => [
+        'authorization_url_generation_failed' => '生成OAuth2授权URL失败',
+        'callback_handling_failed' => '处理OAuth2回调失败',
+        'token_refresh_failed' => '刷新OAuth2令牌失败',
+        'invalid_response' => 'OAuth2提供商响应无效',
+        'provider_error' => 'OAuth2提供商返回错误',
+        'missing_access_token' => '未从OAuth2提供商获得访问令牌',
+        'invalid_service_configuration' => '无效的OAuth2服务配置',
+        'missing_configuration' => '缺少OAuth2配置',
+        'not_authenticated' => '此服务未找到OAuth2身份验证',
+        'no_refresh_token' => '没有可用于令牌刷新的刷新令牌',
+        'binding' => [
+            'code_empty' => '授权码不能为空',
+            'state_empty' => '状态参数不能为空',
+            'mcp_server_code_empty' => 'MCP服务代码不能为空',
+        ],
     ],
 ];

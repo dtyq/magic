@@ -25,6 +25,15 @@ class OAuth2AuthResult extends AbstractValueObject
 
     protected ?string $scope = null;
 
+    // Enhanced functionality for OAuth2/OpenID Connect
+    protected ?string $idToken = null;
+
+    protected ?array $userInfo = null;
+
+    protected ?DateTime $refreshTokenExpiresAt = null;
+
+    protected string $state = '';
+
     public function getAccessToken(): string
     {
         return $this->accessToken;
@@ -89,11 +98,18 @@ class OAuth2AuthResult extends AbstractValueObject
 
     /**
      * Check if the access token is expired.
+     * Returns false if no access token exists or if expiresAt is null (never expires).
      */
     public function isExpired(): bool
     {
+        // No access token means not authenticated, not expired
+        if (empty($this->accessToken)) {
+            return false;
+        }
+
+        // No expiration set means never expires
         if ($this->expiresAt === null) {
-            return false; // No expiration set, assume never expires
+            return false;
         }
 
         return new DateTime() > $this->expiresAt;
@@ -101,9 +117,16 @@ class OAuth2AuthResult extends AbstractValueObject
 
     /**
      * Check if the access token will expire within the given seconds.
+     * Returns false if no access token exists or if expiresAt is null (never expires).
      */
     public function willExpireWithin(int $seconds): bool
     {
+        // No access token means not authenticated
+        if (empty($this->accessToken)) {
+            return false;
+        }
+
+        // No expiration set means never expires
         if ($this->expiresAt === null) {
             return false;
         }
@@ -116,9 +139,16 @@ class OAuth2AuthResult extends AbstractValueObject
 
     /**
      * Get remaining seconds until expiration.
+     * Returns null if no access token exists or if expiresAt is null (never expires).
      */
     public function getRemainingSeconds(): ?int
     {
+        // No access token means not authenticated
+        if (empty($this->accessToken)) {
+            return null;
+        }
+
+        // No expiration set means never expires
         if ($this->expiresAt === null) {
             return null;
         }
@@ -129,6 +159,22 @@ class OAuth2AuthResult extends AbstractValueObject
         }
 
         return $this->expiresAt->getTimestamp() - $now->getTimestamp();
+    }
+
+    /**
+     * Check if the access token is valid (exists and not expired).
+     */
+    public function isValid(): bool
+    {
+        return ! empty($this->accessToken) && ! $this->isExpired();
+    }
+
+    /**
+     * Check if has valid access token.
+     */
+    public function hasAccessToken(): bool
+    {
+        return ! empty($this->accessToken);
     }
 
     /**
@@ -229,7 +275,7 @@ class OAuth2AuthResult extends AbstractValueObject
             $instance->setRefreshToken($refreshToken);
         }
 
-        // Handle expiration - can be timestamp, ISO string, or seconds from now
+        // Handle expiration - can be timestamped, ISO string, or seconds from now
         $expires = $formData['expires_at']
             ?? $formData['expiresAt']
             ?? $formData['expires_in']

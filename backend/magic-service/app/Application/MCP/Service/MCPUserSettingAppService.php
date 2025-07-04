@@ -7,16 +7,24 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\Service;
 
+use App\Application\MCP\Service\Oauth2\MCPOAuth2Client;
 use App\Domain\MCP\Constant\ServiceConfigAuthType;
+use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\MCPUserSettingEntity;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
-use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ServiceConfigInterface;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
+use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 class MCPUserSettingAppService extends AbstractMCPAppService
 {
+    #[Inject]
+    protected MCPOAuth2Client $oauth2Client;
+
     /**
      * Save user MCP service required fields.
      */
@@ -57,9 +65,14 @@ class MCPUserSettingAppService extends AbstractMCPAppService
     /**
      * Get user MCP service settings with OAuth status.
      */
-    public function getUserSettings(Authenticatable $authorization, string $mcpServerCode): array
+    public function getUserSettings(Authenticatable $authorization, string $mcpServerCode, string $redirectUrl): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        // Validate redirect URL is provided
+        if (empty($redirectUrl)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'redirect_url']);
+        }
 
         // Check user permission for this MCP server
         $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
@@ -91,16 +104,19 @@ class MCPUserSettingAppService extends AbstractMCPAppService
         return [
             'require_fields' => $requireFields,
             'auth_type' => $authType->value,
-            'auth_config' => $this->generateAuthConfig($serviceConfig, $userSetting),
+            'auth_config' => $this->generateAuthConfig($dataIsolation, $mcpServer, $userSetting, $redirectUrl),
         ];
     }
 
-    private function generateAuthConfig(ServiceConfigInterface $serviceConfig, ?MCPUserSettingEntity $userSetting): array
+    private function generateAuthConfig(MCPDataIsolation $dataIsolation, MCPServerEntity $mcpServer, ?MCPUserSettingEntity $userSetting, string $redirectUrl): array
     {
         $result = [
             'is_authenticated' => false,
             'oauth_url' => '',
         ];
+
+        // Check service configuration and authentication status
+        $serviceConfig = $mcpServer->getServiceConfig();
 
         // Only handle ExternalSSEServiceConfig with OAuth2
         if (! $serviceConfig instanceof ExternalSSEServiceConfig) {
@@ -112,19 +128,80 @@ class MCPUserSettingAppService extends AbstractMCPAppService
             return $result;
         }
 
-        // Check if user is already authenticated
-        if ($userSetting && $userSetting->getOauth2AuthResult() !== null) {
-            $oauth2Result = $userSetting->getOauth2AuthResult();
-            $result['is_authenticated'] = ! $oauth2Result->isExpired();
-        }
-        if ($result['is_authenticated']) {
-            // User is authenticated, no need for OAuth URL
+        $oauth2Config = $serviceConfig->getOauth2Config();
+        if (! $oauth2Config) {
             return $result;
         }
 
-        $result['oauth_url'] = $serviceConfig->getOauth2Config()?->getAuthorizationUrl();
+        // Check if user is already authenticated
+        if ($userSetting && $userSetting->getOauth2AuthResult() !== null) {
+            $oauth2Result = $userSetting->getOauth2AuthResult();
 
-        // Return OAuth2 configuration for unauthenticated users
+            // Check if current token is still valid
+            if (! $oauth2Result->isExpired()) {
+                $result['is_authenticated'] = true;
+                return $result;
+            }
+
+            // Try to refresh token if possible
+            if ($oauth2Result->hasRefreshToken()) {
+                try {
+                    $newTokens = $this->oauth2Client->refreshToken(
+                        $oauth2Config,
+                        $oauth2Result->getRefreshToken()
+                    );
+
+                    // Update user setting with new tokens
+                    $userSetting->setOauth2AuthResult($newTokens);
+                    $this->mcpUserSettingDomainService->save($dataIsolation, $userSetting);
+
+                    $result['is_authenticated'] = true;
+                    return $result;
+                } catch (Throwable $e) {
+                    // Token refresh failed, continue to generate new OAuth URL
+                    $this->logger->warning('OAuth2TokenRefreshFailed', [
+                        'error' => $e->getMessage(),
+                        'client_id' => $oauth2Config->getClientId(),
+                    ]);
+                }
+            }
+        }
+
+        // Generate new OAuth2 authorization URL
+        try {
+            $state = $this->oauth2Client->generateState();
+            $codeVerifier = null;
+            $codeChallenge = null;
+
+            if ($oauth2Config->shouldUsePKCE()) {
+                $codeVerifier = $this->oauth2Client->generateCodeVerifier();
+                $codeChallenge = $this->oauth2Client->generateCodeChallenge($codeVerifier);
+            }
+
+            // Store state data for later validation
+            $this->oauth2Client->storeStateData($state, [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'mcp_server_code' => $mcpServer->getCode(),
+                'code_verifier' => $codeVerifier,
+                'created_at' => time(),
+                'language' => CoContext::getLanguage(),
+            ]);
+
+            $result['oauth_url'] = $this->oauth2Client->createOauthUrl(
+                $oauth2Config,
+                $state,
+                $codeChallenge,
+                $redirectUrl
+            );
+            $result['state'] = $state;
+            $result['expires_in'] = 600; // State expires in 10 minutes
+        } catch (Throwable $e) {
+            $this->logger->error('OAuth2AuthorizationUrlGenerationFailed', [
+                'error' => $e->getMessage(),
+                'client_id' => $oauth2Config->getClientId(),
+            ]);
+        }
+
         return $result;
     }
 }

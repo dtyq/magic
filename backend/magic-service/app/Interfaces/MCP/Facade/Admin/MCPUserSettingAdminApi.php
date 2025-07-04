@@ -49,10 +49,12 @@ class MCPUserSettingAdminApi extends AbstractMCPAdminApi
     public function getUserSettings(string $code)
     {
         $authorization = $this->getAuthorization();
+        $redirectUrl = $this->request->input('redirect_url', '');
 
         $settings = $this->mcpUserSettingAppService->getUserSettings(
             $authorization,
-            $code
+            $code,
+            $redirectUrl
         );
 
         return MCPUserSettingAssembler::createDTO($settings);
