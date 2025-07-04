@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.349.1",
+            "version": "3.349.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "037ffa3dd4c9f25768743cf796955bf2d50cffac"
+                "reference": "63cc727845f077d17cb94791deb327249e1626ce"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/037ffa3dd4c9f25768743cf796955bf2d50cffac",
-                "reference": "037ffa3dd4c9f25768743cf796955bf2d50cffac",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/63cc727845f077d17cb94791deb327249e1626ce",
+                "reference": "63cc727845f077d17cb94791deb327249e1626ce",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.1"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.2"
             },
-            "time": "2025-07-02T18:04:45+00:00"
+            "time": "2025-07-03T18:08:27+00:00"
         },
         {
             "name": "brick/math",
@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "3513ba21abe86d5c78a989f8d1a38de47dc87e9a"
+                "reference": "639523849db5ceaacec5e03af863ef9725bb4b36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=3513ba21abe86d5c78a989f8d1a38de47dc87e9a",
-                "reference": "3513ba21abe86d5c78a989f8d1a38de47dc87e9a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=639523849db5ceaacec5e03af863ef9725bb4b36",
+                "reference": "639523849db5ceaacec5e03af863ef9725bb4b36",
                 "shasum": ""
             },
             "require": {
@@ -1975,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-07-02T06:44:49+00:00"
+            "time": "2025-07-03T09:02:14+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "32d619c749318299a92630720e543f0b43f5662f"
+                "reference": "b879c497ce587a2a255ebdb5d975bfe7dca91207"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=32d619c749318299a92630720e543f0b43f5662f",
-                "reference": "32d619c749318299a92630720e543f0b43f5662f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b879c497ce587a2a255ebdb5d975bfe7dca91207",
+                "reference": "b879c497ce587a2a255ebdb5d975bfe7dca91207",
                 "shasum": ""
             },
             "require": {
@@ -2316,7 +2316,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-03T15:28:48+08:00"
+            "time": "2025-07-04T14:54:59+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -14469,16 +14469,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.151",
+            "version": "v1.0.152",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "849a817531af8ca72d514ebffb47883f931e6d83"
+                "reference": "0b79b854adaa3a11de23767cba1cbb86c7fe39e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/849a817531af8ca72d514ebffb47883f931e6d83",
-                "reference": "849a817531af8ca72d514ebffb47883f931e6d83",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/0b79b854adaa3a11de23767cba1cbb86c7fe39e0",
+                "reference": "0b79b854adaa3a11de23767cba1cbb86c7fe39e0",
                 "shasum": ""
             },
             "require": {
@@ -14513,9 +14513,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.151"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.152"
             },
-            "time": "2025-06-26T12:20:29+00:00"
+            "time": "2025-07-03T12:03:20+00:00"
         },
         {
             "name": "w7corp/easywechat",
@@ -17196,12 +17196,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "d4ca0cc4c49ba3437778e201d35844715d9b1bd9"
+                "reference": "e798e1676cbc3fa2f63b439b844fe30645b1e052"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/d4ca0cc4c49ba3437778e201d35844715d9b1bd9",
-                "reference": "d4ca0cc4c49ba3437778e201d35844715d9b1bd9",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e798e1676cbc3fa2f63b439b844fe30645b1e052",
+                "reference": "e798e1676cbc3fa2f63b439b844fe30645b1e052",
                 "shasum": ""
             },
             "conflict": {
@@ -17879,7 +17879,8 @@
                 "spoonity/tcpdf": "<6.2.22",
                 "squizlabs/php_codesniffer": ">=1,<2.8.1|>=3,<3.0.1",
                 "ssddanbrown/bookstack": "<24.05.1",
-                "starcitizentools/citizen-skin": ">=2.4.2,<3.3.1",
+                "starcitizentools/citizen-skin": ">=1.9.4,<3.4",
+                "starcitizentools/short-description": ">=4,<4.0.1",
                 "starcitizentools/tabber-neue": ">=1.9.1,<2.7.2|>=3,<3.1.1",
                 "statamic/cms": "<=5.16",
                 "stormpath/sdk": "<9.9.99",
@@ -18142,7 +18143,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-27T21:05:09+00:00"
+            "time": "2025-07-03T22:05:19+00:00"
         },
         {
             "name": "sebastian/cli-parser",
