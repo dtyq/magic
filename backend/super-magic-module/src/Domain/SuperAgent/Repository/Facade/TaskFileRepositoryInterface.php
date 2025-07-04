@@ -96,4 +96,6 @@ interface TaskFileRepositoryInterface
     public function findUserFilesByIds(array $fileIds, string $userId): array;
 
     public function findUserFilesByTopicId(string $topicId): array;
+
+    public function findUserFilesByProjectId(string $projectId): array;
 }

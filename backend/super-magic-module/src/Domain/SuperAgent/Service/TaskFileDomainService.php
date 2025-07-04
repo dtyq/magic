@@ -53,6 +53,11 @@ class TaskFileDomainService
         return $this->taskFileRepository->findUserFilesByTopicId($topicId);
     }
 
+    public function findUserFilesByProjectId(string $projectId): array
+    {
+        return $this->taskFileRepository->findUserFilesByProjectId($projectId);
+    }
+
     /**
      * Get file list by topic ID.
      *

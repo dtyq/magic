@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\GetShareDetailDTO;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\ResourceListRequestDTO;
 use Exception;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Qbhy\HyperfAuth\AuthManager;
 
 #[ApiResponse('low_code')]
 class ShareApi extends AbstractApi
@@ -76,7 +77,7 @@ class ShareApi extends AbstractApi
     {
         // 尝试获取用户信息，但是有可能是访问，所以会为 null
         try {
-            $requestContext->setUserAuthorization($this->getAuthorization());
+            $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
             $userAuthorization = $requestContext->getUserAuthorization();
         } catch (Exception $exception) {
             $userAuthorization = null;
@@ -88,7 +89,7 @@ class ShareApi extends AbstractApi
     {
         // 尝试获取用户信息，但是有可能是访问，所以会为 null
         try {
-            $requestContext->setUserAuthorization($this->getAuthorization());
+            $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
             $userAuthorization = $requestContext->getUserAuthorization();
         } catch (Exception $exception) {
             $userAuthorization = null;

@@ -16,6 +16,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -34,6 +35,7 @@ class FileBatchAppService extends AbstractAppService
     public function __construct(
         protected FileAppService $fileAppService,
         protected TopicDomainService $topicDomainService,
+        protected ProjectDomainService $projectDomainService,
         protected TaskFileDomainService $taskFileDomainService,
         protected Producer $producer,
         protected FileBatchStatusManager $statusManager,
@@ -65,18 +67,14 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Check topic access
-        $topicEntity = $this->topicDomainService->getTopicById((int) $requestDTO->getTopicId());
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
-        }
-
-        if ($topicEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED);
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $userId);
+        if ($projectEntity->getUserId() !== $userId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
         }
 
         // Permission validation: get user accessible files
         if (empty($requestDTO->getFileIds())) {
-            $userFiles = $this->taskFileDomainService->findUserFilesByTopicId($requestDTO->getTopicId());
+            $userFiles = $this->taskFileDomainService->findUserFilesByProjectId($requestDTO->getProjectId());
         } else {
             $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
         }
@@ -87,7 +85,7 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Generate batch key
-        $batchKey = $this->generateBatchKey($fileIds, $userId, $requestDTO->getTopicId());
+        $batchKey = $this->generateBatchKey($fileIds, $userId, $requestDTO->getProjectId());
 
         // Check if task already exists and completed
         $taskStatus = $this->statusManager->getTaskStatus($batchKey);
@@ -105,12 +103,8 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Get workdir path
-        $topicEntity = $this->topicDomainService->getTopicById($userFiles[0]->getTopicId());
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
-        }
-        $workdir = $topicEntity->getWorkdir();
-        $targetName = sprintf('%s_%s.zip', $topicEntity->getTopicName(), date('YmdHi'));
+        $workdir = $projectEntity->getWorkdir();
+        $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
 
         // Initialize task status
         $this->statusManager->initializeTask($batchKey, $userId, count($userFiles));

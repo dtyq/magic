@@ -327,4 +327,22 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         return $entities;
     }
+
+    public function findUserFilesByProjectId(string $projectId): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('is_hidden', 0)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->limit(1000)
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
 }

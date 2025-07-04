@@ -456,7 +456,7 @@ class WorkspaceAppService extends AbstractAppService
         // 获取 topic 信息
         $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
         if ($topicEntity != null) {
-            $data['sandbox_id'] = $topicEntity->getSandboxId();
+            $data['project_id'] = $topicEntity->getProjectId();
         }
         return $data;
     }
