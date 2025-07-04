@@ -73,7 +73,7 @@ class MCPAgentPlugin extends AbstractAgentPlugin
 
         $configs = [];
         foreach ($data['list'] ?? [] as $MCPServerEntity) {
-            $config = $MCPServerEntity->createMcpServerConfig();
+            $config = $MCPServerEntity->createMcpServerConfig(supportStdio: false);
             if ($config) {
                 $configs[$MCPServerEntity->getCode()] = $config;
             }

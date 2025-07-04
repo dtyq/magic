@@ -11,7 +11,71 @@ return [
         'description' => 'คำอธิบาย',
         'status' => 'สถานะ',
         'external_sse_url' => 'URL บริการ MCP',
+        'url' => 'URL',
+        'command' => 'คำสั่ง',
+        'arguments' => 'อาร์กิวเมนต์',
+        'headers' => 'ส่วนหัว',
+        'oauth2_config' => 'การกำหนดค่า OAuth2',
+        'client_id' => 'ID ลูกค้า',
+        'client_secret' => 'รหัสลับลูกค้า',
+        'client_url' => 'URL ลูกค้า',
+        'scope' => 'ขอบเขต',
+        'authorization_url' => 'URL การอนุญาต',
+        'authorization_content_type' => 'ประเภทเนื้อหาการอนุญาต',
+        'issuer_url' => 'URL ผู้ออก',
+        'redirect_uri' => 'URI เปลี่ยนเส้นทาง',
+        'use_pkce' => 'ใช้ PKCE',
+        'response_type' => 'ประเภทการตอบสนอง',
+        'grant_type' => 'ประเภทการอนุญาต',
+        'additional_params' => 'พารามิเตอร์เพิ่มเติม',
         'created_at' => 'สร้างเมื่อ',
         'updated_at' => 'อัปเดตเมื่อ',
+    ],
+    'auth_type' => [
+        'none' => 'ไม่มีการตรวจสอบสิทธิ์',
+        'oauth2' => 'การตรวจสอบสิทธิ์ OAuth2',
+    ],
+
+    // ข้อความแสดงข้อผิดพลาด
+    'validate_failed' => 'การตรวจสอบล้มเหลว',
+    'not_found' => 'ไม่พบข้อมูล',
+
+    // ข้อผิดพลาดที่เกี่ยวข้องกับบริการ
+    'service' => [
+        'already_exists' => 'บริการ MCP มีอยู่แล้ว',
+        'not_enabled' => 'บริการ MCP ไม่ได้เปิดใช้งาน',
+    ],
+
+    // ข้อผิดพลาดความสัมพันธ์ของทรัพยากร
+    'rel' => [
+        'not_found' => 'ไม่พบทรัพยากรที่เกี่ยวข้อง',
+        'not_enabled' => 'ทรัพยากรที่เกี่ยวข้องไม่ได้เปิดใช้งาน',
+    ],
+    'rel_version' => [
+        'not_found' => 'ไม่พบเวอร์ชันทรัพยากรที่เกี่ยวข้อง',
+    ],
+
+    // ข้อผิดพลาดเครื่องมือ
+    'tool' => [
+        'execute_failed' => 'การดำเนินการเครื่องมือล้มเหลว',
+    ],
+
+    // ข้อผิดพลาดการตรวจสอบสิทธิ์ OAuth2
+    'oauth2' => [
+        'authorization_url_generation_failed' => 'ไม่สามารถสร้าง URL การอนุญาต OAuth2',
+        'callback_handling_failed' => 'ไม่สามารถจัดการ callback OAuth2',
+        'token_refresh_failed' => 'ไม่สามารถรีเฟรช token OAuth2',
+        'invalid_response' => 'ผู้ให้บริการ OAuth2 ตอบกลับไม่ถูกต้อง',
+        'provider_error' => 'ผู้ให้บริการ OAuth2 ตอบกลับข้อผิดพลาด',
+        'missing_access_token' => 'ไม่ได้รับ access token จากผู้ให้บริการ OAuth2',
+        'invalid_service_configuration' => 'การกำหนดค่าบริการ OAuth2 ไม่ถูกต้อง',
+        'missing_configuration' => 'การกำหนดค่า OAuth2 ขาดหายไป',
+        'not_authenticated' => 'ไม่พบการตรวจสอบสิทธิ์ OAuth2 สำหรับบริการนี้',
+        'no_refresh_token' => 'ไม่มี refresh token สำหรับการรีเฟรช token',
+        'binding' => [
+            'code_empty' => 'รหัสอนุญาตต้องไม่ว่างเปล่า',
+            'state_empty' => 'พารามิเตอร์สถานะต้องไม่ว่างเปล่า',
+            'mcp_server_code_empty' => 'รหัสเซิร์ฟเวอร์ MCP ต้องไม่ว่างเปล่า',
+        ],
     ],
 ];
