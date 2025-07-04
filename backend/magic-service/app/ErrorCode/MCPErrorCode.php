@@ -65,4 +65,11 @@ enum MCPErrorCode: int
 
     #[ErrorMessage(message: 'mcp.oauth2.binding.mcp_server_code_empty')]
     case OAuth2BindingMcpServerCodeEmpty = 51542; // OAuth2绑定MCP服务代码为空
+
+    // 必填字段验证相关错误码
+    #[ErrorMessage(message: 'mcp.required_fields.missing')]
+    case RequiredFieldsMissing = 51550; // 必填字段缺失
+
+    #[ErrorMessage(message: 'mcp.required_fields.empty')]
+    case RequiredFieldsEmpty = 51551; // 必填字段为空
 }

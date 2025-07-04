@@ -73,9 +73,15 @@ return [
         'not_authenticated' => 'Không tìm thấy xác thực OAuth2 cho dịch vụ này',
         'no_refresh_token' => 'Không có refresh token để làm mới token',
         'binding' => [
-            'code_empty' => 'Mã ủy quyền không thể để trống',
-            'state_empty' => 'Tham số trạng thái không thể để trống',
-            'mcp_server_code_empty' => 'Mã máy chủ MCP không thể để trống',
+            'code_empty' => 'Mã ủy quyền không được để trống',
+            'state_empty' => 'Tham số trạng thái không được để trống',
+            'mcp_server_code_empty' => 'Mã máy chủ MCP không được để trống',
         ],
+    ],
+
+    // Lỗi xác thực trường bắt buộc
+    'required_fields' => [
+        'missing' => 'Thiếu trường bắt buộc: :fields',
+        'empty' => 'Trường bắt buộc không được để trống: :fields',
     ],
 ];
