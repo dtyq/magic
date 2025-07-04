@@ -34,4 +34,4 @@ return new class extends Migration {
 
         echo '删除项目表的项目模式字段完成' . PHP_EOL;
     }
-}; 
+};
