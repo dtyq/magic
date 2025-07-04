@@ -73,7 +73,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $organizationCode = $userCallAgentEvent->senderUserEntity->getOrganizationCode() ?? '';
             $userId = $userCallAgentEvent->senderUserEntity->getUserId() ?? '';
             $agentUserId = $userCallAgentEvent->agentUserEntity->getUserId() ?? '';
-            //            $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
+            // $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
 
             // Parameter validation
