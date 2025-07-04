@@ -78,4 +78,10 @@ return [
             'mcp_server_code_empty' => 'MCP服务代码不能为空',
         ],
     ],
+
+    // 必填字段验证错误
+    'required_fields' => [
+        'missing' => '必填字段缺失: :fields',
+        'empty' => '必填字段不能为空: :fields',
+    ],
 ];

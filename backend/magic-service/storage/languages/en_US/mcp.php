@@ -78,4 +78,10 @@ return [
             'mcp_server_code_empty' => 'MCP server code cannot be empty',
         ],
     ],
+
+    // Required fields validation errors
+    'required_fields' => [
+        'missing' => 'Required fields are missing: :fields',
+        'empty' => 'Required fields cannot be empty: :fields',
+    ],
 ];

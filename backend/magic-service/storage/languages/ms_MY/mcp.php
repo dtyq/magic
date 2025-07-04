@@ -78,4 +78,10 @@ return [
             'mcp_server_code_empty' => 'Kod pelayan MCP tidak boleh kosong',
         ],
     ],
+
+    // Ralat pengesahan medan yang diperlukan
+    'required_fields' => [
+        'missing' => 'Medan yang diperlukan tiada: :fields',
+        'empty' => 'Medan yang diperlukan tidak boleh kosong: :fields',
+    ],
 ];

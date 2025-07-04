@@ -9,6 +9,7 @@ namespace App\Application\MCP\Service;
 
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\MCP\Entity\MCPServerEntity;
+use App\Domain\MCP\Entity\MCPUserSettingEntity;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
@@ -134,21 +135,51 @@ class MCPServerAppService extends AbstractMCPAppService
         if (! $entity->getType()->canCheckStatus()) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.server.not_support_check_status', ['label' => $code]);
         }
+
         /** @var ExternalSSEServiceConfig $serviceConfig */
         $serviceConfig = $entity->getServiceConfig();
-        $externalSseUrl = $serviceConfig->getUrl();
+
+        $userSetting = $this->mcpUserSettingDomainService->getByUserAndMcpServer(
+            $dataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            $entity->getCode()
+        );
+
+        // Validate and apply user configuration
+        $this->validateAndApplyUserConfiguration($entity, $userSetting);
+
+        // Prepare base connection options
+        $connectionOptions = [
+            'base_url' => $serviceConfig->getUrl(),
+            'timeout' => 15.0,
+            'sse_timeout' => 300.0,
+            'max_retries' => 1,
+        ];
+
+        // Add headers from service configuration
+        $headers = [];
+        foreach ($serviceConfig->getHeaders() as $header) {
+            if (! empty($header->getKey()) && ! empty($header->getValue())) {
+                $headers[$header->getKey()] = $header->getValue();
+            }
+        }
+
+        if (! empty($headers)) {
+            $connectionOptions['headers'] = $headers;
+        }
+
+        // Generate authentication configuration
+        $auth = $this->generateAuth($userSetting);
+        if ($auth) {
+            $connectionOptions['auth'] = $auth;
+        }
 
         $tools = [];
         $error = '';
         try {
             $app = new Application(di());
             $client = new McpClient('magic-client', '1.0.0', $app);
-            $session = $client->connect(ProtocolConstants::TRANSPORT_TYPE_HTTP, [
-                'base_url' => $externalSseUrl,
-                'timeout' => 15.0,
-                'sse_timeout' => 300.0,
-                'max_retries' => 1,
-            ]);
+            $session = $client->connect(ProtocolConstants::TRANSPORT_TYPE_HTTP, $connectionOptions);
             $session->initialize();
             $toolsResult = $session->listTools();
             $status = 'success';
@@ -176,5 +207,82 @@ class MCPServerAppService extends AbstractMCPAppService
             'tools' => $tools,
             'error' => $error,
         ];
+    }
+
+    /**
+     * Validate required fields and apply user configuration.
+     */
+    private function validateAndApplyUserConfiguration(
+        MCPServerEntity $entity,
+        ?MCPUserSettingEntity $userSetting
+    ): void {
+        // Get required fields from service configuration
+        $serviceConfig = $entity->getServiceConfig();
+        $requiredFields = $serviceConfig->getRequireFields();
+
+        if (empty($requiredFields)) {
+            return; // No required fields to validate
+        }
+
+        // If no user setting exists, all required fields are missing
+        if (! $userSetting) {
+            ExceptionBuilder::throw(MCPErrorCode::RequiredFieldsMissing, 'mcp.required_fields.missing', ['fields' => implode(', ', $requiredFields)]);
+        }
+
+        // Check if all required fields are filled
+        $userRequiredFields = $userSetting->getRequireFieldsAsArray();
+        $userFieldValues = [];
+        foreach ($userRequiredFields as $field) {
+            $fieldName = $field['field_name'] ?? '';
+            $fieldValue = $field['field_value'] ?? '';
+            if (! empty($fieldName)) {
+                $userFieldValues[$fieldName] = $fieldValue;
+            }
+        }
+
+        $missingFields = [];
+        $emptyFields = [];
+
+        foreach ($requiredFields as $requiredField) {
+            if (! isset($userFieldValues[$requiredField])) {
+                $missingFields[] = $requiredField;
+            } elseif (empty($userFieldValues[$requiredField])) {
+                $emptyFields[] = $requiredField;
+            }
+        }
+
+        if (! empty($missingFields)) {
+            ExceptionBuilder::throw(MCPErrorCode::RequiredFieldsMissing, 'mcp.required_fields.missing', ['fields' => implode(', ', $missingFields)]);
+        }
+
+        if (! empty($emptyFields)) {
+            ExceptionBuilder::throw(MCPErrorCode::RequiredFieldsEmpty, 'mcp.required_fields.empty', ['fields' => implode(', ', $emptyFields)]);
+        }
+
+        // Apply user field values to service configuration
+        if (! empty($userFieldValues)) {
+            $serviceConfig->replaceRequiredFields($userFieldValues);
+        }
+    }
+
+    /**
+     * Generate authentication configuration for MCP connection.
+     */
+    private function generateAuth(?MCPUserSettingEntity $userSetting): ?array
+    {
+        // Add OAuth2 authentication if available
+        if ($userSetting && $userSetting->getOauth2AuthResult()) {
+            $oauth2Result = $userSetting->getOauth2AuthResult();
+
+            // Check if token is valid
+            if ($oauth2Result->isValid()) {
+                return [
+                    'type' => 'bearer',
+                    'token' => $oauth2Result->getAccessToken(),
+                ];
+            }
+        }
+
+        return null;
     }
 }
