@@ -8,17 +8,13 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
