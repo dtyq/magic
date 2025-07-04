@@ -119,7 +119,7 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
 
     public static function fromArray(array $array): self
     {
-        $instance = new static();
+        $instance = new self();
         $instance->setUrl($array['url'] ?? '');
         $instance->setHeaders(array_map(
             fn (array $headerData) => HeaderConfig::fromArray($headerData),
