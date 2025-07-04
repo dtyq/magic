@@ -14,7 +14,10 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
@@ -25,6 +28,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveTopicResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Exception;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -40,6 +44,7 @@ class TopicAppService extends AbstractAppService
         protected TopicDomainService $topicDomainService,
         protected MagicChatMessageAppService $magicChatMessageAppService,
         protected ChatAppService $chatAppService,
+        protected Producer $producer,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -157,7 +162,18 @@ class TopicAppService extends AbstractAppService
         // 调用领域服务执行删除
         $result = $this->topicDomainService->deleteTopic($dataIsolation, (int) $topicId);
 
-        // todo 投递事件，停止服务
+        // 投递事件，停止服务
+        if ($result) {
+            $event = new StopRunningTaskEvent(
+                DeleteDataType::TOPIC,
+                (int) $topicId,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                '话题已被删除'
+            );
+            $publisher = new StopRunningTaskPublisher($event);
+            $this->producer->produce($publisher);
+        }
 
         // 如果删除失败，抛出异常
         if (! $result) {

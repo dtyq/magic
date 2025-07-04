@@ -11,7 +11,10 @@ use App\Application\File\Service\FileAppService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -27,6 +30,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -46,6 +50,7 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
+        private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -166,7 +171,21 @@ class ProjectAppService extends AbstractAppService
 
         if ($result) {
             $this->topicDomainService->deleteTopicsByProjectId($dataIsolation, $projectId);
-            // todo 投递消息，停止正在运行的话题
+            $event = new StopRunningTaskEvent(
+                DeleteDataType::PROJECT,
+                $projectId,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                '项目已被删除'
+            );
+            $publisher = new StopRunningTaskPublisher($event);
+            $this->producer->produce($publisher);
+
+            $this->logger->info(sprintf(
+                '已投递停止任务消息，项目ID: %d, 事件ID: %s',
+                $projectId,
+                $event->getEventId()
+            ));
         }
 
         return $result;
