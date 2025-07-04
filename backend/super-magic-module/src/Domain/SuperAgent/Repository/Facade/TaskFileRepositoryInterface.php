@@ -22,6 +22,11 @@ interface TaskFileRepositoryInterface
     public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity;
 
     /**
+     * 根据项目ID和fileKey获取文件.
+     */
+    public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity;
+
+    /**
      * 根据话题ID获取文件列表.
      *
      * @param int $topicId 话题ID

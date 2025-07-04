@@ -46,6 +46,22 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * 根据项目ID和fileKey获取文件.
+     */
+    public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('file_key', $fileKey)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+        return new TaskFileEntity($model->toArray());
+    }
+
+    /**
      * 根据话题ID获取文件列表.
      *
      * @param int $topicId 话题ID

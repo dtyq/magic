@@ -17,7 +17,9 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
@@ -242,5 +244,43 @@ class FileApi extends AbstractApi
         $responseDTO = $this->fileBatchAppService->checkBatchDownload($requestContext, $batchKey);
 
         return $responseDTO->toArray();
+    }
+
+    /**
+     * 获取项目文件上传STS Token.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 获取结果
+     */
+    public function getProjectUploadToken(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestData = $this->request->all();
+        $requestDTO = ProjectUploadTokenRequestDTO::fromRequest($requestData);
+
+        // 调用应用服务
+        return $this->fileProcessAppService->getProjectUploadToken($requestContext, $requestDTO);
+    }
+
+    /**
+     * 保存项目文件.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 保存结果
+     */
+    public function saveProjectFile(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestData = $this->request->all();
+        $requestDTO = SaveProjectFileRequestDTO::fromRequest($requestData);
+
+        // 调用应用服务
+        return $this->fileProcessAppService->saveProjectFile($requestContext, $requestDTO);
     }
 }
