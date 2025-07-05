@@ -20,6 +20,13 @@ return new class extends Migration {
             }
             $table->json('mentions')->nullable()->after('attachments')->comment('提及信息');
         });
+
+        Schema::table('magic_super_agent_task', function (Blueprint $table) {
+            if (Schema::hasColumn('magic_super_agent_task', 'mentions')) {
+                return;
+            }
+            $table->json('mentions')->nullable()->after('attachments')->comment('提及信息');
+        });
     }
 
     /**
@@ -27,10 +34,5 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        if (Schema::hasColumn('magic_super_agent_message', 'mentions')) {
-            Schema::table('magic_super_agent_message', function (Blueprint $table) {
-                $table->dropColumn('mentions');
-            });
-        }
     }
 };

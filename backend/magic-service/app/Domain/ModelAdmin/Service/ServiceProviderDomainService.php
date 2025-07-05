@@ -859,12 +859,12 @@ class ServiceProviderDomainService
             $serviceProviderConfigEntity->setStatus($serviceProviderConfigDTO->getStatus());
             $serviceProviderConfigEntity->setConfig($serviceProviderConfigDTO->getConfig());
             $serviceProviderConfigEntity = $this->serviceProviderConfigRepository->insert($serviceProviderConfigEntity);
+            Db::commit();
         } catch (Exception $exception) {
             Db::rollBack();
             $this->logger->error('添加服务商失败: ' . $exception->getMessage());
             ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError, __('service_provider.add_provider_failed'));
         }
-        Db::commit();
         return $this->buildServiceProviderConfigDTO($serviceProviderEntity, $serviceProviderConfigEntity);
     }
 
@@ -902,12 +902,12 @@ class ServiceProviderDomainService
                 // 删除服务商下所有的模型
                 $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
             }
+            Db::commit();
         } catch (Exception $exception) {
             Db::rollBack();
             $this->logger->error('删除服务商失败: ' . $exception->getMessage());
             ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError, __('service_provider.delete_provider_failed'));
         }
-        Db::commit();
     }
 
     public function addModelIdForOrganization(string $modelId, string $organizationCode): void
