@@ -54,6 +54,27 @@ class RunTaskCallbackEvent extends AbstractEvent
     }
 
     /**
+     * Get department IDs from the user information in the task message.
+     *
+     * @return string[]
+     */
+    public function getDepartmentIds(): array
+    {
+        $departmentIds = [];
+        $metadata = $this->taskMessage->getMetadata();
+        if ($metadata) {
+            $userInfo = $metadata->getUserInfo();
+            if ($userInfo) {
+                $departments = $userInfo->getDepartments();
+                foreach ($departments as $department) {
+                    $departmentIds[] = $department->getId();
+                }
+            }
+        }
+        return $departmentIds;
+    }
+
+    /**
      * Convert the event object to array format.
      */
     public function toArray(): array

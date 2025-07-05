@@ -61,6 +61,11 @@ class TaskEntity extends AbstractEntity
     protected string $attachments = '';
 
     /**
+     * @var string 提及信息(JSON格式)
+     */
+    protected ?string $mentions;
+
+    /**
      * @var string 任务状态
      */
     protected string $taskStatus = '';
@@ -104,7 +109,7 @@ class TaskEntity extends AbstractEntity
     {
         // 默认设置
         $this->taskStatus = TaskStatus::WAITING->value;
-        $this->initProperty($data);
+        parent::__construct($data);
     }
 
     /**
@@ -122,6 +127,7 @@ class TaskEntity extends AbstractEntity
             'sandbox_id' => $this->sandboxId,
             'prompt' => $this->prompt,
             'attachments' => $this->attachments,
+            'mentions' => $this->getMentions(),
             'task_status' => $this->taskStatus,
             'work_dir' => $this->workDir,
             'task_mode' => $this->taskMode,
@@ -234,6 +240,17 @@ class TaskEntity extends AbstractEntity
     public function setAttachments(string $attachments): self
     {
         $this->attachments = $attachments;
+        return $this;
+    }
+
+    public function getMentions(): ?string
+    {
+        return $this->mentions ?? null;
+    }
+
+    public function setMentions(?string $mentions): self
+    {
+        $this->mentions = $mentions;
         return $this;
     }
 

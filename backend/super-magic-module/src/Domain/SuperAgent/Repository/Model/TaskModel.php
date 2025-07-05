@@ -40,6 +40,7 @@ class TaskModel extends AbstractModel
         'sandbox_id',
         'prompt',
         'attachments',
+        'mentions',
         'task_status',
         'work_dir',
         'task_mode',
