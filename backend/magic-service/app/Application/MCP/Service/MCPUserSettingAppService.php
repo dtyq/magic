@@ -185,6 +185,7 @@ class MCPUserSettingAppService extends AbstractMCPAppService
                 'code_verifier' => $codeVerifier,
                 'created_at' => time(),
                 'language' => CoContext::getLanguage(),
+                'redirect_url' => $redirectUrl,
             ]);
 
             $result['oauth_url'] = $this->oauth2Client->createOauthUrl(

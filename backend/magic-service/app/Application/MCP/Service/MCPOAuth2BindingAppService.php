@@ -51,6 +51,7 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
             $userId = $stateData['user_id'] ?? null;
             $mcpServerCode = $stateData['mcp_server_code'] ?? null;
             $codeVerifier = $stateData['code_verifier'] ?? null;
+            $redirectUrl = $stateData['redirect_url'] ?? null;
 
             if (! $userId || ! $mcpServerCode) {
                 ExceptionBuilder::throw(MCPErrorCode::OAuth2CallbackHandlingFailed);
@@ -84,7 +85,7 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
             }
 
             // Handle the OAuth2 code verification
-            $authResult = $this->oauth2Client->handleCallback($oauth2Config, $callbackParams);
+            $authResult = $this->oauth2Client->handleCallback($oauth2Config, $callbackParams, $redirectUrl);
 
             // Save the authentication result
             $userSetting = $this->mcpUserSettingDomainService->getByUserAndMcpServer($mcpDataIsolation, $userId, $mcpServerCode);
