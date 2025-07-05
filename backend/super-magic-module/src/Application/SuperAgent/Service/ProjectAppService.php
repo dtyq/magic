@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\File\Service\FileAppService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
@@ -47,6 +48,7 @@ class ProjectAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
@@ -88,17 +90,38 @@ class ProjectAppService extends AbstractAppService
             // 获取项目目录
             $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
 
+            // Initialize Magic Chat Conversation
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+
+            // 创建会话
+            // Step 4: Create default topic
+            $this->logger->info('开始创建默认话题');
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                $workspaceEntity->getId(),
+                $projectEntity->getId(),
+                $chatConversationId,
+                $chatConversationTopicId,
+                '',
+                $workDir
+            );
+            $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
+
             // 设置工作区信息
+            $workspaceEntity->setCurrentTopicId($topicEntity->getId());
             $workspaceEntity->setCurrentProjectId($projectEntity->getId());
             $this->workspaceDomainService->saveWorkspaceEntity($workspaceEntity);
+            $this->logger->info(sprintf('工作区%s已设置当前话题%s', $workspaceEntity->getId(), $topicEntity->getId()));
 
             // 设置项目信息
+            $projectEntity->setCurrentTopicId($topicEntity->getId());
             $projectEntity->setWorkspaceId($workspaceEntity->getId());
             $projectEntity->setWorkDir($workDir);
             $this->projectDomainService->saveProjectEntity($projectEntity);
+            $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
 
             Db::commit();
-            return ProjectItemDTO::fromEntity($projectEntity)->toArray();
+            return ['project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(), 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray()];
         } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Create Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
