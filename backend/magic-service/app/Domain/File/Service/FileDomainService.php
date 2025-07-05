@@ -37,6 +37,9 @@ readonly class FileDomainService
 
     public function getLink(string $organizationCode, string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
     {
+        if (empty($filePath)) {
+            return null;
+        }
         return $this->cloudFileRepository->getLinks($organizationCode, [$filePath], $bucketType, $downloadNames, $options)[$filePath] ?? null;
     }
 
