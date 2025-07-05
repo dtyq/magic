@@ -927,12 +927,10 @@ class FileProcessAppService extends AbstractAppService
                 if (empty($workDir)) {
                     ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'project.work_dir.not_found');
                 }
-                $returnProjectId = $projectId;
             } else {
                 // 情况2：无项目ID，使用雪花ID生成临时项目ID
                 $tempProjectId = IdGenerator::getSnowId();
                 $workDir = WorkDirectoryUtil::generateWorkDir($userId, $tempProjectId);
-                $returnProjectId = (string) $tempProjectId;
             }
 
             // 获取STS Token
@@ -940,19 +938,12 @@ class FileProcessAppService extends AbstractAppService
             $userAuthorization->setOrganizationCode($organizationCode);
             $storageType = StorageBucketType::Private->value;
 
-            $stsData = $this->fileAppService->getStsTemporaryCredential(
+            return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
                 $storageType,
                 $workDir,
                 $expires
             );
-
-            // 返回结果包含项目ID、work_dir和STS凭证
-            return [
-                'project_id' => $returnProjectId,
-                'work_dir' => $workDir,
-                'upload_config' => $stsData,
-            ];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to get project upload token: %s, Project ID: %s',
