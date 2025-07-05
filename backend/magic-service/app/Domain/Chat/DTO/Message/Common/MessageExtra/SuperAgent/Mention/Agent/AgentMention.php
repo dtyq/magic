@@ -14,11 +14,11 @@ final class AgentMention extends AbstractMention
     public function getMentionTextStruct(): string
     {
         /** @var AgentData $data */
-        $data = $this->getAttrs()->getData();
+        $data = $this->getAttrs()?->getData();
         if (! $data instanceof AgentData) {
             return '';
         }
 
-        return (string) ($data->getAgentName() ?? '');
+        return $data->getAgentName() ?? '';
     }
 }
