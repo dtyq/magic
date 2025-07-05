@@ -25,6 +25,11 @@ readonly class ProviderModelDomainService
         return $this->providerModelRepository->getById($dataIsolation, $id, $checkModelEnabled);
     }
 
+    public function getOfficeModelById(int $id, bool $checkModelEnabled = true): ?ProviderModelEntity
+    {
+        return $this->providerModelRepository->getOfficeModelById($id, $checkModelEnabled);
+    }
+
     /**
      * @param array<int> $ids
      * @return array<ProviderModelEntity>

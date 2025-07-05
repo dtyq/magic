@@ -14,11 +14,11 @@ final class McpMention extends AbstractMention
     public function getMentionTextStruct(): string
     {
         /** @var McpData $data */
-        $data = $this->getAttrs()->getData();
+        $data = $this->getAttrs()?->getData();
         if (! $data instanceof McpData) {
             return '';
         }
 
-        return (string) ($data->getName() ?? '');
+        return $data->getName() ?? '';
     }
 }

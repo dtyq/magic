@@ -41,7 +41,7 @@ class SuperAgentExtra extends AbstractDTO
     public function getMentionsTextStruct(): ?string
     {
         $textStruct = [];
-        foreach ($this->mentions as $mention) {
+        foreach ($this->getMentions() ?? [] as $mention) {
             $textStruct[] = $mention->getMentionTextStruct();
         }
         if (empty($textStruct)) {

@@ -526,13 +526,12 @@ class ModelGatewayMapper extends ModelMapper
             $providerDataIsolation->disabled();
         }
         $providerModel = di(ProviderModelDomainService::class)->getByIdOrModelId($providerDataIsolation, $model, $checkModelEnabled);
-
         if (! $providerModel) {
             return null;
         }
         if (! in_array($providerModel->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
             if ($providerModel->getModelParentId() && $providerModel->getId() !== $providerModel->getModelParentId()) {
-                $providerModel = di(ProviderModelDomainService::class)->getById($providerDataIsolation, $providerModel->getModelParentId(), $checkModelEnabled);
+                $providerModel = di(ProviderModelDomainService::class)->getOfficeModelById($providerModel->getModelParentId(), $checkModelEnabled);
                 if (! $providerModel) {
                     return null;
                 }

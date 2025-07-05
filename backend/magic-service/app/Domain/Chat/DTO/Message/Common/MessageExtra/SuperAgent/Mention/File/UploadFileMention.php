@@ -13,7 +13,7 @@ final class UploadFileMention extends AbstractMention
 {
     public function getMentionTextStruct(): string
     {
-        $data = $this->getAttrs()->getData();
+        $data = $this->getAttrs()?->getData();
         if (! $data instanceof FileData) {
             return '';
         }

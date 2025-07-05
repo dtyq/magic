@@ -19,7 +19,8 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskMode;
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -29,12 +30,15 @@ use Throwable;
  */
 class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 {
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected readonly TaskAppService $SuperAgentAppService,
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
-        protected readonly StdoutLoggerInterface $logger,
+        protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
         parent::__construct($magicConversationDomainService);
     }
 
@@ -121,9 +125,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             return;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Failed to process super agent message: %s, event: %s',
+                'Failed to process super agent message: %s,file:%s,line:%s, event: %s,trace:%s',
                 $e->getMessage(),
-                json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                $e->getFile(),
+                $e->getLine(),
+                json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                $e->getTraceAsString()
             ));
 
             return; // Acknowledge message even on error to avoid message accumulation

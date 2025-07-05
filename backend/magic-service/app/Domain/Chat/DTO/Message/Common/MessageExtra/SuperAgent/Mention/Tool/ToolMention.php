@@ -14,11 +14,11 @@ final class ToolMention extends AbstractMention
     public function getMentionTextStruct(): string
     {
         /** @var ToolData $data */
-        $data = $this->getAttrs()->getData();
+        $data = $this->getAttrs()?->getData();
         if (! $data instanceof ToolData) {
             return '';
         }
 
-        return (string) ($data->getName() ?? '');
+        return $data->getName() ?? '';
     }
 }
