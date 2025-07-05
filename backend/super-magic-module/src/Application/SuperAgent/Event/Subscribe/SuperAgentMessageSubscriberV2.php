@@ -70,14 +70,14 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             }
             // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
             $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
-            $attachments = $superAgentExtra?->getMentionsTextStruct();
+            $mentions = $superAgentExtra?->getMentionsJsonStruct();
             // Extract necessary information
             $conversationId = $userCallAgentEvent->seqEntity->getConversationId() ?? '';
             $chatTopicId = $userCallAgentEvent->seqEntity->getExtra()?->getTopicId() ?? '';
             $organizationCode = $userCallAgentEvent->senderUserEntity->getOrganizationCode() ?? '';
             $userId = $userCallAgentEvent->senderUserEntity->getUserId() ?? '';
             $agentUserId = $userCallAgentEvent->agentUserEntity->getUserId() ?? '';
-            // $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
+            $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
 
             // Parameter validation
@@ -100,6 +100,9 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // Convert attachments array to JSON
             $attachmentsJson = ! empty($attachments) ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '';
 
+            // Convert mentions array to JSON if not null
+            $mentionsJson = ! empty($mentions) ? json_encode($mentions, JSON_UNESCAPED_UNICODE) : null;
+
             // Parse instruction information
             [$chatInstructs, $taskMode] = $this->parseInstructions($instructions);
 
@@ -110,6 +113,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 chatTopicId: $chatTopicId,
                 prompt: $prompt,
                 attachments: $attachmentsJson,
+                mentions: $mentionsJson,
                 instruction: $chatInstructs,
                 taskMode: $taskMode
             );

@@ -36,18 +36,21 @@ class SuperAgentExtra extends AbstractDTO
     protected ?string $taskPattern;
 
     /**
-     * 为了方便大模型进行 function call，这里将 @ 的内容转为文本格式.
+     * 获取 mentions 的 JSON 结构数组.
      */
-    public function getMentionsTextStruct(): ?string
+    public function getMentionsJsonStruct(): ?array
     {
-        $textStruct = [];
+        $jsonStruct = [];
         foreach ($this->getMentions() ?? [] as $mention) {
-            $textStruct[] = $mention->getMentionTextStruct();
+            $mentionJson = $mention->getMentionJsonStruct();
+            if (! empty($mentionJson)) {
+                $jsonStruct[] = $mentionJson;
+            }
         }
-        if (empty($textStruct)) {
+        if (empty($jsonStruct)) {
             return null;
         }
-        return Json::encode($textStruct);
+        return $jsonStruct;
     }
 
     public function getMentions(): ?array

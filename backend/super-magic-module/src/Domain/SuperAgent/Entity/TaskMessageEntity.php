@@ -78,6 +78,11 @@ class TaskMessageEntity extends AbstractEntity
     protected ?array $attachments = null;
 
     /**
+     * @var null|array 提及信息
+     */
+    protected ?array $mentions = null;
+
+    /**
      * @var string 事件类型
      */
     protected string $event = '';
@@ -228,6 +233,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getMentions(): ?array
+    {
+        return $this->mentions;
+    }
+
+    public function setMentions(?array $mentions): self
+    {
+        $this->mentions = empty($mentions) ? null : $mentions;
+        return $this;
+    }
+
     public function getEvent(): string
     {
         return $this->event;
@@ -271,6 +287,7 @@ class TaskMessageEntity extends AbstractEntity
             'steps' => $this->steps,
             'tool' => $this->tool,
             'attachments' => $this->attachments,
+            'mentions' => $this->mentions,
             'event' => $this->event,
             'send_timestamp' => $this->sendTimestamp,
             'show_in_ui' => $this->showInUi,

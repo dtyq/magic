@@ -43,4 +43,6 @@ abstract class AbstractMention extends AbstractDTO implements MentionInterface
     }
 
     abstract public function getMentionTextStruct(): string;
+
+    abstract public function getMentionJsonStruct(): array;
 }

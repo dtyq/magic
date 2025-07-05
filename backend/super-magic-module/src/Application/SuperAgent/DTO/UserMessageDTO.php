@@ -20,6 +20,7 @@ class UserMessageDTO
         private readonly string $chatTopicId,
         private readonly string $prompt,
         private readonly ?string $attachments = null,
+        private readonly ?string $mentions = null,
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
         private readonly string $taskMode = ''
     ) {
@@ -50,6 +51,11 @@ class UserMessageDTO
         return $this->attachments;
     }
 
+    public function getMentions(): ?string
+    {
+        return $this->mentions ?? null;
+    }
+
     public function getInstruction(): ChatInstruction
     {
         return $this->instruction;
@@ -71,6 +77,7 @@ class UserMessageDTO
             chatTopicId: $data['chat_topic_id'] ?? $data['chatTopicId'] ?? '',
             prompt: $data['prompt'] ?? '',
             attachments: $data['attachments'] ?? null,
+            mentions: $data['mentions'] ?? null,
             instruction: isset($data['instruction'])
                 ? ChatInstruction::tryFrom($data['instruction']) ?? ChatInstruction::Normal
                 : ChatInstruction::Normal,
@@ -89,6 +96,7 @@ class UserMessageDTO
             'chat_topic_id' => $this->chatTopicId,
             'prompt' => $this->prompt,
             'attachments' => $this->attachments,
+            'mentions' => $this->mentions,
             'instruction' => $this->instruction->value,
             'task_mode' => $this->taskMode,
         ];

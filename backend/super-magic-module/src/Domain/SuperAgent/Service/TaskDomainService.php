@@ -11,12 +11,13 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -43,28 +44,27 @@ class TaskDomainService
     }
 
     /**
-     * Initialize topic task.
+     * Initialize a task for a topic.
      *
-     * @param DataIsolation $dataIsolation Data isolation object
+     * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
-     * @param string $prompt User's question
-     * @param string $attachments User uploaded attachment information (JSON format)
-     * @param ChatInstruction $instruction Instruction: normal, follow-up, interrupt
+     * @param UserMessageDTO $userMessageDTO User message DTO containing all necessary parameters
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
-    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, ChatInstruction $instruction, string $taskMode, string $prompt = '', string $attachments = ''): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, UserMessageDTO $userMessageDTO): TaskEntity
     {
         // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
         $topicId = $topicEntity->getId();
 
-        // If instruction is interrupt or follow-up
-        // If $taskMode is empty, use topic's task_mode
-        if ($taskMode == '') {
+        // Get task mode from DTO, fallback to topic's task mode if empty
+        $taskMode = $userMessageDTO->getTaskMode();
+        if ($taskMode === '') {
             $taskMode = $topicEntity->getTaskMode();
         }
-        // All other cases create a new task
+
+        // Create new task entity
         $taskEntity = new TaskEntity([
             'user_id' => $userId,
             'workspace_id' => $topicEntity->getWorkspaceId(),
@@ -73,8 +73,9 @@ class TaskDomainService
             'task_id' => '', // Initially empty, this is agent's task id
             'task_mode' => $taskMode,
             'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
-            'prompt' => $prompt,
-            'attachments' => $attachments,
+            'prompt' => $userMessageDTO->getPrompt(),
+            'attachments' => $userMessageDTO->getAttachments(),
+            'mentions' => $userMessageDTO->getMentions(),
             'task_status' => TaskStatus::WAITING->value,
             'work_dir' => $topicEntity->getWorkDir() ?? '',
             'created_at' => date('Y-m-d H:i:s'),
@@ -84,7 +85,7 @@ class TaskDomainService
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
 
-        // 4. Update topic's current task ID and status
+        // Update topic's current task ID and status
         $topicEntity->setCurrentTaskId($taskEntity->getId());
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -203,116 +204,33 @@ class TaskDomainService
     /**
      * Record task message.
      */
-    public function recordTaskMessage(
-        string $taskId,
-        string $role,
-        string $senderUid,
-        string $receiverUid,
-        string $messageType,
-        string $content,
-        ?string $status = null,
-        ?array $steps = null,
-        ?array $tool = null,
-        ?int $topicId = null,
-        ?string $event = null,
-        ?array $attachments = null,
-        bool $showInUi = true,
-        ?string $messageId = null
-    ): TaskMessageEntity {
+    public function recordTaskMessage(TaskMessageDTO $taskMessageDTO): TaskMessageEntity
+    {
         $messageData = [
-            'task_id' => $taskId,
-            'sender_type' => $role,
-            'sender_uid' => $senderUid,
-            'receiver_uid' => $receiverUid,
-            'type' => $messageType,
-            'content' => $content,
-            'status' => $status,
-            'steps' => $steps,
-            'tool' => $tool,
-            'attachments' => $attachments,
-            'topic_id' => $topicId,
-            'event' => $event,
-            'show_in_ui' => $showInUi,
+            'task_id' => $taskMessageDTO->getTaskId(),
+            'sender_type' => $taskMessageDTO->getRole(),
+            'sender_uid' => $taskMessageDTO->getSenderUid(),
+            'receiver_uid' => $taskMessageDTO->getReceiverUid(),
+            'type' => $taskMessageDTO->getMessageType(),
+            'content' => $taskMessageDTO->getContent(),
+            'status' => $taskMessageDTO->getStatus(),
+            'steps' => $taskMessageDTO->getSteps(),
+            'tool' => $taskMessageDTO->getTool(),
+            'attachments' => $taskMessageDTO->getAttachments(),
+            'mentions' => $taskMessageDTO->getMentions(),
+            'topic_id' => $taskMessageDTO->getTopicId(),
+            'event' => $taskMessageDTO->getEvent(),
+            'show_in_ui' => $taskMessageDTO->isShowInUi(),
         ];
 
         // Add message_id if provided
-        if ($messageId !== null) {
-            $messageData['message_id'] = $messageId;
+        if ($taskMessageDTO->getMessageId() !== null) {
+            $messageData['message_id'] = $taskMessageDTO->getMessageId();
         }
 
         $message = new TaskMessageEntity($messageData);
-
         $this->messageRepository->save($message);
         return $message;
-    }
-
-    /**
-     * Record user sent message.
-     */
-    public function recordUserMessage(
-        string $taskId,
-        string $userId,
-        string $aiId,
-        string $content,
-        ?array $tool = null,
-        ?int $topicId = null,
-        ?string $event = null,
-        ?array $attachments = null,
-        bool $showInUi = true,
-        ?string $messageId = null
-    ): TaskMessageEntity {
-        return $this->recordTaskMessage(
-            $taskId,
-            'user',
-            $userId,
-            $aiId,
-            'chat',
-            $content,
-            null,
-            null,
-            $tool,
-            $topicId,
-            $event,
-            $attachments,
-            $showInUi,
-            $messageId
-        );
-    }
-
-    /**
-     * Record AI replied message.
-     */
-    public function recordAiMessage(
-        string $taskId,
-        string $aiId,
-        string $userId,
-        string $messageType,
-        string $content,
-        ?string $status = null,
-        ?array $steps = null,
-        ?array $tool = null,
-        ?int $topicId = null,
-        ?string $event = null,
-        ?array $attachments = null,
-        bool $showInUi = true,
-        ?string $messageId = null
-    ): TaskMessageEntity {
-        return $this->recordTaskMessage(
-            $taskId,
-            'assistant',
-            $aiId,
-            $userId,
-            $messageType,
-            $content,
-            $status,
-            $steps,
-            $tool,
-            $topicId,
-            $event,
-            $attachments,
-            $showInUi,
-            $messageId
-        );
     }
 
     /**
@@ -506,20 +424,23 @@ class TaskDomainService
         // Output format is topicId => ['total' => 0, 'last_task_start_time' => '', 'last_task_update_time' => '']
         $result = [];
         foreach ($data as $item) {
-            /**
+            $itemTopicId = $item->getTopicId();
+            /*
              * @var TaskEntity $item
              */
-            if (! isset($result[$item->getTopicId()])) {
-                $result[$item->getTopicId()] = [];
-                $result[$item->getTopicId()]['task_rounds'] = 0;
-                $result[$item->getTopicId()]['last_task_start_time'] = '';
+            if (! isset($result[$itemTopicId])) {
+                $result[$itemTopicId] = [];
+                $result[$itemTopicId]['task_rounds'] = 0;
+                $result[$itemTopicId]['last_task_start_time'] = '';
             }
-            $result[$item->getTopicId()]['task_rounds'] = $result[$item->getTopicId()]['task_rounds'] + 1;
+
+            $result[$itemTopicId]['task_rounds'] = $result[$itemTopicId]['task_rounds'] + 1;
             // Convert time string to timestamp for comparison
-            $currentTime = strtotime($item->getCreatedAt());
-            $lastTime = strtotime($result[$item->getTopicId()]['last_task_start_time']);
+            $createdAt = $item->getCreatedAt();
+            $currentTime = strtotime($createdAt);
+            $lastTime = strtotime($result[$itemTopicId]['last_task_start_time']);
             if ($currentTime > $lastTime) {
-                $result[$item->getTopicId()]['last_task_start_time'] = $item->getCreatedAt();
+                $result[$itemTopicId]['last_task_start_time'] = $createdAt;
             }
         }
 
