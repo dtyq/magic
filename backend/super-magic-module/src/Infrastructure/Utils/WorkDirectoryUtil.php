@@ -15,4 +15,16 @@ class WorkDirectoryUtil
     {
         return sprintf('/%s/%s/project_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $projectId);
     }
+
+    public static function getRelativeFilePath(string $fileKey, string $workDir): string
+    {
+        if (! empty($workDir)) {
+            $workDirPos = strpos($fileKey, $workDir);
+            if ($workDirPos !== false) {
+                return substr($fileKey, $workDirPos + strlen($workDir));
+            }
+            return $fileKey; // If workDir not found, use original fileKey
+        }
+        return $fileKey;
+    }
 }
