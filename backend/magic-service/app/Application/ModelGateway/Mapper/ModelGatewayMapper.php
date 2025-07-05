@@ -526,6 +526,7 @@ class ModelGatewayMapper extends ModelMapper
             $providerDataIsolation->disabled();
         }
         $providerModel = di(ProviderModelDomainService::class)->getByIdOrModelId($providerDataIsolation, $model, $checkModelEnabled);
+
         if (! $providerModel) {
             return null;
         }
