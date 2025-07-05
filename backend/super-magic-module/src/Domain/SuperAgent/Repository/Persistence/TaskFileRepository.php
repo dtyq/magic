@@ -217,7 +217,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         // 设置数据库生成的ID
         if (! empty($model->file_id)) {
-            $entity->setFileId($model->file_id);
+            $entity->setFileId($entity->getFileId());
         }
 
         return $entity;

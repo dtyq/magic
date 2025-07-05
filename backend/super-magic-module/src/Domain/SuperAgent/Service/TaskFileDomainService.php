@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -196,6 +197,7 @@ class TaskFileDomainService
         $entity->setProjectId((int) $projectId);
         $entity->setTopicId(! empty($topicId) ? (int) $topicId : 0);
         $entity->setTaskId(! empty($taskId) ? (int) $taskId : 0);
+        $entity->setFileId(IdGenerator::getSnowId());
         $entity->setFileKey($fileKey);
         $entity->setFileName($fileName);
         $entity->setFileSize($fileSize);
@@ -215,6 +217,8 @@ class TaskFileDomainService
         $entity->setUpdatedAt($now);
 
         // Save to repository
-        return $this->insert($entity);
+        $this->insert($entity);
+
+        return $entity;
     }
 }

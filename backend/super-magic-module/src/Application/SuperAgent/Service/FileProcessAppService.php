@@ -987,6 +987,9 @@ class FileProcessAppService extends AbstractAppService
 
             // 校验项目归属权限 - 确保用户只能保存到自己的项目
             $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
+            }
 
             // 调用领域服务保存文件
             $taskFileEntity = $this->taskFileDomainService->saveProjectFile(
@@ -1002,15 +1005,16 @@ class FileProcessAppService extends AbstractAppService
 
             // 返回保存结果
             return [
-                'file_id' => $taskFileEntity->getFileId(),
+                'file_id' => (string) $taskFileEntity->getFileId(),
                 'file_key' => $taskFileEntity->getFileKey(),
                 'file_name' => $taskFileEntity->getFileName(),
                 'file_size' => $taskFileEntity->getFileSize(),
                 'file_type' => $taskFileEntity->getFileType(),
-                'project_id' => $taskFileEntity->getProjectId(),
-                'topic_id' => $taskFileEntity->getTopicId(),
-                'task_id' => $taskFileEntity->getTaskId(),
+                'project_id' => ! empty($taskFileEntity->getProjectId()) ? (string) $taskFileEntity->getProjectId() : '',
+                'topic_id' => ! empty($taskFileEntity->getTopicId()) ? (string) $taskFileEntity->getTopicId() : '',
+                'task_id' => ! empty($taskFileEntity->getTaskId()) ? (string) $taskFileEntity->getTaskId() : '',
                 'created_at' => $taskFileEntity->getCreatedAt(),
+                'relative_file_path' => WorkDirectoryUtil::getRelativeFilePath($taskFileEntity->getFileKey(), $projectEntity->getWorkDir()),
             ];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
