@@ -14,5 +14,13 @@ use JsonSerializable;
  */
 interface MentionInterface extends JsonSerializable
 {
+    /**
+     * 在消息的 content 中 @了 文件/mcp/工具 等.
+     */
     public function getMentionTextStruct(): string;
+
+    /**
+     * 获取 Mention 对象的 JSON 结构.
+     */
+    public function getMentionJsonStruct(): array;
 }

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Tool;
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractMention;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 
 final class ToolMention extends AbstractMention
 {
@@ -20,5 +21,21 @@ final class ToolMention extends AbstractMention
         }
 
         return $data->getName() ?? '';
+    }
+
+    public function getMentionJsonStruct(): array
+    {
+        /** @var ToolData $data */
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof ToolData) {
+            return [];
+        }
+
+        return [
+            'type' => MentionType::TOOL->value,
+            'id' => $data->getId(),
+            'name' => $data->getName(),
+            'icon' => $data->getIcon(),
+        ];
     }
 }

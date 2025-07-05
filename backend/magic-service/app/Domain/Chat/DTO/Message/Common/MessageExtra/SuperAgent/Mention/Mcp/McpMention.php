@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Mcp;
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractMention;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 
 final class McpMention extends AbstractMention
 {
@@ -20,5 +21,21 @@ final class McpMention extends AbstractMention
         }
 
         return $data->getName() ?? '';
+    }
+
+    public function getMentionJsonStruct(): array
+    {
+        /** @var McpData $data */
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof McpData) {
+            return [];
+        }
+
+        return [
+            'type' => MentionType::MCP->value,
+            'id' => $data->getId(),
+            'name' => $data->getName(),
+            'icon' => $data->getIcon(),
+        ];
     }
 }

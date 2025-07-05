@@ -12,6 +12,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
@@ -24,6 +25,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -84,42 +86,39 @@ class HandleUserMessageAppService extends AbstractAppService
         }
     }
 
-    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $dto)
+    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
     {
         $topicId = 0;
         $taskId = '';
         try {
             // Get topic information
-            $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getChatTopicId());
+            $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
             if (is_null($topicEntity)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
 
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $dto->getInstruction(), $topicEntity);
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
 
             // Initialize task
             $taskEntity = $this->taskDomainService->initTopicTask(
                 dataIsolation: $dataIsolation,
                 topicEntity: $topicEntity,
-                instruction: $dto->getInstruction(),
-                taskMode: $dto->getTaskMode(),
-                prompt: $dto->getPrompt(),
-                attachments: $dto->getAttachments(),
+                userMessageDTO: $userMessageDTO
             );
             $taskId = (string) $taskEntity->getId();
 
             // Save user information
-            $this->saveUserMessage($dataIsolation, $taskEntity, $dto->getAgentUserId(), $dto->getAttachments());
+            $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
 
             // Send message to agent
             $taskContext = new TaskContext(
                 task: $taskEntity,
                 dataIsolation: $dataIsolation,
-                chatConversationId: $dto->getChatConversationId(),
-                chatTopicId: $dto->getChatTopicId(),
-                agentUserId: $dto->getAgentUserId(),
+                chatConversationId: $userMessageDTO->getChatConversationId(),
+                chatTopicId: $userMessageDTO->getChatTopicId(),
+                agentUserId: $userMessageDTO->getAgentUserId(),
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp
@@ -131,8 +130,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $this->topicTaskAppService->updateTaskStatus(
                 dataIsolation: $dataIsolation,
                 task: $taskEntity,
-                status: TaskStatus::RUNNING,
-                errMsg: '',
+                status: TaskStatus::RUNNING
             );
         } catch (EventException $e) {
             $this->logger->error(sprintf(
@@ -143,8 +141,8 @@ class HandleUserMessageAppService extends AbstractAppService
             $this->clientMessageAppService->sendErrorMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
-                chatTopicId: $dto->getChatTopicId(),
-                chatConversationId: $dto->getChatConversationId(),
+                chatTopicId: $userMessageDTO->getChatTopicId(),
+                chatConversationId: $userMessageDTO->getChatConversationId(),
                 errorMessage: $e->getMessage()
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
@@ -158,8 +156,8 @@ class HandleUserMessageAppService extends AbstractAppService
             $this->clientMessageAppService->sendErrorMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
-                chatTopicId: $dto->getChatTopicId(),
-                chatConversationId: $dto->getChatConversationId(),
+                chatTopicId: $userMessageDTO->getChatTopicId(),
+                chatConversationId: $userMessageDTO->getChatConversationId(),
                 errorMessage: trans('agent.initialize_error')
             );
             throw new BusinessException('Initialize task failed', 500);
@@ -236,20 +234,37 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Save user information and corresponding attachments.
      */
-    private function saveUserMessage(DataIsolation $dataIsolation, TaskEntity $taskEntity, string $agentUserId, string $attachmentsStr): void
+    private function saveUserMessage(DataIsolation $dataIsolation, TaskEntity $taskEntity, UserMessageDTO $userMessageDTO): void
     {
-        $attachmentsArr = empty($attachmentsStr) ? [] : json_decode($attachmentsStr, true);
-        $this->taskDomainService->recordUserMessage(
-            (string) $taskEntity->getId(),
-            $dataIsolation->getCurrentUserId(),
-            $agentUserId,
-            $taskEntity->getPrompt(),
-            null,
-            $taskEntity->getTopicId(),
-            '',
-            $attachmentsArr
+        // Convert mentions string to array if not null
+        $mentionsArray = $userMessageDTO->getMentions() !== null ? json_decode($userMessageDTO->getMentions(), true) : null;
+
+        // Convert attachments string to array if not null
+        $attachmentsArray = $userMessageDTO->getAttachments() !== null ? json_decode($userMessageDTO->getAttachments(), true) : null;
+
+        // Create TaskMessageDTO for user message
+        $taskMessageDTO = new TaskMessageDTO(
+            taskId: (string) $taskEntity->getId(),
+            role: Role::User->value,
+            senderUid: $dataIsolation->getCurrentUserId(),
+            receiverUid: $userMessageDTO->getAgentUserId(),
+            messageType: 'chat',
+            content: $taskEntity->getPrompt(),
+            status: null,
+            steps: null,
+            tool: null,
+            topicId: $taskEntity->getTopicId(),
+            event: '',
+            attachments: $attachmentsArray,
+            mentions: $mentionsArray,
+            showInUi: true,
+            messageId: null
         );
+
+        $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+
         // Process user uploaded attachments
+        $attachmentsStr = $userMessageDTO->getAttachments();
         $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
     }
 }
