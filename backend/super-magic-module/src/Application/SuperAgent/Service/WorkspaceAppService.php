@@ -665,7 +665,7 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        $result = $this->filterResultByGitVersion($result, $topicEntity->getProjectId());
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId());
 
         // 处理文件 URL
         $list = [];
@@ -803,54 +803,5 @@ class WorkspaceAppService extends AbstractAppService
             Db::rollBack();
             throw $e;
         }
-    }
-
-    /**
-     * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
-     */
-    private function filterResultByGitVersion(array $result, int $projectId): array
-    {
-        $dir = '.workspace';
-        $workspaceVersion = $this->workspaceDomainService->getWorkspaceVersionByProjectId($projectId, $dir);
-        if (empty($workspaceVersion)) {
-            return $result;
-        }
-
-        if (empty($workspaceVersion->getDir())) {
-            return $result;
-        }
-
-        # 遍历result的updatedAt ，如果updatedAt 小于workspaceVersion 的updated_at ，则保持在一个临时数组
-        $tempResult1 = [];
-        foreach ($result['list'] as $item) {
-            if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
-                $tempResult1[] = $item;
-            }
-        }
-        $dir = json_decode($workspaceVersion->getDir(), true);
-        # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
-        # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
-        $dir = array_filter($dir, function ($item) {
-            if (strpos($item, '.') === false) {
-                return false;
-            }
-            return true;
-        });
-
-        # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
-        $tempResult2 = [];
-        foreach ($result['list'] as $item) {
-            foreach ($dir as $dirItem) {
-                if (strpos($item['file_key'], $dirItem) !== false) {
-                    $tempResult2[] = $item;
-                }
-            }
-        }
-        $tempResult = array_merge($tempResult1, $tempResult2);
-
-        # 对tempResult进行去重
-        $result['list'] = array_unique($tempResult, SORT_REGULAR);
-        $result['total'] = count($result['list']);
-        return $result;
     }
 }

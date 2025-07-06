@@ -346,6 +346,8 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getFileType()
         );
 
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId());
+
         // 处理文件 URL
         $list = [];
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
