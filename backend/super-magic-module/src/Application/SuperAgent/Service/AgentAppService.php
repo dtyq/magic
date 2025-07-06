@@ -39,7 +39,7 @@ use Throwable;
  * Agent消息应用服务
  * 提供高级Agent通信功能，包括自动初始化和状态管理.
  */
-class AgentAppService
+class AgentAppService extends AbstractKernelAppService
 {
     private LoggerInterface $logger;
 
@@ -50,6 +50,8 @@ class AgentAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
+        private readonly MagicUserSettingDomainService $userSettingDomainService,
+        private readonly MCPServerAppService $MCPServerAppService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -181,6 +183,8 @@ class AgentAppService
             $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
         }
 
+        $mcpConfig = $this->getMcpConfig($dataIsolation);
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: (string) IdGenerator::getSnowId(),
@@ -189,6 +193,7 @@ class AgentAppService
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
             attachments: $attachmentUrls,
+            mcpConfig: $mcpConfig,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -375,6 +380,7 @@ class AgentAppService
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $userAuthorization->setId($dataIsolation->getCurrentUserId());
         // Use unified FileAppService to get STS Token
         $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
 
