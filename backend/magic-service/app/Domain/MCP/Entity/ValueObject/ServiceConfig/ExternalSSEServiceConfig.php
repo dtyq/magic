@@ -69,6 +69,17 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
         $this->headers[] = $header;
     }
 
+    public function getHeadersArray(): array
+    {
+        $headers = [];
+        foreach ($this->headers as $header) {
+            if (! empty($header->getKey()) && ! empty($header->getValue())) {
+                $headers[$header->getKey()] = $header->getValue();
+            }
+        }
+        return $headers;
+    }
+
     public function getOauth2Config(): ?Oauth2Config
     {
         return $this->oauth2Config;
@@ -144,13 +155,13 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
             $urlParts = parse_url($this->url);
 
             // Extract from path
-            if (isset($urlParts['path']) && ! empty($urlParts['path'])) {
+            if (! empty($urlParts['path'])) {
                 $pathFields = $this->extractRequiredFields($urlParts['path']);
                 $fields = array_merge($fields, $pathFields);
             }
 
             // Extract from query parameters
-            if (isset($urlParts['query']) && ! empty($urlParts['query'])) {
+            if (! empty($urlParts['query'])) {
                 $queryFields = $this->extractRequiredFields($urlParts['query']);
                 $fields = array_merge($fields, $queryFields);
             }

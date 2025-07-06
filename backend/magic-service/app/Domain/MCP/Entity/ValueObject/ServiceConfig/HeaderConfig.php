@@ -19,6 +19,14 @@ class HeaderConfig extends AbstractValueObject
 
     protected string $mapperSystemInput = '';
 
+    public static function create(string $key, string $value): HeaderConfig
+    {
+        $instance = new self();
+        $instance->setKey($key);
+        $instance->setValue($value);
+        return $instance;
+    }
+
     public function getKey(): string
     {
         return $this->key;
