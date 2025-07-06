@@ -136,7 +136,7 @@ class GetProjectAttachmentsRequestDTO
     /**
      * 获取访问令牌.
      *
-     * @return string|null 访问令牌
+     * @return null|string 访问令牌
      */
     public function getToken(): ?string
     {
@@ -146,7 +146,7 @@ class GetProjectAttachmentsRequestDTO
     /**
      * 设置访问令牌.
      *
-     * @param string|null $token 访问令牌
+     * @param null|string $token 访问令牌
      * @return self 返回当前实例，支持链式调用
      */
     public function setToken(?string $token): self

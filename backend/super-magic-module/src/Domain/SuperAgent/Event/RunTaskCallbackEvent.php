@@ -11,6 +11,8 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 
 class RunTaskCallbackEvent extends AbstractEvent
 {
+    private array $departmentIds;
+
     public function __construct(
         private string $organizationCode,
         private string $userId,
@@ -21,6 +23,7 @@ class RunTaskCallbackEvent extends AbstractEvent
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
+        $this->departmentIds = $this->extractDepartmentIds();
     }
 
     public function getOrganizationCode(): string
@@ -60,16 +63,7 @@ class RunTaskCallbackEvent extends AbstractEvent
      */
     public function getDepartmentIds(): array
     {
-        $departmentIds = [];
-        $metadata = $this->taskMessage->getMetadata();
-        $userInfo = $metadata->getUserInfo();
-        if ($userInfo) {
-            $departments = $userInfo->getDepartments();
-            foreach ($departments as $department) {
-                $departmentIds[] = $department->getId();
-            }
-        }
-        return $departmentIds;
+        return $this->departmentIds;
     }
 
     /**
@@ -84,6 +78,21 @@ class RunTaskCallbackEvent extends AbstractEvent
             'topicName' => $this->topicName,
             'taskId' => $this->taskId,
             'taskMessage' => $this->taskMessage->toArray() ?? $this->taskMessage,
+            'departmentIds' => $this->departmentIds,
         ];
+    }
+
+    private function extractDepartmentIds(): array
+    {
+        $departmentIds = [];
+        $metadata = $this->taskMessage->getMetadata();
+        $userInfo = $metadata->getUserInfo();
+        if ($userInfo) {
+            $departments = $userInfo->getDepartments();
+            foreach ($departments as $department) {
+                $departmentIds[] = $department->getId();
+            }
+        }
+        return $departmentIds;
     }
 }

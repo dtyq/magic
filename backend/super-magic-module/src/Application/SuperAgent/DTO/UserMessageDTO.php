@@ -22,6 +22,7 @@ class UserMessageDTO
         private readonly ?string $attachments = null,
         private readonly ?string $mentions = null,
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
+        // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = ''
     ) {
     }

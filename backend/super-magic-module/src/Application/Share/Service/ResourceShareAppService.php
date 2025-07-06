@@ -8,15 +8,12 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Share\Service;
 
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Constant\ShareAccessType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
-use Dtyq\SuperMagic\Domain\Share\Event\CreateShareBeforeEvent;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
@@ -68,11 +65,6 @@ class ResourceShareAppService extends AbstractShareAppService
         // 1. 获取对应类型的资源工厂
         try {
             $factory = $this->resourceFactory->create($resourceType);
-
-            // 发送创建分享事件
-            AsyncEventUtil::dispatch(new CreateShareBeforeEvent($userAuthorization->getOrganizationCode(), $userAuthorization->getId(), $dto->getResourceId(), $dto->getResourceType()->value));
-        } catch (EventException $e) {
-            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, $e->getMessage());
         } catch (RuntimeException $e) {
             // 使用 ExceptionBuilder 抛出不支持的资源类型异常
             ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported', [$resourceType->name]);
@@ -128,6 +120,19 @@ class ResourceShareAppService extends AbstractShareAppService
 
         // 调用领域服务的取消分享方法
         return $this->shareDomainService->cancelShare($shareId, $userId, $organizationCode);
+    }
+
+    public function cancelShareByResourceId(MagicUserAuthorization $userAuthorization, string $resourceId): bool
+    {
+        $userId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        $shareEntity = $this->shareDomainService->getShareByResourceId($resourceId);
+        if (is_null($shareEntity)) {
+            return false;
+        }
+        // 调用领域服务的取消分享方法
+        return $this->shareDomainService->cancelShare($shareEntity->getId(), $userId, $organizationCode);
     }
 
     public function checkShare(?MagicUserAuthorization $userAuthorization, string $shareCode): array
