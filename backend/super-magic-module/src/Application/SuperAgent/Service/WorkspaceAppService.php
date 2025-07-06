@@ -34,7 +34,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterInterface;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\Request\PdfConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
