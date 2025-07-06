@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "dbe0ee8cd7cd7db109f715a7b8502c13",
+    "content-hash": "c6b0d26ecf9cf9c5f85941df859e71ff",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -15546,16 +15546,16 @@
         },
         {
             "name": "friendsofphp/php-cs-fixer",
-            "version": "v3.78.0",
+            "version": "v3.76.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
-                "reference": "effd5edddae2fc202028f63e515db21815100fd2"
+                "reference": "0e3c484cef0ae9314b0f85986a36296087432c40"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/effd5edddae2fc202028f63e515db21815100fd2",
-                "reference": "effd5edddae2fc202028f63e515db21815100fd2",
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/0e3c484cef0ae9314b0f85986a36296087432c40",
+                "reference": "0e3c484cef0ae9314b0f85986a36296087432c40",
                 "shasum": ""
             },
             "require": {
@@ -15639,7 +15639,7 @@
             ],
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/issues",
-                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.78.0"
+                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.76.0"
             },
             "funding": [
                 {
@@ -15647,7 +15647,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-07-06T11:06:25+00:00"
+            "time": "2025-06-30T14:15:06+00:00"
         },
         {
             "name": "hamcrest/hamcrest-php",
