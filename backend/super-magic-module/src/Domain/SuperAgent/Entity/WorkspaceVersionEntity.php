@@ -15,6 +15,8 @@ class WorkspaceVersionEntity extends AbstractEntity
 
     protected int $topicId = 0;
 
+    protected int $projectId = 0;
+
     protected string $sandboxId = '';
 
     protected string $commitHash = '';
@@ -30,8 +32,6 @@ class WorkspaceVersionEntity extends AbstractEntity
     protected ?string $deletedAt = null;
 
     protected int $tag = 0;
-
-    protected int $projectId = 0;
 
     public function getId(): int
     {

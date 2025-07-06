@@ -534,7 +534,7 @@ class FileProcessAppService extends AbstractAppService
         $versionEntity = new WorkspaceVersionEntity();
         $versionEntity->setId(IdGenerator::getSnowId());
         $versionEntity->setTopicId((int) $topic->getId());
-        $versionEntity->setProjectId($task->getProjectId());
+        $versionEntity->setProjectId($topic->getProjectId());
         $versionEntity->setSandboxId($requestDTO->getSandboxId());
         $versionEntity->setCommitHash($requestDTO->getCommitHash());
         $versionEntity->setDir(json_encode($requestDTO->getDir()));

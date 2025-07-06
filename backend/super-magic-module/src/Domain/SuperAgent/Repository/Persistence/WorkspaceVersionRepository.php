@@ -53,12 +53,25 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         return $entities;
     }
 
-    public function findByCommitHashAndTopicId(string $commitHash, int $topicId, string $folder = ''): ?WorkspaceVersionEntity
+    public function findByCommitHashAndProjectId(string $commitHash, int $projectId, string $folder = ''): ?WorkspaceVersionEntity
     {
         $model = WorkspaceVersionModel::query()
             ->where('commit_hash', $commitHash)
-            ->where('topic_id', $topicId)
+            ->where('project_id', $projectId)
             ->where('folder', $folder)
+            ->first();
+        if (! $model) {
+            return null;
+        }
+        return $this->toEntity($model);
+    }
+
+    public function findByProjectId(int $projectId, string $folder = ''): ?WorkspaceVersionEntity
+    {
+        $model = WorkspaceVersionModel::query()
+            ->where('project_id', $projectId)
+            ->where('folder', $folder)
+            ->orderBy('id', 'desc')
             ->first();
         if (! $model) {
             return null;

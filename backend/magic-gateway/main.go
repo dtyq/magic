@@ -106,18 +106,18 @@ func initRedisClient() {
 	redisHost := getEnvWithDefault("REDIS_HOST", "magic-redis")
 	redisPort := getEnvWithDefault("REDIS_PORT", "6379")
 	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
-
+	
 	// 向后兼容，如果直接设置了REDIS_ADDR则优先使用
 	if directAddr := getEnvWithDefault("REDIS_ADDR", ""); directAddr != "" {
 		redisAddr = directAddr
 	}
-
+	
 	redisPassword := getEnvWithDefault("REDIS_PASSWORD", "")
-
+	
 	// 根据环境确定使用的Redis数据库
 	env := getEnvWithDefault("ENV", "test")
 	redisDB := 0 // 默认使用DB 0
-
+	
 	// 为不同环境使用不同的数据库
 	switch env {
 	case "test":
@@ -131,7 +131,7 @@ func initRedisClient() {
 		redisDB = 0
 		logger.Printf("未知环境: %s, 将使用test环境的Redis数据库", env)
 	}
-
+	
 	// 如果明确指定了DB，则使用指定的
 	if dbStr := getEnvWithDefault("REDIS_DB", ""); dbStr != "" {
 		if db, err := strconv.Atoi(dbStr); err == nil {
@@ -140,7 +140,7 @@ func initRedisClient() {
 	}
 
 	logger.Printf("连接Redis: %s (DB: %d, 环境: %s)", redisAddr, redisDB, env)
-
+	
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPassword,
@@ -302,7 +302,7 @@ func getToken(tokenID string) (TokenInfo, bool) {
 			return tokenInfo, true
 		}
 	}
-
+	
 	// 如果Redis不可用或Redis中未找到，从内存中获取
 	tokenInfo, found := inMemoryTokenStore[tokenID]
 	return tokenInfo, found
@@ -317,20 +317,20 @@ func deleteToken(tokenID string) error {
 			logger.Printf("从Redis删除令牌失败: %v", err)
 		}
 	}
-
+	
 	// 无论Redis操作是否成功，都从内存中删除
 	delete(inMemoryTokenStore, tokenID)
 	if debugMode {
 		logger.Printf("令牌已从内存删除: %s", tokenID)
 	}
-
+	
 	return nil
 }
 
 // 获取活跃令牌数量
 func getActiveTokenCount() int64 {
 	var count int64 = 0
-
+	
 	if redisAvailable {
 		// 尝试从Redis获取令牌数量
 		redisCount, err := getTokenCount()
@@ -338,12 +338,12 @@ func getActiveTokenCount() int64 {
 			count = redisCount
 		}
 	}
-
+	
 	// 如果Redis不可用或获取失败，使用内存存储的数量
 	if count == 0 {
 		count = int64(len(inMemoryTokenStore))
 	}
-
+	
 	return count
 }
 
@@ -367,7 +367,7 @@ func saveTokenToRedis(tokenID string, tokenInfo TokenInfo) error {
 	if debugMode {
 		logger.Printf("令牌已保存到Redis: %s, 过期时间: %v", tokenID, expiration)
 	}
-
+	
 	return nil
 }
 
@@ -400,11 +400,11 @@ func deleteTokenFromRedis(tokenID string) error {
 	if err != nil {
 		return err
 	}
-
+	
 	if debugMode {
 		logger.Printf("令牌已从Redis删除: %s", tokenID)
 	}
-
+	
 	return nil
 }
 
@@ -509,7 +509,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		Created:     time.Now(),
 		Expires:     time.Now().Add(30 * 24 * time.Hour), // 30天后过期
 	}
-
+	
 	err = saveToken(tokenID, tokenInfo)
 	if err != nil {
 		logger.Printf("保存令牌失败: %v", err)
@@ -776,7 +776,7 @@ func revokeHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "删除令牌失败", http.StatusInternalServerError)
 			return
 		}
-
+		
 		logger.Printf("吊销令牌: %s", requestBody.TokenID)
 
 		// 返回成功
@@ -848,8 +848,28 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		r.Body.Close()
 
-		// 暂时保存原始body，等确定targetBase后再决定是否处理
-		originalBodyBytes := bodyBytes
+		// 处理JSON请求
+		contentType := r.Header.Get("Content-Type")
+		if strings.Contains(contentType, "application/json") {
+			var data interface{}
+			if err := json.Unmarshal(bodyBytes, &data); err == nil {
+				// 记录原始请求体
+				//if originalJSON, err := json.Marshal(data); err == nil {
+					// logger.Printf("原始请求体: %s", string(originalJSON))
+				//}
+
+				// 替换环境变量引用
+				data = replaceEnvVars(data)
+
+				// 记录替换后的请求体
+				if newBody, err := json.Marshal(data); err == nil {
+					// logger.Printf("替换环境变量后的请求体: %s", string(newBody))
+					bodyBytes = newBody
+				}
+			} else {
+				logger.Printf("解析JSON请求体失败: %v", err)
+			}
+		}
 
 		// 创建新请求体
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -1011,9 +1031,6 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 替换URL中的环境变量
 		targetBase = replaceEnvVarsInString(targetBase)
 
-		// 检查是否需要处理请求体中的环境变量（针对特定服务）
-		bodyBytes = processRequestBodyForSpecificServices(originalBodyBytes, r.Header.Get("Content-Type"), targetBase)
-
 		// 构建完整URL
 		targetBase = strings.TrimSuffix(targetBase, "/")
 		path = strings.TrimPrefix(path, "/")
@@ -1103,6 +1120,15 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "读取响应体失败", http.StatusInternalServerError)
 			return
 		}
+
+
+		// 判断respBody 大小，如果超过100kb 则不打印
+		if len(respBody) > 100*1024 {
+			logger.Printf("响应体大小超过100kb，不打印")
+		} else {
+			logger.Printf("响应体内容: %s", string(respBody))
+		}
+
 
 		// 重新构建响应体供后续使用
 		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
@@ -1196,16 +1222,6 @@ func replaceEnvVars(data interface{}) interface{} {
 
 // 替换字符串中的环境变量引用
 func replaceEnvVarsInString(s string) string {
-	// 替换env:VAR格式
-	reEnv := regexp.MustCompile(`env:([A-Za-z0-9_]+)`)
-	s = reEnv.ReplaceAllStringFunc(s, func(match string) string {
-		varName := reEnv.FindStringSubmatch(match)[1]
-		if value, exists := envVars[varName]; exists {
-			return value
-		}
-		return match
-	})
-
 	// 替换${VAR}格式
 	re1 := regexp.MustCompile(`\${([A-Za-z0-9_]+)}`)
 	s = re1.ReplaceAllStringFunc(s, func(match string) string {
@@ -1227,7 +1243,7 @@ func replaceEnvVarsInString(s string) string {
 	})
 
 	// 替换{$VAR}格式
-	re3 := regexp.MustCompile(`\{\$([A-Za-z0-9_]+)}`)
+	re3 := regexp.MustCompile(`\{\$([A-Za-z0-9_]+)\}`)
 	s = re3.ReplaceAllStringFunc(s, func(match string) string {
 		varName := re3.FindStringSubmatch(match)[1]
 		if value, exists := envVars[varName]; exists {
@@ -1237,49 +1253,6 @@ func replaceEnvVarsInString(s string) string {
 	})
 
 	return s
-}
-
-// 静默替换对象中的环境变量引用（不打印详细日志）
-func replaceEnvVarsSilent(data interface{}) interface{} {
-	switch v := data.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{})
-		for key, value := range v {
-			result[key] = replaceEnvVarsSilent(value)
-		}
-		return result
-
-	case []interface{}:
-		result := make([]interface{}, len(v))
-		for i, item := range v {
-			result[i] = replaceEnvVarsSilent(item)
-		}
-		return result
-
-	case string:
-		// 检查是否使用 env: 前缀
-		if strings.HasPrefix(v, "env:") {
-			envKey := strings.TrimPrefix(v, "env:")
-			if value, exists := envVars[envKey]; exists {
-				return value
-			}
-			return v
-		}
-
-		// 直接检查是否是环境变量名称（支持所有在.env文件中定义的环境变量）
-		if value, exists := envVars[v]; exists {
-			// 检查是否是全匹配的环境变量名称(没有其他内容)
-			// 只有字符串完全等于环境变量名称时才替换，避免误替换
-			return value
-		}
-
-		// 替换其他格式的环境变量引用
-		newValue := replaceEnvVarsInString(v)
-		return newValue
-
-	default:
-		return v
-	}
 }
 
 // 记录完整的响应信息
@@ -1321,70 +1294,6 @@ func logFullResponse(resp *http.Response, targetURL string) {
 		resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 	logger.Printf("====================================")
-}
-
-// 处理特定服务的请求体环境变量替换
-func processRequestBodyForSpecificServices(bodyBytes []byte, contentType, targetBase string) []byte {
-	// 定义需要处理body的服务URL模式
-	specialServices := []string{
-		"TEXT_TO_IMAGE_API_BASE_URL",
-		"VOICE_UNDERSTANDING_API_BASE_URL",
-		"BING_SUBSCRIPTION_ENDPOINT",
-	}
-
-	// 检查targetBase是否匹配特殊服务
-	shouldProcessBody := false
-	for _, service := range specialServices {
-		if strings.Contains(targetBase, service) || strings.Contains(targetBase, strings.ToLower(service)) {
-			shouldProcessBody = true
-			logger.Printf("检测到特殊服务: %s，将处理请求体中的环境变量", service)
-			break
-		}
-	}
-
-	// 如果不是特殊服务，直接返回原始body
-	if !shouldProcessBody {
-		return bodyBytes
-	}
-
-		// 对于特殊服务，处理所有类型的请求体中的环境变量
-	logger.Printf("检测到特殊服务，开始处理请求体环境变量替换")
-
-	// 处理JSON请求体
-	if strings.Contains(contentType, "application/json") {
-		var data interface{}
-		if err := json.Unmarshal(bodyBytes, &data); err == nil {
-			// 替换环境变量引用
-			originalData := data
-			data = replaceEnvVarsSilent(data)
-
-			// 检查是否有变化
-			if newBody, err := json.Marshal(data); err == nil {
-				originalBody, _ := json.Marshal(originalData)
-				if string(newBody) != string(originalBody) {
-					logger.Printf("特殊服务JSON请求体环境变量替换成功")
-					return newBody
-				} else {
-					logger.Printf("特殊服务JSON请求体无需替换环境变量")
-				}
-			}
-		} else {
-			logger.Printf("解析特殊服务JSON请求体失败: %v", err)
-		}
-	}
-
-	// 处理其他类型的请求体（如form-data、x-www-form-urlencoded、text/plain等）
-	// 将body转换为字符串，替换环境变量，然后转换回字节数组
-	bodyString := string(bodyBytes)
-	newBodyString := replaceEnvVarsInString(bodyString)
-
-	if newBodyString != bodyString {
-		logger.Printf("特殊服务非JSON请求体环境变量替换成功")
-		return []byte(newBodyString)
-	}
-
-	logger.Printf("特殊服务请求体无需替换环境变量")
-	return bodyBytes
 }
 
 // 记录请求头
