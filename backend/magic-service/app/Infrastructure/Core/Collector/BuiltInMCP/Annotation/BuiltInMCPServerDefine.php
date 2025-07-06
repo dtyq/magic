@@ -39,4 +39,4 @@ class BuiltInMCPServerDefine extends AbstractAnnotation
     {
         $this->enabled = $enabled;
     }
-} 
+}
