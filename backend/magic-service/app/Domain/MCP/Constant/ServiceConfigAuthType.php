@@ -11,4 +11,9 @@ enum ServiceConfigAuthType: int
 {
     case NONE = 0; // No authentication
     case OAUTH2 = 1; // OAuth2 authentication
+
+    public function isOauth2(): bool
+    {
+        return $this === self::OAUTH2;
+    }
 }

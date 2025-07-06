@@ -8,8 +8,6 @@ declare(strict_types=1);
 namespace App\Domain\MCP\Entity;
 
 use App\Domain\MCP\Entity\ValueObject\Code;
-use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStdioServiceConfig;
-use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStreamableHttpServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ServiceConfigInterface;
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\ErrorCode\MCPErrorCode;
@@ -17,7 +15,6 @@ use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use DateTime;
 use Hyperf\Odin\Mcp\McpServerConfig;
-use Hyperf\Odin\Mcp\McpType;
 
 class MCPServerEntity extends AbstractEntity
 {
@@ -141,48 +138,7 @@ class MCPServerEntity extends AbstractEntity
 
     public function createMcpServerConfig(string $localHttpUrl = '', bool $supportStdio = true): ?McpServerConfig
     {
-        if (! $this->isEnabled()) {
-            return null;
-        }
-        $localHttpUrl = $localHttpUrl ?: LOCAL_HTTP_URL;
-        switch ($this->type) {
-            case ServiceType::SSE:
-                return new McpServerConfig(
-                    type: McpType::Http,
-                    name: $this->name,
-                    url: $localHttpUrl . '/api/v1/mcp/sse/' . $this->code,
-                );
-            case ServiceType::ExternalSSE:
-            case ServiceType::ExternalStreamableHttp:
-                /** @var ExternalStreamableHttpServiceConfig $serviceConfig */
-                $serviceConfig = $this->serviceConfig;
-
-                $url = $serviceConfig->getUrl();
-                if (empty($url)) {
-                    return null;
-                }
-
-                return new McpServerConfig(
-                    type: McpType::Http,
-                    name: $this->name,
-                    url: $url,
-                );
-            case ServiceType::ExternalStdio:
-                if (! $supportStdio) {
-                    return null;
-                }
-                /** @var ExternalStdioServiceConfig $serviceConfig */
-                $serviceConfig = $this->serviceConfig;
-
-                return new McpServerConfig(
-                    type: McpType::Stdio,
-                    name: $this->name,
-                    command: $serviceConfig->getCommand(),
-                    args: $serviceConfig->getArguments(),
-                );
-            default:
-                return null;
-        }
+        return null;
     }
 
     // Getters and Setters...
