@@ -79,6 +79,11 @@ return [
         ],
     ],
 
+    // Lỗi xác thực lệnh
+    'command' => [
+        'not_allowed' => 'Lệnh không được hỗ trợ ":command", hiện tại chỉ hỗ trợ: :allowed_commands',
+    ],
+
     // Lỗi xác thực trường bắt buộc
     'required_fields' => [
         'missing' => 'Thiếu trường bắt buộc: :fields',

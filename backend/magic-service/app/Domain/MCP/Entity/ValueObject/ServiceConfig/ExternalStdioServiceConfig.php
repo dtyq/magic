@@ -16,6 +16,10 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
 
     protected array $arguments = [];
 
+    private array $allowedCommands = [
+        'npx',
+    ];
+
     public function getCommand(): string
     {
         return $this->command;
@@ -49,6 +53,12 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
     {
         if (empty(trim($this->command))) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.command']);
+        }
+        if (! in_array($this->command, $this->allowedCommands, true)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.command.not_allowed', [
+                'command' => $this->command,
+                'allowed_commands' => implode(', ', $this->allowedCommands),
+            ]);
         }
 
         if (empty($this->arguments)) {

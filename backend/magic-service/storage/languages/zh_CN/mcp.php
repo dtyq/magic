@@ -79,6 +79,11 @@ return [
         ],
     ],
 
+    // 命令验证错误
+    'command' => [
+        'not_allowed' => '不支持的命令 ":command"，当前仅支持: :allowed_commands',
+    ],
+
     // 必填字段验证错误
     'required_fields' => [
         'missing' => '必填字段缺失: :fields',

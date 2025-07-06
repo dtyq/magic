@@ -107,6 +107,12 @@ class ServiceConfigTest extends BaseTest
             'scope' => 'read write',
             'authorization_url' => 'https://api.github.com/oauth/authorize',
             'authorization_content_type' => 'application/json',
+            'issuer_url' => '',
+            'redirect_uri' => '',
+            'use_pkce' => true,
+            'response_type' => 'code',
+            'grant_type' => 'authorization_code',
+            'additional_params' => [],
         ];
         $this->assertEquals($expected, $config->toArray());
 
@@ -124,22 +130,22 @@ class ServiceConfigTest extends BaseTest
         $config = new ExternalStdioServiceConfig();
 
         // Test setters/getters
-        $config->setCommand('python');
+        $config->setCommand('npx');
         $config->setArguments(['--key', 'value', '--flag']);
 
-        $this->assertEquals('python', $config->getCommand());
+        $this->assertEquals('npx', $config->getCommand());
         $this->assertEquals(['--key', 'value', '--flag'], $config->getArguments());
 
         // Test toArray
         $expected = [
-            'command' => 'python',
+            'command' => 'npx',
             'arguments' => ['--key', 'value', '--flag'],
         ];
         $this->assertEquals($expected, $config->toArray());
 
         // Test fromArray
         $fromArray = ExternalStdioServiceConfig::fromArray($expected);
-        $this->assertEquals('python', $fromArray->getCommand());
+        $this->assertEquals('npx', $fromArray->getCommand());
         $this->assertEquals(['--key', 'value', '--flag'], $fromArray->getArguments());
 
         // Test validate - valid case
@@ -147,7 +153,7 @@ class ServiceConfigTest extends BaseTest
 
         // Test getRequireFields with dynamic fields in arguments only
         $configWithDynamicFields = ExternalStdioServiceConfig::fromArray([
-            'command' => 'python',
+            'command' => 'npx',
             'arguments' => ['--key', '${config_key}', '--path', '/tmp/${temp_dir}'],
         ]);
 
@@ -296,11 +302,34 @@ class ServiceConfigTest extends BaseTest
     {
         // Test empty arguments
         $config = new ExternalStdioServiceConfig();
-        $config->setCommand('python');
+        $config->setCommand('npx');
         $config->setArguments([]);
 
         $this->expectException(BusinessException::class);
         $config->validate();
+    }
+
+    public function testExternalStdioServiceConfigInvalidCommand()
+    {
+        // Test invalid command
+        $config = new ExternalStdioServiceConfig();
+        $config->setCommand('invalid_command');
+        $config->setArguments(['some', 'args']);
+
+        $this->expectException(BusinessException::class);
+        $config->validate();
+    }
+
+    public function testExternalStdioServiceConfigValidCommand()
+    {
+        // Test valid command
+        $config = new ExternalStdioServiceConfig();
+        $config->setCommand('npx');
+        $config->setArguments(['some', 'args']);
+
+        // Should not throw exception
+        $config->validate();
+        $this->assertTrue(true); // Assert test passes
     }
 
     public function testOauth2ConfigValidation()
@@ -462,7 +491,7 @@ class ServiceConfigTest extends BaseTest
 
         // Test ExternalStdioServiceConfig
         $stdioConfig = new ExternalStdioServiceConfig();
-        $stdioConfig->setCommand('python');
+        $stdioConfig->setCommand('npx');
         $stdioConfig->setArguments(['script.py', '--param', '${user_id}', '--token', '${api_token}']);
 
         $result = $stdioConfig->replaceRequiredFields([
@@ -471,7 +500,7 @@ class ServiceConfigTest extends BaseTest
         ]);
 
         $this->assertSame($stdioConfig, $result); // Same instance returned
-        $this->assertEquals('python', $stdioConfig->getCommand());
+        $this->assertEquals('npx', $stdioConfig->getCommand());
         $this->assertEquals(['script.py', '--param', '12345', '--token', 'secret123'], $stdioConfig->getArguments());
 
         // Test SSEServiceConfig
@@ -628,7 +657,7 @@ class ServiceConfigTest extends BaseTest
     {
         // Test default values containing special characters
         $config = new ExternalStdioServiceConfig();
-        $config->setCommand('python');
+        $config->setCommand('npx');
         $config->setArguments([
             'script.py',
             '--param=${param|value with spaces}',
@@ -657,7 +686,7 @@ class ServiceConfigTest extends BaseTest
 
         // Test ExternalStdioServiceConfig
         $stdioConfig = new ExternalStdioServiceConfig();
-        $stdioConfig->setCommand('python');
+        $stdioConfig->setCommand('npx');
         $stdioConfig->setArguments([
             'script.py',
             '--param=${param}', // No default value
