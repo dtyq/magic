@@ -22,6 +22,7 @@ class ChatMessageRequest
         private string $prompt = '',
         private string $taskMode = 'chat',
         private array $attachments = [],
+        private array $mentions = [],
         private array $mcpConfig = [],
     ) {
     }
@@ -36,9 +37,10 @@ class ChatMessageRequest
         string $prompt,
         string $taskMode = 'chat',
         array $attachments = [],
+        array $mentions = [],
         array $mcpConfig = []
     ): self {
-        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $attachments, $mcpConfig);
+        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $attachments, $mentions, $mcpConfig);
     }
 
     /**
@@ -144,6 +146,23 @@ class ChatMessageRequest
     }
 
     /**
+     * 获取提及.
+     */
+    public function getMentions(): array
+    {
+        return $this->mentions ?? [];
+    }
+
+    /**
+     * 设置提及.
+     */
+    public function setMentions(array $mentions): self
+    {
+        $this->mentions = $mentions;
+        return $this;
+    }
+
+    /**
      * 获取MCP配置.
      */
     public function getMcpConfig(): array
@@ -160,6 +179,7 @@ class ChatMessageRequest
         return $this;
     }
 
+
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
@@ -174,6 +194,7 @@ class ChatMessageRequest
             'prompt' => $this->prompt,
             'task_mode' => $this->taskMode,
             'attachments' => $this->attachments,
+            'mentions' => $this->mentions,
             'mcp_config' => $this->mcpConfig,
         ];
     }

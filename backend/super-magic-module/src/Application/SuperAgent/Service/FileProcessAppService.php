@@ -609,6 +609,7 @@ class FileProcessAppService extends AbstractAppService
                 continue;
             }
             $files[] = [
+                'file_id' => $taskFile->getFileId(),
                 'file_extension' => $taskFile->getFileExtension(),
                 'file_key' => $taskFile->getFileKey(),
                 'file_size' => $taskFile->getFileSize(),

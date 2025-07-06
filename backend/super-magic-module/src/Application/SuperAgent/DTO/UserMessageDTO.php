@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\DTO;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 
 /**
  * User message DTO for initializing agent task.
@@ -22,6 +23,7 @@ class UserMessageDTO
         private readonly ?string $attachments = null,
         private readonly ?string $mentions = null,
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
+        private readonly TopicMode $topicMode = TopicMode::GENERAL,
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = ''
     ) {
@@ -62,6 +64,11 @@ class UserMessageDTO
         return $this->instruction;
     }
 
+    public function getTopicMode(): TopicMode
+    {
+        return $this->topicMode;
+    }
+
     public function getTaskMode(): string
     {
         return $this->taskMode;
@@ -82,6 +89,9 @@ class UserMessageDTO
             instruction: isset($data['instruction'])
                 ? ChatInstruction::tryFrom($data['instruction']) ?? ChatInstruction::Normal
                 : ChatInstruction::Normal,
+            topicMode: isset($data['topic_mode']) || isset($data['topicMode'])
+                ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
+                : TopicMode::GENERAL,
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? ''
         );
     }
@@ -99,6 +109,7 @@ class UserMessageDTO
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
             'instruction' => $this->instruction->value,
+            'topic_mode' => $this->topicMode->value,
             'task_mode' => $this->taskMode,
         ];
     }

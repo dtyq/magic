@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Throwable;
 
 /**
@@ -82,6 +83,11 @@ class TopicEntity extends AbstractEntity
     protected string $taskMode = 'chat';
 
     /**
+     * @var null|TopicMode 话题模式
+     */
+    protected ?TopicMode $topicMode = null;
+
+    /**
      * @var float 话题成本
      */
     protected float $cost = 0.0;
@@ -152,6 +158,7 @@ class TopicEntity extends AbstractEntity
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
             'task_mode' => $this->taskMode ?? 'chat',
+            'topic_mode' => $this->topicMode->value,
             'cost' => $this->cost ?? 0.0,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,
@@ -469,6 +476,34 @@ class TopicEntity extends AbstractEntity
     public function setTaskMode(string $taskMode): self
     {
         $this->taskMode = $taskMode;
+        return $this;
+    }
+
+    /**
+     * 获取话题模式.
+     */
+    public function getTopicMode(): ?TopicMode
+    {
+        return $this->topicMode ?? null;
+    }
+
+    /**
+     * 设置话题模式.
+     * @param mixed $topicMode
+     */
+    public function setTopicMode($topicMode): self
+    {
+        // 如果输入不是TopicMode类型但不为空，尝试转换
+        if ($topicMode !== null && ! ($topicMode instanceof TopicMode)) {
+            try {
+                $topicMode = TopicMode::from($topicMode);
+            } catch (Throwable $e) {
+                // 转换失败时设为默认值
+                $topicMode = null;
+            }
+        }
+
+        $this->topicMode = $topicMode ?? null;
         return $this;
     }
 

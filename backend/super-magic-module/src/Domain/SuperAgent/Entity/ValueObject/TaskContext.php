@@ -26,6 +26,7 @@ class TaskContext
      * @param string $sandboxId 沙箱ID
      * @param string $taskId 任务ID
      * @param ChatInstruction $instruction 聊天指令
+     * @param string $agentMode Agent模式
      */
     public function __construct(
         private TaskEntity $task,
@@ -36,6 +37,7 @@ class TaskContext
         private string $sandboxId = '',
         private string $taskId = '',
         private ChatInstruction $instruction = ChatInstruction::Normal,
+        private string $agentMode = '',
     ) {
     }
 
@@ -152,6 +154,14 @@ class TaskContext
     }
 
     /**
+     * 获取Agent模式.
+     */
+    public function getAgentMode(): string
+    {
+        return $this->agentMode;
+    }
+
+    /**
      * 创建一个带有新任务但保留其他参数的上下文.
      */
     public function withTask(TaskEntity $newTask): self
@@ -165,6 +175,7 @@ class TaskContext
             $this->sandboxId,
             $this->taskId,
             $this->instruction,
+            $this->agentMode,
         );
     }
 
@@ -183,6 +194,12 @@ class TaskContext
     public function setInstruction(ChatInstruction $instruction): self
     {
         $this->instruction = $instruction;
+        return $this;
+    }
+
+    public function setAgentMode(string $agentMode): self
+    {
+        $this->agentMode = $agentMode;
         return $this;
     }
 }

@@ -91,6 +91,7 @@ class TaskDomainService
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
         $topicEntity->setTaskMode($taskMode);
+        $topicEntity->setTopicMode($userMessageDTO->getTopicMode());
         $this->topicRepository->updateTopic($topicEntity);
 
         return $taskEntity;

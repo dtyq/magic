@@ -123,7 +123,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 agentUserId: $userMessageDTO->getAgentUserId(),
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
-                instruction: ChatInstruction::FollowUp
+                instruction: ChatInstruction::FollowUp,
+                agentMode: $userMessageDTO->getTopicMode()->value,
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -150,9 +151,12 @@ class HandleUserMessageAppService extends AbstractAppService
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
                 $e->getMessage(),
-                $dataIsolation->getCurrentUserId()
+                $dataIsolation->getCurrentUserId(),
+                $e->getFile(),
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
             $this->clientMessageAppService->sendErrorMessageToClient(
@@ -171,6 +175,7 @@ class HandleUserMessageAppService extends AbstractAppService
      */
     private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
     {
+        // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
         // get department ids
