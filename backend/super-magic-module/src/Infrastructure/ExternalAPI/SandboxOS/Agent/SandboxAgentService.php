@@ -38,6 +38,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             'sandbox_id' => $sandboxId,
             'user_id' => $request->getUserId(),
             'task_mode' => $request->getTaskMode(),
+            'agent_mode' => $request->getAgentMode(),
         ]);
 
         try {

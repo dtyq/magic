@@ -24,6 +24,7 @@ class InitAgentRequest
         private array $stsTokenRefresh = [],
         private array $metadata = [],
         private string $taskMode = 'plan',
+        private string $agentMode = '',
         private string $magicServiceHost = ''
     ) {
     }
@@ -42,6 +43,7 @@ class InitAgentRequest
             $data['sts_token_refresh'] ?? [],
             $data['metadata'] ?? [],
             $data['task_mode'] ?? 'plan',
+            $data['agent_mode'] ?? '',
             $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', '')
         );
     }
@@ -66,9 +68,10 @@ class InitAgentRequest
         array $stsTokenRefresh = [],
         array $metadata = [],
         string $taskMode = 'plan',
+        string $agentMode = '',
         string $magicServiceHost = ''
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $magicServiceHost);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost);
     }
 
     /**
@@ -207,6 +210,17 @@ class InitAgentRequest
         return $this->projectId;
     }
 
+    public function setAgentMode(string $agentMode): self
+    {
+        $this->agentMode = $agentMode;
+        return $this;
+    }
+
+    public function getAgentMode(): string
+    {
+        return $this->agentMode;
+    }
+
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
@@ -223,6 +237,7 @@ class InitAgentRequest
             'sts_token_refresh' => $this->stsTokenRefresh,
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
+            'agent_mode' => $this->agentMode,
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
     }
