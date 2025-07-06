@@ -36,7 +36,7 @@ readonly class KnowledgeBaseFragmentSyncSubscriber implements ListenerInterface
         ];
     }
 
-    public function process(public object $event): void
+    public function process(object $event): void
     {
         if (! $event instanceof KnowledgeBaseFragmentSavedEvent) {
             return;

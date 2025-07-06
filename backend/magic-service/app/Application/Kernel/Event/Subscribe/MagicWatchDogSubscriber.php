@@ -34,7 +34,7 @@ readonly class MagicWatchDogSubscriber implements ListenerInterface
      * @throws ContainerExceptionInterface
      * @throws NotFoundExceptionInterface
      */
-    public function process(public object $event): void
+    public function process(object $event): void
     {
         if ((bool) env('ENABLE_MAGIC_WATCHDOG', true) !== true) {
             return;

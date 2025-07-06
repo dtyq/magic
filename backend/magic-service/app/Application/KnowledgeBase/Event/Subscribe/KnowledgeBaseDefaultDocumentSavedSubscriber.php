@@ -36,7 +36,7 @@ readonly class KnowledgeBaseDefaultDocumentSavedSubscriber implements ListenerIn
         ];
     }
 
-    public function process(public object $event): void
+    public function process(object $event): void
     {
         if (! $event instanceof KnowledgeBaseDefaultDocumentSavedEvent) {
             return;
