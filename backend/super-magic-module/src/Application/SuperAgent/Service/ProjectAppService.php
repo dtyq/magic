@@ -301,16 +301,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 获取附件列表（传入workDir用于相对路径计算）
-        $result = $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
-
-        // 构建树状结构（登录用户模式特有功能）
-        $tree = FileTreeUtil::assembleFilesTree($projectEntity->getWorkDir() ?? '', $result['list']);
-
-        return [
-            'list' => $result['list'],
-            'tree' => $tree,
-            'total' => $result['total'],
-        ];
+        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
     }
 
     /**
@@ -392,8 +383,12 @@ class ProjectAppService extends AbstractAppService
             $list[] = $dto->toArray();
         }
 
+        // 构建树状结构（登录用户模式特有功能）
+        $tree = FileTreeUtil::assembleFilesTree($workDir, $result['list']);
+
         return [
-            'list' => $list,
+            'list' => $result['list'],
+            'tree' => $tree,
             'total' => $result['total'],
         ];
     }

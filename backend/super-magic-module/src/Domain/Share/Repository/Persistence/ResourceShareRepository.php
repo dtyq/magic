@@ -110,7 +110,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
                 $shareEntity->setId((int) $model->id);
             } else {
                 // 更新现有记录
-                $this->model->query()->where('id', $shareEntity->getId())->update($data);
+                $this->model->query()->withTrashed()->where('id', $shareEntity->getId())->update($data);
             }
             return $shareEntity;
         } catch (Exception $e) {
