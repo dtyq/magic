@@ -35,7 +35,7 @@ readonly class KnowledgeBaseDocumentSyncSubscriber implements ListenerInterface
         ];
     }
 
-    public function process(object $event): void
+    public function process(public object $event): void
     {
         if (! $event instanceof KnowledgeBaseDocumentSavedEvent) {
             return;

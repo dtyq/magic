@@ -31,7 +31,7 @@ readonly class KnowledgeBaseDestroySubscriber implements ListenerInterface
         ];
     }
 
-    public function process(object $event): void
+    public function process(public object $event): void
     {
         if (! $event instanceof KnowledgeBaseRemovedEvent) {
             return;
