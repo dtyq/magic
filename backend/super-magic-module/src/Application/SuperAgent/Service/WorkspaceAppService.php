@@ -597,8 +597,10 @@ class WorkspaceAppService extends AbstractAppService
 
         foreach ($fileIds as $fileId) {
             $fileEntity = $this->taskDomainService->getTaskFile((int) $fileId);
-            if (empty($fileEntity) || $fileEntity->getTopicId() != $topicId || $fileEntity->getProjectId() != $topicEntity->getProjectId()) {
-                // 如果文件不存在或不属于该话题，跳过
+            $isBelongTopic = ((string) $fileEntity->getTopicId()) === $topicId;
+            $isBelongProject = ((string) $fileEntity->getProjectId()) == $topicEntity->getProjectId();
+            if (empty($fileEntity) || (! $isBelongTopic && ! $isBelongProject)) {
+                // 如果文件不存在或既不属于该话题也不属于该项目，跳过
                 continue;
             }
 
