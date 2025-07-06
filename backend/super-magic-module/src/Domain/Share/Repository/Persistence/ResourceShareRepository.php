@@ -51,6 +51,12 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         return $model ? $this->modelToEntity($model) : null;
     }
 
+    public function getShareByResourceId(string $resourceId): ?ResourceShareEntity
+    {
+        $model = $this->model->newQuery()->where('resource_id', $resourceId)->first();
+        return $model ? $this->modelToEntity($model) : null;
+    }
+
     /**
      * 查找资源对应的分享.
      *
@@ -199,6 +205,22 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             'total' => $total,
             'list' => $items,
         ];
+    }
+
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
+    {
+        $query = ResourceShareModel::query();
+        $model = $query->withTrashed()
+            ->where('created_uid', $userId)
+            ->where('resource_id', $resourceId)
+            ->where('resource_type', $resourceType)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->modelToEntity($model);
     }
 
     /**
