@@ -61,6 +61,7 @@ class ResourceShareModel extends AbstractModel
         'updated_uid',
         'organization_code',
         'target_ids',
+        'deleted_at',
     ];
 
     /**
