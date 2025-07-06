@@ -727,92 +727,6 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 初始化用户工作区.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param string $workspaceName 工作区名称，默认为"我的工作区"
-     * @return array 创建结果，包含workspace和topic实体对象，以及auto_create标志
-     * @throws BusinessException 如果创建失败则抛出异常
-     * @throws Throwable
-     */
-    private function initUserWorkspace(
-        DataIsolation $dataIsolation,
-        string $workspaceName = ''
-    ): array {
-        $this->logger->info('开始初始化用户工作区');
-        Db::beginTransaction();
-        try {
-            // Step 1: Initialize Magic Chat Conversation
-            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
-            $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
-
-            // Step 2: Create workspace
-            $this->logger->info('开始创建默认工作区');
-            $workspaceEntity = $this->workspaceDomainService->createWorkspace(
-                $dataIsolation,
-                $chatConversationId,
-                $workspaceName
-            );
-            $this->logger->info(sprintf('创建默认工作区成功, workspaceId=%s', $workspaceEntity->getId()));
-            if (! $workspaceEntity->getId()) {
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
-            }
-
-            // 创建默认项目
-            $this->logger->info('开始创建默认项目');
-            $projectEntity = $this->projectDomainService->createProject(
-                $workspaceEntity->getId(),
-                '',
-                $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode()
-            );
-            $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
-            // 获取工作区目录
-            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
-
-            // Step 4: Create default topic
-            $this->logger->info('开始创建默认话题');
-            $topicEntity = $this->topicDomainService->createTopic(
-                $dataIsolation,
-                $workspaceEntity->getId(),
-                $projectEntity->getId(),
-                $chatConversationId,
-                $chatConversationTopicId,
-                '',
-                $workDir
-            );
-            $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
-
-            // Step 5: Update workspace current topic
-            if ($topicEntity->getId()) {
-                // 设置工作区信息
-                $workspaceEntity->setCurrentTopicId($topicEntity->getId());
-                $workspaceEntity->setCurrentProjectId($projectEntity->getId());
-                $this->workspaceDomainService->saveWorkspaceEntity($workspaceEntity);
-                $this->logger->info(sprintf('工作区%s已设置当前话题%s', $workspaceEntity->getId(), $topicEntity->getId()));
-                // 设置项目信息
-                $projectEntity->setCurrentTopicId($topicEntity->getId());
-                $projectEntity->setWorkspaceId($workspaceEntity->getId());
-                $projectEntity->setWorkDir($workDir);
-                $this->projectDomainService->saveProjectEntity($projectEntity);
-                $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
-            }
-            Db::commit();
-
-            // Return creation result
-            return [
-                'workspace' => $workspaceEntity,
-                'topic' => $topicEntity,
-                'project' => $projectEntity,
-                'auto_create' => true,
-            ];
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
      * 批量转换文件为 PDF.
      *
      * @param MagicUserAuthorization $userAuthorization 用户授权信息
@@ -924,7 +838,93 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 注册转换后的PDF文件以供定时清理
+     * 初始化用户工作区.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param string $workspaceName 工作区名称，默认为"我的工作区"
+     * @return array 创建结果，包含workspace和topic实体对象，以及auto_create标志
+     * @throws BusinessException 如果创建失败则抛出异常
+     * @throws Throwable
+     */
+    private function initUserWorkspace(
+        DataIsolation $dataIsolation,
+        string $workspaceName = ''
+    ): array {
+        $this->logger->info('开始初始化用户工作区');
+        Db::beginTransaction();
+        try {
+            // Step 1: Initialize Magic Chat Conversation
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+            $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
+
+            // Step 2: Create workspace
+            $this->logger->info('开始创建默认工作区');
+            $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+                $dataIsolation,
+                $chatConversationId,
+                $workspaceName
+            );
+            $this->logger->info(sprintf('创建默认工作区成功, workspaceId=%s', $workspaceEntity->getId()));
+            if (! $workspaceEntity->getId()) {
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
+            }
+
+            // 创建默认项目
+            $this->logger->info('开始创建默认项目');
+            $projectEntity = $this->projectDomainService->createProject(
+                $workspaceEntity->getId(),
+                '',
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+            $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
+            // 获取工作区目录
+            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+
+            // Step 4: Create default topic
+            $this->logger->info('开始创建默认话题');
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                $workspaceEntity->getId(),
+                $projectEntity->getId(),
+                $chatConversationId,
+                $chatConversationTopicId,
+                '',
+                $workDir
+            );
+            $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
+
+            // Step 5: Update workspace current topic
+            if ($topicEntity->getId()) {
+                // 设置工作区信息
+                $workspaceEntity->setCurrentTopicId($topicEntity->getId());
+                $workspaceEntity->setCurrentProjectId($projectEntity->getId());
+                $this->workspaceDomainService->saveWorkspaceEntity($workspaceEntity);
+                $this->logger->info(sprintf('工作区%s已设置当前话题%s', $workspaceEntity->getId(), $topicEntity->getId()));
+                // 设置项目信息
+                $projectEntity->setCurrentTopicId($topicEntity->getId());
+                $projectEntity->setWorkspaceId($workspaceEntity->getId());
+                $projectEntity->setWorkDir($workDir);
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+                $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
+            }
+            Db::commit();
+
+            // Return creation result
+            return [
+                'workspace' => $workspaceEntity,
+                'topic' => $topicEntity,
+                'project' => $projectEntity,
+                'auto_create' => true,
+            ];
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * 注册转换后的PDF文件以供定时清理.
      */
     private function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
     {

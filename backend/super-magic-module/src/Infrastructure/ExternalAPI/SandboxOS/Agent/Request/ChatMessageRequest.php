@@ -179,7 +179,6 @@ class ChatMessageRequest
         return $this;
     }
 
-
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
