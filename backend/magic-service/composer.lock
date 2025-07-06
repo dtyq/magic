@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "68d1904b21580a0eab16f02515d50e81432aee45"
+                "reference": "8cf6e2f2c69992d8ce55310ceaf42eea7280a378"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=68d1904b21580a0eab16f02515d50e81432aee45",
-                "reference": "68d1904b21580a0eab16f02515d50e81432aee45",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=8cf6e2f2c69992d8ce55310ceaf42eea7280a378",
+                "reference": "8cf6e2f2c69992d8ce55310ceaf42eea7280a378",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-06T19:01:41+08:00"
+            "time": "2025-07-06T19:09:24+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -15546,16 +15546,16 @@
         },
         {
             "name": "friendsofphp/php-cs-fixer",
-            "version": "v3.77.0",
+            "version": "v3.78.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
-                "reference": "4d6e9da6185f50b87c38b032f940526f6ea18ac8"
+                "reference": "effd5edddae2fc202028f63e515db21815100fd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/4d6e9da6185f50b87c38b032f940526f6ea18ac8",
-                "reference": "4d6e9da6185f50b87c38b032f940526f6ea18ac8",
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/effd5edddae2fc202028f63e515db21815100fd2",
+                "reference": "effd5edddae2fc202028f63e515db21815100fd2",
                 "shasum": ""
             },
             "require": {
@@ -15639,7 +15639,7 @@
             ],
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/issues",
-                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.77.0"
+                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.78.0"
             },
             "funding": [
                 {
@@ -15647,7 +15647,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-07-05T13:22:53+00:00"
+            "time": "2025-07-06T11:06:25+00:00"
         },
         {
             "name": "hamcrest/hamcrest-php",
