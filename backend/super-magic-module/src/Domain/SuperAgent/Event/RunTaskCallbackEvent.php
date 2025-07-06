@@ -62,13 +62,11 @@ class RunTaskCallbackEvent extends AbstractEvent
     {
         $departmentIds = [];
         $metadata = $this->taskMessage->getMetadata();
-        if ($metadata) {
-            $userInfo = $metadata->getUserInfo();
-            if ($userInfo) {
-                $departments = $userInfo->getDepartments();
-                foreach ($departments as $department) {
-                    $departmentIds[] = $department->getId();
-                }
+        $userInfo = $metadata->getUserInfo();
+        if ($userInfo) {
+            $departments = $userInfo->getDepartments();
+            foreach ($departments as $department) {
+                $departmentIds[] = $department->getId();
             }
         }
         return $departmentIds;

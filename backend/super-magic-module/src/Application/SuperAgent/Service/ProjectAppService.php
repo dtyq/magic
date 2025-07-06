@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
@@ -30,6 +31,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
+use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
@@ -281,19 +283,69 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
-     * 获取项目附件列表.
+     * 获取项目附件列表（登录用户模式）.
      */
     public function getProjectAttachments(RequestContext $requestContext, GetProjectAttachmentsRequestDTO $requestDTO): array
     {
-        // Get user authorization information
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        // Create data isolation object
+        // 验证项目存在性和所有权
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $userAuthorization->getId());
+
+        // 验证项目所有权
+        if ($projectEntity->getCreatedUid() != $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
+        }
+
+        // 创建基于用户的数据隔离
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 验证项目权限
-        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+        // 获取附件列表（传入workDir用于相对路径计算）
+        $result = $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
 
+        // 构建树状结构（登录用户模式特有功能）
+        $tree = FileTreeUtil::assembleFilesTree($projectEntity->getWorkDir() ?? '', $result['list']);
+
+        return [
+            'list' => $result['list'],
+            'tree' => $tree,
+            'total' => $result['total'],
+        ];
+    }
+
+    /**
+     * 通过访问令牌获取项目附件列表.
+     */
+    public function getProjectAttachmentsByAccessToken(GetProjectAttachmentsRequestDTO $requestDto): array
+    {
+        $token = $requestDto->getToken();
+
+        // 从缓存里获取数据
+        if (! AccessTokenUtil::validate($token)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
+        }
+
+        $topicId = AccessTokenUtil::getResource($token);
+        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
+        $requestDto->setProjectId((string) $topicEntity->getProjectId());
+
+        // 创建DataIsolation
+        $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
+
+        // 令牌模式不需要workDir处理，传空字符串
+        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $topicEntity->getWorkDir());
+    }
+
+    /**
+     * 获取项目附件列表的核心逻辑.
+     */
+    private function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
+    {
         // 通过任务领域服务获取项目下的附件列表
         $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
             (int) $requestDTO->getProjectId(),
@@ -305,7 +357,7 @@ class ProjectAppService extends AbstractAppService
 
         // 处理文件 URL
         $list = [];
-        $organizationCode = $userAuthorization->getOrganizationCode();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
 
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
@@ -319,25 +371,13 @@ class ProjectAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
 
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
 
-            // Calculate relative file path by removing workDir from fileKey
-            $fileKey = $entity->getFileKey();
-            $workDir = $projectEntity->getWorkDir();
-            if (! empty($workDir)) {
-                $workDirPos = strpos($fileKey, $workDir);
-                if ($workDirPos !== false) {
-                    $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
-                } else {
-                    $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
-                }
-            } else {
-                $dto->relativeFilePath = $fileKey;
-            }
-
             // 添加 file_url 字段
+            $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
                 $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey);
                 if ($fileLink) {
@@ -352,12 +392,8 @@ class ProjectAppService extends AbstractAppService
             $list[] = $dto->toArray();
         }
 
-        // 构建树状结构
-        $tree = FileTreeUtil::assembleFilesTree($projectEntity->getWorkDir() ?? '', $list);
-
         return [
             'list' => $list,
-            'tree' => $tree,
             'total' => $result['total'],
         ];
     }

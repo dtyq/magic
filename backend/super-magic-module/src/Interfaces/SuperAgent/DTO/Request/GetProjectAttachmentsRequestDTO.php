@@ -28,12 +28,18 @@ class GetProjectAttachmentsRequestDTO
      */
     protected array $fileType = [];
 
+    /**
+     * 访问令牌（用于无登录模式）.
+     */
+    protected ?string $token = null;
+
     public function __construct(array $data = [], ?string $projectId = null)
     {
         // 优先使用传入的 projectId 参数
         $this->projectId = $projectId ?? (string) ($data['project_id'] ?? '');
         $this->page = (int) ($data['page'] ?? 1);
         $this->pageSize = (int) ($data['page_size'] ?? 200);
+        $this->token = $data['token'] ?? null;
 
         // 处理文件类型，可以接收字符串或数组
         if (isset($data['file_type'])) {
@@ -124,6 +130,28 @@ class GetProjectAttachmentsRequestDTO
     public function setFileType(array $fileType): self
     {
         $this->fileType = $fileType;
+        return $this;
+    }
+
+    /**
+     * 获取访问令牌.
+     *
+     * @return string|null 访问令牌
+     */
+    public function getToken(): ?string
+    {
+        return $this->token;
+    }
+
+    /**
+     * 设置访问令牌.
+     *
+     * @param string|null $token 访问令牌
+     * @return self 返回当前实例，支持链式调用
+     */
+    public function setToken(?string $token): self
+    {
+        $this->token = $token;
         return $this;
     }
 }
