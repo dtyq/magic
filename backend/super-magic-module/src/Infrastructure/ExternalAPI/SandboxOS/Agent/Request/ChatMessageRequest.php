@@ -21,7 +21,8 @@ class ChatMessageRequest
         private string $taskId = '',
         private string $prompt = '',
         private string $taskMode = 'chat',
-        private array $attachments = []
+        private array $attachments = [],
+        private array $mentions = []
     ) {
     }
 
@@ -34,9 +35,10 @@ class ChatMessageRequest
         string $taskId,
         string $prompt,
         string $taskMode = 'chat',
-        array $attachments = []
+        array $attachments = [],
+        array $mentions = []
     ): self {
-        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $attachments);
+        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $attachments, $mentions);
     }
 
     /**
@@ -142,6 +144,23 @@ class ChatMessageRequest
     }
 
     /**
+     * 获取提及.
+     */
+    public function getMentions(): array
+    {
+        return $this->mentions ?? [];
+    }
+
+    /**
+     * 设置提及.
+     */
+    public function setMentions(array $mentions): self
+    {
+        $this->mentions = $mentions;
+        return $this;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
      */
@@ -155,6 +174,7 @@ class ChatMessageRequest
             'prompt' => $this->prompt,
             'task_mode' => $this->taskMode,
             'attachments' => $this->attachments,
+            'mentions' => $this->mentions,
         ];
     }
 }

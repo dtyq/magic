@@ -9,9 +9,11 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
@@ -178,6 +180,8 @@ class AgentAppService
             $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
         }
 
+        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: (string) IdGenerator::getSnowId(),
@@ -186,6 +190,7 @@ class AgentAppService
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
             attachments: $attachmentUrls,
+            mentions: $mentionsJsonStruct,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -414,5 +419,69 @@ class AgentAppService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
+    }
+
+    /**
+     * 构建 mentions 的 JSON 结构数组，只包含 type, file_path, file_url 三个字段.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param null|string $mentionsJson mentions 的 JSON 字符串
+     * @return array 处理后的 mentions 数组
+     */
+    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson): array
+    {
+        $mentionsJsonStruct = [];
+
+        if (empty($mentionsJson)) {
+            return $mentionsJsonStruct;
+        }
+
+        $mentions = json_decode($mentionsJson, true);
+        if (empty($mentions) || ! is_array($mentions)) {
+            return $mentionsJsonStruct;
+        }
+
+        $fileIds = array_filter(array_column($mentions, 'file_id'));
+        if (empty($fileIds)) {
+            return $mentionsJsonStruct;
+        }
+
+        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
+
+        // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
+        $fileIdToFileMap = [];
+        foreach ($filesWithUrl as $file) {
+            $fileIdToFileMap[$file['file_id']] = $file;
+        }
+
+        // 构建新的数据结构，只包含 type, file_path, file_url
+        foreach ($mentions as $mention) {
+            $fileId = $mention['file_id'] ?? null;
+            if (! $fileId) {
+                continue;
+            }
+
+            // 从原始 mentions 中获取 type
+            $type = $mention['type'] ?? MentionType::PROJECT_FILE->value;
+
+            // 直接通过 file_id 获取对应的文件信息
+            $matchedFile = $fileIdToFileMap[$fileId] ?? null;
+
+            if ($matchedFile) {
+                // 从 file_url 中提取 file_path
+                $filePath = $mention['file_path'] ?? '';
+                if (empty($filePath) && ! empty($matchedFile['file_url'])) {
+                    // 使用 FileAssembler::formatPath 从 URL 中提取路径
+                    $filePath = FileAssembler::formatPath($matchedFile['file_url']);
+                }
+
+                $mentionsJsonStruct[] = [
+                    'type' => $type,
+                    'file_path' => $filePath,
+                    'file_url' => $matchedFile['file_url'],
+                ];
+            }
+        }
+        return $mentionsJsonStruct;
     }
 }

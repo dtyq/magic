@@ -150,9 +150,12 @@ class HandleUserMessageAppService extends AbstractAppService
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
                 $e->getMessage(),
-                $dataIsolation->getCurrentUserId()
+                $dataIsolation->getCurrentUserId(),
+                $e->getFile(),
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
             $this->clientMessageAppService->sendErrorMessageToClient(

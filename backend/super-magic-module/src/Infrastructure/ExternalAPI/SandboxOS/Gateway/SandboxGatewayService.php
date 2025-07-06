@@ -43,7 +43,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
 
             $responseData = json_decode($response->getBody()->getContents(), true);
-            $result = GatewayResult::fromApiResponse($responseData);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
 
             if ($result->isSuccess()) {
                 $sandboxId = $result->getDataValue('sandbox_id');
