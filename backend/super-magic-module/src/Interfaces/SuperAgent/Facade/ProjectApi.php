@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Qbhy\HyperfAuth\AuthManager;
 
 /**
  * Project API.
@@ -118,12 +119,15 @@ class ProjectApi extends AbstractApi
      */
     public function getProjectAttachments(RequestContext $requestContext, string $id): array
     {
-        // Set user authorization
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
         // 使用 fromRequest 方法从请求中创建 DTO，这样可以从路由参数中获取 project_id
         $dto = GetProjectAttachmentsRequestDTO::fromRequest($this->request);
+        if (! empty($dto->getToken())) {
+            // 走令牌校验的逻辑
+            return $this->projectAppService->getProjectAttachmentsByAccessToken($dto);
+        }
 
+        // 登录用户使用的场景
+        $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         return $this->projectAppService->getProjectAttachments($requestContext, $dto);
     }
 }

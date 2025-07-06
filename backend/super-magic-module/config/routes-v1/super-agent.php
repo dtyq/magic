@@ -48,8 +48,6 @@ Router::addGroup(
             Router::delete('/{id}', [ProjectApi::class, 'destroy']);
             // 获取项目下的话题列表
             Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
-            // 获取项目下的附件列表
-            Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachments']);
         });
 
         // 话题相关
@@ -104,6 +102,11 @@ Router::addGroup('/api/v1/super-agent', static function () {
     // 获取话题的附件列表
     Router::addGroup('/topics', static function () {
         Router::post('/{id}/attachments', [TopicApi::class, 'getTopicAttachments']);
+    });
+
+    // 获取项目的附件列表
+    Router::addGroup('/projects', static function () {
+        Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachments']);
     });
 
     // 获取任务附件
