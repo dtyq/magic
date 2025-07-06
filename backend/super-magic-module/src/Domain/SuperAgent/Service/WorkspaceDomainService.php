@@ -713,14 +713,27 @@ class WorkspaceDomainService
      * Get workspace version by commit hash, topic ID and folder.
      *
      * @param string $commitHash The commit hash
-     * @param int $topicId The topic ID
+     * @param int $projectId The project ID
      * @param string $folder The folder path
      * @return null|WorkspaceVersionEntity The workspace version entity or null if not found
      */
-    public function getWorkspaceVersionByCommitAndTopic(string $commitHash, int $topicId, string $folder = ''): ?WorkspaceVersionEntity
+    public function getWorkspaceVersionByCommitAndProjectId(string $commitHash, int $projectId, string $folder = ''): ?WorkspaceVersionEntity
     {
         // Get all versions for the topic
-        return $this->workspaceVersionRepository->findByCommitHashAndTopicId($commitHash, $topicId, $folder);
+        return $this->workspaceVersionRepository->findByCommitHashAndProjectId($commitHash, $projectId, $folder);
+    }
+
+    /**
+     * Get workspace version by commit hash, topic ID and folder.
+     *
+     * @param int $projectId The project ID
+     * @param string $folder The folder path
+     * @return null|WorkspaceVersionEntity The workspace version entity or null if not found
+     */
+    public function getWorkspaceVersionByProjectId(int $projectId, string $folder = ''): ?WorkspaceVersionEntity
+    {
+        // Get all versions for the topic
+        return $this->workspaceVersionRepository->findByProjectId($projectId, $folder);
     }
 
     public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity

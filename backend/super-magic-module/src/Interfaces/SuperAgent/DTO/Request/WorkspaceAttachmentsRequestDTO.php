@@ -18,6 +18,11 @@ class WorkspaceAttachmentsRequestDTO extends AbstractDTO
     protected string $topicId = '';
 
     /**
+     * @var string project ID
+     */
+    protected string $projectId = '';
+
+    /**
      * @var string commit hash
      */
     protected string $commitHash = '';
@@ -45,6 +50,17 @@ class WorkspaceAttachmentsRequestDTO extends AbstractDTO
     public function setTopicId(string $topicId): self
     {
         $this->topicId = $topicId;
+        return $this;
+    }
+
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId(string $projectId): self
+    {
+        $this->projectId = $projectId;
         return $this;
     }
 

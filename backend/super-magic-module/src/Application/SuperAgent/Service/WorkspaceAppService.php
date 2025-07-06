@@ -665,7 +665,7 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        $result = $this->filterResultByGitVersion($result, $topicEntity->getWorkspaceCommitHash(), $topicEntity->getId());
+        $result = $this->filterResultByGitVersion($result, $topicEntity->getProjectId());
 
         // 处理文件 URL
         $list = [];
@@ -808,10 +808,10 @@ class WorkspaceAppService extends AbstractAppService
     /**
      * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
      */
-    private function filterResultByGitVersion(array $result, string $commitHash, int $topicId): array
+    private function filterResultByGitVersion(array $result, int $projectId): array
     {
         $dir = '.workspace';
-        $workspaceVersion = $this->workspaceDomainService->getWorkspaceVersionByCommitAndTopic($commitHash, $topicId, $dir);
+        $workspaceVersion = $this->workspaceDomainService->getWorkspaceVersionByProjectId($projectId, $dir);
         if (empty($workspaceVersion)) {
             return $result;
         }
