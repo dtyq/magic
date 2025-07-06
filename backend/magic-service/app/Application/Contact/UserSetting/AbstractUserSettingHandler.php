@@ -15,4 +15,9 @@ abstract class AbstractUserSettingHandler implements UserSettingHandlerInterface
     public function valueGetHandle(BaseDataIsolation $dataIsolation, MagicUserSettingEntity $setting): void
     {
     }
+
+    public function generateDefault(): ?MagicUserSettingEntity
+    {
+        return null;
+    }
 }

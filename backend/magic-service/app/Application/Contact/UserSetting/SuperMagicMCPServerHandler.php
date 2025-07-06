@@ -16,6 +16,7 @@ use App\Domain\MCP\Service\MCPServerDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\ValueObject\Page;
+use DateTime;
 
 class SuperMagicMCPServerHandler extends AbstractUserSettingHandler
 {
@@ -26,7 +27,7 @@ class SuperMagicMCPServerHandler extends AbstractUserSettingHandler
     ) {
     }
 
-    public function valueGetHandle(BaseDataIsolation $dataIsolation, MagicUserSettingEntity $setting): void
+    public function populateValue(BaseDataIsolation $dataIsolation, MagicUserSettingEntity $setting): void
     {
         $mcpDataIsolation = MCPDataIsolation::createByBaseDataIsolation($dataIsolation);
 
@@ -58,5 +59,15 @@ class SuperMagicMCPServerHandler extends AbstractUserSettingHandler
         }
 
         $setting->setValue(['servers' => $servers]);
+    }
+
+    public function generateDefault(): ?MagicUserSettingEntity
+    {
+        $setting = new MagicUserSettingEntity();
+        $setting->setKey(UserSettingKey::SuperMagicMCPServers->value);
+        $setting->setValue(['servers' => []]);
+        $setting->setCreatedAt(new DateTime());
+        $setting->setUpdatedAt(new DateTime());
+        return $setting;
     }
 }
