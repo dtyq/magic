@@ -13,6 +13,11 @@ use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\MCP\Service\MCPServerAppService;
 use App\Application\MCP\Utils\McpServerConfigUtil;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
+use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\Infrastructure\Core\TempAuth\TempAuthInterface;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -450,6 +455,7 @@ class AgentAppService extends AbstractKernelAppService
 
         $localHttpUrl = config('super-magic.sandbox.callback_host', '');
         $tempAuth = di(TempAuthInterface::class);
+        $mcpDataIsolation = MCPDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
 
         foreach ($mcpServers as $mcpServer) {
             if (! in_array($mcpServer->getCode(), $mcpServerIds, true)) {
@@ -457,7 +463,7 @@ class AgentAppService extends AbstractKernelAppService
             }
 
             $mcpServerConfig = McpServerConfigUtil::create(
-                $dataIsolation,
+                $mcpDataIsolation,
                 $mcpServer,
                 $localHttpUrl,
             );
