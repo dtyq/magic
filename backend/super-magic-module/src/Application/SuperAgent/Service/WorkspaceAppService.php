@@ -589,9 +589,15 @@ class WorkspaceAppService extends AbstractAppService
         $organizationCode = AccessTokenUtil::getOrganizationCode($token);
         $result = [];
 
+        // 获取 topic 详情
+        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+        }
+
         foreach ($fileIds as $fileId) {
             $fileEntity = $this->taskDomainService->getTaskFile((int) $fileId);
-            if (empty($fileEntity) || $fileEntity->getTopicId() != $topicId) {
+            if (empty($fileEntity) || $fileEntity->getTopicId() != $topicId || $fileEntity->getProjectId() != $topicEntity->getProjectId()) {
                 // 如果文件不存在或不属于该话题，跳过
                 continue;
             }

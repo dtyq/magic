@@ -25,6 +25,8 @@ class GetFileUrlsRequestDTO
 
     private string $topicId;
 
+    private string $projectId;
+
     /**
      * Cache setting, default is true.
      */
@@ -39,6 +41,7 @@ class GetFileUrlsRequestDTO
         $this->token = $params['token'] ?? '';
         $this->downloadMode = $params['download_mode'] ?? 'download';
         $this->topicId = $params['topic_id'] ?? '';
+        $this->projectId = $params['project_id'] ?? '';
         $this->cache = $params['cache'] ?? true;
 
         $this->validate();
@@ -73,6 +76,11 @@ class GetFileUrlsRequestDTO
     public function getTopicId(): string
     {
         return $this->topicId;
+    }
+
+    public function getProjectId(): string
+    {
+        return $this->projectId;
     }
 
     public function getCache(): bool
