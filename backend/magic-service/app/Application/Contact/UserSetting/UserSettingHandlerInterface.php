@@ -12,5 +12,7 @@ use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 
 interface UserSettingHandlerInterface
 {
-    public function valueGetHandle(BaseDataIsolation $dataIsolation, MagicUserSettingEntity $setting): void;
+    public function populateValue(BaseDataIsolation $dataIsolation, MagicUserSettingEntity $setting): void;
+
+    public function generateDefault(): ?MagicUserSettingEntity;
 }

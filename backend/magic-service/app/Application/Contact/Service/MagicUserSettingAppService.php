@@ -44,8 +44,12 @@ class MagicUserSettingAppService extends AbstractContactAppService
 
         $setting = $this->magicUserSettingDomainService->get($dataIsolation, $key);
 
-        $key = UserSettingKey::tryFrom($setting->getKey());
-        $key?->getValueHandler()?->valueGetHandle($flowDataIsolation, $setting);
+        $key = UserSettingKey::tryFrom($key);
+        if ($setting) {
+            $key?->getValueHandler()?->populateValue($flowDataIsolation, $setting);
+        } else {
+            $setting = $key?->getValueHandler()?->generateDefault() ?? null;
+        }
 
         return $setting;
     }

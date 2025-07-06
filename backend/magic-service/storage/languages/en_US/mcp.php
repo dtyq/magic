@@ -79,6 +79,11 @@ return [
         ],
     ],
 
+    // Command validation errors
+    'command' => [
+        'not_allowed' => 'Unsupported command ":command", currently only supports: :allowed_commands',
+    ],
+
     // Required fields validation errors
     'required_fields' => [
         'missing' => 'Required fields are missing: :fields',

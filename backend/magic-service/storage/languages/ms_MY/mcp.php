@@ -79,6 +79,11 @@ return [
         ],
     ],
 
+    // Ralat pengesahan arahan
+    'command' => [
+        'not_allowed' => 'Arahan tidak disokong ":command", pada masa ini hanya menyokong: :allowed_commands',
+    ],
+
     // Ralat pengesahan medan yang diperlukan
     'required_fields' => [
         'missing' => 'Medan yang diperlukan tiada: :fields',
