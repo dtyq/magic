@@ -11,6 +11,7 @@ use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\MCP\Service\MCPServerAppService;
+use App\Application\MCP\Utils\McpServerConfigUtil;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
@@ -35,7 +36,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Odin\Mcp\McpType;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -457,12 +457,13 @@ class AgentAppService extends AbstractKernelAppService
                 continue;
             }
 
-            $mcpServerConfig = $mcpServer->createMcpServerConfig($localHttpUrl);
+            $mcpServerConfig = McpServerConfigUtil::create(
+                $dataIsolation,
+                $mcpServer,
+                $localHttpUrl,
+            );
             if (! $mcpServerConfig) {
                 continue;
-            }
-            if ($mcpServerConfig->getType() !== McpType::Http) {
-                continue; // Only HTTP type servers are supported
             }
             if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
                 $token = $tempAuth->create([
