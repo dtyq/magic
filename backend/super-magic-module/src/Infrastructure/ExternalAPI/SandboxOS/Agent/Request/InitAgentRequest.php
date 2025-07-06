@@ -23,7 +23,8 @@ class InitAgentRequest
         private array $messageSubscriptionConfig = [],
         private array $stsTokenRefresh = [],
         private array $metadata = [],
-        private string $taskMode = 'plan'
+        private string $taskMode = 'plan',
+        private string $agentMode = '',
     ) {
     }
 
@@ -40,7 +41,8 @@ class InitAgentRequest
             $data['message_subscription_config'] ?? [],
             $data['sts_token_refresh'] ?? [],
             $data['metadata'] ?? [],
-            $data['task_mode'] ?? 'plan'
+            $data['task_mode'] ?? 'plan',
+            $data['agent_mode'] ?? ''
         );
     }
 
@@ -63,9 +65,10 @@ class InitAgentRequest
         array $messageSubscriptionConfig = [],
         array $stsTokenRefresh = [],
         array $metadata = [],
-        string $taskMode = 'plan'
+        string $taskMode = 'plan',
+        string $agentMode = ''
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode);
     }
 
     /**
@@ -204,6 +207,17 @@ class InitAgentRequest
         return $this->projectId;
     }
 
+    public function setAgentMode(string $agentMode): self
+    {
+        $this->agentMode = $agentMode;
+        return $this;
+    }
+
+    public function getAgentMode(): string
+    {
+        return $this->agentMode;
+    }
+
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
@@ -220,6 +234,7 @@ class InitAgentRequest
             'sts_token_refresh' => $this->stsTokenRefresh,
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
+            'agent_mode' => $this->agentMode,
         ];
     }
 }
