@@ -123,7 +123,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 agentUserId: $userMessageDTO->getAgentUserId(),
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
-                instruction: ChatInstruction::FollowUp
+                instruction: ChatInstruction::FollowUp,
+                agentMode: $userMessageDTO->getTopicMode()->value,
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -174,6 +175,7 @@ class HandleUserMessageAppService extends AbstractAppService
      */
     private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
     {
+        // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
         // get department ids

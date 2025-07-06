@@ -33,7 +33,7 @@ class SuperAgentExtra extends AbstractDTO
     /**
      * Task pattern: general | dataAnalysis | ppt | report.
      */
-    protected ?string $taskPattern;
+    protected ?string $topicPattern;
 
     /**
      * 获取 mentions 的 JSON 结构数组.
@@ -102,13 +102,13 @@ class SuperAgentExtra extends AbstractDTO
         $this->chatMode = $chatMode;
     }
 
-    public function getTaskPattern(): ?string
+    public function getTopicPattern(): ?string
     {
-        return $this->taskPattern ?? null;
+        return $this->topicPattern ?? null;
     }
 
-    public function setTaskPattern(?string $taskPattern): void
+    public function setTopicPattern(?string $topicPattern): void
     {
-        $this->taskPattern = $taskPattern;
+        $this->topicPattern = $topicPattern;
     }
 }

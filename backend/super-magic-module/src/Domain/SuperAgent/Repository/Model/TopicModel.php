@@ -42,6 +42,7 @@ class TopicModel extends AbstractModel
         'sandbox_config',
         'current_task_id',
         'current_task_status',
+        'topic_mode',
         'topic_name',
         'work_dir',
         'task_mode',

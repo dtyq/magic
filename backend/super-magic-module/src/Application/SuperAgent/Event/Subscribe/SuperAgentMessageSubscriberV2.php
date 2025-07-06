@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskMode;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -106,6 +107,10 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // Parse instruction information
             [$chatInstructs, $taskMode] = $this->parseInstructions($instructions);
 
+            // Parse topic mode from super agent extra
+            $topicModeValue = $superAgentExtra?->getTopicPattern();
+            $topicMode = $topicModeValue ? TopicMode::tryFrom($topicModeValue) ?? TopicMode::GENERAL : TopicMode::GENERAL;
+
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
                 agentUserId: $agentUserId,
@@ -115,6 +120,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 attachments: $attachmentsJson,
                 mentions: $mentionsJson,
                 instruction: $chatInstructs,
+                topicMode: $topicMode,
                 taskMode: $taskMode
             );
 

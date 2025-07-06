@@ -417,6 +417,7 @@ class AgentAppService
             ],
             'metadata' => $messageMetadata->toArray(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),
+            'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
     }
