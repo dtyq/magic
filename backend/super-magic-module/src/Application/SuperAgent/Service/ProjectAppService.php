@@ -384,10 +384,10 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 构建树状结构（登录用户模式特有功能）
-        $tree = FileTreeUtil::assembleFilesTree($workDir, $result['list']);
+        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
 
         return [
-            'list' => $result['list'],
+            'list' => $list,
             'tree' => $tree,
             'total' => $result['total'],
         ];
