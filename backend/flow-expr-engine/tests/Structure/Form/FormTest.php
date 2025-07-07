@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\FlowExprEngine\Test\Structure\Form;
 
 use Dtyq\FlowExprEngine\Builder\FormBuilder;
+use Dtyq\FlowExprEngine\Builder\ValueBuilder;
 use Dtyq\FlowExprEngine\ComponentFactory;
 use Dtyq\FlowExprEngine\Exception\FlowExprEngineException;
+use Dtyq\FlowExprEngine\Structure\Expression\DataType;
 use Dtyq\FlowExprEngine\Structure\Form\Form;
 use Dtyq\FlowExprEngine\Structure\Form\FormType;
 use Dtyq\FlowExprEngine\Test\BaseTestCase;
@@ -1794,6 +1796,238 @@ JSON,
         $this->expectException(FlowExprEngineException::class);
         $this->expectExceptionMessage('[root] Array type must have items');
         $form->toJsonSchema(true);
+    }
+
+    public function testExpressionIsOnlyMethod()
+    {
+        $builder = new ValueBuilder();
+
+        // Test case 1: Expression with Method type as first item - should return true
+        $arrayWithMethod = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "methods",
+            "value": "md5",
+            "name": "md5",
+            "args": [
+                {
+                    "type": "const",
+                    "const_value": [
+                        {
+                            "type": "input",
+                            "value": "test",
+                            "name": "",
+                            "args": null
+                        }
+                    ],
+                    "expression_value": null
+                }
+            ]
+        }
+    ]
+}
+JSON, true);
+        $valueWithMethod = $builder->build($arrayWithMethod);
+        $this->assertTrue($valueWithMethod->expressionIsOnlyMethod());
+
+        // Test case 2: Expression with Field type as first item - should return false
+        $arrayWithField = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "fields",
+            "value": "message",
+            "name": "message",
+            "args": null
+        }
+    ]
+}
+JSON, true);
+        $valueWithField = $builder->build($arrayWithField);
+        $this->assertFalse($valueWithField->expressionIsOnlyMethod());
+
+        // Test case 3: Expression with Input type as first item - should return false
+        $arrayWithInput = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "input",
+            "value": "test input",
+            "name": "",
+            "args": null
+        }
+    ]
+}
+JSON, true);
+        $valueWithInput = $builder->build($arrayWithInput);
+        $this->assertFalse($valueWithInput->expressionIsOnlyMethod());
+
+        // Test case 4: Const type value - should return false (not expression type)
+        $arrayWithConst = json_decode(<<<'JSON'
+{
+    "type": "const",
+    "const_value": [
+        {
+            "type": "input",
+            "value": "const value",
+            "name": "",
+            "args": null
+        }
+    ],
+    "expression_value": null
+}
+JSON, true);
+        $valueWithConst = $builder->build($arrayWithConst);
+        $this->assertFalse($valueWithConst->expressionIsOnlyMethod());
+
+        // Test case 5: Expression with multiple items, first being Method - should return true
+        $arrayWithMultipleItems = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "methods",
+            "value": "time",
+            "name": "time",
+            "args": []
+        },
+        {
+            "type": "input",
+            "value": " + additional text",
+            "name": "",
+            "args": null
+        }
+    ]
+}
+JSON, true);
+        $valueWithMultipleItems = $builder->build($arrayWithMultipleItems);
+        $this->assertTrue($valueWithMultipleItems->expressionIsOnlyMethod());
+    }
+
+    public function testObjectFormWithNonArrayMethodExpressionShouldThrowError()
+    {
+        $valueBuilder = new ValueBuilder();
+
+        // 创建一个object类型的form
+        $form = new Form(
+            type: FormType::Object,
+            key: 'test_object',
+            sort: 0,
+            title: 'Test Object',
+            description: 'Test object with method expression'
+        );
+
+        // 创建一个返回string类型的函数表达式（md5函数返回string）
+        $methodExpressionData = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "methods",
+            "value": "md5",
+            "name": "md5",
+            "args": [
+                {
+                    "type": "const",
+                    "const_value": [
+                        {
+                            "type": "input",
+                            "value": "test_string",
+                            "name": ""
+                        }
+                    ],
+                    "expression_value": null
+                }
+            ]
+        }
+    ]
+}
+JSON, true);
+
+        // 构建Value对象，设置DataType为Array（期望返回数组）
+        $value = $valueBuilder->build($methodExpressionData);
+        $value->setDataType(DataType::Array);
+
+        // 设置value到form
+        $form->setValue($value);
+
+        // 测试：调用getKeyValue时应该抛出异常，因为md5函数返回string而不是array
+        $this->expectException(FlowExprEngineException::class);
+        $this->expectExceptionMessage('结果为 string，无法被转换为 array');
+
+        $form->getKeyValue();
+    }
+
+    public function testObjectFormWithArrayMethodExpression()
+    {
+        $valueBuilder = new ValueBuilder();
+
+        // 创建一个object类型的form
+        $form = new Form(
+            type: FormType::Object,
+            key: 'test_object',
+            sort: 0,
+            title: 'Test Object',
+            description: 'Test object with method expression'
+        );
+
+        // 创建一个返回string类型的函数表达式（md5函数返回string）
+        $methodExpressionData = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "methods",
+            "value": "json_decode",
+            "name": "md5",
+            "args": [
+                {
+                    "type": "const",
+                    "const_value": [
+                        {
+                            "type": "input",
+                            "value": "{\"key\": \"value\"}",
+                            "name": ""
+                        }
+                    ],
+                    "expression_value": null
+                },
+                {
+                    "type": "const",
+                    "const_value": [
+                        {
+                            "type": "input",
+                            "value": "1",
+                            "name": ""
+                        }
+                    ],
+                    "expression_value": null
+                }
+            ]
+        }
+    ]
+}
+JSON, true);
+
+        // 构建Value对象，设置DataType为Array（期望返回数组）
+        $value = $valueBuilder->build($methodExpressionData);
+        $value->setDataType(DataType::Array);
+
+        // 设置value到form
+        $form->setValue($value);
+
+        $form->getKeyValue();
+        $this->assertTrue($value->expressionIsOnlyMethod());
     }
 
     private function getFormJsonArray(): array
