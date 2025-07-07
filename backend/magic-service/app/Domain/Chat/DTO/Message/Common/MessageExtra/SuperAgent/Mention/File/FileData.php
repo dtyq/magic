@@ -20,6 +20,10 @@ final class FileData extends AbstractDTO implements MentionDataInterface
 
     protected string $fileName;
 
+    protected string $fileExtension;
+
+    protected int $fileSize;
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -46,6 +50,16 @@ final class FileData extends AbstractDTO implements MentionDataInterface
         return $this->fileName ?? null;
     }
 
+    public function getFileExtension(): ?string
+    {
+        return $this->fileExtension ?? null;
+    }
+
+    public function getFileSize(): ?int
+    {
+        return $this->fileSize ?? null;
+    }
+
     /* Setters */
     public function setFileId(string $fileId): void
     {
@@ -65,5 +79,15 @@ final class FileData extends AbstractDTO implements MentionDataInterface
     public function setFileName(string $fileName): void
     {
         $this->fileName = $fileName;
+    }
+
+    public function setFileExtension(string $fileExtension): void
+    {
+        $this->fileExtension = $fileExtension;
+    }
+
+    public function setFileSize(int $fileSize): void
+    {
+        $this->fileSize = $fileSize;
     }
 }
