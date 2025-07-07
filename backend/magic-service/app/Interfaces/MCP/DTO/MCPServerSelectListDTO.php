@@ -93,17 +93,11 @@ class MCPServerSelectListDTO extends AbstractDTO
         $this->type = $type ?? '';
     }
 
-    /**
-     * @return array<array<string, string>>
-     */
     public function getRequireFields(): array
     {
         return $this->requireFields;
     }
 
-    /**
-     * @param array<array<string, string>> $requireFields
-     */
     public function setRequireFields(array $requireFields): void
     {
         $data = [];
