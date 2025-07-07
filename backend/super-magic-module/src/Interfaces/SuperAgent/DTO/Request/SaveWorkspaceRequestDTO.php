@@ -41,6 +41,12 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
         return $this->workspaceName;
     }
 
+
+    public function setWorkspaceName(string $workspaceName): void
+    {
+        $this->workspaceName = $workspaceName;
+    }
+
     /**
      * Check if this is an update operation.
      */

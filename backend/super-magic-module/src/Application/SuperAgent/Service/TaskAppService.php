@@ -39,6 +39,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
+use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
@@ -47,6 +49,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Domain\ModelGateway\Service\ApplicationDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
@@ -89,7 +93,9 @@ class TaskAppService extends AbstractAppService
         protected MagicUserDomainService $userDomainService,
         protected TaskRepositoryInterface $taskRepository,
         protected LockerInterface $locker,
-        LoggerFactory $loggerFactory
+        LoggerFactory $loggerFactory,
+        protected AccessTokenDomainService $accessTokenDomainService,
+        protected ApplicationDomainService $applicationDomainService,
     ) {
         $this->messageBuilder = new MessageBuilderDomainService();
         $this->logger = $loggerFactory->get(get_class($this));
@@ -1439,5 +1445,25 @@ class TaskAppService extends AbstractAppService
 
         // 创建DTO
         return new TopicTaskMessageDTO($metadata, $payload);
+    }
+
+
+    public function getUserAuthorization(string $apiKey,string $uid=""):MagicUserEntity
+    {
+        $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
+        if (empty($accessToken)) {
+            throw new \Exception('Access token not found');
+        }
+
+        if(empty($uid)){
+            if ($accessToken->getType() === AccessTokenType::Application->value) {
+                $uid=$accessToken->getCreator();
+            }else{
+                $uid=$accessToken->getRelationId();
+            }
+        }
+
+        $userEntity = $this->userDomainService->getByUserId($uid);
+        return $userEntity;
     }
 }

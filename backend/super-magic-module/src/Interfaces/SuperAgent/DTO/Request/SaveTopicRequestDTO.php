@@ -56,6 +56,11 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
         return $this->workspaceId;
     }
 
+    public function setWorkspaceId(string $workspaceId): void
+    {
+        $this->workspaceId = $workspaceId;
+    }
+
     /**
      * Get topic name.
      */
@@ -64,12 +69,22 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
         return $this->topicName;
     }
 
+    public function setTopicName(string $topicName): void
+    {
+        $this->topicName = $topicName;
+    }
+
     /**
      * Get project ID.
      */
     public function getProjectId(): string
     {
         return $this->projectId;
+    }
+
+    public function setProjectId(string $projectId): void
+    {
+        $this->projectId = $projectId;
     }
 
     /**
