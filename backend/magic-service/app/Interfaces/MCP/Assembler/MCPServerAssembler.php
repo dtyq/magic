@@ -111,6 +111,7 @@ class MCPServerAssembler
         $DTO->setIcon(FileAssembler::getUrl($icons[$mcpServerEntity->getIcon()] ?? null));
         $DTO->setType($mcpServerEntity->getType()->value);
         $DTO->setRequireFields($mcpServerEntity->getServiceConfig()->getRequireFields());
+        $DTO->setOffice($mcpServerEntity->isOffice());
         return $DTO;
     }
 

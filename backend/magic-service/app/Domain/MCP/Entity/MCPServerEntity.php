@@ -66,6 +66,8 @@ class MCPServerEntity extends AbstractEntity
 
     private int $toolsCount = 0;
 
+    private bool $office = false;
+
     public function shouldCreate(): bool
     {
         return empty($this->code);
@@ -90,7 +92,7 @@ class MCPServerEntity extends AbstractEntity
         $this->updatedAt = $this->createdAt;
         $this->code = Code::MagicMCPService->gen();
         $this->type = $this->type ?? ServiceType::SSE;
-        $this->enabled = $this->enabled ?? false;
+        $this->enabled = $this->enabled ?? true;
         $this->id = null;
 
         // Ensure serviceConfig is always set
@@ -293,5 +295,15 @@ class MCPServerEntity extends AbstractEntity
             $serviceConfig = $this->type->createServiceConfig($serviceConfig);
         }
         $this->serviceConfig = $serviceConfig;
+    }
+
+    public function isOffice(): bool
+    {
+        return $this->office;
+    }
+
+    public function setOffice(bool $office): void
+    {
+        $this->office = $office;
     }
 }

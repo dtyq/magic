@@ -25,6 +25,8 @@ Router::addGroup('/api/v1/mcp', function () {
         Router::delete('/{code}/tool/{id}', [MCPServerToolAdminApi::class, 'destroy']);
     });
 
+    Router::post('/available/queries', [MCPServerAdminApi::class, 'availableQueries']);
+
     Router::post('/user-setting/{code}/require-fields', [MCPUserSettingAdminApi::class, 'saveRequiredFields']);
     Router::get('/user-setting/{code}', [MCPUserSettingAdminApi::class, 'getUserSettings']);
 

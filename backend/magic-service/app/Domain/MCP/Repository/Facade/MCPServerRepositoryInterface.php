@@ -24,6 +24,8 @@ interface MCPServerRepositoryInterface
 
     public function getByCode(MCPDataIsolation $dataIsolation, string $code): ?MCPServerEntity;
 
+    public function getOrgCodes(MCPDataIsolation $dataIsolation): array;
+
     /**
      * @return array{total: int, list: array<MCPServerEntity>}
      */

@@ -41,6 +41,18 @@ class MCPServerSelectListDTO extends AbstractDTO
      */
     public array $requireFields = [];
 
+    public bool $office = false;
+
+    public function isOffice(): bool
+    {
+        return $this->office;
+    }
+
+    public function setOffice(bool $office): void
+    {
+        $this->office = $office;
+    }
+
     public function getName(): string
     {
         return $this->name;
@@ -94,6 +106,22 @@ class MCPServerSelectListDTO extends AbstractDTO
      */
     public function setRequireFields(array $requireFields): void
     {
-        $this->requireFields = $requireFields;
+        $data = [];
+        foreach ($requireFields as $field) {
+            if (is_string($field)) {
+                $data[] = [
+                    'field_name' => $field,
+                    'field_value' => '',
+                ];
+            }
+            if (is_array($field) && isset($field['field_name'])) {
+                $data[] = [
+                    'field_name' => $field['field_name'],
+                    'field_value' => $field['field_value'] ?? '',
+                ];
+            }
+        }
+
+        $this->requireFields = $data;
     }
 }
