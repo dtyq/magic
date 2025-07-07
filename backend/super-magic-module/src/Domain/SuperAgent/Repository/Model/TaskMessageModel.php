@@ -29,6 +29,7 @@ class TaskMessageModel extends AbstractModel
         'topic_id',
         'status',
         'content',
+        'raw_content',
         'steps',
         'tool',
         'attachments',

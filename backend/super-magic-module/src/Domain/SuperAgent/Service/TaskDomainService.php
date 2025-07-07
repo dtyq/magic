@@ -214,6 +214,7 @@ class TaskDomainService
             'receiver_uid' => $taskMessageDTO->getReceiverUid(),
             'type' => $taskMessageDTO->getMessageType(),
             'content' => $taskMessageDTO->getContent(),
+            'raw_content' => $taskMessageDTO->getRawContent(),
             'status' => $taskMessageDTO->getStatus(),
             'steps' => $taskMessageDTO->getSteps(),
             'tool' => $taskMessageDTO->getTool(),

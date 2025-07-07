@@ -25,7 +25,8 @@ class UserMessageDTO
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
         private readonly TopicMode $topicMode = TopicMode::GENERAL,
         // $taskMode 即将废弃，请勿使用
-        private readonly string $taskMode = ''
+        private readonly string $taskMode = '',
+        private readonly ?string $rawContent = null
     ) {
     }
 
@@ -74,6 +75,11 @@ class UserMessageDTO
         return $this->taskMode;
     }
 
+    public function getRawContent(): ?string
+    {
+        return $this->rawContent;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -92,7 +98,8 @@ class UserMessageDTO
             topicMode: isset($data['topic_mode']) || isset($data['topicMode'])
                 ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
                 : TopicMode::GENERAL,
-            taskMode: $data['task_mode'] ?? $data['taskMode'] ?? ''
+            taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
+            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null
         );
     }
 
@@ -111,6 +118,7 @@ class UserMessageDTO
             'instruction' => $this->instruction->value,
             'topic_mode' => $this->topicMode->value,
             'task_mode' => $this->taskMode,
+            'raw_content' => $this->rawContent,
         ];
     }
 }
