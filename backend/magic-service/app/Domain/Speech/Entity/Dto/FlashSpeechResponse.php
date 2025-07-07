@@ -91,6 +91,6 @@ class FlashSpeechResponse extends AbstractDTO
      */
     public function getResponseData(): array
     {
-        return $this->responseData ?? [];
+        return $this->responseData;
     }
 }
