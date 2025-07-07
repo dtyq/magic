@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition;
 
-use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\FlashSpeechResponse;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
