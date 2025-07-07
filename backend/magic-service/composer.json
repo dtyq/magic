@@ -86,7 +86,7 @@
         "hyperf/testing": "~3.1.0",
         "hyperf/watcher": "^3.1",
         "mockery/mockery": "^1.0",
-        "phpstan/phpstan": "^1.0",
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^10.5",
         "roave/security-advisories": "dev-latest",
         "viest/php-ext-xlswriter-ide-helper": "^1.3"
