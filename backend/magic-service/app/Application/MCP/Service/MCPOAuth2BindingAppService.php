@@ -112,8 +112,11 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
         ];
 
         return [
-            'auth_info' => $authInfo,
-            'message' => 'OAuth2 service bound successfully',
+            'success' => true,
+            'data' => [
+                'auth_info' => $authInfo,
+                'message' => 'OAuth2 service bound successfully',
+            ],
         ];
     }
 

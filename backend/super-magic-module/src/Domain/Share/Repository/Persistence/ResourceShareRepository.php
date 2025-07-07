@@ -250,6 +250,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         $entity->setOrganizationCode(htmlspecialchars($model->organization_code, ENT_QUOTES, 'UTF-8'));
 
         // 处理目标ID，如果实体中有此字段
+        /* @phpstan-ignore-next-line */
         if (property_exists($model, 'target_ids') && method_exists($entity, 'setTargetIds')) {
             $entity->setTargetIds($model->target_ids ?? '[]');
         }

@@ -42,7 +42,7 @@ class BatchSaveFileContentRequestDTO implements JsonSerializable
      */
     public static function fromRequest(array $requestData): self
     {
-        if (! is_array($requestData) || empty($requestData)) {
+        if (empty($requestData)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'files_array_required');
         }
 
