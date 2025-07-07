@@ -245,14 +245,6 @@ class MessageAssembler
         };
     }
 
-    public static function getStreamMessageEntity(array $message): ?array
-    {
-        if (empty($message)) {
-            return null;
-        }
-        return $message;
-    }
-
     /**
      * Builds a length-limited chat history context.
      * To ensure context coherence, this method prioritizes keeping the most recent messages.
