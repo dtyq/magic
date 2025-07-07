@@ -396,9 +396,7 @@ class Volcengine extends AbstractDriver
      */
     public function close(): void
     {
-        if (isset($this->client)) {
-            $this->client->close();
-        }
+        $this->client->close();
         $this->logger->debug('WebSocket连接已关闭');
     }
 
@@ -679,7 +677,7 @@ class Volcengine extends AbstractDriver
             'X-Api-Access-Key' => $this->token,
             'X-Api-Resource-Id' => 'volc.bigasr.auc',
             'X-Api-Request-Id' => $requestId,
-            'X-Api-Sequence' => -1,
+            'X-Api-Sequence' => '-1',
         ], $body);
         $response = $client->sendAsync($request)->wait();
         $responseHeader = $response->getHeaders();

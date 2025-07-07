@@ -11,13 +11,10 @@ use Psr\Http\Message\MessageInterface;
 
 final class BodySummarizer implements BodySummarizerInterface
 {
-    private ?int $truncateAt;
+    private int $truncateAt;
 
-    public function __construct(?int $truncateAt = null)
+    public function __construct(int $truncateAt = 2000)
     {
-        if (is_null($truncateAt)) {
-            $truncateAt = 2000;
-        }
         $this->truncateAt = $truncateAt;
     }
 
@@ -26,8 +23,6 @@ final class BodySummarizer implements BodySummarizerInterface
      */
     public function summarize(MessageInterface $message): ?string
     {
-        return $this->truncateAt === null
-            ? Psr7\Message::bodySummary($message)
-            : Psr7\Message::bodySummary($message, $this->truncateAt);
+        return Psr7\Message::bodySummary($message, $this->truncateAt);
     }
 }

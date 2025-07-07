@@ -256,6 +256,7 @@ class MessageAssembler
             return null;
         }
         $streamMessage = new RecordingSummaryStreamMessage($message);
+        /* @phpstan-ignore-next-line */
         if (isset($message['streamStatus']) && $streamMessage instanceof StreamMessageInterface) {
             $streamMessage->getStreamOptions()?->setStatus(StreamMessageStatus::from($message['streamStatus']));
         }

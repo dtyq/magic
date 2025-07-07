@@ -126,7 +126,7 @@ class BaseDataIsolation implements DataIsolationInterface
 
     public function getCurrentUserId(): string
     {
-        return $this->currentUserId ?? '';
+        return $this->currentUserId;
     }
 
     public function isEnable(): bool
