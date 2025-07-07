@@ -83,7 +83,7 @@ class MagicChatAIImageReqDTO
         if ($userMessage instanceof TextMessage) {
             $this->params->setUserPrompt($userMessage->getContent());
         } else {
-            throw new Exception('不支cle持的消息类型');
+            throw new Exception('不支持的消息类型');
         }
         /* @phpstan-ignore-next-line */
         if ($userMessage instanceof ChatFileInterface) {

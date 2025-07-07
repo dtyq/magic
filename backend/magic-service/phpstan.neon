@@ -15,7 +15,7 @@ parameters:
   excludePaths:
   reportUnmatchedIgnoredErrors: false
   # 信任PHPDoc中声明的类型，并根据类型做静态分析
-  treatPhpDocTypesAsCertain: true
+  treatPhpDocTypesAsCertain: false
   ignoreErrors:
     - '#Static call to instance method Hyperf\\HttpServer\\Router\\Router::[a-zA-Z0-9\\_]+\(\)#'
     - '#Static call to instance method Hyperf\\DbConnection\\Db::[a-zA-Z0-9\\_]+\(\)#'
@@ -33,5 +33,4 @@ parameters:
     - message: '#Expression on left side of .* is not nullable.#'
     - message: '#Offset .* always exists and is not nullable.#'
     - message: '#Match arm is unreachable because previous comparison is always true.#'
-    - message: '#.* will always evaluate to true.#'
-    - message: '#.* is always true.#'
+    - message: '#Match arm comparison .* is always true.#'
