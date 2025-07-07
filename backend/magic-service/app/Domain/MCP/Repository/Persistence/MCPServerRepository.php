@@ -65,6 +65,13 @@ class MCPServerRepository extends MCPAbstractRepository implements MCPServerRepo
         return MCPServerFactory::createEntity($model);
     }
 
+    public function getOrgCodes(MCPDataIsolation $dataIsolation): array
+    {
+        $builder = $this->createBuilder($dataIsolation, MCPServerModel::query());
+
+        return $builder->distinct()->pluck('code')->toArray();
+    }
+
     /**
      * @return array{total: int, list: array<MCPServerEntity>}
      */

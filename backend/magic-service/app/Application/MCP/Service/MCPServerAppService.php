@@ -87,6 +87,41 @@ class MCPServerAppService extends AbstractMCPAppService
         return $data;
     }
 
+    /**
+     * @return array{total: int, list: array<MCPServerEntity>}
+     */
+    public function availableQueries(Authenticatable $authorization, MCPServerQuery $query, Page $page): array
+    {
+        $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        // 官方数据和组织内的，一并查询
+        $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+            $dataIsolation,
+            ResourceType::MCPServer,
+            [$authorization->getId()]
+        )[$authorization->getId()] ?? [];
+        $resourceIds = array_keys($resources);
+        // 获取官方的 code
+        $officialCodes = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);
+        $resourceIds = array_merge($resourceIds, $officialCodes);
+
+        if (! empty($query->getCodes())) {
+            $resourceIds = array_intersect($resourceIds, $query->getCodes());
+        }
+
+        $query->setCodes($resourceIds);
+        $orgData = $this->mcpServerDomainService->queries($dataIsolation->disabled(), $query, $page);
+
+        foreach ($orgData['list'] ?? [] as $item) {
+            $item->setIcon($this->getFileLink($item->getOrganizationCode(), $item->getIcon())?->getUrl() ?? '');
+            if (in_array($item->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes(), true)) {
+                $item->setOffice(true);
+            }
+        }
+
+        return $orgData;
+    }
+
     public function save(Authenticatable $authorization, MCPServerEntity $entity): MCPServerEntity
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
