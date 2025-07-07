@@ -245,19 +245,6 @@ class MessageAssembler
         };
     }
 
-    public static function getStreamMessageEntity(array $message): ?array
-    {
-        if (empty($message)) {
-            return null;
-        }
-        $streamMessage = new RecordingSummaryStreamMessage($message);
-        /* @phpstan-ignore-next-line */
-        if (isset($message['streamStatus']) && $streamMessage instanceof StreamMessageInterface) {
-            $streamMessage->getStreamOptions()?->setStatus(StreamMessageStatus::from($message['streamStatus']));
-        }
-        return $streamMessage;
-    }
-
     /**
      * Builds a length-limited chat history context.
      * To ensure context coherence, this method prioritizes keeping the most recent messages.
