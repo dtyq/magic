@@ -92,6 +92,7 @@ class ExcelLoaderNodeRunner extends NodeRunner
                 $rows = [];
                 $sheet = $excelFile->openSheet($sheetName, Excel::SKIP_EMPTY_CELLS);
                 $rowIndex = 0;
+                /* @phpstan-ignore-next-line */
                 while (($row = $sheet->nextRow()) !== null) {
                     ++$rowIndex;
                     if (empty($row)) {
