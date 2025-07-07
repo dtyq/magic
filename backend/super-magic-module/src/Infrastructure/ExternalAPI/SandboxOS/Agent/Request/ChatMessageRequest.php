@@ -167,6 +167,7 @@ class ChatMessageRequest
      */
     public function getMentions(): array
     {
+        /* @phpstan-ignore-next-line */
         return $this->mentions ?? [];
     }
 

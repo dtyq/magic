@@ -36,7 +36,7 @@ class ShareAssembler
         $dto->id = (string) $share->getId();
         $dto->resourceId = $share->getResourceId();
         $dto->resourceType = $share->getResourceType();
-        $dto->resourceTypeName = ResourceType::tryFrom($share->getResourceType())?->name ?? '';
+        $dto->resourceTypeName = ResourceType::tryFrom($share->getResourceType())->name ?? '';
         $dto->shareCode = $share->getShareCode();
         $dto->hasPassword = ! empty($share->getPassword());
         $dto->shareType = $share->getShareType();

@@ -151,7 +151,7 @@ class TaskStatusValidator
             }
 
             if (! self::isTransitionAllowed($currentStatus, $status)) {
-                $fromStatus = $currentStatus?->value ?? 'null';
+                $fromStatus = $currentStatus->value ?? 'null';
                 return [
                     'valid' => false,
                     'invalid_step' => $index,

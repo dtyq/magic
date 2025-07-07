@@ -121,7 +121,7 @@ class TopicTaskAppService extends AbstractAppService
                 $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
                 $this->logger->warning('Rejected status update', [
                     'task_id' => $taskId,
-                    'current_status' => $currentStatus?->value ?? 'null',
+                    'current_status' => $currentStatus->value ?? 'null',
                     'new_status' => $status->value,
                     'reason' => $reason,
                     'error_msg' => $errMsg,
@@ -143,7 +143,7 @@ class TopicTaskAppService extends AbstractAppService
             // Log success
             $this->logger->info('Task status update completed', [
                 'task_id' => $taskId,
-                'previous_status' => $currentStatus?->value ?? 'null',
+                'previous_status' => $currentStatus->value ?? 'null',
                 'new_status' => $status->value,
                 'error_msg' => $errMsg,
             ]);
