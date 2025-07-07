@@ -21,6 +21,7 @@ class ChatMessageRequest
         private string $taskId = '',
         private string $prompt = '',
         private string $taskMode = 'chat',
+        private string $agentMode = '',
         private array $attachments = [],
         private array $mentions = [],
         private array $mcpConfig = [],
@@ -36,11 +37,12 @@ class ChatMessageRequest
         string $taskId,
         string $prompt,
         string $taskMode = 'chat',
+        string $agentMode = '',
         array $attachments = [],
         array $mentions = [],
         array $mcpConfig = []
     ): self {
-        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $attachments, $mentions, $mcpConfig);
+        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions, $mcpConfig);
     }
 
     /**
@@ -74,6 +76,23 @@ class ChatMessageRequest
     public function setTaskMode(string $taskMode): self
     {
         $this->taskMode = $taskMode;
+        return $this;
+    }
+
+    /**
+     * 获取Agent模式.
+     */
+    public function getAgentMode(): string
+    {
+        return $this->agentMode;
+    }
+
+    /**
+     * 设置Agent模式.
+     */
+    public function setAgentMode(string $agentMode): self
+    {
+        $this->agentMode = $agentMode;
         return $this;
     }
 
@@ -192,6 +211,7 @@ class ChatMessageRequest
             'type' => 'chat',
             'prompt' => $this->prompt,
             'task_mode' => $this->taskMode,
+            'agent_mode' => $this->agentMode,
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
             'mcp_config' => $this->mcpConfig,

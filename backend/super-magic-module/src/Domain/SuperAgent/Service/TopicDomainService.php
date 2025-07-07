@@ -267,7 +267,7 @@ class TopicDomainService
             true, // needPagination
             $pageSize,
             $page,
-            'updated_at', // 按更新时间排序
+            'id', // 按创建时间排序
             'desc' // 降序
         );
     }
