@@ -19,10 +19,6 @@ abstract class AbstractEntity extends \App\Infrastructure\Core\AbstractEntity
         if (is_array($jsonData)) {
             return $jsonData;
         }
-        if (is_string($jsonData)) {
-            return Json::decode($jsonData);
-        }
-        /* @phpstan-ignore-next-line */
-        return [];
+        return Json::decode($jsonData);
     }
 }

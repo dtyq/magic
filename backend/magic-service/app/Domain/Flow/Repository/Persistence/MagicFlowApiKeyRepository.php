@@ -51,6 +51,7 @@ class MagicFlowApiKeyRepository extends MagicFlowAbstractRepository implements M
         $builder = $this->createBuilder($dataIsolation, MagicFlowApiKeyModel::query());
         $builder->where('flow_code', $magicFlowApiKeyEntity->getFlowCode())
             ->where('conversation_id', $magicFlowApiKeyEntity->getConversationId());
+        /* @phpstan-ignore-next-line */
         if ($magicFlowApiKeyEntity->getType() === ApiKeyType::Personal) {
             $builder->where('type', $magicFlowApiKeyEntity->getType()->value)
                 ->where('created_uid', $magicFlowApiKeyEntity->getCreator());

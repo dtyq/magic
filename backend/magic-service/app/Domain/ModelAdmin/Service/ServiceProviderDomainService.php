@@ -1429,6 +1429,7 @@ class ServiceProviderDomainService
             }
 
             // 如果是官方服务商配置，先保存，如果没有找到非官方的再使用
+            /* @phpstan-ignore-next-line */
             if ($providerType === ServiceProviderType::OFFICIAL) {
                 $officialFound = true;
                 $officialProviderType = $providerType;

@@ -31,6 +31,7 @@ class MagicFlowApiKeyDomainService extends AbstractDomainService
             $savingMagicFlowApiKeyEntity->prepareForCreate();
             $magicFlowApiKeyEntity = $savingMagicFlowApiKeyEntity;
             // 检查是否重复，毕竟是需要一对一的关系
+            /* @phpstan-ignore-next-line */
             if ($magicFlowApiKeyEntity->getType() === ApiKeyType::Personal) {
                 if ($this->magicFlowApiKeyRepository->exist($dataIsolation, $magicFlowApiKeyEntity)) {
                     ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'common.exist', ['label' => 'flow.fields.api_key']);
