@@ -189,6 +189,7 @@ class AgentAppService
             taskId: (string) $taskContext->getTask()->getId(),
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
+            agentMode: $taskContext->getAgentMode(),
             attachments: $attachmentUrls,
             mentions: $mentionsJsonStruct,
         );
