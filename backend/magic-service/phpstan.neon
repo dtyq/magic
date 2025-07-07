@@ -33,3 +33,5 @@ parameters:
     - message: '#Expression on left side of .* is not nullable.#'
     - message: '#Offset .* always exists and is not nullable.#'
     - message: '#Match arm is unreachable because previous comparison is always true.#'
+    - message: '#.* will always evaluate to true.#'
+    - message: '#.* is always true.#'
