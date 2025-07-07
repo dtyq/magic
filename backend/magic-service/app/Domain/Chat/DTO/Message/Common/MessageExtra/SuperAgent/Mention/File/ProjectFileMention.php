@@ -20,7 +20,7 @@ final class ProjectFileMention extends AbstractMention
             return '';
         }
         $filePath = $data->getFilePath() ?? '';
-        return sprintf('@<file_path>%s</file_path>', $filePath);
+        return sprintf('[@file_path:%s]', $filePath);
     }
 
     public function getMentionJsonStruct(): array
