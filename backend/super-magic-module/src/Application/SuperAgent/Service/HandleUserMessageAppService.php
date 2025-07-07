@@ -99,6 +99,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
+            $agentMode = ! empty($topicEntity->getTopicMode()) ? $topicEntity->getTopicMode() : $userMessageDTO->getTopicMode()->value;
 
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
@@ -124,7 +125,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
-                agentMode: $userMessageDTO->getTopicMode()->value,
+                agentMode: $agentMode,
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);

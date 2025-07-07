@@ -40,7 +40,7 @@ class ResourceShareAppService extends AbstractShareAppService
         private ShareableResourceFactory $resourceFactory,
         private ResourceShareDomainService $shareDomainService,
         private ShareAssembler $shareAssembler,
-        readonly LoggerFactory $loggerFactory
+        public readonly LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
