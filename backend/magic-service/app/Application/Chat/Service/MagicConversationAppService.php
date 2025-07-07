@@ -233,7 +233,7 @@ class MagicConversationAppService extends AbstractAppService
             $oldValue = $oldInstructs[$instructId] ?? '';
 
             // Check if it's a valid value
-            if (isset($value) && $value !== '' && $value !== null) {
+            if (isset($value) && $value !== '') {
                 // Log update
                 $this->logger->info("Instruction update: {$instructId} from {$oldValue} to {$value}");
 

@@ -87,6 +87,7 @@ class MessageAssembler
             if ($messageTypeEnum instanceof ControlMessageType) {
                 return self::getControlMessageStruct($messageTypeEnum, $messageStructArray);
             }
+            /* @phpstan-ignore-next-line */
             if ($messageTypeEnum instanceof ChatMessageType) {
                 return self::getChatMessageStruct($messageTypeEnum, $messageStructArray);
             }
