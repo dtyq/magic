@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition;
 
+use App\Domain\Speech\Entity\Dto\BigModelSpeechSubmitDTO;
+use App\Domain\Speech\Entity\Dto\FlashSpeechResponse;
 use App\Domain\Speech\Entity\Dto\FlashSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\LargeModelSpeechSubmitDTO;
 use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
@@ -16,6 +18,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -23,15 +26,15 @@ use Throwable;
 
 class VolcengineStandardClient
 {
-    private const SUBMIT_URL = 'https://openspeech.bytedance.com/api/v1/auc/submit';
+    private const string SUBMIT_URL = 'https://openspeech.bytedance.com/api/v1/auc/submit';
 
-    private const QUERY_URL = 'https://openspeech.bytedance.com/api/v1/auc/query';
+    private const string QUERY_URL = 'https://openspeech.bytedance.com/api/v1/auc/query';
 
-    private const BIGMODEL_SUBMIT_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit';
+    private const string BIGMODEL_SUBMIT_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit';
 
-    private const BIGMODEL_QUERY_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/query';
+    private const string BIGMODEL_QUERY_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/query';
 
-    private const FLASH_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash';
+    private const string FLASH_URL = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash';
 
     protected LoggerInterface $logger;
 
@@ -41,7 +44,7 @@ class VolcengineStandardClient
 
     public function __construct()
     {
-        $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(self::class);
+        $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(self::class);
         $this->httpClient = new Client([
             'timeout' => 30,
             'connect_timeout' => 10,
@@ -53,99 +56,29 @@ class VolcengineStandardClient
     {
         $requestData = $this->buildSubmitRequest($submitDTO);
 
-        try {
-            $response = $this->httpClient->post(self::SUBMIT_URL, [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer; ' . $this->config['token'],
-                ],
-                'json' => $requestData,
-            ]);
-
-            $responseBody = $response->getBody()->getContents();
-            $result = json_decode($responseBody, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $this->logger->error('Failed to parse Volcengine response JSON', [
-                    'response_body' => $responseBody,
-                    'json_error' => json_last_error_msg(),
-                ]);
-                ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.invalid_response_format');
-            }
-
-            $this->logger->info('Volcengine speech recognition task submitted successfully', [
-                'response' => $result,
-            ]);
-
-            $responseHeaders = $this->extractResponseHeaders($response);
-            return array_merge($result, $responseHeaders);
-        } catch (GuzzleException $e) {
-            $this->logger->error('Failed to submit task to Volcengine', [
-                'error' => $e->getMessage(),
-                'request_data' => $requestData,
-            ]);
-
-            ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
-        } catch (Throwable $e) {
-            $this->logger->error('Exception occurred while submitting task to Volcengine', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.submit_exception', [
-                'original_error' => $e->getMessage(),
-            ]);
-        }
+        return $this->executeStandardRequest(
+            self::SUBMIT_URL,
+            $requestData,
+            'speech.volcengine.submit_exception',
+            'Volcengine speech recognition task submitted successfully'
+        );
     }
 
     public function queryResult(SpeechQueryDTO $queryDTO): array
     {
         $requestData = $this->buildQueryRequest($queryDTO);
 
-        try {
-            $response = $this->httpClient->post(self::QUERY_URL, [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer; ' . $this->config['token'],
-                ],
-                'json' => $requestData,
-            ]);
-
-            $responseBody = $response->getBody()->getContents();
-            $result = json_decode($responseBody, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $this->logger->error('Failed to parse Volcengine response JSON', [
-                    'response_body' => $responseBody,
-                    'json_error' => json_last_error_msg(),
-                ]);
-                ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.invalid_response_format');
-            }
-
-            $responseHeaders = $this->extractResponseHeaders($response);
-            return array_merge($result, $responseHeaders);
-        } catch (GuzzleException $e) {
-            $this->logger->error('Failed to query result from Volcengine', [
-                'task_id' => $queryDTO->getTaskId(),
-                'error' => $e->getMessage(),
-            ]);
-
-            ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
-        } catch (Throwable $e) {
-            $this->logger->error('Exception occurred while querying result from Volcengine', [
-                'task_id' => $queryDTO->getTaskId(),
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.query_exception', [
-                'original_error' => $e->getMessage(),
-            ]);
-        }
+        return $this->executeStandardRequest(
+            self::QUERY_URL,
+            $requestData,
+            'speech.volcengine.query_exception',
+            'Volcengine speech recognition query completed successfully',
+            ['task_id' => $queryDTO->getTaskId()]
+        );
     }
 
     /**
-     * 提交大模型ASR任务
+     * Submit BigModel ASR task.
      */
     public function submitBigModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
     {
@@ -166,7 +99,7 @@ class VolcengineStandardClient
             ]);
 
             $responseBody = $response->getBody()->getContents();
-            $result = json_decode($responseBody, true);
+            $result = Json::decode($responseBody);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->logger->error('Failed to parse Volcengine BigModel response JSON', [
@@ -227,7 +160,7 @@ class VolcengineStandardClient
             ]);
 
             $responseBody = $response->getBody()->getContents();
-            $result = json_decode($responseBody, true);
+            $result = Json::decode($responseBody);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->logger->error('Failed to parse Volcengine BigModel query response JSON', [
@@ -260,7 +193,7 @@ class VolcengineStandardClient
         }
     }
 
-    public function submitFlashTask(FlashSpeechSubmitDTO $submitDTO): array
+    public function submitFlashTask(FlashSpeechSubmitDTO $submitDTO): FlashSpeechResponse
     {
         $requestData = $this->buildFlashSubmitRequest($submitDTO);
         $requestId = $requestData['req_id'];
@@ -279,26 +212,34 @@ class VolcengineStandardClient
             ]);
 
             $responseBody = $response->getBody()->getContents();
-            $result = json_decode($responseBody, true);
+            $result = Json::decode($responseBody);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->logger->error('Failed to parse Volcengine Flash response JSON', [
                     'response_body' => $responseBody,
                     'json_error' => json_last_error_msg(),
+                    'request_id' => $requestId,
                 ]);
                 ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.flash.invalid_response_format');
             }
-
-            $this->logger->info('Volcengine Flash speech recognition task submitted successfully', [
-                'request_id' => $requestId,
-                'response' => $result,
-            ]);
-
+            // Add additional information to response data
             $result['request_id'] = $requestId;
             $responseHeaders = $this->extractResponseHeaders($response);
-            return array_merge($result, $responseHeaders);
+            $finalResult = array_merge($result, $responseHeaders);
+
+            // Create FlashSpeechResponse object (will automatically remove utterances to save memory)
+            $flashResponse = new FlashSpeechResponse($finalResult);
+            $textContent = $flashResponse->extractTextContent();
+
+            $this->logger->info('Volcengine Flash speech recognition text content retrieved successfully', [
+                'request_id' => $requestId,
+                'text_length' => strlen($textContent),
+                'response_code' => $result['code'] ?? null,
+            ]);
+
+            return $flashResponse;
         } catch (GuzzleException $e) {
-            $this->logger->error('Failed to submit Flash task to Volcengine', [
+            $this->logger->error('Failed to get Flash audio text from Volcengine', [
                 'error' => $e->getMessage(),
                 'request_data' => $requestData,
                 'request_id' => $requestId,
@@ -306,13 +247,70 @@ class VolcengineStandardClient
 
             ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
         } catch (Throwable $e) {
-            $this->logger->error('Exception occurred while submitting Flash task to Volcengine', [
+            $this->logger->error('Exception occurred while getting Flash audio text from Volcengine', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'request_id' => $requestId,
             ]);
 
-            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.flash.submit_exception', [
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.flash.get_text_exception', [
+                'original_error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Execute standard ASR request (non-BigModel).
+     */
+    private function executeStandardRequest(
+        string $url,
+        array $requestData,
+        string $exceptionMessage,
+        string $successMessage,
+        array $contextData = []
+    ): array {
+        try {
+            $response = $this->httpClient->post($url, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer; ' . $this->config['token'],
+                ],
+                'json' => $requestData,
+            ]);
+
+            $responseBody = $response->getBody()->getContents();
+            $result = Json::decode($responseBody);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->logger->error('Failed to parse Volcengine response JSON', array_merge([
+                    'response_body' => $responseBody,
+                    'json_error' => json_last_error_msg(),
+                ], $contextData));
+                ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.invalid_response_format');
+            }
+
+            $this->logger->info($successMessage, array_merge([
+                'response' => $result,
+            ], $contextData));
+
+            $responseHeaders = $this->extractResponseHeaders($response);
+            return array_merge($result, $responseHeaders);
+        } catch (GuzzleException $e) {
+            $this->logger->error('Failed to execute Volcengine request', array_merge([
+                'error' => $e->getMessage(),
+                'request_data' => $requestData,
+                'url' => $url,
+            ], $contextData));
+
+            ExceptionBuilder::throw(AsrErrorCode::Error, $e->getMessage());
+        } catch (Throwable $e) {
+            $this->logger->error('Exception occurred while executing Volcengine request', array_merge([
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'url' => $url,
+            ], $contextData));
+
+            ExceptionBuilder::throw(AsrErrorCode::Error, $exceptionMessage, [
                 'original_error' => $e->getMessage(),
             ]);
         }

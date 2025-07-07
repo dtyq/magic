@@ -30,7 +30,7 @@ class SpeechToTextStandardAppService
 
     public function __construct(protected readonly AccessTokenDomainService $accessTokenDomainService)
     {
-        $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(self::class);
+        $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(self::class);
         $this->volcengineClient = new VolcengineStandardClient();
     }
 
@@ -64,7 +64,7 @@ class SpeechToTextStandardAppService
     {
         $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
         $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
-        return $this->volcengineClient->submitFlashTask($submitDTO);
+        return $this->volcengineClient->submitFlashTask($submitDTO)->getResponseData();
     }
 
     private function validateAccessToken(string $accessToken, array $clientIps): AccessTokenEntity
