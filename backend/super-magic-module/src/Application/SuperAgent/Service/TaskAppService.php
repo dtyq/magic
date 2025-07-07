@@ -881,7 +881,7 @@ class TaskAppService extends AbstractAppService
 
         // 3. 处理工具附件（如果有）
         try {
-            if ($tool !== null && ! empty($tool['attachments'])) {
+            if (! empty($tool['attachments'])) {
                 $this->processToolAttachments($tool, $taskContext);
                 // 使用工具处理器处理文件ID匹配
                 ToolProcessor::processToolAttachments($tool);
@@ -1197,7 +1197,7 @@ class TaskAppService extends AbstractAppService
                 $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
                 $this->logger->warning('拒绝状态更新', [
                     'task_id' => $taskId,
-                    'current_status' => $currentStatus?->value ?? 'null',
+                    'current_status' => $currentStatus->value ?? null,
                     'new_status' => $status->value,
                     'reason' => $reason,
                     'error_msg' => $errMsg,
@@ -1219,7 +1219,7 @@ class TaskAppService extends AbstractAppService
             // 记录成功日志
             $this->logger->info('任务状态更新完成', [
                 'task_id' => $taskId,
-                'previous_status' => $currentStatus?->value ?? 'null',
+                'previous_status' => $currentStatus->value ?? null,
                 'new_status' => $status->value,
                 'error_msg' => $errMsg,
             ]);

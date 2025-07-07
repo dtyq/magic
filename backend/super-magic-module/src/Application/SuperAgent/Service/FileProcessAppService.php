@@ -715,7 +715,7 @@ class FileProcessAppService extends AbstractAppService
                         'file_id' => $fileDTO->getFileId(),
                         'status' => 'error',
                         'error' => $e->getMessage(),
-                        'error_code' => method_exists($e, 'getCode') ? $e->getCode() : 0,
+                        'error_code' => $e->getCode(),
                         'duration_ms' => $taskDuration,
                     ];
                 }

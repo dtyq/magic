@@ -93,6 +93,7 @@ class GetFileUrlsRequestDTO
      *
      * @throws BusinessException 如果验证失败则抛出异常
      */
+    /* @phpstan-ignore-next-line */
     private function validate(): void
     {
         if (empty($this->fileIds)) {

@@ -158,7 +158,7 @@ class TopicEntity extends AbstractEntity
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
             'task_mode' => $this->taskMode ?? 'chat',
-            'topic_mode' => $this->topicMode?->value ?? '',
+            'topic_mode' => $this->topicMode->value ?? '',
             'cost' => $this->cost ?? 0.0,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,

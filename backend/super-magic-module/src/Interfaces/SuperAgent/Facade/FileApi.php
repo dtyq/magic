@@ -191,7 +191,7 @@ class FileApi extends AbstractApi
         $userAuthorization = $requestContext->getUserAuthorization();
 
         // 验证请求格式必须是数组
-        if (! is_array($requestData) || empty($requestData)) {
+        if (empty($requestData)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'files_array_required');
         }
 
