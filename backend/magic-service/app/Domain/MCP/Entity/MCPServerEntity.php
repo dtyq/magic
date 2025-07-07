@@ -92,7 +92,7 @@ class MCPServerEntity extends AbstractEntity
         $this->updatedAt = $this->createdAt;
         $this->code = Code::MagicMCPService->gen();
         $this->type = $this->type ?? ServiceType::SSE;
-        $this->enabled = $this->enabled ?? false;
+        $this->enabled = $this->enabled ?? true;
         $this->id = null;
 
         // Ensure serviceConfig is always set
