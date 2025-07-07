@@ -263,6 +263,7 @@ class HandleUserMessageAppService extends AbstractAppService
             receiverUid: $userMessageDTO->getAgentUserId(),
             messageType: 'chat',
             content: $taskEntity->getPrompt(),
+            rawContent: $userMessageDTO->getRawContent() ?? '',
             status: null,
             steps: null,
             tool: null,

@@ -13,6 +13,7 @@ use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
@@ -111,6 +112,9 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $topicModeValue = $superAgentExtra?->getTopicPattern();
             $topicMode = $topicModeValue ? TopicMode::tryFrom($topicModeValue) ?? TopicMode::GENERAL : TopicMode::GENERAL;
 
+            // raw content
+            $rawContent = $this->getRawContent($userCallAgentEvent);
+
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
                 agentUserId: $agentUserId,
@@ -121,7 +125,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 mentions: $mentionsJson,
                 instruction: $chatInstructs,
                 topicMode: $topicMode,
-                taskMode: $taskMode
+                taskMode: $taskMode,
+                rawContent: $rawContent
             );
 
             // Call handle user message service
@@ -144,6 +149,20 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             ));
 
             return; // Acknowledge message even on error to avoid message accumulation
+        }
+    }
+
+    private function getRawContent(UserCallAgentEvent $userCallAgentEvent): string
+    {
+        $seqObject = SeqAssembler::getClientSeqStruct($userCallAgentEvent->seqEntity, $userCallAgentEvent->messageEntity);
+        try {
+            $type = $seqObject->getSeq()->getMessage()->getType() ?? 'undefined';
+            $data = [
+                'type' => $type, $type => $seqObject->getSeq()->getMessage()->getContent(),
+            ];
+            return json_encode($data, JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            return '';
         }
     }
 

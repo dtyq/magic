@@ -63,6 +63,11 @@ class TaskMessageEntity extends AbstractEntity
     protected string $content = '';
 
     /**
+     * @var null|string 原始消息内容
+     */
+    protected ?string $rawContent = null;
+
+    /**
      * @var null|array 步骤信息
      */
     protected ?array $steps = null;
@@ -200,6 +205,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getRawContent(): string
+    {
+        return $this->rawContent ?? '';
+    }
+
+    public function setRawContent(?string $rawContent): self
+    {
+        $this->rawContent = $rawContent;
+        return $this;
+    }
+
     public function getSteps(): ?array
     {
         return $this->steps;
@@ -284,6 +300,7 @@ class TaskMessageEntity extends AbstractEntity
             'topic_id' => $this->topicId,
             'status' => $this->status,
             'content' => $this->content,
+            'raw_content' => $this->rawContent,
             'steps' => $this->steps,
             'tool' => $this->tool,
             'attachments' => $this->attachments,

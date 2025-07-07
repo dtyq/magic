@@ -19,6 +19,7 @@ class TaskMessageDTO
         private readonly string $receiverUid,
         private readonly string $messageType,
         private readonly string $content,
+        private readonly ?string $rawContent = null,
         private readonly ?string $status = null,
         private readonly ?array $steps = null,
         private readonly ?array $tool = null,
@@ -59,6 +60,11 @@ class TaskMessageDTO
     public function getContent(): string
     {
         return $this->content;
+    }
+
+    public function getRawContent(): string
+    {
+        return $this->rawContent ?? '';
     }
 
     public function getStatus(): ?string
@@ -119,6 +125,7 @@ class TaskMessageDTO
             receiverUid: $data['receiver_uid'] ?? $data['receiverUid'] ?? '',
             messageType: $data['message_type'] ?? $data['messageType'] ?? '',
             content: $data['content'] ?? '',
+            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
             status: $data['status'] ?? null,
             steps: $data['steps'] ?? null,
             tool: $data['tool'] ?? null,
@@ -143,6 +150,7 @@ class TaskMessageDTO
             'receiver_uid' => $this->receiverUid,
             'message_type' => $this->messageType,
             'content' => $this->content,
+            'raw_content' => $this->rawContent,
             'status' => $this->status,
             'steps' => $this->steps,
             'tool' => $this->tool,
