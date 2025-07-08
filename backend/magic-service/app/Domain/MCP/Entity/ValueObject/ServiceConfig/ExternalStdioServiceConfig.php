@@ -16,6 +16,8 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
 
     protected array $arguments = [];
 
+    protected ?array $env = null;
+
     private array $allowedCommands = [
         'npx',
     ];
@@ -28,6 +30,26 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
     public function setCommand(string $command): void
     {
         $this->command = $command;
+    }
+
+    /**
+     * Get environment variables.
+     *
+     * @return null|array<string, string>
+     */
+    public function getEnv(): ?array
+    {
+        return $this->env;
+    }
+
+    /**
+     * Set environment variables.
+     *
+     * @param null|array<string, string> $env
+     */
+    public function setEnv(?array $env): void
+    {
+        $this->env = $env;
     }
 
     /**
@@ -71,6 +93,7 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
         $instance = new self();
         $instance->setCommand($array['command'] ?? '');
         $instance->setArguments($array['arguments'] ?? []);
+        $instance->setEnv($array['env'] ?? null);
         return $instance;
     }
 
@@ -79,6 +102,7 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
         return [
             'command' => $this->command,
             'arguments' => $this->arguments,
+            'env' => $this->env,
         ];
     }
 
@@ -87,6 +111,7 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
         return [
             'command' => $this->command,
             'arguments' => implode(' ', $this->arguments),
+            'env' => $this->env,
         ];
     }
 
@@ -105,6 +130,12 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
             $fields = array_merge($fields, $argumentFields);
         }
 
+        // Extract from env values
+        if (! empty($this->env)) {
+            $envFields = $this->extractRequiredFieldsFromArray(array_values($this->env));
+            $fields = array_merge($fields, $envFields);
+        }
+
         return array_unique($fields);
     }
 
@@ -116,6 +147,14 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
             $newArguments[] = $this->replaceFields($argument, $fieldValues);
         }
         $this->setArguments($newArguments);
+
+        // Replace fields in env values
+        if (! empty($this->env)) {
+            $newEnv = array_map(function ($value) use ($fieldValues) {
+                return $this->replaceFields($value, $fieldValues);
+            }, $this->env);
+            $this->setEnv($newEnv);
+        }
 
         return $this;
     }
