@@ -96,7 +96,7 @@ export interface UploadCommonOption {
  */
 export interface CustomCredentials {
 	platform: PlatformType
-	credentials: PlatformParams
+	temporary_credential: PlatformParams
 	expire?: number
 }
 

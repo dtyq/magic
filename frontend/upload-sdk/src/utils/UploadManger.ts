@@ -234,7 +234,7 @@ export class UploadManger {
 		const uploadPromise = uploadConfig.customCredentials
 			? Promise.resolve({
 					platform: uploadConfig.customCredentials.platform,
-					temporary_credential: uploadConfig.customCredentials.credentials,
+					temporary_credential: uploadConfig.customCredentials.temporary_credential,
 					expire: uploadConfig.customCredentials.expire || 0,
 			  } as UploadSource<T>)
 			: (() => {

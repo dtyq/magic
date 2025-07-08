@@ -108,8 +108,8 @@ export class Upload {
 
 		// 如果提供了自定义凭证，验证凭证参数
 		if (customCredentials) {
-			const { platform, credentials } = customCredentials
-			if (!platform || !credentials) {
+			const { platform, temporary_credential } = customCredentials
+			if (!platform || !temporary_credential) {
 				throw new InitException(
 					InitExceptionCode.MISSING_PARAMS_FOR_UPLOAD,
 					"platform",

@@ -438,7 +438,7 @@ class ModelGatewayMapper extends ModelMapper
             }
 
             // 创建配置
-            $model = $this->createModelByProvider($organizationCode, $providerModel, $providerConfig, $provider, $filter);
+            $model = $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider, $filter);
             if (! $model) {
                 continue;
             }
@@ -449,7 +449,7 @@ class ModelGatewayMapper extends ModelMapper
     }
 
     private function createModelByProvider(
-        string $organizationCode,
+        ProviderDataIsolation $providerDataIsolation,
         ProviderModelEntity $providerModelEntity,
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
@@ -461,7 +461,7 @@ class ModelGatewayMapper extends ModelMapper
         $checkVisibleOrganization = $filter->isCheckVisibleOrganization() ?? true;
         $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
 
-        if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($organizationCode, $providerModelEntity->getVisibleOrganizations(), true)) {
+        if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($providerDataIsolation->getCurrentOrganizationCode(), $providerModelEntity->getVisibleOrganizations(), true)) {
             return null;
         }
         if ($checkVisibleApplication && $providerModelEntity->getVisibleApplications() && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
@@ -487,6 +487,15 @@ class ModelGatewayMapper extends ModelMapper
         $implementation = $providerEntity->getProviderCode()->getImplementation();
         $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigEntity->getConfig(), $providerModelEntity->getModelVersion());
 
+        $tag = $providerEntity->getProviderCode()->value;
+        if ($providerConfigEntity->getAlias()) {
+            $alias = $providerConfigEntity->getAlias();
+            if (! $providerDataIsolation->isOfficialOrganization() && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
+                $alias = 'Magic';
+            }
+            $tag = "{$tag}「{$alias}」";
+        }
+
         return new OdinModel(
             key: $key,
             model: $this->createModel($providerModelEntity->getModelVersion(), [
@@ -506,7 +515,7 @@ class ModelGatewayMapper extends ModelMapper
                 name: $providerModelEntity->getModelId(),
                 label: $providerModelEntity->getName(),
                 icon: $providerModelEntity->getIcon(),
-                tags: [['type' => 1, 'value' => $providerEntity->getProviderCode()->value]],
+                tags: [['type' => 1, 'value' => $tag]],
                 createdAt: $providerEntity->getCreatedAt(),
                 owner: 'MagicAI',
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
@@ -549,7 +558,7 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
 
-        return $this->createModelByProvider($orgCode, $providerModel, $providerConfig, $provider, $filter);
+        return $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider, $filter);
     }
 
     private function addAttributes(string $key, OdinModelAttributes $attributes): void
