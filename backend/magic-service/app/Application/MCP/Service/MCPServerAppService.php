@@ -103,8 +103,8 @@ class MCPServerAppService extends AbstractMCPAppService
         $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
             $dataIsolation,
             ResourceType::MCPServer,
-            [$authorization->getId()]
-        )[$authorization->getId()] ?? [];
+            [$dataIsolation->getCurrentUserId()]
+        )[$dataIsolation->getCurrentUserId()] ?? [];
         $resourceIds = array_keys($resources);
         // 获取官方的 code
         $officialCodes = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);

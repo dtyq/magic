@@ -95,6 +95,11 @@ class McpServerConfigUtil
             $serviceConfig = $entity->getServiceConfig();
             $requiredFields = $serviceConfig->getRequireFields();
 
+            // Add OAuth2 authentication if available
+            if ($serviceConfig instanceof ExternalSSEServiceConfig && $userSetting->getOauth2AuthResult()?->isValid()) {
+                $serviceConfig->addHeader(HeaderConfig::create('Authorization', 'Bearer ' . $userSetting->getOauth2AuthResult()->getAccessToken()));
+            }
+
             if (empty($requiredFields)) {
                 return; // No required fields to validate
             }
@@ -137,11 +142,6 @@ class McpServerConfigUtil
             // Apply user field values to service configuration
             if (! empty($userFieldValues)) {
                 $serviceConfig->replaceRequiredFields($userFieldValues);
-            }
-
-            // Add OAuth2 authentication if available
-            if ($serviceConfig instanceof ExternalSSEServiceConfig && $userSetting->getOauth2AuthResult()?->isValid()) {
-                $serviceConfig->addHeader(HeaderConfig::create('Authorization', 'Bearer ' . $userSetting->getOauth2AuthResult()->getAccessToken()));
             }
         } catch (Throwable $throwable) {
             if ($throwException) {
