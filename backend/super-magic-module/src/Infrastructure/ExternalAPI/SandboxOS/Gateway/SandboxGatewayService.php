@@ -14,7 +14,10 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Exception;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\ServerException;
 use Hyperf\Logger\LoggerFactory;
 
 /**
@@ -80,13 +83,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     {
         $maxRetries = 3;
         $baseDelay = 1000; // Base delay in milliseconds
-        
+
         $this->logger->info('[Sandbox][Gateway] Getting sandbox status', [
             'sandbox_id' => $sandboxId,
             'max_retries' => $maxRetries,
         ]);
 
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        for ($attempt = 1; $attempt <= $maxRetries; ++$attempt) {
             try {
                 if ($attempt > 1) {
                     $this->logger->info('[Sandbox][Gateway] Retrying sandbox status request', [
@@ -117,11 +120,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 }
 
                 return $result;
-                
             } catch (GuzzleException $e) {
                 $isLastAttempt = ($attempt === $maxRetries);
                 $isRetryableError = $this->isRetryableError($e);
-                
+
                 $this->logger->error('[Sandbox][Gateway] HTTP error when getting sandbox status', [
                     'sandbox_id' => $sandboxId,
                     'error' => $e->getMessage(),
@@ -131,28 +133,27 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     'is_retryable' => $isRetryableError,
                     'is_last_attempt' => $isLastAttempt,
                 ]);
-                
+
                 // If it's the last attempt or error is not retryable, return error
-                if ($isLastAttempt || !$isRetryableError) {
+                if ($isLastAttempt || ! $isRetryableError) {
                     return SandboxStatusResult::fromApiResponse([
                         'code' => 2000,
                         'message' => 'HTTP request failed: ' . $e->getMessage(),
                         'data' => ['sandbox_id' => $sandboxId],
                     ]);
                 }
-                
+
                 // Calculate exponential backoff delay
                 $delay = $baseDelay * pow(2, $attempt - 1); // 1s, 2s, 4s
-                
+
                 $this->logger->info('[Sandbox][Gateway] Waiting before retry', [
                     'sandbox_id' => $sandboxId,
                     'delay_ms' => $delay,
                     'attempt' => $attempt,
                 ]);
-                
+
                 // Sleep for the calculated delay
                 usleep($delay * 1000); // Convert to microseconds
-                
             } catch (Exception $e) {
                 $this->logger->error('[Sandbox][Gateway] Unexpected error when getting sandbox status', [
                     'sandbox_id' => $sandboxId,
@@ -166,7 +167,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 ]);
             }
         }
-        
+
         // This should never be reached, but just in case
         return SandboxStatusResult::fromApiResponse([
             'code' => 2000,
@@ -182,7 +183,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     {
         $maxRetries = 3;
         $baseDelay = 1000; // Base delay in milliseconds
-        
+
         $this->logger->debug('[Sandbox][Gateway] Getting batch sandbox status', [
             'sandbox_ids' => $sandboxIds,
             'count' => count($sandboxIds),
@@ -198,8 +199,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
 
         // Filter out empty or null sandbox IDs
-        $filteredSandboxIds = array_filter($sandboxIds, function($id) {
-            return !empty(trim($id));
+        $filteredSandboxIds = array_filter($sandboxIds, function ($id) {
+            return ! empty(trim($id));
         });
 
         if (empty($filteredSandboxIds)) {
@@ -213,7 +214,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
         }
 
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        for ($attempt = 1; $attempt <= $maxRetries; ++$attempt) {
             try {
                 if ($attempt > 1) {
                     $this->logger->info('[Sandbox][Gateway] Retrying batch sandbox status request', [
@@ -241,11 +242,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 ]);
 
                 return $result;
-                
             } catch (GuzzleException $e) {
                 $isLastAttempt = ($attempt === $maxRetries);
                 $isRetryableError = $this->isRetryableError($e);
-                
+
                 $this->logger->error('[Sandbox][Gateway] HTTP error when getting batch sandbox status', [
                     'sandbox_ids' => $filteredSandboxIds,
                     'error' => $e->getMessage(),
@@ -255,27 +255,26 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     'is_retryable' => $isRetryableError,
                     'is_last_attempt' => $isLastAttempt,
                 ]);
-                
+
                 // If it's the last attempt or error is not retryable, return error
-                if ($isLastAttempt || !$isRetryableError) {
+                if ($isLastAttempt || ! $isRetryableError) {
                     return BatchStatusResult::fromApiResponse([
                         'code' => 2000,
                         'message' => 'HTTP request failed: ' . $e->getMessage(),
                         'data' => [],
                     ]);
                 }
-                
+
                 // Calculate exponential backoff delay
                 $delay = $baseDelay * pow(2, $attempt - 1); // 1s, 2s, 4s
-                
+
                 $this->logger->info('[Sandbox][Gateway] Waiting before retry', [
                     'delay_ms' => $delay,
                     'attempt' => $attempt,
                 ]);
-                
+
                 // Sleep for the calculated delay
                 usleep($delay * 1000); // Convert to microseconds
-                
             } catch (Exception $e) {
                 $this->logger->error('[Sandbox][Gateway] Unexpected error when getting batch sandbox status', [
                     'sandbox_ids' => $filteredSandboxIds,
@@ -289,7 +288,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 ]);
             }
         }
-        
+
         // This should never be reached, but just in case
         return BatchStatusResult::fromApiResponse([
             'code' => 2000,
@@ -310,7 +309,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     ): GatewayResult {
         $maxRetries = 3;
         $baseDelay = 1000; // Base delay in milliseconds
-        
+
         $this->logger->debug('[Sandbox][Gateway] Proxying request to sandbox', [
             'sandbox_id' => $sandboxId,
             'method' => $method,
@@ -319,7 +318,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'max_retries' => $maxRetries,
         ]);
 
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        for ($attempt = 1; $attempt <= $maxRetries; ++$attempt) {
             try {
                 $requestOptions = [
                     'headers' => array_merge($this->getAuthHeaders(), $headers),
@@ -333,7 +332,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
                 $proxyPath = $this->buildProxyPath($sandboxId, $path);
                 // $proxyPath = $path;
-                
+
                 if ($attempt > 1) {
                     $this->logger->info('[Sandbox][Gateway] Retrying proxy request', [
                         'sandbox_id' => $sandboxId,
@@ -343,7 +342,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                         'max_retries' => $maxRetries,
                     ]);
                 }
-                
+
                 $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
@@ -359,11 +358,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 ]);
 
                 return $result;
-                
             } catch (GuzzleException $e) {
                 $isLastAttempt = ($attempt === $maxRetries);
                 $isRetryableError = $this->isRetryableError($e);
-                
+
                 $this->logger->error('[Sandbox][Gateway] HTTP error when proxying request', [
                     'sandbox_id' => $sandboxId,
                     'method' => $method,
@@ -375,24 +373,23 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     'is_retryable' => $isRetryableError,
                     'is_last_attempt' => $isLastAttempt,
                 ]);
-                
+
                 // If it's the last attempt or error is not retryable, return error
-                if ($isLastAttempt || !$isRetryableError) {
+                if ($isLastAttempt || ! $isRetryableError) {
                     return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
                 }
-                
+
                 // Calculate exponential backoff delay
                 $delay = $baseDelay * pow(2, $attempt - 1); // 1s, 2s, 4s
-                
+
                 $this->logger->info('[Sandbox][Gateway] Waiting before retry', [
                     'sandbox_id' => $sandboxId,
                     'delay_ms' => $delay,
                     'attempt' => $attempt,
                 ]);
-                
+
                 // Sleep for the calculated delay
                 usleep($delay * 1000); // Convert to microseconds
-                
             } catch (Exception $e) {
                 $this->logger->error('[Sandbox][Gateway] Unexpected error when proxying request', [
                     'sandbox_id' => $sandboxId,
@@ -404,83 +401,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 return GatewayResult::error('Unexpected error: ' . $e->getMessage());
             }
         }
-        
+
         // This should never be reached, but just in case
         return GatewayResult::error('Max retries exceeded');
-    }
-
-    /**
-     * Check if the error is retryable.
-     * Retryable errors include timeout, connection errors, and 5xx server errors.
-     */
-    private function isRetryableError(GuzzleException $e): bool
-    {
-        // First, check for specific Guzzle exception types
-        
-        // ConnectException includes all network connection issues (timeouts, DNS errors, etc.)
-        if ($e instanceof \GuzzleHttp\Exception\ConnectException) {
-            return true;
-        }
-        
-        // ServerException for 5xx HTTP errors - these are often temporary
-        if ($e instanceof \GuzzleHttp\Exception\ServerException) {
-            return true;
-        }
-        
-        // For RequestException (parent of many exceptions), check if it has a response
-        if ($e instanceof \GuzzleHttp\Exception\RequestException && $e->hasResponse()) {
-            $statusCode = $e->getResponse()->getStatusCode();
-            
-            // Retry on 5xx server errors
-            if ($statusCode >= 500 && $statusCode < 600) {
-                return true;
-            }
-            
-            // Retry on specific 4xx errors that might be temporary
-            $retryable4xxCodes = [
-                408, // Request Timeout
-                429, // Too Many Requests (rate limiting)
-            ];
-            
-            if (in_array($statusCode, $retryable4xxCodes)) {
-                return true;
-            }
-        }
-        
-        // Fall back to string matching for specific cURL errors (as backup)
-        $errorMessage = $e->getMessage();
-        
-        // Timeout errors
-        if (strpos($errorMessage, 'cURL error 28') !== false) { // Operation timed out
-            return true;
-        }
-        
-        // Connection errors
-        if (strpos($errorMessage, 'cURL error 7') !== false) { // Couldn't connect to host
-            return true;
-        }
-        
-        // Other retryable cURL errors
-        $retryableCurlErrors = [
-            'cURL error 6',  // Couldn't resolve host
-            'cURL error 52', // Empty reply from server  
-            'cURL error 56', // Failure with receiving network data
-            'cURL error 35', // SSL connect error
-        ];
-        
-        foreach ($retryableCurlErrors as $curlError) {
-            if (strpos($errorMessage, $curlError) !== false) {
-                return true;
-            }
-        }
-        
-        // Don't retry on:
-        // - ClientException (4xx errors except 408, 429)
-        // - Authentication errors
-        // - Bad request format errors
-        // - Other non-network related errors
-        
-        return false;
     }
 
     public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir = '.workspace'): GatewayResult
@@ -495,5 +418,79 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+    }
+
+    /**
+     * Check if the error is retryable.
+     * Retryable errors include timeout, connection errors, and 5xx server errors.
+     */
+    private function isRetryableError(GuzzleException $e): bool
+    {
+        // First, check for specific Guzzle exception types
+
+        // ConnectException includes all network connection issues (timeouts, DNS errors, etc.)
+        if ($e instanceof ConnectException) {
+            return true;
+        }
+
+        // ServerException for 5xx HTTP errors - these are often temporary
+        if ($e instanceof ServerException) {
+            return true;
+        }
+
+        // For RequestException (parent of many exceptions), check if it has a response
+        if ($e instanceof RequestException && $e->hasResponse()) {
+            $statusCode = $e->getResponse()->getStatusCode();
+
+            // Retry on 5xx server errors
+            if ($statusCode >= 500 && $statusCode < 600) {
+                return true;
+            }
+
+            // Retry on specific 4xx errors that might be temporary
+            $retryable4xxCodes = [
+                408, // Request Timeout
+                429, // Too Many Requests (rate limiting)
+            ];
+
+            if (in_array($statusCode, $retryable4xxCodes)) {
+                return true;
+            }
+        }
+
+        // Fall back to string matching for specific cURL errors (as backup)
+        $errorMessage = $e->getMessage();
+
+        // Timeout errors
+        if (strpos($errorMessage, 'cURL error 28') !== false) { // Operation timed out
+            return true;
+        }
+
+        // Connection errors
+        if (strpos($errorMessage, 'cURL error 7') !== false) { // Couldn't connect to host
+            return true;
+        }
+
+        // Other retryable cURL errors
+        $retryableCurlErrors = [
+            'cURL error 6',  // Couldn't resolve host
+            'cURL error 52', // Empty reply from server
+            'cURL error 56', // Failure with receiving network data
+            'cURL error 35', // SSL connect error
+        ];
+
+        foreach ($retryableCurlErrors as $curlError) {
+            if (strpos($errorMessage, $curlError) !== false) {
+                return true;
+            }
+        }
+
+        // Don't retry on:
+        // - ClientException (4xx errors except 408, 429)
+        // - Authentication errors
+        // - Bad request format errors
+        // - Other non-network related errors
+
+        return false;
     }
 }
