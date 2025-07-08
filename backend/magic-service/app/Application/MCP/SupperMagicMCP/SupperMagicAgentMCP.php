@@ -15,14 +15,20 @@ use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Core\ValueObject\Page;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
 {
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected MagicUserSettingDomainService $magicUserSettingDomainService,
         protected MCPServerAppService $MCPServerAppService,
         protected TempAuthInterface $tempAuth,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
     }
 
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
@@ -33,9 +39,12 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $currentMcpServers = [];
         $toolMcpServers = [];
 
-        return [
+        $mcpServers = [
             'mcpServers' => array_merge($globalMcpServers, $agentMcpServers, $currentMcpServers, $toolMcpServers),
         ];
+
+        $this->logger->debug('createChatMessageRequestMcpConfig', $mcpServers);
+        return $mcpServers;
     }
 
     private function createGlobalMcpServers(MCPDataIsolation $mcpDataIsolation): array
