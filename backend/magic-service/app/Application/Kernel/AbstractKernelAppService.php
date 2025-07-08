@@ -220,6 +220,10 @@ abstract class AbstractKernelAppService
         if (empty($code)) {
             return Operation::None;
         }
+        // 如果是官方组织下，mcp 的所有人都是管理权限
+        if ($dataIsolation->isOfficialOrganization()) {
+            return Operation::Admin;
+        }
         $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
         return di(OperationPermissionAppService::class)->getOperationByResourceAndUser(
             $permissionDataIsolation,
