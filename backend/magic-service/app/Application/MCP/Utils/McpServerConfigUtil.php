@@ -96,7 +96,7 @@ class McpServerConfigUtil
             $requiredFields = $serviceConfig->getRequireFields();
 
             // Add OAuth2 authentication if available
-            if ($serviceConfig instanceof ExternalSSEServiceConfig && $userSetting->getOauth2AuthResult()?->isValid()) {
+            if ($serviceConfig instanceof ExternalSSEServiceConfig && $userSetting?->getOauth2AuthResult()?->isValid()) {
                 $serviceConfig->addHeader(HeaderConfig::create('Authorization', 'Bearer ' . $userSetting->getOauth2AuthResult()->getAccessToken()));
             }
 
