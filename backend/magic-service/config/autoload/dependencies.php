@@ -26,6 +26,10 @@ use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\HybridSimilar
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\SemanticSimilaritySearchInterface;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCP;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
+use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutorInterface;
+use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
+use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\MagicBotThirdPlatformChatRepositoryInterface;
@@ -272,6 +276,8 @@ $dependencies = [
     AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
     MCPUserSettingRepositoryInterface::class => MCPUserSettingRepository::class,
     SupperMagicAgentMCPInterface::class => SupperMagicAgentMCP::class,
+    ExternalStdioExecutorInterface::class => ExternalStdioExecutor::class,
+    ExternalHttpExecutorInterface::class => ExternalHttpExecutor::class,
 
     // api-key
     ApiKeyProviderRepositoryInterface::class => ApiKeyProviderRepository::class,

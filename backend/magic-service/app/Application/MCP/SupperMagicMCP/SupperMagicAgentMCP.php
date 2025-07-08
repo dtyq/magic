@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace App\Application\MCP\SupperMagicMCP;
 
 use App\Application\MCP\Service\MCPServerAppService;
-use App\Application\MCP\Utils\McpServerConfigUtil;
+use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
@@ -75,7 +75,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 continue;
             }
 
-            $mcpServerConfig = McpServerConfigUtil::create(
+            $mcpServerConfig = MCPServerConfigUtil::create(
                 $mcpDataIsolation,
                 $mcpServer,
                 $localHttpUrl,

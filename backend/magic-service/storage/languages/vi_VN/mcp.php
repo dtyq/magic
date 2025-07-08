@@ -46,6 +46,11 @@ return [
         'not_enabled' => 'Dịch vụ MCP chưa được kích hoạt',
     ],
 
+    // Lỗi liên quan đến máy chủ
+    'server' => [
+        'not_support_check_status' => 'Không hỗ trợ kiểm tra trạng thái máy chủ loại này',
+    ],
+
     // Lỗi quan hệ tài nguyên
     'rel' => [
         'not_found' => 'Không tìm thấy tài nguyên liên quan',
@@ -88,5 +93,16 @@ return [
     'required_fields' => [
         'missing' => 'Thiếu trường bắt buộc: :fields',
         'empty' => 'Trường bắt buộc không được để trống: :fields',
+    ],
+
+    // Lỗi liên quan đến STDIO executor
+    'executor' => [
+        'stdio' => [
+            'connection_failed' => 'Kết nối STDIO executor thất bại',
+            'access_denied' => 'Chức năng STDIO executor tạm thời không được hỗ trợ',
+        ],
+        'http' => [
+            'connection_failed' => 'Kết nối HTTP executor thất bại',
+        ],
     ],
 ];
