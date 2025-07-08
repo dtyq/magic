@@ -16,7 +16,6 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -30,14 +29,19 @@ use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
+use App\Domain\Contact\Entity\MagicUserEntity;
 use function Hyperf\Translation\trans;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 
 /**
  * Handle User Message Application Service
  * Responsible for handling the complete business process of users sending messages to agents.
  */
-class HandleUserMessageAppService extends AbstractAppService
+class HandleApiMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
@@ -49,15 +53,17 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentAppService $agentAppService,
+        private readonly AccessTokenDomainService $accessTokenDomainService,
+        private readonly MagicUserDomainService $userDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
 
-    public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto)
+    public function handleInternalMessage(DataIsolation $dataIsolation, CreateTaskApiRequestDTO $dto)
     {
         // Get topic information
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getChatTopicId());
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getTopicId());
         if (is_null($topicEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
@@ -82,9 +88,9 @@ class HandleUserMessageAppService extends AbstractAppService
             $this->clientMessageAppService->sendInterruptMessageToClient(
                 topicId: $topicEntity->getId(),
                 taskId: $topicEntity->getCurrentTaskId() ?? '0',
-                chatTopicId: $dto->getChatTopicId(),
-                chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+                chatTopicId: $dto->getTopicId(),
+                chatConversationId: $dto->getConversationId(),
+                interruptReason: $dto->getPrompt() ?: trans('agent.agent_stopped')
             );
         }
     }
@@ -92,7 +98,7 @@ class HandleUserMessageAppService extends AbstractAppService
     * user send message to agent
     */
 
-    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
+    public function handleApiMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
     {
         $topicId = 0;
         $taskId = '';
@@ -103,7 +109,6 @@ class HandleUserMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
-            $agentMode = ! empty($topicEntity->getTopicMode()) ? $topicEntity->getTopicMode()->value : $userMessageDTO->getTopicMode()->value;
 
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
@@ -131,13 +136,13 @@ class HandleUserMessageAppService extends AbstractAppService
             ];
 
             $taskEntity = TaskEntity::fromArray($data);
-
             // Initialize task
             $taskEntity = $this->taskDomainService->initTopicTask(
                 dataIsolation: $dataIsolation,
                 topicEntity: $topicEntity,
                 taskEntity: $taskEntity
             );
+
             $taskId = (string) $taskEntity->getId();
 
             // Save user information
@@ -153,7 +158,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
-                agentMode: $agentMode,
+                agentMode: $userMessageDTO->getTopicMode()->value,
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -170,34 +175,31 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // Send error message directly to client
-            $this->clientMessageAppService->sendErrorMessageToClient(
-                topicId: $topicId,
-                taskId: $taskId,
-                chatTopicId: $userMessageDTO->getChatTopicId(),
-                chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: $e->getMessage()
-            );
+            // $this->clientMessageAppService->sendErrorMessageToClient(
+            //     topicId: $topicId,
+            //     taskId: $taskId,
+            //     chatTopicId: $userMessageDTO->getChatTopicId(),
+            //     chatConversationId: $userMessageDTO->getChatConversationId(),
+            //     errorMessage: $e->getMessage()
+            // );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
-            //            $text = json_encode([
-            //                'code' => $e->getCode(),
-            //                'message' => get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
-            //            ], JSON_THROW_ON_ERROR);
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
-                $e->getLine()
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
-            $this->clientMessageAppService->sendErrorMessageToClient(
-                topicId: $topicId,
-                taskId: $taskId,
-                chatTopicId: $userMessageDTO->getChatTopicId(),
-                chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: trans('task.initialize_error'),
-            );
+            // $this->clientMessageAppService->sendErrorMessageToClient(
+            //     topicId: $topicId,
+            //     taskId: $taskId,
+            //     chatTopicId: $userMessageDTO->getChatTopicId(),
+            //     chatConversationId: $userMessageDTO->getChatConversationId(),
+            //     errorMessage: trans('agent.initialize_error')
+            // );
             throw new BusinessException('Initialize task failed', 500);
         }
     }
@@ -295,7 +297,6 @@ class HandleUserMessageAppService extends AbstractAppService
             receiverUid: $userMessageDTO->getAgentUserId(),
             messageType: 'chat',
             content: $taskEntity->getPrompt(),
-            rawContent: $userMessageDTO->getRawContent() ?? '',
             status: null,
             steps: null,
             tool: null,
@@ -314,5 +315,24 @@ class HandleUserMessageAppService extends AbstractAppService
         // Process user uploaded attachments
         $attachmentsStr = $userMessageDTO->getAttachments();
         $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
+    }
+
+    public function getUserAuthorization(string $apiKey,string $uid=""):MagicUserEntity
+    {
+        $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
+        if (empty($accessToken)) {
+            throw new \Exception('Access token not found');
+        }
+
+        if(empty($uid)){
+            if ($accessToken->getType() === AccessTokenType::Application->value) {
+                $uid=$accessToken->getCreator();
+            }else{
+                $uid=$accessToken->getRelationId();
+            }
+        }
+
+        $userEntity = $this->userDomainService->getByUserId($uid);
+        return $userEntity;
     }
 }

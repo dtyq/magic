@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 
 class TaskMessageEntity extends AbstractEntity
 {
@@ -313,5 +314,32 @@ class TaskMessageEntity extends AbstractEntity
         return array_filter($result, function ($value) {
             return $value !== null;
         });
+    }
+
+    public  static function taskMessageDTOToTaskMessageEntity(TaskMessageDTO $taskMessageDTO): TaskMessageEntity
+    {
+        $messageData = [
+            'task_id' => $taskMessageDTO->getTaskId(),
+            'sender_type' => $taskMessageDTO->getRole(),
+            'sender_uid' => $taskMessageDTO->getSenderUid(),
+            'receiver_uid' => $taskMessageDTO->getReceiverUid(),
+            'type' => $taskMessageDTO->getMessageType(),
+            'content' => $taskMessageDTO->getContent(),
+            'status' => $taskMessageDTO->getStatus(),
+            'steps' => $taskMessageDTO->getSteps(),
+            'tool' => $taskMessageDTO->getTool(),
+            'attachments' => $taskMessageDTO->getAttachments(),
+            'mentions' => $taskMessageDTO->getMentions(),
+            'topic_id' => $taskMessageDTO->getTopicId(),
+            'event' => $taskMessageDTO->getEvent(),
+            'show_in_ui' => $taskMessageDTO->isShowInUi(),
+        ];
+
+         // Add message_id if provided
+         if ($taskMessageDTO->getMessageId() !== null) {
+            $messageData['message_id'] = $taskMessageDTO->getMessageId();
+        }
+
+        return new TaskMessageEntity($messageData);
     }
 }

@@ -144,6 +144,34 @@ class TaskEntity extends AbstractEntity
         });
     }
 
+     /**
+     * Create DTO from array.
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self([
+            'id' => $data['id'] ?? $data['Id'] ?? 0,
+            'user_id' => $data['user_id'] ?? $data['userId'] ?? '',
+            'workspace_id' => $data['workspace_id'] ?? $data['workspaceId'] ?? 0,
+            'project_id' => $data['project_id'] ?? $data['projectId'] ?? 0,
+            'topic_id' => $data['topic_id'] ?? $data['topicId'] ?? 0,
+            'task_id' => $data['task_id'] ?? $data['taskId'] ?? '',
+            'sandbox_id' => $data['sandbox_id'] ?? $data['sandboxId'] ?? '',
+            'prompt' => $data['prompt'] ?? '',
+            'attachments' => $data['attachments'] ?? '',
+            'mentions' => $data['mentions'] ?? null,
+            'task_status' => $data['task_status'] ?? $data['taskStatus'] ?? TaskStatus::WAITING->value,
+            'work_dir' => $data['work_dir'] ?? $data['workDir'] ?? '',
+            'task_mode' => $data['task_mode'] ?? $data['taskMode'] ?? 'chat',
+            'err_msg' => $data['err_msg'] ?? $data['errMsg'] ?? null,
+            'conversation_id' => $data['conversation_id'] ?? $data['conversationId'] ?? null,
+            'created_at' => $data['created_at'] ?? $data['createdAt'] ?? null,
+            'updated_at' => $data['updated_at'] ?? $data['updatedAt'] ?? null,
+            'deleted_at' => $data['deleted_at'] ?? $data['deletedAt'] ?? null
+        ]);
+    }
+
+
     public function getId(): int
     {
         return $this->id;
