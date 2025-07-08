@@ -61,6 +61,7 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
         }
 
         $mcpDataIsolation = $this->createMCPDataIsolation($authorization);
+        $mcpDataIsolation->disabled();
 
         // Get MCP server configuration
         $mcpServer = $this->mcpServerDomainService->getByCode($mcpDataIsolation, $mcpServerCode);
@@ -133,10 +134,8 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
         }
 
         $dataIsolation = $this->createMCPDataIsolation($authorization);
+        $dataIsolation->disabled();
         $userId = $authorization->getId();
-
-        // Get MCP server configuration
-        $mcpServer = $this->mcpServerDomainService->getByCode($dataIsolation, $mcpServerCode);
 
         // Get user setting
         $userSetting = $this->mcpUserSettingDomainService->getByUserAndMcpServer($dataIsolation, $userId, $mcpServerCode);
