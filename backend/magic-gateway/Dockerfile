@@ -41,12 +41,10 @@ RUN apk add --no-cache tzdata && \
     apk del tzdata
 
 # 环境变量
-ENV PORT=8000
 ENV MAGIC_GATEWAY_ENV=dev
 ENV MAGIC_GATEWAY_DEBUG=false
 
-# 暴露端口
-EXPOSE 8000
+
 
 # 添加健康检查
 #HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
