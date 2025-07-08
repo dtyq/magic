@@ -3,6 +3,8 @@ import type { ErrorType } from "./error"
 import type { Kodo } from "./Kodo"
 import type { Local } from "./Local"
 import type { Method } from "./request"
+import type { TOS } from "./TOS"
+import type { OBS } from "./OBS"
 
 /** 请求类型 */
 export type MethodType = Method
@@ -87,19 +89,37 @@ export interface UploadCommonOption {
 }
 
 /**
+ * @description: 自定义上传凭证配置
+ * @param platform 平台类型
+ * @param credentials 凭证信息
+ * @param expire 过期时间戳（可选）
+ */
+export interface CustomCredentials {
+	platform: PlatformType
+	credentials: PlatformParams
+	expire?: number
+}
+
+/**
  * @description: 上传配置，需开发者配置请求上传凭证配置，由SDK内部帮助处理上传请求
- * @param url  请求上传凭证-url
- * @param method 请求上传凭证-请求方法
- * @param headers 请求上传凭证-请求头
- * @param body 请求上传凭证-请求体
+ * @param url  请求上传凭证-url（自定义凭证时可选）
+ * @param method 请求上传凭证-请求方法（自定义凭证时可选）
+ * @param headers 请求上传凭证-请求头（自定义凭证时可选）
+ * @param body 请求上传凭证-请求体（自定义凭证时可选）
  * @param {File | Blob} file 需要上传的文件
  * @param fileName 文件名
  * @param option 上传可选配置
+ * @param customCredentials 自定义上传凭证（可选，提供此参数时会跳过凭证请求）
  */
-export interface UploadConfig extends Request {
+export interface UploadConfig {
+	url?: string
+	method?: Method
+	headers?: Record<string, string>
+	body?: any
 	file: File | Blob
 	fileName: string
 	option?: UploadConfigOption
+	customCredentials?: CustomCredentials
 }
 
 /** 上传回调 */
@@ -136,7 +156,15 @@ export enum PlatformType {
 }
 
 /** 聚合平台参数 */
-export type PlatformParams = OSS.AuthParams | OSS.STSAuthParams | Kodo.AuthParams | Local.AuthParams
+export type PlatformParams =
+	| OSS.AuthParams
+	| OSS.STSAuthParams
+	| Kodo.AuthParams
+	| Local.AuthParams
+	| TOS.AuthParams
+	| TOS.STSAuthParams
+	| OBS.AuthParams
+	| OBS.STSAuthParams
 
 /** 请求临时凭证，返回数据模板 */
 export interface UploadSource<T extends PlatformParams> {

@@ -99,10 +99,25 @@ export class Upload {
 	 * @return {UploadCallBack} uploadCallBack 上传回调
 	 */
 	public upload(uploadConfig: UploadConfig): UploadCallBack {
-		const { url, method, file, option } = uploadConfig
-		if (!url || !method) {
+		const { url, method, file, option, customCredentials } = uploadConfig
+
+		// 验证参数：如果没有提供自定义凭证，则必须提供url和method
+		if (!customCredentials && (!url || !method)) {
 			throw new InitException(InitExceptionCode.MISSING_PARAMS_FOR_UPLOAD, "url", "method")
 		}
+
+		// 如果提供了自定义凭证，验证凭证参数
+		if (customCredentials) {
+			const { platform, credentials } = customCredentials
+			if (!platform || !credentials) {
+				throw new InitException(
+					InitExceptionCode.MISSING_PARAMS_FOR_UPLOAD,
+					"platform",
+					"credentials",
+				)
+			}
+		}
+
 		// 处理文件名
 		const { rewriteFileName } = option || {}
 		if (rewriteFileName) {

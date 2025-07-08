@@ -34,7 +34,11 @@ class NoCache implements CacheInterface
 
     public function getMultiple(iterable $keys, mixed $default = null): iterable
     {
-        // TODO: Implement getMultiple() method.
+        $result = [];
+        foreach ($keys as $key) {
+            $result[$key] = $default;
+        }
+        return $result;
     }
 
     public function setMultiple(iterable $values, null|DateInterval|int $ttl = null): bool

@@ -13,7 +13,6 @@ use Dtyq\FlowExprEngine\Kernel\Utils\AesUtil;
 use Dtyq\FlowExprEngine\Kernel\Utils\Functions;
 use Dtyq\FlowExprEngine\Structure\Expression\ExpressionDataSource\ExpressionDataSourceFields;
 use Dtyq\FlowExprEngine\Structure\Expression\Value;
-use Dtyq\FlowExprEngine\Structure\Expression\ValueType;
 use Dtyq\FlowExprEngine\Structure\Structure;
 use Dtyq\FlowExprEngine\Structure\StructureType;
 
@@ -219,11 +218,8 @@ class Form extends Structure
         }
         // 如果是数组要设置value，那么应该检测一下value是否满足条件: 将只允许填写expression并且只有一个fields字段
         if ($this->getType()->isComplex()) {
-            if ($value->getType() !== ValueType::Expression) {
-                throw new FlowExprEngineException("[{$this->key}] 使用表达式来作为数组或对象的值，只允许传入表达式");
-            }
-            if (! $value->expressionIsOnlyFields()) {
-                throw new FlowExprEngineException("[{$this->key}] 使用表达式来作为数组或对象的值，必须以表达式开头");
+            if (! $value->expressionIsOnlyFields() && ! $value->expressionIsOnlyMethod()) {
+                throw new FlowExprEngineException("[{$this->key}] 使用表达式来作为数组或对象的值，必须以表达式或函数开头");
             }
             $this->value = $value;
         }

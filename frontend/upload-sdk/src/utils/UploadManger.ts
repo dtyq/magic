@@ -17,6 +17,7 @@ import type {
 	TaskCallBack,
 	TaskId,
 	UploadSource,
+	UploadConfig,
 } from "../types"
 import type { OSS } from "../types/OSS"
 import type { ErrorType } from "../types/error"
@@ -72,7 +73,7 @@ export class UploadManger {
 	public createTask(
 		file: File | Blob,
 		key: string,
-		uploadSourceRequest: Request,
+		uploadConfig: UploadConfig,
 		option: PlatformMultipartUploadOption | PlatformSimpleUploadOption,
 	): TaskCallBack {
 		let taskId = nanoid()
@@ -89,7 +90,7 @@ export class UploadManger {
 					logPubSub.report({
 						type: "SUCCESS",
 						eventName: "upload",
-						eventParams: { ...uploadSourceRequest },
+						eventParams: { ...uploadConfig },
 						eventResponse: response,
 					})
 					// 移除当前任务的所有回调
@@ -107,7 +108,7 @@ export class UploadManger {
 					logPubSub.report({
 						type: "ERROR",
 						eventName: "upload",
-						eventParams: { ...uploadSourceRequest },
+						eventParams: { ...uploadConfig },
 						error,
 					})
 					// 移除当前任务的所有回调
@@ -169,7 +170,7 @@ export class UploadManger {
 								isPause: false,
 								checkpoint,
 							}
-							this.upload(file, key, taskId, uploadSourceRequest, {
+							this.upload(file, key, taskId, uploadConfig, {
 								...option,
 								checkpoint,
 							})
@@ -193,7 +194,7 @@ export class UploadManger {
 			resume: output.resume,
 		}
 
-		this.upload(file, key, taskId, uploadSourceRequest, option)
+		this.upload(file, key, taskId, uploadConfig, option)
 
 		return {
 			success: output.success,
@@ -209,7 +210,7 @@ export class UploadManger {
 		file: File | Blob,
 		key: string,
 		taskId: TaskId,
-		uploadSourceRequest: Request,
+		uploadConfig: UploadConfig,
 		option: PlatformMultipartUploadOption | PlatformSimpleUploadOption,
 	) {
 		const onProgress: Progress = (
@@ -229,8 +230,26 @@ export class UploadManger {
 				this.notifyProgress(taskId, percent, loaded, total, null)
 			}
 		}
-		const isNeedForceReFresh = !option?.reUploadedCount
-		getUploadConfig<T>(uploadSourceRequest, isNeedForceReFresh)
+		// 处理上传凭证：支持自定义凭证和传统凭证获取
+		const uploadPromise = uploadConfig.customCredentials
+			? Promise.resolve({
+					platform: uploadConfig.customCredentials.platform,
+					temporary_credential: uploadConfig.customCredentials.credentials,
+					expire: uploadConfig.customCredentials.expire || 0,
+			  } as UploadSource<T>)
+			: (() => {
+					const { url, method, headers, body } = uploadConfig
+					const uploadSourceRequest: Request = {
+						url: url!,
+						method: method!,
+						headers,
+						body,
+					}
+					const isNeedForceReFresh = !option?.reUploadedCount
+					return getUploadConfig<T>(uploadSourceRequest, isNeedForceReFresh)
+			  })()
+
+		uploadPromise
 			.then(async (uploadSource: UploadSource<T>) => {
 				const platformType = uploadSource.platform
 				const platformConfig = uploadSource.temporary_credential
@@ -292,7 +311,7 @@ export class UploadManger {
 						)
 						return
 					}
-					this.upload(file, key, taskId, uploadSourceRequest, {
+					this.upload(file, key, taskId, uploadConfig, {
 						...option,
 						reUploadedCount: option?.reUploadedCount ? option.reUploadedCount + 1 : 1,
 					})
