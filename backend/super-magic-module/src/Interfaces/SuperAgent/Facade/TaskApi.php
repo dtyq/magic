@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UserInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateTaskApiResponseDTO;
 
 
 #[ApiResponse('low_code')]
@@ -43,7 +44,8 @@ class TaskApi extends AbstractApi
         protected ProjectAppService $projectAppService,
         protected TopicAppService $topicAppService,
         protected UserDomainService $userDomainService,
-    ) {
+
+        ) {
     }
 
     /**
@@ -185,25 +187,52 @@ class TaskApi extends AbstractApi
         // $requestDTO->setWorkspaceId($workspaceId);
         // $requestDTO->setWorkspaceId($this->initWorkspace($requestContext, $requestDTO));
 
-         //判断工作区是否存在，不存在则初始化工作区
-         $workspaceId = $requestDTO->getWorkspaceId();
 
-         var_dump($workspaceId,"=====");
-         if ($workspaceId > 0) {
-             $workspace = $this->workspaceAppService->getWorkspaceDetail(        $requestContext,    (int)$workspaceId);
-             if (empty($workspace)) {
-                 //抛异常，工作区不存在
-                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
-             }
-         }else{
-             $saveWorkspaceRequestDTO = new SaveWorkspaceRequestDTO();
-             $saveWorkspaceRequestDTO->setWorkspaceName("默认工作区");
-             $workspace = $this->workspaceAppService->createWorkspace($requestContext, $saveWorkspaceRequestDTO);
-             $workspaceId = $workspace->getId();
-         }
 
-         var_dump($workspaceId);
-        //判断项目是否存在，不存在则初始化项目
+        $createTaskApiResponseDTO = new CreateTaskApiResponseDTO();
+        $createTaskApiResponseDTO->setTaskId("123123123");
+        $createTaskApiResponseDTO->setAgentName($requestDTO->getAgentName());
+        $createTaskApiResponseDTO->setToolName($requestDTO->getToolName());
+        $createTaskApiResponseDTO->setCustomName($requestDTO->getCustomName());
+        $createTaskApiResponseDTO->setModelId($requestDTO->getModelId());
+        $createTaskApiResponseDTO->setWorkspaceId($requestDTO->getWorkspaceId());
+        $createTaskApiResponseDTO->setProjectId($requestDTO->getProjectId());
+        $createTaskApiResponseDTO->setProjectMode($requestDTO->getProjectMode());
+        $createTaskApiResponseDTO->setTopicId($requestDTO->getTopicId());
+
+
+        // $requestDTO->setProjectId($this->initProject($requestContext, $requestDTO, $userEntity->getId()));
+
+        // $requestDTO->setTopicId($this->initTopic($requestContext, $requestDTO));
+
+        return [];
+    }
+
+    public function initWorkspace(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO)
+    {
+
+           //判断工作区是否存在，不存在则初始化工作区
+           $workspaceId = $requestDTO->getWorkspaceId();
+           if ($workspaceId > 0) {
+               $workspace = $this->workspaceAppService->getWorkspaceDetail(        $requestContext,    (int)$workspaceId);
+               if (empty($workspace)) {
+                   //抛异常，工作区不存在
+                   ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
+               }
+           }else{
+               $saveWorkspaceRequestDTO = new SaveWorkspaceRequestDTO();
+               $saveWorkspaceRequestDTO->setWorkspaceName("默认工作区");
+               $workspace = $this->workspaceAppService->createWorkspace($requestContext, $saveWorkspaceRequestDTO);
+               $workspaceId = $workspace->getId();
+           }
+
+           $requestDTO->setWorkspaceId($workspaceId);
+    }
+
+
+    public function initProject(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO, string $userId): string
+    {
+                //判断项目是否存在，不存在则初始化项目
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
@@ -225,64 +254,11 @@ class TaskApi extends AbstractApi
             }
         }
 
-
-
-        var_dump($projectId);
-        // $requestDTO->setProjectId($this->initProject($requestContext, $requestDTO, $userEntity->getId()));
-
-        // $requestDTO->setTopicId($this->initTopic($requestContext, $requestDTO));
-
-        return [];
-    }
-
-    // public function initWorkspace(RequestContext $requestContext, CreateTaskApiRequestDTO $requestDTO)
-    // {
-
-    //     //判断工作区是否存在，不存在则初始化工作区
-    //     $workspaceId = $requestDTO->getWorkspaceId();
-    //     if ($workspaceId > 0) {
-    //         $workspace = $this->workspaceAppService->getWorkspaceDetail(        $requestContext,    (int)$workspaceId);
-    //         if (empty($workspace)) {
-    //             //抛异常，工作区不存在
-    //             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
-    //         }
-    //     }else{
-    //         $saveWorkspaceRequestDTO = new SaveWorkspaceRequestDTO();
-    //         $saveWorkspaceRequestDTO->setWorkspaceName("默认工作区");
-    //         $workspace = $this->workspaceAppService->createWorkspace($requestContext, $saveWorkspaceRequestDTO);
-    //         $workspaceId = $workspace->getId();
-    //     }
-
-    //     return $workspaceId;
-    // }
-
-
-    public function initProject(RequestContext $requestContext, CreateTaskApiRequestDTO $requestDTO, string $userId): string
-    {
-              //判断项目是否存在，不存在则初始化项目
-              $projectId = $requestDTO->getProjectId();
-
-              if ($projectId > 0) {
-                  $project = $this->projectAppService->getProject((int)$projectId, $userId);
-                  if (empty($project)) {
-                      //抛异常，项目不存在
-                      ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
-                  }
-              }else{
-                  $saveProjectRequestDTO = new CreateProjectRequestDTO();
-                  $saveProjectRequestDTO->setProjectName("默认项目");
-                  $project = $this->projectAppService->createProject($requestContext, $saveProjectRequestDTO);
-                  if(!empty($project['project'])){
-                    $projectId = $project['project']['id'];
-                  }else{
-                    ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
-                  }
-              }
-              return $projectId;
+        $requestDTO->setProjectId($projectId);
     }
 
 
-    public function initTopic(RequestContext $requestContext, CreateTaskApiRequestDTO $requestDTO): string
+    public function initTopic(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO): string
     {
         //判断话题是否存在，不存在则初始化话题
         $topicId = $requestDTO->getTopicId();
@@ -304,7 +280,7 @@ class TaskApi extends AbstractApi
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
         }
-        return $topicId;
+        $requestDTO->setTopicId($topicId);
     }
 
 }
