@@ -89,7 +89,7 @@ class AgentAppService extends AbstractKernelAppService
             'sandbox_id' => $sandboxID,
         ]);
 
-        return $result->getData()['sandbox_id'];
+        return $result->getDataValue('sandbox_id');
     }
 
     /**

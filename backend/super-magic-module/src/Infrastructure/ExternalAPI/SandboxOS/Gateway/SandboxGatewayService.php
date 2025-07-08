@@ -46,6 +46,14 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
 
             $responseData = json_decode($response->getBody()->getContents(), true);
+
+            // 添加调试日志，打印原始API响应数据
+            $this->logger->info('[Sandbox][Gateway] Raw API response data', [
+                'response_data' => $responseData,
+                'json_last_error' => json_last_error(),
+                'json_last_error_msg' => json_last_error_msg(),
+            ]);
+
             $result = GatewayResult::fromApiResponse($responseData ?? []);
 
             if ($result->isSuccess()) {
