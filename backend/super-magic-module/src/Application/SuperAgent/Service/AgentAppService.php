@@ -81,7 +81,7 @@ class AgentAppService
             'sandbox_id' => $sandboxID,
         ]);
 
-        return $result->getData()['sandbox_id'];
+        return $result->getDataValue('sandbox_id');
     }
 
     /**
