@@ -70,7 +70,7 @@ abstract class AbstractServiceConfig extends AbstractValueObject implements Serv
             $placeholder = $matches[1];
 
             // Check if placeholder contains default value (field_name|default_value)
-            if (strpos($placeholder, '|') !== false) {
+            if (str_contains($placeholder, '|')) {
                 [$fieldName, $defaultValue] = explode('|', $placeholder, 2);
 
                 // Use provided value if exists, otherwise use default value

@@ -15,6 +15,7 @@ return [
         'command' => 'Lệnh',
         'arguments' => 'Tham số',
         'headers' => 'Tiêu đề',
+        'env' => 'Biến Môi trường',
         'oauth2_config' => 'Cấu hình OAuth2',
         'client_id' => 'ID Khách hàng',
         'client_secret' => 'Mật khẩu Khách hàng',

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Domain\MCP;
 
 use App\Domain\MCP\Constant\ServiceConfigAuthType;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\EnvConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStdioServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStreamableHttpServiceConfig;
@@ -133,13 +134,32 @@ class ServiceConfigTest extends BaseTest
         $config->setCommand('npx');
         $config->setArguments(['--key', 'value', '--flag']);
 
+        // Test env setter/getter
+        $env = [
+            EnvConfig::create('API_KEY', '${api_key}'),
+            EnvConfig::create('DATABASE_URL', 'postgres://localhost:5432/${db_name}'),
+        ];
+        $config->setEnv($env);
+
         $this->assertEquals('npx', $config->getCommand());
         $this->assertEquals(['--key', 'value', '--flag'], $config->getArguments());
+        $this->assertEquals($env, $config->getEnv());
+
+        // Test getEnvArray
+        $envArray = $config->getEnvArray();
+        $this->assertEquals([
+            'API_KEY' => '${api_key}',
+            'DATABASE_URL' => 'postgres://localhost:5432/${db_name}',
+        ], $envArray);
 
         // Test toArray
         $expected = [
             'command' => 'npx',
             'arguments' => ['--key', 'value', '--flag'],
+            'env' => [
+                ['key' => 'API_KEY', 'value' => '${api_key}'],
+                ['key' => 'DATABASE_URL', 'value' => 'postgres://localhost:5432/${db_name}'],
+            ],
         ];
         $this->assertEquals($expected, $config->toArray());
 
@@ -148,19 +168,32 @@ class ServiceConfigTest extends BaseTest
         $this->assertEquals('npx', $fromArray->getCommand());
         $this->assertEquals(['--key', 'value', '--flag'], $fromArray->getArguments());
 
+        // Test env is properly loaded
+        $loadedEnv = $fromArray->getEnv();
+        $this->assertCount(2, $loadedEnv);
+        $this->assertInstanceOf(EnvConfig::class, $loadedEnv[0]);
+        $this->assertEquals('API_KEY', $loadedEnv[0]->getKey());
+        $this->assertEquals('${api_key}', $loadedEnv[0]->getValue());
+
         // Test validate - valid case
         $config->validate();
 
-        // Test getRequireFields with dynamic fields in arguments only
+        // Test getRequireFields with dynamic fields in arguments and env
         $configWithDynamicFields = ExternalStdioServiceConfig::fromArray([
             'command' => 'npx',
             'arguments' => ['--key', '${config_key}', '--path', '/tmp/${temp_dir}'],
+            'env' => [
+                ['key' => 'API_KEY', 'value' => '${api_key}'],
+                ['key' => 'SECRET', 'value' => '${secret_value}'],
+            ],
         ]);
 
         $requiredFields = $configWithDynamicFields->getRequireFields();
         $this->assertContains('config_key', $requiredFields);
         $this->assertContains('temp_dir', $requiredFields);
-        $this->assertCount(2, $requiredFields);
+        $this->assertContains('api_key', $requiredFields);
+        $this->assertContains('secret_value', $requiredFields);
+        $this->assertCount(4, $requiredFields);
 
         // Test validate - invalid case (empty command)
         $invalidConfig = new ExternalStdioServiceConfig();
@@ -494,14 +527,30 @@ class ServiceConfigTest extends BaseTest
         $stdioConfig->setCommand('npx');
         $stdioConfig->setArguments(['script.py', '--param', '${user_id}', '--token', '${api_token}']);
 
+        // Test env replacement
+        $env = [
+            EnvConfig::create('API_KEY', '${api_key}'),
+            EnvConfig::create('DATABASE_URL', 'postgres://localhost:5432/${db_name}'),
+            EnvConfig::create('STATIC_VALUE', 'unchanged'),
+        ];
+        $stdioConfig->setEnv($env);
+
         $result = $stdioConfig->replaceRequiredFields([
             'user_id' => '12345',
             'api_token' => 'secret123',
+            'api_key' => 'sk-1234567890',
+            'db_name' => 'production_db',
         ]);
 
         $this->assertSame($stdioConfig, $result); // Same instance returned
         $this->assertEquals('npx', $stdioConfig->getCommand());
         $this->assertEquals(['script.py', '--param', '12345', '--token', 'secret123'], $stdioConfig->getArguments());
+
+        // Test env replacement through getEnvArray
+        $envArray = $stdioConfig->getEnvArray();
+        $this->assertEquals('sk-1234567890', $envArray['API_KEY']);
+        $this->assertEquals('postgres://localhost:5432/production_db', $envArray['DATABASE_URL']);
+        $this->assertEquals('unchanged', $envArray['STATIC_VALUE']);
 
         // Test SSEServiceConfig
         $sseConfig = new SSEServiceConfig();
