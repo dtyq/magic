@@ -10,6 +10,7 @@ namespace App\Application\MCP\Service;
 use App\Application\MCP\Utils\McpServerConfigUtil;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\MCP\Entity\MCPServerEntity;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
@@ -90,9 +91,13 @@ class MCPServerAppService extends AbstractMCPAppService
     /**
      * @return array{total: int, list: array<MCPServerEntity>}
      */
-    public function availableQueries(Authenticatable $authorization, MCPServerQuery $query, Page $page): array
+    public function availableQueries(Authenticatable|MCPDataIsolation $authorization, MCPServerQuery $query, Page $page): array
     {
-        $dataIsolation = $this->createMCPDataIsolation($authorization);
+        if ($authorization instanceof MCPDataIsolation) {
+            $dataIsolation = $authorization;
+        } else {
+            $dataIsolation = $this->createMCPDataIsolation($authorization);
+        }
 
         // 官方数据和组织内的，一并查询
         $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
