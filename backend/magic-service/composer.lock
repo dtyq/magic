@@ -2320,16 +2320,16 @@
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.5",
+            "version": "0.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "444e7aa6012f608e860cbd76afc650e8d850d824"
+                "reference": "8e9b2b111d10347f96accfa9a99e3d551fc31aed"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/444e7aa6012f608e860cbd76afc650e8d850d824",
-                "reference": "444e7aa6012f608e860cbd76afc650e8d850d824",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/8e9b2b111d10347f96accfa9a99e3d551fc31aed",
+                "reference": "8e9b2b111d10347f96accfa9a99e3d551fc31aed",
                 "shasum": ""
             },
             "require": {
@@ -2378,9 +2378,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.5"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.6"
             },
-            "time": "2025-07-05T10:17:40+00:00"
+            "time": "2025-07-08T13:03:52+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -6383,16 +6383,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.22",
+            "version": "v1.1.24",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "70a19b3ae2b8797995f5b194509bd428ce133f10"
+                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=70a19b3ae2b8797995f5b194509bd428ce133f10",
-                "reference": "70a19b3ae2b8797995f5b194509bd428ce133f10",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=d2d03eaf4b08e9f58a445808efafd61471e21dc6",
+                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6",
                 "shasum": ""
             },
             "require": {
@@ -6457,9 +6457,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.22"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.24"
             },
-            "time": "2025-07-06T06:33:07+00:00"
+            "time": "2025-07-08T12:52:41+00:00"
         },
         {
             "name": "hyperf/phar",
