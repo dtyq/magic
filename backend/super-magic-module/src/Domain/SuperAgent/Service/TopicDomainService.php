@@ -39,9 +39,9 @@ class TopicDomainService
         return $topic->getSandboxId();
     }
 
-    public function updateTopicStatus(int $id, int $taskId, TaskStatus $taskStatus): bool
+    public function updateTopicStatus(int $id, int $taskId, string $sandboxId, TaskStatus $taskStatus): bool
     {
-        return $this->topicRepository->updateTopicStatus($id, $taskId, $taskStatus);
+        return $this->topicRepository->updateTopicStatus($id, $taskId, $sandboxId, $taskStatus);
     }
 
     /**
