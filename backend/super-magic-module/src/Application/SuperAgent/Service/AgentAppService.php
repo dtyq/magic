@@ -66,6 +66,20 @@ class AgentAppService
 
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
+        // 添加详细的调试日志，检查 result 对象
+        $this->logger->info('[Sandbox][App] Gateway result analysis', [
+            'result_class' => get_class($result),
+            'result_is_success' => $result->isSuccess(),
+            'result_code' => $result->getCode(),
+            'result_message' => $result->getMessage(),
+            'result_data_raw' => $result->getData(),
+            'result_data_type' => gettype($result->getData()),
+            'result_data_count' => is_array($result->getData()) ? count($result->getData()) : 'not_array',
+            'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
+            'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
+            'all_data_keys' => is_array($result->getData()) ? array_keys($result->getData()) : 'not_array',
+        ]);
+
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
                 'project_id' => $projectId,
@@ -78,7 +92,8 @@ class AgentAppService
 
         $this->logger->info('[Sandbox][App] Create sandbox success', [
             'project_id' => $projectId,
-            'sandbox_id' => $sandboxID,
+            'input_sandbox_id' => $sandboxID,
+            'returned_sandbox_id' => $result->getDataValue('sandbox_id'),
         ]);
 
         return $result->getDataValue('sandbox_id');

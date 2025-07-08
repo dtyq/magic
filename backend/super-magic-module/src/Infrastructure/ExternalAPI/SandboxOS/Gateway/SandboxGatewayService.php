@@ -56,6 +56,20 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
             $result = GatewayResult::fromApiResponse($responseData ?? []);
 
+            // 添加详细的调试日志，检查 GatewayResult 对象
+            $this->logger->info('[Sandbox][Gateway] GatewayResult object analysis', [
+                'result_class' => get_class($result),
+                'result_is_success' => $result->isSuccess(),
+                'result_code' => $result->getCode(),
+                'result_message' => $result->getMessage(),
+                'result_data_raw' => $result->getData(),
+                'result_data_type' => gettype($result->getData()),
+                'result_data_json' => json_encode($result->getData()),
+                'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
+                'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
+                'data_keys' => is_array($result->getData()) ? array_keys($result->getData()) : 'not_array',
+            ]);
+
             if ($result->isSuccess()) {
                 $sandboxId = $result->getDataValue('sandbox_id');
                 $this->logger->info('[Sandbox][Gateway] Sandbox created successfully', [
