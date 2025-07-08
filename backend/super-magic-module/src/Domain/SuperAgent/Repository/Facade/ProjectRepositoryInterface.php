@@ -24,6 +24,8 @@ interface ProjectRepositoryInterface
      */
     public function save(ProjectEntity $project): ProjectEntity;
 
+    public function create(ProjectEntity $project): ProjectEntity;
+
     /**
      * 删除项目（软删除）.
      */

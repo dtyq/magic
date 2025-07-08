@@ -32,11 +32,15 @@ class ProjectDomainService
         string $projectName,
         string $userId,
         string $userOrganizationCode,
+        string $projectId = '',
         string $workDir = '',
         ?string $projectMode = null
     ): ProjectEntity {
         $currentTime = date('Y-m-d H:i:s');
         $project = new ProjectEntity();
+        if (! empty($projectId)) {
+            $project->setId((int) $projectId);
+        }
         $project->setUserId($userId)
             ->setUserOrganizationCode($userOrganizationCode)
             ->setWorkspaceId($workspaceId)
@@ -51,7 +55,7 @@ class ProjectDomainService
             ->setCreatedAt($currentTime)
             ->setUpdatedAt($currentTime);
 
-        return $this->projectRepository->save($project);
+        return $this->projectRepository->create($project);
     }
 
     /**
