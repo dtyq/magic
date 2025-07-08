@@ -174,7 +174,7 @@ class TaskApi extends AbstractApi
         }
 
 
-
+        var_dump($apiKey,"=====apiKey");
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
         $userEntity = $this->taskAppService->getUserAuthorization($apiKey,"");
