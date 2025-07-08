@@ -23,6 +23,8 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleApplications;
 
+    protected int $superMagicDisplayState;
+
     public function getModelId(): string
     {
         return $this->modelId;
@@ -32,8 +34,6 @@ class UpdateConsumerModel extends AbstractEntity
     {
         $this->modelId = $modelId;
     }
-
-    protected int $superMagicDisplayState;
 
     public function getName(): string
     {
