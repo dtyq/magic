@@ -26,6 +26,7 @@ use App\Domain\Contact\Entity\ValueObject\DepartmentOption;
 use App\Domain\Contact\Entity\ValueObject\UserOption;
 use App\Domain\Contact\Entity\ValueObject\UserQueryType;
 use App\Domain\Contact\Entity\ValueObject\UserType;
+use App\Domain\Contact\Service\Facade\MagicUserDomainExtendInterface;
 use App\Domain\Contact\Service\MagicAccountDomainService;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
@@ -337,7 +338,8 @@ class MagicUserContactAppService extends AbstractAppService
     public function getUserUpdatePermission(MagicUserAuthorization $userAuthorization): bool
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        return $this->userDomainService->getUserUpdatePermission($dataIsolation);
+        $userDomainExtendService = di(MagicUserDomainExtendInterface::class);
+        return $userDomainExtendService->getUserUpdatePermission($dataIsolation);
     }
 
     /**
@@ -346,7 +348,8 @@ class MagicUserContactAppService extends AbstractAppService
     public function updateUserInfo(MagicUserAuthorization $userAuthorization, UserUpdateDTO $userUpdateDTO): MagicUserEntity
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        $this->userDomainService->updateUserInfo($dataIsolation, $userUpdateDTO);
+        $userDomainExtendService = di(MagicUserDomainExtendInterface::class);
+        $userDomainExtendService->updateUserInfo($dataIsolation, $userUpdateDTO);
         return $this->getByUserId($dataIsolation->getCurrentUserId());
     }
 

@@ -11,5 +11,5 @@ use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 
 interface SupperMagicAgentMCPInterface
 {
-    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = []): ?array;
+    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array;
 }

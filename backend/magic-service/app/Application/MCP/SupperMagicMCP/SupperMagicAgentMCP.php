@@ -25,15 +25,16 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
     ) {
     }
 
-    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = []): ?array
+    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
     {
         $globalMcpServers = $this->createGlobalMcpServers($dataIsolation);
         // todo 自定义 agent、mcp
         $agentMcpServers = [];
         $currentMcpServers = [];
+        $toolMcpServers = [];
 
         return [
-            'mcpServers' => array_merge($globalMcpServers, $agentMcpServers, $currentMcpServers),
+            'mcpServers' => array_merge($globalMcpServers, $agentMcpServers, $currentMcpServers, $toolMcpServers),
         ];
     }
 
