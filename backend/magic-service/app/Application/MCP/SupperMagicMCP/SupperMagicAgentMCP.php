@@ -28,7 +28,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         protected TempAuthInterface $tempAuth,
         LoggerFactory $loggerFactory,
     ) {
-        $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
+        $this->logger = $loggerFactory->get('SupperMagicAgentMCP', 'debug');
     }
 
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
