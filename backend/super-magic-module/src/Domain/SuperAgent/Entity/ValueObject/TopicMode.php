@@ -17,6 +17,7 @@ enum TopicMode: string
     case PPT = 'ppt';                   // PPT模式
     case DATA_ANALYSIS = 'data_analysis'; // 数据分析模式
     case REPORT = 'report';             // 研报模式
+    case MEETING = 'meeting';           // 会议模式
 
     /**
      * Get all available topic modes.
@@ -28,6 +29,7 @@ enum TopicMode: string
             self::PPT->value,
             self::DATA_ANALYSIS->value,
             self::REPORT->value,
+            self::MEETING->value,
         ];
     }
 
@@ -41,6 +43,7 @@ enum TopicMode: string
             self::PPT => 'PPT模式',
             self::DATA_ANALYSIS => '数据分析模式',
             self::REPORT => '研报模式',
+            self::MEETING => '会议模式',
         };
     }
 }
