@@ -1117,6 +1117,68 @@ class ServiceProviderDomainService
     }
 
     /**
+     * Get super magic display models and Magic provider models visible to current organization.
+     * @param string $organizationCode Organization code
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    {
+        // 1. Get models with super magic display state enabled
+        $superMagicModels = $this->serviceProviderModelsRepository->getSuperMagicDisplayModelsForOrganization($organizationCode);
+
+        // 2. Get all models under Magic service provider for current organization
+        $magicServiceProvider = $this->serviceProviderRepository->getOfficial(ServiceProviderCategory::LLM);
+        if (! $magicServiceProvider) {
+            return $superMagicModels;
+        }
+
+        // Query service provider configurations by Magic service provider ID and current organization
+        $magicServiceProviderConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
+            [$magicServiceProvider->getId()],
+            $organizationCode
+        );
+
+        $magicModels = [];
+        foreach ($magicServiceProviderConfigs as $config) {
+            // Get all models under this service provider configuration (without status restriction)
+            $models = $this->serviceProviderModelsRepository->getModelStatusByServiceProviderConfigIdAndOrganizationCode(
+                (string) $config->getId(),
+                $organizationCode
+            );
+
+            // Add all models, filter by visible organizations later
+            foreach ($models as $model) {
+                $magicModels[] = $model;
+            }
+        }
+
+        // 3. Filter Magic provider models by visible organizations
+        $magicModelsEntities = [];
+        foreach ($magicModels as $model) {
+            $visibleOrganizations = $model->getVisibleOrganizations();
+
+            // Only return models when visible organizations is not empty and contains current organization
+            if (! empty($visibleOrganizations) && in_array($organizationCode, $visibleOrganizations)) {
+                $magicModelsEntities[] = $model;
+            }
+        }
+
+        // 4. Merge results and remove duplicates (by model ID)
+        $allModels = array_merge($superMagicModels, $magicModelsEntities);
+        $uniqueModels = [];
+        $modelIds = [];
+
+        foreach ($allModels as $model) {
+            if (! in_array($model->getId(), $modelIds)) {
+                $modelIds[] = $model->getId();
+                $uniqueModels[] = $model;
+            }
+        }
+
+        return $uniqueModels;
+    }
+
+    /**
      * 提取模型的配置ID.
      * @param ServiceProviderModelsEntity[] $models
      * @return array 模型配置ID数组
@@ -1631,6 +1693,7 @@ class ServiceProviderDomainService
             $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
             $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
             $updateConsumerModel->setVisibleApplications($serviceProviderModelsEntity->getVisibleApplications());
+            $updateConsumerModel->setSuperMagicDisplayState($serviceProviderModelsEntity->getSuperMagicDisplayState());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }
