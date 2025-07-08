@@ -176,6 +176,24 @@ class Value extends Structure implements JsonSerializable
         return true;
     }
 
+    public function expressionIsOnlyMethod(): bool
+    {
+        if ($this->getType() !== ValueType::Expression) {
+            return false;
+        }
+        if (! $this->getExpressionValue()) {
+            // 没有值相当于 null
+            return false;
+        }
+        // 只要保证第一个是Method类型即可
+        $firstItem = $this->getExpressionValue()->getItems()[0];
+        if ($firstItem->getType() !== ExpressionType::Method) {
+            return false;
+        }
+        // 这个函数需要是返回的 array
+        return true;
+    }
+
     public function isConstNumber(): bool
     {
         if ($this->getType() !== ValueType::Const) {

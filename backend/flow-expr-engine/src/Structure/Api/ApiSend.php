@@ -98,6 +98,15 @@ class ApiSend
                 $this->options[RequestOptions::HEADERS]['Host'] = $defenseAgainstSSRF->getHost();
             }
 
+            // 解析 url 中的 query 到 query 参数
+            if (isset($this->options[RequestOptions::QUERY])) {
+                $query = parse_url($uri, PHP_URL_QUERY);
+                if ($query) {
+                    parse_str($query, $queryParams);
+                    $this->options[RequestOptions::QUERY] = array_merge($queryParams, $this->options[RequestOptions::QUERY]);
+                }
+            }
+
             $this->request = StandardRequest::make(
                 $this->method,
                 $uri,
