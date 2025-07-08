@@ -15,6 +15,7 @@ return [
         'command' => 'Command',
         'arguments' => 'Arguments',
         'headers' => 'Headers',
+        'env' => 'Environment Variables',
         'oauth2_config' => 'OAuth2 Configuration',
         'client_id' => 'Client ID',
         'client_secret' => 'Client Secret',

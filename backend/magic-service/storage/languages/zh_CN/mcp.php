@@ -15,6 +15,7 @@ return [
         'command' => '命令',
         'arguments' => '参数',
         'headers' => '请求头',
+        'env' => '环境变量',
         'oauth2_config' => 'OAuth2配置',
         'client_id' => '客户端ID',
         'client_secret' => '客户端密钥',

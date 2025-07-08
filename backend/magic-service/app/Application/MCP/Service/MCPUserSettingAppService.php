@@ -32,14 +32,18 @@ class MCPUserSettingAppService extends AbstractMCPAppService
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
 
-        // Check user permission for this MCP server
-        $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
-        $operation->validate('r', $mcpServerCode);
-
         // Validate MCP server exists and user has access
-        $mcpServer = $this->mcpServerDomainService->getByCode($dataIsolation, $mcpServerCode);
+        $allDataIsolation = clone $dataIsolation;
+        $allDataIsolation->disabled();
+        $mcpServer = $this->mcpServerDomainService->getByCode($allDataIsolation, $mcpServerCode);
         if (! $mcpServer) {
             ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $mcpServerCode]);
+        }
+
+        if (! in_array($mcpServer->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes())) {
+            // Check user permission for this MCP server
+            $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
+            $operation->validate('r', $mcpServerCode);
         }
 
         // Get or create user setting

@@ -9,6 +9,7 @@ namespace Test\Cases\Application\MCP\Service;
 
 use App\Domain\MCP\Constant\ServiceConfigAuthType;
 use App\Domain\MCP\Entity\ValueObject\OAuth2AuthResult;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\EnvConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStdioServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\HeaderConfig;
@@ -120,22 +121,26 @@ class MCPServerAppServiceTest extends TestCase
         // Test env getter and setter
         $serviceConfig = new ExternalStdioServiceConfig();
 
-        // Test null by default
-        $this->assertNull($serviceConfig->getEnv());
+        // Test empty array by default
+        $this->assertEquals([], $serviceConfig->getEnv());
 
         // Test setting env variables
         $env = [
-            'API_KEY' => 'test-key',
-            'DATABASE_URL' => 'postgres://localhost/test',
-            'DEBUG' => 'true',
+            EnvConfig::create('API_KEY', 'test-key'),
+            EnvConfig::create('DATABASE_URL', 'postgres://localhost/test'),
+            EnvConfig::create('DEBUG', 'true'),
         ];
 
         $serviceConfig->setEnv($env);
         $this->assertEquals($env, $serviceConfig->getEnv());
 
-        // Test setting null
-        $serviceConfig->setEnv(null);
-        $this->assertNull($serviceConfig->getEnv());
+        // Test getEnvArray method returns associative array
+        $envArray = $serviceConfig->getEnvArray();
+        $this->assertEquals([
+            'API_KEY' => 'test-key',
+            'DATABASE_URL' => 'postgres://localhost/test',
+            'DEBUG' => 'true',
+        ], $envArray);
     }
 
     public function testExternalStdioServiceConfigFromArrayWithEnv()
@@ -145,9 +150,9 @@ class MCPServerAppServiceTest extends TestCase
             'command' => 'npx',
             'arguments' => ['@modelcontextprotocol/server-everything'],
             'env' => [
-                'API_KEY' => '${api_key}',
-                'BASE_URL' => 'https://api.example.com',
-                'USER_ID' => '${user_id}',
+                ['key' => 'API_KEY', 'value' => '${api_key}'],
+                ['key' => 'BASE_URL', 'value' => 'https://api.example.com'],
+                ['key' => 'USER_ID', 'value' => '${user_id}'],
             ],
         ];
 
@@ -155,7 +160,21 @@ class MCPServerAppServiceTest extends TestCase
 
         $this->assertEquals('npx', $serviceConfig->getCommand());
         $this->assertEquals(['@modelcontextprotocol/server-everything'], $serviceConfig->getArguments());
-        $this->assertEquals($data['env'], $serviceConfig->getEnv());
+
+        // Test env is converted to EnvConfig objects
+        $env = $serviceConfig->getEnv();
+        $this->assertCount(3, $env);
+        $this->assertInstanceOf(EnvConfig::class, $env[0]);
+        $this->assertEquals('API_KEY', $env[0]->getKey());
+        $this->assertEquals('${api_key}', $env[0]->getValue());
+
+        // Test getEnvArray returns correct associative array
+        $envArray = $serviceConfig->getEnvArray();
+        $this->assertEquals([
+            'API_KEY' => '${api_key}',
+            'BASE_URL' => 'https://api.example.com',
+            'USER_ID' => '${user_id}',
+        ], $envArray);
     }
 
     public function testExternalStdioServiceConfigToArrayWithEnv()
@@ -166,8 +185,8 @@ class MCPServerAppServiceTest extends TestCase
         $serviceConfig->setArguments(['@modelcontextprotocol/server-everything']);
 
         $env = [
-            'API_KEY' => 'test-key',
-            'BASE_URL' => 'https://api.example.com',
+            EnvConfig::create('API_KEY', 'test-key'),
+            EnvConfig::create('BASE_URL', 'https://api.example.com'),
         ];
         $serviceConfig->setEnv($env);
 
@@ -175,12 +194,12 @@ class MCPServerAppServiceTest extends TestCase
 
         $this->assertEquals('npx', $result['command']);
         $this->assertEquals(['@modelcontextprotocol/server-everything'], $result['arguments']);
-        $this->assertEquals($env, $result['env']);
 
-        // Test with null env
-        $serviceConfig->setEnv(null);
-        $result = $serviceConfig->toArray();
-        $this->assertNull($result['env']);
+        // Test env is serialized as array
+        $this->assertEquals([
+            ['key' => 'API_KEY', 'value' => 'test-key'],
+            ['key' => 'BASE_URL', 'value' => 'https://api.example.com'],
+        ], $result['env']);
     }
 
     public function testExternalStdioServiceConfigToWebArrayWithEnv()
@@ -191,8 +210,8 @@ class MCPServerAppServiceTest extends TestCase
         $serviceConfig->setArguments(['@modelcontextprotocol/server-everything', '--port', '3000']);
 
         $env = [
-            'API_KEY' => 'test-key',
-            'PORT' => '3000',
+            EnvConfig::create('API_KEY', 'test-key'),
+            EnvConfig::create('PORT', '3000'),
         ];
         $serviceConfig->setEnv($env);
 
@@ -200,12 +219,12 @@ class MCPServerAppServiceTest extends TestCase
 
         $this->assertEquals('npx', $result['command']);
         $this->assertEquals('@modelcontextprotocol/server-everything --port 3000', $result['arguments']);
-        $this->assertEquals($env, $result['env']);
 
-        // Test with null env
-        $serviceConfig->setEnv(null);
-        $result = $serviceConfig->toWebArray();
-        $this->assertNull($result['env']);
+        // Test env is serialized as array
+        $this->assertEquals([
+            ['key' => 'API_KEY', 'value' => 'test-key'],
+            ['key' => 'PORT', 'value' => '3000'],
+        ], $result['env']);
     }
 
     public function testExternalStdioServiceConfigRequiredFieldsFromEnv()
@@ -216,10 +235,10 @@ class MCPServerAppServiceTest extends TestCase
         $serviceConfig->setArguments(['@modelcontextprotocol/server-everything', '--api-key', '${api_key}']);
 
         $env = [
-            'API_KEY' => '${api_key}',
-            'DATABASE_URL' => 'postgres://localhost:5432/${database_name}',
-            'USER_TOKEN' => '${user_token}',
-            'STATIC_VALUE' => 'no-placeholder-here',
+            EnvConfig::create('API_KEY', '${api_key}'),
+            EnvConfig::create('DATABASE_URL', 'postgres://localhost:5432/${database_name}'),
+            EnvConfig::create('USER_TOKEN', '${user_token}'),
+            EnvConfig::create('STATIC_VALUE', 'no-placeholder-here'),
         ];
         $serviceConfig->setEnv($env);
 
@@ -240,10 +259,10 @@ class MCPServerAppServiceTest extends TestCase
         $serviceConfig->setArguments(['@modelcontextprotocol/server-everything', '--token', '${access_token}']);
 
         $env = [
-            'API_KEY' => '${api_key}',
-            'DATABASE_URL' => 'postgres://localhost:5432/${database_name}',
-            'USER_ID' => '${user_id}',
-            'STATIC_VALUE' => 'unchanged',
+            EnvConfig::create('API_KEY', '${api_key}'),
+            EnvConfig::create('DATABASE_URL', 'postgres://localhost:5432/${database_name}'),
+            EnvConfig::create('USER_ID', '${user_id}'),
+            EnvConfig::create('STATIC_VALUE', 'unchanged'),
         ];
         $serviceConfig->setEnv($env);
 
@@ -259,12 +278,12 @@ class MCPServerAppServiceTest extends TestCase
         // Check arguments replacement
         $this->assertEquals('token-abc123', $updatedConfig->getArguments()[2]);
 
-        // Check env replacement
-        $updatedEnv = $updatedConfig->getEnv();
-        $this->assertEquals('sk-1234567890', $updatedEnv['API_KEY']);
-        $this->assertEquals('postgres://localhost:5432/test_db', $updatedEnv['DATABASE_URL']);
-        $this->assertEquals('user-123', $updatedEnv['USER_ID']);
-        $this->assertEquals('unchanged', $updatedEnv['STATIC_VALUE']);
+        // Check env replacement through getEnvArray
+        $updatedEnvArray = $updatedConfig->getEnvArray();
+        $this->assertEquals('sk-1234567890', $updatedEnvArray['API_KEY']);
+        $this->assertEquals('postgres://localhost:5432/test_db', $updatedEnvArray['DATABASE_URL']);
+        $this->assertEquals('user-123', $updatedEnvArray['USER_ID']);
+        $this->assertEquals('unchanged', $updatedEnvArray['STATIC_VALUE']);
     }
 
     public function testExternalStdioServiceConfigWithEmptyEnv()
@@ -287,5 +306,6 @@ class MCPServerAppServiceTest extends TestCase
 
         $this->assertEquals('test-key', $updatedConfig->getArguments()[2]);
         $this->assertEquals([], $updatedConfig->getEnv());
+        $this->assertEquals([], $updatedConfig->getEnvArray());
     }
 }

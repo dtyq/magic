@@ -72,7 +72,7 @@ class MCPServerConfigUtil
                     name: $MCPServerEntity->getName(),
                     command: $serviceConfig->getCommand(),
                     args: $serviceConfig->getArguments(),
-                    env: $serviceConfig->getEnv() ?? [],
+                    env: $serviceConfig->getEnvArray(),
                 );
             default:
                 return null;

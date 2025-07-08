@@ -15,6 +15,7 @@ return [
         'command' => 'คำสั่ง',
         'arguments' => 'อาร์กิวเมนต์',
         'headers' => 'ส่วนหัว',
+        'env' => 'ตัวแปรสภาพแวดล้อม',
         'oauth2_config' => 'การกำหนดค่า OAuth2',
         'client_id' => 'ID ลูกค้า',
         'client_secret' => 'รหัสลับลูกค้า',

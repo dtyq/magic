@@ -15,6 +15,7 @@ return [
         'command' => 'Arahan',
         'arguments' => 'Argumen',
         'headers' => 'Pengepala',
+        'env' => 'Pembolehubah Persekitaran',
         'oauth2_config' => 'Konfigurasi OAuth2',
         'client_id' => 'ID Klien',
         'client_secret' => 'Rahsia Klien',
