@@ -32,6 +32,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
@@ -135,7 +136,39 @@ class TaskAppService extends AbstractAppService
                 instruction: $instruction,
                 taskMode: $taskMode
             );
-            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $userMessageDTO);
+
+            // Get task mode from DTO, fallback to topic's task mode if empty
+            $taskMode = $userMessageDTO->getTaskMode();
+            if ($taskMode === '') {
+                $taskMode = $topicEntity->getTaskMode();
+            }
+            $data=[
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'workspace_id' => $topicEntity->getWorkspaceId(),
+                'project_id' => $topicEntity->getProjectId(),
+                'topic_id' => $topicId,
+                'task_id' => '', // Initially empty, this is agent's task id
+                'task_mode' => $taskMode,
+                'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+                'prompt' => $userMessageDTO->getPrompt(),
+                'attachments' => $userMessageDTO->getAttachments(),
+                'mentions' => $userMessageDTO->getMentions(),
+                'task_status' => TaskStatus::WAITING->value,
+                'work_dir' => $topicEntity->getWorkDir() ?? '',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+            $taskEntity = TaskEntity::fromArray($data);
+
+              // Initialize task
+              $taskEntity = $this->taskDomainService->initTopicTask(
+                  dataIsolation: $dataIsolation,
+                  topicEntity: $topicEntity,
+                  taskEntity: $taskEntity
+              );
+
+            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $taskEntity);
             $taskId = (string) $taskEntity->getId();
 
             // 初始化上下文
@@ -180,7 +213,11 @@ class TaskAppService extends AbstractAppService
                 messageId: null
             );
 
-            $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+
+            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+
+
+            $this->taskDomainService->recordTaskMessage($taskMessageEntity);
             // 处理用户上传的附件
             $this->fileProcessAppService->processInitialAttachments($attachments, $taskEntity, $dataIsolation);
 
@@ -929,7 +966,9 @@ class TaskAppService extends AbstractAppService
                 messageId: $messageId
             );
 
-            $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+
+            $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
             // 5. 发送消息到客户端
             if ($showInUi) {
@@ -1445,25 +1484,5 @@ class TaskAppService extends AbstractAppService
 
         // 创建DTO
         return new TopicTaskMessageDTO($metadata, $payload);
-    }
-
-
-    public function getUserAuthorization(string $apiKey,string $uid=""):MagicUserEntity
-    {
-        $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
-        if (empty($accessToken)) {
-            throw new \Exception('Access token not found');
-        }
-
-        if(empty($uid)){
-            if ($accessToken->getType() === AccessTokenType::Application->value) {
-                $uid=$accessToken->getCreator();
-            }else{
-                $uid=$accessToken->getRelationId();
-            }
-        }
-
-        $userEntity = $this->userDomainService->getByUserId($uid);
-        return $userEntity;
     }
 }

@@ -153,6 +153,16 @@ class CreateTaskApiRequestDTO extends AbstractRequestDTO
         $this->topicId = $topicId;
     }
 
+    public function getConversationId(): string
+    {
+        return $this->conversationId;
+    }
+
+    public function setConversationId(string $conversationId): void
+    {
+        $this->conversationId = $conversationId;
+    }
+
     public function getPrompt(): string
     {
         return $this->prompt;

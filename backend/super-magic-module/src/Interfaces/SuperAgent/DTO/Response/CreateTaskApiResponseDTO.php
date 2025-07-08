@@ -21,6 +21,8 @@ class CreateTaskApiResponseDTO
 
     protected string $topicId = '';
 
+    protected string $conversationId = '';
+
     protected string $taskId = '';
 
 
@@ -107,6 +109,16 @@ class CreateTaskApiResponseDTO
     public function setTaskId(string $taskId): void
     {
         $this->taskId = $taskId;
+    }
+
+    public function getConversationId(): string
+    {
+        return $this->conversationId;
+    }
+
+    public function setConversationId(string $conversationId): void
+    {
+        $this->conversationId = $conversationId;
     }
 
     public function toArray(): array

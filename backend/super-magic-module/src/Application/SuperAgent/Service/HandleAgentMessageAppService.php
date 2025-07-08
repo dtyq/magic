@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -55,6 +56,7 @@ class HandleAgentMessageAppService extends AbstractAppService
     /**
      * Handle Agent Message - Main Entry Point
      * Responsible for overall business process orchestration.
+     * agent send message to user
      */
     public function handleAgentMessage(TopicTaskMessageDTO $messageDTO): void
     {
@@ -349,7 +351,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             messageId: $messageData['messageId']
         );
 
-        $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+        $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+        $this->taskDomainService->recordTaskMessage($taskMessageEntity);
     }
 
     /**
