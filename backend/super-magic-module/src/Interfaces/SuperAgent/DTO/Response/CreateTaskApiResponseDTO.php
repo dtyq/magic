@@ -21,6 +21,8 @@ class CreateTaskApiResponseDTO
 
     protected string $topicId = '';
 
+    protected string $taskId = '';
+
 
       /**
      * 构造函数.
@@ -97,4 +99,24 @@ class CreateTaskApiResponseDTO
         $this->topicId = $topicId;
     }
 
+    public function getTaskId(): string
+    {
+        return $this->taskId;
+    }
+
+    public function setTaskId(string $taskId): void
+    {
+        $this->taskId = $taskId;
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'task_id' => $this->taskId,
+            'workspace_id' => $this->workspaceId,
+            'project_id' => $this->projectId,
+            'project_mode' => $this->projectMode,
+            'topic_id' => $this->topicId,
+        ];
+    }
 }
