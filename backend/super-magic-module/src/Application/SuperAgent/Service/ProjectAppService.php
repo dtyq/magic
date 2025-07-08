@@ -76,6 +76,12 @@ class ProjectAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
         }
 
+        // 如果指定了工作目录，需要从工作目录里提取项目id
+        $projectId = '';
+        if (! empty($requestDTO->getWorkDir()) && WorkDirectoryUtil::isValidWorkDirectory($requestDTO->getWorkDir(), $dataIsolation->getCurrentUserId())) {
+            $projectId = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($requestDTO->getWorkDir(), $dataIsolation->getCurrentUserId());
+        }
+
         Db::beginTransaction();
         try {
             // 创建默认项目
@@ -85,6 +91,7 @@ class ProjectAppService extends AbstractAppService
                 $requestDTO->getProjectName(),
                 $dataIsolation->getCurrentUserId(),
                 $dataIsolation->getCurrentOrganizationCode(),
+                $projectId,
                 '',
                 $requestDTO->getProjectMode() ?: null
             );

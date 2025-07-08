@@ -75,7 +75,7 @@ class StdoutLogger implements StdoutLoggerInterface
      */
     public function log($level, $message, array $context = []): void
     {
-        if (! $level->includes($this->minLevel)) {
+        if (! $this->minLevel->includes($level)) {
             return;
         }
 

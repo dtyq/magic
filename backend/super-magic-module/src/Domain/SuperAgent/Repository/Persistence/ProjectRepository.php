@@ -65,6 +65,19 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         return $project;
     }
 
+    public function create(ProjectEntity $project): ProjectEntity
+    {
+        $attributes = $this->entityToModelAttributes($project);
+        if ($project->getId() == 0) {
+            $attributes['id'] = IdGenerator::getSnowId();
+            $project->setId($attributes['id']);
+        } else {
+            $attributes['id'] = $project->getId();
+        }
+        $this->projectModel::query()->create($attributes);
+        return $project;
+    }
+
     /**
      * 删除项目（软删除）.
      */

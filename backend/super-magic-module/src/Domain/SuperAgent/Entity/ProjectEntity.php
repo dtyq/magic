@@ -382,7 +382,7 @@ class ProjectEntity extends AbstractEntity
      */
     public function setProjectMode(?string $projectMode): self
     {
-        $this->projectMode = $projectMode;
+        $this->projectMode = $projectMode ?? '';
         return $this;
     }
 }

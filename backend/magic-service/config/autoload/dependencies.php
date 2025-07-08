@@ -24,6 +24,8 @@ use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\FullTextSimil
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\GraphSimilaritySearchInterface;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\HybridSimilaritySearchInterface;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\SemanticSimilaritySearchInterface;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCP;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\MagicBotThirdPlatformChatRepositoryInterface;
@@ -267,6 +269,7 @@ $dependencies = [
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
     AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
     MCPUserSettingRepositoryInterface::class => MCPUserSettingRepository::class,
+    SupperMagicAgentMCPInterface::class => SupperMagicAgentMCP::class,
 
     // api-key
     ApiKeyProviderRepositoryInterface::class => ApiKeyProviderRepository::class,
