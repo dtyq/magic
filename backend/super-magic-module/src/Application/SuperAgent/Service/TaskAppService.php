@@ -322,7 +322,7 @@ class TaskAppService extends AbstractAppService
         }
 
         // 更新话题状态
-        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, TaskStatus::ERROR);
+        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, $topicEntity->getSandboxId(), TaskStatus::ERROR);
 
         // 触发完成事件
         AsyncEventUtil::dispatch(new RunTaskAfterEvent(

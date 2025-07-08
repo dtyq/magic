@@ -254,11 +254,12 @@ class TopicRepository implements TopicRepositoryInterface
         ];
     }
 
-    public function updateTopicStatus(int $id, $taskId, TaskStatus $status): bool
+    public function updateTopicStatus(int $id, $taskId, string $sandboxId, TaskStatus $status): bool
     {
         return $this->model::query()
             ->where('id', $id)
             ->update([
+                'sandbox_id' => $sandboxId,
                 'current_task_id' => $taskId,
                 'current_task_status' => $status->value,
                 'updated_at' => date('Y-m-d H:i:s'),

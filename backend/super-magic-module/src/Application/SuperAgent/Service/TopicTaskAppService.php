@@ -145,7 +145,7 @@ class TopicTaskAppService extends AbstractAppService
             );
 
             // update topic status
-            $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $status);
+            $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $task->getSandboxId(), $status);
 
             $topicEntity = $this->topicDomainService->getTopicById($task->getTopicId());
             if ($topicEntity) {

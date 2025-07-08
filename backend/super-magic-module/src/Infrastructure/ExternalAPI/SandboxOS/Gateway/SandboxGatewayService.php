@@ -67,7 +67,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'result_data_json' => json_encode($result->getData()),
                 'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
                 'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
-                'data_keys' => is_array($result->getData()) ? array_keys($result->getData()) : 'not_array',
             ]);
 
             if ($result->isSuccess()) {

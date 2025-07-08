@@ -74,10 +74,8 @@ class AgentAppService
             'result_message' => $result->getMessage(),
             'result_data_raw' => $result->getData(),
             'result_data_type' => gettype($result->getData()),
-            'result_data_count' => is_array($result->getData()) ? count($result->getData()) : 'not_array',
             'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
             'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
-            'all_data_keys' => is_array($result->getData()) ? array_keys($result->getData()) : 'not_array',
         ]);
 
         if (! $result->isSuccess()) {
