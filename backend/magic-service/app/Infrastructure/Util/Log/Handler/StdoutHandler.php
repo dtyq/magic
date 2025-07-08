@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Infrastructure\Util\Log\Handler;
 
 use Hyperf\Codec\Json;
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Level;
@@ -21,8 +20,7 @@ class StdoutHandler extends AbstractProcessingHandler
     public function __construct($level = Level::Debug, bool $bubble = true)
     {
         parent::__construct($level, $bubble);
-        $container = ApplicationContext::getContainer();
-        $this->logger = $container->get(StdoutLoggerInterface::class);
+        $this->logger = \Hyperf\Support\make(StdoutLogger::class, ['minLevel' => $level]);
     }
 
     protected function write(LogRecord $record): void

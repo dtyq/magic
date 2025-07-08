@@ -90,11 +90,14 @@ class Api extends Structure
 
     public static function createByUrl(ApiMethod $apiMethod, string $url): Api
     {
-        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+        if (! Functions::isUrl($url)) {
             throw new FlowExprEngineException("[{$url}] not a valid URL");
         }
 
-        $parsedUrl = parse_url($url);
+        // Pre-encode the URL to handle non-ASCII characters before parse_url
+        $encodedUrl = self::preEncodeUrl($url);
+        $parsedUrl = parse_url($encodedUrl);
+
         $scheme = $parsedUrl['scheme'] ?? 'http';
         $host = $parsedUrl['host'] ?? '';
 
@@ -218,6 +221,47 @@ class Api extends Structure
         return $this->path;
     }
 
+    /**
+     * Pre-encode URL to handle non-ASCII characters before parse_url.
+     */
+    private static function preEncodeUrl(string $url): string
+    {
+        // Find the query part manually to avoid parse_url corruption
+        $queryPos = strpos($url, '?');
+        if ($queryPos === false) {
+            return $url;
+        }
+
+        $baseUrl = substr($url, 0, $queryPos);
+        $queryString = substr($url, $queryPos + 1);
+
+        // Encode the query string
+        $encodedQuery = self::encodeQueryString($queryString);
+
+        return $baseUrl . '?' . $encodedQuery;
+    }
+
+    /**
+     * Encode non-ASCII characters in query parameters.
+     */
+    private static function encodeQueryString(string $query): string
+    {
+        // Split query into key-value pairs
+        $queryParts = explode('&', $query);
+        $encodedParts = [];
+
+        foreach ($queryParts as $part) {
+            if (str_contains($part, '=')) {
+                [$key, $value] = explode('=', $part, 2);
+                $encodedParts[] = $key . '=' . rawurlencode($value);
+            } else {
+                $encodedParts[] = rawurlencode($part);
+            }
+        }
+
+        return implode('&', $encodedParts);
+    }
+
     private function getRequestUri(array $expressionFieldData = [], ?ApiRequestOptions $apiRequestOptions = null): string
     {
         if (empty($this->getDomain())) {
@@ -245,14 +289,17 @@ class Api extends Structure
         if ($paramsQuery) {
             $apiRequestOptions->addParamsQuery($paramsQuery->getKeyValue($expressionFieldData));
             $httpBuildQuery = http_build_query($apiRequestOptions->getParamsQuery());
-            // 检查原来的query参数是否存在
-            $parsedUrl = parse_url($requestUri);
-            if (! empty($parsedUrl['query'])) {
-                $requestUri .= '&';
-            } else {
-                $requestUri .= '?';
+            // 只有当构建的query不为空时才添加
+            if (! empty($httpBuildQuery)) {
+                // 检查原来的query参数是否存在
+                $parsedUrl = parse_url($requestUri);
+                if (! empty($parsedUrl['query'])) {
+                    $requestUri .= '&';
+                } else {
+                    $requestUri .= '?';
+                }
+                $requestUri .= $httpBuildQuery;
             }
-            $requestUri .= $httpBuildQuery;
         }
 
         return $requestUri;
