@@ -46,6 +46,11 @@ return [
         'not_enabled' => 'บริการ MCP ไม่ได้เปิดใช้งาน',
     ],
 
+    // ข้อผิดพลาดที่เกี่ยวข้องกับเซิร์ฟเวอร์
+    'server' => [
+        'not_support_check_status' => 'ไม่รองรับการตรวจสอบสถานะเซิร์ฟเวอร์ประเภทนี้',
+    ],
+
     // ข้อผิดพลาดความสัมพันธ์ของทรัพยากร
     'rel' => [
         'not_found' => 'ไม่พบทรัพยากรที่เกี่ยวข้อง',
@@ -88,5 +93,16 @@ return [
     'required_fields' => [
         'missing' => 'ฟิลด์ที่จำเป็นขาดหายไป: :fields',
         'empty' => 'ฟิลด์ที่จำเป็นไม่สามารถเว้นว่างได้: :fields',
+    ],
+
+    // ข้อผิดพลาดที่เกี่ยวข้องกับ STDIO executor
+    'executor' => [
+        'stdio' => [
+            'connection_failed' => 'การเชื่อมต่อ STDIO executor ล้มเหลว',
+            'access_denied' => 'ฟังก์ชัน STDIO executor ไม่รองรับในขณะนี้',
+        ],
+        'http' => [
+            'connection_failed' => 'การเชื่อมต่อ HTTP executor ล้มเหลว',
+        ],
     ],
 ];

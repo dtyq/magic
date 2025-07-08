@@ -72,4 +72,15 @@ enum MCPErrorCode: int
 
     #[ErrorMessage(message: 'mcp.required_fields.empty')]
     case RequiredFieldsEmpty = 51551; // 必填字段为空
+
+    // STDIO执行器相关错误码
+    #[ErrorMessage(message: 'mcp.executor.stdio.connection_failed')]
+    case ExecutorStdioConnectionFailed = 51560; // STDIO执行器连接失败
+
+    #[ErrorMessage(message: 'mcp.executor.stdio.access_denied')]
+    case ExecutorStdioAccessDenied = 51561; // STDIO执行器访问被拒绝
+
+    // HTTP执行器相关错误码
+    #[ErrorMessage(message: 'mcp.executor.http.connection_failed')]
+    case ExecutorHttpConnectionFailed = 51562; // HTTP执行器连接失败
 }

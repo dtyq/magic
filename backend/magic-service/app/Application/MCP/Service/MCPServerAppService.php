@@ -7,21 +7,18 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\Service;
 
-use App\Application\MCP\Utils\McpServerConfigUtil;
+use App\Application\MCP\Utils\MCPExecutor\MCPExecutorFactory;
+use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
-use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
-use Dtyq\PhpMcp\Client\McpClient;
-use Dtyq\PhpMcp\Shared\Kernel\Application;
-use Dtyq\PhpMcp\Types\Core\ProtocolConstants;
 use Dtyq\PhpMcp\Types\Tools\Tool;
 use Qbhy\HyperfAuth\Authenticatable;
 use Throwable;
@@ -172,33 +169,15 @@ class MCPServerAppService extends AbstractMCPAppService
         if (! $entity) {
             ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
-        if (! $entity->getType()->canCheckStatus()) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.server.not_support_check_status', ['label' => $code]);
-        }
-
-        /** @var ExternalSSEServiceConfig $serviceConfig */
-        $serviceConfig = $entity->getServiceConfig();
-
-        McpServerConfigUtil::validateAndApplyUserConfiguration($dataIsolation, $entity);
-
-        // Prepare base connection options
-        $connectionOptions = [
-            'base_url' => $serviceConfig->getUrl(),
-            'timeout' => 15.0,
-            'sse_timeout' => 300.0,
-            'max_retries' => 1,
-            'headers' => $serviceConfig->getHeadersArray(),
-        ];
 
         $tools = [];
         $error = '';
+        $success = true;
         try {
-            $app = new Application(di());
-            $client = new McpClient('magic-client', '1.0.0', $app);
-            $session = $client->connect(ProtocolConstants::TRANSPORT_TYPE_HTTP, $connectionOptions);
-            $session->initialize();
-            $toolsResult = $session->listTools();
-            $status = 'success';
+            $mcpServerConfig = MCPServerConfigUtil::create($dataIsolation, $entity);
+            $executor = MCPExecutorFactory::createExecutor($dataIsolation, $entity);
+            $toolsResult = $executor->getListToolsResult($mcpServerConfig);
+
             $tools = array_map(function (Tool $tool) use ($code) {
                 return [
                     'mcp_server_code' => $code,
@@ -212,14 +191,14 @@ class MCPServerAppService extends AbstractMCPAppService
                         'latest_version_name' => '',
                     ],
                 ];
-            }, $toolsResult->getTools());
+            }, $toolsResult?->getTools() ?? []);
         } catch (Throwable $throwable) {
-            $status = 'error';
+            $success = false;
             $error = $throwable->getMessage();
         }
 
         return [
-            'success' => $status,
+            'success' => $success,
             'tools' => $tools,
             'error' => $error,
         ];
