@@ -35,6 +35,8 @@ class ServiceProviderModelsDTO extends AbstractDTO
 
     protected ?string $disabledBy = null; // 禁用来源：official-官方禁用，user-用户禁用，NULL-未禁用
 
+    protected int $superMagicDisplayState = 0;
+
     protected int $sort;
 
     protected string $createdAt;
@@ -222,5 +224,15 @@ class ServiceProviderModelsDTO extends AbstractDTO
     public function setVisibleApplications(array $visibleApplications): void
     {
         $this->visibleApplications = $visibleApplications;
+    }
+
+    public function getSuperMagicDisplayState(): int
+    {
+        return $this->superMagicDisplayState;
+    }
+
+    public function setSuperMagicDisplayState(int $superMagicDisplayState): void
+    {
+        $this->superMagicDisplayState = $superMagicDisplayState;
     }
 }
