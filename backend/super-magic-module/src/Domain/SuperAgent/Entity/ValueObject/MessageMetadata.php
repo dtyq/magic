@@ -27,6 +27,7 @@ class MessageMetadata
      * @param string $superMagicTaskId 超级助手任务ID
      * @param string $workspaceId 工作区ID
      * @param string $projectId 项目ID
+     * @param string $language 用户语言
      * @param null|UserInfoValueObject $userInfo 用户信息对象
      */
     public function __construct(
@@ -40,6 +41,7 @@ class MessageMetadata
         private string $superMagicTaskId = '',
         private string $workspaceId = '',
         private string $projectId = '',
+        private string $language = '',
         ?UserInfoValueObject $userInfo = null
     ) {
         $this->userInfo = $userInfo;
@@ -68,6 +70,7 @@ class MessageMetadata
             $data['super_magic_task_id'] ?? '',
             $data['workspace_id'] ?? '',
             $data['project_id'] ?? '',
+            $data['language'] ?? '',
             $userInfo
         );
     }
@@ -90,6 +93,7 @@ class MessageMetadata
             'super_magic_task_id' => $this->superMagicTaskId,
             'workspace_id' => $this->workspaceId,
             'project_id' => $this->projectId,
+            'language' => $this->language,
         ];
 
         // 添加用户信息（如果存在）
@@ -149,6 +153,11 @@ class MessageMetadata
     public function getProjectId(): string
     {
         return $this->projectId;
+    }
+
+    public function getLanguage(): string
+    {
+        return $this->language;
     }
 
     /**
@@ -229,6 +238,13 @@ class MessageMetadata
     {
         $clone = clone $this;
         $clone->projectId = $projectId;
+        return $clone;
+    }
+
+    public function withLanguage(string $language): self
+    {
+        $clone = clone $this;
+        $clone->language = $language;
         return $clone;
     }
 
