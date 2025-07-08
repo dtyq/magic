@@ -83,7 +83,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: $topicEntity->getCurrentTaskId() ?? '0',
                 chatTopicId: $dto->getChatTopicId(),
                 chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: trans('agent.agent_stopped')
+                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
             );
         }
     }
@@ -165,7 +165,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: trans('agent.initialize_error')
+                errorMessage: trans('task.initialize_error')
             );
             throw new BusinessException('Initialize task failed', 500);
         }

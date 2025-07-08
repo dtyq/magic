@@ -8,4 +8,6 @@ return [
     'not_found' => 'Task not found',
     'work_dir_not_found' => 'Work directory not found',
     'continue' => 'Continue',
+    'initialize_error' => 'The system is currently busy, please try again later.',
+    'agent_stopped' => 'Task has been terminated',
 ];

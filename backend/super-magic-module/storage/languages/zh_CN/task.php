@@ -8,4 +8,6 @@ return [
     'not_found' => '任务未找到',
     'work_dir_not_found' => '工作目录未找到',
     'continue' => '继续',
+    'initialize_error' => '当前系统繁忙，请稍后重试。',
+    'agent_stopped' => '任务已终止',
 ];
