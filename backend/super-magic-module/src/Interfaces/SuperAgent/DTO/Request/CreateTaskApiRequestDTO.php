@@ -21,7 +21,7 @@ class CreateTaskApiRequestDTO extends AbstractRequestDTO
     protected string $workspaceId = '';
     protected string $projectId = '';
 
-    protected string $projectMode = '';
+    protected string $projectMode = 'general';
 
     protected string $topicId = '';
     protected string $prompt = '';
@@ -131,6 +131,16 @@ class CreateTaskApiRequestDTO extends AbstractRequestDTO
     public function setProjectId(string $projectId): void
     {
         $this->projectId = $projectId;
+    }
+
+    public function getProjectMode(): string
+    {
+        return $this->projectMode;
+    }
+
+    public function setProjectMode(string $projectMode): void
+    {
+        $this->projectMode = $projectMode;
     }
 
     public function getTopicId(): string
