@@ -46,7 +46,7 @@ abstract class AbstractAppService extends AbstractKernelAppService
         protected readonly MagicBotThirdPlatformChatDomainService $magicBotThirdPlatformChatDomainService,
         protected readonly MagicDepartmentDomainService $magicDepartmentDomainService,
         protected readonly MagicDepartmentUserDomainService $magicDepartmentUserDomainService,
-        readonly LoggerFactory $loggerFactory,
+        public readonly LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }

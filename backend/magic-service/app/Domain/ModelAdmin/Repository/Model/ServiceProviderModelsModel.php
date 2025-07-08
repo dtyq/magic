@@ -36,6 +36,7 @@ class ServiceProviderModelsModel extends Model
         'visible_organizations',
         'visible_applications',
         'is_office',
+        'super_magic_display_state',
         'created_at',
         'updated_at',
         'deleted_at',

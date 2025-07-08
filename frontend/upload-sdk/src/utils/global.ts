@@ -94,7 +94,7 @@ function runTask<T extends PlatformParams>(uploadSource: Request, useCache: Bool
  */
 export function getUploadConfig<T extends PlatformParams>(
 	uploadSource: Request,
-	useCache: Boolean = true, // 不使用缓存
+	useCache: boolean = true, // 不使用缓存
 ): Promise<UploadSource<T>> {
 	return new Promise((resolve, reject) => {
 		tasks.push({ resolve, reject })
