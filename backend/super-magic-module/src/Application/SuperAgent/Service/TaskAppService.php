@@ -35,6 +35,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
@@ -141,7 +142,7 @@ class TaskAppService extends AbstractAppService
             if ($taskMode === '') {
                 $taskMode = $topicEntity->getTaskMode();
             }
-            $data = [
+            $data=[
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -160,12 +161,12 @@ class TaskAppService extends AbstractAppService
 
             $taskEntity = TaskEntity::fromArray($data);
 
-            // Initialize task
-            $taskEntity = $this->taskDomainService->initTopicTask(
-                dataIsolation: $dataIsolation,
-                topicEntity: $topicEntity,
-                taskEntity: $taskEntity
-            );
+              // Initialize task
+              $taskEntity = $this->taskDomainService->initTopicTask(
+                  dataIsolation: $dataIsolation,
+                  topicEntity: $topicEntity,
+                  taskEntity: $taskEntity
+              );
 
             $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $taskEntity);
             $taskId = (string) $taskEntity->getId();
@@ -211,6 +212,10 @@ class TaskAppService extends AbstractAppService
                 showInUi: true,
                 messageId: null
             );
+
+
+            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+
 
             $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
 
