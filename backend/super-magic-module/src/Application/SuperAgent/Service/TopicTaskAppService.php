@@ -15,7 +15,9 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicTaskMessagePublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Assembler\TopicTaskMessageAssembler;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
@@ -30,6 +32,8 @@ class TopicTaskAppService extends AbstractAppService
     private readonly LoggerInterface $logger;
 
     public function __construct(
+        private readonly ProjectDomainService $projectDomainService,
+        private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         protected LockerInterface $locker,
         protected LoggerFactory $loggerFactory,
@@ -139,6 +143,14 @@ class TopicTaskAppService extends AbstractAppService
                 sandboxId: $task->getSandboxId(),
                 errMsg: $errMsg
             );
+
+            // update topic status
+            $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $status);
+
+            $topicEntity = $this->topicDomainService->getTopicById($task->getTopicId());
+            if ($topicEntity) {
+                $this->projectDomainService->updateProjectStatus($topicEntity->getProjectId(), $topicEntity->getId(), $status);
+            }
 
             // Log success
             $this->logger->info('Task status update completed', [

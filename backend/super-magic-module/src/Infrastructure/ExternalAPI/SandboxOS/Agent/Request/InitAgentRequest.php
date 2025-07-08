@@ -71,7 +71,7 @@ class InitAgentRequest
         string $agentMode = '',
         string $magicServiceHost = ''
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode,$magicServiceHost);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost);
     }
 
     /**
@@ -249,7 +249,7 @@ class InitAgentRequest
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
-            'magic_service_host'=>$this->magicServiceHost,
+            'magic_service_host' => $this->magicServiceHost,
         ];
     }
 }

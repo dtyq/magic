@@ -123,16 +123,7 @@ class TaskDomainService
 
     public function updateTaskStatus(DataIsolation $dataIsolation, int $topicId, TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
     {
-        // 1. Get topic entity by topic id
-        $topicEntity = $this->topicRepository->getTopicById($topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
-        }
-
-        // Get current user ID
-        $userId = $dataIsolation->getCurrentUserId();
-
-        // 2. Find task
+        // Find task
         $taskEntity = $this->taskRepository->getTaskById($id);
         if (! $taskEntity) {
             ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
@@ -152,17 +143,7 @@ class TaskDomainService
             $taskEntity->setErrMsg($errMsg);
         }
 
-        $this->taskRepository->updateTask($taskEntity);
-
-        // 3. Update topic's related information
-        $topicEntity->setSandboxId($sandboxId);
-        $topicEntity->setCurrentTaskId($id);
-        $topicEntity->setCurrentTaskStatus($status);
-        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $topicEntity->setUpdatedUid($userId);
-
-        // Save topic update
-        return $this->topicRepository->updateTopic($topicEntity);
+        return $this->taskRepository->updateTask($taskEntity);
     }
 
     public function handleSandboxMessage(string $taskId, string $messageJson): TaskMessageEntity

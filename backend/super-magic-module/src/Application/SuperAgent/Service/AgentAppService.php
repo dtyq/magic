@@ -75,6 +75,11 @@ class AgentAppService
             throw new SandboxOperationException('Create sandbox', $result->getMessage(), $result->getCode());
         }
 
+        $this->logger->info('[Sandbox][App] Create sandbox success', [
+            'project_id' => $projectId,
+            'sandbox_id' => $sandboxID,
+        ]);
+
         return $result->getData()['sandbox_id'];
     }
 
@@ -173,14 +178,12 @@ class AgentAppService
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
 
-        $attachmentUrls = [];
-        if (! empty($taskContext->getTask()->getAttachments())) {
-            $attachments = json_decode($taskContext->getTask()->getAttachments());
-            $fileIds = array_filter(array_column($attachments, 'file_id'));
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
-        }
-
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+
+        $attachmentUrls = [];
+        if (! empty($mentionsJsonStruct)) {
+            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
+        }
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
@@ -476,12 +479,8 @@ class AgentAppService
                     // 使用 FileAssembler::formatPath 从 URL 中提取路径
                     $filePath = FileAssembler::formatPath($matchedFile['file_url']);
                 }
-
-                $mentionsJsonStruct[] = [
-                    'type' => $type,
-                    'file_path' => $filePath,
-                    'file_url' => $matchedFile['file_url'],
-                ];
+                $mentionFile = ['type' => $type, 'file_path' => $filePath, 'file_metadata' => $matchedFile];
+                $mentionsJsonStruct[] = $mentionFile;
             }
         }
         return $mentionsJsonStruct;

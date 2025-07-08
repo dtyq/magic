@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 
@@ -132,5 +133,19 @@ class ProjectDomainService
     public function saveProjectEntity(ProjectEntity $projectEntity): ProjectEntity
     {
         return $this->projectRepository->save($projectEntity);
+    }
+
+    public function updateProjectStatus(int $id, int $topicId, TaskStatus $taskStatus)
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'current_topic_id' => $topicId,
+            'current_topic_status' => $taskStatus->value,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        return $this->projectRepository->updateProjectByCondition($conditions, $data);
     }
 }
