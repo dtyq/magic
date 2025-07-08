@@ -168,6 +168,9 @@ class TaskApi extends AbstractApi
     //创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
     public function createOpenApiTask(RequestContext $requestContext, CreateTaskApiRequestDTO $requestDTO): array
     {
+        // 从请求中创建DTO并验证参数
+        $requestDTO = CreateTaskApiRequestDTO::fromRequest($this->request);
+
         // 从请求中创建DTO
         $apiKey = $this->getApiKey();
         if (empty($apiKey)) {
@@ -182,7 +185,8 @@ class TaskApi extends AbstractApi
 
         $magicUserAuthorization=MagicUserAuthorization::fromUserEntity($userEntity);
         $requestContext->setUserAuthorization($magicUserAuthorization);
-        // $workspaceId=$this->initWorkspace($requestContext, $requestDTO);
+
+        $this->initWorkspace($requestContext, $requestDTO);
         // $requestDTO->setWorkspaceId($workspaceId);
         // $requestDTO->setWorkspaceId($this->initWorkspace($requestContext, $requestDTO));
 
@@ -190,10 +194,10 @@ class TaskApi extends AbstractApi
 
         $createTaskApiResponseDTO = new CreateTaskApiResponseDTO();
         $createTaskApiResponseDTO->setTaskId("123123123");
-        $createTaskApiResponseDTO->setAgentName($requestDTO->getAgentName());
-        $createTaskApiResponseDTO->setToolName($requestDTO->getToolName());
-        $createTaskApiResponseDTO->setCustomName($requestDTO->getCustomName());
-        $createTaskApiResponseDTO->setModelId($requestDTO->getModelId());
+        // $createTaskApiResponseDTO->setAgentName($requestDTO->getAgentName());
+        // $createTaskApiResponseDTO->setToolName($requestDTO->getToolName());
+        // $createTaskApiResponseDTO->setCustomName($requestDTO->getCustomName());
+        // $createTaskApiResponseDTO->setModelId($requestDTO->getModelId());
         $createTaskApiResponseDTO->setWorkspaceId($requestDTO->getWorkspaceId());
         $createTaskApiResponseDTO->setProjectId($requestDTO->getProjectId());
         $createTaskApiResponseDTO->setProjectMode($requestDTO->getProjectMode());
@@ -204,7 +208,7 @@ class TaskApi extends AbstractApi
 
         // $requestDTO->setTopicId($this->initTopic($requestContext, $requestDTO));
 
-        return [];
+        return $createTaskApiResponseDTO->toArray();
     }
 
     public function initWorkspace(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO)
@@ -229,13 +233,13 @@ class TaskApi extends AbstractApi
     }
 
 
-    public function initProject(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO, string $userId): string
+    public function initProject(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO, string $userId): void
     {
                 //判断项目是否存在，不存在则初始化项目
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
-            $project = $this->projectAppService->getProject((int)$projectId, $userEntity->getUserId());
+            $project = $this->projectAppService->getProject((int)$projectId, $userId);
             if (empty($project)) {
                 //抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
@@ -243,7 +247,7 @@ class TaskApi extends AbstractApi
         }else{
             $saveProjectRequestDTO = new CreateProjectRequestDTO();
             $saveProjectRequestDTO->setProjectName("默认项目");
-            $saveProjectRequestDTO->setWorkspaceId((string)$workspaceId);
+            $saveProjectRequestDTO->setWorkspaceId((string)$requestDTO->getWorkspaceId());
             $saveProjectRequestDTO->setProjectMode($requestDTO->getProjectMode());
             $project = $this->projectAppService->createProject($requestContext, $saveProjectRequestDTO);
             if(!empty($project['project'])){
@@ -257,7 +261,7 @@ class TaskApi extends AbstractApi
     }
 
 
-    public function initTopic(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO): string
+    public function initTopic(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO): void
     {
         //判断话题是否存在，不存在则初始化话题
         $topicId = $requestDTO->getTopicId();
