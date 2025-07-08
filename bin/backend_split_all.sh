@@ -95,9 +95,15 @@ TEMP_DIR="./tmp"
 # Create temporary directory
 mkdir -p $TEMP_DIR
 
-# 下载并解压 splitsh-lite
-curl -L https://cdn.letsmagic.cn/gitlab/liunx/splitsh-lite  -o  $SPLITSH_BIN
-chmod +x $SPLITSH_BIN
+# 检查本地是否已有可执行的 splitsh-lite 文件
+if [ -f "$SPLITSH_BIN" ] && [ -x "$SPLITSH_BIN" ]; then
+    echo "splitsh-lite already exists and is executable, skipping download"
+else
+    echo "Downloading splitsh-lite..."
+    # 下载并解压 splitsh-lite
+    curl -L https://cdn.letsmagic.cn/gitlab/linux/splitsh-lite  -o  $SPLITSH_BIN
+    chmod +x $SPLITSH_BIN
+fi
 
 # Clean up
 rm -rf $TEMP_DIR

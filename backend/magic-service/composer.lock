@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.349.0",
+            "version": "3.349.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "6bc013005c2c8df186abc823754deb1bb6c0f1ca"
+                "reference": "63cc727845f077d17cb94791deb327249e1626ce"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6bc013005c2c8df186abc823754deb1bb6c0f1ca",
-                "reference": "6bc013005c2c8df186abc823754deb1bb6c0f1ca",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/63cc727845f077d17cb94791deb327249e1626ce",
+                "reference": "63cc727845f077d17cb94791deb327249e1626ce",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.2"
             },
-            "time": "2025-07-01T18:04:21+00:00"
+            "time": "2025-07-03T18:08:27+00:00"
         },
         {
             "name": "brick/math",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.25",
+            "version": "1.0.27",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "cd547938b6fc707bf47d866fb6a77193d1cfbfab"
+                "reference": "749dc166e170372ef5aaa8bd5c6667eaffa9bdfe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=cd547938b6fc707bf47d866fb6a77193d1cfbfab",
-                "reference": "cd547938b6fc707bf47d866fb6a77193d1cfbfab",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=749dc166e170372ef5aaa8bd5c6667eaffa9bdfe",
+                "reference": "749dc166e170372ef5aaa8bd5c6667eaffa9bdfe",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.25"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.27"
             },
-            "time": "2025-07-01T09:45:47+00:00"
+            "time": "2025-07-04T09:24:18+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.53",
+            "version": "0.0.55",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "11946e85886f38ca140b24ebedf6f4a25ce47e22"
+                "reference": "4e6ce17bf134fd2ba4e1e57e54a0a8cb11c5f958"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=11946e85886f38ca140b24ebedf6f4a25ce47e22",
-                "reference": "11946e85886f38ca140b24ebedf6f4a25ce47e22",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4e6ce17bf134fd2ba4e1e57e54a0a8cb11c5f958",
+                "reference": "4e6ce17bf134fd2ba4e1e57e54a0a8cb11c5f958",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.53"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.55"
             },
-            "time": "2025-07-02T18:27:23+08:00"
+            "time": "2025-07-04T17:08:34+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -5954,16 +5954,16 @@
         },
         {
             "name": "hyperf/http-server",
-            "version": "v3.1.58",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/http-server.git",
-                "reference": "34321483e6e3fc3794263e232fbea4051bf803f2"
+                "reference": "b5f8dbd03578adb101fbf98ab7407510d553130f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/http-server/zipball/34321483e6e3fc3794263e232fbea4051bf803f2",
-                "reference": "34321483e6e3fc3794263e232fbea4051bf803f2",
+                "url": "https://api.github.com/repos/hyperf/http-server/zipball/b5f8dbd03578adb101fbf98ab7407510d553130f",
+                "reference": "b5f8dbd03578adb101fbf98ab7407510d553130f",
                 "shasum": ""
             },
             "require": {
@@ -6035,7 +6035,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-23T03:55:31+00:00"
+            "time": "2025-06-30T01:39:01+00:00"
         },
         {
             "name": "hyperf/logger",
@@ -6854,16 +6854,16 @@
         },
         {
             "name": "hyperf/redis",
-            "version": "v3.1.57",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/redis.git",
-                "reference": "9fa4e43fe45825e86bfe6624d46c0631d4e9f7f3"
+                "reference": "e7bd1b5ce85c06a766ad599dfa64238596c5fb11"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/redis/zipball/9fa4e43fe45825e86bfe6624d46c0631d4e9f7f3",
-                "reference": "9fa4e43fe45825e86bfe6624d46c0631d4e9f7f3",
+                "url": "https://api.github.com/repos/hyperf/redis/zipball/e7bd1b5ce85c06a766ad599dfa64238596c5fb11",
+                "reference": "e7bd1b5ce85c06a766ad599dfa64238596c5fb11",
                 "shasum": ""
             },
             "require": {
@@ -6923,7 +6923,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-07-03T04:20:32+00:00"
         },
         {
             "name": "hyperf/retry",
@@ -7415,16 +7415,16 @@
         },
         {
             "name": "hyperf/support",
-            "version": "v3.1.57",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/support.git",
-                "reference": "ea0d41f825595bf26daf6f41d0bb1bf2f48dfe2a"
+                "reference": "659e404a10041c064f8c2521ed2d0a00877196a2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/support/zipball/ea0d41f825595bf26daf6f41d0bb1bf2f48dfe2a",
-                "reference": "ea0d41f825595bf26daf6f41d0bb1bf2f48dfe2a",
+                "url": "https://api.github.com/repos/hyperf/support/zipball/659e404a10041c064f8c2521ed2d0a00877196a2",
+                "reference": "659e404a10041c064f8c2521ed2d0a00877196a2",
                 "shasum": ""
             },
             "require": {
@@ -7482,7 +7482,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-07-03T03:12:55+00:00"
         },
         {
             "name": "hyperf/tappable",
@@ -7745,16 +7745,16 @@
         },
         {
             "name": "hyperf/validation",
-            "version": "v3.1.57",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/validation.git",
-                "reference": "cc5e6202d2ba0ac11f0fa4b5237f2ebe5169ef12"
+                "reference": "efcadb42314a7493850455ce34b7623ed8f35353"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/validation/zipball/cc5e6202d2ba0ac11f0fa4b5237f2ebe5169ef12",
-                "reference": "cc5e6202d2ba0ac11f0fa4b5237f2ebe5169ef12",
+                "url": "https://api.github.com/repos/hyperf/validation/zipball/efcadb42314a7493850455ce34b7623ed8f35353",
+                "reference": "efcadb42314a7493850455ce34b7623ed8f35353",
                 "shasum": ""
             },
             "require": {
@@ -7805,7 +7805,7 @@
             ],
             "support": {
                 "issues": "https://github.com/hyperf/validation/issues",
-                "source": "https://github.com/hyperf/validation/tree/v3.1.57"
+                "source": "https://github.com/hyperf/validation/tree/v3.1.59"
             },
             "funding": [
                 {
@@ -7817,7 +7817,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-06-30T03:02:24+00:00"
         },
         {
             "name": "hyperf/websocket-client",
@@ -14458,16 +14458,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.151",
+            "version": "v1.0.152",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "849a817531af8ca72d514ebffb47883f931e6d83"
+                "reference": "0b79b854adaa3a11de23767cba1cbb86c7fe39e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/849a817531af8ca72d514ebffb47883f931e6d83",
-                "reference": "849a817531af8ca72d514ebffb47883f931e6d83",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/0b79b854adaa3a11de23767cba1cbb86c7fe39e0",
+                "reference": "0b79b854adaa3a11de23767cba1cbb86c7fe39e0",
                 "shasum": ""
             },
             "require": {
@@ -14502,9 +14502,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.151"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.152"
             },
-            "time": "2025-06-26T12:20:29+00:00"
+            "time": "2025-07-03T12:03:20+00:00"
         },
         {
             "name": "w7corp/easywechat",
@@ -15835,16 +15835,16 @@
         },
         {
             "name": "hyperf/watcher",
-            "version": "v3.1.58",
+            "version": "v3.1.59",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/watcher.git",
-                "reference": "0f84459bbf3168adc9f1542c8d2bec42044b8f86"
+                "reference": "0d0d72555e920b9e5ffe41dd9272554b1a2f47ca"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/watcher/zipball/0f84459bbf3168adc9f1542c8d2bec42044b8f86",
-                "reference": "0f84459bbf3168adc9f1542c8d2bec42044b8f86",
+                "url": "https://api.github.com/repos/hyperf/watcher/zipball/0d0d72555e920b9e5ffe41dd9272554b1a2f47ca",
+                "reference": "0d0d72555e920b9e5ffe41dd9272554b1a2f47ca",
                 "shasum": ""
             },
             "require": {
@@ -15890,7 +15890,7 @@
             ],
             "support": {
                 "issues": "https://github.com/hyperf/watcher/issues",
-                "source": "https://github.com/hyperf/watcher/tree/v3.1.58"
+                "source": "https://github.com/hyperf/watcher/tree/v3.1.59"
             },
             "funding": [
                 {
@@ -15902,7 +15902,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-23T03:55:31+00:00"
+            "time": "2025-06-30T03:16:39+00:00"
         },
         {
             "name": "mockery/mockery",
@@ -17185,12 +17185,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "d4ca0cc4c49ba3437778e201d35844715d9b1bd9"
+                "reference": "e798e1676cbc3fa2f63b439b844fe30645b1e052"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/d4ca0cc4c49ba3437778e201d35844715d9b1bd9",
-                "reference": "d4ca0cc4c49ba3437778e201d35844715d9b1bd9",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e798e1676cbc3fa2f63b439b844fe30645b1e052",
+                "reference": "e798e1676cbc3fa2f63b439b844fe30645b1e052",
                 "shasum": ""
             },
             "conflict": {
@@ -17868,7 +17868,8 @@
                 "spoonity/tcpdf": "<6.2.22",
                 "squizlabs/php_codesniffer": ">=1,<2.8.1|>=3,<3.0.1",
                 "ssddanbrown/bookstack": "<24.05.1",
-                "starcitizentools/citizen-skin": ">=2.4.2,<3.3.1",
+                "starcitizentools/citizen-skin": ">=1.9.4,<3.4",
+                "starcitizentools/short-description": ">=4,<4.0.1",
                 "starcitizentools/tabber-neue": ">=1.9.1,<2.7.2|>=3,<3.1.1",
                 "statamic/cms": "<=5.16",
                 "stormpath/sdk": "<9.9.99",
@@ -18131,7 +18132,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-27T21:05:09+00:00"
+            "time": "2025-07-03T22:05:19+00:00"
         },
         {
             "name": "sebastian/cli-parser",
