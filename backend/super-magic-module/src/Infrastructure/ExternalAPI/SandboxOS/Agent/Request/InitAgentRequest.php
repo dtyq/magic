@@ -221,6 +221,17 @@ class InitAgentRequest
         return $this->agentMode;
     }
 
+    public function setMagicServiceHost(string $magicServiceHost): self
+    {
+        $this->magicServiceHost = $magicServiceHost;
+        return $this;
+    }
+
+    public function getMagicServiceHost(): string
+    {
+        return $this->magicServiceHost;
+    }
+
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
@@ -240,16 +251,5 @@ class InitAgentRequest
             'agent_mode' => $this->agentMode,
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
-    }
-
-    public function getMagicServiceHost(): string
-    {
-        return $this->magicServiceHost;
-    }
-
-    public function setMagicServiceHost(string $magicServiceHost): self
-    {
-        $this->magicServiceHost = $magicServiceHost;
-        return $this;
     }
 }

@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatFileAppService;
 use App\Application\File\Service\FileAppService;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
@@ -618,6 +619,17 @@ class FileProcessAppService extends AbstractAppService
                 'file_tag' => $taskFile->getFileType(),
                 'file_url' => $fileLink->getUrl(),
             ];
+        }
+        return $files;
+    }
+
+    public function getFilesWithMentions(DataIsolation $dataIsolation, array $mentions): array
+    {
+        $files = [];
+        foreach ($mentions as $mention) {
+            if ($mention['type'] == MentionType::PROJECT_FILE->value) {
+                $files[] = $mention['file_metadata'];
+            }
         }
         return $files;
     }
