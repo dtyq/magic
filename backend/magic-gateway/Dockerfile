@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine as builder
+FROM public.ecr.aws/docker/library/golang:1.20-alpine as builder
 
 # 设置Go模块代理
 ENV GOPROXY=https://goproxy.cn,direct
@@ -21,7 +21,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway main.go
 
 # 使用多阶段构建减小镜像大小
-FROM alpine:latest
+FROM public.ecr.aws/docker/library/alpine:latest
 
 WORKDIR /app
 
@@ -53,4 +53,4 @@ EXPOSE 8000
 #  CMD wget -q -O- http://localhost:${PORT}/status || exit 1
 
 # 启动服务
-CMD ["./api-gateway"] 
+CMD ["./api-gateway"]

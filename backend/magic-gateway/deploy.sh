@@ -22,12 +22,14 @@ function show_help {
   echo "  restart    - 重启指定环境"
   echo "  logs       - 查看指定环境日志"
   echo "  status     - 查看指定环境状态"
+  echo "  cleanup    - 清理Redis权限问题"
   echo "  all        - 操作所有环境"
   echo ""
   echo "示例:"
   echo "  $0 test start    - 启动测试环境"
   echo "  $0 all start     - 启动所有环境"
   echo "  $0 prod logs     - 查看生产环境日志"
+  echo "  $0 test cleanup  - 清理Redis权限问题"
 }
 
 # 参数检查
@@ -43,7 +45,7 @@ if [ "$1" != "test" ] && [ "$1" != "pre" ] && [ "$1" != "prod" ] && [ "$1" != "a
 fi
 
 # 操作参数检查
-if [ "$2" != "start" ] && [ "$2" != "stop" ] && [ "$2" != "restart" ] && [ "$2" != "logs" ] && [ "$2" != "status" ]; then
+if [ "$2" != "start" ] && [ "$2" != "stop" ] && [ "$2" != "restart" ] && [ "$2" != "logs" ] && [ "$2" != "status" ] && [ "$2" != "cleanup" ]; then
   show_help
   exit 1
 fi
@@ -78,6 +80,43 @@ function ensure_network_exists {
   fi
 }
 
+# 修复Redis数据目录权限
+function fix_redis_permissions {
+  if [ -d "redis_data" ]; then
+    echo -e "${YELLOW}检查并修复Redis数据目录权限...${NC}"
+    # 尝试使用sudo设置正确的用户组
+    sudo chown -R 999:999 redis_data 2>/dev/null || {
+      echo -e "${YELLOW}无法使用sudo，使用chmod设置权限...${NC}"
+      chmod -R 777 redis_data
+    }
+  fi
+}
+
+# 清理Redis权限问题
+function cleanup_redis_permissions {
+  echo -e "${YELLOW}清理Redis权限问题...${NC}"
+
+  # 停止Redis容器
+  if docker ps | grep -q "api-gateway-redis"; then
+    echo -e "${YELLOW}停止Redis容器...${NC}"
+    docker stop api-gateway-redis
+  fi
+
+  # 删除Redis容器
+  if docker ps -a | grep -q "api-gateway-redis"; then
+    echo -e "${YELLOW}删除Redis容器...${NC}"
+    docker rm api-gateway-redis
+  fi
+
+  # 修复数据目录权限
+  if [ -d "redis_data" ]; then
+    echo -e "${YELLOW}修复数据目录权限...${NC}"
+    sudo chown -R $(id -u):$(id -g) redis_data 2>/dev/null || chmod -R 755 redis_data
+  fi
+
+  echo -e "${GREEN}Redis权限问题已清理${NC}"
+}
+
 # 启动指定环境
 function start_env {
   local env=$1
@@ -93,6 +132,9 @@ function start_env {
 
   # 确保外部网络存在
   ensure_network_exists
+
+  # 修复Redis权限问题
+  fix_redis_permissions
 
   echo -e "${GREEN}正在启动 $env 环境...${NC}"
 
@@ -123,6 +165,12 @@ function start_env {
       ;;
   esac
 
+    # 确保Redis数据目录存在
+  if [ ! -d "redis_data" ]; then
+    echo -e "${YELLOW}创建Redis数据目录...${NC}"
+    mkdir -p redis_data
+  fi
+
   # 检查Redis容器是否已存在
   if docker ps -a | grep -q "api-gateway-redis"; then
     echo -e "${YELLOW}Redis容器 api-gateway-redis 已存在，跳过创建...${NC}"
@@ -134,7 +182,7 @@ function start_env {
   else
     echo -e "${YELLOW}创建Redis容器...${NC}"
     # 直接启动Redis容器，不通过docker-compose
-    docker run -d --name api-gateway-redis --network magic-sandbox-network -p ${redis_port}:6379 -v $(pwd)/redis_data:/data redis:alpine redis-server --appendonly yes
+    docker run -d --name api-gateway-redis --network magic-sandbox-network -p ${redis_port}:6379 -v $(pwd)/redis_data:/data public.ecr.aws/docker/library/redis:alpine redis-server --appendonly yes
   fi
 
   # 获取Redis容器的IP地址
@@ -169,6 +217,13 @@ function stop_env {
   local env=$1
   echo -e "${YELLOW}正在停止 $env 环境...${NC}"
   docker compose -p magic-gateway-$env down
+
+  # 如果Redis容器已停止，修复数据目录权限
+  if docker ps -a | grep -q "api-gateway-redis" && ! docker ps | grep -q "api-gateway-redis"; then
+    echo -e "${YELLOW}修复Redis数据目录权限...${NC}"
+    sudo chown -R $(id -u):$(id -g) redis_data 2>/dev/null || chmod -R 755 redis_data
+  fi
+
   echo -e "${YELLOW}$env 环境已停止${NC}"
 }
 
@@ -207,6 +262,9 @@ function process_operation {
       ;;
     status)
       check_status $env
+      ;;
+    cleanup)
+      cleanup_redis_permissions
       ;;
   esac
 }
