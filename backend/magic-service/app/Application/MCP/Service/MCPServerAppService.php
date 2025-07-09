@@ -76,7 +76,11 @@ class MCPServerAppService extends AbstractMCPAppService
         $userIds = [];
         foreach ($data['list'] ?? [] as $item) {
             $filePaths[] = $item->getIcon();
-            $operation = $resources[$item->getCode()] ?? Operation::None;
+            if ($dataIsolation->isOfficialOrganization()) {
+                $operation = Operation::Admin;
+            } else {
+                $operation = $resources[$item->getCode()] ?? Operation::None;
+            }
             $item->setUserOperation($operation->value);
             $userIds[] = $item->getCreator();
             $userIds[] = $item->getModifier();
