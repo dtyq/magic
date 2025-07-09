@@ -515,7 +515,9 @@ class ServiceProviderDomainService
                 }
 
                 // Special handling: Initialize models for new organization's Magic service provider from all LLM service providers in official organization
-                $this->initMagicServiceProviderModels($organizationCode);
+                if ($serviceProviderCategory === null || $serviceProviderCategory === ServiceProviderCategory::LLM) {
+                    $this->initMagicServiceProviderModels($organizationCode);
+                }
 
                 // 构建返回结果
                 foreach ($configEntities as $configEntity) {
