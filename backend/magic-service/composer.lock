@@ -2121,16 +2121,16 @@
         },
         {
             "name": "dtyq/flow-expr-engine",
-            "version": "v0.1.10",
+            "version": "v0.1.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/flow-expr-engine.git",
-                "reference": "50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0"
+                "reference": "8dbd11c31cdbf6ac7d2bb308c92d7f18cec478c2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0",
-                "reference": "50e7cf8ff7a9bd3e7b5f52e774c03f1a592809b0",
+                "url": "https://api.github.com/repos/dtyq/flow-expr-engine/zipball/8dbd11c31cdbf6ac7d2bb308c92d7f18cec478c2",
+                "reference": "8dbd11c31cdbf6ac7d2bb308c92d7f18cec478c2",
                 "shasum": ""
             },
             "require": {
@@ -2183,22 +2183,22 @@
             "description": "A powerful engine for handling flow components and expressions.",
             "support": {
                 "issues": "https://github.com/dtyq/flow-expr-engine/issues",
-                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.10"
+                "source": "https://github.com/dtyq/flow-expr-engine/tree/v0.1.11"
             },
-            "time": "2025-06-27T15:23:39+00:00"
+            "time": "2025-07-07T09:05:42+00:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.55",
+            "version": "0.0.56",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "4e6ce17bf134fd2ba4e1e57e54a0a8cb11c5f958"
+                "reference": "3ca47bf7197911681e9d1f3a7fda7fc5fc0eed40"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4e6ce17bf134fd2ba4e1e57e54a0a8cb11c5f958",
-                "reference": "4e6ce17bf134fd2ba4e1e57e54a0a8cb11c5f958",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=3ca47bf7197911681e9d1f3a7fda7fc5fc0eed40",
+                "reference": "3ca47bf7197911681e9d1f3a7fda7fc5fc0eed40",
                 "shasum": ""
             },
             "require": {
@@ -2299,22 +2299,22 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.55"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.56"
             },
-            "time": "2025-07-04T17:08:34+08:00"
+            "time": "2025-07-09T14:45:58+08:00"
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.4",
+            "version": "0.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "2880173df7795bdc4a5755946baf0393b167fac6"
+                "reference": "8e9b2b111d10347f96accfa9a99e3d551fc31aed"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/2880173df7795bdc4a5755946baf0393b167fac6",
-                "reference": "2880173df7795bdc4a5755946baf0393b167fac6",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/8e9b2b111d10347f96accfa9a99e3d551fc31aed",
+                "reference": "8e9b2b111d10347f96accfa9a99e3d551fc31aed",
                 "shasum": ""
             },
             "require": {
@@ -2363,9 +2363,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.4"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.6"
             },
-            "time": "2025-06-11T10:36:10+00:00"
+            "time": "2025-07-08T13:03:52+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -6372,16 +6372,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.21",
+            "version": "v1.1.24",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "4eb1de3155c321d748be1abcecd33a793ded990c"
+                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=4eb1de3155c321d748be1abcecd33a793ded990c",
-                "reference": "4eb1de3155c321d748be1abcecd33a793ded990c",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=d2d03eaf4b08e9f58a445808efafd61471e21dc6",
+                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6",
                 "shasum": ""
             },
             "require": {
@@ -6446,9 +6446,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.21"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.24"
             },
-            "time": "2025-06-24T08:16:07+00:00"
+            "time": "2025-07-08T12:52:41+00:00"
         },
         {
             "name": "hyperf/phar",
@@ -15535,16 +15535,16 @@
         },
         {
             "name": "friendsofphp/php-cs-fixer",
-            "version": "v3.76.0",
+            "version": "v3.82.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
-                "reference": "0e3c484cef0ae9314b0f85986a36296087432c40"
+                "reference": "684ed3ab41008a2a4848de8bde17eb168c596247"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/0e3c484cef0ae9314b0f85986a36296087432c40",
-                "reference": "0e3c484cef0ae9314b0f85986a36296087432c40",
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/684ed3ab41008a2a4848de8bde17eb168c596247",
+                "reference": "684ed3ab41008a2a4848de8bde17eb168c596247",
                 "shasum": ""
             },
             "require": {
@@ -15628,7 +15628,7 @@
             ],
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/issues",
-                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.76.0"
+                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.82.2"
             },
             "funding": [
                 {
@@ -15636,7 +15636,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-06-30T14:15:06+00:00"
+            "time": "2025-07-08T21:13:15+00:00"
         },
         {
             "name": "hamcrest/hamcrest-php",
@@ -15989,16 +15989,16 @@
         },
         {
             "name": "myclabs/deep-copy",
-            "version": "1.13.1",
+            "version": "1.13.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/myclabs/DeepCopy.git",
-                "reference": "1720ddd719e16cf0db4eb1c6eca108031636d46c"
+                "reference": "faed855a7b5f4d4637717c2b3863e277116beb36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/1720ddd719e16cf0db4eb1c6eca108031636d46c",
-                "reference": "1720ddd719e16cf0db4eb1c6eca108031636d46c",
+                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/faed855a7b5f4d4637717c2b3863e277116beb36",
+                "reference": "faed855a7b5f4d4637717c2b3863e277116beb36",
                 "shasum": ""
             },
             "require": {
@@ -16037,7 +16037,7 @@
             ],
             "support": {
                 "issues": "https://github.com/myclabs/DeepCopy/issues",
-                "source": "https://github.com/myclabs/DeepCopy/tree/1.13.1"
+                "source": "https://github.com/myclabs/DeepCopy/tree/1.13.3"
             },
             "funding": [
                 {
@@ -16045,7 +16045,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-04-29T12:36:36+00:00"
+            "time": "2025-07-05T12:25:42+00:00"
         },
         {
             "name": "phar-io/manifest",
@@ -17185,12 +17185,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "e798e1676cbc3fa2f63b439b844fe30645b1e052"
+                "reference": "a76f62e135c8b583602bd99df737b5c20f4d7200"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e798e1676cbc3fa2f63b439b844fe30645b1e052",
-                "reference": "e798e1676cbc3fa2f63b439b844fe30645b1e052",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/a76f62e135c8b583602bd99df737b5c20f4d7200",
+                "reference": "a76f62e135c8b583602bd99df737b5c20f4d7200",
                 "shasum": ""
             },
             "conflict": {
@@ -17296,7 +17296,7 @@
                 "ckeditor/ckeditor": "<4.25",
                 "clickstorm/cs-seo": ">=6,<6.8|>=7,<7.5|>=8,<8.4|>=9,<9.3",
                 "co-stack/fal_sftp": "<0.2.6",
-                "cockpit-hq/cockpit": "<2.7|==2.7",
+                "cockpit-hq/cockpit": "<2.11.4",
                 "codeception/codeception": "<3.1.3|>=4,<4.1.22",
                 "codeigniter/framework": "<3.1.10",
                 "codeigniter4/framework": "<4.5.8",
@@ -18132,7 +18132,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-03T22:05:19+00:00"
+            "time": "2025-07-04T13:13:44+00:00"
         },
         {
             "name": "sebastian/cli-parser",
