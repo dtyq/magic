@@ -61,6 +61,8 @@ class ScheduleUsageRecordSubscriber implements ListenerInterface
         $msgLog->setSourceId($modelUsageEvent->getBusinessParam('source_id') ?? '');
         $msgLog->setUserName($modelUsageEvent->getBusinessParam('user_name') ?? '');
         $msgLog->setAccessTokenId($modelUsageEvent->getBusinessParam('access_token_id') ?? '');
+        $msgLog->setProviderId($modelUsageEvent->getBusinessParam('service_provider_id') ?? '');
+        $msgLog->setProviderModelId($modelUsageEvent->getBusinessParam('service_provider_model_id') ?? '');
         $msgLog->setCreatedAt(new DateTime());
         $this->msgLogDomainService->create($dataIsolation, $msgLog);
     }

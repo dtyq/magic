@@ -66,8 +66,8 @@ class ModelGatewayMapper extends ModelMapper
 
         // 这里具有优先级的顺序来覆盖配置,后续统一迁移到管理后台
         $this->loadEnvModels();
-        $this->loadFlowModels();
-        $this->loadApiModels();
+        //        $this->loadFlowModels();
+        //        $this->loadApiModels();
     }
 
     public function exists(string $model, ?string $orgCode = null): bool
@@ -521,6 +521,7 @@ class ModelGatewayMapper extends ModelMapper
                 owner: 'MagicAI',
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
                 providerModelId: (string) $providerModelEntity->getId(),
+                providerId: (string) $providerConfigEntity->getId(),
             )
         );
     }

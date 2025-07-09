@@ -21,6 +21,7 @@ readonly class OdinModelAttributes
         private string $owner,
         private string $providerAlias = '',
         private string $providerModelId = '',
+        private string $providerId = '',
     ) {
     }
 
@@ -69,6 +70,11 @@ readonly class OdinModelAttributes
         return $this->providerModelId;
     }
 
+    public function getProviderId(): string
+    {
+        return $this->providerId;
+    }
+
     public function toArray(): array
     {
         return [
@@ -81,6 +87,7 @@ readonly class OdinModelAttributes
             'owner' => $this->owner,
             'provider_alias' => $this->providerAlias,
             'provider_model_id' => $this->providerModelId,
+            'provider_id' => $this->providerId,
         ];
     }
 }
