@@ -36,11 +36,6 @@ stages:
   - git config --global user.name "GitLab CI"
   - git config --global user.email "gitlab-ci@example.com"
   
-  # 下载 splitsh-lite 工具
-  - mkdir -p bin
-  - curl -L https://cdn.letsmagic.cn/static/file/gitlab/liunx/splitsh-lite -o bin/splitsh-lite
-  - chmod +x bin/splitsh-lite
-  
   # 配置Git仓库URL环境变量
   - |
     if [ -z "$GIT_REPO_URL" ]; then
@@ -100,6 +95,11 @@ sync-to-sub-repos:
     - cd magic
     - git checkout $CURRENT_BRANCH
     - export GIT_REPO_URL="${GIT_REPO_URL}"
+
+    # 下载 splitsh-lite 工具
+    - mkdir -p bin
+    - curl -L https://cdn.letsmagic.cn/static/bin/linux/splitsh-lite -o bin/splitsh-lite
+    - chmod +x bin/splitsh-lite
 
     # 同步代码
     - chmod +x ./bin/backend_split_all.sh
