@@ -30,7 +30,7 @@ stages:
   
   # 下载 splitsh-lite 工具
   - mkdir -p bin
-  - curl -L https://cdn.letsmagic.cn/gitlab/splitsh-lite -o bin/splitsh-lite
+  - curl -L https://cdn.letsmagic.cn/static/file/gitlab/liunx/splitsh-lite -o bin/splitsh-lite
   - chmod +x bin/splitsh-lite
   
   # 配置Git仓库URL环境变量
