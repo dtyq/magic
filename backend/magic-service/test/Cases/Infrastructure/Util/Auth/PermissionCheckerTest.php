@@ -111,20 +111,6 @@ class PermissionCheckerTest extends TestCase
     }
 
     /**
-     * 测试数据提供者方法.
-     */
-    public static function permissionCheckDataProvider(): array
-    {
-        return [
-            '全局管理员' => ['13800000001', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::GLOBAL_ADMIN->value => ['13800000001'], SuperPermissionEnum::FLOW_ADMIN->value => []], true],
-            '特定权限用户' => ['13800000003', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], true],
-            '无权限用户' => ['13800000099', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], false],
-            '权限不存在' => ['13800000003', SuperPermissionEnum::HIDE_USER_OR_DEPT, [SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], false],
-            '空手机号' => ['', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::GLOBAL_ADMIN->value => ['13800000001'], SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], false],
-        ];
-    }
-
-    /**
      * 使用数据提供者测试权限检查.
      */
     #[DataProvider('permissionCheckDataProvider')]
@@ -138,5 +124,19 @@ class PermissionCheckerTest extends TestCase
             $expected,
             PermissionChecker::checkPermission($mobile, $permission, $permissions)
         );
+    }
+
+    /**
+     * 测试数据提供者方法.
+     */
+    public static function permissionCheckDataProvider(): array
+    {
+        return [
+            '全局管理员' => ['13800000001', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::GLOBAL_ADMIN->value => ['13800000001'], SuperPermissionEnum::FLOW_ADMIN->value => []], true],
+            '特定权限用户' => ['13800000003', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], true],
+            '无权限用户' => ['13800000099', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], false],
+            '权限不存在' => ['13800000003', SuperPermissionEnum::HIDE_USER_OR_DEPT, [SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], false],
+            '空手机号' => ['', SuperPermissionEnum::FLOW_ADMIN, [SuperPermissionEnum::GLOBAL_ADMIN->value => ['13800000001'], SuperPermissionEnum::FLOW_ADMIN->value => ['13800000003']], false],
+        ];
     }
 }
