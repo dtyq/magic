@@ -38,7 +38,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
         $model = $query->first();
 
-        if (empty($model->toArray())) {
+        if (! $model) {
             return null;
         }
         return new TaskFileEntity($model->toArray());
