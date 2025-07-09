@@ -215,7 +215,7 @@ class TaskApi extends AbstractApi
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
-            $project = $this->projectAppService->getProject((int)$projectId, (string)$userEntity->getId());
+            $project = $this->projectAppService->getProject((int)$projectId, (string)$userEntity->getUserId());
             if (empty($project)) {
                 //抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
@@ -293,9 +293,11 @@ class TaskApi extends AbstractApi
         var_dump($dataIsolation,"=====dataIsolation");
         var_dump($userEntity,"=====userEntity");
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
-        $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
+        //$this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
         // $userMessageDTO->setAgentMode($requestDTO->getProjectMode());
-        // $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
+        $result = $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
+        $createTaskApiResponseDTO->setSandboxId($result['sandbox_id']);
+        $createTaskApiResponseDTO->setTaskId($result['task_id']);
 
         return $createTaskApiResponseDTO->toArray();
     }
