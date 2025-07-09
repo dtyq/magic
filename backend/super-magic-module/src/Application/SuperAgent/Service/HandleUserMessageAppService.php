@@ -160,12 +160,16 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getTraceAsString()
             ));
             // Send error message directly to client
+            $text = json_encode([
+                'code' => $e->getCode(),
+                'message' => get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
+            ], JSON_THROW_ON_ERROR);
             $this->clientMessageAppService->sendErrorMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: trans('task.initialize_error')
+                errorMessage: trans('task.initialize_error') . ' : ' . $text,
             );
             throw new BusinessException('Initialize task failed', 500);
         }
