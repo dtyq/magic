@@ -151,25 +151,24 @@ class HandleUserMessageAppService extends AbstractAppService
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
+            //            $text = json_encode([
+            //                'code' => $e->getCode(),
+            //                'message' => get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
+            //            ], JSON_THROW_ON_ERROR);
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
-                $e->getLine(),
-                $e->getTraceAsString()
+                $e->getLine()
             ));
             // Send error message directly to client
-            $text = json_encode([
-                'code' => $e->getCode(),
-                'message' => get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
-            ], JSON_THROW_ON_ERROR);
             $this->clientMessageAppService->sendErrorMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: trans('task.initialize_error') . ' : ' . $text,
+                errorMessage: trans('task.initialize_error'),
             );
             throw new BusinessException('Initialize task failed', 500);
         }
