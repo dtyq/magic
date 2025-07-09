@@ -16,6 +16,14 @@ return [
         'stream' => [
             'type_not_support' => '流式消息不支持该消息类型',
         ],
+        'voice' => [
+            'attachment_required' => '语音消息必须包含一个音频附件',
+            'single_attachment_only' => '语音消息只能包含一个附件，当前附件数量：:count',
+            'attachment_empty' => '语音消息附件不能为空',
+            'audio_format_required' => '语音消息的附件必须是音频格式，当前类型：:type',
+            'duration_positive' => '语音时长必须大于0秒，当前时长：:duration 秒',
+            'duration_exceeds_limit' => '语音时长不能超过:max_duration 秒，当前时长：:duration 秒',
+        ],
     ],
     'already_exist' => '已存在',
     'not_found' => '未找到',

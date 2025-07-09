@@ -9,10 +9,10 @@ namespace App\Domain\Chat\DTO\Message\ChatMessage;
 
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 
-class VoicesMessage extends FilesMessage
+class VideoMessage extends FileMessage
 {
     protected function setMessageType(): void
     {
-        $this->chatMessageType = ChatMessageType::Voice;
+        $this->chatMessageType = ChatMessageType::Video;
     }
 }

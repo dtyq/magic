@@ -15,7 +15,6 @@ use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicContactIdMappingRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicFriendRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
-use App\Domain\Chat\Repository\Facade\MagicStreamMessageRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\MagicContactIdMappingRepository;
 use App\Domain\Contact\Repository\Facade\MagicAccountRepositoryInterface;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentRepositoryInterface;
@@ -61,7 +60,6 @@ abstract class AbstractContactDomainService
         protected MagicChatTopicRepositoryInterface $magicChatTopicRepository,
         protected MagicGroupRepositoryInterface $magicGroupRepository,
         protected MagicChatFileRepositoryInterface $magicFileRepository,
-        protected MagicStreamMessageRepositoryInterface $magicStreamMessageRepository,
         protected readonly MagicFriendRepositoryInterface $friendRepository,
         protected readonly MagicUserIdRelationRepositoryInterface $userIdRelationRepository,
         protected readonly MagicContactIdMappingRepositoryInterface $contactThirdPlatformIdMappingRepository,

@@ -14,15 +14,13 @@ use App\Domain\Chat\DTO\Message\ChatMessage\FilesMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\ImageConvertHighCardMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\ImagesMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\MarkdownMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\RecordingSummaryMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\RecordingSummaryStreamMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextFormMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\UnknowChatMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\VideosMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\VoicesMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\VideoMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\AddFriendMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\ConversationEndInputMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\ConversationHideMessage;
@@ -47,8 +45,6 @@ use App\Domain\Chat\DTO\Message\ControlMessage\TopicDeleteMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicUpdateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\UnknowControlMessage;
 use App\Domain\Chat\DTO\Message\MessageInterface;
-use App\Domain\Chat\DTO\Message\StreamMessage\StreamMessageStatus;
-use App\Domain\Chat\DTO\Message\StreamMessageInterface;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\ControlRequest;
 use App\Domain\Chat\DTO\Request\StreamRequest;
@@ -208,9 +204,8 @@ class MessageAssembler
             ChatMessageType::ImageConvertHighCard => new ImageConvertHighCardMessage($messageStructArray),
             ChatMessageType::Files => new FilesMessage($messageStructArray),
             ChatMessageType::Image => new ImagesMessage($messageStructArray),
-            ChatMessageType::Video => new VideosMessage($messageStructArray),
-            ChatMessageType::Voice => new VoicesMessage($messageStructArray),
-            ChatMessageType::RecordingSummary => new RecordingSummaryMessage($messageStructArray),
+            ChatMessageType::Video => new VideoMessage($messageStructArray),
+            ChatMessageType::Voice => new VoiceMessage($messageStructArray),
             ChatMessageType::SuperAgentCard => make(SuperAgentMessageInterface::class, ['messageStruct' => $messageStructArray]),
             ChatMessageType::TextForm => new TextFormMessage($messageStructArray),
             default => new UnknowChatMessage()
@@ -249,19 +244,6 @@ class MessageAssembler
             ControlMessageType::AddFriendSuccess => new AddFriendMessage($messageStructArray),
             default => new UnknowControlMessage()
         };
-    }
-
-    public static function getStreamMessageEntity(array $message): ?RecordingSummaryStreamMessage
-    {
-        if (empty($message)) {
-            return null;
-        }
-        $streamMessage = new RecordingSummaryStreamMessage($message);
-        /* @phpstan-ignore-next-line */
-        if (isset($message['streamStatus']) && $streamMessage instanceof StreamMessageInterface) {
-            $streamMessage->getStreamOptions()?->setStatus(StreamMessageStatus::from($message['streamStatus']));
-        }
-        return $streamMessage;
     }
 
     /**

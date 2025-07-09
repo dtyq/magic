@@ -43,7 +43,6 @@ use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicContactIdMappingRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicFriendRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
-use App\Domain\Chat\Repository\Facade\MagicStreamMessageRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\MagicChatConversationRepository;
 use App\Domain\Chat\Repository\Persistence\MagicChatFileRepository;
 use App\Domain\Chat\Repository\Persistence\MagicChatSeqRepository;
@@ -52,7 +51,6 @@ use App\Domain\Chat\Repository\Persistence\MagicContactIdMappingRepository;
 use App\Domain\Chat\Repository\Persistence\MagicFriendRepository;
 use App\Domain\Chat\Repository\Persistence\MagicMessageRepository;
 use App\Domain\Chat\Repository\Persistence\MagicMessageVersionsRepository;
-use App\Domain\Chat\Repository\Persistence\MagicStreamMessageRepository;
 use App\Domain\Chat\Service\MessageContentProvider;
 use App\Domain\Chat\Service\MessageContentProviderInterface;
 use App\Domain\Contact\Repository\Facade\MagicAccountRepositoryInterface;
@@ -309,7 +307,6 @@ $dependencies = [
 
     // 聊天文件
     MagicChatFileRepositoryInterface::class => MagicChatFileRepository::class,
-    MagicStreamMessageRepositoryInterface::class => MagicStreamMessageRepository::class,
 
     AuthenticationRepositoryInterface::class => AuthenticationRepository::class,
     CloudFileRepositoryInterface::class => CloudFileRepository::class,
