@@ -29,6 +29,8 @@ class CreateTaskApiRequestDTO extends AbstractRequestDTO
 
     protected string $accessToken = '';
 
+    protected string $conversationId = '';
+
     /**
      * 验证规则.
      */

@@ -135,6 +135,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
 
+
             $taskEntity = TaskEntity::fromArray($data);
             // Initialize task
             $taskEntity = $this->taskDomainService->initTopicTask(
