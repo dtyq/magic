@@ -98,7 +98,7 @@ class HandleApiMessageAppService extends AbstractAppService
     * user send message to agent
     */
 
-    public function handleApiMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
+    public function handleApiMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO):array
     {
         $topicId = 0;
         $taskId = '';
@@ -170,6 +170,9 @@ class HandleApiMessageAppService extends AbstractAppService
                 task: $taskEntity,
                 status: TaskStatus::RUNNING
             );
+
+            return ['sandbox_id'=>$sandboxID,'task_id'=>$taskId];
+
         } catch (EventException $e) {
             $this->logger->error(sprintf(
                 'Initialize task, event processing failed: %s',
@@ -268,7 +271,7 @@ class HandleApiMessageAppService extends AbstractAppService
 
         // Initialize agent
         $this->agentAppService->initializeAgent($dataIsolation, $taskContext);
-
+        return $sandboxId;
         // Wait for workspace to be ready
         $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
 
