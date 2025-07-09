@@ -25,6 +25,8 @@ class CreateTaskApiResponseDTO
 
     protected string $taskId = '';
 
+    protected string $sandboxId = '';
+
 
       /**
      * 构造函数.
@@ -121,6 +123,15 @@ class CreateTaskApiResponseDTO
         $this->conversationId = $conversationId;
     }
 
+    public function getSandboxId(): string{
+        return $this->sandboxId;
+    }
+
+    public function setSandboxId(string $sandboxId): void
+    {
+        $this->sandboxId = $sandboxId;
+    }
+
     public function toArray(): array
     {
         return [
@@ -129,6 +140,7 @@ class CreateTaskApiResponseDTO
             'project_id' => $this->projectId,
             'project_mode' => $this->projectMode,
             'topic_id' => $this->topicId,
+            'sandbox_id' => $this->sandboxId,
         ];
     }
 }
