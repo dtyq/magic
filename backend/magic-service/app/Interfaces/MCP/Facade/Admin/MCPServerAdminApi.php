@@ -84,6 +84,6 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $page = Page::createNoPage();
         $result = $this->mcpServerAppService->availableQueries($authorization, $query, $page);
 
-        return MCPServerAssembler::createSelectPageListDTO($result['total'], $result['list'], $page);
+        return MCPServerAssembler::createSelectPageListDTO($result['total'], $result['list'], $page, $result['icons']);
     }
 }
