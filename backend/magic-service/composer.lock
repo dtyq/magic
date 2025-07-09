@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4fd575ea9c63aad40623e11be44a96f7",
+    "content-hash": "c4f5678685c1d15d18df335171ca11b0",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1886,16 +1886,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.27",
+            "version": "1.0.28",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "749dc166e170372ef5aaa8bd5c6667eaffa9bdfe"
+                "reference": "b4f4ef800ccf209c2b8eab0d0fafee83fea53f06"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=749dc166e170372ef5aaa8bd5c6667eaffa9bdfe",
-                "reference": "749dc166e170372ef5aaa8bd5c6667eaffa9bdfe",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=b4f4ef800ccf209c2b8eab0d0fafee83fea53f06",
+                "reference": "b4f4ef800ccf209c2b8eab0d0fafee83fea53f06",
                 "shasum": ""
             },
             "require": {
@@ -1972,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.27"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.28"
             },
-            "time": "2025-07-04T09:24:18+00:00"
+            "time": "2025-07-07T16:44:56+08:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.56",
+            "version": "0.0.57",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "3ca47bf7197911681e9d1f3a7fda7fc5fc0eed40"
+                "reference": "d46c266ac861775898482ba6b41f340b5c216b2f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=3ca47bf7197911681e9d1f3a7fda7fc5fc0eed40",
-                "reference": "3ca47bf7197911681e9d1f3a7fda7fc5fc0eed40",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=d46c266ac861775898482ba6b41f340b5c216b2f",
+                "reference": "d46c266ac861775898482ba6b41f340b5c216b2f",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.56"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.57"
             },
-            "time": "2025-07-09T14:45:58+08:00"
+            "time": "2025-07-09T15:02:46+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2567,16 +2567,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.42",
+            "version": "v0.0.43",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "302164c90608451cb4bfeaacacc34859f390b9cb"
+                "reference": "35ebb7393101f578dfb36ec0347ff3b0085b3a7e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=302164c90608451cb4bfeaacacc34859f390b9cb",
-                "reference": "302164c90608451cb4bfeaacacc34859f390b9cb",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=35ebb7393101f578dfb36ec0347ff3b0085b3a7e",
+                "reference": "35ebb7393101f578dfb36ec0347ff3b0085b3a7e",
                 "shasum": ""
             },
             "require": {
@@ -2668,9 +2668,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.42"
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.43"
             },
-            "time": "2025-07-09T17:04:09+08:00"
+            "time": "2025-07-09T23:06:23+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -16167,20 +16167,20 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "1.12.27",
+            "version": "2.1.17",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan.git",
-                "reference": "3a6e423c076ab39dfedc307e2ac627ef579db162"
+                "reference": "89b5ef665716fa2a52ecd2633f21007a6a349053"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/3a6e423c076ab39dfedc307e2ac627ef579db162",
-                "reference": "3a6e423c076ab39dfedc307e2ac627ef579db162",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/89b5ef665716fa2a52ecd2633f21007a6a349053",
+                "reference": "89b5ef665716fa2a52ecd2633f21007a6a349053",
                 "shasum": ""
             },
             "require": {
-                "php": "^7.2|^8.0"
+                "php": "^7.4|^8.0"
             },
             "conflict": {
                 "phpstan/phpstan-shim": "*"
@@ -16221,7 +16221,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-05-21T20:51:45+00:00"
+            "time": "2025-05-21T20:55:28+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
