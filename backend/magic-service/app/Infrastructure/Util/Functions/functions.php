@@ -402,11 +402,7 @@ if (! function_exists('parse_json_config')) {
         if ($value === null || $value === '') {
             return [];
         }
-        if (is_string($value)) {
-            $parsed = json_decode($value, true);
-            return (json_last_error() === JSON_ERROR_NONE) ? $parsed : [];
-        }
-        /* @phpstan-ignore-next-line */
-        return [];
+        $parsed = json_decode($value, true);
+        return (json_last_error() === JSON_ERROR_NONE) ? $parsed : [];
     }
 }

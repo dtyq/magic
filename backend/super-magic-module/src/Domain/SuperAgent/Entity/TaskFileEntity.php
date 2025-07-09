@@ -17,6 +17,8 @@ class TaskFileEntity extends AbstractEntity
 
     protected string $organizationCode = '';
 
+    protected int $projectId = 0;
+
     protected int $topicId = 0;
 
     protected int $taskId = 0;
@@ -71,6 +73,16 @@ class TaskFileEntity extends AbstractEntity
     public function setOrganizationCode(string $organizationCode): void
     {
         $this->organizationCode = $organizationCode;
+    }
+
+    public function getProjectId(): int
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId(int $projectId): void
+    {
+        $this->projectId = $projectId;
     }
 
     public function getTopicId(): int
@@ -209,6 +221,7 @@ class TaskFileEntity extends AbstractEntity
             'file_id' => $this->fileId,
             'user_id' => $this->userId,
             'organization_code' => $this->organizationCode,
+            'project_id' => $this->projectId,
             'topic_id' => $this->topicId,
             'task_id' => $this->taskId,
             'file_type' => $this->fileType,

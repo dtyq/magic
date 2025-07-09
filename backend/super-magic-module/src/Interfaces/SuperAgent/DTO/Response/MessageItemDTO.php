@@ -57,6 +57,11 @@ class MessageItemDTO implements JsonSerializable
     protected string $content;
 
     /**
+     * @var mixed 原始消息内容
+     */
+    protected $rawContent;
+
+    /**
      * @var null|array 步骤信息
      */
     protected ?array $steps;
@@ -95,6 +100,15 @@ class MessageItemDTO implements JsonSerializable
         $this->taskId = (string) ($data['task_id'] ?? '');
         $this->status = $data['status'] ?? null;
         $this->content = (string) ($data['content'] ?? '');
+
+        // Handle raw_content: null if empty, json_decode if not empty
+        $rawContentValue = $data['raw_content'] ?? null;
+        if (empty($rawContentValue)) {
+            $this->rawContent = null;
+        } else {
+            $this->rawContent = json_decode($rawContentValue, true);
+        }
+
         $this->steps = $data['steps'] ?? null;
         $this->tool = $data['tool'] ?? null;
         $this->sendTimestamp = (int) ($data['send_timestamp'] ?? 0);
@@ -117,6 +131,7 @@ class MessageItemDTO implements JsonSerializable
             'task_id' => $this->taskId,
             'status' => $this->status,
             'content' => $this->content,
+            'raw_content' => $this->rawContent,
             'steps' => $this->steps,
             'tool' => $this->tool,
             'send_timestamp' => $this->sendTimestamp,

@@ -52,7 +52,7 @@ class TopicApi extends AbstractApi
      * @throws BusinessException 如果参数无效或操作失败则抛出异常
      * @throws Throwable
      */
-    public function saveTopic(RequestContext $requestContext): array
+    public function createTopic(RequestContext $requestContext): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -61,7 +61,29 @@ class TopicApi extends AbstractApi
         $requestDTO = SaveTopicRequestDTO::fromRequest($this->request);
 
         // 调用应用服务层处理业务逻辑
-        return $this->topicAppService->saveTopic($requestContext, $requestDTO)->toArray();
+        return $this->topicAppService->createTopic($requestContext, $requestDTO)->toArray();
+    }
+
+    /**
+     * 保存话题（创建或更新）
+     * 接口层负责处理HTTP请求和响应，不包含业务逻辑.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 操作结果，包含话题ID
+     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     * @throws Throwable
+     */
+    public function updateTopic(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 从请求创建DTO
+        $requestDTO = SaveTopicRequestDTO::fromRequest($this->request);
+        $requestDTO->id = $id;
+
+        // 调用应用服务层处理业务逻辑
+        return $this->topicAppService->updateTopic($requestContext, $requestDTO)->toArray();
     }
 
     /**

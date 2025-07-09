@@ -39,10 +39,7 @@ class MessageBuilderDomainService
         string $taskMode = 'chat'
     ): array {
         // Process metadata
-        $metaDataArray = $metaData;
-        if ($metaData instanceof MessageMetadata) {
-            $metaDataArray = $metaData->toArray();
-        }
+        $metaDataArray = $metaData->toArray();
 
         return [
             'message_id' => (string) IdGenerator::getSnowId(),

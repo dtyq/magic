@@ -11,6 +11,8 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 
 class RunTaskCallbackEvent extends AbstractEvent
 {
+    private array $departmentIds;
+
     public function __construct(
         private string $organizationCode,
         private string $userId,
@@ -21,6 +23,7 @@ class RunTaskCallbackEvent extends AbstractEvent
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
+        $this->departmentIds = $this->extractDepartmentIds();
     }
 
     public function getOrganizationCode(): string
@@ -54,6 +57,16 @@ class RunTaskCallbackEvent extends AbstractEvent
     }
 
     /**
+     * Get department IDs from the user information in the task message.
+     *
+     * @return string[]
+     */
+    public function getDepartmentIds(): array
+    {
+        return $this->departmentIds;
+    }
+
+    /**
      * Convert the event object to array format.
      */
     public function toArray(): array
@@ -65,6 +78,21 @@ class RunTaskCallbackEvent extends AbstractEvent
             'topicName' => $this->topicName,
             'taskId' => $this->taskId,
             'taskMessage' => $this->taskMessage->toArray() ?? $this->taskMessage,
+            'departmentIds' => $this->departmentIds,
         ];
+    }
+
+    private function extractDepartmentIds(): array
+    {
+        $departmentIds = [];
+        $metadata = $this->taskMessage->getMetadata();
+        $userInfo = $metadata->getUserInfo();
+        if ($userInfo) {
+            $departments = $userInfo->getDepartments();
+            foreach ($departments as $department) {
+                $departmentIds[] = $department->getId();
+            }
+        }
+        return $departmentIds;
     }
 }

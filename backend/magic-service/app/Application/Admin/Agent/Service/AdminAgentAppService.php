@@ -369,6 +369,7 @@ class AdminAgentAppService extends AbstractKernelAppService
             });
         }
         // 如果type为NOT_SELECTED_DEFAULT_FRIEND，则只返回未选中的默认好友
+        /* @phpstan-ignore-next-line */
         if ($type === AgentFilterType::NOT_SELECTED_DEFAULT_FRIEND) {
             return array_filter($enabledAgents, function ($agent) use ($selectedDefaultFriendRootIds) {
                 return ! isset($selectedDefaultFriendRootIds[$agent->getId()]);

@@ -45,7 +45,7 @@ class MagicChatAggregateSearchReqDTO
 
     protected string $organizationCode = '';
 
-    private ?MagicSeqEntity $magicSeqEntity;
+    private MagicSeqEntity $magicSeqEntity;
 
     public function getOrganizationCode(): string
     {

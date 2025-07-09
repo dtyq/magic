@@ -25,6 +25,7 @@ class TaskFileModel extends AbstractModel
         'file_id',
         'user_id',
         'organization_code',
+        'project_id',
         'topic_id',
         'task_id',
         'file_type',
@@ -33,7 +34,6 @@ class TaskFileModel extends AbstractModel
         'file_key',
         'file_size',
         'external_url',
-        'menu',
         'storage_type', // 存储类型，由FileProcessAppService.processAttachmentsArray方法传入
         'is_hidden', // 是否为隐藏文件
         'created_at',

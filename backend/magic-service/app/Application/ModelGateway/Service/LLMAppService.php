@@ -448,7 +448,7 @@ class LLMAppService extends AbstractLLMAppService
             if (! $model || $model instanceof MagicAILocalModel) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
             }
-
+            /* @phpstan-ignore-next-line */
             if ($model instanceof AwsBedrockModel && method_exists($model, 'setConfig')) {
                 $model->setConfig(array_merge($model->getConfig(), $this->createAwsAutoCacheConfig($proxyModelRequest)));
             }

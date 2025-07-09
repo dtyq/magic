@@ -36,19 +36,19 @@ class MagicAgentDTO extends AbstractEntity
     /**
      * 助理描述.
      */
-    private ?string $agentDescription = '';
+    private string $agentDescription = '';
 
     private ?string $robotDescription = '';
 
     /**
      * 当前组织编码
      */
-    private ?string $currentOrganizationCode = '';
+    private string $currentOrganizationCode = '';
 
     /**
      * 当前的用户id.
      */
-    private ?string $currentUserId = '';
+    private string $currentUserId = '';
 
     private bool $startPage = false;
 

@@ -58,4 +58,8 @@ interface SandboxGatewayInterface
         array $data = [],
         array $headers = []
     ): GatewayResult;
+
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
+
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult;
 }

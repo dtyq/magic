@@ -34,11 +34,13 @@ class TaskModel extends AbstractModel
         'id',
         'user_id',
         'workspace_id',
+        'project_id',
         'topic_id',
         'task_id',
         'sandbox_id',
         'prompt',
         'attachments',
+        'mentions',
         'task_status',
         'work_dir',
         'task_mode',
@@ -56,4 +58,28 @@ class TaskModel extends AbstractModel
         'updated_at',
         'deleted_at',
     ];
+
+    /**
+     * 获取任务所属的工作区.
+     */
+    public function workspace()
+    {
+        return $this->belongsTo(WorkspaceModel::class, 'workspace_id', 'id');
+    }
+
+    /**
+     * 获取任务所属的项目.
+     */
+    public function project()
+    {
+        return $this->belongsTo(ProjectModel::class, 'project_id', 'id');
+    }
+
+    /**
+     * 获取任务所属的话题.
+     */
+    public function topic()
+    {
+        return $this->belongsTo(TopicModel::class, 'topic_id', 'id');
+    }
 }

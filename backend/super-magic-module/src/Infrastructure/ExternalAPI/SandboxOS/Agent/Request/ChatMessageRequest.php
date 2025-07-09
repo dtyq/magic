@@ -21,8 +21,9 @@ class ChatMessageRequest
         private string $taskId = '',
         private string $prompt = '',
         private string $taskMode = 'chat',
+        private string $agentMode = '',
         private array $attachments = [],
-        private array $mcpConfig = [],
+        private array $mentions = []
     ) {
     }
 
@@ -35,10 +36,11 @@ class ChatMessageRequest
         string $taskId,
         string $prompt,
         string $taskMode = 'chat',
+        string $agentMode = '',
         array $attachments = [],
-        array $mcpConfig = []
+        array $mentions = []
     ): self {
-        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $attachments, $mcpConfig);
+        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions);
     }
 
     /**
@@ -72,6 +74,23 @@ class ChatMessageRequest
     public function setTaskMode(string $taskMode): self
     {
         $this->taskMode = $taskMode;
+        return $this;
+    }
+
+    /**
+     * 获取Agent模式.
+     */
+    public function getAgentMode(): string
+    {
+        return $this->agentMode;
+    }
+
+    /**
+     * 设置Agent模式.
+     */
+    public function setAgentMode(string $agentMode): self
+    {
+        $this->agentMode = $agentMode;
         return $this;
     }
 
@@ -144,19 +163,20 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取MCP配置.
+     * 获取提及.
      */
-    public function getMcpConfig(): array
+    public function getMentions(): array
     {
-        return $this->mcpConfig;
+        /* @phpstan-ignore-next-line */
+        return $this->mentions ?? [];
     }
 
     /**
-     * 设置MCP配置.
+     * 设置提及.
      */
-    public function setMcpConfig(array $mcpConfig): self
+    public function setMentions(array $mentions): self
     {
-        $this->mcpConfig = $mcpConfig;
+        $this->mentions = $mentions;
         return $this;
     }
 
@@ -173,8 +193,9 @@ class ChatMessageRequest
             'type' => 'chat',
             'prompt' => $this->prompt,
             'task_mode' => $this->taskMode,
+            'agent_mode' => $this->agentMode,
             'attachments' => $this->attachments,
-            'mcp_config' => $this->mcpConfig,
+            'mentions' => $this->mentions,
         ];
     }
 }

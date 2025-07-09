@@ -478,7 +478,7 @@ class MagicChatDomainService extends AbstractDomainService
             $senderUserId = $messageEntity->getSenderId();
             unset($groupUsers[$senderUserId]);
             // 获取成员的magic_id
-            $userIds = array_values(array_keys($groupUsers));
+            $userIds = array_keys($groupUsers);
             $users = $this->magicUserRepository->getUserByIds($userIds);
             $users = array_column($users, null, 'user_id');
             // 批量获取群成员的会话信息

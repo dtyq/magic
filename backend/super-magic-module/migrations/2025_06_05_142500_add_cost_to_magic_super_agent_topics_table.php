@@ -1,8 +1,12 @@
 <?php
 
-use Hyperf\Database\Schema\Schema;
-use Hyperf\Database\Schema\Blueprint;
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
 
 class AddCostToMagicSuperAgentTopicsTable extends Migration
 {
@@ -25,4 +29,4 @@ class AddCostToMagicSuperAgentTopicsTable extends Migration
             $table->dropColumn('cost');
         });
     }
-} 
+}

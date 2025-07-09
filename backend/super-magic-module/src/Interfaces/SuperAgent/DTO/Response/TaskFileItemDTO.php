@@ -23,6 +23,11 @@ class TaskFileItemDTO extends AbstractDTO
     public string $taskId;
 
     /**
+     * 项目ID.
+     */
+    public string $projectId = '';
+
+    /**
      * 文件类型.
      */
     public string $fileType;
@@ -70,6 +75,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto = new self();
         $dto->fileId = (string) $entity->getFileId();
         $dto->taskId = (string) $entity->getTaskId();
+        $dto->projectId = (string) $entity->getProjectId();
         $dto->fileType = $entity->getFileType();
         $dto->fileName = $entity->getFileName();
         $dto->fileExtension = $entity->getFileExtension();
@@ -90,6 +96,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto = new self();
         $dto->fileId = (string) ($data['file_id'] ?? '');
         $dto->taskId = (string) ($data['task_id'] ?? '');
+        $dto->projectId = (string) ($data['project_id'] ?? '');
         $dto->fileType = $data['file_type'] ?? '';
         $dto->fileName = $data['file_name'] ?? '';
         $dto->fileExtension = $data['file_extension'] ?? '';
@@ -110,6 +117,7 @@ class TaskFileItemDTO extends AbstractDTO
         return [
             'file_id' => $this->fileId,
             'task_id' => $this->taskId,
+            'project_id' => $this->projectId,
             'file_type' => $this->fileType,
             'file_name' => $this->fileName,
             'file_extension' => $this->fileExtension,

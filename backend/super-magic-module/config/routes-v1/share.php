@@ -18,7 +18,7 @@ Router::addGroup(
             // 更新分享设置
             Router::post('/{id}/update', [ShareApi::class, 'updateShare']);
             // 取消分享
-            Router::post('/{id}/cancel', [ShareApi::class, 'cancelShare']);
+            Router::post('/{id}/cancel', [ShareApi::class, 'cancelShareByResourceId']);
 
             // 获取用户分享资源列表
             Router::post('/list', [ShareApi::class, 'getShareList']);

@@ -50,6 +50,7 @@ class Response implements MessageInterface, JsonSerializable
             }, $this->result['content']);
         }
         $result = $this->result;
+        /* @phpstan-ignore-next-line */
         if (is_array($result) && empty($result)) {
             $result = new stdClass();
         }

@@ -91,6 +91,7 @@ class MessageAssembler
             if ($messageTypeEnum instanceof ControlMessageType) {
                 return self::getControlMessageStruct($messageTypeEnum, $messageStructArray);
             }
+            /* @phpstan-ignore-next-line */
             if ($messageTypeEnum instanceof ChatMessageType) {
                 return self::getChatMessageStruct($messageTypeEnum, $messageStructArray);
             }
@@ -256,6 +257,7 @@ class MessageAssembler
             return null;
         }
         $streamMessage = new RecordingSummaryStreamMessage($message);
+        /* @phpstan-ignore-next-line */
         if (isset($message['streamStatus']) && $streamMessage instanceof StreamMessageInterface) {
             $streamMessage->getStreamOptions()?->setStatus(StreamMessageStatus::from($message['streamStatus']));
         }

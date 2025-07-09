@@ -85,6 +85,7 @@ class MagicChatAIImageReqDTO
         } else {
             throw new Exception('不支持的消息类型');
         }
+        /* @phpstan-ignore-next-line */
         if ($userMessage instanceof ChatFileInterface) {
             $this->setReferenceImageIds($userMessage->getFileIds());
         }

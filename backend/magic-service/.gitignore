@@ -27,3 +27,5 @@ coverage/
 odin_models.json
 composer.lock
 scripts/
+storage/files/test001
+/CLAUDE.md
