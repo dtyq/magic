@@ -52,18 +52,19 @@ class MCPServerAppService extends AbstractMCPAppService
         if ($office) {
             $dataIsolation->setOnlyOfficialOrganization(true);
         } else {
-            $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-                $dataIsolation,
-                ResourceType::MCPServer,
-                [$authorization->getId()]
-            )[$authorization->getId()] ?? [];
-            $resourceIds = array_keys($resources);
+            if (! $dataIsolation->isOfficialOrganization()) {
+                $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                    $dataIsolation,
+                    ResourceType::MCPServer,
+                    [$authorization->getId()]
+                )[$authorization->getId()] ?? [];
+                $resourceIds = array_keys($resources);
 
-            if (! empty($query->getCodes())) {
-                $resourceIds = array_intersect($resourceIds, $query->getCodes());
+                if (! empty($query->getCodes())) {
+                    $resourceIds = array_intersect($resourceIds, $query->getCodes());
+                }
+                $query->setCodes($resourceIds);
             }
-
-            $query->setCodes($resourceIds);
         }
 
         $data = $this->mcpServerDomainService->queries(
