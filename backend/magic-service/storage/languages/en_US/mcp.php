@@ -15,6 +15,7 @@ return [
         'command' => 'Command',
         'arguments' => 'Arguments',
         'headers' => 'Headers',
+        'env' => 'Environment Variables',
         'oauth2_config' => 'OAuth2 Configuration',
         'client_id' => 'Client ID',
         'client_secret' => 'Client Secret',
@@ -44,6 +45,11 @@ return [
     'service' => [
         'already_exists' => 'MCP service already exists',
         'not_enabled' => 'MCP service is not enabled',
+    ],
+
+    // Server related errors
+    'server' => [
+        'not_support_check_status' => 'This type of server status check is not supported',
     ],
 
     // Resource relation errors
@@ -88,5 +94,16 @@ return [
     'required_fields' => [
         'missing' => 'Required fields are missing: :fields',
         'empty' => 'Required fields cannot be empty: :fields',
+    ],
+
+    // STDIO executor related errors
+    'executor' => [
+        'stdio' => [
+            'connection_failed' => 'STDIO executor connection failed',
+            'access_denied' => 'STDIO executor functionality is temporarily not supported',
+        ],
+        'http' => [
+            'connection_failed' => 'HTTP executor connection failed',
+        ],
     ],
 ];

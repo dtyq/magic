@@ -15,6 +15,7 @@ return [
         'command' => 'Lệnh',
         'arguments' => 'Tham số',
         'headers' => 'Tiêu đề',
+        'env' => 'Biến Môi trường',
         'oauth2_config' => 'Cấu hình OAuth2',
         'client_id' => 'ID Khách hàng',
         'client_secret' => 'Mật khẩu Khách hàng',
@@ -44,6 +45,11 @@ return [
     'service' => [
         'already_exists' => 'Dịch vụ MCP đã tồn tại',
         'not_enabled' => 'Dịch vụ MCP chưa được kích hoạt',
+    ],
+
+    // Lỗi liên quan đến máy chủ
+    'server' => [
+        'not_support_check_status' => 'Không hỗ trợ kiểm tra trạng thái máy chủ loại này',
     ],
 
     // Lỗi quan hệ tài nguyên
@@ -88,5 +94,16 @@ return [
     'required_fields' => [
         'missing' => 'Thiếu trường bắt buộc: :fields',
         'empty' => 'Trường bắt buộc không được để trống: :fields',
+    ],
+
+    // Lỗi liên quan đến STDIO executor
+    'executor' => [
+        'stdio' => [
+            'connection_failed' => 'Kết nối STDIO executor thất bại',
+            'access_denied' => 'Chức năng STDIO executor tạm thời không được hỗ trợ',
+        ],
+        'http' => [
+            'connection_failed' => 'Kết nối HTTP executor thất bại',
+        ],
     ],
 ];

@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "15ffe75518a9512ebd962ced1a5968fe498421b7"
+                "reference": "208166f79cf341e89805c21350263f9be46c56b0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=15ffe75518a9512ebd962ced1a5968fe498421b7",
-                "reference": "15ffe75518a9512ebd962ced1a5968fe498421b7",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=208166f79cf341e89805c21350263f9be46c56b0",
+                "reference": "208166f79cf341e89805c21350263f9be46c56b0",
                 "shasum": ""
             },
             "require": {
@@ -1975,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-07-08T03:27:00+00:00"
+            "time": "2025-07-09T03:44:30+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2208,12 +2208,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "6d8e866842c3213f76b74fe18fd004c699d8e291"
+                "reference": "ccc7d1af312c0e42a8f03ca12b8c9a171e5df76a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=6d8e866842c3213f76b74fe18fd004c699d8e291",
-                "reference": "6d8e866842c3213f76b74fe18fd004c699d8e291",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=ccc7d1af312c0e42a8f03ca12b8c9a171e5df76a",
+                "reference": "ccc7d1af312c0e42a8f03ca12b8c9a171e5df76a",
                 "shasum": ""
             },
             "require": {
@@ -2316,20 +2316,20 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-08T10:27:33+00:00"
+            "time": "2025-07-08T14:46:50+00:00"
         },
         {
             "name": "dtyq/php-mcp",
-            "version": "0.1.5",
+            "version": "0.1.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/php-mcp.git",
-                "reference": "444e7aa6012f608e860cbd76afc650e8d850d824"
+                "reference": "8e9b2b111d10347f96accfa9a99e3d551fc31aed"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/444e7aa6012f608e860cbd76afc650e8d850d824",
-                "reference": "444e7aa6012f608e860cbd76afc650e8d850d824",
+                "url": "https://api.github.com/repos/dtyq/php-mcp/zipball/8e9b2b111d10347f96accfa9a99e3d551fc31aed",
+                "reference": "8e9b2b111d10347f96accfa9a99e3d551fc31aed",
                 "shasum": ""
             },
             "require": {
@@ -2378,9 +2378,9 @@
             "description": "PHP implementation of MCP server and client",
             "support": {
                 "issues": "https://github.com/dtyq/php-mcp/issues",
-                "source": "https://github.com/dtyq/php-mcp/tree/0.1.5"
+                "source": "https://github.com/dtyq/php-mcp/tree/0.1.6"
             },
-            "time": "2025-07-05T10:17:40+00:00"
+            "time": "2025-07-08T13:03:52+00:00"
         },
         {
             "name": "dtyq/rule-engine-core",
@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "7b7845e844bc420da8127d0d11c2bb8112ef0bdb"
+                "reference": "cae796326acb3b1834351a4080d2d2742f9a5214"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=7b7845e844bc420da8127d0d11c2bb8112ef0bdb",
-                "reference": "7b7845e844bc420da8127d0d11c2bb8112ef0bdb",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=cae796326acb3b1834351a4080d2d2742f9a5214",
+                "reference": "cae796326acb3b1834351a4080d2d2742f9a5214",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-08T16:32:53+08:00"
+            "time": "2025-07-09T01:21:55+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6383,16 +6383,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.22",
+            "version": "v1.1.24",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "70a19b3ae2b8797995f5b194509bd428ce133f10"
+                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=70a19b3ae2b8797995f5b194509bd428ce133f10",
-                "reference": "70a19b3ae2b8797995f5b194509bd428ce133f10",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=d2d03eaf4b08e9f58a445808efafd61471e21dc6",
+                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6",
                 "shasum": ""
             },
             "require": {
@@ -6457,9 +6457,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.22"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.24"
             },
-            "time": "2025-07-06T06:33:07+00:00"
+            "time": "2025-07-08T12:52:41+00:00"
         },
         {
             "name": "hyperf/phar",

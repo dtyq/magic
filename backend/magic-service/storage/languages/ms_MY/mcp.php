@@ -15,6 +15,7 @@ return [
         'command' => 'Arahan',
         'arguments' => 'Argumen',
         'headers' => 'Pengepala',
+        'env' => 'Pembolehubah Persekitaran',
         'oauth2_config' => 'Konfigurasi OAuth2',
         'client_id' => 'ID Klien',
         'client_secret' => 'Rahsia Klien',
@@ -44,6 +45,11 @@ return [
     'service' => [
         'already_exists' => 'Perkhidmatan MCP sudah wujud',
         'not_enabled' => 'Perkhidmatan MCP tidak diaktifkan',
+    ],
+
+    // Ralat berkaitan pelayan
+    'server' => [
+        'not_support_check_status' => 'Jenis pemeriksaan status pelayan ini tidak disokong',
     ],
 
     // Ralat hubungan sumber
@@ -88,5 +94,16 @@ return [
     'required_fields' => [
         'missing' => 'Medan yang diperlukan tiada: :fields',
         'empty' => 'Medan yang diperlukan tidak boleh kosong: :fields',
+    ],
+
+    // Ralat berkaitan pelaksana STDIO
+    'executor' => [
+        'stdio' => [
+            'connection_failed' => 'Sambungan pelaksana STDIO gagal',
+            'access_denied' => 'Fungsi pelaksana STDIO tidak disokong buat masa ini',
+        ],
+        'http' => [
+            'connection_failed' => 'Sambungan pelaksana HTTP gagal',
+        ],
     ],
 ];

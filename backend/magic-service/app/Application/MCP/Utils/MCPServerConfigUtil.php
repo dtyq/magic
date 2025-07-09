@@ -22,7 +22,7 @@ use Hyperf\Odin\Mcp\McpServerConfig;
 use Hyperf\Odin\Mcp\McpType;
 use Throwable;
 
-class McpServerConfigUtil
+class MCPServerConfigUtil
 {
     public static function create(
         MCPDataIsolation $dataIsolation,
@@ -72,6 +72,7 @@ class McpServerConfigUtil
                     name: $MCPServerEntity->getName(),
                     command: $serviceConfig->getCommand(),
                     args: $serviceConfig->getArguments(),
+                    env: $serviceConfig->getEnvArray(),
                 );
             default:
                 return null;

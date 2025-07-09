@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Flow\ExecuteManager\BuiltIn\AgentPlugin\MCP;
 
 use App\Application\Flow\ExecuteManager\BuiltIn\AgentPlugin\AbstractAgentPlugin;
-use App\Application\MCP\Utils\McpServerConfigUtil;
+use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\MCPServerItem;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
@@ -86,7 +86,7 @@ class MCPAgentPlugin extends AbstractAgentPlugin
                 }
             }
 
-            $config = McpServerConfigUtil::create($dataIsolation, $MCPServerEntity, supportStdio: false);
+            $config = MCPServerConfigUtil::create($dataIsolation, $MCPServerEntity, supportStdio: false);
             if ($config) {
                 $configs[$MCPServerEntity->getCode()] = $config;
             }

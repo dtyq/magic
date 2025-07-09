@@ -33,6 +33,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\Respon
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -73,6 +74,18 @@ class AgentAppService extends AbstractKernelAppService
 
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
+        // 添加详细的调试日志，检查 result 对象
+        $this->logger->info('[Sandbox][App] Gateway result analysis', [
+            'result_class' => get_class($result),
+            'result_is_success' => $result->isSuccess(),
+            'result_code' => $result->getCode(),
+            'result_message' => $result->getMessage(),
+            'result_data_raw' => $result->getData(),
+            'result_data_type' => gettype($result->getData()),
+            'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
+            'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
+        ]);
+
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
                 'project_id' => $projectId,
@@ -83,7 +96,13 @@ class AgentAppService extends AbstractKernelAppService
             throw new SandboxOperationException('Create sandbox', $result->getMessage(), $result->getCode());
         }
 
-        return $result->getData()['sandbox_id'];
+        $this->logger->info('[Sandbox][App] Create sandbox success', [
+            'project_id' => $projectId,
+            'input_sandbox_id' => $sandboxID,
+            'returned_sandbox_id' => $result->getDataValue('sandbox_id'),
+        ]);
+
+        return $result->getDataValue('sandbox_id');
     }
 
     /**
@@ -181,14 +200,12 @@ class AgentAppService extends AbstractKernelAppService
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
 
-        $attachmentUrls = [];
-        if (! empty($taskContext->getTask()->getAttachments())) {
-            $attachments = json_decode($taskContext->getTask()->getAttachments());
-            $fileIds = array_filter(array_column($attachments, 'file_id'));
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
-        }
-
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+
+        $attachmentUrls = [];
+        if (! empty($mentionsJsonStruct)) {
+            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
+        }
 
         $mcpDataIsolation = MCPDataIsolation::create(
             $dataIsolation->getCurrentOrganizationCode(),
@@ -409,7 +426,8 @@ class AgentAppService extends AbstractKernelAppService
             instruction: $taskContext->getInstruction()->value,
             sandboxId: $taskContext->getSandboxId(),
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            userInfo: $userInfo
+            language: di(TranslatorInterface::class)->getLocale(),
+            userInfo: $userInfo,
         );
 
         return [
@@ -492,12 +510,8 @@ class AgentAppService extends AbstractKernelAppService
                     // 使用 FileAssembler::formatPath 从 URL 中提取路径
                     $filePath = FileAssembler::formatPath($matchedFile['file_url']);
                 }
-
-                $mentionsJsonStruct[] = [
-                    'type' => $type,
-                    'file_path' => $filePath,
-                    'file_url' => $matchedFile['file_url'],
-                ];
+                $mentionFile = ['type' => $type, 'file_path' => $filePath, 'file_metadata' => $matchedFile];
+                $mentionsJsonStruct[] = $mentionFile;
             }
         }
         return $mentionsJsonStruct;

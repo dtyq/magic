@@ -15,6 +15,7 @@ return [
         'command' => '命令',
         'arguments' => '参数',
         'headers' => '请求头',
+        'env' => '环境变量',
         'oauth2_config' => 'OAuth2配置',
         'client_id' => '客户端ID',
         'client_secret' => '客户端密钥',
@@ -44,6 +45,11 @@ return [
     'service' => [
         'already_exists' => 'MCP服务已存在',
         'not_enabled' => 'MCP服务未启用',
+    ],
+
+    // 服务器相关错误
+    'server' => [
+        'not_support_check_status' => '不支持此类型的服务器状态检查',
     ],
 
     // 资源关联错误
@@ -88,5 +94,16 @@ return [
     'required_fields' => [
         'missing' => '必填字段缺失: :fields',
         'empty' => '必填字段不能为空: :fields',
+    ],
+
+    // STDIO执行器相关错误
+    'executor' => [
+        'stdio' => [
+            'connection_failed' => 'STDIO执行器连接失败',
+            'access_denied' => '暂时不支持STDIO执行器功能',
+        ],
+        'http' => [
+            'connection_failed' => 'HTTP执行器连接失败',
+        ],
     ],
 ];
