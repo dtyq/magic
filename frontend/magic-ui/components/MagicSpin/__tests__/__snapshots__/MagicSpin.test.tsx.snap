@@ -1,0 +1,273 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicSpin > 快照测试 > 加载状态快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r2"
+  >
+    <div>
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        class="magic-spin magic-spin-spinning acss-sxthw7 css-dev-only-do-not-override-yotw4n css-var-r2"
+      >
+        <span
+          class="magic-spin-dot-holder"
+        >
+          <span
+            class="magic-spin-dot magic-spin-dot-spin"
+          >
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+          </span>
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-spin-container magic-spin-blur"
+    >
+      <div>
+        内容区域
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSpin > 快照测试 > 基础加载器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r1"
+  >
+    <div>
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        class="magic-spin magic-spin-spinning acss-sxthw7 css-dev-only-do-not-override-yotw4n css-var-r1"
+      >
+        <span
+          class="magic-spin-dot-holder"
+        >
+          <span
+            class="magic-spin-dot magic-spin-dot-spin"
+          >
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+          </span>
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-spin-container magic-spin-blur"
+    >
+      <div>
+        内容区域
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSpin > 快照测试 > 大尺寸加载器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r5"
+  >
+    <div>
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        class="magic-spin magic-spin-spinning acss-znmur6 css-dev-only-do-not-override-yotw4n css-var-r5"
+      >
+        <span
+          class="magic-spin-dot-holder"
+        >
+          <span
+            class="magic-spin-dot magic-spin-dot-spin"
+          >
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+          </span>
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-spin-container magic-spin-blur"
+    >
+      <div>
+        内容区域
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSpin > 快照测试 > 小尺寸加载器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r4"
+  >
+    <div>
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        class="magic-spin magic-spin-spinning acss-12hgqwl css-dev-only-do-not-override-yotw4n css-var-r4"
+      >
+        <span
+          class="magic-spin-dot-holder"
+        >
+          <span
+            class="magic-spin-dot magic-spin-dot-spin"
+          >
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+          </span>
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-spin-container magic-spin-blur"
+    >
+      <div>
+        内容区域
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSpin > 快照测试 > 带提示文字快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r3"
+  >
+    <div>
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        class="magic-spin magic-spin-spinning magic-spin-show-text acss-sxthw7 css-dev-only-do-not-override-yotw4n css-var-r3"
+      >
+        <span
+          class="magic-spin-dot-holder"
+        >
+          <span
+            class="magic-spin-dot magic-spin-dot-spin"
+          >
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+            <i
+              class="magic-spin-dot-item"
+            />
+          </span>
+        </span>
+        <div
+          class="magic-spin-text"
+        >
+          加载中...
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-spin-container magic-spin-blur"
+    >
+      <div>
+        内容区域
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSpin > 快照测试 > 延迟加载快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r6"
+  >
+    <div
+      class="magic-spin-container"
+    >
+      <div>
+        内容区域
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSpin > 快照测试 > 独立加载器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-busy="true"
+    aria-live="polite"
+    class="magic-spin magic-spin-spinning acss-sxthw7 css-dev-only-do-not-override-yotw4n css-var-r7"
+  >
+    <span
+      class="magic-spin-dot-holder"
+    >
+      <span
+        class="magic-spin-dot magic-spin-dot-spin"
+      >
+        <i
+          class="magic-spin-dot-item"
+        />
+        <i
+          class="magic-spin-dot-item"
+        />
+        <i
+          class="magic-spin-dot-item"
+        />
+        <i
+          class="magic-spin-dot-item"
+        />
+      </span>
+    </span>
+  </div>
+</DocumentFragment>
+`;

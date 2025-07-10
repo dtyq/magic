@@ -1,0 +1,59 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicImage > 快照测试 > 基础图片快照 1`] = `
+<DocumentFragment>
+  <img
+    alt="测试图片"
+    src="test.jpg"
+  />
+</DocumentFragment>
+`;
+
+exports[`MagicImage > 快照测试 > 带样式图片快照 1`] = `
+<DocumentFragment>
+  <img
+    alt="测试图片"
+    src="test.jpg"
+    style="border-radius: 8px;"
+  />
+</DocumentFragment>
+`;
+
+exports[`MagicImage > 快照测试 > 带点击事件图片快照 1`] = `
+<DocumentFragment>
+  <img
+    alt="测试图片"
+    src="test.jpg"
+  />
+</DocumentFragment>
+`;
+
+exports[`MagicImage > 快照测试 > 带类名图片快照 1`] = `
+<DocumentFragment>
+  <img
+    alt="测试图片"
+    class="custom-image"
+    src="test.jpg"
+  />
+</DocumentFragment>
+`;
+
+exports[`MagicImage > 快照测试 > 自定义宽度图片快照 1`] = `
+<DocumentFragment>
+  <img
+    alt="测试图片"
+    src="test.jpg"
+    width="200"
+  />
+</DocumentFragment>
+`;
+
+exports[`MagicImage > 快照测试 > 自定义高度图片快照 1`] = `
+<DocumentFragment>
+  <img
+    alt="测试图片"
+    height="150"
+    src="test.jpg"
+  />
+</DocumentFragment>
+`;

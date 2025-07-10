@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicModal > 快照测试 > 关闭状态模态框快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicModal > 快照测试 > 基础模态框快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicModal > 快照测试 > 居中模态框快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicModal > 快照测试 > 带确认按钮模态框快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicModal > 快照测试 > 无标题模态框快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicModal > 快照测试 > 自定义宽度模态框快照 1`] = `<DocumentFragment />`;

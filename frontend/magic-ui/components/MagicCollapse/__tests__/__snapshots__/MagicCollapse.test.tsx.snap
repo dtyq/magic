@@ -1,0 +1,500 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicCollapse > 快照测试 > 基础折叠面板快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r1"
+  >
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicCollapse > 快照测试 > 多个面板折叠快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r2"
+  >
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题2
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题3
+        </span>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicCollapse > 快照测试 > 小尺寸折叠面板快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost magic-collapse-small acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r7"
+  >
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicCollapse > 快照测试 > 带图标面板快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r5"
+  >
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+        <div
+          class="magic-collapse-extra"
+        >
+          <span>
+            📝
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicCollapse > 快照测试 > 手风琴模式快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r4"
+    role="tablist"
+  >
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="tab"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+      </div>
+    </div>
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="tab"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题2
+        </span>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicCollapse > 快照测试 > 禁用面板快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r6"
+  >
+    <div
+      class="magic-collapse-item magic-collapse-item-disabled"
+      disabled=""
+    >
+      <div
+        aria-disabled="true"
+        aria-expanded="false"
+        class="magic-collapse-header magic-collapse-collapsible-disabled"
+        role="button"
+        tabindex="-1"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicCollapse > 快照测试 > 默认展开面板快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-collapse magic-collapse-icon-position-end magic-collapse-borderless magic-collapse-ghost acss-1up74ee css-dev-only-do-not-override-yotw4n css-var-r3"
+  >
+    <div
+      class="magic-collapse-item magic-collapse-item-active"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="true"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(90deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题1
+        </span>
+      </div>
+      <div
+        class="magic-collapse-content magic-collapse-content-active"
+      >
+        <div
+          class="magic-collapse-content-box"
+        >
+          内容1
+        </div>
+      </div>
+    </div>
+    <div
+      class="magic-collapse-item"
+    >
+      <div
+        aria-disabled="false"
+        aria-expanded="false"
+        class="magic-collapse-header"
+        role="button"
+        tabindex="0"
+      >
+        <div
+          class="magic-collapse-expand-icon"
+        >
+          <svg
+            class="tabler-icon tabler-icon-chevron-right magic-collapse-arrow"
+            fill="none"
+            height="24"
+            stroke="rgba(28,29,35, 0.8)"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            style="transform: rotate(0deg); transition: transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 6l6 6l-6 6"
+            />
+          </svg>
+        </div>
+        <span
+          class="magic-collapse-header-text"
+        >
+          标题2
+        </span>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
