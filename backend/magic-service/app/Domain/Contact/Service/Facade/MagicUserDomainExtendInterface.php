@@ -12,7 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 
 interface MagicUserDomainExtendInterface
 {
-    public function getUserUpdatePermission(DataIsolation $dataIsolation): bool;
+    public function getUserUpdatePermission(DataIsolation $dataIsolation): array;
 
     public function updateUserInfo(DataIsolation $dataIsolation, UserUpdateDTO $userUpdateDTO): int;
 }
