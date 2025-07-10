@@ -22,13 +22,11 @@
 		"noFallthroughCasesInSwitch": true,
 
 		/* type */
-		"typeRoots": ["./types", "./types/theme.d.ts"],
+		"typeRoots": ["./types"],
 
 		/* alias */
-		"paths": {
-			
-		}
+		"paths": {}
 	},
-	"include": ["components/**/*", "types/**/*"],
-	"exclude": ["dist/**/*", "components/**/__tests__/**/*.ts", "components/**/__tests__/**/*.tsx"]
+	"include": ["components/**/*", "types/**/*", "preview/**/*"],
+	"exclude": ["dist/**/*", "test/**/*"]
 }

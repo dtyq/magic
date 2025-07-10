@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicStreamContent > 快照测试 > 基础流式内容快照 1`] = `
+<DocumentFragment>
+  <div>
+    流式内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicStreamContent > 快照测试 > 带HTML标签内容快照 1`] = `
+<DocumentFragment>
+  <div>
+    &lt;strong&gt;粗体文本&lt;/strong&gt;
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicStreamContent > 快照测试 > 带类名快照 1`] = `
+<DocumentFragment>
+  <div
+    class="custom-stream"
+  >
+    流式内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicStreamContent > 快照测试 > 带自定义样式快照 1`] = `
+<DocumentFragment>
+  <div
+    style="font-size: 16px; color: blue;"
+  >
+    流式内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicStreamContent > 快照测试 > 空内容快照 1`] = `
+<DocumentFragment>
+  <div />
+</DocumentFragment>
+`;
+
+exports[`MagicStreamContent > 快照测试 > 长文本流式内容快照 1`] = `
+<DocumentFragment>
+  <div>
+    这是一个很长的流式内容，用于测试组件的显示效果
+  </div>
+</DocumentFragment>
+`;
