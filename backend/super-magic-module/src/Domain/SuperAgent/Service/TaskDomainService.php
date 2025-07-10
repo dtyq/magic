@@ -8,8 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\ErrorCode\GenericErrorCode;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
@@ -121,29 +119,38 @@ class TaskDomainService
         return $task;
     }
 
-    public function updateTaskStatus(DataIsolation $dataIsolation, int $topicId, TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
+    public function updateTaskStatus(DataIsolation $dataIsolation, int $id, TaskStatus $status, ?string $errMsg = null): bool
     {
-        // Find task
-        $taskEntity = $this->taskRepository->getTaskById($id);
-        if (! $taskEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
-        }
-
-        // Update task status
-        $taskEntity->setTaskStatus($status->value);
-        $taskEntity->setSandboxId($sandboxId);
-        $taskEntity->setTaskId($taskId);
-        $taskEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'task_status' => $status->value,
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
 
         // If error message is provided and status is ERROR, set error message
         if ($status === TaskStatus::ERROR && $errMsg !== null) {
             if (mb_strlen($errMsg, 'UTF-8') > 500) {
                 $errMsg = mb_substr($errMsg, 0, 497, 'UTF-8') . '...';
             }
-            $taskEntity->setErrMsg($errMsg);
+            $data['err_msg'] = $errMsg;
         }
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
 
-        return $this->taskRepository->updateTask($taskEntity);
+    public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'sandbox_id' => $sandboxId,
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
 
     public function handleSandboxMessage(string $taskId, string $messageJson): TaskMessageEntity

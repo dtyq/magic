@@ -18,6 +18,7 @@ enum MessageType: string
     case Error = 'error';
     case Heartbeat = 'heartbeat';
     case ProjectArchive = 'project_archive';
+    case Reminder = 'reminder';
 
     public static function isValid(string $type): bool
     {
