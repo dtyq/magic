@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup(

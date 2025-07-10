@@ -41,7 +41,8 @@ class TaskApi extends AbstractApi
         protected UserDomainService $userDomainService,
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
-    ) {
+    protected AgentAppService $agentAppService,
+        ) {
     }
 
     /**

@@ -204,6 +204,121 @@ class HandleApiMessageAppService extends AbstractAppService
         }
     }
 
+
+    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO):array
+    {
+        $topicId = 0;
+        $taskId = '';
+        try {
+            // Get topic information
+            $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
+            if (is_null($topicEntity)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+            }
+            $topicId = $topicEntity->getId();
+
+            // Check message before task starts
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
+
+            // Get task mode from DTO, fallback to topic's task mode if empty
+            $taskMode = $userMessageDTO->getTaskMode();
+            if ($taskMode === '') {
+                $taskMode = $topicEntity->getTaskMode();
+            }
+
+
+
+
+            $data=[
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'workspace_id' => $topicEntity->getWorkspaceId(),
+                'project_id' => $topicEntity->getProjectId(),
+                'topic_id' => $topicId,
+                'task_id' => '', // Initially empty, this is agent's task id
+                'task_mode' => $taskMode,
+                'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+                'prompt' => $userMessageDTO->getPrompt(),
+                'attachments' => $userMessageDTO->getAttachments(),
+                'mentions' => $userMessageDTO->getMentions(),
+                'task_status' => TaskStatus::WAITING->value,
+                'work_dir' => $topicEntity->getWorkDir() ?? '',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+
+            $taskEntity = TaskEntity::fromArray($data);
+            // Initialize task
+            $taskEntity = $this->taskDomainService->initTopicTask(
+                dataIsolation: $dataIsolation,
+                topicEntity: $topicEntity,
+                taskEntity: $taskEntity
+            );
+
+            $taskId = (string) $taskEntity->getId();
+
+            // Save user information
+            $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
+
+            // Send message to agent
+            $taskContext = new TaskContext(
+                task: $taskEntity,
+                dataIsolation: $dataIsolation,
+                chatConversationId: $userMessageDTO->getChatConversationId(),
+                chatTopicId: $userMessageDTO->getChatTopicId(),
+                agentUserId: $userMessageDTO->getAgentUserId(),
+                sandboxId: $topicEntity->getSandboxId(),
+                taskId: (string) $taskEntity->getId(),
+                instruction: ChatInstruction::FollowUp,
+                agentMode: $userMessageDTO->getTopicMode()->value,
+            );
+            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
+            $taskEntity->setSandboxId($sandboxID);
+
+            // Update task status
+            $this->topicTaskAppService->updateTaskStatus(
+                dataIsolation: $dataIsolation,
+                task: $taskEntity,
+                status: TaskStatus::RUNNING
+            );
+
+            return ['sandbox_id'=>$sandboxID,'task_id'=>$taskId];
+
+        } catch (EventException $e) {
+            $this->logger->error(sprintf(
+                'Initialize task, event processing failed: %s',
+                $e->getMessage()
+            ));
+            // Send error message directly to client
+            // $this->clientMessageAppService->sendErrorMessageToClient(
+            //     topicId: $topicId,
+            //     taskId: $taskId,
+            //     chatTopicId: $userMessageDTO->getChatTopicId(),
+            //     chatConversationId: $userMessageDTO->getChatConversationId(),
+            //     errorMessage: $e->getMessage()
+            // );
+            throw new BusinessException('Initialize task, event processing failed', 500);
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
+                $e->getMessage(),
+                $dataIsolation->getCurrentUserId(),
+                $e->getFile(),
+                $e->getLine(),
+                $e->getTraceAsString()
+            ));
+            // Send error message directly to client
+            // $this->clientMessageAppService->sendErrorMessageToClient(
+            //     topicId: $topicId,
+            //     taskId: $taskId,
+            //     chatTopicId: $userMessageDTO->getChatTopicId(),
+            //     chatConversationId: $userMessageDTO->getChatConversationId(),
+            //     errorMessage: trans('agent.initialize_error')
+            // );
+            throw new BusinessException('Initialize task failed', 500);
+        }
+    }
+
     /**
      * Pre-task detection.
      */
@@ -272,11 +387,13 @@ class HandleApiMessageAppService extends AbstractAppService
         $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-        $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
+      //  $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;
     }
+
+
 
     /**
      * Save user information and corresponding attachments.
@@ -321,7 +438,7 @@ class HandleApiMessageAppService extends AbstractAppService
     {
         $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
         if (empty($accessToken)) {
-            throw new \Exception('Access token not found');
+            ExceptionBuilder::throw(SuperAgentErrorCode::ACCESS_TOKEN_NOT_FOUND, 'Access token not found');
         }
 
         if(empty($uid)){
