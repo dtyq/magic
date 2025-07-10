@@ -39,7 +39,6 @@ class ChatMessageRequest
         string $taskMode = 'chat',
         string $agentMode = '',
         array $attachments = [],
-        array $mentions = [],
         array $mcpConfig = []
     ): self {
         return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions, $mcpConfig);
@@ -76,6 +75,23 @@ class ChatMessageRequest
     public function setTaskMode(string $taskMode): self
     {
         $this->taskMode = $taskMode;
+        return $this;
+    }
+
+    /**
+     * 获取Agent模式.
+     */
+    public function getAgentMode(): string
+    {
+        return $this->agentMode;
+    }
+
+    /**
+     * 设置Agent模式.
+     */
+    public function setAgentMode(string $agentMode): self
+    {
+        $this->agentMode = $agentMode;
         return $this;
     }
 
@@ -183,19 +199,20 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取MCP配置.
+     * 获取提及.
      */
-    public function getMcpConfig(): array
+    public function getMentions(): array
     {
-        return $this->mcpConfig;
+        /* @phpstan-ignore-next-line */
+        return $this->mentions ?? [];
     }
 
     /**
-     * 设置MCP配置.
+     * 设置提及.
      */
-    public function setMcpConfig(array $mcpConfig): self
+    public function setMentions(array $mentions): self
     {
-        $this->mcpConfig = $mcpConfig;
+        $this->mentions = $mentions;
         return $this;
     }
 

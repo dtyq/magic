@@ -42,7 +42,7 @@ use Throwable;
  * Agent消息应用服务
  * 提供高级Agent通信功能，包括自动初始化和状态管理.
  */
-class AgentAppService extends AbstractKernelAppService
+class AgentAppService
 {
     private LoggerInterface $logger;
 
@@ -410,7 +410,6 @@ class AgentAppService extends AbstractKernelAppService
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $userAuthorization->setId($dataIsolation->getCurrentUserId());
         // Use unified FileAppService to get STS Token
         $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
 
