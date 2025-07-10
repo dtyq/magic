@@ -11,8 +11,6 @@ use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
 use App\Domain\Contact\Service\Facade\MagicUserDomainExtendInterface;
-use App\ErrorCode\GenericErrorCode;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 
 class MagicUserDomainExtendService implements MagicUserDomainExtendInterface
@@ -48,12 +46,12 @@ class MagicUserDomainExtendService implements MagicUserDomainExtendInterface
         $updateFilter = [];
 
         // 处理头像URL
-        if (in_array("avatar_url",$permission) && $userUpdateDTO->getAvatarUrl() !== null) {
+        if (in_array('avatar_url', $permission) && $userUpdateDTO->getAvatarUrl() !== null) {
             $updateFilter['avatar_url'] = $userUpdateDTO->getAvatarUrl();
         }
 
         // 处理昵称
-        if (in_array("nickname",$permission) && $userUpdateDTO->getNickname() !== null) {
+        if (in_array('nickname', $permission) && $userUpdateDTO->getNickname() !== null) {
             $updateFilter['nickname'] = $userUpdateDTO->getNickname();
         }
 
