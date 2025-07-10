@@ -76,7 +76,11 @@ class MCPServerAppService extends AbstractMCPAppService
         $userIds = [];
         foreach ($data['list'] ?? [] as $item) {
             $filePaths[] = $item->getIcon();
-            $operation = $resources[$item->getCode()] ?? Operation::None;
+            if ($dataIsolation->isOfficialOrganization()) {
+                $operation = Operation::Admin;
+            } else {
+                $operation = $resources[$item->getCode()] ?? Operation::None;
+            }
             $item->setUserOperation($operation->value);
             $userIds[] = $item->getCreator();
             $userIds[] = $item->getModifier();
@@ -87,7 +91,7 @@ class MCPServerAppService extends AbstractMCPAppService
     }
 
     /**
-     * @return array{total: int, list: array<MCPServerEntity>}
+     * @return array{total: int, list: array<MCPServerEntity>, icons: array<string, FileLink>}
      */
     public function availableQueries(Authenticatable|MCPDataIsolation $authorization, MCPServerQuery $query, Page $page): array
     {
@@ -115,12 +119,14 @@ class MCPServerAppService extends AbstractMCPAppService
         $query->setCodes($resourceIds);
         $orgData = $this->mcpServerDomainService->queries($dataIsolation->disabled(), $query, $page);
 
+        $icons = [];
         foreach ($orgData['list'] ?? [] as $item) {
-            $item->setIcon($this->getFileLink($item->getOrganizationCode(), $item->getIcon())?->getUrl() ?? '');
             if (in_array($item->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes(), true)) {
                 $item->setOffice(true);
             }
+            $icons[$item->getIcon()] = $this->getFileLink($item->getOrganizationCode(), $item->getIcon());
         }
+        $orgData['icons'] = $icons;
 
         return $orgData;
     }

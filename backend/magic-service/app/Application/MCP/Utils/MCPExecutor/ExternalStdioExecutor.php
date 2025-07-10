@@ -8,10 +8,12 @@ declare(strict_types=1);
 namespace App\Application\MCP\Utils\MCPExecutor;
 
 use App\ErrorCode\MCPErrorCode;
+use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PythonExecutorInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\PhpMcp\Client\McpClient;
 use Dtyq\PhpMcp\Shared\Kernel\Application;
 use Dtyq\PhpMcp\Types\Responses\ListToolsResult;
+use Dtyq\PhpMcp\Types\Tools\Tool;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Odin\Mcp\McpServerConfig;
 use Hyperf\Odin\Mcp\McpType;
@@ -31,11 +33,17 @@ class ExternalStdioExecutor implements ExternalStdioExecutorInterface
 
     private bool $canExecute;
 
+    private ?PythonExecutorInterface $pythonExecutor = null;
+
     public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
         $this->container = ApplicationContext::getContainer();
         $this->canExecute = (bool) \Hyperf\Support\env('MCP_STDIO_EXECUTOR', false);
+        if ($this->container->has(PythonExecutorInterface::class)) {
+            $this->pythonExecutor = $this->container->get(PythonExecutorInterface::class);
+            $this->canExecute = true;
+        }
     }
 
     public function getListToolsResult(McpServerConfig $mcpServerConfig): ?ListToolsResult
@@ -46,6 +54,11 @@ class ExternalStdioExecutor implements ExternalStdioExecutorInterface
 
         if ($mcpServerConfig->getType() !== McpType::Stdio) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.server.not_support_check_status');
+        }
+
+        if ($this->pythonExecutor) {
+            // 使用 python 代码来执行
+            return $this->getListToolsResultByPython($mcpServerConfig);
         }
 
         try {
@@ -174,5 +187,230 @@ class ExternalStdioExecutor implements ExternalStdioExecutorInterface
         ];
 
         return $pathMap[$command] ?? [];
+    }
+
+    private function getListToolsResultByPython(McpServerConfig $mcpServerConfig): ?ListToolsResult
+    {
+        try {
+            $this->logger->info('MCPPythonExecutorAttempt', [
+                'server_name' => $mcpServerConfig->getName(),
+                'command' => $mcpServerConfig->getCommand(),
+                'args' => $mcpServerConfig->getArgs() ?? [],
+                'env_count' => count($mcpServerConfig->getEnv() ?? []),
+            ]);
+
+            // Prepare source data for Python execution
+            $sourceData = [
+                'command' => $mcpServerConfig->getCommand(),
+                'args' => $mcpServerConfig->getArgs() ?? [],
+                'env_vars' => $mcpServerConfig->getEnv() ?? [],
+            ];
+
+            // Generate Python code
+            $python = $this->generatePythonCode();
+
+            // Execute Python code with source data
+            $executeResult = $this->pythonExecutor->execute('', $python, $sourceData);
+            $result = $executeResult->getResult();
+
+            // Convert result to string if needed
+            if (is_string($result)) {
+                $resultString = $result;
+            } else {
+                $resultString = json_encode($result);
+            }
+
+            $this->logger->info('MCPPythonExecutorRawResult', [
+                'server_name' => $mcpServerConfig->getName(),
+                'result' => $resultString,
+            ]);
+
+            // Parse and convert result to ListToolsResult
+            $listToolsResult = $this->parseAndConvertResult($resultString, $mcpServerConfig);
+
+            $this->logger->info('MCPPythonExecutorSuccess', [
+                'server_name' => $mcpServerConfig->getName(),
+                'tools_count' => $listToolsResult ? count($listToolsResult->getTools() ?? []) : 0,
+            ]);
+
+            return $listToolsResult;
+        } catch (Throwable $e) {
+            $this->logger->error('MCPPythonExecutorError', [
+                'server_name' => $mcpServerConfig->getName(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            ExceptionBuilder::throw(
+                MCPErrorCode::ExecutorStdioConnectionFailed,
+                $e->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Generate Python code that uses input variables from the execution context.
+     */
+    private function generatePythonCode(): string
+    {
+        return <<<'PYTHON'
+import asyncio
+import json
+import os
+
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+
+async def get_mcp_tools():
+    """Get tools from MCP server"""
+    try:
+        # Start with system environment
+        env = os.environ.copy()
+        
+        # Add custom environment variables from config
+        # The 'env_vars' variable comes from input data
+        if isinstance(env_vars, dict):
+            for key, value in env_vars.items():
+                env[key] = value
+        elif isinstance(env_vars, list) and len(env_vars) > 0:
+            # Handle list format (in case it's passed as a list)
+            for item in env_vars:
+                if isinstance(item, dict) and 'key' in item and 'value' in item:
+                    env[item['key']] = item['value']
+        
+        # Create server parameters
+        # The 'command' and 'args' variables come from input data
+        server_params = StdioServerParameters(
+            command=command,
+            args=args,
+            env=env
+        )
+        
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                tools_result = await session.list_tools()
+                
+                if tools_result.tools:
+                    tools = []
+                    for tool in tools_result.tools:
+                        desc = tool.description or ""
+                        input_schema = None
+                        
+                        # Extract input schema if available
+                        if hasattr(tool, 'inputSchema') and tool.inputSchema is not None:
+                            try:
+                                input_schema = tool.inputSchema
+                            except Exception:
+                                input_schema = None
+                        
+                        tool_info = {
+                            "name": tool.name,
+                            "description": desc,
+                            "input_schema": input_schema
+                        }
+                        tools.append(tool_info)
+                    
+                    return {'success': True, 'tools': tools, 'count': len(tools)}
+                else:
+                    return {'success': True, 'tools': [], 'count': 0}
+                    
+    except Exception as e:
+        return {'success': False, 'error': str(e), 'type': type(e).__name__}
+
+def main():
+    """Main function entry point"""
+    if not MCP_AVAILABLE:
+        return {'success': False, 'error': 'MCP package not installed'}
+    
+    try:
+        result = asyncio.run(get_mcp_tools())
+        return result
+    except Exception as e:
+        return {'success': False, 'error': str(e), 'type': type(e).__name__}
+
+# Execute main function and print result as JSON
+result = main()
+print(json.dumps(result))
+PYTHON;
+    }
+
+    /**
+     * Parse Python execution result and convert to ListToolsResult.
+     */
+    private function parseAndConvertResult(string $result, McpServerConfig $mcpServerConfig): ?ListToolsResult
+    {
+        try {
+            // Parse JSON result from Python execution
+            $data = json_decode($result, true);
+
+            // Handle different result formats
+            $output = null;
+            if (is_array($data)) {
+                if (isset($data['__OUTPUT__'])) {
+                    // Handle the __OUTPUT__ format from the execution environment
+                    $outputString = $data['__OUTPUT__'];
+                    if (is_string($outputString) && ! empty($outputString)) {
+                        $output = json_decode($outputString, true);
+                    }
+                } elseif (isset($data['success'])) {
+                    // Direct result format
+                    $output = $data;
+                }
+            }
+
+            // The result should be the direct output from Python execution
+            if (! is_array($output)) {
+                $this->logger->error('MCPPythonExecutorInvalidResult', [
+                    'server_name' => $mcpServerConfig->getName(),
+                    'result' => $result,
+                    'error' => 'Invalid result format - missing success field',
+                    'parsed_data' => $data,
+                    'output' => $output,
+                ]);
+                return null;
+            }
+
+            // Handle execution errors
+            if (! $output['success']) {
+                $this->logger->error('MCPPythonExecutorFailure', [
+                    'server_name' => $mcpServerConfig->getName(),
+                    'error' => $output['error'] ?? 'Unknown error',
+                    'type' => $output['type'] ?? 'Unknown',
+                ]);
+
+                ExceptionBuilder::throw(
+                    MCPErrorCode::ExecutorStdioConnectionFailed,
+                    $output['error'] ?? 'Python execution failed'
+                );
+            }
+
+            // Convert tools to ListToolsResult
+            $tools = [];
+            foreach ($output['tools'] ?? [] as $toolData) {
+                $tool = new Tool(
+                    name: $toolData['name'] ?? '',
+                    inputSchema: $toolData['input_schema'] ?? [],
+                    description: $toolData['description'] ?? '',
+                );
+
+                $tools[] = $tool;
+            }
+
+            return new ListToolsResult($tools);
+        } catch (Throwable $e) {
+            $this->logger->error('MCPPythonExecutorParseError', [
+                'server_name' => $mcpServerConfig->getName(),
+                'error' => $e->getMessage(),
+                'result' => $result,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return null;
+        }
     }
 }
