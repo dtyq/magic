@@ -126,7 +126,6 @@ class TaskDomainService
         ];
         $data = [
             'task_status' => $status->value,
-            'updated_uid' => $dataIsolation->getCurrentUserId(),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
@@ -147,7 +146,6 @@ class TaskDomainService
         ];
         $data = [
             'sandbox_id' => $sandboxId,
-            'updated_uid' => $dataIsolation->getCurrentUserId(),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         return $this->topicRepository->updateTopicByCondition($conditions, $data);
