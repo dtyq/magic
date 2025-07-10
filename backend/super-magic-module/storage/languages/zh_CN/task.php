@@ -10,5 +10,6 @@ return [
     'continue' => '继续',
     'initialize_error' => '当前系统繁忙，请稍后重试。',
     'agent_stopped' => '任务已终止',
+    'access_token_not_found' => '访问令牌未找到',
     'finished_task_action' => '已完成结果文件的输出',
 ];
