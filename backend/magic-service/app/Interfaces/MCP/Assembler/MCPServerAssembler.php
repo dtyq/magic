@@ -112,6 +112,7 @@ class MCPServerAssembler
         $DTO->setType($mcpServerEntity->getType()->value);
         $DTO->setRequireFields($mcpServerEntity->getServiceConfig()->getRequireFields());
         $DTO->setOffice($mcpServerEntity->isOffice());
+        $DTO->setUserOperation($mcpServerEntity->getUserOperation());
         return $DTO;
     }
 

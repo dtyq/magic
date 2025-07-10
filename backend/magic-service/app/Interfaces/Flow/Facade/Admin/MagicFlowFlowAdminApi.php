@@ -151,7 +151,7 @@ class MagicFlowFlowAdminApi extends AbstractFlowAdminApi
         $query = new MCPServerQuery($this->request->all());
         $query->setOrder(['id' => 'desc']);
         $query->setEnabled(true);
-        $result = $this->mcpServerAppService->queries($authorization, $query, $page, $office);
+        $result = $this->mcpServerAppService->availableQueries($authorization, $query, $page, $office);
 
         return MCPServerAssembler::createSelectPageListDTO(
             total: $result['total'],

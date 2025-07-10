@@ -93,7 +93,7 @@ class MCPServerAppService extends AbstractMCPAppService
     /**
      * @return array{total: int, list: array<MCPServerEntity>, icons: array<string, FileLink>}
      */
-    public function availableQueries(Authenticatable|MCPDataIsolation $authorization, MCPServerQuery $query, Page $page): array
+    public function availableQueries(Authenticatable|MCPDataIsolation $authorization, MCPServerQuery $query, Page $page, ?bool $office = null): array
     {
         if ($authorization instanceof MCPDataIsolation) {
             $dataIsolation = $authorization;
@@ -101,22 +101,37 @@ class MCPServerAppService extends AbstractMCPAppService
             $dataIsolation = $this->createMCPDataIsolation($authorization);
         }
 
-        // 官方数据和组织内的，一并查询
-        $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-            $dataIsolation,
-            ResourceType::MCPServer,
-            [$dataIsolation->getCurrentUserId()]
-        )[$dataIsolation->getCurrentUserId()] ?? [];
-        $resourceIds = array_keys($resources);
-        // 获取官方的 code
-        $officialCodes = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);
-        $resourceIds = array_merge($resourceIds, $officialCodes);
-
+        $resources = [];
+        if (is_null($office)) {
+            // 官方数据和组织内的，一并查询
+            $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                $dataIsolation,
+                ResourceType::MCPServer,
+                [$dataIsolation->getCurrentUserId()]
+            )[$dataIsolation->getCurrentUserId()] ?? [];
+            $resourceIds = array_keys($resources);
+            // 获取官方的 code
+            $officialCodes = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);
+            $resourceIds = array_merge($resourceIds, $officialCodes);
+        } else {
+            if ($office) {
+                // 只查官方数据
+                $resourceIds = $this->mcpServerDomainService->getOfficialMCPServerCodes($dataIsolation);
+            } else {
+                // 只查组织内数据
+                $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                    $dataIsolation,
+                    ResourceType::MCPServer,
+                    [$dataIsolation->getCurrentUserId()]
+                )[$dataIsolation->getCurrentUserId()] ?? [];
+                $resourceIds = array_keys($resources);
+            }
+        }
         if (! empty($query->getCodes())) {
             $resourceIds = array_intersect($resourceIds, $query->getCodes());
         }
-
         $query->setCodes($resourceIds);
+
         $orgData = $this->mcpServerDomainService->queries($dataIsolation->disabled(), $query, $page);
 
         $icons = [];
@@ -125,6 +140,17 @@ class MCPServerAppService extends AbstractMCPAppService
                 $item->setOffice(true);
             }
             $icons[$item->getIcon()] = $this->getFileLink($item->getOrganizationCode(), $item->getIcon());
+
+            $operation = Operation::None;
+            if (in_array($item->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes(), true)) {
+                // 如果是官方组织数据，并且当前组织所在的组织是官方组织，则设置操作权限为管理员
+                if ($dataIsolation->isOfficialOrganization()) {
+                    $operation = Operation::Admin;
+                }
+            } else {
+                $operation = $resources[$item->getCode()] ?? Operation::None;
+            }
+            $item->setUserOperation($operation->value);
         }
         $orgData['icons'] = $icons;
 
