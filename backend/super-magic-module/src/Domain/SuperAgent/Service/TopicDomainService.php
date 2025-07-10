@@ -39,9 +39,9 @@ class TopicDomainService
         return $topic->getSandboxId();
     }
 
-    public function updateTopicStatus(int $id, int $taskId, string $sandboxId, TaskStatus $taskStatus): bool
+    public function updateTopicStatus(int $id, int $taskId, TaskStatus $taskStatus): bool
     {
-        return $this->topicRepository->updateTopicStatus($id, $taskId, $sandboxId, $taskStatus);
+        return $this->topicRepository->updateTopicStatus($id, $taskId, $taskStatus);
     }
 
     /**
@@ -355,5 +355,18 @@ class TopicDomainService
         $topicEntity->setUpdatedUid($userId);
         // 保存更新
         return $this->topicRepository->updateTopic($topicEntity);
+    }
+
+    public function updateTopicSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId): bool
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'sandbox_id' => $sandboxId,
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
 }

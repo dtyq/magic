@@ -1,0 +1,157 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicSwitch > 快照测试 > 小尺寸开关快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-checked="false"
+    class="magic-switch magic-switch-small acss-17xfzng css-dev-only-do-not-override-yotw4n css-var-r5"
+    role="switch"
+    type="button"
+  >
+    <div
+      class="magic-switch-handle"
+    />
+    <span
+      class="magic-switch-inner"
+    >
+      <span
+        class="magic-switch-inner-checked"
+      />
+      <span
+        class="magic-switch-inner-unchecked"
+      />
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicSwitch > 快照测试 > 带标签开关快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-checked="false"
+    class="magic-switch acss-17xfzng css-dev-only-do-not-override-yotw4n css-var-r6"
+    role="switch"
+    type="button"
+  >
+    <div
+      class="magic-switch-handle"
+    />
+    <span
+      class="magic-switch-inner"
+    >
+      <span
+        class="magic-switch-inner-checked"
+      >
+        开
+      </span>
+      <span
+        class="magic-switch-inner-unchecked"
+      >
+        关
+      </span>
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicSwitch > 快照测试 > 开启状态开关快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-checked="true"
+    class="magic-switch acss-17xfzng css-dev-only-do-not-override-yotw4n css-var-r2 magic-switch-checked"
+    role="switch"
+    type="button"
+  >
+    <div
+      class="magic-switch-handle"
+    />
+    <span
+      class="magic-switch-inner"
+    >
+      <span
+        class="magic-switch-inner-checked"
+      />
+      <span
+        class="magic-switch-inner-unchecked"
+      />
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicSwitch > 快照测试 > 禁用且开启状态开关快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-checked="true"
+    class="magic-switch acss-17xfzng css-dev-only-do-not-override-yotw4n css-var-r4 magic-switch-checked magic-switch-disabled"
+    disabled=""
+    role="switch"
+    type="button"
+  >
+    <div
+      class="magic-switch-handle"
+    />
+    <span
+      class="magic-switch-inner"
+    >
+      <span
+        class="magic-switch-inner-checked"
+      />
+      <span
+        class="magic-switch-inner-unchecked"
+      />
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicSwitch > 快照测试 > 禁用状态开关快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-checked="false"
+    class="magic-switch acss-17xfzng css-dev-only-do-not-override-yotw4n css-var-r3 magic-switch-disabled"
+    disabled=""
+    role="switch"
+    type="button"
+  >
+    <div
+      class="magic-switch-handle"
+    />
+    <span
+      class="magic-switch-inner"
+    >
+      <span
+        class="magic-switch-inner-checked"
+      />
+      <span
+        class="magic-switch-inner-unchecked"
+      />
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicSwitch > 快照测试 > 默认开关快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-checked="false"
+    class="magic-switch acss-17xfzng css-dev-only-do-not-override-yotw4n css-var-r1"
+    role="switch"
+    type="button"
+  >
+    <div
+      class="magic-switch-handle"
+    />
+    <span
+      class="magic-switch-inner"
+    >
+      <span
+        class="magic-switch-inner-checked"
+      />
+      <span
+        class="magic-switch-inner-unchecked"
+      />
+    </span>
+  </button>
+</DocumentFragment>
+`;

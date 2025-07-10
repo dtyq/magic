@@ -123,7 +123,7 @@ class TopicTaskAppService extends AbstractAppService
             // Use utility class to validate status transition
             if (! TaskStatusValidator::isTransitionAllowed($currentStatus, $status)) {
                 $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
-                $this->logger->warning('Rejected status update', [
+                $this->logger->info('Rejected status update', [
                     'task_id' => $taskId,
                     'current_status' => $currentStatus->value ?? 'null',
                     'new_status' => $status->value,
@@ -136,16 +136,13 @@ class TopicTaskAppService extends AbstractAppService
             // Execute status update
             $this->taskDomainService->updateTaskStatus(
                 dataIsolation: $dataIsolation,
-                topicId: $task->getTopicId(),
-                status: $status,
                 id: $task->getId(),
-                taskId: $taskId,
-                sandboxId: $task->getSandboxId(),
+                status: $status,
                 errMsg: $errMsg
             );
 
             // update topic status
-            $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $task->getSandboxId(), $status);
+            $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $status);
 
             $topicEntity = $this->topicDomainService->getTopicById($task->getTopicId());
             if ($topicEntity) {

@@ -322,7 +322,7 @@ class TaskAppService extends AbstractAppService
         }
 
         // 更新话题状态
-        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, $topicEntity->getSandboxId(), TaskStatus::ERROR);
+        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, TaskStatus::ERROR);
 
         // 触发完成事件
         AsyncEventUtil::dispatch(new RunTaskAfterEvent(
@@ -1208,11 +1208,8 @@ class TaskAppService extends AbstractAppService
             // 执行状态更新
             $this->taskDomainService->updateTaskStatus(
                 dataIsolation: $dataIsolation,
-                topicId: $task->getTopicId(),
-                status: $status,
                 id: $task->getId(),
-                taskId: $taskId,
-                sandboxId: $task->getSandboxId(),
+                status: $status,
                 errMsg: $errMsg
             );
 

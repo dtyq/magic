@@ -1,0 +1,393 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicSegmented > 快照测试 > 块级分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented acss-1yvjgsk magic-segmented-block css-dev-only-do-not-override-yotw4n css-var-rg"
+    role="radiogroup"
+    tabindex="0"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item magic-segmented-item-selected"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+          title="选项1"
+        >
+          选项1
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项2"
+        >
+          选项2
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSegmented > 快照测试 > 基础分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented acss-1yvjgsk css-dev-only-do-not-override-yotw4n css-var-r4"
+    role="radiogroup"
+    tabindex="0"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item magic-segmented-item-selected"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+          title="选项1"
+        >
+          选项1
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项2"
+        >
+          选项2
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项3"
+        >
+          选项3
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSegmented > 快照测试 > 大尺寸分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented acss-1yvjgsk magic-segmented-lg css-dev-only-do-not-override-yotw4n css-var-ra"
+    role="radiogroup"
+    tabindex="0"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item magic-segmented-item-selected"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+          title="选项1"
+        >
+          选项1
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项2"
+        >
+          选项2
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSegmented > 快照测试 > 小尺寸分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented acss-1yvjgsk magic-segmented-sm css-dev-only-do-not-override-yotw4n css-var-rc"
+    role="radiogroup"
+    tabindex="0"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item magic-segmented-item-selected"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+          title="选项1"
+        >
+          选项1
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项2"
+        >
+          选项2
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSegmented > 快照测试 > 带图标分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented acss-1yvjgsk css-dev-only-do-not-override-yotw4n css-var-re"
+    role="radiogroup"
+    tabindex="0"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item magic-segmented-item-selected"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+        >
+          <span
+            class="magic-segmented-item-icon"
+          >
+            <span>
+              🚀
+            </span>
+          </span>
+          <span>
+            选项1
+          </span>
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+        >
+          <span
+            class="magic-segmented-item-icon"
+          >
+            <span>
+              ⭐
+            </span>
+          </span>
+          <span>
+            选项2
+          </span>
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSegmented > 快照测试 > 带默认值分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented acss-1yvjgsk css-dev-only-do-not-override-yotw4n css-var-r6"
+    role="radiogroup"
+    tabindex="0"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项1"
+        >
+          选项1
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item magic-segmented-item-selected"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+          title="选项2"
+        >
+          选项2
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item"
+      >
+        <input
+          class="magic-segmented-item-input"
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项3"
+        >
+          选项3
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSegmented > 快照测试 > 禁用状态分段控制器快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="segmented control"
+    class="magic-segmented magic-segmented-disabled acss-1yvjgsk css-dev-only-do-not-override-yotw4n css-var-r8"
+    role="radiogroup"
+  >
+    <div
+      class="magic-segmented-group"
+    >
+      <label
+        class="magic-segmented-item magic-segmented-item-selected magic-segmented-item-disabled"
+      >
+        <input
+          checked=""
+          class="magic-segmented-item-input"
+          disabled=""
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="true"
+          class="magic-segmented-item-label"
+          title="选项1"
+        >
+          选项1
+        </div>
+      </label>
+      <label
+        class="magic-segmented-item magic-segmented-item-disabled"
+      >
+        <input
+          class="magic-segmented-item-input"
+          disabled=""
+          name="test-id"
+          type="radio"
+        />
+        <div
+          aria-selected="false"
+          class="magic-segmented-item-label"
+          title="选项2"
+        >
+          选项2
+        </div>
+      </label>
+    </div>
+  </div>
+</DocumentFragment>
+`;
