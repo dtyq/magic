@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
@@ -92,47 +93,6 @@ class HandleAgentMessageAppService extends AbstractAppService
         } catch (Throwable $e) {
             $this->handleGeneralException($e, $messageDTO);
         }
-    }
-
-    /**
-     * Send internal message to sandbox.
-     */
-    public function handleQuotaExceptions(
-        DataIsolation $dataIsolation,
-        TaskContext $taskContext,
-        TopicEntity $topicEntity,
-        int $code = 0,
-        string $msg = '',
-    ): void {
-        // Update task status
-        $this->topicTaskAppService->updateTaskStatus(
-            dataIsolation: $dataIsolation,
-            task: $taskContext->getTask(),
-            status: TaskStatus::Suspended,
-            errMsg: $msg,
-        );
-
-        // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
-        if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage(
-                $dataIsolation,
-                $taskContext->getTask()->getSandboxId(),
-                (string) $taskContext->getTask()->getId(),
-                trans('task.agent_stopped')
-            );
-        }
-
-        // todo
-
-        // Send interrupt message directly to client
-        $this->clientMessageAppService->sendReminderMessageToClient(
-            topicId: $topicEntity->getId(),
-            taskId: $topicEntity->getCurrentTaskId() ?? '0',
-            chatTopicId: $taskContext->getChatTopicId(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            remind: $msg
-        );
     }
 
     /**
@@ -563,15 +523,21 @@ class HandleAgentMessageAppService extends AbstractAppService
         );
 
         // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
-        if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage(
-                $dataIsolation,
-                $taskContext->getTask()->getSandboxId(),
-                (string) $taskContext->getTask()->getId(),
-                trans('task.agent_stopped')
-            );
+        try {
+            $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
+            if ($result->getStatus() === SandboxStatus::RUNNING) {
+                $this->agentAppService->sendInterruptMessage(
+                    $dataIsolation,
+                    $taskContext->getTask()->getSandboxId(),
+                    (string) $taskContext->getTask()->getId(),
+                    trans('task.agent_stopped')
+                );
+            }
+        } catch (SandboxOperationException $e) {
+            // ignore
+            $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
         }
+
         // todo
         // Send interrupt message directly to client
         $this->clientMessageAppService->sendReminderMessageToClient(
