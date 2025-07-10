@@ -179,31 +179,4 @@ class MagicChatUserApi extends AbstractApi
         return $this->userAppService->getUsersDetailByAccountAuthorization($authorization, $organizationCode);
     }
 
-    /*
-     * 是否允许更新用户信息.
-     */
-    public function getUserUpdatePermission(): array
-    {
-        $authorization = $this->getAuthorization();
-        $permission = $this->userAppService->getUserUpdatePermission($authorization);
-        return ['permission' => $permission];
-    }
-
-    /**
-     * 更新用户信息
-     * 支持更新字段：
-     * 1. avatar_url: 头像
-     * 2. nickname:   昵称.
-     */
-    public function updateUserInfo(RequestInterface $request): array
-    {
-        $authorization = $this->getAuthorization();
-
-        $userUpdateDTO = new UserUpdateDTO();
-        $userUpdateDTO->setAvatarUrl($request->input('avatar_url', null));
-        $userUpdateDTO->setNickname($request->input('nickname', null));
-
-        $userEntity = $this->userAppService->updateUserInfo($authorization, $userUpdateDTO);
-        return $userEntity->toArray();
-    }
 }
