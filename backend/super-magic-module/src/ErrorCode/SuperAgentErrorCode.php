@@ -131,4 +131,7 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('topic.concurrent_operation_failed')]
     case TOPIC_LOCK_FAILED_LEGACY = 51253;
+
+    #[ErrorMessage('task.access_token.not_found')]
+    case ACCESS_TOKEN_NOT_FOUND = 51254;
 }

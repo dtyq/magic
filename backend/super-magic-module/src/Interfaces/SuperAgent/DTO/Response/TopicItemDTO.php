@@ -52,6 +52,12 @@ class TopicItemDTO extends AbstractDTO
      */
     protected string $topicMode = '';
 
+
+    /**
+     * @var string 沙箱ID
+     */
+    protected string $sandboxId = '';
+
     /**
      * 从实体创建 DTO.
      */
@@ -66,6 +72,8 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
         $dto->setTopicMode($entity->getTopicMode()->value ?? '');
+        $dto->setTopicMode($entity->getTopicMode()?->value ?? '');
+        $dto->setSandboxId($entity->getSandboxId());
         return $dto;
     }
 
@@ -157,6 +165,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getSandboxId(): string
+    {
+        return $this->sandboxId;
+    }
+
+    public function setSandboxId(string $sandboxId): self
+    {
+        $this->sandboxId = $sandboxId;
+        return $this;
+    }
+
     /**
      * 从数组创建DTO.
      */
@@ -171,6 +190,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->taskStatus = $data['task_status'] ?? $data['current_task_status'] ?? '';
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
         $dto->topicMode = $data['topic_mode'] ?? 'general';
+        $dto->sandboxId = $data['sandbox_id'] ?? '';
 
         return $dto;
     }
@@ -190,6 +210,7 @@ class TopicItemDTO extends AbstractDTO
             'task_status' => $this->taskStatus,
             'project_id' => $this->projectId,
             'topic_mode' => $this->topicMode,
+            'sandbox_id' => $this->sandboxId,
         ];
     }
 }
