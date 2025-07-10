@@ -43,6 +43,18 @@ class MCPServerSelectListDTO extends AbstractDTO
 
     public bool $office = false;
 
+    public int $userOperation = 0;
+
+    public function getUserOperation(): int
+    {
+        return $this->userOperation;
+    }
+
+    public function setUserOperation(int $userOperation): void
+    {
+        $this->userOperation = $userOperation;
+    }
+
     public function isOffice(): bool
     {
         return $this->office;

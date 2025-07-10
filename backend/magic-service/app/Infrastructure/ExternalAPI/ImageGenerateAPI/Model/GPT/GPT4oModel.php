@@ -53,8 +53,8 @@ class GPT4oModel extends AbstractDingTalkAlert implements ImageGenerate
         // 从原生结果中提取图片URL
         $imageUrls = [];
         foreach ($rawResults as $index => $result) {
-            if (! empty($result['data']['imageUrl'])) {
-                $imageUrls[$index] = $result['data']['imageUrl'];
+            if (! empty($result['imageUrl'])) {
+                $imageUrls[$index] = $result['imageUrl'];
             }
         }
 

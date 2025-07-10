@@ -183,23 +183,6 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取MCP配置.
-     */
-    public function getMcpConfig(): array
-    {
-        return $this->mcpConfig;
-    }
-
-    /**
-     * 设置MCP配置.
-     */
-    public function setMcpConfig(array $mcpConfig): self
-    {
-        $this->mcpConfig = $mcpConfig;
-        return $this;
-    }
-
-    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
      */
