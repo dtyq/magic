@@ -60,4 +60,6 @@ interface MCPUserSettingRepositoryInterface
      * 删除用户的指定MCP服务设置.
      */
     public function deleteByUserAndMcpServer(MCPDataIsolation $dataIsolation, string $userId, string $mcpServerId): bool;
+
+    public function updateAdditionalConfig(MCPDataIsolation $dataIsolation, string $mcpServerId, string $additionalKey, array $additionalValue): void;
 }
