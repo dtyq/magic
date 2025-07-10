@@ -199,6 +199,17 @@ class MCPServerAppService extends AbstractMCPAppService
                     ],
                 ];
             }, $toolsResult?->getTools() ?? []);
+
+            // 每次检测成功，都存下一次工具列表
+            $this->mcpUserSettingDomainService->updateAdditionalConfig(
+                $dataIsolation,
+                $code,
+                'history_check_tools',
+                [
+                    'tools' => $tools,
+                    'last_check_at' => date('Y-m-d H:i:s'),
+                ]
+            );
         } catch (Throwable $throwable) {
             $success = false;
             $error = $throwable->getMessage();

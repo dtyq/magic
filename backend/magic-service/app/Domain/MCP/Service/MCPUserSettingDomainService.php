@@ -87,6 +87,11 @@ readonly class MCPUserSettingDomainService
         return $this->mcpUserSettingRepository->save($dataIsolation, $entity);
     }
 
+    public function updateAdditionalConfig(MCPDataIsolation $dataIsolation, string $mcpServerId, string $additionalKey, array $additionalValue): void
+    {
+        $this->mcpUserSettingRepository->updateAdditionalConfig($dataIsolation, $mcpServerId, $additionalKey, $additionalValue);
+    }
+
     public function delete(MCPDataIsolation $dataIsolation, int $id): bool
     {
         $entity = $this->mcpUserSettingRepository->getById($dataIsolation, $id);
