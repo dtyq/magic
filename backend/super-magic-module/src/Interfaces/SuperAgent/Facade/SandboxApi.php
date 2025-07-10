@@ -12,13 +12,8 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Qbhy\HyperfAuth\AuthManager;
@@ -29,11 +24,13 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UserInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateTaskApiResponseDTO;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleApiMessageAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\InitSandboxRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InitSandboxResponseDTO;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use App\Domain\Contact\Entity\ValueObject\UserType;
+
 
 
 #[ApiResponse('low_code')]
@@ -43,20 +40,20 @@ class SandboxApi extends AbstractApi
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
         protected TopicTaskAppService $topicTaskAppService,
-        protected TaskAppService $taskAppService,
+        protected HandleTaskMessageAppService $taskAppService,
         protected ProjectAppService $projectAppService,
         protected TopicAppService $topicAppService,
         protected UserDomainService $userDomainService,
-        protected HandleApiMessageAppService $handleApiMessageAppService,
+        protected HandleTaskMessageAppService $handleTaskMessageAppService,
         ) {
     }
 
 
     //创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
-    public function initSandbox(RequestContext $requestContext, CreateTaskApiRequestDTO $requestDTO): array
+    public function initSandbox(RequestContext $requestContext, InitSandboxRequestDTO $requestDTO): array
     {
         // 从请求中创建DTO并验证参数
-        $requestDTO = CreateTaskApiRequestDTO::fromRequest($this->request);
+        $requestDTO = InitSandboxRequestDTO::fromRequest($this->request);
 
         // 从请求中创建DTO
         $apiKey = $this->getApiKey();
@@ -68,7 +65,7 @@ class SandboxApi extends AbstractApi
         var_dump($apiKey,"=====apiKey");
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
-        $userEntity = $this->handleApiMessageAppService->getUserAuthorization($apiKey,"");
+        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey,"");
 
         $magicUserAuthorization=MagicUserAuthorization::fromUserEntity($userEntity);
 
@@ -144,17 +141,17 @@ class SandboxApi extends AbstractApi
          $requestDTO->setTopicId($topicId);
          $requestDTO->setConversationId($topicId);
 
-        $createTaskApiResponseDTO = new CreateTaskApiResponseDTO();
-        $createTaskApiResponseDTO->setTaskId("123123123");
+        $initSandboxResponseDTO = new InitSandboxResponseDTO();
+        $initSandboxResponseDTO->setTaskId("123123123");
         // $createTaskApiResponseDTO->setAgentName($requestDTO->getAgentName());
         // $createTaskApiResponseDTO->setToolName($requestDTO->getToolName());
         // $createTaskApiResponseDTO->setCustomName($requestDTO->getCustomName());
         // $createTaskApiResponseDTO->setModelId($requestDTO->getModelId());
-        $createTaskApiResponseDTO->setWorkspaceId($requestDTO->getWorkspaceId());
-        $createTaskApiResponseDTO->setProjectId($requestDTO->getProjectId());
-        $createTaskApiResponseDTO->setProjectMode($requestDTO->getProjectMode());
-        $createTaskApiResponseDTO->setTopicId($requestDTO->getTopicId());
-        $createTaskApiResponseDTO->setConversationId($requestDTO->getTopicId());
+        $initSandboxResponseDTO->setWorkspaceId($requestDTO->getWorkspaceId());
+        $initSandboxResponseDTO->setProjectId($requestDTO->getProjectId());
+        $initSandboxResponseDTO->setProjectMode($requestDTO->getProjectMode());
+        $initSandboxResponseDTO->setTopicId($requestDTO->getTopicId());
+        $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
          $dataIsolation = new DataIsolation();
          $dataIsolation->setCurrentUserId((string)$userEntity->getUserId());
          $dataIsolation->setThirdPartyOrganizationCode($userEntity->getOrganizationCode());
@@ -179,11 +176,11 @@ class SandboxApi extends AbstractApi
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
         //$this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
         // $userMessageDTO->setAgentMode($requestDTO->getProjectMode());
-        $result = $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
-        $createTaskApiResponseDTO->setSandboxId($result['sandbox_id']);
-        $createTaskApiResponseDTO->setTaskId($result['task_id']);
+        $result = $this->handleTaskMessageAppService->initSandbox($dataIsolation, $userMessageDTO);
+        $initSandboxResponseDTO->setSandboxId($result['sandbox_id']);
+        $initSandboxResponseDTO->setTaskId($result['task_id']);
 
-        return $createTaskApiResponseDTO->toArray();
+        return $initSandboxResponseDTO->toArray();
     }
 
     // public function initWorkspace(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO)

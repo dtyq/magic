@@ -11,7 +11,7 @@ use Hyperf\Validation\Request\FormRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Infrastructure\Core\AbstractRequestDTO;
 
-class CreateTaskApiRequestDTO extends AbstractRequestDTO
+class InitSandboxRequestDTO extends AbstractRequestDTO
 {
     protected string $taskType = '';
     protected string $agentName = '';
