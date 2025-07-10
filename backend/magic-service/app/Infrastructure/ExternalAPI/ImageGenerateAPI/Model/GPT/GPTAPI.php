@@ -13,7 +13,7 @@ use Hyperf\Codec\Json;
 class GPTAPI
 {
     // 请求超时时间（秒）
-    protected const REQUEST_TIMEOUT = 30;
+    protected const REQUEST_TIMEOUT = 300;
 
     protected string $apiKey;
 
