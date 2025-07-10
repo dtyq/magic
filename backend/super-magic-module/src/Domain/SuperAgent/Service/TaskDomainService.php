@@ -137,7 +137,7 @@ class TaskDomainService
             }
             $data['err_msg'] = $errMsg;
         }
-        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+        return $this->taskRepository->updateTaskByCondition($conditions, $data);
     }
 
     public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
