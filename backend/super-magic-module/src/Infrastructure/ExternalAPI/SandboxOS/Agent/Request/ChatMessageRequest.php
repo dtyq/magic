@@ -97,23 +97,6 @@ class ChatMessageRequest
     }
 
     /**
-     * 获取Agent模式.
-     */
-    public function getAgentMode(): string
-    {
-        return $this->agentMode;
-    }
-
-    /**
-     * 设置Agent模式.
-     */
-    public function setAgentMode(string $agentMode): self
-    {
-        $this->agentMode = $agentMode;
-        return $this;
-    }
-
-    /**
      * 获取附件.
      */
     public function getAttachments(): array
@@ -179,24 +162,6 @@ class ChatMessageRequest
     public function getMessageId(): string
     {
         return $this->messageId;
-    }
-
-    /**
-     * 获取提及.
-     */
-    public function getMentions(): array
-    {
-        /* @phpstan-ignore-next-line */
-        return $this->mentions ?? [];
-    }
-
-    /**
-     * 设置提及.
-     */
-    public function setMentions(array $mentions): self
-    {
-        $this->mentions = $mentions;
-        return $this;
     }
 
     /**
