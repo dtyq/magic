@@ -217,4 +217,27 @@ class MCPUserSettingRepository extends MCPAbstractRepository implements MCPUserS
             ->where('mcp_server_id', $mcpServerId)
             ->delete() > 0;
     }
+
+    public function updateAdditionalConfig(MCPDataIsolation $dataIsolation, string $mcpServerId, string $additionalKey, array $additionalValue): void
+    {
+        $builder = $this->createBuilder($dataIsolation, MCPUserSettingModel::query());
+        $model = $builder->where('user_id', $dataIsolation->getCurrentUserId())
+            ->where('mcp_server_id', $mcpServerId)
+            ->first();
+
+        if (! $model) {
+            $model = new MCPUserSettingModel();
+            $model->user_id = $dataIsolation->getCurrentUserId();
+            $model->mcp_server_id = $mcpServerId;
+            $model->organization_code = $dataIsolation->getCurrentOrganizationCode();
+            $model->creator = $dataIsolation->getCurrentUserId();
+            $model->modifier = $dataIsolation->getCurrentUserId();
+        } else {
+            $additionalConfig = $model->additional_config ?? [];
+        }
+        $additionalConfig[$additionalKey] = $additionalValue;
+
+        $model->additional_config = $additionalConfig;
+        $model->save();
+    }
 }
