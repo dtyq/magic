@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
-use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -42,7 +41,7 @@ use Throwable;
  * Agent消息应用服务
  * 提供高级Agent通信功能，包括自动初始化和状态管理.
  */
-class AgentAppService extends AbstractKernelAppService
+class AgentAppService
 {
     private LoggerInterface $logger;
 
@@ -410,7 +409,6 @@ class AgentAppService extends AbstractKernelAppService
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $userAuthorization->setId($dataIsolation->getCurrentUserId());
         // Use unified FileAppService to get STS Token
         $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
 
