@@ -13,10 +13,8 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
@@ -25,19 +23,15 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Qbhy\HyperfAuth\AuthManager;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UserInfoRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateTaskApiResponseDTO;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleApiMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
-
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
 
 #[ApiResponse('low_code')]
 class TaskApi extends AbstractApi
@@ -46,11 +40,11 @@ class TaskApi extends AbstractApi
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
         protected TopicTaskAppService $topicTaskAppService,
-        protected TaskAppService $taskAppService,
+        protected HandleTaskMessageAppService $taskAppService,
         protected ProjectAppService $projectAppService,
         protected TopicAppService $topicAppService,
         protected UserDomainService $userDomainService,
-        protected HandleApiMessageAppService $handleApiMessageAppService,
+        protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
         ) {
     }
@@ -174,10 +168,10 @@ class TaskApi extends AbstractApi
     }
 
     //创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
-    public function agentTask(RequestContext $requestContext, CreateTaskApiRequestDTO $requestDTO): array
+    public function agentTask(RequestContext $requestContext, CreateAgentTaskRequestDTO $requestDTO): array
     {
         // 从请求中创建DTO并验证参数
-        $requestDTO = CreateTaskApiRequestDTO::fromRequest($this->request);
+        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
 
         // 从请求中创建DTO
         $apiKey = $this->getApiKey();
@@ -189,57 +183,25 @@ class TaskApi extends AbstractApi
         var_dump($apiKey,"=====apiKey");
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
-        $userEntity = $this->handleApiMessageAppService->getUserAuthorization($apiKey,"");
+        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey,"");
 
         $magicUserAuthorization=MagicUserAuthorization::fromUserEntity($userEntity);
 
         var_dump($magicUserAuthorization,"=====magicUserAuthorization");
         $requestContext->setUserAuthorization($magicUserAuthorization);
 
-        //判断工作区是否存在，不存在则初始化工作区
-        $workspaceId = $requestDTO->getWorkspaceId();
-        $workspace = $this->workspaceAppService->getWorkspaceDetail($requestContext,(int)$workspaceId);
-        if (empty($workspace)) {
-            //抛异常，工作区不存在
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
-        }
-
-
-
-        //判断项目是否存在，不存在则初始化项目
-        $projectId = $requestDTO->getProjectId();
-
-        $project = $this->projectAppService->getProject((int)$projectId, (string)$userEntity->getUserId());
-        if (empty($project)) {
-            //抛异常，项目不存在
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
-        }
-
-
+        $taskEntity = $this->taskAppService->getTask((int)$requestDTO->getTaskId());
 
 
          //判断话题是否存在，不存在则初始化话题
-         $topicId = $requestDTO->getTopicId();
+        $topicId = $taskEntity->getTopicId();
 
-        $topic = $this->topicAppService->getTopic($requestContext, (int)$topicId);
-        if (empty($topic)) {
-            //抛异常，话题不存在
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
-        }
+        var_dump($topicId,"=====topicId");
 
-         $requestDTO->setConversationId($topicId);
+        $topicDTO = $this->topicAppService->getTopic($requestContext, (int)$topicId);
 
-        $createTaskApiResponseDTO = new CreateTaskApiResponseDTO();
-        $createTaskApiResponseDTO->setTaskId("123123123");
-        // $createTaskApiResponseDTO->setAgentName($requestDTO->getAgentName());
-        // $createTaskApiResponseDTO->setToolName($requestDTO->getToolName());
-        // $createTaskApiResponseDTO->setCustomName($requestDTO->getCustomName());
-        // $createTaskApiResponseDTO->setModelId($requestDTO->getModelId());
-        $createTaskApiResponseDTO->setWorkspaceId($requestDTO->getWorkspaceId());
-        $createTaskApiResponseDTO->setProjectId($requestDTO->getProjectId());
-        $createTaskApiResponseDTO->setProjectMode($requestDTO->getProjectMode());
-        $createTaskApiResponseDTO->setTopicId($requestDTO->getTopicId());
-        $createTaskApiResponseDTO->setConversationId($requestDTO->getTopicId());
+         $requestDTO->setConversationId((string)$topicId);
+
          $dataIsolation = new DataIsolation();
          $dataIsolation->setCurrentUserId((string)$userEntity->getUserId());
          $dataIsolation->setThirdPartyOrganizationCode($userEntity->getOrganizationCode());
@@ -249,108 +211,35 @@ class TaskApi extends AbstractApi
 
 
         //检查容器是否正常
-        $result = $this->agentAppService->getSandboxStatus($topic->getSandboxId());
+        $result = $this->agentAppService->getSandboxStatus($topicDTO->getSandboxId());
         if ($result->getStatus() !== SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage($dataIsolation, $topic->getSandboxId(), (string) $topic->getId(), '任务已终止.');
+            $this->agentAppService->sendInterruptMessage($dataIsolation, $topicDTO->getSandboxId(), (string) $topicDTO->getId(), '任务已终止.');
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_not_running');
         }
 
         $userMessage=[
-            'chat_topic_id'=>$requestDTO->getTopicId(),
-            'chat_conversation_id'=>$requestDTO->getConversationId(),
+            'chat_topic_id'=>(string)$topicDTO->getChatTopicId(),
+            'chat_conversation_id'=>(string)$topicDTO->getChatConversationId(),
             'prompt'=>$requestDTO->getPrompt(),
             'attachments'=>null,
             'mentions'=>null,
             'agent_user_id'=>(string)$userEntity->getId(),
-            'agent_mode'=>"",
-            'task_mode'=>"",
+            'agent_mode'=> '',
+            'task_mode'=> $taskEntity->getTaskMode(),
         ];
         var_dump($userMessage,"=====userMessage");
         var_dump($dataIsolation,"=====dataIsolation");
         var_dump($userEntity,"=====userEntity");
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
-        //$this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
-        // $userMessageDTO->setAgentMode($requestDTO->getProjectMode());
-        $result = $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
-        $createTaskApiResponseDTO->setSandboxId($result['sandbox_id']);
-        $createTaskApiResponseDTO->setTaskId($result['task_id']);
+        try{
+            $this->handleTaskMessageAppService->sendChatMessage($dataIsolation, $userMessageDTO);
+        }catch(\Exception $e){
+            $this->agentAppService->sendInterruptMessage($dataIsolation, $topicDTO->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'send_message_failed');
+        }
 
-        return $createTaskApiResponseDTO->toArray();
+        return [];
     }
 
-    // public function initWorkspace(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO)
-    // {
-
-    //        //判断工作区是否存在，不存在则初始化工作区
-    //        $workspaceId = $requestDTO->getWorkspaceId();
-    //        if ($workspaceId > 0) {
-    //            $workspace = $this->workspaceAppService->getWorkspaceDetail(        $requestContext,    (int)$workspaceId);
-    //            if (empty($workspace)) {
-    //                //抛异常，工作区不存在
-    //                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
-    //            }
-    //        }else{
-    //            $saveWorkspaceRequestDTO = new SaveWorkspaceRequestDTO();
-    //            $saveWorkspaceRequestDTO->setWorkspaceName("默认工作区");
-    //            $workspace = $this->workspaceAppService->createWorkspace($requestContext, $saveWorkspaceRequestDTO);
-    //            $workspaceId = $workspace->getId();
-    //        }
-
-    //        $requestDTO->setWorkspaceId($workspaceId);
-    // }
-
-
-    // public function initProject(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO, string $userId): void
-    // {
-    //             //判断项目是否存在，不存在则初始化项目
-    //     $projectId = $requestDTO->getProjectId();
-
-    //     if ($projectId > 0) {
-    //         $project = $this->projectAppService->getProject((int)$projectId, $userId);
-    //         if (empty($project)) {
-    //             //抛异常，项目不存在
-    //             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
-    //         }
-    //     }else{
-    //         $saveProjectRequestDTO = new CreateProjectRequestDTO();
-    //         $saveProjectRequestDTO->setProjectName("默认项目");
-    //         $saveProjectRequestDTO->setWorkspaceId((string)$requestDTO->getWorkspaceId());
-    //         $saveProjectRequestDTO->setProjectMode($requestDTO->getProjectMode());
-    //         $project = $this->projectAppService->createProject($requestContext, $saveProjectRequestDTO);
-    //         if(!empty($project['project'])){
-    //             $projectId = $project['project']['id'];
-    //         }else{
-    //             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
-    //         }
-    //     }
-
-    //     $requestDTO->setProjectId($projectId);
-    // }
-
-
-    // public function initTopic(RequestContext $requestContext, CreateTaskApiRequestDTO &$requestDTO): void
-    // {
-    //     //判断话题是否存在，不存在则初始化话题
-    //     $topicId = $requestDTO->getTopicId();
-    //     if ($topicId > 0) {
-    //         $topic = $this->topicAppService->getTopic($requestContext, (int)$topicId);
-    //         if (empty($topic)) {
-    //             //抛异常，话题不存在
-    //             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
-    //         }
-    //     }else{
-    //         $saveTopicRequestDTO = new SaveTopicRequestDTO();
-    //         $saveTopicRequestDTO->setTopicName("默认话题");
-    //         $saveTopicRequestDTO->setProjectId((string)$requestDTO->getProjectId());
-    //         $saveTopicRequestDTO->setWorkspaceId((string)$requestDTO->getWorkspaceId());
-    //         $topic = $this->topicAppService->createTopic($requestContext, $saveTopicRequestDTO);
-    //         if(!empty($topic->getId())){
-    //             $topicId = $topic->getId();
-    //         }else{
-    //             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
-    //         }
-    //     }
-    //     $requestDTO->setTopicId($topicId);
-    // }
 
 }

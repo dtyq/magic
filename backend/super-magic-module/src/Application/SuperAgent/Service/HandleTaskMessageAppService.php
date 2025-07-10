@@ -42,7 +42,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
  * Handle User Message Application Service
  * Responsible for handling the complete business process of users sending messages to agents.
  */
-class HandleApiMessageAppService extends AbstractAppService
+class HandleTaskMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
@@ -210,7 +210,7 @@ class HandleApiMessageAppService extends AbstractAppService
     }
 
 
-    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO):array
+    public function initSandbox(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO):array
     {
         $topicId = 0;
         $taskId = '';
@@ -231,9 +231,6 @@ class HandleApiMessageAppService extends AbstractAppService
                 $taskMode = $topicEntity->getTaskMode();
             }
 
-
-
-
             $data=[
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
@@ -241,6 +238,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 'topic_id' => $topicId,
                 'task_id' => '', // Initially empty, this is agent's task id
                 'task_mode' => $taskMode,
+                'topic_mode' => $userMessageDTO->getTopicMode()->value,
                 'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
                 'prompt' => $userMessageDTO->getPrompt(),
                 'attachments' => $userMessageDTO->getAttachments(),
@@ -277,7 +275,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $userMessageDTO->getTopicMode()->value,
             );
-            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
+            $sandboxID = $this->createAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
 
             // Update task status
@@ -398,9 +396,75 @@ class HandleApiMessageAppService extends AbstractAppService
         return $sandboxId;
     }
 
-
-    public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
+        /**
+     * Initialize agent environment.
+     */
+    private function createAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
+        // Create sandbox container
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $taskContext->setSandboxId($sandboxId);
+
+        // Initialize agent
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
+
+        // Wait for workspace to be ready
+        $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
+
+        // Send message to agent
+      //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
+
+        // Send message to agent
+        return $sandboxId;
+    }
+
+
+
+    public function sendChatMessage(DataIsolation $dataIsolation,  UserMessageDTO $userMessageDTO): void
+    {
+
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
+        if (is_null($topicEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        $data=[
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'workspace_id' => $topicEntity->getWorkspaceId(),
+            'project_id' => $topicEntity->getProjectId(),
+            'topic_id' => $topicEntity->getId(),
+            'task_id' => '', // Initially empty, this is agent's task id
+            'task_mode' => $topicEntity->getTaskMode(),
+            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+            'prompt' => $userMessageDTO->getPrompt(),
+            'attachments' => $userMessageDTO->getAttachments(),
+            'mentions' => $userMessageDTO->getMentions(),
+            'task_status' => TaskStatus::WAITING->value,
+            'work_dir' => $topicEntity->getWorkDir() ?? '',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $taskEntity = TaskEntity::fromArray($data);
+        // Initialize task
+        $taskEntity = $this->taskDomainService->initTopicTask(
+            dataIsolation: $dataIsolation,
+            topicEntity: $topicEntity,
+            taskEntity: $taskEntity
+        );
+
+        // Send message to agent
+        $taskContext = new TaskContext(
+            task: $taskEntity,
+            dataIsolation: $dataIsolation,
+            chatConversationId: $userMessageDTO->getChatConversationId(),
+            chatTopicId: $userMessageDTO->getChatTopicId(),
+            agentUserId: $userMessageDTO->getAgentUserId(),
+            sandboxId: $topicEntity->getSandboxId(),
+            taskId: (string) $taskEntity->getId(),
+            instruction: ChatInstruction::FollowUp,
+            agentMode: $userMessageDTO->getTopicMode()->value,
+        );
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
 
@@ -461,5 +525,17 @@ class HandleApiMessageAppService extends AbstractAppService
 
         $userEntity = $this->userDomainService->getByUserId($uid);
         return $userEntity;
+    }
+
+    public function getTask(int $taskId): TaskEntity
+    {
+        $taskEntity = $this->taskDomainService->getTaskById($taskId);
+
+        var_dump($taskEntity,"=====taskEntity");
+        if (empty($taskEntity)) {
+            //抛异常，任务不存在
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
+        }
+        return $taskEntity;
     }
 }

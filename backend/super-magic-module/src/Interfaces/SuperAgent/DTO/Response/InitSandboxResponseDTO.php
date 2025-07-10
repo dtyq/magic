@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
-class CreateTaskApiResponseDTO
+class InitSandboxResponseDTO
 {
     protected string $taskType = '';
     protected string $agentName = '';
