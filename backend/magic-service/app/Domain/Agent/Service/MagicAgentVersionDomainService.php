@@ -135,7 +135,7 @@ class MagicAgentVersionDomainService
         /* @phpstan-ignore-next-line */
         if ($approvalOpen) {
             // 校验状态
-            if ($agent->getApprovalStatus() !== MagicAgentVersionStatus::APPROVAL_PASSED) {
+            if ($agent->getApprovalStatus() !== MagicAgentVersionStatus::APPROVAL_PASSED->value) {
                 ExceptionBuilder::throw(AgentErrorCode::VERSION_CAN_ONLY_BE_ENABLED_AFTER_APPROVAL);
             }
         }

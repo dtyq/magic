@@ -161,8 +161,8 @@ class ServiceProviderDomainService
             if ($isOfficialProvider || ServiceProviderCategory::from($serviceProviderEntity->getCategory()) === ServiceProviderCategory::VLM) {
                 ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter);
             }
+            $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         }
-        $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         return $serviceProviderModelsEntity;
     }
 
@@ -515,7 +515,9 @@ class ServiceProviderDomainService
                 }
 
                 // Special handling: Initialize models for new organization's Magic service provider from all LLM service providers in official organization
-                $this->initMagicServiceProviderModels($organizationCode);
+                if ($serviceProviderCategory === null || $serviceProviderCategory === ServiceProviderCategory::LLM) {
+                    $this->initMagicServiceProviderModels($organizationCode);
+                }
 
                 // 构建返回结果
                 foreach ($configEntities as $configEntity) {
@@ -859,12 +861,12 @@ class ServiceProviderDomainService
             $serviceProviderConfigEntity->setStatus($serviceProviderConfigDTO->getStatus());
             $serviceProviderConfigEntity->setConfig($serviceProviderConfigDTO->getConfig());
             $serviceProviderConfigEntity = $this->serviceProviderConfigRepository->insert($serviceProviderConfigEntity);
+            Db::commit();
         } catch (Exception $exception) {
             Db::rollBack();
             $this->logger->error('添加服务商失败: ' . $exception->getMessage());
             ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError, __('service_provider.add_provider_failed'));
         }
-        Db::commit();
         return $this->buildServiceProviderConfigDTO($serviceProviderEntity, $serviceProviderConfigEntity);
     }
 
@@ -896,18 +898,18 @@ class ServiceProviderDomainService
             if ($this->isOfficial($organizationCode)) {
                 // 获取服务商下的所有模型
                 $models = $this->serviceProviderModelsRepository->getModelsByServiceProviderId((int) $serviceProviderConfigId);
-                $modelParentIds = array_column($models, 'model_parent_id');
+                $modelParentIds = array_column($models, 'id');
                 $this->syncDeleteModelsToOtherServiceProvider($modelParentIds);
             } else {
                 // 删除服务商下所有的模型
                 $this->serviceProviderModelsRepository->deleteByServiceProviderConfigId($serviceProviderConfigId, $organizationCode);
             }
+            Db::commit();
         } catch (Exception $exception) {
             Db::rollBack();
             $this->logger->error('删除服务商失败: ' . $exception->getMessage());
             ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError, __('service_provider.delete_provider_failed'));
         }
-        Db::commit();
     }
 
     public function addModelIdForOrganization(string $modelId, string $organizationCode): void
@@ -1149,6 +1151,68 @@ class ServiceProviderDomainService
 
         // 如果没有找到任何有效配置，返回空数组
         return $result;
+    }
+
+    /**
+     * Get super magic display models and Magic provider models visible to current organization.
+     * @param string $organizationCode Organization code
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    {
+        // 1. Get models with super magic display state enabled
+        $superMagicModels = $this->serviceProviderModelsRepository->getSuperMagicDisplayModelsForOrganization($organizationCode);
+
+        // 2. Get all models under Magic service provider for current organization
+        $magicServiceProvider = $this->serviceProviderRepository->getOfficial(ServiceProviderCategory::LLM);
+        if (! $magicServiceProvider) {
+            return $superMagicModels;
+        }
+
+        // Query service provider configurations by Magic service provider ID and current organization
+        $magicServiceProviderConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
+            [$magicServiceProvider->getId()],
+            $organizationCode
+        );
+
+        $magicModels = [];
+        foreach ($magicServiceProviderConfigs as $config) {
+            // Get all models under this service provider configuration (without status restriction)
+            $models = $this->serviceProviderModelsRepository->getModelStatusByServiceProviderConfigIdAndOrganizationCode(
+                (string) $config->getId(),
+                $organizationCode
+            );
+
+            // Add all models, filter by visible organizations later
+            foreach ($models as $model) {
+                $magicModels[] = $model;
+            }
+        }
+
+        // 3. Filter Magic provider models by visible organizations
+        $magicModelsEntities = [];
+        foreach ($magicModels as $model) {
+            $visibleOrganizations = $model->getVisibleOrganizations();
+
+            // Only return models when visible organizations is not empty and contains current organization
+            if (! empty($visibleOrganizations) && in_array($organizationCode, $visibleOrganizations)) {
+                $magicModelsEntities[] = $model;
+            }
+        }
+
+        // 4. Merge results and remove duplicates (by model ID)
+        $allModels = array_merge($superMagicModels, $magicModelsEntities);
+        $uniqueModels = [];
+        $modelIds = [];
+
+        foreach ($allModels as $model) {
+            if (! in_array($model->getId(), $modelIds)) {
+                $modelIds[] = $model->getId();
+                $uniqueModels[] = $model;
+            }
+        }
+
+        return $uniqueModels;
     }
 
     /**
@@ -1429,6 +1493,7 @@ class ServiceProviderDomainService
             }
 
             // 如果是官方服务商配置，先保存，如果没有找到非官方的再使用
+            /* @phpstan-ignore-next-line */
             if ($providerType === ServiceProviderType::OFFICIAL) {
                 $officialFound = true;
                 $officialProviderType = $providerType;
@@ -1664,7 +1729,9 @@ class ServiceProviderDomainService
             $updateConsumerModel->setIcon($serviceProviderModelsEntity->getIcon());
             $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
             $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
+            $updateConsumerModel->setModelId($serviceProviderModelsEntity->getModelId());
             $updateConsumerModel->setVisibleApplications($serviceProviderModelsEntity->getVisibleApplications());
+            $updateConsumerModel->setSuperMagicDisplayState($serviceProviderModelsEntity->getSuperMagicDisplayState());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }

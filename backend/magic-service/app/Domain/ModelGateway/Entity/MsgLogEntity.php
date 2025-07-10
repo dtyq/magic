@@ -34,6 +34,10 @@ class MsgLogEntity extends AbstractEntity
 
     protected string $accessTokenId = '';
 
+    protected string $providerId = '';
+
+    protected string $providerModelId = '';
+
     protected DateTime $createdAt;
 
     public function getId(): ?int
@@ -154,5 +158,25 @@ class MsgLogEntity extends AbstractEntity
     public function setAccessTokenId(int|string $accessTokenId): void
     {
         $this->accessTokenId = (string) $accessTokenId;
+    }
+
+    public function getProviderId(): string
+    {
+        return $this->providerId;
+    }
+
+    public function setProviderId(int|string $providerId): void
+    {
+        $this->providerId = (string) $providerId;
+    }
+
+    public function getProviderModelId(): string
+    {
+        return $this->providerModelId;
+    }
+
+    public function setProviderModelId(int|string $providerModelId): void
+    {
+        $this->providerModelId = (string) $providerModelId;
     }
 }

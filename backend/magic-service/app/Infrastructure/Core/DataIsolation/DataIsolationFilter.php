@@ -17,8 +17,21 @@ trait DataIsolationFilter
             return;
         }
 
+        if ($dataIsolation->isOnlyOfficialOrganization()) {
+            if (count($dataIsolation->getOfficialOrganizationCodes()) === 1) {
+                $builder->where($alias, $dataIsolation->getOfficialOrganizationCodes()[0]);
+                return;
+            }
+            $builder->whereIn($alias, $dataIsolation->getOfficialOrganizationCodes());
+            return;
+        }
+
         $organizationCodes = array_filter($dataIsolation->getOrganizationCodes());
         if (! empty($organizationCodes)) {
+            if (count($dataIsolation->getOrganizationCodes()) === 1) {
+                $builder->where($alias, $dataIsolation->getOrganizationCodes()[0]);
+                return;
+            }
             $builder->whereIn($alias, $organizationCodes);
         }
     }

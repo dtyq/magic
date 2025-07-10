@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Logger\LoggerFactory;
 
 /**
  * Sandbox Gateway Common Result Class
@@ -46,6 +48,23 @@ class GatewayResult
         $code = $response['code'] ?? ResponseCode::ERROR;
         $message = $response['message'] ?? 'Unknown error';
         $data = $response['data'] ?? [];
+
+        // 智能处理嵌套的JSON字符串
+        if (is_string($data) && json_validate($data)) {
+            $data = json_decode($data, true);
+        }
+
+        // 添加调试日志，追踪数据处理过程
+        if (class_exists(LoggerFactory::class)) {
+            $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('sandbox');
+            $logger->info('[GatewayResult] Processing API response', [
+                'original_response' => $response,
+                'extracted_code' => $code,
+                'extracted_message' => $message,
+                'extracted_data' => $data,
+                'data_type' => gettype($data),
+            ]);
+        }
 
         return new self($code, $message, $data);
     }

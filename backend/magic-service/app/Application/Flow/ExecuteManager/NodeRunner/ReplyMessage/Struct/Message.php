@@ -164,6 +164,7 @@ class Message
         if (! $this->IMMessage) {
             return;
         }
+        /* @phpstan-ignore-next-line */
         if (! method_exists($this->IMMessage, 'getContent')) {
             return;
         }

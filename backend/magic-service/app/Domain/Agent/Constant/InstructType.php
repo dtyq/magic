@@ -141,10 +141,6 @@ enum InstructType: int
      */
     public static function validateInstructs(array &$instructs): void
     {
-        if (! is_array($instructs)) {
-            ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'agent.instructs_must_be_array');
-        }
-
         foreach ($instructs as &$group) {
             // 验证组类型
             if (! isset($group['position']) || ! isset($group['items'])) {
@@ -194,10 +190,6 @@ enum InstructType: int
      */
     private function validateStatusGroup(array &$items): void
     {
-        if (! is_array($items)) {
-            ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'agent.instructs_must_be_array');
-        }
-
         if (! isset($items['values']) || ! is_array($items['values'])) {
             ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'agent.interaction_command_status_items_invalid');
         }

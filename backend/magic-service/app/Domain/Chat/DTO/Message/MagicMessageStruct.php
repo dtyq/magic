@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Chat\DTO\Message;
 
 use App\Domain\Chat\DTO\Message\ChatMessage\Item\ChatInstruction;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\MessageExtra;
 use App\Domain\Chat\Entity\AbstractEntity;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
@@ -18,11 +19,12 @@ use Hyperf\Codec\Json;
  */
 abstract class MagicMessageStruct extends AbstractEntity implements MessageInterface
 {
-    // use Instructs;
     /**
      * @var null|ChatInstruction[]
      */
-    protected ?array $instructs = null;
+    protected ?array $instructs;
+
+    protected ?MessageExtra $extra;
 
     protected ChatMessageType $chatMessageType;
 
@@ -61,7 +63,7 @@ abstract class MagicMessageStruct extends AbstractEntity implements MessageInter
      */
     public function getInstructs(): ?array
     {
-        return $this->instructs;
+        return $this->instructs ?? null;
     }
 
     /**
@@ -79,6 +81,22 @@ abstract class MagicMessageStruct extends AbstractEntity implements MessageInter
             }
         }
         $this->instructs = $instructs;
+    }
+
+    public function getExtra(): ?MessageExtra
+    {
+        return $this->extra ?? null;
+    }
+
+    public function setExtra(null|array|MessageExtra $extra): void
+    {
+        if ($extra instanceof MessageExtra) {
+            $this->extra = $extra;
+        } elseif (is_array($extra)) {
+            $this->extra = new MessageExtra($extra);
+        } else {
+            $this->extra = null;
+        }
     }
 
     abstract protected function setMessageType(): void;

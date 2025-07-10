@@ -20,6 +20,9 @@ enum AsrErrorCode: int
     #[ErrorMessage(message: 'asr.config_error.invalid_config')]
     case InvalidConfig = 43006;
 
+    #[ErrorMessage(message: 'asr.config_error.invalid_magic_id')]
+    case InvalidMagicId = 43007;
+
     #[ErrorMessage(message: 'asr.driver_error.driver_not_found')]
     case DriverNotFound = 43008;
 

@@ -13,6 +13,7 @@ use App\Application\ModelGateway\Service\ModelConfigAppService;
 use App\Domain\Chat\DTO\ConversationListQueryDTO;
 use App\Domain\Chat\DTO\Message\ChatFileInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\AbstractAttachmentMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\DTO\Message\MessageInterface;
 use App\Domain\Chat\DTO\Message\StreamMessage\StreamMessageStatus;
 use App\Domain\Chat\DTO\Message\StreamMessageInterface;
@@ -31,6 +32,7 @@ use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
+use App\Domain\Chat\Entity\ValueObject\FileType;
 use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
 use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -1105,6 +1107,8 @@ class MagicChatMessageAppService extends MagicSeqAppService
         $this->checkSendMessageAuth($senderSeqDTO, $senderMessageDTO, $senderConversationEntity, $dataIsolation);
         // 安全性保证，校验附件中的文件是否属于当前用户
         $senderMessageDTO = $this->checkAndFillAttachments($senderMessageDTO, $dataIsolation);
+        // 业务参数校验
+        $this->validateBusinessParams($senderMessageDTO, $dataIsolation);
         // 非流式的消息分发
         $conversationType = $senderConversationEntity->getReceiveType();
         return match ($conversationType) {
@@ -1213,5 +1217,83 @@ class MagicChatMessageAppService extends MagicSeqAppService
                 ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
             }
         }
+    }
+
+    /**
+     * 业务参数校验
+     * 对特定类型的消息进行业务规则校验.
+     */
+    private function validateBusinessParams(MagicMessageEntity $senderMessageDTO, DataIsolation $dataIsolation): void
+    {
+        $content = $senderMessageDTO->getContent();
+        $messageType = $senderMessageDTO->getMessageType();
+
+        // 语音消息校验
+        if ($messageType === ChatMessageType::Voice && $content instanceof VoiceMessage) {
+            $this->validateVoiceMessageParams($content, $dataIsolation);
+        }
+    }
+
+    /**
+     * 校验语音消息的业务参数.
+     */
+    private function validateVoiceMessageParams(VoiceMessage $voiceMessage, DataIsolation $dataIsolation): void
+    {
+        // 校验附件
+        $attachments = $voiceMessage->getAttachments();
+        if (empty($attachments)) {
+            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR, 'chat.message.voice.attachment_required');
+        }
+
+        if (count($attachments) !== 1) {
+            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR, 'chat.message.voice.single_attachment_only', ['count' => count($attachments)]);
+        }
+
+        // 使用新的 getAttachment() 方法获取第一个附件
+        $attachment = $voiceMessage->getAttachment();
+        if ($attachment === null) {
+            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR, 'chat.message.voice.attachment_empty');
+        }
+
+        // 根据音频的 file_id 调用文件领域获取详情，并填充附件缺失的属性值
+        $this->fillVoiceAttachmentDetails($voiceMessage, $dataIsolation);
+
+        // 重新获取填充后的附件
+        $attachment = $voiceMessage->getAttachment();
+
+        if ($attachment->getFileType() !== FileType::Audio) {
+            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR, 'chat.message.voice.audio_format_required', ['type' => $attachment->getFileType()->name]);
+        }
+
+        // 校验录音时长
+        $duration = $voiceMessage->getDuration();
+        if ($duration !== null) {
+            if ($duration <= 0) {
+                ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR, 'chat.message.voice.duration_positive', ['duration' => $duration]);
+            }
+
+            // 默认最大60秒
+            $maxDuration = 60;
+            if ($duration > $maxDuration) {
+                ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR, 'chat.message.voice.duration_exceeds_limit', ['max_duration' => $maxDuration, 'duration' => $duration]);
+            }
+        }
+    }
+
+    /**
+     * 根据音频的 file_id 调用文件领域获取详情，并填充 VoiceMessage 继承的 ChatAttachment 缺失的属性值.
+     */
+    private function fillVoiceAttachmentDetails(VoiceMessage $voiceMessage, DataIsolation $dataIsolation): void
+    {
+        $attachments = $voiceMessage->getAttachments();
+        if (empty($attachments)) {
+            return;
+        }
+
+        // 调用文件领域服务填充附件详情
+        $filledAttachments = $this->magicChatFileDomainService->checkAndFillAttachments($attachments, $dataIsolation);
+
+        // 更新语音消息的附件信息
+        $voiceMessage->setAttachments($filledAttachments);
     }
 }

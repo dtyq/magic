@@ -51,6 +51,12 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         return $model ? $this->modelToEntity($model) : null;
     }
 
+    public function getShareByResourceId(string $resourceId): ?ResourceShareEntity
+    {
+        $model = $this->model->newQuery()->where('resource_id', $resourceId)->first();
+        return $model ? $this->modelToEntity($model) : null;
+    }
+
     /**
      * 查找资源对应的分享.
      *
@@ -104,7 +110,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
                 $shareEntity->setId((int) $model->id);
             } else {
                 // 更新现有记录
-                $this->model->query()->where('id', $shareEntity->getId())->update($data);
+                $this->model->query()->withTrashed()->where('id', $shareEntity->getId())->update($data);
             }
             return $shareEntity;
         } catch (Exception $e) {
@@ -201,6 +207,22 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         ];
     }
 
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
+    {
+        $query = ResourceShareModel::query();
+        $model = $query->withTrashed()
+            ->where('created_uid', $userId)
+            ->where('resource_id', $resourceId)
+            ->where('resource_type', $resourceType)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->modelToEntity($model);
+    }
+
     /**
      * 将PO模型转换为实体.
      *
@@ -228,6 +250,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         $entity->setOrganizationCode(htmlspecialchars($model->organization_code, ENT_QUOTES, 'UTF-8'));
 
         // 处理目标ID，如果实体中有此字段
+        /* @phpstan-ignore-next-line */
         if (property_exists($model, 'target_ids') && method_exists($entity, 'setTargetIds')) {
             $entity->setTargetIds($model->target_ids ?? '[]');
         }

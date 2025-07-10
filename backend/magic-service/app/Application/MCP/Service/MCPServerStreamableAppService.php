@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\MCP\Service;
 
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
+use App\Application\MCP\BuiltInMCP\BuiltInMCPFactory;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\MCP\Entity\MCPServerToolEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
@@ -28,6 +29,12 @@ class MCPServerStreamableAppService extends AbstractMCPAppService
     public function getTools(Authenticatable $authorization, string $mcpServerCode): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        $builtInMCP = BuiltInMCPFactory::create($mcpServerCode);
+        if ($builtInMCP) {
+            return $builtInMCP->getRegisteredTools($mcpServerCode);
+        }
+
         $flowDataIsolation = $this->createFlowDataIsolation($dataIsolation);
         $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
         $operation->validate('r', $mcpServerCode);

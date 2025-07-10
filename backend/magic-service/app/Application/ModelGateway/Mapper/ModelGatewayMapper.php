@@ -30,6 +30,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
@@ -38,7 +39,6 @@ use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\ModelOptions;
 use Hyperf\Odin\ModelMapper;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -57,16 +57,17 @@ class ModelGatewayMapper extends ModelMapper
      */
     protected array $rerank = [];
 
-    public function __construct(protected ConfigInterface $config, protected LoggerInterface $logger)
+    public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
     {
+        $logger = $loggerFactory->get('ModelGatewayMapper', 'debug');
         $this->models['chat'] = [];
         $this->models['embedding'] = [];
         parent::__construct($config, $logger);
 
         // 这里具有优先级的顺序来覆盖配置,后续统一迁移到管理后台
         $this->loadEnvModels();
-        $this->loadFlowModels();
-        $this->loadApiModels();
+        //        $this->loadFlowModels();
+        //        $this->loadApiModels();
     }
 
     public function exists(string $model, ?string $orgCode = null): bool
@@ -520,6 +521,7 @@ class ModelGatewayMapper extends ModelMapper
                 owner: 'MagicAI',
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
                 providerModelId: (string) $providerModelEntity->getId(),
+                providerId: (string) $providerConfigEntity->getId(),
             )
         );
     }
@@ -541,7 +543,7 @@ class ModelGatewayMapper extends ModelMapper
         }
         if (! in_array($providerModel->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
             if ($providerModel->getModelParentId() && $providerModel->getId() !== $providerModel->getModelParentId()) {
-                $providerModel = di(ProviderModelDomainService::class)->getById($providerDataIsolation, $providerModel->getModelParentId(), $checkModelEnabled);
+                $providerModel = di(ProviderModelDomainService::class)->getOfficeModelById($providerModel->getModelParentId(), $checkModelEnabled);
                 if (! $providerModel) {
                     return null;
                 }

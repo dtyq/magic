@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\DTO;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 
 /**
  * User message DTO for initializing agent task.
@@ -20,8 +21,12 @@ class UserMessageDTO
         private readonly string $chatTopicId,
         private readonly string $prompt,
         private readonly ?string $attachments = null,
+        private readonly ?string $mentions = null,
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
-        private readonly string $taskMode = ''
+        private readonly TopicMode $topicMode = TopicMode::GENERAL,
+        // $taskMode 即将废弃，请勿使用
+        private readonly string $taskMode = '',
+        private readonly ?string $rawContent = null
     ) {
     }
 
@@ -50,14 +55,29 @@ class UserMessageDTO
         return $this->attachments;
     }
 
+    public function getMentions(): ?string
+    {
+        return $this->mentions ?? null;
+    }
+
     public function getInstruction(): ChatInstruction
     {
         return $this->instruction;
     }
 
+    public function getTopicMode(): TopicMode
+    {
+        return $this->topicMode;
+    }
+
     public function getTaskMode(): string
     {
         return $this->taskMode;
+    }
+
+    public function getRawContent(): ?string
+    {
+        return $this->rawContent;
     }
 
     /**
@@ -71,10 +91,15 @@ class UserMessageDTO
             chatTopicId: $data['chat_topic_id'] ?? $data['chatTopicId'] ?? '',
             prompt: $data['prompt'] ?? '',
             attachments: $data['attachments'] ?? null,
+            mentions: $data['mentions'] ?? null,
             instruction: isset($data['instruction'])
                 ? ChatInstruction::tryFrom($data['instruction']) ?? ChatInstruction::Normal
                 : ChatInstruction::Normal,
-            taskMode: $data['task_mode'] ?? $data['taskMode'] ?? ''
+            topicMode: isset($data['topic_mode']) || isset($data['topicMode'])
+                ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
+                : TopicMode::GENERAL,
+            taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
+            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null
         );
     }
 
@@ -89,8 +114,11 @@ class UserMessageDTO
             'chat_topic_id' => $this->chatTopicId,
             'prompt' => $this->prompt,
             'attachments' => $this->attachments,
+            'mentions' => $this->mentions,
             'instruction' => $this->instruction->value,
+            'topic_mode' => $this->topicMode->value,
             'task_mode' => $this->taskMode,
+            'raw_content' => $this->rawContent,
         ];
     }
 }

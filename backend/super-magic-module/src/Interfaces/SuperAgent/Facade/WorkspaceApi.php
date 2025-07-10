@@ -7,9 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
-use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
@@ -48,6 +46,18 @@ class WorkspaceApi extends AbstractApi
     }
 
     /**
+     * 获取工作区详情.
+     */
+    public function getWorkspaceDetail(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 调用应用服务
+        return $this->workspaceAppService->getWorkspaceDetail($requestContext, (int) $id)->toArray();
+    }
+
+    /**
      * 获取工作区下的话题列表.
      */
     public function getWorkspaceTopics(RequestContext $requestContext): array
@@ -59,6 +69,31 @@ class WorkspaceApi extends AbstractApi
             $requestContext,
             $dto
         )->toArray();
+    }
+
+    public function createWorkspace(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 从请求创建DTO
+        $requestDTO = SaveWorkspaceRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务层处理业务逻辑
+        return $this->workspaceAppService->createWorkspace($requestContext, $requestDTO)->toArray();
+    }
+
+    public function updateWorkspace(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 从请求创建DTO
+        $requestDTO = SaveWorkspaceRequestDTO::fromRequest($this->request);
+        $requestDTO->id = $id;
+
+        // 调用应用服务层处理业务逻辑
+        return $this->workspaceAppService->updateWorkspace($requestContext, $requestDTO)->toArray();
     }
 
     /**
@@ -86,23 +121,16 @@ class WorkspaceApi extends AbstractApi
      * @return array 操作结果
      * @throws BusinessException 如果参数无效或操作失败则抛出异常
      */
-    public function deleteWorkspace(RequestContext $requestContext): array
+    public function deleteWorkspace(RequestContext $requestContext, string $id): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        // 获取路由参数中的工作区ID
-        $workspaceId = (int) $this->request->input('id', 0);
-
-        if (empty($workspaceId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace.id_required');
-        }
-
         // 调用应用服务层处理业务逻辑
-        $this->workspaceAppService->deleteWorkspace($requestContext, $workspaceId);
+        $this->workspaceAppService->deleteWorkspace($requestContext, (int) $id);
 
         // 返回规范化的响应结果
-        return ['id' => $workspaceId];
+        return ['id' => $id];
     }
 
     /**

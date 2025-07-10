@@ -29,10 +29,10 @@ var (
 	logger      *log.Logger
 	debugMode   bool
 	ctx         = context.Background()
-	
+
 	// Redis连接状态
 	redisAvailable bool
-	
+
 	// 内存令牌存储（作为Redis的后备方案）
 	inMemoryTokenStore = make(map[string]TokenInfo)
 
@@ -106,18 +106,18 @@ func initRedisClient() {
 	redisHost := getEnvWithDefault("REDIS_HOST", "magic-redis")
 	redisPort := getEnvWithDefault("REDIS_PORT", "6379")
 	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
-	
+
 	// 向后兼容，如果直接设置了REDIS_ADDR则优先使用
 	if directAddr := getEnvWithDefault("REDIS_ADDR", ""); directAddr != "" {
 		redisAddr = directAddr
 	}
-	
+
 	redisPassword := getEnvWithDefault("REDIS_PASSWORD", "")
-	
+
 	// 根据环境确定使用的Redis数据库
 	env := getEnvWithDefault("ENV", "test")
 	redisDB := 0 // 默认使用DB 0
-	
+
 	// 为不同环境使用不同的数据库
 	switch env {
 	case "test":
@@ -131,7 +131,7 @@ func initRedisClient() {
 		redisDB = 0
 		logger.Printf("未知环境: %s, 将使用test环境的Redis数据库", env)
 	}
-	
+
 	// 如果明确指定了DB，则使用指定的
 	if dbStr := getEnvWithDefault("REDIS_DB", ""); dbStr != "" {
 		if db, err := strconv.Atoi(dbStr); err == nil {
@@ -140,7 +140,7 @@ func initRedisClient() {
 	}
 
 	logger.Printf("连接Redis: %s (DB: %d, 环境: %s)", redisAddr, redisDB, env)
-	
+
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPassword,
@@ -302,7 +302,7 @@ func getToken(tokenID string) (TokenInfo, bool) {
 			return tokenInfo, true
 		}
 	}
-	
+
 	// 如果Redis不可用或Redis中未找到，从内存中获取
 	tokenInfo, found := inMemoryTokenStore[tokenID]
 	return tokenInfo, found
@@ -317,20 +317,20 @@ func deleteToken(tokenID string) error {
 			logger.Printf("从Redis删除令牌失败: %v", err)
 		}
 	}
-	
+
 	// 无论Redis操作是否成功，都从内存中删除
 	delete(inMemoryTokenStore, tokenID)
 	if debugMode {
 		logger.Printf("令牌已从内存删除: %s", tokenID)
 	}
-	
+
 	return nil
 }
 
 // 获取活跃令牌数量
 func getActiveTokenCount() int64 {
 	var count int64 = 0
-	
+
 	if redisAvailable {
 		// 尝试从Redis获取令牌数量
 		redisCount, err := getTokenCount()
@@ -338,12 +338,12 @@ func getActiveTokenCount() int64 {
 			count = redisCount
 		}
 	}
-	
+
 	// 如果Redis不可用或获取失败，使用内存存储的数量
 	if count == 0 {
 		count = int64(len(inMemoryTokenStore))
 	}
-	
+
 	return count
 }
 
@@ -367,7 +367,7 @@ func saveTokenToRedis(tokenID string, tokenInfo TokenInfo) error {
 	if debugMode {
 		logger.Printf("令牌已保存到Redis: %s, 过期时间: %v", tokenID, expiration)
 	}
-	
+
 	return nil
 }
 
@@ -400,11 +400,11 @@ func deleteTokenFromRedis(tokenID string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if debugMode {
 		logger.Printf("令牌已从Redis删除: %s", tokenID)
 	}
-	
+
 	return nil
 }
 
@@ -509,7 +509,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		Created:     time.Now(),
 		Expires:     time.Now().Add(30 * 24 * time.Hour), // 30天后过期
 	}
-	
+
 	err = saveToken(tokenID, tokenInfo)
 	if err != nil {
 		logger.Printf("保存令牌失败: %v", err)
@@ -776,7 +776,7 @@ func revokeHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "删除令牌失败", http.StatusInternalServerError)
 			return
 		}
-		
+
 		logger.Printf("吊销令牌: %s", requestBody.TokenID)
 
 		// 返回成功
@@ -854,16 +854,16 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			var data interface{}
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
 				// 记录原始请求体
-				if originalJSON, err := json.Marshal(data); err == nil {
-					logger.Printf("原始请求体: %s", string(originalJSON))
-				}
+				//if originalJSON, err := json.Marshal(data); err == nil {
+					// logger.Printf("原始请求体: %s", string(originalJSON))
+				//}
 
 				// 替换环境变量引用
 				data = replaceEnvVars(data)
 
 				// 记录替换后的请求体
 				if newBody, err := json.Marshal(data); err == nil {
-					logger.Printf("替换环境变量后的请求体: %s", string(newBody))
+					// logger.Printf("替换环境变量后的请求体: %s", string(newBody))
 					bodyBytes = newBody
 				}
 			} else {
@@ -1121,6 +1121,15 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+
+		// 判断respBody 大小，如果超过100kb 则不打印
+		if len(respBody) > 100*1024 {
+			logger.Printf("响应体大小超过100kb，不打印")
+		} else {
+			logger.Printf("响应体内容: %s", string(respBody))
+		}
+
+
 		// 重新构建响应体供后续使用
 		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
 
@@ -1326,5 +1335,5 @@ func logFullRequest(r *http.Request) {
 		// 重置请求体以便后续处理
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
-	logger.Printf("====================================")
+	logger.Printf("=====================================")
 }

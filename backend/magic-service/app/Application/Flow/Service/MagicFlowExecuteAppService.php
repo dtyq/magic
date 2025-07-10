@@ -233,6 +233,60 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         ];
     }
 
+    public function apiChatByMCPTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO): array
+    {
+        $user = $this->magicUserDomainService->getByUserId($flowDataIsolation->getCurrentUserId());
+        if (! $user) {
+            ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'user not found');
+        }
+        $account = $this->magicAccountDomainService->getByMagicId($user->getMagicId());
+        if (! $account) {
+            ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'account not found');
+        }
+        $operator = $this->createExecutionOperator($flowDataIsolation);
+        $operator->setSourceId('mcp_tool');
+
+        $magicFlow = $this->getFlow(
+            $flowDataIsolation,
+            $apiChatDTO->getFlowCode(),
+            [Type::Main],
+        );
+
+        // Set instruction for chat scenario
+        $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);
+        if (! empty($apiChatDTO->getInstruction())) {
+            $msgInstruct = $this->generateChatInstruction($apiChatDTO);
+            $messageEntity->setInstructs($msgInstruct);
+        }
+
+        $triggerData = new TriggerData(
+            triggerTime: new DateTime(),
+            userInfo: ['user_entity' => $user, 'account_entity' => $account],
+            messageInfo: ['message_entity' => TriggerData::createMessageEntity($messageEntity)],
+            params: $apiChatDTO->getParams(),
+            globalVariable: $magicFlow->getGlobalVariable(),
+            attachments: AttachmentUtil::getByApiArray($apiChatDTO->getAttachments()),
+        );
+        $originConversationId = $apiChatDTO->getConversationId() ?: IdGenerator::getUniqueId32();
+        $executionData = new ExecutionData(
+            flowDataIsolation: $flowDataIsolation,
+            operator: $operator,
+            triggerType: TriggerType::ChatMessage,
+            triggerData: $triggerData,
+            conversationId: ConversationId::ApiKeyChat->gen($originConversationId),
+            originConversationId: $originConversationId,
+            executionType: ExecutionType::SKApi,
+        );
+        $executionData->setAgentId($magicFlow->getAgentId());
+        $executor = new MagicFlowExecutor($magicFlow, $executionData);
+        $executor->execute();
+
+        return [
+            'messages' => $executionData->getReplyMessagesArray(),
+            'conversation_id' => $executionData->getOriginConversationId(),
+        ];
+    }
+
     public function apiParamCallByMCPTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO): array
     {
         $user = $this->magicUserDomainService->getByUserId($flowDataIsolation->getCurrentUserId());

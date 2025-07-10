@@ -19,7 +19,21 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleOrganizations;
 
+    protected string $modelId;
+
     protected array $visibleApplications;
+
+    protected int $superMagicDisplayState;
+
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(string $modelId): void
+    {
+        $this->modelId = $modelId;
+    }
 
     public function getName(): string
     {
@@ -69,5 +83,15 @@ class UpdateConsumerModel extends AbstractEntity
     public function setVisibleApplications(array $visibleApplications): void
     {
         $this->visibleApplications = $visibleApplications;
+    }
+
+    public function getSuperMagicDisplayState(): int
+    {
+        return $this->superMagicDisplayState;
+    }
+
+    public function setSuperMagicDisplayState(int $superMagicDisplayState): void
+    {
+        $this->superMagicDisplayState = $superMagicDisplayState;
     }
 }

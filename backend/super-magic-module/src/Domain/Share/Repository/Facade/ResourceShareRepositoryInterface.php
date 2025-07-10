@@ -30,6 +30,8 @@ interface ResourceShareRepositoryInterface
      */
     public function getShareByCode(string $shareCode): ?ResourceShareEntity;
 
+    public function getShareByResourceId(string $resourceId): ?ResourceShareEntity;
+
     /**
      * 保存分享实体.
      *
@@ -63,6 +65,8 @@ interface ResourceShareRepositoryInterface
      * @return array 分页结果
      */
     public function paginate(array $conditions, int $page = 1, int $pageSize = 20): array;
+
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity;
 
     /**
      * 检查分享码是否已存在.

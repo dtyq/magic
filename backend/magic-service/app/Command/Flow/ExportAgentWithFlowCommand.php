@@ -97,7 +97,6 @@ class ExportAgentWithFlowCommand extends HyperfCommand
 
             if ($fileLink) {
                 // 使用这种方式点击链接是有效的链接
-                var_dump($fileLink->getUrl());
                 return 0;
             }
 

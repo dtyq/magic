@@ -26,7 +26,6 @@ use Hyperf\Odin\Agent\Tool\UsedTool;
 use Hyperf\Odin\Message\AssistantMessage;
 use Hyperf\Odin\Message\UserMessage;
 use Hyperf\Odin\Message\UserMessageContent;
-use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Tool\Definition\ToolDefinition;
 
 #[FlowNodeDefine(
@@ -55,7 +54,6 @@ class LLMChatNodeRunner extends AbstractLLMNodeRunner
 
         $modelName = $paramsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());
         $orgCode = $executionData->getOperator()->getOrganizationCode();
-        /** @var AbstractModel $model */
         $model = $this->modelGatewayMapper->getChatModelProxy($modelName, $orgCode);
 
         // 默认视觉模型配置就是自己

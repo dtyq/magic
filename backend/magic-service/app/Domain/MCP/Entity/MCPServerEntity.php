@@ -8,14 +8,13 @@ declare(strict_types=1);
 namespace App\Domain\MCP\Entity;
 
 use App\Domain\MCP\Entity\ValueObject\Code;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ServiceConfigInterface;
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\SSRF\SSRFUtil;
 use DateTime;
 use Hyperf\Odin\Mcp\McpServerConfig;
-use Hyperf\Odin\Mcp\McpType;
 
 class MCPServerEntity extends AbstractEntity
 {
@@ -48,15 +47,12 @@ class MCPServerEntity extends AbstractEntity
      */
     protected ServiceType $type;
 
+    protected ServiceConfigInterface $serviceConfig;
+
     /**
      * 是否启用.
      */
     protected ?bool $enabled = null;
-
-    /**
-     * External SSE service URL.
-     */
-    protected string $externalSseUrl = '';
 
     protected string $creator;
 
@@ -69,6 +65,8 @@ class MCPServerEntity extends AbstractEntity
     private int $userOperation = 0;
 
     private int $toolsCount = 0;
+
+    private bool $office = false;
 
     public function shouldCreate(): bool
     {
@@ -94,12 +92,16 @@ class MCPServerEntity extends AbstractEntity
         $this->updatedAt = $this->createdAt;
         $this->code = Code::MagicMCPService->gen();
         $this->type = $this->type ?? ServiceType::SSE;
-        $this->enabled = $this->enabled ?? false;
+        $this->enabled = $this->enabled ?? true;
         $this->id = null;
 
-        if ($this->type === ServiceType::ExternalSSE) {
-            $this->checkSSEUrl();
+        // Ensure serviceConfig is always set
+        if (! isset($this->serviceConfig)) {
+            $this->serviceConfig = $this->type->createServiceConfig([]);
         }
+
+        // Validate service configuration
+        $this->serviceConfig->validate();
     }
 
     public function prepareForModification(MCPServerEntity $mcpServerEntity): void
@@ -110,15 +112,15 @@ class MCPServerEntity extends AbstractEntity
         if (empty($this->name)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'name']);
         }
-        if ($this->externalSseUrl) {
-            $this->checkSSEUrl();
-        }
 
         $mcpServerEntity->setName($this->name);
         $mcpServerEntity->setDescription($this->description);
         $mcpServerEntity->setIcon($this->icon);
-        $mcpServerEntity->setExternalSseUrl($this->externalSseUrl);
         $mcpServerEntity->setModifier($this->creator);
+
+        // Handle service config - always validate and set since it's never null
+        $this->serviceConfig->validate();
+        $mcpServerEntity->setServiceConfig($this->serviceConfig);
 
         if (isset($this->type)) {
             $mcpServerEntity->setType($this->type);
@@ -136,31 +138,9 @@ class MCPServerEntity extends AbstractEntity
         $this->enabled = ! $this->enabled;
     }
 
-    public function createMcpServerConfig(string $localHttpUrl = ''): ?McpServerConfig
+    public function createMcpServerConfig(string $localHttpUrl = '', bool $supportStdio = true): ?McpServerConfig
     {
-        if (! $this->isEnabled()) {
-            return null;
-        }
-        $localHttpUrl = $localHttpUrl ?: LOCAL_HTTP_URL;
-        switch ($this->type) {
-            case ServiceType::SSE:
-                return new McpServerConfig(
-                    type: McpType::Http,
-                    name: $this->name,
-                    url: $localHttpUrl . '/api/v1/mcp/sse/' . $this->code,
-                );
-            case ServiceType::ExternalSSE:
-                if (empty($this->externalSseUrl)) {
-                    return null;
-                }
-                return new McpServerConfig(
-                    type: McpType::Http,
-                    name: $this->name,
-                    url: $this->externalSseUrl,
-                );
-            default:
-                return null;
-        }
+        return null;
     }
 
     // Getters and Setters...
@@ -244,16 +224,6 @@ class MCPServerEntity extends AbstractEntity
         $this->enabled = $enabled;
     }
 
-    public function getExternalSseUrl(): string
-    {
-        return $this->externalSseUrl;
-    }
-
-    public function setExternalSseUrl(string $externalSseUrl): void
-    {
-        $this->externalSseUrl = $externalSseUrl;
-    }
-
     public function getCreator(): string
     {
         return $this->creator;
@@ -314,14 +284,26 @@ class MCPServerEntity extends AbstractEntity
         $this->toolsCount = $toolsCount;
     }
 
-    private function checkSSEUrl(): void
+    public function getServiceConfig(): ServiceConfigInterface
     {
-        if (empty($this->externalSseUrl)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.external_sse_url']);
+        return $this->serviceConfig;
+    }
+
+    public function setServiceConfig(array|ServiceConfigInterface $serviceConfig): void
+    {
+        if (is_array($serviceConfig)) {
+            $serviceConfig = $this->type->createServiceConfig($serviceConfig);
         }
-        if (! is_url($this->externalSseUrl)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.external_sse_url']);
-        }
-        SSRFUtil::getSafeUrl($this->externalSseUrl, replaceIp: false, allowRedirect: true);
+        $this->serviceConfig = $serviceConfig;
+    }
+
+    public function isOffice(): bool
+    {
+        return $this->office;
+    }
+
+    public function setOffice(bool $office): void
+    {
+        $this->office = $office;
     }
 }

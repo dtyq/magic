@@ -4,12 +4,9 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-use App\Infrastructure\Util\Asr\ValueObject\AsrPlatform;
-
 use function Hyperf\Support\env;
 
 return [
-    'default_platform' => AsrPlatform::tryFrom(env('ASR_DEFAULT_PLATFORM', 'volcengine')),
     'volcengine' => [
         'app_id' => env('ASR_VKE_APP_ID', ''),
         'token' => env('ASR_VKE_TOKEN', ''),

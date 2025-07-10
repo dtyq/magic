@@ -15,13 +15,13 @@ return new class extends Migration {
     public function up(): void
     {
         // Check if table exists before performing index operations
-        if (!Schema::hasTable('magic_super_agent_token_usage_records')) {
+        if (! Schema::hasTable('magic_super_agent_token_usage_records')) {
             return;
         }
 
         Schema::table('magic_super_agent_token_usage_records', function (Blueprint $table) {
             // Check if idx_token_usage_unique index exists before creating
-            if (!Schema::hasIndex('magic_super_agent_token_usage_records', 'idx_token_usage_unique')) {
+            if (! Schema::hasIndex('magic_super_agent_token_usage_records', 'idx_token_usage_unique')) {
                 // Add unique composite index for idempotency
                 $table->unique(['topic_id', 'task_id', 'sandbox_id', 'model_id'], 'idx_token_usage_unique');
             }
@@ -33,7 +33,7 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        if (!Schema::hasTable('magic_super_agent_token_usage_records')) {
+        if (! Schema::hasTable('magic_super_agent_token_usage_records')) {
             return;
         }
 

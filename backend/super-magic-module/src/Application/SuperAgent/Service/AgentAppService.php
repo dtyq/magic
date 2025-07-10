@@ -10,14 +10,13 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\Kernel\AbstractKernelAppService;
-use App\Application\MCP\Service\MCPServerAppService;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Contact\Service\MagicUserSettingDomainService;
-use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
-use App\Infrastructure\Core\TempAuth\TempAuthInterface;
-use App\Infrastructure\Core\ValueObject\Page;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
@@ -34,8 +33,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\Respon
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Odin\Mcp\McpType;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -47,6 +46,8 @@ class AgentAppService extends AbstractKernelAppService
 {
     private LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
@@ -54,25 +55,40 @@ class AgentAppService extends AbstractKernelAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
-        private readonly MagicUserSettingDomainService $userSettingDomainService,
-        private readonly MCPServerAppService $MCPServerAppService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
+        if (container()->has(SupperMagicAgentMCPInterface::class)) {
+            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
+        }
     }
 
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $sandboxID): string
+    public function createSandbox(string $projectId, string $sandboxID): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
+            'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['sandbox_id' => $sandboxID]);
+        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
+
+        // 添加详细的调试日志，检查 result 对象
+        $this->logger->info('[Sandbox][App] Gateway result analysis', [
+            'result_class' => get_class($result),
+            'result_is_success' => $result->isSuccess(),
+            'result_code' => $result->getCode(),
+            'result_message' => $result->getMessage(),
+            'result_data_raw' => $result->getData(),
+            'result_data_type' => gettype($result->getData()),
+            'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
+            'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
+        ]);
 
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
+                'project_id' => $projectId,
                 'sandbox_id' => $sandboxID,
                 'error' => $result->getMessage(),
                 'code' => $result->getCode(),
@@ -80,7 +96,13 @@ class AgentAppService extends AbstractKernelAppService
             throw new SandboxOperationException('Create sandbox', $result->getMessage(), $result->getCode());
         }
 
-        return $result->getData()['sandbox_id'];
+        $this->logger->info('[Sandbox][App] Create sandbox success', [
+            'project_id' => $projectId,
+            'input_sandbox_id' => $sandboxID,
+            'returned_sandbox_id' => $result->getDataValue('sandbox_id'),
+        ]);
+
+        return $result->getDataValue('sandbox_id');
     }
 
     /**
@@ -178,14 +200,18 @@ class AgentAppService extends AbstractKernelAppService
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
 
+        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+
         $attachmentUrls = [];
-        if (! empty($taskContext->getTask()->getAttachments())) {
-            $attachments = json_decode($taskContext->getTask()->getAttachments());
-            $fileIds = array_filter(array_column($attachments, 'file_id'));
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
+        if (! empty($mentionsJsonStruct)) {
+            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
         }
 
-        $mcpConfig = $this->getMcpConfig($dataIsolation);
+        $mcpDataIsolation = MCPDataIsolation::create(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId()
+        );
+        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation) ?? [];
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
@@ -194,8 +220,10 @@ class AgentAppService extends AbstractKernelAppService
             taskId: (string) $taskContext->getTask()->getId(),
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
+            agentMode: $taskContext->getAgentMode(),
             attachments: $attachmentUrls,
-            mcpConfig: $mcpConfig
+            mentions: $mentionsJsonStruct,
+            mcpConfig: $mcpConfig,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -301,11 +329,11 @@ class AgentAppService extends AbstractKernelAppService
      * 轮询工作区状态，直到初始化完成、失败或超时.
      *
      * @param string $sandboxId 沙箱ID
-     * @param int $timeoutSeconds 超时时间（秒），默认20分钟
+     * @param int $timeoutSeconds 超时时间（秒），默认10分钟
      * @param int $intervalSeconds 轮询间隔（秒），默认2秒
      * @throws SandboxOperationException 当初始化失败或超时时抛出异常
      */
-    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 1200, int $intervalSeconds = 2): void
+    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 600, int $intervalSeconds = 2): void
     {
         $this->logger->info('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
@@ -398,12 +426,14 @@ class AgentAppService extends AbstractKernelAppService
             instruction: $taskContext->getInstruction()->value,
             sandboxId: $taskContext->getSandboxId(),
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            userInfo: $userInfo
+            language: di(TranslatorInterface::class)->getLocale(),
+            userInfo: $userInfo,
         );
 
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
+            'project_id' => (string) $taskContext->getTask()->getProjectId(),
             'type' => MessageType::Init->value,
             'upload_config' => $stsConfig,
             'message_subscription_config' => [
@@ -422,61 +452,68 @@ class AgentAppService extends AbstractKernelAppService
             ],
             'metadata' => $messageMetadata->toArray(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),
+            'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
     }
 
-    private function getMcpConfig(DataIsolation $dataIsolation): array
+    /**
+     * 构建 mentions 的 JSON 结构数组，只包含 type, file_path, file_url 三个字段.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param null|string $mentionsJson mentions 的 JSON 字符串
+     * @return array 处理后的 mentions 数组
+     */
+    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson): array
     {
-        $result = [];
+        $mentionsJsonStruct = [];
 
-        $mcpSettings = $this->userSettingDomainService->get($dataIsolation, 'super_magic_mcp_servers');
-        if (! $mcpSettings) {
-            return $result;
+        if (empty($mentionsJson)) {
+            return $mentionsJsonStruct;
         }
-        $mcpServerIds = array_column($mcpSettings->getValue()['servers'], 'id');
-        $mcpServerIds = array_filter($mcpServerIds);
-        if (empty($mcpServerIds)) {
-            return $result;
+
+        $mentions = json_decode($mentionsJson, true);
+        if (empty($mentions) || ! is_array($mentions)) {
+            return $mentionsJsonStruct;
         }
-        $authorization = new MagicUserAuthorization();
-        $authorization->setId($dataIsolation->getCurrentUserId());
-        $authorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
 
-        $query = new MCPServerQuery();
-        $query->setEnabled(true);
-        $query->setCodes($mcpServerIds);
-        $data = $this->MCPServerAppService->queries($authorization, $query, Page::createNoPage());
-        $mcpServers = $data['list'] ?? [];
+        $fileIds = array_filter(array_column($mentions, 'file_id'));
+        if (empty($fileIds)) {
+            return $mentionsJsonStruct;
+        }
 
-        $localHttpUrl = config('super-magic.sandbox.callback_host', '');
-        $tempAuth = di(TempAuthInterface::class);
+        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
 
-        foreach ($mcpServers as $mcpServer) {
-            if (! in_array($mcpServer->getCode(), $mcpServerIds, true)) {
+        // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
+        $fileIdToFileMap = [];
+        foreach ($filesWithUrl as $file) {
+            $fileIdToFileMap[$file['file_id']] = $file;
+        }
+
+        // 构建新的数据结构，只包含 type, file_path, file_url
+        foreach ($mentions as $mention) {
+            $fileId = $mention['file_id'] ?? null;
+            if (! $fileId) {
                 continue;
             }
 
-            $mcpServerConfig = $mcpServer->createMcpServerConfig($localHttpUrl);
-            if (! $mcpServerConfig) {
-                continue;
-            }
-            if ($mcpServerConfig->getType() !== McpType::Http) {
-                continue; // Only HTTP type servers are supported
-            }
-            if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
-                $token = $tempAuth->create([
-                    'user_id' => $dataIsolation->getCurrentUserId(),
-                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                    'server_code' => $mcpServer->getCode(),
-                ], 1800);
-                $mcpServerConfig->setToken($token);
-            }
+            // 从原始 mentions 中获取 type
+            $type = $mention['type'] ?? MentionType::PROJECT_FILE->value;
 
-            $result[$mcpServer->getName()] = $mcpServerConfig->toArray();
+            // 直接通过 file_id 获取对应的文件信息
+            $matchedFile = $fileIdToFileMap[$fileId] ?? null;
+
+            if ($matchedFile) {
+                // 从 file_url 中提取 file_path
+                $filePath = $mention['file_path'] ?? '';
+                if (empty($filePath) && ! empty($matchedFile['file_url'])) {
+                    // 使用 FileAssembler::formatPath 从 URL 中提取路径
+                    $filePath = FileAssembler::formatPath($matchedFile['file_url']);
+                }
+                $mentionFile = ['type' => $type, 'file_path' => $filePath, 'file_metadata' => $matchedFile];
+                $mentionsJsonStruct[] = $mentionFile;
+            }
         }
-        return [
-            'mcpServers' => $result,
-        ];
+        return $mentionsJsonStruct;
     }
 }

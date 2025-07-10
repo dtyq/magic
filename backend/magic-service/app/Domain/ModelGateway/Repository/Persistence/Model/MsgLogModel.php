@@ -41,6 +41,8 @@ class MsgLogModel extends Model
         'user_name',
         'access_token_id',
         'created_at',
+        'provider_id',
+        'provider_model_id',
     ];
 
     protected array $casts = [
@@ -56,5 +58,7 @@ class MsgLogModel extends Model
         'user_name' => 'string',
         'access_token_id' => 'string',
         'created_at' => 'datetime',
+        'provider_id' => 'string',
+        'provider_model_id' => 'string',
     ];
 }

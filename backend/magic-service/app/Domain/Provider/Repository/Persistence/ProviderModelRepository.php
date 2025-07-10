@@ -40,6 +40,28 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
         return ProviderModelFactory::modelToEntity($model);
     }
 
+    public function getOfficeModelById(int $id, bool $checkModelEnabled = true): ?ProviderModelEntity
+    {
+        $officeOrganization = config('service_provider.office_organization');
+
+        $query = ProviderModelModel::query();
+
+        $query->where('id', $id);
+        $query->where('organization_code', $officeOrganization);
+        if ($checkModelEnabled) {
+            $query->where('status', Status::Enabled->value);
+        }
+
+        /** @var null|ProviderModelModel $model */
+        $model = $query->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return ProviderModelFactory::modelToEntity($model);
+    }
+
     /**
      * 通过ID或ModelID查询模型，拆分为两次查询以有效利用索引.
      */
