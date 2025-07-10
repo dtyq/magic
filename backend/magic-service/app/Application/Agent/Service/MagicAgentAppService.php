@@ -503,7 +503,6 @@ class MagicAgentAppService extends AbstractAppService
 
         // 修改助理本身状态
         $this->magicAgentDomainService->updateAgentStatus($agentId, $status->value);
-
     }
 
     /**
