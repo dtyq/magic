@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "9d33b6a019386668d38c74ee260d1a79c4e90cae"
+                "reference": "60c6cf0602f33b6bc60ab60422f68ced0e729112"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=9d33b6a019386668d38c74ee260d1a79c4e90cae",
-                "reference": "9d33b6a019386668d38c74ee260d1a79c4e90cae",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=60c6cf0602f33b6bc60ab60422f68ced0e729112",
+                "reference": "60c6cf0602f33b6bc60ab60422f68ced0e729112",
                 "shasum": ""
             },
             "require": {
@@ -1975,7 +1975,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-07-10T06:25:04+00:00"
+            "time": "2025-07-10T08:54:10+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2586,12 +2586,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "0253e3ba5e493edf6cb7f6037d405f2d6975c070"
+                "reference": "473c193c7e0e06be0341ee590c90299d15840bf9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=0253e3ba5e493edf6cb7f6037d405f2d6975c070",
-                "reference": "0253e3ba5e493edf6cb7f6037d405f2d6975c070",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=473c193c7e0e06be0341ee590c90299d15840bf9",
+                "reference": "473c193c7e0e06be0341ee590c90299d15840bf9",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-10T16:05:50+08:00"
+            "time": "2025-07-10T17:05:43+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -8208,16 +8208,16 @@
         },
         {
             "name": "kkguan-service/keewood-service-open-sdk",
-            "version": "3.2.13",
+            "version": "3.2.14",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:brd/keewood-service-open-sdk.git",
-                "reference": "4daab9642d9cbf1a86401cc12d9c74be80ee9cf2"
+                "reference": "7b223c7a04027e69e1037ac6af365f4cd3b5602b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/brd%2Fkeewood-service-open-sdk/repository/archive.zip?sha=4daab9642d9cbf1a86401cc12d9c74be80ee9cf2",
-                "reference": "4daab9642d9cbf1a86401cc12d9c74be80ee9cf2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/brd%2Fkeewood-service-open-sdk/repository/archive.zip?sha=7b223c7a04027e69e1037ac6af365f4cd3b5602b",
+                "reference": "7b223c7a04027e69e1037ac6af365f4cd3b5602b",
                 "shasum": ""
             },
             "require": {
@@ -8252,10 +8252,10 @@
             },
             "description": "sdk",
             "support": {
-                "source": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/tree/3.2.13",
+                "source": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/tree/3.2.14",
                 "issues": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/issues"
             },
-            "time": "2025-04-05T14:24:58+00:00"
+            "time": "2025-07-10T08:34:07+00:00"
         },
         {
             "name": "kkguan-service/token-sdk",
