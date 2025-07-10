@@ -30,7 +30,7 @@ class AzureOpenAIAPI
         $this->baseUrl = rtrim($baseUrl, '/');
         $this->apiVersion = $apiVersion;
         $this->client = new Client([
-            'timeout' => 120,
+            'timeout' => 300,
             'verify' => false,
         ]);
     }
