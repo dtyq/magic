@@ -35,18 +35,23 @@ class MCPServerStreamableAppService extends AbstractMCPAppService
             return $builtInMCP->getRegisteredTools($mcpServerCode);
         }
 
-        $flowDataIsolation = $this->createFlowDataIsolation($dataIsolation);
-        $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
-        $operation->validate('r', $mcpServerCode);
-
+        $allDataIsolation = clone $dataIsolation;
+        $allDataIsolation->disabled();
         $mcpTools = [];
-
-        $mcpServer = $this->mcpServerDomainService->getByCode($dataIsolation, $mcpServerCode);
+        $mcpServer = $this->mcpServerDomainService->getByCode($allDataIsolation, $mcpServerCode);
         if (! $mcpServer || ! $mcpServer->isEnabled()) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.not_found', ['label' => $mcpServerCode]);
         }
+        if (! in_array($mcpServer->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes())) {
+            $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
+            $operation->validate('r', $mcpServerCode);
+        } else {
+            $dataIsolation->disabled();
+        }
 
         $mcpServerTools = $this->mcpServerToolDomainService->getByMcpServerCodes($dataIsolation, [$mcpServerCode]);
+
+        $flowDataIsolation = $this->createFlowDataIsolation($dataIsolation);
 
         foreach ($mcpServerTools as $mcpServerTool) {
             if (! $mcpServerTool->isEnabled()) {

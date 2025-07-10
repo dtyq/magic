@@ -64,9 +64,16 @@ class ApiKeyProviderAuthenticator implements AuthenticatorInterface
         if (empty($apiKey)) {
             return '';
         }
-        if (str_starts_with($apiKey, 'Bearer ')) {
-            $apiKey = substr($apiKey, 7);
+
+        // Remove Bearer prefix (case-insensitive) and trim any extra spaces
+        // Handle multiple Bearer prefixes by repeatedly removing them
+        $apiKey = trim($apiKey);
+        $iterations = 0;
+        while (preg_match('/^bearer\s+(.+)$/i', $apiKey, $matches) && $iterations < 10) {
+            $apiKey = trim($matches[1]);
+            ++$iterations;
         }
+
         return $apiKey;
     }
 
