@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -41,6 +42,7 @@ class HandleUserMessageAppService extends AbstractAppService
     protected LoggerInterface $logger;
 
     public function __construct(
+        private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
@@ -99,6 +101,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
+            // update project mode
+            $this->projectDomainService->updateProjectMode($topicEntity->getProjectId(), $userMessageDTO->getTopicMode());
             $agentMode = ! empty($topicEntity->getTopicMode()) ? $topicEntity->getTopicMode()->value : $userMessageDTO->getTopicMode()->value;
 
             // Check message before task starts
