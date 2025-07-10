@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.349.2",
+            "version": "3.349.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "63cc727845f077d17cb94791deb327249e1626ce"
+                "reference": "b2d4718786398f47626add9c29840fc416175ef2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/63cc727845f077d17cb94791deb327249e1626ce",
-                "reference": "63cc727845f077d17cb94791deb327249e1626ce",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/b2d4718786398f47626add9c29840fc416175ef2",
+                "reference": "b2d4718786398f47626add9c29840fc416175ef2",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.2"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.349.3"
             },
-            "time": "2025-07-03T18:08:27+00:00"
+            "time": "2025-07-09T18:10:17+00:00"
         },
         {
             "name": "brick/math",
@@ -2189,16 +2189,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.57",
+            "version": "0.0.58",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "d46c266ac861775898482ba6b41f340b5c216b2f"
+                "reference": "2c01be45b70a19c5d2c936d8c7f32f612d8ed35c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=d46c266ac861775898482ba6b41f340b5c216b2f",
-                "reference": "d46c266ac861775898482ba6b41f340b5c216b2f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=2c01be45b70a19c5d2c936d8c7f32f612d8ed35c",
+                "reference": "2c01be45b70a19c5d2c936d8c7f32f612d8ed35c",
                 "shasum": ""
             },
             "require": {
@@ -2299,9 +2299,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.57"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.58"
             },
-            "time": "2025-07-09T15:02:46+00:00"
+            "time": "2025-07-10T18:01:31+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -8197,16 +8197,16 @@
         },
         {
             "name": "kkguan-service/keewood-service-open-sdk",
-            "version": "3.2.13",
+            "version": "3.2.14",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:brd/keewood-service-open-sdk.git",
-                "reference": "4daab9642d9cbf1a86401cc12d9c74be80ee9cf2"
+                "reference": "7b223c7a04027e69e1037ac6af365f4cd3b5602b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/brd%2Fkeewood-service-open-sdk/repository/archive.zip?sha=4daab9642d9cbf1a86401cc12d9c74be80ee9cf2",
-                "reference": "4daab9642d9cbf1a86401cc12d9c74be80ee9cf2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/brd%2Fkeewood-service-open-sdk/repository/archive.zip?sha=7b223c7a04027e69e1037ac6af365f4cd3b5602b",
+                "reference": "7b223c7a04027e69e1037ac6af365f4cd3b5602b",
                 "shasum": ""
             },
             "require": {
@@ -8241,10 +8241,10 @@
             },
             "description": "sdk",
             "support": {
-                "source": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/tree/3.2.13",
+                "source": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/tree/3.2.14",
                 "issues": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/issues"
             },
-            "time": "2025-04-05T14:24:58+00:00"
+            "time": "2025-07-10T08:34:07+00:00"
         },
         {
             "name": "kkguan-service/token-sdk",
@@ -17185,12 +17185,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "a76f62e135c8b583602bd99df737b5c20f4d7200"
+                "reference": "c4ed86478b4c2004245ec9d3a470dbe1790586a3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/a76f62e135c8b583602bd99df737b5c20f4d7200",
-                "reference": "a76f62e135c8b583602bd99df737b5c20f4d7200",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/c4ed86478b4c2004245ec9d3a470dbe1790586a3",
+                "reference": "c4ed86478b4c2004245ec9d3a470dbe1790586a3",
                 "shasum": ""
             },
             "conflict": {
@@ -17630,7 +17630,7 @@
                 "microsoft/microsoft-graph": ">=1.16,<1.109.1|>=2,<2.0.1",
                 "microsoft/microsoft-graph-beta": "<2.0.1",
                 "microsoft/microsoft-graph-core": "<2.0.2",
-                "microweber/microweber": "<=2.0.16",
+                "microweber/microweber": "<=2.0.19",
                 "mikehaertl/php-shellcommand": "<1.6.1",
                 "miniorange/miniorange-saml": "<1.4.3",
                 "mittwald/typo3_forum": "<1.2.1",
@@ -18132,7 +18132,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-04T13:13:44+00:00"
+            "time": "2025-07-09T19:05:36+00:00"
         },
         {
             "name": "sebastian/cli-parser",
