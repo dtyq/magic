@@ -39,6 +39,7 @@ class ChatMessageRequest
         string $taskMode = 'chat',
         string $agentMode = '',
         array $attachments = [],
+        array $mentions = [],
         array $mcpConfig = []
     ): self {
         return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions, $mcpConfig);
