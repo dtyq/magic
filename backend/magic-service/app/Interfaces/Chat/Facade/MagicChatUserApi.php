@@ -178,5 +178,4 @@ class MagicChatUserApi extends AbstractApi
         $organizationCode = empty($organizationCode) ? null : $organizationCode;
         return $this->userAppService->getUsersDetailByAccountAuthorization($authorization, $organizationCode);
     }
-
 }
