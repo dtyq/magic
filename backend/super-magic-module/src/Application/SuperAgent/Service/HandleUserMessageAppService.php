@@ -75,18 +75,22 @@ class HandleUserMessageAppService extends AbstractAppService
             errMsg: 'User manually terminated task',
         );
         // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
-        if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
-        } else {
-            // Send interrupt message directly to client
-            $this->clientMessageAppService->sendInterruptMessageToClient(
-                topicId: $topicEntity->getId(),
-                taskId: $topicEntity->getCurrentTaskId() ?? '0',
-                chatTopicId: $dto->getChatTopicId(),
-                chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
-            );
+        try {
+            $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
+            if ($result->getStatus() === SandboxStatus::RUNNING) {
+                $this->agentAppService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            } else {
+                // Send interrupt message directly to client
+                $this->clientMessageAppService->sendInterruptMessageToClient(
+                    topicId: $topicEntity->getId(),
+                    taskId: $topicEntity->getCurrentTaskId() ?? '0',
+                    chatTopicId: $dto->getChatTopicId(),
+                    chatConversationId: $dto->getChatConversationId(),
+                    interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+                );
+            }
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
         }
     }
 
