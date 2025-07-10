@@ -14,6 +14,7 @@ use App\Domain\Contact\Repository\Facade\MagicDepartmentUserRepositoryInterface;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentModel;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentUserModel;
 use Hyperf\DbConnection\Db;
+use Psr\SimpleCache\CacheInterface;
 
 class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInterface
 {
@@ -78,6 +79,11 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
 
     public function getDepartmentIdsByUserIds(DataIsolation $dataIsolation, array $userIds, bool $withAllParentIds = false): array
     {
+        $cache = di(CacheInterface::class);
+        $key = 'MagicDepartmentUser:' . md5('department_ids_by_user_ids_' . implode('_', $userIds) . '_' . $dataIsolation->getCurrentOrganizationCode() . '_' . ($withAllParentIds ? 'all' : 'direct'));
+        if ($cache->has($key)) {
+            return $cache->get($key);
+        }
         $builder = DepartmentUserModel::query();
         $builder->whereIn('user_id', $userIds);
         $builder->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
@@ -104,6 +110,9 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
                 $list[$userId] = array_values(array_unique($list[$userId]));
             }
         }
+
+        $cache->set($key, $list, 60);
+
         return $list;
     }
 

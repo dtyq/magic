@@ -32,7 +32,11 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
+use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
+use App\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use App\Domain\Agent\Repository\Facade\MagicBotThirdPlatformChatRepositoryInterface;
+use App\Domain\Agent\Repository\Persistence\AgentRepository;
+use App\Domain\Agent\Repository\Persistence\AgentVersionRepository;
 use App\Domain\Agent\Repository\Persistence\MagicBotThirdPlatformChatRepository;
 use App\Domain\Authentication\Repository\ApiKeyProviderRepository;
 use App\Domain\Authentication\Repository\Facade\ApiKeyProviderRepositoryInterface;
@@ -230,6 +234,10 @@ $dependencies = [
     AdapterInterface::class => RedisAdapter::class,
     SidProviderInterface::class => DistributedSidProvider::class,
     NamespaceInterface::class => BaseNamespace::class,
+
+    // agent
+    AgentRepositoryInterface::class => AgentRepository::class,
+    AgentVersionRepositoryInterface::class => AgentVersionRepository::class,
 
     // magic-flow
     MagicFlowRepositoryInterface::class => MagicFlowRepository::class,

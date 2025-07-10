@@ -21,6 +21,18 @@ class MagicAgentQuery extends Query
 
     private ?bool $hasVersion = null;
 
+    private ?int $status = null;
+
+    public function getStatus(): ?int
+    {
+        return $this->status;
+    }
+
+    public function setStatus(?int $status): void
+    {
+        $this->status = $status;
+    }
+
     public function isWithLastVersionInfo(): bool
     {
         return $this->withLastVersionInfo;

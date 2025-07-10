@@ -104,6 +104,11 @@ class MagicAgentAppService extends AbstractAppService
         // 企业内部发布的
         $orgAgentIds = $this->magicAgentDomainService->getEnterpriseAvailableAgentIds($authorization->getOrganizationCode());
 
+        $contactDataIsolation = ContactDataIsolation::create($permissionDataIsolation->getCurrentOrganizationCode(), $permissionDataIsolation->getCurrentUserId());
+
+        // 过滤可见性
+        $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactDataIsolation, $permissionDataIsolation->getCurrentUserId(), true);
+
         $agentIds = array_values(array_unique(array_merge($selfAgentIds, $orgAgentIds)));
 
         $query->setIds($agentIds);
