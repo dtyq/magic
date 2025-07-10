@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Hyperf\Logger\LoggerFactory;
@@ -52,7 +53,7 @@ class HandleApiMessageAppService extends AbstractAppService
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
-        private readonly AgentAppService $agentAppService,
+        private readonly AgentDomainService $agentDomainService,
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
         LoggerFactory $loggerFactory
@@ -80,9 +81,9 @@ class HandleApiMessageAppService extends AbstractAppService
             errMsg: 'User manually terminated task',
         );
         // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
+        $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
         if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
         } else {
             // Send interrupt message directly to client
             $this->clientMessageAppService->sendInterruptMessageToClient(
@@ -359,7 +360,7 @@ class HandleApiMessageAppService extends AbstractAppService
         }
         // Batch query status
         $updateSandboxIds = [];
-        $result = $this->agentAppService->getBatchSandboxStatus($sandboxIds);
+        $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
         foreach ($result->getSandboxStatuses() as $sandboxStatus) {
             if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
                 $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
@@ -381,22 +382,27 @@ class HandleApiMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentAppService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent
-        $this->agentAppService->initializeAgent($dataIsolation, $taskContext);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
 
         // Wait for workspace to be ready
-        $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
+        $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-      //  $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
+      //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;
     }
 
+
+    public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
+    {
+        $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
+    }
 
 
     /**
