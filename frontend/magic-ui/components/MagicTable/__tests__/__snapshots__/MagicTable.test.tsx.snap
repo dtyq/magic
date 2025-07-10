@@ -1,0 +1,1281 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicTable > 快照测试 > 基础表格快照 1`] = `
+<DocumentFragment>
+  <div
+    class="css-var-r1 magic-table-css-var magic-table-wrapper acss-x1upb1 css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r1"
+    >
+      <div
+        class="magic-spin-container"
+      >
+        <div
+          class="magic-table css-var-r1 magic-table-css-var css-dev-only-do-not-override-yotw4n magic-table-scroll-horizontal"
+        >
+          <div
+            class="magic-table-container"
+          >
+            <div
+              class="magic-table-content"
+              style="overflow-x: auto; overflow-y: hidden;"
+            >
+              <table
+                style="width: max-content; min-width: 100%; table-layout: auto;"
+              >
+                <colgroup />
+                <thead
+                  class="magic-table-thead"
+                >
+                  <tr>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      姓名
+                    </th>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      年龄
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="magic-table-tbody"
+                >
+                  <tr
+                    aria-hidden="true"
+                    class="magic-table-measure-row"
+                    style="height: 0px; font-size: 0px;"
+                  >
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="1"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      张三
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      25
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="2"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      李四
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      30
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul
+          class="magic-pagination magic-table-pagination magic-table-pagination-right css-dev-only-do-not-override-yotw4n css-var-r1"
+        >
+          <li
+            aria-disabled="true"
+            class="magic-pagination-prev magic-pagination-disabled"
+            title="Previous Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="left"
+                class="anticon anticon-left"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="left"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 000 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+          <li
+            class="magic-pagination-item magic-pagination-item-1 magic-pagination-item-active"
+            tabindex="0"
+            title="1"
+          >
+            <a
+              rel="nofollow"
+            >
+              1
+            </a>
+          </li>
+          <li
+            aria-disabled="true"
+            class="magic-pagination-next magic-pagination-disabled"
+            title="Next Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="right"
+                class="anticon anticon-right"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="right"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M765.7 486.8L314.9 134.7A7.97 7.97 0 00302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 000-50.4z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicTable > 快照测试 > 带分页表格快照 1`] = `
+<DocumentFragment>
+  <div
+    class="css-var-r3 magic-table-css-var magic-table-wrapper acss-x1upb1 css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r3"
+    >
+      <div
+        class="magic-spin-container"
+      >
+        <div
+          class="magic-table css-var-r3 magic-table-css-var css-dev-only-do-not-override-yotw4n magic-table-scroll-horizontal"
+        >
+          <div
+            class="magic-table-container"
+          >
+            <div
+              class="magic-table-content"
+              style="overflow-x: auto; overflow-y: hidden;"
+            >
+              <table
+                style="width: max-content; min-width: 100%; table-layout: auto;"
+              >
+                <colgroup />
+                <thead
+                  class="magic-table-thead"
+                >
+                  <tr>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      姓名
+                    </th>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      年龄
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="magic-table-tbody"
+                >
+                  <tr
+                    aria-hidden="true"
+                    class="magic-table-measure-row"
+                    style="height: 0px; font-size: 0px;"
+                  >
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="1"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      张三
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      25
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="2"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      李四
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      30
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul
+          class="magic-pagination magic-table-pagination magic-table-pagination-right css-dev-only-do-not-override-yotw4n css-var-r3"
+        >
+          <li
+            aria-disabled="true"
+            class="magic-pagination-prev magic-pagination-disabled"
+            title="Previous Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="left"
+                class="anticon anticon-left"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="left"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 000 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+          <li
+            class="magic-pagination-item magic-pagination-item-1 magic-pagination-item-active"
+            tabindex="0"
+            title="1"
+          >
+            <a
+              rel="nofollow"
+            >
+              1
+            </a>
+          </li>
+          <li
+            aria-disabled="true"
+            class="magic-pagination-next magic-pagination-disabled"
+            title="Next Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="right"
+                class="anticon anticon-right"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="right"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M765.7 486.8L314.9 134.7A7.97 7.97 0 00302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 000-50.4z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicTable > 快照测试 > 带排序表格快照 1`] = `
+<DocumentFragment>
+  <div
+    class="css-var-r4 magic-table-css-var magic-table-wrapper acss-x1upb1 css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r4"
+    >
+      <div
+        class="magic-spin-container"
+      >
+        <div
+          class="magic-table css-var-r4 magic-table-css-var css-dev-only-do-not-override-yotw4n magic-table-scroll-horizontal"
+        >
+          <div
+            class="magic-table-container"
+          >
+            <div
+              class="magic-table-content"
+              style="overflow-x: auto; overflow-y: hidden;"
+            >
+              <table
+                style="width: max-content; min-width: 100%; table-layout: auto;"
+              >
+                <colgroup />
+                <thead
+                  class="magic-table-thead"
+                >
+                  <tr>
+                    <th
+                      aria-label="姓名"
+                      class="magic-table-cell magic-table-column-has-sorters"
+                      scope="col"
+                      tabindex="0"
+                    >
+                      <div
+                        aria-describedby="test-id"
+                        class="magic-table-column-sorters"
+                      >
+                        <span
+                          class="magic-table-column-title"
+                        >
+                          姓名
+                        </span>
+                        <span
+                          class="magic-table-column-sorter magic-table-column-sorter-full"
+                        >
+                          <span
+                            aria-hidden="true"
+                            class="magic-table-column-sorter-inner"
+                          >
+                            <span
+                              aria-label="caret-up"
+                              class="anticon anticon-caret-up magic-table-column-sorter-up"
+                              role="img"
+                            >
+                              <svg
+                                aria-hidden="true"
+                                data-icon="caret-up"
+                                fill="currentColor"
+                                focusable="false"
+                                height="1em"
+                                viewBox="0 0 1024 1024"
+                                width="1em"
+                              >
+                                <path
+                                  d="M858.9 689L530.5 308.2c-9.4-10.9-27.5-10.9-37 0L165.1 689c-12.2 14.2-1.2 35 18.5 35h656.8c19.7 0 30.7-20.8 18.5-35z"
+                                />
+                              </svg>
+                            </span>
+                            <span
+                              aria-label="caret-down"
+                              class="anticon anticon-caret-down magic-table-column-sorter-down"
+                              role="img"
+                            >
+                              <svg
+                                aria-hidden="true"
+                                data-icon="caret-down"
+                                fill="currentColor"
+                                focusable="false"
+                                height="1em"
+                                viewBox="0 0 1024 1024"
+                                width="1em"
+                              >
+                                <path
+                                  d="M840.4 300H183.6c-19.7 0-30.7 20.8-18.5 35l328.4 380.8c9.4 10.9 27.5 10.9 37 0L858.9 335c12.2-14.2 1.2-35-18.5-35z"
+                                />
+                              </svg>
+                            </span>
+                          </span>
+                        </span>
+                      </div>
+                    </th>
+                    <th
+                      aria-label="年龄"
+                      class="magic-table-cell magic-table-column-has-sorters"
+                      scope="col"
+                      tabindex="0"
+                    >
+                      <div
+                        aria-describedby="test-id"
+                        class="magic-table-column-sorters"
+                      >
+                        <span
+                          class="magic-table-column-title"
+                        >
+                          年龄
+                        </span>
+                        <span
+                          class="magic-table-column-sorter magic-table-column-sorter-full"
+                        >
+                          <span
+                            aria-hidden="true"
+                            class="magic-table-column-sorter-inner"
+                          >
+                            <span
+                              aria-label="caret-up"
+                              class="anticon anticon-caret-up magic-table-column-sorter-up"
+                              role="img"
+                            >
+                              <svg
+                                aria-hidden="true"
+                                data-icon="caret-up"
+                                fill="currentColor"
+                                focusable="false"
+                                height="1em"
+                                viewBox="0 0 1024 1024"
+                                width="1em"
+                              >
+                                <path
+                                  d="M858.9 689L530.5 308.2c-9.4-10.9-27.5-10.9-37 0L165.1 689c-12.2 14.2-1.2 35 18.5 35h656.8c19.7 0 30.7-20.8 18.5-35z"
+                                />
+                              </svg>
+                            </span>
+                            <span
+                              aria-label="caret-down"
+                              class="anticon anticon-caret-down magic-table-column-sorter-down"
+                              role="img"
+                            >
+                              <svg
+                                aria-hidden="true"
+                                data-icon="caret-down"
+                                fill="currentColor"
+                                focusable="false"
+                                height="1em"
+                                viewBox="0 0 1024 1024"
+                                width="1em"
+                              >
+                                <path
+                                  d="M840.4 300H183.6c-19.7 0-30.7 20.8-18.5 35l328.4 380.8c9.4 10.9 27.5 10.9 37 0L858.9 335c12.2-14.2 1.2-35-18.5-35z"
+                                />
+                              </svg>
+                            </span>
+                          </span>
+                        </span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="magic-table-tbody"
+                >
+                  <tr
+                    aria-hidden="true"
+                    class="magic-table-measure-row"
+                    style="height: 0px; font-size: 0px;"
+                  >
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="1"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      张三
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      25
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="2"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      李四
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      30
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul
+          class="magic-pagination magic-table-pagination magic-table-pagination-right css-dev-only-do-not-override-yotw4n css-var-r4"
+        >
+          <li
+            aria-disabled="true"
+            class="magic-pagination-prev magic-pagination-disabled"
+            title="Previous Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="left"
+                class="anticon anticon-left"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="left"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 000 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+          <li
+            class="magic-pagination-item magic-pagination-item-1 magic-pagination-item-active"
+            tabindex="0"
+            title="1"
+          >
+            <a
+              rel="nofollow"
+            >
+              1
+            </a>
+          </li>
+          <li
+            aria-disabled="true"
+            class="magic-pagination-next magic-pagination-disabled"
+            title="Next Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="right"
+                class="anticon anticon-right"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="right"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M765.7 486.8L314.9 134.7A7.97 7.97 0 00302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 000-50.4z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicTable > 快照测试 > 带选择框表格快照 1`] = `
+<DocumentFragment>
+  <div
+    class="css-var-r9 magic-table-css-var magic-table-wrapper acss-x1upb1 css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r9"
+    >
+      <div
+        class="magic-spin-container"
+      >
+        <div
+          class="magic-table css-var-r9 magic-table-css-var css-dev-only-do-not-override-yotw4n magic-table-scroll-horizontal"
+        >
+          <div
+            class="magic-table-container"
+          >
+            <div
+              class="magic-table-content"
+              style="overflow-x: auto; overflow-y: hidden;"
+            >
+              <table
+                style="width: max-content; min-width: 100%; table-layout: auto;"
+              >
+                <colgroup>
+                  <col
+                    class="magic-table-selection-col"
+                  />
+                </colgroup>
+                <thead
+                  class="magic-table-thead"
+                >
+                  <tr>
+                    <th
+                      class="magic-table-cell magic-table-selection-column"
+                      scope="col"
+                    >
+                      <div
+                        class="magic-table-selection"
+                      >
+                        <label
+                          class="magic-checkbox-wrapper css-var-r9 magic-checkbox-css-var css-dev-only-do-not-override-yotw4n"
+                        >
+                          <span
+                            class="magic-checkbox ant-wave-target css-dev-only-do-not-override-yotw4n"
+                          >
+                            <input
+                              aria-label="Select all"
+                              class="magic-checkbox-input"
+                              type="checkbox"
+                            />
+                            <span
+                              class="magic-checkbox-inner"
+                            />
+                          </span>
+                        </label>
+                      </div>
+                    </th>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      姓名
+                    </th>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      年龄
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="magic-table-tbody"
+                >
+                  <tr
+                    aria-hidden="true"
+                    class="magic-table-measure-row"
+                    style="height: 0px; font-size: 0px;"
+                  >
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="1"
+                  >
+                    <td
+                      class="magic-table-cell magic-table-selection-column"
+                    >
+                      <label
+                        class="magic-checkbox-wrapper css-var-r9 magic-checkbox-css-var css-dev-only-do-not-override-yotw4n"
+                      >
+                        <span
+                          class="magic-checkbox ant-wave-target css-dev-only-do-not-override-yotw4n"
+                        >
+                          <input
+                            class="magic-checkbox-input"
+                            type="checkbox"
+                          />
+                          <span
+                            class="magic-checkbox-inner"
+                          />
+                        </span>
+                      </label>
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      张三
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      25
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="2"
+                  >
+                    <td
+                      class="magic-table-cell magic-table-selection-column"
+                    >
+                      <label
+                        class="magic-checkbox-wrapper css-var-r9 magic-checkbox-css-var css-dev-only-do-not-override-yotw4n"
+                      >
+                        <span
+                          class="magic-checkbox ant-wave-target css-dev-only-do-not-override-yotw4n"
+                        >
+                          <input
+                            class="magic-checkbox-input"
+                            type="checkbox"
+                          />
+                          <span
+                            class="magic-checkbox-inner"
+                          />
+                        </span>
+                      </label>
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      李四
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      30
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul
+          class="magic-pagination magic-table-pagination magic-table-pagination-right css-dev-only-do-not-override-yotw4n css-var-r9"
+        >
+          <li
+            aria-disabled="true"
+            class="magic-pagination-prev magic-pagination-disabled"
+            title="Previous Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="left"
+                class="anticon anticon-left"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="left"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 000 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+          <li
+            class="magic-pagination-item magic-pagination-item-1 magic-pagination-item-active"
+            tabindex="0"
+            title="1"
+          >
+            <a
+              rel="nofollow"
+            >
+              1
+            </a>
+          </li>
+          <li
+            aria-disabled="true"
+            class="magic-pagination-next magic-pagination-disabled"
+            title="Next Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="right"
+                class="anticon anticon-right"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="right"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M765.7 486.8L314.9 134.7A7.97 7.97 0 00302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 000-50.4z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicTable > 快照测试 > 空数据表格快照 1`] = `
+<DocumentFragment>
+  <div
+    class="css-var-r2 magic-table-css-var magic-table-wrapper acss-x1upb1 css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-r2"
+    >
+      <div
+        class="magic-spin-container"
+      >
+        <div
+          class="magic-table magic-table-empty css-var-r2 magic-table-css-var css-dev-only-do-not-override-yotw4n magic-table-scroll-horizontal"
+        >
+          <div
+            class="magic-table-container"
+          >
+            <div
+              class="magic-table-content"
+              style="overflow-x: auto; overflow-y: hidden;"
+            >
+              <table
+                style="width: max-content; min-width: 100%; table-layout: auto;"
+              >
+                <colgroup />
+                <thead
+                  class="magic-table-thead"
+                >
+                  <tr>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      姓名
+                    </th>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      年龄
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="magic-table-tbody"
+                >
+                  <tr
+                    aria-hidden="true"
+                    class="magic-table-measure-row"
+                    style="height: 0px; font-size: 0px;"
+                  >
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-placeholder"
+                  >
+                    <td
+                      class="magic-table-cell"
+                      colspan="2"
+                    >
+                      <div
+                        class="css-dev-only-do-not-override-yotw4n css-var-r2 magic-empty magic-empty-normal"
+                      >
+                        <div
+                          class="magic-empty-image"
+                        >
+                          <svg
+                            height="41"
+                            viewBox="0 0 64 41"
+                            width="64"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <title>
+                              No data
+                            </title>
+                            <g
+                              fill="none"
+                              fill-rule="evenodd"
+                              transform="translate(0 1)"
+                            >
+                              <ellipse
+                                cx="32"
+                                cy="33"
+                                fill="#f5f5f5"
+                                rx="32"
+                                ry="7"
+                              />
+                              <g
+                                fill-rule="nonzero"
+                                stroke="#d9d9d9"
+                              >
+                                <path
+                                  d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z"
+                                />
+                                <path
+                                  d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z"
+                                  fill="#fafafa"
+                                />
+                              </g>
+                            </g>
+                          </svg>
+                        </div>
+                        <div
+                          class="magic-empty-description"
+                        >
+                          No data
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicTable > 快照测试 > 紧凑型表格快照 1`] = `
+<DocumentFragment>
+  <div
+    class="css-var-ra magic-table-css-var magic-table-wrapper acss-x1upb1 css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-spin-nested-loading acss-1tvuebw css-dev-only-do-not-override-yotw4n css-var-ra"
+    >
+      <div
+        class="magic-spin-container"
+      >
+        <div
+          class="magic-table magic-table-small css-var-ra magic-table-css-var css-dev-only-do-not-override-yotw4n magic-table-scroll-horizontal"
+        >
+          <div
+            class="magic-table-container"
+          >
+            <div
+              class="magic-table-content"
+              style="overflow-x: auto; overflow-y: hidden;"
+            >
+              <table
+                style="width: max-content; min-width: 100%; table-layout: auto;"
+              >
+                <colgroup />
+                <thead
+                  class="magic-table-thead"
+                >
+                  <tr>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      姓名
+                    </th>
+                    <th
+                      class="magic-table-cell"
+                      scope="col"
+                    >
+                      年龄
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="magic-table-tbody"
+                >
+                  <tr
+                    aria-hidden="true"
+                    class="magic-table-measure-row"
+                    style="height: 0px; font-size: 0px;"
+                  >
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                    <td
+                      style="padding: 0px; border: 0px; height: 0px;"
+                    >
+                      <div
+                        style="height: 0px; overflow: hidden;"
+                      >
+                         
+                      </div>
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="1"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      张三
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      25
+                    </td>
+                  </tr>
+                  <tr
+                    class="magic-table-row magic-table-row-level-0"
+                    data-row-key="2"
+                  >
+                    <td
+                      class="magic-table-cell"
+                    >
+                      李四
+                    </td>
+                    <td
+                      class="magic-table-cell"
+                    >
+                      30
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul
+          class="magic-pagination magic-pagination-mini magic-table-pagination magic-table-pagination-right css-dev-only-do-not-override-yotw4n css-var-ra"
+        >
+          <li
+            aria-disabled="true"
+            class="magic-pagination-prev magic-pagination-disabled"
+            title="Previous Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="left"
+                class="anticon anticon-left"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="left"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 000 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+          <li
+            class="magic-pagination-item magic-pagination-item-1 magic-pagination-item-active"
+            tabindex="0"
+            title="1"
+          >
+            <a
+              rel="nofollow"
+            >
+              1
+            </a>
+          </li>
+          <li
+            aria-disabled="true"
+            class="magic-pagination-next magic-pagination-disabled"
+            title="Next Page"
+          >
+            <button
+              class="magic-pagination-item-link"
+              disabled=""
+              tabindex="-1"
+              type="button"
+            >
+              <span
+                aria-label="right"
+                class="anticon anticon-right"
+                role="img"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-icon="right"
+                  fill="currentColor"
+                  focusable="false"
+                  height="1em"
+                  viewBox="64 64 896 896"
+                  width="1em"
+                >
+                  <path
+                    d="M765.7 486.8L314.9 134.7A7.97 7.97 0 00302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 000-50.4z"
+                  />
+                </svg>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;

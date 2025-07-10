@@ -1,0 +1,276 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicTag > 快照测试 > 不同样式标签快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag magic-tag-success acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r6"
+  >
+    成功标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 不同样式标签快照 2`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag magic-tag-warning acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r7"
+  >
+    警告标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 不同颜色标签快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag magic-tag-blue acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r2"
+  >
+    蓝色标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 不同颜色标签快照 2`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag magic-tag-red acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r3"
+  >
+    红色标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 不同颜色标签快照 3`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag magic-tag-green acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r4"
+  >
+    绿色标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 可关闭标签快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r5"
+  >
+    可关闭标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 图标标签快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r9"
+  >
+    <span>
+      🏷️
+    </span>
+    <span>
+      带图标标签
+    </span>
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 边框样式标签快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r8"
+  >
+    边框标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicTag > 快照测试 > 默认标签快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-tag acss-1mtoqz4 css-dev-only-do-not-override-yotw4n css-var-r1"
+  >
+    默认标签
+    <svg
+      aria-label="Close"
+      class="tabler-icon tabler-icon-x magic-tag-close-icon"
+      fill="none"
+      height="16"
+      stroke="rgba(28,29,35, 0.8)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6l-12 12"
+      />
+      <path
+        d="M6 6l12 12"
+      />
+    </svg>
+  </span>
+</DocumentFragment>
+`;
