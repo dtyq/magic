@@ -45,6 +45,16 @@ class ChatMessageRequest
         return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions, $mcpConfig);
     }
 
+    public function getMcpConfig(): array
+    {
+        return $this->mcpConfig;
+    }
+
+    public function setMcpConfig(array $mcpConfig): void
+    {
+        $this->mcpConfig = $mcpConfig;
+    }
+
     /**
      * 获取提示内容.
      */
