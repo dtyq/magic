@@ -41,6 +41,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $this->logger->debug('CreateChatMessageRequestMcpConfigArgs', ['mentions' => $mentions, 'agentIds' => $agentIds, 'mcpIds' => $mcpIds, 'toolIds' => $toolIds]);
         try {
             if ($mentions !== null) {
+                $mentions = str_replace('\"', '"', $mentions);
                 $mentions = Json::decode($mentions);
                 foreach ($mentions as $mention) {
                     $type = MentionType::tryFrom($mention['type'] ?? '');
