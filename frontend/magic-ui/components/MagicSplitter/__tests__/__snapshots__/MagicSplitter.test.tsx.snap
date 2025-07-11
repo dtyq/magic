@@ -1,0 +1,205 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicSplitter > 快照测试 > 基础分割器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-splitter acss-1ms8eiu magic-splitter-horizontal css-var-r1 magic-splitter-css-var css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      左侧内容
+    </div>
+    <div
+      aria-valuemax="0"
+      aria-valuemin="0"
+      aria-valuenow="50"
+      class="magic-splitter-bar"
+      role="separator"
+    >
+      <div
+        class="magic-splitter-bar-dragger"
+      />
+    </div>
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      右侧内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSplitter > 快照测试 > 复杂内容分割器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-splitter acss-1ms8eiu magic-splitter-horizontal css-var-r6 magic-splitter-css-var css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      <h3>
+        左侧标题
+      </h3>
+      <p>
+        左侧详细内容
+      </p>
+    </div>
+    <div
+      aria-valuemax="0"
+      aria-valuemin="0"
+      aria-valuenow="50"
+      class="magic-splitter-bar"
+      role="separator"
+    >
+      <div
+        class="magic-splitter-bar-dragger"
+      />
+    </div>
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      <h3>
+        右侧标题
+      </h3>
+      <p>
+        右侧详细内容
+      </p>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSplitter > 快照测试 > 带类名分割器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-splitter acss-1ms8eiu custom-splitter magic-splitter-horizontal css-var-r3 magic-splitter-css-var css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      左侧内容
+    </div>
+    <div
+      aria-valuemax="0"
+      aria-valuemin="0"
+      aria-valuenow="50"
+      class="magic-splitter-bar"
+      role="separator"
+    >
+      <div
+        class="magic-splitter-bar-dragger"
+      />
+    </div>
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      右侧内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSplitter > 快照测试 > 带类名分割器快照 2`] = `
+<DocumentFragment>
+  <div
+    class="magic-splitter acss-1ms8eiu custom-splitter magic-splitter-horizontal css-var-r5 magic-splitter-css-var css-dev-only-do-not-override-yotw4n"
+  >
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      左侧内容
+    </div>
+    <div
+      aria-valuemax="0"
+      aria-valuemin="0"
+      aria-valuenow="50"
+      class="magic-splitter-bar"
+      role="separator"
+    >
+      <div
+        class="magic-splitter-bar-dragger"
+      />
+    </div>
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      右侧内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSplitter > 快照测试 > 带自定义样式分割器快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-splitter acss-1ms8eiu magic-splitter-horizontal css-var-r2 magic-splitter-css-var css-dev-only-do-not-override-yotw4n"
+    style="height: 400px;"
+  >
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      左侧内容
+    </div>
+    <div
+      aria-valuemax="0"
+      aria-valuemin="0"
+      aria-valuenow="50"
+      class="magic-splitter-bar"
+      role="separator"
+    >
+      <div
+        class="magic-splitter-bar-dragger"
+      />
+    </div>
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      右侧内容
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicSplitter > 快照测试 > 带自定义样式分割器快照 2`] = `
+<DocumentFragment>
+  <div
+    class="magic-splitter acss-1ms8eiu magic-splitter-horizontal css-var-r4 magic-splitter-css-var css-dev-only-do-not-override-yotw4n"
+    style="height: 400px;"
+  >
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      左侧内容
+    </div>
+    <div
+      aria-valuemax="0"
+      aria-valuemin="0"
+      aria-valuenow="50"
+      class="magic-splitter-bar"
+      role="separator"
+    >
+      <div
+        class="magic-splitter-bar-dragger"
+      />
+    </div>
+    <div
+      class="magic-splitter-panel"
+      style="flex-basis: auto; flex-grow: 1;"
+    >
+      右侧内容
+    </div>
+  </div>
+</DocumentFragment>
+`;

@@ -1,0 +1,72 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicDropdown > 快照测试 > 基础下拉菜单快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-dropdown-trigger"
+  >
+    下拉菜单
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicDropdown > 快照测试 > 带图标下拉菜单快照 1`] = `
+<DocumentFragment>
+  <div
+    class="magic-dropdown-trigger"
+  >
+    🏠 下拉菜单
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicDropdown > 快照测试 > 带按钮样式下拉菜单快照 1`] = `
+<DocumentFragment>
+  <button
+    class="magic-dropdown-trigger"
+  >
+    按钮下拉
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicDropdown > 快照测试 > 带类名下拉菜单快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-dropdown-trigger custom-dropdown"
+  >
+    下拉菜单
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicDropdown > 快照测试 > 带自定义属性下拉菜单快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-dropdown-trigger"
+  >
+    下拉菜单
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicDropdown > 快照测试 > 带菜单项下拉菜单快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-dropdown-trigger"
+  >
+    下拉菜单
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicDropdown > 快照测试 > 禁用状态下拉菜单快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-dropdown-trigger"
+    disabled=""
+  >
+    下拉菜单
+  </span>
+</DocumentFragment>
+`;

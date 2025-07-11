@@ -1,0 +1,296 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicSearch > 快照测试 > 基础搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r1 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input css-dev-only-do-not-override-yotw4n"
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 大尺寸搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper magic-input-affix-wrapper-lg css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r6 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input magic-input-lg css-dev-only-do-not-override-yotw4n"
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 小尺寸搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper magic-input-affix-wrapper-sm css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r7 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input magic-input-sm css-dev-only-do-not-override-yotw4n"
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 带前缀图标搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r3 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <span>
+        🔍
+      </span>
+    </span>
+    <input
+      class="magic-input css-dev-only-do-not-override-yotw4n"
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 带后缀图标搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r4 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input css-dev-only-do-not-override-yotw4n"
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+    <span
+      class="magic-input-suffix"
+    >
+      <span>
+        📝
+      </span>
+    </span>
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 带边框搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r8 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input css-dev-only-do-not-override-yotw4n"
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 带默认值搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r2 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input css-dev-only-do-not-override-yotw4n"
+      type="text"
+      value="默认搜索词"
+    />
+  </span>
+</DocumentFragment>
+`;
+
+exports[`MagicSearch > 快照测试 > 禁用状态搜索框快照 1`] = `
+<DocumentFragment>
+  <span
+    class="magic-input-affix-wrapper magic-input-disabled magic-input-affix-wrapper-disabled css-dev-only-do-not-override-yotw4n magic-input-outlined acss-9dldd5 css-var-r5 magic-input-css-var"
+  >
+    <span
+      class="magic-input-prefix"
+    >
+      <svg
+        class="tabler-icon tabler-icon-search "
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="20"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"
+        />
+        <path
+          d="M21 21l-6 -6"
+        />
+      </svg>
+    </span>
+    <input
+      class="magic-input magic-input-disabled css-dev-only-do-not-override-yotw4n"
+      disabled=""
+      placeholder="搜索..."
+      type="text"
+      value=""
+    />
+  </span>
+</DocumentFragment>
+`;

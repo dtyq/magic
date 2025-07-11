@@ -10,6 +10,7 @@ namespace App\Application\Kernel;
 use App\Application\Flow\ExecuteManager\ExecutionData\Operator;
 use App\Application\Permission\Service\OperationPermissionAppService;
 use App\Domain\Admin\Entity\ValueObject\AdminDataIsolation;
+use App\Domain\Agent\Entity\ValueObject\AgentDataIsolation;
 use App\Domain\Authentication\Entity\ValueObject\AuthenticationDataIsolation;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
@@ -145,6 +146,17 @@ abstract class AbstractKernelAppService
     protected function createAdminDataIsolation(Authenticatable|BaseDataIsolation $authorization): AdminDataIsolation
     {
         $dataIsolation = new AdminDataIsolation();
+        if ($authorization instanceof BaseDataIsolation) {
+            $dataIsolation->extends($authorization);
+            return $dataIsolation;
+        }
+        $this->handleByAuthorization($authorization, $dataIsolation);
+        return $dataIsolation;
+    }
+
+    protected function createAgentDataIsolation(Authenticatable|BaseDataIsolation $authorization): AgentDataIsolation
+    {
+        $dataIsolation = new AgentDataIsolation();
         if ($authorization instanceof BaseDataIsolation) {
             $dataIsolation->extends($authorization);
             return $dataIsolation;

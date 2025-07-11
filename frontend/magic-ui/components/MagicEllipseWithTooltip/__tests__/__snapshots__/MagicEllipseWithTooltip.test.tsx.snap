@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicEllipseWithTooltip > 快照测试 > 基础省略文本快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-describedby="test-id"
+    style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;"
+  >
+    测试内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicEllipseWithTooltip > 快照测试 > 带类名快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-describedby="test-id"
+    class="custom-ellipse"
+    style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;"
+  >
+    测试内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicEllipseWithTooltip > 快照测试 > 带自定义样式快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-describedby="test-id"
+    style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;"
+  >
+    测试内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicEllipseWithTooltip > 快照测试 > 空文本快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-describedby="test-id"
+    style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;"
+  />
+</DocumentFragment>
+`;
+
+exports[`MagicEllipseWithTooltip > 快照测试 > 自定义最大宽度快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-describedby="test-id"
+    style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;"
+  >
+    测试内容
+  </div>
+</DocumentFragment>
+`;
+
+exports[`MagicEllipseWithTooltip > 快照测试 > 长文本省略快照 1`] = `
+<DocumentFragment>
+  <div
+    aria-describedby="test-id"
+    style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;"
+  >
+    这是一个很长的文本内容，应该会被省略显示
+  </div>
+</DocumentFragment>
+`;

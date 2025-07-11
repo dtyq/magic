@@ -75,18 +75,22 @@ class HandleUserMessageAppService extends AbstractAppService
             errMsg: 'User manually terminated task',
         );
         // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
-        if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
-        } else {
-            // Send interrupt message directly to client
-            $this->clientMessageAppService->sendInterruptMessageToClient(
-                topicId: $topicEntity->getId(),
-                taskId: $topicEntity->getCurrentTaskId() ?? '0',
-                chatTopicId: $dto->getChatTopicId(),
-                chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
-            );
+        try {
+            $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
+            if ($result->getStatus() === SandboxStatus::RUNNING) {
+                $this->agentAppService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            } else {
+                // Send interrupt message directly to client
+                $this->clientMessageAppService->sendInterruptMessageToClient(
+                    topicId: $topicEntity->getId(),
+                    taskId: $topicEntity->getCurrentTaskId() ?? '0',
+                    chatTopicId: $dto->getChatTopicId(),
+                    chatConversationId: $dto->getChatConversationId(),
+                    interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+                );
+            }
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
         }
     }
 
@@ -131,8 +135,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
             );
-            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
-            $taskEntity->setSandboxId($sandboxID);
+            $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
 
             // Update task status
             $this->topicTaskAppService->updateTaskStatus(
@@ -146,12 +149,13 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // Send error message directly to client
-            $this->clientMessageAppService->sendErrorMessageToClient(
+            $this->clientMessageAppService->sendReminderMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: $e->getMessage()
+                remind: $e->getMessage(),
+                remindEvent: ''
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
@@ -252,6 +256,11 @@ class HandleUserMessageAppService extends AbstractAppService
 
         // Send message to agent
         $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
+
+        // update topic sandbox id
+        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
+
+        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
 
         // Send message to agent
         return $sandboxId;
