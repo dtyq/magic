@@ -105,4 +105,10 @@ enum EventErrorCode: int
 
     #[ErrorMessage('event.points.insufficient')]
     case EVENT_POINTS_INSUFFICIENT = 6603;
+
+    #[ErrorMessage('event.task.pending')]
+    case EVENT_TASK_PENDING = 6604;
+
+    #[ErrorMessage('event.task.stop')]
+    case EVENT_TASK_STOP = 6605;
 }

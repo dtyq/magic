@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -149,13 +150,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // Send error message directly to client
+            $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
             $this->clientMessageAppService->sendReminderMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
                 remind: $e->getMessage(),
-                remindEvent: ''
+                remindEvent: $remindType
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
