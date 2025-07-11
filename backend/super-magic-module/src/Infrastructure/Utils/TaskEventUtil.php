@@ -20,7 +20,7 @@ class TaskEventUtil
             case EventErrorCode::EVENT_TASK_STOP:
                 return TaskEvent::TERMINATED->value;
             default:
-                return "";
+                return '';
         }
     }
 }

@@ -13,12 +13,12 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 enum TaskEvent: string
 {
     /**
-     * 任务挂起
+     * 任务挂起.
      */
     case SUSPENDED = 'suspended';
 
     /**
-     * 任务终止
+     * 任务终止.
      */
     case TERMINATED = 'terminated';
 
