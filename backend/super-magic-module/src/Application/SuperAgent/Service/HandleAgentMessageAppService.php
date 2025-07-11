@@ -414,6 +414,7 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
+            $attachment['topic_id'] = $task->getTopicId();
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
