@@ -14,7 +14,6 @@ use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use DateTime;
-use Hyperf\Odin\Mcp\McpServerConfig;
 
 class MCPServerEntity extends AbstractEntity
 {
@@ -67,6 +66,8 @@ class MCPServerEntity extends AbstractEntity
     private int $toolsCount = 0;
 
     private bool $office = false;
+
+    private bool $builtIn = false;
 
     public function shouldCreate(): bool
     {
@@ -138,9 +139,14 @@ class MCPServerEntity extends AbstractEntity
         $this->enabled = ! $this->enabled;
     }
 
-    public function createMcpServerConfig(string $localHttpUrl = '', bool $supportStdio = true): ?McpServerConfig
+    public function isBuiltIn(): bool
     {
-        return null;
+        return $this->builtIn;
+    }
+
+    public function setBuiltIn(bool $builtIn): void
+    {
+        $this->builtIn = $builtIn;
     }
 
     // Getters and Setters...
