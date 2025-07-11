@@ -349,12 +349,16 @@ class TopicDomainService
             ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
         }
 
-        // 更新话题名称
-        $topicEntity->setTopicName($topicName);
-        // 设置更新者用户ID
-        $topicEntity->setUpdatedUid($userId);
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'topic_name' => $topicName,
+            'updated_uid' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
         // 保存更新
-        return $this->topicRepository->updateTopic($topicEntity);
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
 
     public function updateTopicSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId): bool
