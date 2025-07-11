@@ -31,7 +31,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
     }
 
-    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
+    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, ?string $mentions = null, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
     {
         $globalMcpServers = $this->createGlobalMcpServers($dataIsolation);
         // todo 自定义 agent、mcp
