@@ -294,16 +294,16 @@
         },
         {
             "name": "alibabacloud/sts",
-            "version": "1.8.884",
+            "version": "1.8.2294",
             "source": {
                 "type": "git",
                 "url": "https://github.com/alibabacloud-sdk-php/sts.git",
-                "reference": "c9807a06c7047381b8a2ab4952eb11e8d686a488"
+                "reference": "3dd64911cc2299a12e00bc283ec458be931107ef"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/alibabacloud-sdk-php/sts/zipball/c9807a06c7047381b8a2ab4952eb11e8d686a488",
-                "reference": "c9807a06c7047381b8a2ab4952eb11e8d686a488",
+                "url": "https://api.github.com/repos/alibabacloud-sdk-php/sts/zipball/3dd64911cc2299a12e00bc283ec458be931107ef",
+                "reference": "3dd64911cc2299a12e00bc283ec458be931107ef",
                 "shasum": ""
             },
             "require": {
@@ -342,7 +342,7 @@
                 "issues": "https://github.com/alibabacloud-sdk-php/sts/issues",
                 "source": "https://github.com/alibabacloud-sdk-php/sts"
             },
-            "time": "2019-05-30T05:03:57+00:00"
+            "time": "2025-06-30T09:13:29+00:00"
         },
         {
             "name": "alibabacloud/tea",
@@ -2589,12 +2589,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "fa0beeae5538ef64f3726949ce844117c325332f"
+                "reference": "65efb6edd04f64728efa86a17e43cfa9d3d97bfa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=fa0beeae5538ef64f3726949ce844117c325332f",
-                "reference": "fa0beeae5538ef64f3726949ce844117c325332f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=65efb6edd04f64728efa86a17e43cfa9d3d97bfa",
+                "reference": "65efb6edd04f64728efa86a17e43cfa9d3d97bfa",
                 "shasum": ""
             },
             "require": {
@@ -2688,7 +2688,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-11T14:52:07+08:00"
+            "time": "2025-07-11T15:14:39+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
