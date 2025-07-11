@@ -43,6 +43,9 @@ enum ServiceType: string
 
     public function createServiceConfig(array $serviceConfig): ServiceConfigInterface
     {
+        if (isset($serviceConfig['oauth2config'])) {
+            $serviceConfig['oauth2_config'] = $serviceConfig['oauth2config'];
+        }
         return match ($this) {
             self::SSE => SSEServiceConfig::fromArray($serviceConfig),
             self::ExternalSSE => ExternalSSEServiceConfig::fromArray($serviceConfig),
