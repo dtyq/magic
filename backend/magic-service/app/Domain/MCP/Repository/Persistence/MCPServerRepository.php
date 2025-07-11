@@ -80,6 +80,9 @@ class MCPServerRepository extends MCPAbstractRepository implements MCPServerRepo
         $builder = $this->createBuilder($dataIsolation, MCPServerModel::query());
 
         if (! is_null($query->getCodes())) {
+            if (empty($query->getCodes())) {
+                return ['total' => 0, 'list' => []];
+            }
             $builder->whereIn('code', $query->getCodes());
         }
 

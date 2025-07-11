@@ -21,6 +21,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
 {
@@ -38,44 +39,53 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, ?string $mentions = null, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
     {
         $this->logger->debug('CreateChatMessageRequestMcpConfigArgs', ['mentions' => $mentions, 'agentIds' => $agentIds, 'mcpIds' => $mcpIds, 'toolIds' => $toolIds]);
-        if ($mentions !== null) {
-            $mentions = Json::decode($mentions);
-            foreach ($mentions as $mention) {
-                $type = MentionType::tryFrom($mention['type'] ?? '');
-                switch ($type) {
-                    case MentionType::AGENT:
-                        if (! empty($mentions['agent_id'])) {
-                            $agentIds[] = $mention['agent_id'];
-                        }
-                        break;
-                    case MentionType::MCP:
-                        if (! empty($mention['id'])) {
-                            $mcpIds[] = $mention['id'];
-                        }
-                        break;
-                    case MentionType::TOOL:
-                        if (! empty($mention['id'])) {
-                            $toolIds[] = $mention['id'];
-                        }
-                        break;
-                    default:
-                        break;
+        try {
+            if ($mentions !== null) {
+                $mentions = Json::decode($mentions);
+                foreach ($mentions as $mention) {
+                    $type = MentionType::tryFrom($mention['type'] ?? '');
+                    switch ($type) {
+                        case MentionType::AGENT:
+                            if (! empty($mention['agent_id'])) {
+                                $agentIds[] = $mention['agent_id'];
+                            }
+                            break;
+                        case MentionType::MCP:
+                            if (! empty($mention['id'])) {
+                                $mcpIds[] = $mention['id'];
+                            }
+                            break;
+                        case MentionType::TOOL:
+                            if (! empty($mention['id'])) {
+                                $toolIds[] = $mention['id'];
+                            }
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
+            $agentIds = array_values(array_filter(array_unique($agentIds)));
+            $mcpIds = array_values(array_filter(array_unique($mcpIds)));
+            $toolIds = array_values(array_filter(array_unique($toolIds)));
+
+            $builtinSuperMagicServer = SuperMagicChatBuiltInMCPServer::createByChatParams($dataIsolation, $agentIds, $toolIds);
+
+            $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer]);
+            $mcpServers = [
+                'mcpServers' => $mcpServers,
+            ];
+            $this->logger->debug('CreateChatMessageRequestMcpConfig', $mcpServers);
+            return $mcpServers;
+        } catch (Throwable $throwable) {
+            $this->logger->error('CreateChatMessageRequestMcpConfigError', [
+                'message' => $throwable->getMessage(),
+                'code' => $throwable->getCode(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+            ]);
         }
-        $agentIds = array_values(array_filter(array_unique($agentIds)));
-        $mcpIds = array_values(array_filter(array_unique($mcpIds)));
-        $toolIds = array_values(array_filter(array_unique($toolIds)));
-
-        $builtinSuperMagicServer = SuperMagicChatBuiltInMCPServer::createByChatParams($dataIsolation, $agentIds, $toolIds);
-
-        $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer]);
-        $mcpServers = [
-            'mcpServers' => $mcpServers,
-        ];
-
-        $this->logger->debug('CreateChatMessageRequestMcpConfig', $mcpServers);
-        return $mcpServers;
+        return null;
     }
 
     private function createMcpServers(MCPDataIsolation $mcpDataIsolation, array $mcpIds = [], array $builtinServers = []): array
@@ -90,9 +100,6 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $mcpServerIds = array_column($mcpSettings->getValue()['servers'], 'id');
         $mcpServerIds = array_filter($mcpServerIds);
         $mcpServerIds = array_values(array_unique(array_merge($mcpServerIds, $mcpIds)));
-        if (empty($mcpServerIds)) {
-            return $servers;
-        }
 
         $query = new MCPServerQuery();
         $query->setEnabled(true);
