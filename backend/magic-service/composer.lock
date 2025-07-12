@@ -2211,12 +2211,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "22ebf5daa7d6ae5ad1ea2fbce78f39906f5e83d7"
+                "reference": "263050d7844a2f9d079fa3950c0d14438e36a4e9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=22ebf5daa7d6ae5ad1ea2fbce78f39906f5e83d7",
-                "reference": "22ebf5daa7d6ae5ad1ea2fbce78f39906f5e83d7",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=263050d7844a2f9d079fa3950c0d14438e36a4e9",
+                "reference": "263050d7844a2f9d079fa3950c0d14438e36a4e9",
                 "shasum": ""
             },
             "require": {
@@ -2319,7 +2319,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-11T22:48:07+08:00"
+            "time": "2025-07-12T00:04:40+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2589,12 +2589,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "ce5429eb77289ddbe7ff4a3fbfc76e66cd39efd6"
+                "reference": "b98c9758f280d0084e50285a5921527f72cb64b5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=ce5429eb77289ddbe7ff4a3fbfc76e66cd39efd6",
-                "reference": "ce5429eb77289ddbe7ff4a3fbfc76e66cd39efd6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=b98c9758f280d0084e50285a5921527f72cb64b5",
+                "reference": "b98c9758f280d0084e50285a5921527f72cb64b5",
                 "shasum": ""
             },
             "require": {
@@ -2688,7 +2688,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-11T22:30:23+08:00"
+            "time": "2025-07-12T16:03:36+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17199,12 +17199,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "b34bea5e19970433575063dd74b68e5e880e10ee"
+                "reference": "56a0a5fbffe6faa8e85eb4d027a3eaf704adc288"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/b34bea5e19970433575063dd74b68e5e880e10ee",
-                "reference": "b34bea5e19970433575063dd74b68e5e880e10ee",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/56a0a5fbffe6faa8e85eb4d027a3eaf704adc288",
+                "reference": "56a0a5fbffe6faa8e85eb4d027a3eaf704adc288",
                 "shasum": ""
             },
             "conflict": {
@@ -17542,7 +17542,7 @@
                 "jackalope/jackalope-doctrine-dbal": "<1.7.4",
                 "jambagecom/div2007": "<0.10.2",
                 "james-heinrich/getid3": "<1.9.21",
-                "james-heinrich/phpthumb": "<1.7.12",
+                "james-heinrich/phpthumb": "<=1.7.23",
                 "jasig/phpcas": "<1.3.3",
                 "jbartels/wec-map": "<3.0.3",
                 "jcbrand/converse.js": "<3.3.3",
@@ -18147,7 +18147,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-10T13:15:28+00:00"
+            "time": "2025-07-11T23:05:27+00:00"
         },
         {
             "name": "sebastian/cli-parser",
