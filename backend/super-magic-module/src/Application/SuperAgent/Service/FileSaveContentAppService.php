@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\SuperMagicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -76,7 +77,14 @@ class FileSaveContentAppService
             $this->sandboxDomainService->waitForSandboxReady($sandboxId);
 
             // 5, 调用文件接口
-            return $this->superMagicDomainService->saveFileData($sandboxId, $fileDataList, $projectEntity->getWorkDir());
+            $result = $this->superMagicDomainService->saveFileData($sandboxId, $fileDataList, $projectEntity->getWorkDir());
+            $this->logger->info('[SandboxFileEdit] File save completed', [
+                'user_id' => $userAuth->getId(),
+                'organization_code' => $userAuth->getOrganizationCode(),
+                'file_count' => count($dto->getFiles()),
+                'result' => $result,
+            ]);
+            return $result;
         } catch (SandboxOperationException $e) {
             $this->logger->error('[SandboxFileEdit] Sandbox operation failed', [
                 'user_id' => $userAuth->getId(),
@@ -102,6 +110,7 @@ class FileSaveContentAppService
 
     /**
      * 准备文件数据，获取必要的元信息.
+     * @param $files SaveFileContentRequestDTO[]
      */
     private function prepareFileData(array $files, MagicUserAuthorization $userAuth): array
     {
@@ -136,6 +145,7 @@ class FileSaveContentAppService
                 'content' => $fileDto->getContent(),
                 'user_id' => $userAuth->getId(),
                 'organization_code' => $userAuth->getOrganizationCode(),
+                'is_encrypted' => $fileDto->getEnableShadow(),
             ];
         }
 

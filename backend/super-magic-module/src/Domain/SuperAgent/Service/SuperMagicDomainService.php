@@ -38,7 +38,7 @@ class SuperMagicDomainService
                 'file_key' => $fileData['file_key'],
                 'file_path' => WorkDirectoryUtil::getRelativeFilePath($fileData['file_key'], $workDir),
                 'content' => $fileData['content'],
-                'is_encrypted' => false, // 目前不支持加密
+                'is_encrypted' => $fileData['is_encrypted'],
             ];
         }
 
