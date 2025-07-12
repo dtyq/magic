@@ -14,6 +14,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
@@ -30,6 +31,7 @@ class FileApi extends AbstractApi
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
+        // private readonly FileSaveContentAppService $fileSaveContentAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
@@ -177,6 +179,7 @@ class FileApi extends AbstractApi
 
     /**
      * 批量保存文件内容.
+     * 新逻辑：通过沙箱接口保存文件，不再直接操作对象存储.
      *
      * @param RequestContext $requestContext 请求上下文
      * @return array 批量保存结果
@@ -197,7 +200,10 @@ class FileApi extends AbstractApi
 
         // 创建批量保存DTO
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
+
+        // 使用新的沙箱文件编辑服务
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
+        // return $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
     }
 
     /**

@@ -447,6 +447,7 @@ class AgentAppService
                 'headers' => [
                     'token' => config('super-magic.sandbox.token', ''),
                 ],
+                'enable_obfuscation' => true,
             ],
             'metadata' => $messageMetadata->toArray(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),

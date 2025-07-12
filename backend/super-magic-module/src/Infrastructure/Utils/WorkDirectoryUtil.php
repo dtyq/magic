@@ -86,4 +86,47 @@ class WorkDirectoryUtil
 
         return null;
     }
+
+    /**
+     * Generate a unique 8-character alphanumeric string from a snowflake ID.
+     * The same snowflake ID will always produce the same result.
+     *
+     * Risk: Theoretical collision probability is ~50% at 2.1M different snowflake IDs
+     * due to birthday paradox with 36^8 possible combinations.
+     *
+     * @param string $snowflakeId Snowflake ID (e.g., "785205968218931200")
+     * @return string 8-character alphanumeric string
+     */
+    public static function generateUniqueCodeFromSnowflakeId(string $snowflakeId): string
+    {
+        // Use SHA-256 hash to ensure deterministic output and good distribution
+        $hash = hash('sha256', $snowflakeId);
+
+        // Use multiple parts of the hash to reduce collision probability
+        // Take from different positions and combine them
+        $part1 = substr($hash, 0, 16);   // First 16 hex chars
+        $part2 = substr($hash, 16, 16);  // Next 16 hex chars
+        $part3 = substr($hash, 32, 16);  // Next 16 hex chars
+        $part4 = substr($hash, 48, 16);  // Last 16 hex chars
+
+        // XOR the parts to create better distribution
+        $combined = '';
+        for ($i = 0; $i < 16; ++$i) {
+            $xor = hexdec($part1[$i]) ^ hexdec($part2[$i]) ^ hexdec($part3[$i]) ^ hexdec($part4[$i]);
+            $combined .= dechex($xor);
+        }
+
+        // Convert to base36 for alphanumeric output
+        $base36 = base_convert($combined, 16, 36);
+
+        // Take first 8 characters
+        $result = substr($base36, 0, 8);
+
+        // Ensure we have exactly 8 characters by padding if necessary
+        if (strlen($result) < 8) {
+            $result = str_pad($result, 8, '0', STR_PAD_LEFT);
+        }
+
+        return $result;
+    }
 }
