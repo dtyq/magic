@@ -50,7 +50,7 @@ class SaveFileContentRequestDTO implements JsonSerializable
     {
         $fileId = (string) ($requestData['file_id'] ?? '');
         $content = (string) ($requestData['content'] ?? '');
-        $enableShadow = (bool) ($requestData['enable_shadow'] ?? true);
+        $enableShadow = (bool) ($requestData['enable_shadow'] ?? false);
 
         $dto = new self($fileId, $content, $enableShadow);
         $dto->validate();

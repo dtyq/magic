@@ -43,7 +43,6 @@ use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\RateLimit\Annotation\RateLimit;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -649,7 +648,6 @@ class FileProcessAppService extends AbstractAppService
      * @param MagicUserAuthorization $authorization User authorization
      * @return array Batch response data
      */
-    #[RateLimit(create: 30, consume: 5, capacity: 20, waitTimeout: 5)]
     public function batchSaveFileContent(BatchSaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
     {
         $files = $requestDTO->getFiles();
