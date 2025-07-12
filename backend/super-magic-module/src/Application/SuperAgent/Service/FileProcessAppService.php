@@ -603,6 +603,13 @@ class FileProcessAppService extends AbstractAppService
     {
         $taskFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $dataIsolation->getCurrentUserId());
         $files = [];
+
+        if (empty($taskFiles)) {
+            return $files;
+        }
+
+        $projectEntity = $this->projectDomainService->getProject($taskFiles[0]->getProjectId(), $dataIsolation->getCurrentUserId());
+
         foreach ($taskFiles as $taskFile) {
             $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey());
             if (empty($fileLink)) {
@@ -618,6 +625,7 @@ class FileProcessAppService extends AbstractAppService
                 'display_filename' => $taskFile->getFileName(),
                 'file_tag' => $taskFile->getFileType(),
                 'file_url' => $fileLink->getUrl(),
+                'relative_file_path' => WorkDirectoryUtil::getRelativeFilePath($taskFile->getFileKey(), $projectEntity->getWorkDir()),
             ];
         }
         return $files;
