@@ -1058,7 +1058,7 @@ class FileProcessAppService extends AbstractAppService
     private function performFileSave(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
     {
         // 1. Validate file permission
-        $taskFileEntity = $this->validateFilePermission($requestDTO->getFileId(), $authorization);
+        $taskFileEntity = $this->validateFilePermission((int) $requestDTO->getFileId(), $authorization);
 
         // 2. Process content (decode shadow if enabled)
         $content = $requestDTO->getContent();

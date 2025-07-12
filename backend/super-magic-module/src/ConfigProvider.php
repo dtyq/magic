@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
@@ -98,6 +99,8 @@ class ConfigProvider
                 FileProcessAppService::class => FileProcessAppService::class,
                 // 添加HandleAgentMessageAppService的依赖注入
                 HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
+                // 添加SandboxFileEditAppService的依赖注入
+                FileSaveContentAppService::class => FileSaveContentAppService::class,
                 // 添加分享相关服务
                 ShareableResourceFactory::class => ShareableResourceFactory::class,
                 TopicShareableResource::class => TopicShareableResource::class,

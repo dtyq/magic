@@ -356,4 +356,59 @@ class TopicDomainService
         // 保存更新
         return $this->topicRepository->updateTopic($topicEntity);
     }
+
+    /**
+     * 根据项目ID查找活跃话题
+     * 1. 优先查找运行中的话题（current_task_status = 'running'）
+     * 2. 如果没有运行话题，则查找最新的话题
+     * 3. 如果都没有，抛出异常.
+     */
+    public function findActiveTopicByProjectId(int $projectId, string $userId): TopicEntity
+    {
+        // 1. 查询运行中的话题，按更新时间倒序
+        $runningConditions = [
+            'project_id' => $projectId,
+            'user_id' => $userId,
+            'current_task_status' => TaskStatus::RUNNING->value,
+        ];
+
+        $runningTopics = $this->topicRepository->getTopicsByConditions(
+            $runningConditions,
+            true, // needPagination
+            50,   // pageSize
+            1,    // page
+            'updated_at', // orderBy
+            'desc' // orderDirection
+        );
+
+        if (! empty($runningTopics['list'])) {
+            return $runningTopics['list'][0]; // 取第一个运行中的话题
+        }
+
+        // 2. 如果没有运行话题，查询最新的话题
+        $latestTopics = $this->topicRepository->getTopicsByProjectId($projectId, $userId);
+
+        if (empty($latestTopics)) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::TOPIC_NOT_FOUND,
+                'No topic found for project: ' . $projectId
+            );
+        }
+
+        return $latestTopics[0];
+    }
+
+    /**
+     * 检查话题是否处于可编辑状态
+     */
+    public function isTopicEditable(TopicEntity $topic): bool
+    {
+        $editableStatuses = [
+            TaskStatus::RUNNING->value,
+            TaskStatus::WAITING->value,
+            TaskStatus::Suspended->value,
+        ];
+
+        return in_array($topic->getCurrentTaskStatus(), $editableStatuses);
+    }
 }
