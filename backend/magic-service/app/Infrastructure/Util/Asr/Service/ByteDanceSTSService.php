@@ -52,29 +52,37 @@ class ByteDanceSTSService
      * 根据用户Magic ID获取JWT Token（带缓存）.
      *
      * @param string $magicId 用户Magic ID
-     * @param int $duration 有效期（秒），默认3600秒
+     * @param int $duration 有效期（秒），默认7200秒
+     * @param bool $refresh 是否强制刷新token，默认false
      * @return array 包含JWT Token和相关信息的数组
      * @throws Exception
      */
-    public function getJwtTokenForUser(string $magicId, int $duration = 3600): array
+    public function getJwtTokenForUser(string $magicId, int $duration = 7200, bool $refresh = false): array
     {
         if (empty($magicId)) {
             ExceptionBuilder::throw(AsrErrorCode::InvalidMagicId, 'asr.config_error.invalid_magic_id');
         }
 
-        // 检查缓存
+        // 检查缓存（如果不是强制刷新）
         $cacheKey = $this->getCacheKey($magicId);
-        $cachedData = $this->getCachedJwtToken($cacheKey);
+        if (! $refresh) {
+            $cachedData = $this->getCachedJwtToken($cacheKey);
 
-        if ($cachedData !== null) {
-            $this->logger->info('返回缓存的JWT Token', [
-                'magic_id' => $magicId,
-                'cache_expires_at' => $cachedData['expires_at'],
-            ]);
-            return $cachedData;
+            if ($cachedData !== null) {
+                // 计算剩余有效时间
+                $remainingDuration = $cachedData['expires_at'] - time();
+                $cachedData['duration'] = max(0, $remainingDuration);
+
+                $this->logger->info('返回缓存的JWT Token', [
+                    'magic_id' => $magicId,
+                    'cache_expires_at' => $cachedData['expires_at'],
+                    'remaining_duration' => $remainingDuration,
+                ]);
+                return $cachedData;
+            }
         }
 
-        // 缓存中没有或已过期，获取新的JWT Token
+        // 缓存中没有或已过期，或者强制刷新，获取新的JWT Token
         $appId = config('asr.volcengine.app_id');
         $accessToken = config('asr.volcengine.token');
 
@@ -102,6 +110,7 @@ class ByteDanceSTSService
             'magic_id' => $magicId,
             'duration' => $duration,
             'cache_expiry' => $cacheExpiry,
+            'refresh' => $refresh,
         ]);
 
         return $tokenData;
@@ -112,11 +121,11 @@ class ByteDanceSTSService
      *
      * @param string $appId 应用ID
      * @param string $accessToken 访问令牌
-     * @param int $duration 有效期（秒），默认3600秒
+     * @param int $duration 有效期（秒），默认7200秒
      * @return string JWT token
      * @throws Exception
      */
-    public function getJwtToken(string $appId, string $accessToken, int $duration = 3600): string
+    public function getJwtToken(string $appId, string $accessToken, int $duration = 7200): string
     {
         if (empty($appId) || empty($accessToken)) {
             ExceptionBuilder::throw(AsrErrorCode::InvalidConfig, 'asr.config_error.invalid_config');
@@ -182,11 +191,11 @@ class ByteDanceSTSService
     /**
      * 使用环境变量配置获取JWT token.
      *
-     * @param int $duration 有效期（秒），默认3600秒
+     * @param int $duration 有效期（秒），默认7200秒
      * @return string JWT token
      * @throws Exception
      */
-    public function getJwtTokenFromConfig(int $duration = 3600): string
+    public function getJwtTokenFromConfig(int $duration = 7200): string
     {
         $appId = config('asr.volcengine.app_id');
         $accessToken = config('asr.volcengine.token');
