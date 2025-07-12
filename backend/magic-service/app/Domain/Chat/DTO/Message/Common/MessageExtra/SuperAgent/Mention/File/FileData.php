@@ -42,7 +42,20 @@ final class FileData extends AbstractDTO implements MentionDataInterface
 
     public function getFilePath(): ?string
     {
-        return $this->filePath ?? null;
+        $filePath = $this->filePath ?? null;
+
+        if ($filePath === null) {
+            return null;
+        }
+        if (str_starts_with($filePath, './')) {
+            return substr($filePath, 2);
+        }
+
+        if (str_starts_with($filePath, '/')) {
+            return substr($filePath, 1);
+        }
+
+        return $filePath;
     }
 
     public function getFileName(): ?string
