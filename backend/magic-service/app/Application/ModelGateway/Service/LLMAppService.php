@@ -116,7 +116,6 @@ class LLMAppService extends AbstractLLMAppService
 
             // Set common fields
             $modelConfigEntity->setModel($model->getModelName());
-            // Model type
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());

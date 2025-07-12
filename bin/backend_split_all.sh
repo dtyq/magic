@@ -40,9 +40,22 @@ REPOS=$@
 
 function split()
 {
-    SHA1=`./bin/splitsh-lite --prefix=$1`
-    # 确保远程分支存在
-    git fetch $ORIGIN $CURRENT_BRANCH 2>/dev/null || true
+    # 使用 --scratch 清理缓存，在 CI 环境中避免缓存问题
+    SHA1=`./bin/splitsh-lite --prefix=$1 --scratch`
+
+    # 检查 SHA1 是否包含错误信息
+    if [[ $SHA1 == *"object not found"* ]] || [[ $SHA1 == *"error"* ]]; then
+        echo "Error in splitsh-lite: $SHA1"
+        echo "Trying with --debug flag to get more information..."
+        SHA1=`./bin/splitsh-lite --prefix=$1 --scratch --debug`
+        echo "Debug output: $SHA1"
+        return 1
+    fi
+
+    # 确保远程分支存在（仅在远程仓库存在时）
+    if git remote | grep -q "^$ORIGIN$"; then
+        git fetch $ORIGIN $CURRENT_BRANCH 2>/dev/null || true
+    fi
 
     # 设置最大重试次数
     MAX_RETRIES=3
