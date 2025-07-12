@@ -1,5 +1,30 @@
 # ASR Token API 变更日志
 
+## 2024-01-XX - 新增refresh参数和duration修改
+
+### 新增功能
+- ✅ 为 `GET /api/v1/asr/tokens` 接口新增 `refresh` 参数
+- ✅ 支持强制刷新token功能，当 `refresh=true` 时会清除缓存并重新获取
+
+### 变更内容
+- 🔄 默认duration从3600秒改为7200秒（2小时）
+- 🔄 不再接受外部传入的duration参数，固定为7200秒
+- 🔄 优化缓存逻辑，支持按需刷新
+- 🔄 `duration` 字段动态显示：新token显示7200秒，缓存token显示剩余时间
+
+### 接口变更
+- **GET /api/v1/asr/tokens**
+  - 新增：`refresh` 参数（boolean，默认false）
+  - 移除：`duration` 参数
+  - 修改：Token有效期固定为7200秒
+  - 优化：`duration` 字段动态显示剩余有效时间
+
+### 技术改进
+- 🚀 提升token使用体验，减少频繁过期问题
+- 🔧 增强缓存控制灵活性
+- 📊 动态显示token剩余时间，提升用户体验
+- 📝 更新完整的API文档和使用示例
+
 ## 2024-01-XX - 重构完成
 
 ### 移除的功能
