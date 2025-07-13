@@ -11,6 +11,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
@@ -207,6 +208,55 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             return $response;
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Agent] Unexpected error when getting workspace status', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return AgentResponse::fromApiResponse([
+                'code' => 2000,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+    }
+
+    /**
+     * 保存文件到沙箱.
+     */
+    public function saveFiles(string $sandboxId, SaveFilesRequest $request): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Agent] Saving files to sandbox', [
+            'sandbox_id' => $sandboxId,
+            'file_count' => $request->getFileCount(),
+        ]);
+
+        try {
+            // 通过Gateway转发到沙箱的文件编辑API
+            $result = $this->gateway->proxySandboxRequest(
+                $sandboxId,
+                'POST',
+                'api/v1/files/save',
+                $request->toArray()
+            );
+
+            $response = AgentResponse::fromGatewayResult($result);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Agent] Files saved successfully', [
+                    'sandbox_id' => $sandboxId,
+                    'file_count' => $request->getFileCount(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Agent] Failed to save files', [
+                    'sandbox_id' => $sandboxId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Agent] Unexpected error when saving files', [
                 'sandbox_id' => $sandboxId,
                 'error' => $e->getMessage(),
             ]);

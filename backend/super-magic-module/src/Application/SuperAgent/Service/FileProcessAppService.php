@@ -43,7 +43,6 @@ use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\RateLimit\Annotation\RateLimit;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -603,6 +602,13 @@ class FileProcessAppService extends AbstractAppService
     {
         $taskFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $dataIsolation->getCurrentUserId());
         $files = [];
+
+        if (empty($taskFiles)) {
+            return $files;
+        }
+
+        $projectEntity = $this->projectDomainService->getProject($taskFiles[0]->getProjectId(), $dataIsolation->getCurrentUserId());
+
         foreach ($taskFiles as $taskFile) {
             $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey());
             if (empty($fileLink)) {
@@ -618,6 +624,7 @@ class FileProcessAppService extends AbstractAppService
                 'display_filename' => $taskFile->getFileName(),
                 'file_tag' => $taskFile->getFileType(),
                 'file_url' => $fileLink->getUrl(),
+                'relative_file_path' => WorkDirectoryUtil::getRelativeFilePath($taskFile->getFileKey(), $projectEntity->getWorkDir()),
             ];
         }
         return $files;
@@ -641,7 +648,6 @@ class FileProcessAppService extends AbstractAppService
      * @param MagicUserAuthorization $authorization User authorization
      * @return array Batch response data
      */
-    #[RateLimit(create: 30, consume: 5, capacity: 20, waitTimeout: 5)]
     public function batchSaveFileContent(BatchSaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
     {
         $files = $requestDTO->getFiles();
@@ -1050,7 +1056,7 @@ class FileProcessAppService extends AbstractAppService
     private function performFileSave(SaveFileContentRequestDTO $requestDTO, MagicUserAuthorization $authorization): array
     {
         // 1. Validate file permission
-        $taskFileEntity = $this->validateFilePermission($requestDTO->getFileId(), $authorization);
+        $taskFileEntity = $this->validateFilePermission((int) $requestDTO->getFileId(), $authorization);
 
         // 2. Process content (decode shadow if enabled)
         $content = $requestDTO->getContent();

@@ -11,6 +11,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
@@ -53,8 +54,18 @@ class TaskApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
         }
 
+        // 查看是否混淆
+        $isConfusion = $this->request->input('obfuscated', false);
+        if ($isConfusion) {
+            // 混淆处理
+            $rawData = ShadowCode::unShadow($this->request->input('data', ''));
+            $requestData = json_decode($rawData, true);
+        } else {
+            $requestData = $this->request->all();
+        }
+
         // 从请求中创建DTO
-        $messageDTO = TopicTaskMessageDTO::fromArray($this->request->all());
+        $messageDTO = TopicTaskMessageDTO::fromArray($requestData);
         // 调用应用服务进行消息投递
         return $this->topicTaskAppService->deliverTopicTaskMessage($messageDTO);
     }

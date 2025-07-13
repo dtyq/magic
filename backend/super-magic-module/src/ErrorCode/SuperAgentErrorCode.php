@@ -91,6 +91,15 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.batch_file_ids_or_topic_id_required')]
     case BATCH_FILE_IDS_OR_TOPIC_ID_REQUIRED = 51162;
 
+    #[ErrorMessage('file.sandbox_not_ready')]
+    case SANDBOX_NOT_READY = 51163;
+
+    #[ErrorMessage('file.sandbox_save_failed')]
+    case SANDBOX_SAVE_FAILED = 51164;
+
+    #[ErrorMessage('file.multiple_projects_not_allowed')]
+    case MULTIPLE_PROJECTS_NOT_ALLOWED = 51165;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;
