@@ -951,9 +951,6 @@ class FileProcessAppService extends AbstractAppService
             $userAuthorization->setOrganizationCode($organizationCode);
             $storageType = StorageBucketType::Private->value;
 
-            // 固定一个上传
-            $workDir = ltrim($workDir, '/') . '/uploads';
-
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
                 $storageType,
