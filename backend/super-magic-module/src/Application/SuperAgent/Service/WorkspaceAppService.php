@@ -313,7 +313,6 @@ class WorkspaceAppService extends AbstractAppService
         // 处理文件 URL
         $list = [];
         $organizationCode = $userAuthorization->getOrganizationCode();
-
         $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
