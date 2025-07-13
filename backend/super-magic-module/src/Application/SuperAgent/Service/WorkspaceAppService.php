@@ -690,6 +690,7 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->topicId = (string) $entity->getTopicId();
 
             // Calculate relative file path by removing workDir from fileKey
             $fileKey = $entity->getFileKey();
