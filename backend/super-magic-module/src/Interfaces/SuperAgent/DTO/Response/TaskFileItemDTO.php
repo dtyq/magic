@@ -67,7 +67,7 @@ class TaskFileItemDTO extends AbstractDTO
      */
     public bool $isHidden;
 
-    public string $topicId;
+    public string $topicId="";
 
     /**
      * 从实体创建DTO.
