@@ -290,9 +290,9 @@ class FileProcessAppService extends AbstractAppService
                     }
 
                     // Create file lock key
-                    $fileLockKey = sprintf('file_process_lock:%s:%d', $attachment['file_key'], $topicId);
+                    $fileLockKey = sprintf('file_process_lock:%s', $attachment['file_key']);
                     $lockOwner = IdGenerator::getUniqueId32();
-                    $lockExpireSeconds = 30;
+                    $lockExpireSeconds = 60;
                     $lockAcquired = false;
 
                     try {
