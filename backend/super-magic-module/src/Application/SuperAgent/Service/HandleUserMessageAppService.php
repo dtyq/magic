@@ -258,6 +258,9 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         // Create sandbox container
         $sandboxId = $this->agentAppService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        // update topic sandbox id
+        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
+        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent
@@ -269,12 +272,6 @@ class HandleUserMessageAppService extends AbstractAppService
         // Send message to agent
         $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
 
-        // update topic sandbox id
-        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
-
-        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
-
-        // Send message to agent
         return $sandboxId;
     }
 
