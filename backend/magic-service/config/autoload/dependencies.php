@@ -24,9 +24,19 @@ use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\FullTextSimil
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\GraphSimilaritySearchInterface;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\HybridSimilaritySearchInterface;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\SemanticSimilaritySearchInterface;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCP;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
+use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutorInterface;
+use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
+use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
+use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
+use App\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use App\Domain\Agent\Repository\Facade\MagicBotThirdPlatformChatRepositoryInterface;
+use App\Domain\Agent\Repository\Persistence\AgentRepository;
+use App\Domain\Agent\Repository\Persistence\AgentVersionRepository;
 use App\Domain\Agent\Repository\Persistence\MagicBotThirdPlatformChatRepository;
 use App\Domain\Authentication\Repository\ApiKeyProviderRepository;
 use App\Domain\Authentication\Repository\Facade\ApiKeyProviderRepositoryInterface;
@@ -105,8 +115,10 @@ use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseDocumentReposit
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseFragmentRepository;
 use App\Domain\MCP\Repository\Facade\MCPServerRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPServerToolRepositoryInterface;
+use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
 use App\Domain\MCP\Repository\Persistence\MCPServerRepository;
 use App\Domain\MCP\Repository\Persistence\MCPServerToolRepository;
+use App\Domain\MCP\Repository\Persistence\MCPUserSettingRepository;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -223,6 +235,10 @@ $dependencies = [
     SidProviderInterface::class => DistributedSidProvider::class,
     NamespaceInterface::class => BaseNamespace::class,
 
+    // agent
+    AgentRepositoryInterface::class => AgentRepository::class,
+    AgentVersionRepositoryInterface::class => AgentVersionRepository::class,
+
     // magic-flow
     MagicFlowRepositoryInterface::class => MagicFlowRepository::class,
     MagicFlowDraftRepositoryInterface::class => MagicFlowDraftRepository::class,
@@ -264,6 +280,10 @@ $dependencies = [
     MCPServerRepositoryInterface::class => MCPServerRepository::class,
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
     AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
+    MCPUserSettingRepositoryInterface::class => MCPUserSettingRepository::class,
+    SupperMagicAgentMCPInterface::class => SupperMagicAgentMCP::class,
+    ExternalStdioExecutorInterface::class => ExternalStdioExecutor::class,
+    ExternalHttpExecutorInterface::class => ExternalHttpExecutor::class,
 
     // api-key
     ApiKeyProviderRepositoryInterface::class => ApiKeyProviderRepository::class,

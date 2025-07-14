@@ -8,9 +8,11 @@ declare(strict_types=1);
 namespace App\Application\Flow\ExecuteManager\BuiltIn\AgentPlugin\MCP;
 
 use App\Application\Flow\ExecuteManager\BuiltIn\AgentPlugin\AbstractAgentPlugin;
+use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\MCPServerItem;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\Domain\MCP\Service\MCPServerDomainService;
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\AgentPluginDefine;
@@ -73,7 +75,18 @@ class MCPAgentPlugin extends AbstractAgentPlugin
 
         $configs = [];
         foreach ($data['list'] ?? [] as $MCPServerEntity) {
-            $config = $MCPServerEntity->createMcpServerConfig();
+            // 具有自定义配置 或 需要 oauth2 的，我们本次不处理
+            $serverConfig = $MCPServerEntity->getServiceConfig();
+            if ($serverConfig instanceof ExternalSSEServiceConfig) {
+                if ($serverConfig->getRequireFields()) {
+                    continue;
+                }
+                if ($serverConfig->getAuthType()->isOAuth2()) {
+                    continue;
+                }
+            }
+
+            $config = MCPServerConfigUtil::create($dataIsolation, $MCPServerEntity, supportStdio: false);
             if ($config) {
                 $configs[$MCPServerEntity->getCode()] = $config;
             }

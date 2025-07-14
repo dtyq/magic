@@ -10,6 +10,7 @@ namespace App\Application\Kernel;
 use App\Application\Flow\ExecuteManager\ExecutionData\Operator;
 use App\Application\Permission\Service\OperationPermissionAppService;
 use App\Domain\Admin\Entity\ValueObject\AdminDataIsolation;
+use App\Domain\Agent\Entity\ValueObject\AgentDataIsolation;
 use App\Domain\Authentication\Entity\ValueObject\AuthenticationDataIsolation;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
@@ -153,6 +154,17 @@ abstract class AbstractKernelAppService
         return $dataIsolation;
     }
 
+    protected function createAgentDataIsolation(Authenticatable|BaseDataIsolation $authorization): AgentDataIsolation
+    {
+        $dataIsolation = new AgentDataIsolation();
+        if ($authorization instanceof BaseDataIsolation) {
+            $dataIsolation->extends($authorization);
+            return $dataIsolation;
+        }
+        $this->handleByAuthorization($authorization, $dataIsolation);
+        return $dataIsolation;
+    }
+
     protected static function createFlowDataIsolationStaticMethod(Authenticatable|BaseDataIsolation $authorization): FlowDataIsolation
     {
         $dataIsolation = new FlowDataIsolation();
@@ -219,6 +231,10 @@ abstract class AbstractKernelAppService
     {
         if (empty($code)) {
             return Operation::None;
+        }
+        // 如果是官方组织下，mcp 的所有人都是管理权限
+        if ($dataIsolation->isOfficialOrganization()) {
+            return Operation::Admin;
         }
         $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
         return di(OperationPermissionAppService::class)->getOperationByResourceAndUser(

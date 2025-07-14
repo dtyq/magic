@@ -29,6 +29,11 @@ class MagicFlowOpenApi extends AbstractOpenApi
         return $this->magicFlowExecuteAppServiceService->apiChat($apiChatDTO);
     }
 
+    public function chatWithId(string $botId)
+    {
+        return $this->chat();
+    }
+
     public function chatAsync()
     {
         $apiChatDTO = $this->createApiChatDTO();
@@ -49,6 +54,11 @@ class MagicFlowOpenApi extends AbstractOpenApi
         $apiChatDTO = $this->createApiChatDTO();
         $apiChatDTO->setStream(false);
         return $this->magicFlowExecuteAppServiceService->apiParamCall($apiChatDTO);
+    }
+
+    public function paramCallWithId(string $code)
+    {
+        return $this->paramCall();
     }
 
     public function paramCallAsync()

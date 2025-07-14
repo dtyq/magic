@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\MCP\Service;
 
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
+use App\Application\MCP\BuiltInMCP\BuiltInMCPFactory;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\MCP\Entity\MCPServerToolEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
@@ -28,18 +29,29 @@ class MCPServerStreamableAppService extends AbstractMCPAppService
     public function getTools(Authenticatable $authorization, string $mcpServerCode): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
-        $flowDataIsolation = $this->createFlowDataIsolation($dataIsolation);
-        $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
-        $operation->validate('r', $mcpServerCode);
 
+        $builtInMCP = BuiltInMCPFactory::create($mcpServerCode);
+        if ($builtInMCP) {
+            return $builtInMCP->getRegisteredTools($mcpServerCode);
+        }
+
+        $allDataIsolation = clone $dataIsolation;
+        $allDataIsolation->disabled();
         $mcpTools = [];
-
-        $mcpServer = $this->mcpServerDomainService->getByCode($dataIsolation, $mcpServerCode);
+        $mcpServer = $this->mcpServerDomainService->getByCode($allDataIsolation, $mcpServerCode);
         if (! $mcpServer || ! $mcpServer->isEnabled()) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.not_found', ['label' => $mcpServerCode]);
         }
+        if (! in_array($mcpServer->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes())) {
+            $operation = $this->getMCPServerOperation($dataIsolation, $mcpServerCode);
+            $operation->validate('r', $mcpServerCode);
+        } else {
+            $dataIsolation->disabled();
+        }
 
         $mcpServerTools = $this->mcpServerToolDomainService->getByMcpServerCodes($dataIsolation, [$mcpServerCode]);
+
+        $flowDataIsolation = $this->createFlowDataIsolation($dataIsolation);
 
         foreach ($mcpServerTools as $mcpServerTool) {
             if (! $mcpServerTool->isEnabled()) {
