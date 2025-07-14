@@ -203,18 +203,10 @@ class TaskApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'The api key of header is required');
         }
 
-        /**
-         * @var MagicUserEntity
-         */
-        $userEntity = null;
-
-        $this->handApiKey($requestContext,$userEntity);
-
         $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey,"");
 
         $magicUserAuthorization=MagicUserAuthorization::fromUserEntity($userEntity);
 
-        var_dump($magicUserAuthorization,"=====magicUserAuthorization");
         $requestContext->setUserAuthorization($magicUserAuthorization);
 
     }
@@ -287,6 +279,8 @@ class TaskApi extends AbstractApi
     {
         // 从请求中创建DTO并验证参数
         $requestDTO = CreateScriptTaskRequestDTO::fromRequest($this->request);
+
+
         /**
          * @var MagicUserEntity
          */

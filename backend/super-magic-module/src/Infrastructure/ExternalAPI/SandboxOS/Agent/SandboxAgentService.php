@@ -277,6 +277,45 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             'task_id' => $request->getTaskId(),
         ]);
 
+        try {
+            // 通过Gateway转发到沙箱的文件编辑API
+            $result = $this->gateway->proxySandboxRequest(
+                $sandboxId,
+                'POST',
+                "api/v1/task/scripts/{$request->getScriptName()}/execute",
+                $request->toArray()
+            );
+
+            $response = AgentResponse::fromGatewayResult($result);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Agent] Files saved successfully', [
+                    'sandbox_id' => $sandboxId,
+                    'script_name' => $request->getScriptName(),
+                    'arguments' => $request->getArguments(),
+                    ]);
+            } else {
+                $this->logger->error('[Sandbox][Agent] Failed to save files', [
+                    'sandbox_id' => $sandboxId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Agent] Unexpected error when saving files', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return AgentResponse::fromApiResponse([
+                'code' => 2000,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+
         return AgentResponse::fromApiResponse([
             'code' => 2000,
             'message' => 'Unexpected error: ',
