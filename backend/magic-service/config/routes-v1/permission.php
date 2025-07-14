@@ -14,6 +14,6 @@ Router::addGroup('/api/v1', static function () {
         Router::post('/resource-access', [OperationPermissionApi::class, 'resourceAccess']);
         Router::get('/resource-access', [OperationPermissionApi::class, 'listResource']);
         Router::get('/organization-admin', [OperationPermissionApi::class, 'checkOrganizationAdmin']);
-        Router::get('/organization-admin-list', [OperationPermissionApi::class, 'getUserOrganizationAdminList']);
+        Router::get('/organizations/admin', [OperationPermissionApi::class, 'getUserOrganizationAdminList']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

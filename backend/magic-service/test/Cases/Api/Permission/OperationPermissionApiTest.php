@@ -17,7 +17,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(PermissionChecker::class)]
 class OperationPermissionApiTest extends AbstractHttpTest
 {
-    public const string API = '/api/v1/operation-permissions/organization-admin-list';
+    public const string API = '/api/v1/operation-permissions/organizations/admin';
 
     protected function tearDown(): void
     {
