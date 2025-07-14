@@ -33,6 +33,7 @@ use App\Domain\Contact\Entity\ValueObject\UserType;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
 
 #[ApiResponse('low_code')]
@@ -283,10 +284,10 @@ class TaskApi extends AbstractApi
     }
 
     //创建一个script任务，鉴权使用api-key进行鉴权
-    public function scriptTask(RequestContext $requestContext, CreateAgentTaskRequestDTO $requestDTO): array
+    public function scriptTask(RequestContext $requestContext, CreateScriptTaskRequestDTO $requestDTO): array
     {
         // 从请求中创建DTO并验证参数
-        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
+        $requestDTO = CreateScriptTaskRequestDTO::fromRequest($this->request);
         /**
          * @var MagicUserEntity
          */
@@ -306,12 +307,11 @@ class TaskApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_not_running');
         }
 
-        $sandboxId = $topicDTO->getSandboxId();
-        $taskId = $taskEntity->getId();
-        $scriptName = $this->request->input('script_name', '');
-        $arguments = $this->request->input('arguments', []);
+        $requestDTO->setSandboxId($topicDTO->getSandboxId());
+
+        var_dump($requestDTO,"=====requestDTO");
         try{
-            $this->handleTaskMessageAppService->executeScriptTask($sandboxId,(string)$taskId,$scriptName,$arguments);
+            $this->handleTaskMessageAppService->executeScriptTask($requestDTO);
         }catch(\Exception $e){
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'execute_script_task_failed');
         }
