@@ -598,7 +598,7 @@ class FileProcessAppService extends AbstractAppService
         }
     }
 
-    public function getFilesWithUrl(DataIsolation $dataIsolation, array $fileIds): array
+    public function getFilesWithUrl(DataIsolation $dataIsolation, array $fileIds, $projectId): array
     {
         $taskFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $dataIsolation->getCurrentUserId());
         $files = [];
@@ -607,7 +607,7 @@ class FileProcessAppService extends AbstractAppService
             return $files;
         }
 
-        $projectEntity = $this->projectDomainService->getProject($taskFiles[0]->getProjectId(), $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
         foreach ($taskFiles as $taskFile) {
             $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey());
