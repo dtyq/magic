@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8fa5266d583d255df08cd18c068cf555",
+    "content-hash": "a843cfdde9fc50a5fdd8555a63781630",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -6390,16 +6390,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.24",
+            "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6"
+                "reference": "588c7f606d5fcf0fd5c22fa3a577b554ee8971c8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=d2d03eaf4b08e9f58a445808efafd61471e21dc6",
-                "reference": "d2d03eaf4b08e9f58a445808efafd61471e21dc6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=588c7f606d5fcf0fd5c22fa3a577b554ee8971c8",
+                "reference": "588c7f606d5fcf0fd5c22fa3a577b554ee8971c8",
                 "shasum": ""
             },
             "require": {
@@ -6429,6 +6429,7 @@
                 "hyperf/engine-swow": "Required when using Swow as the event loop (^2.12).",
                 "swow/swow": "Required to create swow components."
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -6464,9 +6465,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.24"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/master"
             },
-            "time": "2025-07-08T12:52:41+00:00"
+            "time": "2025-07-14T16:15:38+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -19517,6 +19518,7 @@
         "dtyq/cloudfile": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
+        "hyperf/odin": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
