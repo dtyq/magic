@@ -68,6 +68,11 @@ class TaskFileItemDTO extends AbstractDTO
     public bool $isHidden;
 
     /**
+     * 主题ID.
+     */
+    public string $topicId = '';
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity): self
@@ -84,6 +89,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->relativeFilePath = '';
         $dto->fileUrl = $entity->getExternalUrl();
         $dto->isHidden = $entity->getIsHidden();
+        $dto->topicId = (string) $entity->getTopicId();
 
         return $dto;
     }
@@ -105,6 +111,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->relativeFilePath = $data['relative_file_path'] ?? '';
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
         $dto->isHidden = $data['is_hidden'] ?? false;
+        $dto->topicId = (string) ($data['topic_id'] ?? '');
         return $dto;
     }
 
@@ -126,6 +133,7 @@ class TaskFileItemDTO extends AbstractDTO
             'relative_file_path' => $this->relativeFilePath,
             'file_url' => $this->fileUrl,
             'is_hidden' => $this->isHidden,
+            'topic_id' => $this->topicId,
         ];
     }
 }

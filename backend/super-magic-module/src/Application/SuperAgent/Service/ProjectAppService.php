@@ -358,7 +358,7 @@ class ProjectAppService extends AbstractAppService
         // 处理文件 URL
         $list = [];
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
+        $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
             // 创建DTO
@@ -371,6 +371,7 @@ class ProjectAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
 
             // 添加 project_id 字段
@@ -388,7 +389,11 @@ class ProjectAppService extends AbstractAppService
             } else {
                 $dto->fileUrl = '';
             }
-
+            // 判断filekey是否重复，如果重复，则跳过
+            if (in_array($fileKey, $fileKeys)) {
+                continue;
+            }
+            $fileKeys[] = $fileKey;
             $list[] = $dto->toArray();
         }
 

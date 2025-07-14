@@ -313,7 +313,7 @@ class WorkspaceAppService extends AbstractAppService
         // 处理文件 URL
         $list = [];
         $organizationCode = $userAuthorization->getOrganizationCode();
-
+        $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
             // 创建DTO
@@ -325,6 +325,7 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileExtension = $entity->getFileExtension();
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
+            $dto->topicId = (string) $entity->getTopicId();
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
@@ -338,7 +339,11 @@ class WorkspaceAppService extends AbstractAppService
             } else {
                 $dto->fileUrl = '';
             }
-
+            // 判断filekey是否重复，如果重复，则跳过
+            if (in_array($fileKey, $fileKeys)) {
+                continue;
+            }
+            $fileKeys[] = $fileKey;
             $list[] = $dto->toArray();
         }
 
@@ -685,6 +690,7 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->topicId = (string) $entity->getTopicId();
 
             // Calculate relative file path by removing workDir from fileKey
             $fileKey = $entity->getFileKey();
