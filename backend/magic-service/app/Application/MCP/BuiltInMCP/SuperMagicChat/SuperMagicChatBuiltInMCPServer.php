@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\BuiltInMCP\SuperMagicChat;
 
+use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
+use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\Infrastructure\Core\Collector\BuiltInMCP\Annotation\BuiltInMCPServerDefine;
 use App\Infrastructure\Core\Contract\MCP\BuiltInMCPServerInterface;
 
@@ -16,15 +18,27 @@ class SuperMagicChatBuiltInMCPServer implements BuiltInMCPServerInterface
 {
     private static string $codePrefix = 'super-magic-chat-';
 
+    private static string $serverName = 'SuperMagicChat';
+
     public function __construct()
     {
     }
 
-    public static function createByChatParams(MCPDataIsolation $MCPDataIsolation, array $agentIds = [], array $toolIds = []): string
+    public static function createByChatParams(MCPDataIsolation $MCPDataIsolation, array $agentIds = [], array $toolIds = []): ?MCPServerEntity
     {
+        if (empty($agentIds) && empty($toolIds)) {
+            return null;
+        }
         $mcpServerCode = uniqid(self::$codePrefix);
         SuperMagicChatManager::createByChatParams($MCPDataIsolation, $mcpServerCode, $agentIds, $toolIds);
-        return $mcpServerCode;
+        $MCPServerEntity = new MCPServerEntity();
+        $MCPServerEntity->setBuiltIn(true);
+        $MCPServerEntity->setCode($mcpServerCode);
+        $MCPServerEntity->setEnabled(true);
+        $MCPServerEntity->setType(ServiceType::SSE);
+        $MCPServerEntity->setName(self::$serverName);
+        $MCPServerEntity->setServiceConfig($MCPServerEntity->getType()->createServiceConfig([]));
+        return $MCPServerEntity;
     }
 
     public static function match(string $mcpServerCode): bool
@@ -39,7 +53,7 @@ class SuperMagicChatBuiltInMCPServer implements BuiltInMCPServerInterface
 
     public function getServerName(): string
     {
-        return 'Super Magic Chat';
+        return self::$serverName;
     }
 
     public function getRegisteredTools(string $mcpServerCode): array

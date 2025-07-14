@@ -32,19 +32,13 @@ class AsrTokenApi extends AbstractApi
         $magicId = $userAuthorization->getMagicId();
 
         // 获取请求参数
-        $duration = (int) $request->input('duration', 3600);
+        $refresh = (bool) $request->input('refresh', false);
 
-        // 验证有效期范围
-        if ($duration < 300 || $duration > 86400) {
-            return [
-                'success' => false,
-                'message' => '有效期必须在300秒到86400秒之间',
-                'code' => 'INVALID_DURATION',
-            ];
-        }
+        // 固定duration为7200秒，不接受外部传入
+        $duration = 7200;
 
-        // 获取用户的JWT token（带缓存）
-        $tokenData = $this->stsService->getJwtTokenForUser($magicId, $duration);
+        // 获取用户的JWT token（带缓存和刷新功能）
+        $tokenData = $this->stsService->getJwtTokenForUser($magicId, $duration, $refresh);
 
         return [
             'token' => $tokenData['jwt_token'],

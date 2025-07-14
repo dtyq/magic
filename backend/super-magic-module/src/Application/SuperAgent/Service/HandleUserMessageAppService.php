@@ -25,7 +25,9 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -89,6 +91,15 @@ class HandleUserMessageAppService extends AbstractAppService
                     interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
                 );
             }
+        } catch (SandboxOperationException $e) {
+            $this->logger->error(sprintf('Exception occurred while sending interrupt message, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
+            $this->clientMessageAppService->sendInterruptMessageToClient(
+                topicId: $topicEntity->getId(),
+                taskId: $topicEntity->getCurrentTaskId() ?? '0',
+                chatTopicId: $dto->getChatTopicId(),
+                chatConversationId: $dto->getChatConversationId(),
+                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+            );
         } catch (Throwable $e) {
             $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
         }
@@ -149,13 +160,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // Send error message directly to client
+            $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
             $this->clientMessageAppService->sendReminderMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
                 remind: $e->getMessage(),
-                remindEvent: ''
+                remindEvent: $remindType
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {

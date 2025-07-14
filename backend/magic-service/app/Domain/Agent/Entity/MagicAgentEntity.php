@@ -289,7 +289,7 @@ class MagicAgentEntity extends AbstractEntity
             return;
         }
         $this->botVersionId = (string) $botVersionId;
-        $this->agentVersionId = $botVersionId;
+        $this->agentVersionId = (string) $botVersionId;
     }
 
     public function getRobotName(): string

@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
@@ -413,6 +414,7 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
+            $attachment['topic_id'] = $task->getTopicId();
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
@@ -522,6 +524,17 @@ class HandleAgentMessageAppService extends AbstractAppService
             errMsg: $e->getMessage(),
         );
 
+        $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
+        // Send remind message directly to client
+        $this->clientMessageAppService->sendReminderMessageToClient(
+            topicId: $topicEntity->getId(),
+            taskId: $topicEntity->getCurrentTaskId() ?? '0',
+            chatTopicId: $taskContext->getChatTopicId(),
+            chatConversationId: $taskContext->getChatConversationId(),
+            remind: $e->getMessage(),
+            remindEvent: $remindType
+        );
+
         // Get sandbox status, if sandbox is running, send interrupt command
         try {
             $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
@@ -537,16 +550,6 @@ class HandleAgentMessageAppService extends AbstractAppService
             // ignore
             $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
         }
-
-        // todo
-        // Send interrupt message directly to client
-        $this->clientMessageAppService->sendReminderMessageToClient(
-            topicId: $topicEntity->getId(),
-            taskId: $topicEntity->getCurrentTaskId() ?? '0',
-            chatTopicId: $taskContext->getChatTopicId(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            remind: $e->getMessage()
-        );
     }
 
     /**
