@@ -18,4 +18,9 @@ interface PermissionInterface
      * @return bool 是否超级管理员
      */
     public function isOrganizationAdmin(string $organizationCode, string $mobile): bool;
+
+    /**
+     * 获取用户所拥有的组织管理员代码.
+     */
+    public function getOrganizationAdminList(string $magicId): array;
 }
