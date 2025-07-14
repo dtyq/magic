@@ -33,10 +33,11 @@ use Throwable;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use function Hyperf\Translation\trans;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 
 /**
  * Handle User Message Application Service
@@ -61,7 +62,8 @@ class HandleTaskMessageAppService extends AbstractAppService
         $this->logger = $loggerFactory->get(get_class($this));
     }
 
-    public function handleInternalMessage(DataIsolation $dataIsolation, CreateTaskApiRequestDTO $dto)
+    /*
+    public function handleInternalMessage(DataIsolation $dataIsolation, CreateAgentTaskRequestDTO $dto)
     {
         // Get topic information
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getTopicId());
@@ -94,7 +96,8 @@ class HandleTaskMessageAppService extends AbstractAppService
                 interruptReason: $dto->getPrompt() ?: trans('agent.agent_stopped')
             );
         }
-    }
+    }*/
+
     /*
     * user send message to agent
     */
@@ -537,5 +540,15 @@ class HandleTaskMessageAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
         }
         return $taskEntity;
+    }
+
+    public function executeScriptTask(string $sandboxId, string $taskId,string $scriptName,array $arguments): void
+    {
+        $scriptTaskEntity = new ScriptTaskEntity();
+        $scriptTaskEntity->setSandboxId($sandboxId);
+        $scriptTaskEntity->setTaskId($taskId);
+        $scriptTaskEntity->setScriptName($scriptName);
+        $scriptTaskEntity->setArguments($arguments);
+        $this->taskDomainService->executeScriptTask($scriptTaskEntity);
     }
 }

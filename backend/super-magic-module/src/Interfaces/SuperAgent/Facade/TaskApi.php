@@ -23,6 +23,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Qbhy\HyperfAuth\AuthManager;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
@@ -32,6 +33,7 @@ use App\Domain\Contact\Entity\ValueObject\UserType;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
+use App\Domain\Contact\Entity\MagicUserEntity;
 
 #[ApiResponse('low_code')]
 class TaskApi extends AbstractApi
@@ -40,7 +42,8 @@ class TaskApi extends AbstractApi
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
         protected TopicTaskAppService $topicTaskAppService,
-        protected HandleTaskMessageAppService $taskAppService,
+        protected HandleTaskMessageAppService $handleTaskAppService,
+        protected TaskAppService $taskAppService,
         protected ProjectAppService $projectAppService,
         protected TopicAppService $topicAppService,
         protected UserDomainService $userDomainService,
@@ -167,21 +170,45 @@ class TaskApi extends AbstractApi
         );
     }
 
-    //创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
-    public function agentTask(RequestContext $requestContext, CreateAgentTaskRequestDTO $requestDTO): array
+    public function updateTaskStatus(RequestContext $requestContext): array
     {
-        // 从请求中创建DTO并验证参数
-        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
+        $taskId = $this->request->input('task_id', '');
+        $status = $this->request->input('status', '');
 
-        // 从请求中创建DTO
+
+        // $userEntity = null;
+        // $this->handApiKey($requestContext,$userEntity);
+        // $dataIsolation->setCurrentUserId((string)$userEntity->getUserId());
+        // $dataIsolation->setThirdPartyOrganizationCode($userEntity->getOrganizationCode());
+        // $dataIsolation->setCurrentOrganizationCode($userEntity->getOrganizationCode());
+        // $dataIsolation->setUserType(UserType::Human);
+        $dataIsolation = new DataIsolation();
+         // 设置用户授权信息
+         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
+         $userAuthorization = $requestContext->getUserAuthorization();
+         $dataIsolation->setCurrentUserId((string)$userAuthorization->getMagicId());
+         $dataIsolation->setThirdPartyOrganizationCode($userAuthorization->getOrganizationCode());
+         $dataIsolation->setCurrentOrganizationCode($userAuthorization->getOrganizationCode());
+
+        $this->topicTaskAppService->updateTaskStatus($dataIsolation,$taskId, $status);
+        return [];
+    }
+
+
+    public function handApiKey(RequestContext $requestContext,&$userEntity)
+    {
+          // 从请求中创建DTO
         $apiKey = $this->getApiKey();
         if (empty($apiKey)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'The api key of header is required');
         }
 
+        /**
+         * @var MagicUserEntity
+         */
+        $userEntity = null;
 
-        var_dump($apiKey,"=====apiKey");
-        // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
+        $this->handApiKey($requestContext,$userEntity);
 
         $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey,"");
 
@@ -190,7 +217,21 @@ class TaskApi extends AbstractApi
         var_dump($magicUserAuthorization,"=====magicUserAuthorization");
         $requestContext->setUserAuthorization($magicUserAuthorization);
 
-        $taskEntity = $this->taskAppService->getTask((int)$requestDTO->getTaskId());
+    }
+    //创建一个agent任务，鉴权使用api-key进行鉴权
+    public function agentTask(RequestContext $requestContext, CreateAgentTaskRequestDTO $requestDTO): array
+    {
+        // 从请求中创建DTO并验证参数
+        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
+
+        /**
+         * @var MagicUserEntity
+         */
+        $userEntity = null;
+
+        $this->handApiKey($requestContext,$userEntity);
+
+        $taskEntity = $this->handleTaskAppService->getTask((int)$requestDTO->getTaskId());
 
 
          //判断话题是否存在，不存在则初始化话题
@@ -239,6 +280,62 @@ class TaskApi extends AbstractApi
         }
 
         return [];
+    }
+
+    //创建一个script任务，鉴权使用api-key进行鉴权
+    public function scriptTask(RequestContext $requestContext, CreateAgentTaskRequestDTO $requestDTO): array
+    {
+        // 从请求中创建DTO并验证参数
+        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
+        /**
+         * @var MagicUserEntity
+         */
+        $userEntity = null;
+
+        $this->handApiKey($requestContext,$userEntity);
+
+        $taskEntity = $this->handleTaskAppService->getTask((int)$requestDTO->getTaskId());
+
+        //判断话题是否存在，不存在则初始化话题
+        $topicId = $taskEntity->getTopicId();
+        $topicDTO = $this->topicAppService->getTopic($requestContext, (int)$topicId);
+
+        //检查容器是否正常
+        $result = $this->agentAppService->getSandboxStatus($topicDTO->getSandboxId());
+        if ($result->getStatus() !== SandboxStatus::RUNNING) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_not_running');
+        }
+
+        $sandboxId = $topicDTO->getSandboxId();
+        $taskId = $taskEntity->getId();
+        $scriptName = $this->request->input('script_name', '');
+        $arguments = $this->request->input('arguments', []);
+        try{
+            $this->handleTaskMessageAppService->executeScriptTask($sandboxId,(string)$taskId,$scriptName,$arguments);
+        }catch(\Exception $e){
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'execute_script_task_failed');
+        }
+
+        return [];
+    }
+
+
+    public function getOpenApiTaskAttachments(RequestContext $requestContext): array
+    {
+           // 获取任务文件请求DTO
+        $requestDTO = GetTaskFilesRequestDTO::fromRequest($this->request);
+
+         // 从请求中创建DTO
+         $apiKey = $this->getApiKey();
+         if (empty($apiKey)) {
+             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'The api key of header is required');
+         }
+
+         $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey,"");
+
+         $userAuthorization=MagicUserAuthorization::fromUserEntity($userEntity);
+
+        return $this->workspaceAppService->getTaskAttachments($userAuthorization, $requestDTO->getId(), $requestDTO->getPage(), $requestDTO->getPageSize());
     }
 
 

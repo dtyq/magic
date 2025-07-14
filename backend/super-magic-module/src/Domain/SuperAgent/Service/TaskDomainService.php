@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -28,6 +29,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use RuntimeException;
 
@@ -40,6 +43,7 @@ class TaskDomainService
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected StdoutLoggerInterface $logger,
         protected SandboxService $sandboxService,
+        protected SandboxAgentInterface $sandboxAgent,
     ) {
     }
 
@@ -557,5 +561,12 @@ class TaskDomainService
         }
 
         return false; // It's not a hidden file
+    }
+
+
+    public function executeScriptTask(ScriptTaskEntity $scriptTaskEntity): void
+    {
+        $scriptTaskRequest = ScriptTaskRequest::create($scriptTaskEntity->getTaskId(), $scriptTaskEntity->getArguments(), $scriptTaskEntity->getScriptName());
+        $this->sandboxAgent->executeScriptTask($scriptTaskEntity->getSandboxId(), $scriptTaskRequest);
     }
 }

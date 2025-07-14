@@ -117,6 +117,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
+    // 更新任务状态
+    Router::put('/task/{id}/status', [TaskApi::class, 'updateTaskStatus']);
     // 文件相关
     Router::addGroup('/file', static function () {
         // 刷新 STS Token (提供 super - magic 使用， 通过 metadata 换取目录信息)
@@ -146,4 +148,10 @@ Router::addGroup('/api/v1/open-api/super-maigc', static function () {
     Router::get('/task/{id}', [TaskApi::class, 'getOpenApiTask']);
     // 获取任务列表
     Router::get('/tasks', [TaskApi::class, 'getOpenApiTaskList']);
+
+       // 任务相关
+   Router::addGroup('/task', static function () {
+        // 获取任务下的附件列表
+        Router::get('/{id}/attachments', [TaskApi::class, 'getOpenApiTaskAttachments']);
+    });
 });
