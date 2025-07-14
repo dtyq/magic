@@ -15,7 +15,7 @@ use App\Infrastructure\Core\AbstractEntity;
 class ScriptTaskEntity extends AbstractEntity
 {
     protected string $taskId = '';
-    protected array $arguments = [];
+    protected string $arguments = '';
     protected string $scriptName = '';
 
     protected string $sandboxId = '';
@@ -50,7 +50,7 @@ class ScriptTaskEntity extends AbstractEntity
     {
         return new self([
             'task_id' => $data['task_id'] ?? $data['taskId'] ?? '',
-            'arguments' => $data['arguments'] ?? [],
+            'arguments' => $data['arguments'] ?? '',
             'script_name' => $data['script_name'] ?? $data['scriptName'] ?? '',
         ]);
     }
@@ -66,12 +66,12 @@ class ScriptTaskEntity extends AbstractEntity
         return $this;
     }
 
-    public function getArguments(): array
+    public function getArguments(): string
     {
         return $this->arguments;
     }
 
-    public function setArguments(array $arguments): self
+    public function setArguments(string $arguments): self
     {
         $this->arguments = $arguments;
         return $this;

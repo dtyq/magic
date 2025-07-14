@@ -141,8 +141,11 @@ Router::addGroup('/api/v1/super-agent', static function () {
 Router::addGroup('/api/v1/open-api/super-maigc', static function () {
 
     Router::post('/sandbox/init', [SandboxApi::class, 'initSandbox']);
-    // 创建任务
-    Router::post('/agent/task', [TaskApi::class, 'agentTask']);
+    // 创建agent任务
+    Router::post('/agent-task', [TaskApi::class, 'agentTask']);
+    // 执行脚本任务
+    Router::post('/script-task', [TaskApi::class, 'scriptTask']);
+
 
     // 获取任务
     Router::get('/task/{id}', [TaskApi::class, 'getOpenApiTask']);
