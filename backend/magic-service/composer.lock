@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a843cfdde9fc50a5fdd8555a63781630",
+    "content-hash": "8fa5266d583d255df08cd18c068cf555",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -6390,7 +6390,7 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "dev-master",
+            "version": "v1.1.24",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
@@ -6429,7 +6429,6 @@
                 "hyperf/engine-swow": "Required when using Swow as the event loop (^2.12).",
                 "swow/swow": "Required to create swow components."
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -19518,7 +19517,6 @@
         "dtyq/cloudfile": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
-        "hyperf/odin": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
