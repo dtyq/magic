@@ -548,8 +548,8 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             // 验证文件是否属于当前用户
-            $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
-            if (empty($topicEntity) || $topicEntity->getUserId() !== $userAuthorization->getId()) {
+            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $userAuthorization->getId());
+            if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
                 // 如果这个话题不是本人的，不处理
                 continue;
             }

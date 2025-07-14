@@ -199,7 +199,7 @@ class AgentAppService
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
 
-        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getProjectId());
 
         $attachmentUrls = [];
         if (! empty($mentionsJsonStruct)) {
@@ -461,9 +461,10 @@ class AgentAppService
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
      * @param null|string $mentionsJson mentions 的 JSON 字符串
+     * @param null|int $projectId 项目 ID
      * @return array 处理后的 mentions 数组
      */
-    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson): array
+    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson, ?int $projectId): array
     {
         $mentionsJsonStruct = [];
 
@@ -481,7 +482,7 @@ class AgentAppService
             return $mentionsJsonStruct;
         }
 
-        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
+        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $projectId);
 
         // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
         $fileIdToFileMap = [];
