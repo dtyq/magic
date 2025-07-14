@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessa
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
@@ -267,5 +268,19 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
                 'data' => [],
             ]);
         }
+    }
+
+    public function executeScriptTask(string $sandboxId, ScriptTaskRequest $request): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Agent] Executing script task', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $request->getTaskId(),
+        ]);
+
+        return AgentResponse::fromApiResponse([
+            'code' => 2000,
+            'message' => 'Unexpected error: ',
+            'data' => [],
+        ]);
     }
 }

@@ -38,6 +38,7 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use function Hyperf\Translation\trans;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
 
 /**
  * Handle User Message Application Service
@@ -542,13 +543,13 @@ class HandleTaskMessageAppService extends AbstractAppService
         return $taskEntity;
     }
 
-    public function executeScriptTask(string $sandboxId, string $taskId,string $scriptName,array $arguments): void
+    public function executeScriptTask(CreateScriptTaskRequestDTO $requestDTO): void
     {
         $scriptTaskEntity = new ScriptTaskEntity();
-        $scriptTaskEntity->setSandboxId($sandboxId);
-        $scriptTaskEntity->setTaskId($taskId);
-        $scriptTaskEntity->setScriptName($scriptName);
-        $scriptTaskEntity->setArguments($arguments);
+        $scriptTaskEntity->setSandboxId($requestDTO->getSandboxId());
+        $scriptTaskEntity->setTaskId($requestDTO->getTaskId());
+        $scriptTaskEntity->setScriptName($requestDTO->getScriptName());
+        $scriptTaskEntity->setArguments($requestDTO->getArguments());
         $this->taskDomainService->executeScriptTask($scriptTaskEntity);
     }
 }
