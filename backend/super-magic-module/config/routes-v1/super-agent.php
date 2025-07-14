@@ -133,7 +133,7 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
     // 更新任务状态
-    Router::put('/task/{id}/status', [TaskApi::class, 'updateTaskStatus']);
+    Router::put('/task/status', [TaskApi::class, 'updateTaskStatus']);
     // 文件相关
     Router::addGroup('/file', static function () {
         // 沙盒文件变更通知

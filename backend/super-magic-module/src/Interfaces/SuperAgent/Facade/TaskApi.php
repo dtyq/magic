@@ -35,6 +35,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskStatus;
 
 #[ApiResponse('low_code')]
 class TaskApi extends AbstractApi
@@ -176,22 +177,17 @@ class TaskApi extends AbstractApi
         $taskId = $this->request->input('task_id', '');
         $status = $this->request->input('status', '');
 
+        $taskEntity = $this->taskAppService->getTaskById((int)$taskId);
+        if (empty($taskEntity)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_not_found');
+        }
 
-        // $userEntity = null;
-        // $this->handApiKey($requestContext,$userEntity);
-        // $dataIsolation->setCurrentUserId((string)$userEntity->getUserId());
-        // $dataIsolation->setThirdPartyOrganizationCode($userEntity->getOrganizationCode());
-        // $dataIsolation->setCurrentOrganizationCode($userEntity->getOrganizationCode());
-        // $dataIsolation->setUserType(UserType::Human);
         $dataIsolation = new DataIsolation();
          // 设置用户授权信息
-         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
-         $userAuthorization = $requestContext->getUserAuthorization();
-         $dataIsolation->setCurrentUserId((string)$userAuthorization->getMagicId());
-         $dataIsolation->setThirdPartyOrganizationCode($userAuthorization->getOrganizationCode());
-         $dataIsolation->setCurrentOrganizationCode($userAuthorization->getOrganizationCode());
+        $dataIsolation->setCurrentUserId((string)$taskEntity->getUserId());
+        $status = TaskStatus::from($status);
 
-        $this->topicTaskAppService->updateTaskStatus($dataIsolation,$taskId, $status);
+        $this->topicTaskAppService->updateTaskStatus($dataIsolation,$taskEntity, $status);
         return [];
     }
 

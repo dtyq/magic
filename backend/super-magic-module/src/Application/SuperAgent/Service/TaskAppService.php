@@ -1485,4 +1485,15 @@ class TaskAppService extends AbstractAppService
         // 创建DTO
         return new TopicTaskMessageDTO($metadata, $payload);
     }
+
+    /**
+     * Summary of getTaskById
+     * @param int $taskId
+     * @param \App\Domain\Contact\Entity\ValueObject\DataIsolation $dataIsolation
+     * @return TaskEntity|null
+     */
+    public function getTaskById(int $taskId): TaskEntity
+    {
+        return $this->taskDomainService->getTaskById($taskId);
+    }
 }
