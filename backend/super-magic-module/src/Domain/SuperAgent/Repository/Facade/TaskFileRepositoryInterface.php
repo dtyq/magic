@@ -103,4 +103,6 @@ interface TaskFileRepositoryInterface
     public function findUserFilesByTopicId(string $topicId): array;
 
     public function findUserFilesByProjectId(string $projectId): array;
+
+    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
 }

@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -50,6 +51,7 @@ class ProjectAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
@@ -400,10 +402,18 @@ class ProjectAppService extends AbstractAppService
         // 构建树状结构（登录用户模式特有功能）
         $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
 
+        // 获取文件最线更新的时间
+        $lastUpdatedTime = '';
+        $lastFileEntity = $this->taskFileDomainService->getLatestUpdatedByProjectId((int) $requestDTO->getProjectId());
+        if ($lastFileEntity) {
+            $lastUpdatedTime = $lastFileEntity->getUpdatedAt();
+        }
+
         return [
+            'last_updated_at' => $lastUpdatedTime,
+            'total' => $result['total'],
             'list' => $list,
             'tree' => $tree,
-            'total' => $result['total'],
         ];
     }
 }

@@ -11,7 +11,6 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
-use Exception;
 
 class TaskFileRepository implements TaskFileRepositoryInterface
 {
@@ -210,7 +209,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     {
         $date = date('Y-m-d H:i:s');
         $entity->setCreatedAt($date);
-        $entity->setUpdatedAt($date);
 
         $entityArray = $entity->toArray();
         $model = $this->model::query()->create($entityArray);
@@ -250,27 +248,12 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         $entityArray = $entity->toArray();
 
-        try {
-            $this->model::query()->create($entityArray);
-            return $entity;
-        } catch (Exception $e) {
-            // 如果在尝试创建时出现异常（如唯一键冲突），再次查询尝试获取
-            $existingEntity = $this->model::query()
-                ->where('file_key', $entity->getFileKey())
-                ->where('topic_id', $entity->getTopicId())
-                ->first();
-
-            if ($existingEntity) {
-                return new TaskFileEntity($existingEntity->toArray());
-            }
-
-            return null;
-        }
+        $this->model::query()->create($entityArray);
+        return $entity;
     }
 
     public function updateById(TaskFileEntity $entity): TaskFileEntity
     {
-        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $entity->toArray();
 
         $this->model::query()
@@ -360,5 +343,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $entities;
+    }
+
+    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->withTrashed()
+            ->where('project_id', $projectId)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
     }
 }
