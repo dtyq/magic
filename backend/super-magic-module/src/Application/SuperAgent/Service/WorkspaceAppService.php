@@ -20,6 +20,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
@@ -791,7 +792,7 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         // 生成任务键
-        $taskKey = FileConvertConstant::generateTaskKey($userId, $fileIds, $convertType, $options);
+        $taskKey = IdGenerator::getUniqueId32();
 
         $this->logger->info('[File Converter] Received request to convert files', [
             'user_id' => $userId,
@@ -799,23 +800,6 @@ class WorkspaceAppService extends AbstractAppService
             'convert_type' => $convertType,
             'task_key' => $taskKey,
         ]);
-
-        // 检查任务是否已存在且已完成
-        $existingTask = $this->fileConvertStatusManager->getTaskStatus($taskKey);
-        if ($existingTask && $existingTask['status'] === FileConvertConstant::STATUS_READY) {
-            $this->logger->info('[File Converter] Task already completed, returning existing result', [
-                'task_key' => $taskKey,
-                'user_id' => $userId,
-            ]);
-
-            return [
-                'status' => 'ready',
-                'task_key' => $taskKey,
-                'download_url' => $existingTask['result']['download_url'] ?? '',
-                'file_count' => $existingTask['result']['file_count'] ?? count($validFiles),
-                'message' => 'Files are ready for download',
-            ];
-        }
 
         // 初始化任务状态
         $this->fileConvertStatusManager->initializeTask($taskKey, $userId, count($validFiles), $convertType);

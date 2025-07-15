@@ -150,29 +150,4 @@ class FileConvertConstant
             'lock' => self::getLockKey($taskKey),
         ];
     }
-
-    /**
-     * Generate unique task key based on request parameters.
-     *
-     * @param string $userId User ID
-     * @param array $fileIds File IDs
-     * @param string $convertType Convert type
-     * @param array $options Additional options
-     * @return string Unique task key
-     */
-    public static function generateTaskKey(string $userId, array $fileIds, string $convertType, array $options = []): string
-    {
-        // Sort file IDs to ensure consistent key generation
-        sort($fileIds);
-
-        // Create hash based on parameters
-        $data = [
-            'user_id' => $userId,
-            'file_ids' => $fileIds,
-            'convert_type' => $convertType,
-            'options' => $options,
-        ];
-
-        return md5(json_encode($data));
-    }
 }
