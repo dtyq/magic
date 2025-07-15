@@ -67,4 +67,49 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
             ]);
         }
     }
+
+    public function queryConvertResult(string $sandboxId, string $taskKey): FileConverterResponse
+    {
+        try {
+            // 使用网关的 ensureSandboxAndProxy 方法查询转换结果
+            $result = $this->gateway->ensureSandboxAndProxy(
+                $sandboxId,
+                'GET',
+                "api/file/converts/{$taskKey}",
+            );
+
+            $response = FileConverterResponse::fromGatewayResult($result);
+
+            if ($response->isSuccess()) {
+                $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
+                $this->logger->info('[File Converter] Query conversion result successful', [
+                    'original_sandbox_id' => $sandboxId,
+                    'actual_sandbox_id' => $actualSandboxId,
+                    'task_key' => $taskKey,
+                    'batch_id' => $response->getBatchId(),
+                ]);
+            } else {
+                $this->logger->error('[File Converter] Query conversion result failed', [
+                    'sandbox_id' => $sandboxId,
+                    'task_key' => $taskKey,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            $this->logger->error('[File Converter] Unexpected error during query conversion result', [
+                'sandbox_id' => $sandboxId,
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+
+            return FileConverterResponse::fromApiResponse([
+                'code' => -1,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+    }
 }

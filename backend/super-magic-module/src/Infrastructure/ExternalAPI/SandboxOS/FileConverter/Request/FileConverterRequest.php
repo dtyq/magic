@@ -25,10 +25,13 @@ class FileConverterRequest implements RequestInterface
 
     private string $convertType;
 
-    public function __construct(string $convertType, array $fileKeys, array $options = [])
+    private string $taskKey = '';
+
+    public function __construct(string $convertType, array $fileKeys, array $options = [], string $taskKey = '')
     {
         $this->convertType = $convertType;
         $this->fileKeys = $fileKeys;
+        $this->taskKey = $taskKey;
 
         if (isset($options['is_debug'])) {
             $this->isDebug = (bool) $options['is_debug'];
@@ -67,6 +70,7 @@ class FileConverterRequest implements RequestInterface
             'output_format' => $this->outputFormat,
             'is_debug' => $this->isDebug,
             'convert_type' => $this->convertType,
+            'task_key' => $this->taskKey,
         ];
 
         // 只有当 options 不为空时才包含该字段

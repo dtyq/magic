@@ -25,7 +25,8 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\FileConvertConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -51,11 +52,14 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
+use Exception;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
+use function Hyperf\Coroutine\go;
 
 class WorkspaceAppService extends AbstractAppService
 {
@@ -557,8 +561,8 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             // 验证文件是否属于当前用户
-            $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
-            if (empty($topicEntity) || $topicEntity->getUserId() !== $userAuthorization->getId()) {
+            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $userAuthorization->getId());
+            if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
                 // 如果这个话题不是本人的，不处理
                 continue;
             }
@@ -791,6 +795,39 @@ class WorkspaceAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_ACCESS_DENIED);
         }
 
+        // 对 file_ids 排序后生成唯一键，防止重复提交
+        $sortedFileIds = $fileIds;
+        sort($sortedFileIds);
+        $requestKey = md5($userId . ':' . $convertType . ':' . implode(',', $sortedFileIds));
+
+        // 检查是否在1分钟内有相同的请求
+        $existingTaskKey = $this->fileConvertStatusManager->getDuplicateTaskKey($requestKey);
+        if ($existingTaskKey) {
+            $this->logger->info('[File Converter] Duplicate request detected, checking existing task status', [
+                'user_id' => $userId,
+                'file_ids_count' => count($fileIds),
+                'convert_type' => $convertType,
+                'existing_task_key' => $existingTaskKey,
+            ]);
+
+            // 获取现有任务的状态
+            $taskStatus = $this->checkFileConvertStatus($userAuthorization, $existingTaskKey);
+
+            // 如果任务失败，清除缓存的重复请求键，允许重新提交
+            if (isset($taskStatus['status']) && $taskStatus['status'] === ConvertStatusEnum::FAILED->value) {
+                $this->fileConvertStatusManager->clearDuplicateTaskKey($requestKey);
+                $this->logger->info('[File Converter] Failed task detected, clearing duplicate cache to allow retry', [
+                    'user_id' => $userId,
+                    'task_key' => $existingTaskKey,
+                ]);
+            // 不返回失败状态，继续执行创建新任务的逻辑
+            } else {
+                // 任务正在进行中或成功，返回现有任务状态
+                $taskStatus['task_key'] = $existingTaskKey;
+                return $taskStatus;
+            }
+        }
+
         // 生成任务键
         $taskKey = IdGenerator::getUniqueId32();
 
@@ -801,6 +838,9 @@ class WorkspaceAppService extends AbstractAppService
             'task_key' => $taskKey,
         ]);
 
+        // 缓存请求键以防重复提交
+        $this->fileConvertStatusManager->setDuplicateTaskKey($requestKey, $taskKey);
+
         // 初始化任务状态
         $this->fileConvertStatusManager->initializeTask($taskKey, $userId, count($validFiles), $convertType);
 
@@ -808,7 +848,7 @@ class WorkspaceAppService extends AbstractAppService
         $this->processFileConversionSync($taskKey, $userAuthorization, $requestDTO, $validFiles, $projectEntity);
 
         return [
-            'status' => 'processing',
+            'status' => ConvertStatusEnum::PROCESSING->value,
             'task_key' => $taskKey,
             'download_url' => null,
             'file_count' => count($validFiles),
@@ -837,50 +877,215 @@ class WorkspaceAppService extends AbstractAppService
         $taskStatus = $this->fileConvertStatusManager->getTaskStatus($taskKey);
         if (! $taskStatus) {
             return [
-                'status' => 'processing',
+                'status' => ConvertStatusEnum::PROCESSING->value,
                 'download_url' => null,
                 'progress' => 0,
                 'message' => 'Task not found or expired',
             ];
         }
 
-        $status = $taskStatus['status'];
-        $progress = $taskStatus['progress'] ?? [];
-        $result = $taskStatus['result'] ?? [];
-        $error = $taskStatus['error'] ?? '';
-
-        switch ($status) {
-            case FileConvertConstant::STATUS_READY:
-                $downloadUrl = $result['download_url'] ?? '';
-                return [
-                    'status' => 'ready',
-                    'download_url' => $downloadUrl,
-                    'progress' => 100,
-                    'message' => 'Files are ready for download',
-                    'file_count' => $result['file_count'] ?? 0,
-                    'convert_type' => $taskStatus['convert_type'] ?? 'unknown',
-                ];
-
-            case FileConvertConstant::STATUS_FAILED:
-                return [
-                    'status' => 'failed',
-                    'download_url' => null,
-                    'progress' => null,
-                    'message' => $error ?: 'Task failed',
-                ];
-
-            case FileConvertConstant::STATUS_PROCESSING:
-            default:
-                $progressValue = $progress['percentage'] ?? 0;
-                $progressMessage = $progress['message'] ?? 'Processing...';
-
-                return [
-                    'status' => 'processing',
-                    'download_url' => null,
-                    'progress' => (int) $progressValue,
-                    'message' => $progressMessage,
-                ];
+        $sandboxId = $taskStatus['sandbox_id'] ?? '';
+        if (empty($sandboxId)) {
+            return [
+                'status' => ConvertStatusEnum::PROCESSING->value,
+                'download_url' => null,
+                'progress' => 0,
+                'message' => 'Sandbox ID not found',
+            ];
         }
+
+        try {
+            // 调用沙箱网关查询转换结果
+            $response = $this->fileConverterService->queryConvertResult($sandboxId, $taskKey);
+
+            if ($response->isSuccess()) {
+                $data = $response->getData();
+                $status = $data['status'] ?? 'processing';
+
+                switch ($status) {
+                    case ConvertStatusEnum::COMPLETED->value:
+                        $downloadUrl = $response->getZipDownloadUrl();
+                        $totalFiles = $response->getTotalFiles();
+                        $successCount = $response->getSuccessCount();
+
+                        return [
+                            'status' => 'ready',
+                            'download_url' => $downloadUrl,
+                            'progress' => 100,
+                            'message' => $downloadUrl ? 'Files are ready for download' : 'Conversion completed but no download file available',
+                            'file_count' => $totalFiles,
+                            'success_count' => $successCount,
+                            'convert_type' => $data['convert_type'] ?? 'unknown',
+                            'batch_id' => $response->getBatchId(),
+                        ];
+
+                    case ConvertStatusEnum::FAILED->value:
+                        return [
+                            'status' => ConvertStatusEnum::FAILED->value,
+                            'download_url' => null,
+                            'progress' => null,
+                            'message' => $response->getMessage() ?: 'Task failed',
+                            'batch_id' => $response->getBatchId(),
+                        ];
+
+                    case ConvertStatusEnum::PROCESSING->value:
+                    default:
+                        // 处理进度信息，可能是百分比数字
+                        $progressValue = 0;
+                        if (isset($data['progress'])) {
+                            $progressValue = is_numeric($data['progress']) ? (int) $data['progress'] : 0;
+                        }
+
+                        return [
+                            'status' => ConvertStatusEnum::PROCESSING->value,
+                            'download_url' => null,
+                            'progress' => $progressValue,
+                            'message' => $response->getMessage() ?: 'Processing...',
+                            'batch_id' => $response->getBatchId(),
+                            'total_files' => $response->getTotalFiles(),
+                            'success_count' => $response->getSuccessCount(),
+                        ];
+                }
+            } else {
+                // 如果查询失败，返回本地状态作为备用
+                $status = $taskStatus['status'];
+                $progress = $taskStatus['progress'] ?? [];
+                $result = $taskStatus['result'] ?? [];
+                $error = $taskStatus['error'] ?? '';
+
+                switch ($status) {
+                    case ConvertStatusEnum::COMPLETED->value:
+                        $downloadUrl = $result['download_url'] ?? '';
+                        return [
+                            'status' => 'ready',
+                            'download_url' => $downloadUrl,
+                            'progress' => 100,
+                            'message' => 'Files are ready for download',
+                            'file_count' => $result['file_count'] ?? 0,
+                            'convert_type' => $taskStatus['convert_type'] ?? 'unknown',
+                        ];
+
+                    case ConvertStatusEnum::FAILED->value:
+                        return [
+                            'status' => ConvertStatusEnum::FAILED->value,
+                            'download_url' => null,
+                            'progress' => null,
+                            'message' => $error ?: 'Task failed',
+                        ];
+
+                    case ConvertStatusEnum::PROCESSING->value:
+                    default:
+                        $progressValue = $progress['percentage'] ?? 0;
+                        $progressMessage = $progress['message'] ?? 'Processing...';
+
+                        return [
+                            'status' => ConvertStatusEnum::PROCESSING->value,
+                            'download_url' => null,
+                            'progress' => (int) $progressValue,
+                            'message' => $progressMessage,
+                        ];
+                }
+            }
+        } catch (Exception $e) {
+            // 查询异常时返回本地状态
+            $this->logger->error('Query convert result failed', [
+                'task_key' => $taskKey,
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+
+            $status = $taskStatus['status'];
+            $progress = $taskStatus['progress'] ?? [];
+            $result = $taskStatus['result'] ?? [];
+            $error = $taskStatus['error'] ?? '';
+
+            switch ($status) {
+                case ConvertStatusEnum::COMPLETED->value:
+                    $downloadUrl = $result['download_url'] ?? '';
+                    return [
+                        'status' => 'ready',
+                        'download_url' => $downloadUrl,
+                        'progress' => 100,
+                        'message' => 'Files are ready for download',
+                        'file_count' => $result['file_count'] ?? 0,
+                        'convert_type' => $taskStatus['convert_type'] ?? 'unknown',
+                    ];
+
+                case ConvertStatusEnum::FAILED->value:
+                    return [
+                        'status' => ConvertStatusEnum::FAILED->value,
+                        'download_url' => null,
+                        'progress' => null,
+                        'message' => $error ?: 'Task failed',
+                    ];
+
+                case ConvertStatusEnum::PROCESSING->value:
+                default:
+                    $progressValue = $progress['percentage'] ?? 0;
+                    $progressMessage = $progress['message'] ?? 'Processing...';
+
+                    return [
+                        'status' => ConvertStatusEnum::PROCESSING->value,
+                        'download_url' => null,
+                        'progress' => (int) $progressValue,
+                        'message' => $progressMessage,
+                    ];
+            }
+        }
+    }
+
+    /**
+     * 异步处理文件转换.
+     *
+     * @param string $taskKey 任务键
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param ProjectEntity $projectEntity 项目实体
+     * @param string $sandboxId 沙箱ID
+     * @param FileConverterRequest $fileRequest 文件转换请求
+     * @param array $fileKeys 文件键列表
+     * @param string $convertType 转换类型
+     */
+    private function processFileConversionAsync(
+        string $taskKey,
+        MagicUserAuthorization $userAuthorization,
+        ProjectEntity $projectEntity,
+        string $sandboxId,
+        FileConverterRequest $fileRequest,
+        array $fileKeys,
+        string $convertType
+    ): void {
+        go(function () use ($taskKey, $userAuthorization, $sandboxId, $fileRequest, $fileKeys, $convertType) {
+            try {
+                // 调用文件转换服务，提交转换任务
+                $response = $this->fileConverterService->convert($sandboxId, $fileRequest);
+
+                if (! $response->isSuccess()) {
+                    $this->fileConvertStatusManager->setTaskFailed($taskKey, 'File conversion failed: ' . $response->getMessage());
+                    return;
+                }
+
+                $this->logger->info('[File Converter] File conversion task submitted successfully', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userAuthorization->getId(),
+                    'file_count' => count($fileKeys),
+                    'convert_type' => $convertType,
+                    'response_code' => $response->getCode(),
+                    'response_message' => $response->getMessage(),
+                ]);
+
+                // 转换任务已提交，状态检查将通过 checkFileConvertStatus 方法调用远程接口获取
+                // 不在这里立即检查结果，因为转换是异步的
+            } catch (Throwable $e) {
+                $this->fileConvertStatusManager->setTaskFailed($taskKey, 'Async conversion failed: ' . $e->getMessage());
+                $this->logger->error('[File Converter] Async conversion failed', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userAuthorization->getId(),
+                    'error' => $e->getMessage(),
+                    'file_count' => count($fileKeys),
+                    'convert_type' => $convertType,
+                ]);
+            }
+        });
     }
 
     /**
@@ -905,21 +1110,21 @@ class WorkspaceAppService extends AbstractAppService
             $fileKeys = [];
             $sandboxId = null;
 
-            $processedCount = 0;
-            foreach ($validFiles as $fileEntity) {
-                ++$processedCount;
-                $this->fileConvertStatusManager->setTaskProgress($taskKey, $processedCount, $totalFiles, "Processing file {$processedCount}/{$totalFiles}");
+            // 获取所有文件的topic_id并去重
+            $topicIds = array_unique(array_map(fn ($file) => $file->getTopicId(), $validFiles));
 
-                // 获取沙箱ID
-                $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
-                if (! $topicEntity) {
-                    continue;
-                }
+            // 批量获取话题信息，避免N+1查询
+            $topics = $this->workspaceDomainService->getTopicsByIds($topicIds);
+            $topicsById = [];
+            foreach ($topics as $topic) {
+                $topicsById[$topic->getId()] = $topic;
+            }
 
+            // 验证所有文件都属于同一个沙箱
+            foreach ($topics as $topicEntity) {
                 $currentSandboxId = $topicEntity->getSandboxId();
                 if (empty($currentSandboxId)) {
                     $this->logger->error('File topic has no sandbox_id', [
-                        'file_id' => $fileEntity->getFileId(),
                         'topic_id' => $topicEntity->getId(),
                     ]);
                     continue;
@@ -929,6 +1134,26 @@ class WorkspaceAppService extends AbstractAppService
                     $sandboxId = $currentSandboxId;
                 } elseif ($sandboxId !== $currentSandboxId) {
                     ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED);
+                }
+            }
+
+            if (empty($sandboxId)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
+            }
+
+            // 存储sandbox_id到任务状态中
+            $this->fileConvertStatusManager->setSandboxId($taskKey, $sandboxId);
+
+            // 收集所有文件的 file_key
+            $processedCount = 0;
+            foreach ($validFiles as $fileEntity) {
+                ++$processedCount;
+                $this->fileConvertStatusManager->setTaskProgress($taskKey, $processedCount, $totalFiles, "Processing file {$processedCount}/{$totalFiles}");
+
+                // 验证文件所属话题存在
+                $topicEntity = $topicsById[$fileEntity->getTopicId()] ?? null;
+                if (! $topicEntity) {
+                    continue;
                 }
 
                 $fileKeys[] = $fileEntity->getFileKey();
@@ -940,46 +1165,16 @@ class WorkspaceAppService extends AbstractAppService
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
 
-            // 创建文件转换请求
-            $fileRequest = new FileConverterRequest($convertType, $fileKeys, $options);
-            // 调用文件转换服务
-            $response = $this->fileConverterService->convert($sandboxId, $fileRequest);
-            if (! $response->isSuccess()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED);
-            }
+            // 创建文件转换请求，传入 taskKey
+            $fileRequest = new FileConverterRequest($convertType, $fileKeys, $options, $taskKey);
 
-            // 获取沙箱返回的ZIP下载地址
-            $zipDownloadUrl = $response->getZipDownloadUrl();
-            if (empty($zipDownloadUrl)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED);
-            }
+            // 使用协程异步处理文件转换
+            $this->processFileConversionAsync($taskKey, $userAuthorization, $projectEntity, $sandboxId, $fileRequest, $fileKeys, $convertType);
 
-            // 生成ZIP文件名
-            $zipFileName = sprintf(
-                '%s_%s_%s.zip',
-                $projectEntity->getProjectName() ?: 'converted_files',
-                $convertType,
-                date('YmdHi')
-            );
-
-            // 标记任务完成
-            $result = [
-                'success' => true,
-                'download_url' => $zipDownloadUrl,
-                'zip_file_name' => $zipFileName,
-                'file_count' => count($fileKeys),
-                'batch_id' => $response->getBatchId(),
-            ];
-
-            $this->fileConvertStatusManager->setTaskCompleted($taskKey, $result);
-
-            $this->logger->info('[File Converter] Successfully converted files and got ZIP download URL', [
+            $this->logger->info('[File Converter] File conversion request submitted asynchronously', [
                 'task_key' => $taskKey,
                 'user_id' => $userAuthorization->getId(),
-                'zip_download_url' => $zipDownloadUrl,
-                'zip_file_name' => $zipFileName,
                 'file_count' => count($fileKeys),
-                'batch_id' => $response->getBatchId(),
                 'convert_type' => $convertType,
             ]);
         } catch (Throwable $e) {
@@ -1074,6 +1269,43 @@ class WorkspaceAppService extends AbstractAppService
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * 注册转换后的PDF文件以供定时清理.
+     */
+    /* @phpstan-ignore-next-line */
+    private function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
+    {
+        if (empty($convertedFiles)) {
+            return;
+        }
+
+        $filesForCleanup = [];
+        foreach ($convertedFiles as $file) {
+            if (empty($file['oss_key']) || empty($file['filename'])) {
+                continue;
+            }
+
+            $filesForCleanup[] = [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'file_key' => $file['oss_key'],
+                'file_name' => $file['filename'],
+                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
+                'source_type' => 'pdf_conversion',
+                'source_id' => $file['batch_id'] ?? null,
+                'expire_after_seconds' => 7200, // 2 小时后过期
+                'bucket_type' => 'private',
+            ];
+        }
+
+        if (! empty($filesForCleanup)) {
+            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
+            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
+                'user_id' => $userAuthorization->getId(),
+                'files_count' => count($filesForCleanup),
+            ]);
         }
     }
 }

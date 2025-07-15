@@ -179,7 +179,7 @@ class TaskApi extends AbstractApi
      */
     public function checkFileConvertStatus(RequestContext $requestContext): array
     {
-        $taskKey = $this->request->input('batch_id');
+        $taskKey = $this->request->input('task_key');
 
         if (empty($taskKey)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED, 'validation.required');
