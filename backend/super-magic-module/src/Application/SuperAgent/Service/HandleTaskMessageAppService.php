@@ -512,7 +512,13 @@ class HandleTaskMessageAppService extends AbstractAppService
         $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
     }
 
-    public function getUserAuthorization(string $apiKey,string $uid=""):MagicUserEntity
+    /**
+     * Summary of getUserAuthorization
+     * @param string $apiKey
+     * @param string $uid
+     * @return MagicUserEntity|null
+     */
+    public function getUserAuthorization(string $apiKey,string $uid=""): ?MagicUserEntity
     {
         $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
         if (empty($accessToken)) {

@@ -60,16 +60,12 @@ class SandboxApi extends AbstractApi
         if (empty($apiKey)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'The api key of header is required');
         }
-
-
-        var_dump($apiKey,"=====apiKey");
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
         $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey,"");
 
         $magicUserAuthorization=MagicUserAuthorization::fromUserEntity($userEntity);
 
-        var_dump($magicUserAuthorization,"=====magicUserAuthorization");
         $requestContext->setUserAuthorization($magicUserAuthorization);
 
         //判断工作区是否存在，不存在则初始化工作区
