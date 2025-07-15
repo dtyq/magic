@@ -30,7 +30,7 @@ class AgentRepository extends AbstractRepository implements AgentRepositoryInter
         $builder = $this->createBuilder($agentDataIsolation, MagicAgentModel::query());
 
         // 设置查询条件
-        if ($agentQuery->getIds()) {
+        if (! is_null($agentQuery->getIds())) {
             if (empty($agentQuery->getIds())) {
                 return ['total' => 0, 'list' => []];
             }
