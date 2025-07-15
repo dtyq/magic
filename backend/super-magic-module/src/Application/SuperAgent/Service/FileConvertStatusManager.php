@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\FileConvertConstant;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
@@ -47,7 +48,7 @@ class FileConvertStatusManager
             $cacheKey = FileConvertConstant::getTaskKey($taskKey);
 
             $taskData = [
-                'status' => FileConvertConstant::STATUS_PROCESSING,
+                'status' => ConvertStatusEnum::PROCESSING->value,
                 'message' => FileConvertConstant::MSG_TASK_INITIALIZING,
                 'convert_type' => $convertType,
                 'progress' => [
@@ -174,7 +175,7 @@ class FileConvertStatusManager
             }
 
             // Update to completed status
-            $taskData['status'] = FileConvertConstant::STATUS_READY;
+            $taskData['status'] = ConvertStatusEnum::COMPLETED->value;
             $taskData['message'] = FileConvertConstant::MSG_TASK_COMPLETED;
             $taskData['result'] = $result;
             $taskData['error'] = null;
@@ -230,7 +231,7 @@ class FileConvertStatusManager
             if (! $taskData) {
                 // Create minimal task data if not exists
                 $taskData = [
-                    'status' => FileConvertConstant::STATUS_FAILED,
+                    'status' => ConvertStatusEnum::FAILED->value,
                     'message' => FileConvertConstant::MSG_TASK_FAILED,
                     'convert_type' => 'unknown',
                     'progress' => null,
@@ -241,7 +242,7 @@ class FileConvertStatusManager
                 ];
             } else {
                 // Update existing task data
-                $taskData['status'] = FileConvertConstant::STATUS_FAILED;
+                $taskData['status'] = ConvertStatusEnum::FAILED->value;
                 $taskData['message'] = FileConvertConstant::MSG_TASK_FAILED;
                 $taskData['result'] = null;
                 $taskData['error'] = $error;
@@ -306,7 +307,7 @@ class FileConvertStatusManager
     public function isTaskCompleted(string $taskKey): bool
     {
         $taskData = $this->getTaskData($taskKey);
-        return $taskData && $taskData['status'] === FileConvertConstant::STATUS_READY;
+        return $taskData && $taskData['status'] === ConvertStatusEnum::COMPLETED->value;
     }
 
     /**
@@ -318,7 +319,7 @@ class FileConvertStatusManager
     public function isTaskFailed(string $taskKey): bool
     {
         $taskData = $this->getTaskData($taskKey);
-        return $taskData && $taskData['status'] === FileConvertConstant::STATUS_FAILED;
+        return $taskData && $taskData['status'] === ConvertStatusEnum::FAILED->value;
     }
 
     /**
@@ -330,7 +331,146 @@ class FileConvertStatusManager
     public function isTaskProcessing(string $taskKey): bool
     {
         $taskData = $this->getTaskData($taskKey);
-        return $taskData && $taskData['status'] === FileConvertConstant::STATUS_PROCESSING;
+        return $taskData && $taskData['status'] === ConvertStatusEnum::PROCESSING->value;
+    }
+
+    /**
+     * Set sandbox ID for task.
+     *
+     * @param string $taskKey Task key
+     * @param string $sandboxId Sandbox ID
+     * @return bool True if successful, false otherwise
+     */
+    public function setSandboxId(string $taskKey, string $sandboxId): bool
+    {
+        try {
+            $cacheKey = FileConvertConstant::getTaskKey($taskKey);
+            $taskData = $this->getTaskData($taskKey);
+
+            if (! $taskData) {
+                $this->logger->warning('Task not found when setting sandbox ID', [
+                    'task_key' => $taskKey,
+                    'sandbox_id' => $sandboxId,
+                ]);
+                return false;
+            }
+
+            // Update sandbox ID
+            $taskData['sandbox_id'] = $sandboxId;
+            $taskData['updated_at'] = time();
+
+            $success = $this->redis->setex(
+                $cacheKey,
+                FileConvertConstant::TTL_TASK_STATUS,
+                json_encode($taskData, JSON_UNESCAPED_UNICODE)
+            );
+
+            if ($success) {
+                $this->logger->debug('Task sandbox ID updated', [
+                    'task_key' => $taskKey,
+                    'sandbox_id' => $sandboxId,
+                ]);
+            }
+
+            return $success;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to set sandbox ID', [
+                'task_key' => $taskKey,
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    // ====== Duplicate Request Management ======
+
+    /**
+     * Get duplicate task key for request.
+     *
+     * @param string $requestKey Request key
+     * @return null|string Task key if exists, null otherwise
+     */
+    public function getDuplicateTaskKey(string $requestKey): ?string
+    {
+        try {
+            $cacheKey = FileConvertConstant::CACHE_PREFIX . 'duplicate:' . $requestKey;
+            $taskKey = $this->redis->get($cacheKey);
+
+            if ($taskKey === false) {
+                return null;
+            }
+
+            return $taskKey;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to get duplicate task key', [
+                'request_key' => $requestKey,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Set duplicate task key for request.
+     *
+     * @param string $requestKey Request key
+     * @param string $taskKey Task key
+     * @param int $ttl TTL in seconds (default 1 minute)
+     * @return bool True if successful, false otherwise
+     */
+    public function setDuplicateTaskKey(string $requestKey, string $taskKey, int $ttl = 60): bool
+    {
+        try {
+            $cacheKey = FileConvertConstant::CACHE_PREFIX . 'duplicate:' . $requestKey;
+            $success = $this->redis->setex($cacheKey, $ttl, $taskKey);
+
+            if ($success) {
+                $this->logger->debug('Duplicate task key set', [
+                    'request_key' => $requestKey,
+                    'task_key' => $taskKey,
+                    'ttl' => $ttl,
+                ]);
+            }
+
+            return $success;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to set duplicate task key', [
+                'request_key' => $requestKey,
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Clear duplicate task key for request.
+     *
+     * @param string $requestKey Request key
+     * @return bool True if successful, false otherwise
+     */
+    public function clearDuplicateTaskKey(string $requestKey): bool
+    {
+        try {
+            $cacheKey = FileConvertConstant::CACHE_PREFIX . 'duplicate:' . $requestKey;
+            /* @phpstan-ignore-next-line */
+            $success = $this->redis->del($cacheKey) > 0;
+
+            if ($success) {
+                $this->logger->debug('Duplicate task key cleared', [
+                    'request_key' => $requestKey,
+                ]);
+            }
+
+            return $success;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to clear duplicate task key', [
+                'request_key' => $requestKey,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     // ====== User Permission Management ======
