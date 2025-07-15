@@ -424,7 +424,7 @@ class AgentDomainService
         ];
     }
 
-       /**
+    /**
      * 构建 mentions 的 JSON 结构数组，只包含 type, file_path, file_url 三个字段.
      *
      * @param DataIsolation $dataIsolation 数据隔离对象

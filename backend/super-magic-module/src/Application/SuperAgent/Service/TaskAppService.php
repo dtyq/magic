@@ -580,7 +580,6 @@ class TaskAppService extends AbstractAppService
 
     /**
      * Summary of getTaskById.
-     * @return null|TaskEntity
      */
     public function getTaskById(int $taskId): ?TaskEntity
     {

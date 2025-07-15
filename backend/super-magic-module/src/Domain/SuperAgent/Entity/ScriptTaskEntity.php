@@ -41,7 +41,7 @@ class ScriptTaskEntity extends AbstractEntity
 
         // 移除空值
         return array_filter($result, function ($value) {
-            return !empty($value);
+            return ! empty($value);
         });
     }
 
