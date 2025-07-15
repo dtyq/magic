@@ -316,7 +316,7 @@ class TaskMessageEntity extends AbstractEntity
         });
     }
 
-    public  static function taskMessageDTOToTaskMessageEntity(TaskMessageDTO $taskMessageDTO): TaskMessageEntity
+    public static function taskMessageDTOToTaskMessageEntity(TaskMessageDTO $taskMessageDTO): TaskMessageEntity
     {
         $messageData = [
             'task_id' => $taskMessageDTO->getTaskId(),
@@ -335,8 +335,8 @@ class TaskMessageEntity extends AbstractEntity
             'show_in_ui' => $taskMessageDTO->isShowInUi(),
         ];
 
-         // Add message_id if provided
-         if ($taskMessageDTO->getMessageId() !== null) {
+        // Add message_id if provided
+        if ($taskMessageDTO->getMessageId() !== null) {
             $messageData['message_id'] = $taskMessageDTO->getMessageId();
         }
 

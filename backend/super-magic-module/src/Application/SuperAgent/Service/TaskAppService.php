@@ -18,6 +18,8 @@ use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Domain\ModelGateway\Service\ApplicationDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -31,8 +33,8 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
@@ -40,8 +42,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
-use App\Domain\Contact\Entity\MagicUserEntity;
-use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
@@ -50,8 +50,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
-use App\Domain\ModelGateway\Service\AccessTokenDomainService;
-use App\Domain\ModelGateway\Service\ApplicationDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
@@ -142,7 +140,7 @@ class TaskAppService extends AbstractAppService
             if ($taskMode === '') {
                 $taskMode = $topicEntity->getTaskMode();
             }
-            $data=[
+            $data = [
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -161,12 +159,12 @@ class TaskAppService extends AbstractAppService
 
             $taskEntity = TaskEntity::fromArray($data);
 
-              // Initialize task
-              $taskEntity = $this->taskDomainService->initTopicTask(
-                  dataIsolation: $dataIsolation,
-                  topicEntity: $topicEntity,
-                  taskEntity: $taskEntity
-              );
+            // Initialize task
+            $taskEntity = $this->taskDomainService->initTopicTask(
+                dataIsolation: $dataIsolation,
+                topicEntity: $topicEntity,
+                taskEntity: $taskEntity
+            );
 
             $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $taskEntity);
             $taskId = (string) $taskEntity->getId();
@@ -213,9 +211,7 @@ class TaskAppService extends AbstractAppService
                 messageId: null
             );
 
-
             $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
-
 
             $this->taskDomainService->recordTaskMessage($taskMessageEntity);
             // 处理用户上传的附件
@@ -580,6 +576,15 @@ class TaskAppService extends AbstractAppService
         $this->sendMessageToSandbox($session, $taskEntity->getId(), $chatMessage);
 
         return true;
+    }
+
+    /**
+     * Summary of getTaskById.
+     * @return null|TaskEntity
+     */
+    public function getTaskById(int $taskId): TaskEntity
+    {
+        return $this->taskDomainService->getTaskById($taskId);
     }
 
     /**
@@ -1484,16 +1489,5 @@ class TaskAppService extends AbstractAppService
 
         // 创建DTO
         return new TopicTaskMessageDTO($metadata, $payload);
-    }
-
-    /**
-     * Summary of getTaskById
-     * @param int $taskId
-     * @param \App\Domain\Contact\Entity\ValueObject\DataIsolation $dataIsolation
-     * @return TaskEntity|null
-     */
-    public function getTaskById(int $taskId): TaskEntity
-    {
-        return $this->taskDomainService->getTaskById($taskId);
     }
 }

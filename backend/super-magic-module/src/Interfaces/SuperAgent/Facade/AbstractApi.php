@@ -15,7 +15,7 @@ abstract class AbstractApi
     use MagicUserAuthorizationTrait;
 
     public function __construct(
-        protected  RequestInterface $request,
+        protected RequestInterface $request,
     ) {
     }
 
@@ -124,17 +124,14 @@ abstract class AbstractApi
         return $ips;
     }
 
-
     protected function getApiKey(): string
     {
-
         $headers = [
             'API-KEY',
             'api_key',
             'api-key',
             'API_KEY',
         ];
-
 
         $token = $this->getTokenFromHeaders($headers);
         if (! empty($token)) {

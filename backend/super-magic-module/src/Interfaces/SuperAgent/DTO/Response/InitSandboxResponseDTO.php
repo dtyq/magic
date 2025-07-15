@@ -10,11 +10,17 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 class InitSandboxResponseDTO
 {
     protected string $taskType = '';
+
     protected string $agentName = '';
+
     protected string $toolName = '';
+
     protected string $customName = '';
+
     protected string $modelId = '';
+
     protected string $workspaceId = '';
+
     protected string $projectId = '';
 
     protected string $projectMode = 'general';
@@ -27,16 +33,12 @@ class InitSandboxResponseDTO
 
     protected string $sandboxId = '';
 
-
-      /**
+    /**
      * 构造函数.
      */
     public function __construct()
     {
-
     }
-
-
 
     public function getTaskType(): string
     {
@@ -123,7 +125,8 @@ class InitSandboxResponseDTO
         $this->conversationId = $conversationId;
     }
 
-    public function getSandboxId(): string{
+    public function getSandboxId(): string
+    {
         return $this->sandboxId;
     }
 

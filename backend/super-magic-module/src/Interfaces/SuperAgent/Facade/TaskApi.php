@@ -13,30 +13,19 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Qbhy\HyperfAuth\AuthManager;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
-
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
-use App\Domain\Contact\Entity\ValueObject\UserType;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
-use App\Domain\Contact\Entity\MagicUserEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-
 
 #[ApiResponse('low_code')]
 class TaskApi extends AbstractApi
@@ -52,7 +41,7 @@ class TaskApi extends AbstractApi
         protected UserDomainService $userDomainService,
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
-        ) {
+    ) {
     }
 
     /**
