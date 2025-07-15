@@ -97,8 +97,7 @@ class FileProcessAppService extends AbstractAppService
             projectId: $projectId,
             topicId: $topicId,
             taskId: $taskId,
-            fileType: $fileType,
-            isUpdate: true
+            fileType: $fileType
         );
         return [$taskFileEntity->getFileId(), $taskFileEntity];
     }
