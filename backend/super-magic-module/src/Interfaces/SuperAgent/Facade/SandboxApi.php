@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UserInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InitSandboxResponseDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Throwable;
 
 #[ApiResponse('low_code')]
 class SandboxApi extends AbstractApi
@@ -66,8 +67,9 @@ class SandboxApi extends AbstractApi
         // 判断工作区是否存在，不存在则初始化工作区
         $workspaceId = $requestDTO->getWorkspaceId();
         if ($workspaceId > 0) {
-            $workspace = $this->workspaceAppService->getWorkspaceDetail($requestContext, (int) $workspaceId);
-            if (empty($workspace)) {
+            try {
+                $workspace = $this->workspaceAppService->getWorkspaceDetail($requestContext, (int) $workspaceId);
+            } catch (Throwable $e) {
                 // 抛异常，工作区不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
             }
@@ -84,8 +86,9 @@ class SandboxApi extends AbstractApi
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
-            $project = $this->projectAppService->getProject((int) $projectId, (string) $userEntity->getUserId());
-            if (empty($project)) {
+            try {
+                $project = $this->projectAppService->getProject((int) $projectId, (string) $userEntity->getUserId());
+            } catch (Throwable $e) {
                 // 抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
             }
@@ -107,8 +110,9 @@ class SandboxApi extends AbstractApi
         // 判断话题是否存在，不存在则初始化话题
         $topicId = $requestDTO->getTopicId();
         if ($topicId > 0) {
-            $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
-            if (empty($topic)) {
+            try {
+                $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
+            } catch (Throwable $e) {
                 // 抛异常，话题不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
