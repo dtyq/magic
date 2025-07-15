@@ -49,7 +49,6 @@ class TopicDomainService
         return $this->topicRepository->updateTopicStatusAndSandboxId($id, $taskId, $taskStatus, $sandboxId);
     }
 
-
     /**
      * Get topic list whose update time exceeds specified time.
      *
