@@ -225,7 +225,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     {
         $date = date('Y-m-d H:i:s');
         $entity->setCreatedAt($date);
-        $entity->setUpdatedAt($date);
 
         $entityArray = $entity->toArray();
         $model = $this->model::query()->create($entityArray);
@@ -270,7 +269,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     public function updateById(TaskFileEntity $entity): TaskFileEntity
     {
-        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $entity->toArray();
 
         $this->model::query()
@@ -360,5 +358,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $entities;
+    }
+
+    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->withTrashed()
+            ->where('project_id', $projectId)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
     }
 }

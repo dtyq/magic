@@ -71,6 +71,14 @@ class TaskFileDomainService
     }
 
     /**
+     * Get the latest updated file by project ID.
+     */
+    public function getLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->findLatestUpdatedByProjectId($projectId);
+    }
+
+    /**
      * Get file list by topic ID.
      *
      * @param int $topicId Topic ID

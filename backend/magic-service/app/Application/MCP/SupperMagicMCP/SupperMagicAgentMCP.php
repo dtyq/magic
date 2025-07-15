@@ -186,6 +186,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
 
         return [
             'label_name' => implode(', ', $labelNames),
+            'label_names' => $labelNames,
             'tools' => [
                 'call_magic_agent' => [
                     'label_name' => '',
