@@ -98,10 +98,34 @@ class FileConverterResponse implements ResponseInterface
     }
 
     /**
+     * 获取总文件数.
+     */
+    public function getTotalFiles(): int
+    {
+        return $this->data['total_files'] ?? 0;
+    }
+
+    /**
+     * 获取成功转换的文件数.
+     */
+    public function getSuccessCount(): int
+    {
+        return $this->data['success_count'] ?? 0;
+    }
+
+    /**
      * 获取ZIP文件下载地址.
      */
     public function getZipDownloadUrl(): ?string
     {
-        return $this->data['zip_download_url'] ?? null;
+        $files = $this->getConvertedFiles();
+
+        foreach ($files as $file) {
+            if (($file['type'] ?? null) === 'zip') {
+                return $file['oss_download_url'] ?? null;
+            }
+        }
+
+        return null;
     }
 }
