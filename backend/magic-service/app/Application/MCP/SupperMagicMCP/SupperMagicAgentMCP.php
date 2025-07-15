@@ -7,12 +7,19 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\SupperMagicMCP;
 
+use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Application\MCP\BuiltInMCP\SuperMagicChat\SuperMagicChatBuiltInMCPServer;
 use App\Application\MCP\Service\MCPServerAppService;
 use App\Application\MCP\Utils\MCPServerConfigUtil;
+use App\Domain\Agent\Entity\ValueObject\AgentDataIsolation;
+use App\Domain\Agent\Entity\ValueObject\Query\MagicAgentQuery;
+use App\Domain\Agent\Service\AgentDomainService;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
+use App\Domain\Flow\Entity\ValueObject\Query\MagicFLowQuery;
+use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
@@ -31,9 +38,11 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         protected MagicUserSettingDomainService $magicUserSettingDomainService,
         protected MCPServerAppService $MCPServerAppService,
         protected TempAuthInterface $tempAuth,
+        protected AgentDomainService $agentDomainService,
+        protected MagicFlowDomainService $magicFlowDomainService,
         LoggerFactory $loggerFactory,
     ) {
-        $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
+        $this->logger = $loggerFactory->get('SupperMagicAgentMCP', 'debug');
     }
 
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, ?string $mentions = null, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
@@ -72,7 +81,10 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
 
             $builtinSuperMagicServer = SuperMagicChatBuiltInMCPServer::createByChatParams($dataIsolation, $agentIds, $toolIds);
 
-            $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer]);
+            $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer], [
+                $builtinSuperMagicServer->getCode() => $this->createBuiltinSuperMagicServerOptions($dataIsolation, $agentIds, $toolIds),
+            ]);
+
             $mcpServers = [
                 'mcpServers' => $mcpServers,
             ];
@@ -89,7 +101,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         return null;
     }
 
-    private function createMcpServers(MCPDataIsolation $mcpDataIsolation, array $mcpIds = [], array $builtinServers = []): array
+    private function createMcpServers(MCPDataIsolation $mcpDataIsolation, array $mcpIds = [], array $builtinServers = [], array $serverOptions = []): array
     {
         $dataIsolation = DataIsolation::create($mcpDataIsolation->getCurrentOrganizationCode(), $mcpDataIsolation->getCurrentUserId());
         $servers = [];
@@ -135,9 +147,51 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 ], 3600);
                 $mcpServerConfig->setToken($token);
             }
+            $config = $mcpServerConfig->toArray();
+            $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
 
-            $servers[$mcpServer->getName()] = $mcpServerConfig->toArray();
+            $servers[$mcpServer->getName()] = $config;
         }
         return $servers;
+    }
+
+    private function createBuiltinSuperMagicServerOptions(MCPDataIsolation $dataIsolation, array $agentIds = [], array $toolIds = []): array
+    {
+        $labelNames = [];
+
+        // 查询 agent 信息
+        $agentDataIsolation = AgentDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $agentQuery = new MagicAgentQuery();
+        $agentQuery->setIds($agentIds);
+        $agents = $this->agentDomainService->queries($agentDataIsolation->disabled(), $agentQuery, Page::createNoPage())['list'] ?? [];
+        $agentInfos = [];
+
+        // 查询 tool 信息
+        $flowDataIsolation = FlowDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $flowQuery = new MagicFLowQuery();
+        $flowQuery->setCodes($toolIds);
+        $tools = ToolsExecutor::getToolFlows($flowDataIsolation->disabled(), $toolIds);
+
+        foreach ($agents as $agent) {
+            $agentInfos[$agent->getId()] = [
+                'id' => $agent->getId(),
+                'name' => $agent->getAgentName(),
+                'description' => $agent->getAgentDescription(),
+            ];
+            $labelNames[] = $agent->getAgentName();
+        }
+        foreach ($tools as $tool) {
+            $labelNames[] = $tool->getName();
+        }
+
+        return [
+            'label_name' => implode(', ', $labelNames),
+            'tools' => [
+                'call_magic_agent' => [
+                    'label_name' => '',
+                    'agents' => $agentInfos,
+                ],
+            ],
+        ];
     }
 }
