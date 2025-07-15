@@ -373,6 +373,7 @@ class ProjectAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
 
