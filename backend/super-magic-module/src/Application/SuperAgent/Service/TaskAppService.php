@@ -582,7 +582,7 @@ class TaskAppService extends AbstractAppService
      * Summary of getTaskById.
      * @return null|TaskEntity
      */
-    public function getTaskById(int $taskId): TaskEntity
+    public function getTaskById(int $taskId): ?TaskEntity
     {
         return $this->taskDomainService->getTaskById($taskId);
     }

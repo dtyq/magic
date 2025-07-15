@@ -178,10 +178,10 @@ class AgentDomainService
         if (! empty($taskContext->getTask()->getAttachments())) {
             $attachments = json_decode($taskContext->getTask()->getAttachments());
             $fileIds = array_filter(array_column($attachments, 'file_id'));
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
+            $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $taskContext->getTask()->getProjectId());
         }
 
-        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getTask()->getProjectId());
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
@@ -424,14 +424,15 @@ class AgentDomainService
         ];
     }
 
-    /**
+       /**
      * 构建 mentions 的 JSON 结构数组，只包含 type, file_path, file_url 三个字段.
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
      * @param null|string $mentionsJson mentions 的 JSON 字符串
+     * @param null|int $projectId 项目 ID
      * @return array 处理后的 mentions 数组
      */
-    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson): array
+    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson, ?int $projectId): array
     {
         $mentionsJsonStruct = [];
 
@@ -449,7 +450,7 @@ class AgentDomainService
             return $mentionsJsonStruct;
         }
 
-        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
+        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $projectId);
 
         // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
         $fileIdToFileMap = [];
@@ -477,12 +478,8 @@ class AgentDomainService
                     // 使用 FileAssembler::formatPath 从 URL 中提取路径
                     $filePath = FileAssembler::formatPath($matchedFile['file_url']);
                 }
-
-                $mentionsJsonStruct[] = [
-                    'type' => $type,
-                    'file_path' => $filePath,
-                    'file_url' => $matchedFile['file_url'],
-                ];
+                $mentionFile = ['type' => $type, 'file_path' => $filePath, 'file_metadata' => $matchedFile];
+                $mentionsJsonStruct[] = $mentionFile;
             }
         }
         return $mentionsJsonStruct;

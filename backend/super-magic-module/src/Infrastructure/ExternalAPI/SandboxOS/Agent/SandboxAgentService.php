@@ -304,7 +304,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
 
             return $response;
         } catch (Exception $e) {
-            $this->logger->error('[Sandbox][Agent] Unexpected error when saving files', [
+            $this->logger->error('[Sandbox][Agent] Unexpected error when executing script task', [
                 'sandbox_id' => $sandboxId,
                 'error' => $e->getMessage(),
             ]);
@@ -315,11 +315,5 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
                 'data' => [],
             ]);
         }
-
-        return AgentResponse::fromApiResponse([
-            'code' => 2000,
-            'message' => 'Unexpected error: ',
-            'data' => [],
-        ]);
     }
 }
