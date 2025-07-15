@@ -7,14 +7,14 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
-use Hyperf\Validation\Request\FormRequest;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Infrastructure\Core\AbstractRequestDTO;
 
 class CreateScriptTaskRequestDTO extends AbstractRequestDTO
 {
     protected string $taskId = '';
+
     protected string $scriptName = '';
+
     protected array $arguments = [];
 
     protected string $sandboxId = '';
@@ -40,7 +40,6 @@ class CreateScriptTaskRequestDTO extends AbstractRequestDTO
         ];
     }
 
-
     /**
      * 属性名称.
      */
@@ -53,12 +52,10 @@ class CreateScriptTaskRequestDTO extends AbstractRequestDTO
         ];
     }
 
-
     public function getTaskId(): string
     {
         return $this->taskId;
     }
-
 
     public function getScriptName(): string
     {
@@ -89,6 +86,4 @@ class CreateScriptTaskRequestDTO extends AbstractRequestDTO
     {
         $this->sandboxId = $sandboxId;
     }
-
-
 }

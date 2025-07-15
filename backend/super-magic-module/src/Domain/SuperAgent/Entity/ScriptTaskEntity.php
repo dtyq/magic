@@ -15,7 +15,9 @@ use App\Infrastructure\Core\AbstractEntity;
 class ScriptTaskEntity extends AbstractEntity
 {
     protected string $taskId = '';
+
     protected array $arguments = [];
+
     protected string $scriptName = '';
 
     protected string $sandboxId = '';
@@ -43,7 +45,7 @@ class ScriptTaskEntity extends AbstractEntity
         });
     }
 
-     /**
+    /**
      * Create DTO from array.
      */
     public static function fromArray(array $data): self

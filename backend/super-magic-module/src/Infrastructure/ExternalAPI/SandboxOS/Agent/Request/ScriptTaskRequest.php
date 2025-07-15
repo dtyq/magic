@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request;
 
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
-
 /**
  * 中断请求类
  * 严格按照沙箱通信文档的中断请求格式.
@@ -58,7 +56,6 @@ class ScriptTaskRequest
         return $this->arguments;
     }
 
-
     public function setScriptName(string $scriptName): self
     {
         $this->scriptName = $scriptName;
@@ -70,19 +67,16 @@ class ScriptTaskRequest
         return $this->scriptName;
     }
 
-
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的中断请求格式.
      */
     public function toArray(): array
     {
-        $data = [
+        return [
             'task_id' => $this->taskId,
             'arguments' => $this->arguments,
             'script_name' => $this->scriptName,
         ];
-
-        return $data;
     }
 }
