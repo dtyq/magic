@@ -48,12 +48,22 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
         return (int) $this->workspaceId;
     }
 
+    public function setWorkspaceId(string $workspaceId): void
+    {
+        $this->workspaceId = $workspaceId;
+    }
+
     /**
      * Get project name.
      */
     public function getProjectName(): string
     {
         return $this->projectName;
+    }
+
+    public function setProjectName(string $projectName): void
+    {
+        $this->projectName = $projectName;
     }
 
     /**
@@ -70,6 +80,11 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     public function getProjectMode(): string
     {
         return $this->projectMode;
+    }
+
+    public function setProjectMode(string $projectMode): void
+    {
+        $this->projectMode = $projectMode;
     }
 
     /**

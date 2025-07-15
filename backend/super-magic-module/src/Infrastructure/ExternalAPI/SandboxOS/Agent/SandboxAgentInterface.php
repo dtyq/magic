@@ -11,6 +11,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessa
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 
 /**
@@ -62,4 +63,13 @@ interface SandboxAgentInterface
      * @return AgentResponse 保存响应
      */
     public function saveFiles(string $sandboxId, SaveFilesRequest $request): AgentResponse;
+
+    /**
+     * 执行脚本任务.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param ScriptTaskRequest $request 脚本任务请求
+     * @return AgentResponse 执行响应
+     */
+    public function executeScriptTask(string $sandboxId, ScriptTaskRequest $request): AgentResponse;
 }

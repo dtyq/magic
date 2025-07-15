@@ -44,6 +44,8 @@ RUN apk add --no-cache tzdata && \
 ENV MAGIC_GATEWAY_ENV=dev
 ENV MAGIC_GATEWAY_DEBUG=false
 
+# 暴露端口
+
 
 
 # 添加健康检查

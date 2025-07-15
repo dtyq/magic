@@ -11,9 +11,8 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
-use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -28,6 +27,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Config\WebSocketConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use RuntimeException;
 
@@ -40,6 +41,7 @@ class TaskDomainService
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected StdoutLoggerInterface $logger,
         protected SandboxService $sandboxService,
+        protected SandboxAgentInterface $sandboxAgent,
     ) {
     }
 
@@ -48,39 +50,38 @@ class TaskDomainService
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
-     * @param UserMessageDTO $userMessageDTO User message DTO containing all necessary parameters
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
-    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, UserMessageDTO $userMessageDTO): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity): TaskEntity
     {
         // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
         $topicId = $topicEntity->getId();
 
         // Get task mode from DTO, fallback to topic's task mode if empty
-        $taskMode = $userMessageDTO->getTaskMode();
-        if ($taskMode === '') {
-            $taskMode = $topicEntity->getTaskMode();
-        }
+        // $taskMode = $userMessageDTO->getTaskMode();
+        // if ($taskMode === '') {
+        //     $taskMode = $topicEntity->getTaskMode();
+        // }
 
         // Create new task entity
-        $taskEntity = new TaskEntity([
-            'user_id' => $userId,
-            'workspace_id' => $topicEntity->getWorkspaceId(),
-            'project_id' => $topicEntity->getProjectId(),
-            'topic_id' => $topicId,
-            'task_id' => '', // Initially empty, this is agent's task id
-            'task_mode' => $taskMode,
-            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
-            'prompt' => $userMessageDTO->getPrompt(),
-            'attachments' => $userMessageDTO->getAttachments(),
-            'mentions' => $userMessageDTO->getMentions(),
-            'task_status' => TaskStatus::WAITING->value,
-            'work_dir' => $topicEntity->getWorkDir() ?? '',
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        // $taskEntity = new TaskEntity([
+        //     'user_id' => $userId,
+        //     'workspace_id' => $topicEntity->getWorkspaceId(),
+        //     'project_id' => $topicEntity->getProjectId(),
+        //     'topic_id' => $topicId,
+        //     'task_id' => '', // Initially empty, this is agent's task id
+        //     'task_mode' => $taskMode,
+        //     'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+        //     'prompt' => $userMessageDTO->getPrompt(),
+        //     'attachments' => $userMessageDTO->getAttachments(),
+        //     'mentions' => $userMessageDTO->getMentions(),
+        //     'task_status' => TaskStatus::WAITING->value,
+        //     'work_dir' => $topicEntity->getWorkDir() ?? '',
+        //     'created_at' => date('Y-m-d H:i:s'),
+        //     'updated_at' => date('Y-m-d H:i:s'),
+        // ]);
 
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
@@ -90,10 +91,8 @@ class TaskDomainService
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
-        $topicEntity->setTaskMode($taskMode);
-        if (empty($topicEntity->getTopicMode())) {
-            $topicEntity->setTopicMode($userMessageDTO->getTopicMode());
-        }
+        $topicEntity->setTaskMode($taskEntity->getTaskMode());
+        $topicEntity->setTopicMode($topicEntity->getTopicMode());
         $this->topicRepository->updateTopic($topicEntity);
 
         return $taskEntity;
@@ -195,34 +194,10 @@ class TaskDomainService
     /**
      * Record task message.
      */
-    public function recordTaskMessage(TaskMessageDTO $taskMessageDTO): TaskMessageEntity
+    public function recordTaskMessage(TaskMessageEntity $taskMessageEntity): TaskMessageEntity
     {
-        $messageData = [
-            'task_id' => $taskMessageDTO->getTaskId(),
-            'sender_type' => $taskMessageDTO->getRole(),
-            'sender_uid' => $taskMessageDTO->getSenderUid(),
-            'receiver_uid' => $taskMessageDTO->getReceiverUid(),
-            'type' => $taskMessageDTO->getMessageType(),
-            'content' => $taskMessageDTO->getContent(),
-            'raw_content' => $taskMessageDTO->getRawContent(),
-            'status' => $taskMessageDTO->getStatus(),
-            'steps' => $taskMessageDTO->getSteps(),
-            'tool' => $taskMessageDTO->getTool(),
-            'attachments' => $taskMessageDTO->getAttachments(),
-            'mentions' => $taskMessageDTO->getMentions(),
-            'topic_id' => $taskMessageDTO->getTopicId(),
-            'event' => $taskMessageDTO->getEvent(),
-            'show_in_ui' => $taskMessageDTO->isShowInUi(),
-        ];
-
-        // Add message_id if provided
-        if ($taskMessageDTO->getMessageId() !== null) {
-            $messageData['message_id'] = $taskMessageDTO->getMessageId();
-        }
-
-        $message = new TaskMessageEntity($messageData);
-        $this->messageRepository->save($message);
-        return $message;
+        $this->messageRepository->save($taskMessageEntity);
+        return $taskMessageEntity;
     }
 
     /**
@@ -585,6 +560,12 @@ class TaskDomainService
     public function updateTaskStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus, ?string $errMsg = null): int
     {
         return $this->taskRepository->updateTaskStatusBySandboxIds($sandboxIds, $taskStatus->value, $errMsg);
+    }
+
+    public function executeScriptTask(ScriptTaskEntity $scriptTaskEntity): void
+    {
+        $scriptTaskRequest = ScriptTaskRequest::create($scriptTaskEntity->getTaskId(), $scriptTaskEntity->getArguments(), $scriptTaskEntity->getScriptName());
+        $this->sandboxAgent->executeScriptTask($scriptTaskEntity->getSandboxId(), $scriptTaskRequest);
     }
 
     /**

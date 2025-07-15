@@ -13,17 +13,17 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
-use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
@@ -32,8 +32,6 @@ use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * Handle Agent Message Application Service
@@ -49,7 +47,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
-        private readonly AgentAppService $agentAppService,
+        private readonly AgentDomainService $agentDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -58,6 +56,7 @@ class HandleAgentMessageAppService extends AbstractAppService
     /**
      * Handle Agent Message - Main Entry Point
      * Responsible for overall business process orchestration.
+     * agent send message to user.
      */
     public function handleAgentMessage(TopicTaskMessageDTO $messageDTO): void
     {
@@ -93,6 +92,44 @@ class HandleAgentMessageAppService extends AbstractAppService
             $this->handleEventException($e, $messageDTO, $taskContext ?? null, $topicEntity ?? null);
         } catch (Throwable $e) {
             $this->handleGeneralException($e, $messageDTO);
+        }
+    }
+
+    /**
+     * Send internal message to sandbox.
+     */
+    public function sendInternalMessageToSandbox(
+        DataIsolation $dataIsolation,
+        TaskContext $taskContext,
+        TopicEntity $topicEntity,
+        string $msg = ''
+    ): void {
+        // Update task status
+        $this->topicTaskAppService->updateTaskStatus(
+            dataIsolation: $dataIsolation,
+            task: $taskContext->getTask(),
+            status: TaskStatus::Suspended,
+            errMsg: $msg,
+        );
+
+        // Get sandbox status, if sandbox is running, send interrupt command
+        $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
+        if ($result->getStatus() === SandboxStatus::RUNNING) {
+            $this->agentDomainService->sendInterruptMessage(
+                $dataIsolation,
+                $taskContext->getTask()->getSandboxId(),
+                (string) $taskContext->getTask()->getId(),
+                $msg
+            );
+        } else {
+            // Send interrupt message directly to client
+            $this->clientMessageAppService->sendInterruptMessageToClient(
+                topicId: $topicEntity->getId(),
+                taskId: $topicEntity->getCurrentTaskId() ?? '0',
+                chatTopicId: $taskContext->getChatTopicId(),
+                chatConversationId: $taskContext->getChatConversationId(),
+                interruptReason: $msg
+            );
         }
     }
 
@@ -314,7 +351,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             messageId: $messageData['messageId']
         );
 
-        $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+        $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+        $this->taskDomainService->recordTaskMessage($taskMessageEntity);
     }
 
     /**
@@ -414,7 +452,6 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
-            $attachment['topic_id'] = $task->getTopicId();
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
@@ -515,40 +552,13 @@ class HandleAgentMessageAppService extends AbstractAppService
     ): void {
         $this->logger->error(sprintf('Exception occurred while processing message event callback: %s', $e->getMessage()));
 
-        $dataIsolation = $taskContext->getDataIsolation();
-        // Update task status
-        $this->topicTaskAppService->updateTaskStatus(
-            dataIsolation: $dataIsolation,
-            task: $taskContext->getTask(),
-            status: TaskStatus::Suspended,
-            errMsg: $e->getMessage(),
-        );
-
-        $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
-        // Send remind message directly to client
-        $this->clientMessageAppService->sendReminderMessageToClient(
-            topicId: $topicEntity->getId(),
-            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
-            chatTopicId: $taskContext->getChatTopicId(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            remind: $e->getMessage(),
-            remindEvent: $remindType
-        );
-
-        // Get sandbox status, if sandbox is running, send interrupt command
-        try {
-            $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
-            if ($result->getStatus() === SandboxStatus::RUNNING) {
-                $this->agentAppService->sendInterruptMessage(
-                    $dataIsolation,
-                    $taskContext->getTask()->getSandboxId(),
-                    (string) $taskContext->getTask()->getId(),
-                    trans('task.agent_stopped')
-                );
-            }
-        } catch (SandboxOperationException $e) {
-            // ignore
-            $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
+        if ($taskContext && $topicEntity) {
+            $this->sendInternalMessageToSandbox(
+                $taskContext->getDataIsolation(),
+                $taskContext,
+                $topicEntity,
+                $e->getMessage()
+            );
         }
     }
 
