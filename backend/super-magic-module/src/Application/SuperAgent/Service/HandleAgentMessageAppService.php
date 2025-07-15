@@ -528,7 +528,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         // Send remind message directly to client
         $this->clientMessageAppService->sendReminderMessageToClient(
             topicId: $topicEntity->getId(),
-            taskId: $topicEntity->getCurrentTaskId() ?? '0',
+            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
             chatTopicId: $taskContext->getChatTopicId(),
             chatConversationId: $taskContext->getChatConversationId(),
             remind: $e->getMessage(),
