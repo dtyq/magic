@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup(
@@ -117,8 +118,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
-    // 更新任务状态
-    Router::put('/task/status', [TaskApi::class, 'updateTaskStatus']);
     // 文件相关
     Router::addGroup('/file', static function () {
         // 刷新 STS Token (提供 super - magic 使用， 通过 metadata 换取目录信息)
@@ -142,19 +141,22 @@ Router::addGroup('/api/v1/open-api/super-maigc', static function () {
 
     Router::post('/sandbox/init', [SandboxApi::class, 'initSandbox']);
     // 创建agent任务
-    Router::post('/agent-task', [TaskApi::class, 'agentTask']);
+    Router::post('/agent-task', [OpenTaskApi::class, 'agentTask']);
     // 执行脚本任务
-    Router::post('/script-task', [TaskApi::class, 'scriptTask']);
+    Router::post('/script-task', [OpenTaskApi::class, 'scriptTask']);
 
+
+    // 更新任务状态
+    Router::put('/task/status', [OpenTaskApi::class, 'updateTaskStatus']);
 
     // 获取任务
-    Router::get('/task/{id}', [TaskApi::class, 'getOpenApiTask']);
+    Router::get('/task/{id}', [OpenTaskApi::class, 'getOpenApiTask']);
     // 获取任务列表
-    Router::get('/tasks', [TaskApi::class, 'getOpenApiTaskList']);
+    Router::get('/tasks', [OpenTaskApi::class, 'getOpenApiTaskList']);
 
        // 任务相关
    Router::addGroup('/task', static function () {
         // 获取任务下的附件列表
-        Router::get('/{id}/attachments', [TaskApi::class, 'getOpenApiTaskAttachments']);
+        Router::get('/{id}/attachments', [OpenTaskApi::class, 'getOpenApiTaskAttachments']);
     });
 });

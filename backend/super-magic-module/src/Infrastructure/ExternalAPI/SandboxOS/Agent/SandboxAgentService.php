@@ -282,7 +282,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                "api/v1/task/scripts/{$request->getScriptName()}/execute",
+                "/api/task/script-task",
                 $request->toArray()
             );
 
