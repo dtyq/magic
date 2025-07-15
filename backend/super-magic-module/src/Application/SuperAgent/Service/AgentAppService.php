@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;

@@ -238,9 +238,8 @@ class SandboxApi extends AbstractApi
             if (! empty($topic->getId())) {
                 $topicId = $topic->getId();
             } else {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
+                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');}
             }
-        }
         $requestDTO->setTopicId($topicId);
     }
 }
