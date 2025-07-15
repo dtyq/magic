@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
@@ -26,8 +27,10 @@ use Hyperf\Logger\LoggerFactory;
  */
 class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayInterface
 {
-    public function __construct(LoggerFactory $loggerFactory)
-    {
+    public function __construct(
+        LoggerFactory $loggerFactory,
+        private readonly TopicRepositoryInterface $topicRepository
+    ) {
         parent::__construct($loggerFactory);
     }
 
@@ -589,7 +592,18 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 $this->logger->info('[Sandbox][Gateway] Sandbox ID is empty, creating new sandbox');
             }
 
-            $createResult = $this->createSandbox(['sandbox_id' => $sandboxId]);
+            // 根据 sandbox_id 查询 project_id
+            $topic = $this->topicRepository->getTopicBySandboxId($sandboxId);
+            if (! $topic) {
+                $this->logger->error('[Sandbox][Gateway] Sandbox ID not found in topic repository', [
+                    'sandbox_id' => $sandboxId,
+                ]);
+                return '';
+            }
+
+            $projectId = $topic->getProjectId();
+
+            $createResult = $this->createSandbox(['sandbox_id' => $sandboxId, 'project_id' => $projectId]);
 
             if (! $createResult->isSuccess()) {
                 $this->logger->error('[Sandbox][Gateway] Failed to create sandbox', [
