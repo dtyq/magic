@@ -73,6 +73,11 @@ class TaskFileItemDTO extends AbstractDTO
     public string $topicId = '';
 
     /**
+     * 更新时间.
+     */
+    public string $updatedAt = '';
+
+    /**
      * 是否为文件夹：true-是，false-否.
      */
     public bool $isDirectory = false;
@@ -100,6 +105,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileUrl = $entity->getExternalUrl();
         $dto->isHidden = $entity->getIsHidden();
         $dto->topicId = (string) $entity->getTopicId();
+        $dto->updatedAt = (string) $entity->getUpdatedAt();
         $dto->isDirectory = $entity->getIsDirectory();
 
         // Handle metadata JSON decoding
@@ -132,6 +138,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
         $dto->isHidden = $data['is_hidden'] ?? false;
         $dto->topicId = (string) ($data['topic_id'] ?? '');
+        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
 
         // Handle metadata - could be string (JSON) or array
@@ -171,6 +178,7 @@ class TaskFileItemDTO extends AbstractDTO
             'file_url' => $this->fileUrl,
             'is_hidden' => $this->isHidden,
             'topic_id' => $this->topicId,
+            'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
             'metadata' => $this->metadata,
         ];

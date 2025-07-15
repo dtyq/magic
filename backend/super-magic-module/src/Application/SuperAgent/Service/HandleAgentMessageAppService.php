@@ -513,6 +513,7 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
+            $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
             $attachment['metadata'] = FileMetadataUtil::getMetadataObject($taskFileEntity->getMetadata());
 
             $this->logger->info(sprintf(
