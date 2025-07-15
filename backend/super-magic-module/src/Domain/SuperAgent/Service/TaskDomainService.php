@@ -120,24 +120,48 @@ class TaskDomainService
         return $task;
     }
 
-    public function updateTaskStatus(DataIsolation $dataIsolation, int $id, TaskStatus $status, ?string $errMsg = null): bool
+    public function updateTaskStatus(DataIsolation $dataIsolation, int $topicId, TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
     {
-        $conditions = [
-            'id' => $id,
-        ];
-        $data = [
-            'task_status' => $status->value,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
+        // 1. Get topic entity by topic id
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
+        }
+
+        // Get current user ID
+        $userId = $dataIsolation->getCurrentUserId();
+
+        // 2. Find task
+        $taskEntity = $this->taskRepository->getTaskById($id);
+        if (! $taskEntity) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
+        }
+
+        // Update task status
+        $taskEntity->setTaskStatus($status->value);
+        $taskEntity->setSandboxId($sandboxId);
+        $taskEntity->setTaskId($taskId);
+        $taskEntity->setUpdatedAt(date('Y-m-d H:i:s'));
 
         // If error message is provided and status is ERROR, set error message
         if ($status === TaskStatus::ERROR && $errMsg !== null) {
             if (mb_strlen($errMsg, 'UTF-8') > 500) {
                 $errMsg = mb_substr($errMsg, 0, 497, 'UTF-8') . '...';
             }
-            $data['err_msg'] = $errMsg;
+            $taskEntity->setErrMsg($errMsg);
         }
-        return $this->taskRepository->updateTaskByCondition($conditions, $data);
+
+        $this->taskRepository->updateTask($taskEntity);
+
+        // 3. Update topic's related information
+        $topicEntity->setSandboxId($sandboxId);
+        $topicEntity->setCurrentTaskId($id);
+        $topicEntity->setCurrentTaskStatus($status);
+        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $topicEntity->setUpdatedUid($userId);
+
+        // Save topic update
+        return $this->topicRepository->updateTopic($topicEntity);
     }
 
     public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
