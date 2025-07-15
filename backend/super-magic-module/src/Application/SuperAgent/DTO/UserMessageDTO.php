@@ -19,6 +19,7 @@ class UserMessageDTO
         private readonly string $agentUserId,
         private readonly string $chatConversationId,
         private readonly string $chatTopicId,
+        private readonly int $topicId,
         private readonly string $prompt,
         private readonly ?string $attachments = null,
         private readonly ?string $mentions = null,
@@ -43,6 +44,11 @@ class UserMessageDTO
     public function getChatTopicId(): string
     {
         return $this->chatTopicId;
+    }
+
+    public function getTopicId(): int
+    {
+        return $this->topicId;
     }
 
     public function getPrompt(): string
@@ -89,6 +95,7 @@ class UserMessageDTO
             agentUserId: $data['agent_user_id'] ?? $data['agentUserId'] ?? '',
             chatConversationId: $data['chat_conversation_id'] ?? $data['chatConversationId'] ?? '',
             chatTopicId: $data['chat_topic_id'] ?? $data['chatTopicId'] ?? '',
+            topicId: $data['topic_id'] ?? $data['topicId'] ?? 0,
             prompt: $data['prompt'] ?? '',
             attachments: $data['attachments'] ?? null,
             mentions: $data['mentions'] ?? null,
@@ -112,6 +119,7 @@ class UserMessageDTO
             'agent_user_id' => $this->agentUserId,
             'chat_conversation_id' => $this->chatConversationId,
             'chat_topic_id' => $this->chatTopicId,
+            'topic_id' => $this->topicId,
             'prompt' => $this->prompt,
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,

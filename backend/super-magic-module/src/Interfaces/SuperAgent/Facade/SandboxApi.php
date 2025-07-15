@@ -122,21 +122,18 @@ class SandboxApi extends AbstractApi
             $saveTopicRequestDTO->setProjectId((string) $requestDTO->getProjectId());
             $saveTopicRequestDTO->setWorkspaceId((string) $requestDTO->getWorkspaceId());
             $topic = $this->topicAppService->createTopic($requestContext, $saveTopicRequestDTO);
-            if (! empty($topic->getChatTopicId())) {
-                $topicId = $topic->getChatTopicId();
+            if (! empty($topic->getId())) {
+                $topicId = $topic->getId();
             } else {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
         }
+
         $requestDTO->setTopicId($topicId);
         $requestDTO->setConversationId($topicId);
 
         $initSandboxResponseDTO = new InitSandboxResponseDTO();
-        $initSandboxResponseDTO->setTaskId('123123123');
-        // $createTaskApiResponseDTO->setAgentName($requestDTO->getAgentName());
-        // $createTaskApiResponseDTO->setToolName($requestDTO->getToolName());
-        // $createTaskApiResponseDTO->setCustomName($requestDTO->getCustomName());
-        // $createTaskApiResponseDTO->setModelId($requestDTO->getModelId());
+
         $initSandboxResponseDTO->setWorkspaceId($requestDTO->getWorkspaceId());
         $initSandboxResponseDTO->setProjectId($requestDTO->getProjectId());
         $initSandboxResponseDTO->setProjectMode($requestDTO->getProjectMode());
@@ -151,6 +148,7 @@ class SandboxApi extends AbstractApi
 
         $userMessage = [
             'chat_topic_id' => $requestDTO->getTopicId(),
+            'topic_id' => (int)$requestDTO->getTopicId(),
             'chat_conversation_id' => $requestDTO->getConversationId(),
             'prompt' => $requestDTO->getPrompt(),
             'attachments' => null,
@@ -159,9 +157,6 @@ class SandboxApi extends AbstractApi
             'agent_mode' => '',
             'task_mode' => '',
         ];
-        var_dump($userMessage, '=====userMessage');
-        var_dump($dataIsolation, '=====dataIsolation');
-        var_dump($userEntity, '=====userEntity');
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
         // $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
         // $userMessageDTO->setAgentMode($requestDTO->getProjectMode());
