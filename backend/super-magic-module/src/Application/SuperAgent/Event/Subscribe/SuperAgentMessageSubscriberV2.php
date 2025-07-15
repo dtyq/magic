@@ -120,6 +120,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 agentUserId: $agentUserId,
                 chatConversationId: $conversationId,
                 chatTopicId: $chatTopicId,
+                topicId: (int) $chatTopicId,
                 prompt: $prompt,
                 attachments: $attachmentsJson,
                 mentions: $mentionsJson,

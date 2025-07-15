@@ -126,6 +126,11 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 ]);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
+
+                if (empty($responseData)) {
+                    throw new Exception('Sandbox status response is empty');
+                }
+
                 $result = SandboxStatusResult::fromApiResponse($responseData);
 
                 $this->logger->info('[Sandbox][Gateway] Sandbox status retrieved', [
@@ -252,7 +257,11 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 ]);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
-                $result = BatchStatusResult::fromApiResponse($responseData ?? []);
+
+                if (empty($responseData)) {
+                    throw new Exception('Batch sandbox status response is empty');
+                }
+                $result = BatchStatusResult::fromApiResponse($responseData);
 
                 $this->logger->debug('[Sandbox][Gateway] Batch sandbox status retrieved', [
                     'requested_count' => count($filteredSandboxIds),
@@ -368,7 +377,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
                 if (empty($responseData)) {
-                    return GatewayResult::error('HTTP request failed: ');
+                    throw new Exception('Proxy sandbox status response is empty');
                 }
                 $result = GatewayResult::fromApiResponse($responseData);
 

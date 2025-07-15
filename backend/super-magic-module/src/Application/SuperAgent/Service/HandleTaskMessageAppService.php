@@ -299,7 +299,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             //     chatConversationId: $userMessageDTO->getChatConversationId(),
             //     errorMessage: $e->getMessage()
             // );
-            throw new BusinessException('Initialize task, event processing failed', 500);
+            throw new BusinessException('Initialize task, event processing failed:' . $e->getMessage(), 500);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
@@ -317,7 +317,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             //     chatConversationId: $userMessageDTO->getChatConversationId(),
             //     errorMessage: trans('agent.initialize_error')
             // );
-            throw new BusinessException('Initialize task failed', 500);
+            throw new BusinessException('Initialize task failed:' . $e->getMessage(), 500);
         }
     }
 
