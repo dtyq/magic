@@ -38,15 +38,15 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     {
         return [
             'task_type' => 'required|string',//任务类型，支持agent、tool、custom三种模式
-            'agent_name' => 'required_if:task_type,agent|string',//如果是agent模式，则需要传入agent_name
-            'tool_name' => 'required_if:task_type,tool|string',//如果是tool模式，则需要传入tool_name
-            'custom_name' => 'required_if:task_type,custom|string',//如果是custom模式，则需要传入custom_name
-            'model_id' => 'string',//模型ID
+            // 'agent_name' => 'required_if:task_type,agent|string',//如果是agent模式，则需要传入agent_name
+            // 'tool_name' => 'required_if:task_type,tool|string',//如果是tool模式，则需要传入tool_name
+            // 'custom_name' => 'required_if:task_type,custom|string',//如果是custom模式，则需要传入custom_name
+            // 'model_id' => 'string',//模型ID
             'workspace_id' => 'string',//工作区ID
             'project_id' => 'string',//项目ID
             'project_mode' => 'string',//项目模式
             'topic_id' => 'string',//话题ID
-            'prompt' => 'required_if:task_type,agent|string',//任务提示词,如果是agent模式，则需要传入prompt
+            // 'prompt' => 'required_if:task_type,agent|string',//任务提示词,如果是agent模式，则需要传入prompt
             'params' => 'object',//自定入params
         ];
     }
@@ -55,15 +55,15 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     {
         return [
             'task_type.required' => '任务类型不能为空',
-            'agent_name.required_if' => 'agent名称不能为空',
-            'tool_name.required_if' => 'tool名称不能为空',
-            'custom_name.required_if' => 'custom名称不能为空',
-            'model_id.string' => '模型ID不能为空',
+                // 'agent_name.required_if' => 'agent名称不能为空',
+                // 'tool_name.required_if' => 'tool名称不能为空',
+            // 'custom_name.required_if' => 'custom名称不能为空',
+            // 'model_id.string' => '模型ID不能为空',
             'workspace_id.integer' => '工作区ID不能为空',
             'project_id.integer' => '项目ID不能为空',
             'project_mode.string' => '项目模式不能为空',
             'topic_id.integer' => '话题ID不能为空',
-            'prompt.required_if' => '提示词不能为空',
+            // 'prompt.required_if' => '提示词不能为空',
             'params.object' => '参数不能为空',
         ];
     }
