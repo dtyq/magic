@@ -420,18 +420,6 @@ class WorkspaceDomainService
         return $this->topicRepository->updateTopic($topicEntity);
     }
 
-    /**
-     * 批量获取话题.
-     * @return TopicEntity[]
-     */
-    public function getTopicsByIds(array $topicIds): array
-    {
-        if (empty($topicIds)) {
-            return [];
-        }
-        return $this->topicRepository->getTopicsByIds($topicIds);
-    }
-
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
     {
         $topics = $this->topicRepository->getTopicsByConditions(['sandbox_id' => $sandboxId], true, 1, 1);
