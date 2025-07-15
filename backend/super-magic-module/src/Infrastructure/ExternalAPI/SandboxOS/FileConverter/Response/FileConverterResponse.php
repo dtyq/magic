@@ -1,20 +1,26 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
-namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\Response;
+namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Contract\ResponseInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 
 /**
- * PDF 转换响应
+ * 文件转换响应.
  */
-class PdfConverterResponse implements ResponseInterface
+class FileConverterResponse implements ResponseInterface
 {
     private bool $success;
+
     private int $code;
+
     private string $message;
+
     private array $data;
 
     public function __construct(bool $success, int $code, string $message, array $data = [])
@@ -90,4 +96,12 @@ class PdfConverterResponse implements ResponseInterface
             $this->getConvertedFiles()
         );
     }
-} 
+
+    /**
+     * 获取ZIP文件下载地址.
+     */
+    public function getZipDownloadUrl(): ?string
+    {
+        return $this->data['zip_download_url'] ?? null;
+    }
+}

@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileConvertStatusManager;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
@@ -42,10 +43,10 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterInterface;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
 use Dtyq\SuperMagic\Listener\I18nLoadListener;
 use RecursiveDirectoryIterator;
@@ -96,7 +97,7 @@ class ConfigProvider
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
-                PdfConverterInterface::class => PdfConverterService::class,
+                FileConverterInterface::class => FileConverterService::class,
                 AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入
                 FileProcessAppService::class => FileProcessAppService::class,
@@ -104,6 +105,8 @@ class ConfigProvider
                 HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
                 // 添加SandboxFileEditAppService的依赖注入
                 FileSaveContentAppService::class => FileSaveContentAppService::class,
+                // 添加FileConvertStatusManager的依赖注入
+                FileConvertStatusManager::class => FileConvertStatusManager::class,
                 // 添加分享相关服务
                 ShareableResourceFactory::class => ShareableResourceFactory::class,
                 TopicShareableResource::class => TopicShareableResource::class,
