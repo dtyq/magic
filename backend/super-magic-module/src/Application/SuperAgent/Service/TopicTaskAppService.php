@@ -135,17 +135,23 @@ class TopicTaskAppService extends AbstractAppService
 
             // Execute status update
             $this->taskDomainService->updateTaskStatus(
-                dataIsolation: $dataIsolation,
-                topicId: $task->getTopicId(),
-                status: $status,
-                id: $task->getId(),
-                taskId: $taskId,
-                sandboxId: $task->getSandboxId(),
-                errMsg: $errMsg
+                $dataIsolation,
+                $task->getTopicId(),
+                $status,
+                $task->getId(),
+                $taskId,
+                $task->getSandboxId(),
+                $errMsg
             );
 
             // update topic status
-            $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $task->getSandboxId(), $status);
+            // if ($task->getSandboxId()) {
+            $this->topicDomainService->updateTopicStatusAndSandboxId($task->getTopicId(), $task->getId(), $status, $task->getSandboxId());
+            // Execute sandbox update
+            // $this->taskDomainService->updateTaskSandboxId($dataIsolation, $task->getId(), $task->getSandboxId());
+            // } else {
+            //     $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $status);
+            // }
 
             $topicEntity = $this->topicDomainService->getTopicById($task->getTopicId());
             if ($topicEntity) {
@@ -155,6 +161,7 @@ class TopicTaskAppService extends AbstractAppService
             // Log success
             $this->logger->info('Task status update completed', [
                 'task_id' => $taskId,
+                'sandbox_id' => $task->getSandboxId(),
                 'previous_status' => $currentStatus->value ?? 'null',
                 'new_status' => $status->value,
                 'error_msg' => $errMsg,
@@ -162,6 +169,7 @@ class TopicTaskAppService extends AbstractAppService
         } catch (Throwable $e) {
             $this->logger->error('Failed to update task status', [
                 'task_id' => $taskId,
+                'sandbox_id' => $task->getSandboxId(),
                 'status' => $status->value,
                 'error' => $e->getMessage(),
                 'error_msg' => $errMsg,

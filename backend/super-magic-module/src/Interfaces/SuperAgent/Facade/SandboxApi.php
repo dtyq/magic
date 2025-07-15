@@ -60,6 +60,9 @@ class SandboxApi extends AbstractApi
 
         $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, '');
 
+        if (empty($userEntity)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_found');
+        }
         $magicUserAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
 
         $requestContext->setUserAuthorization($magicUserAuthorization);
@@ -148,7 +151,7 @@ class SandboxApi extends AbstractApi
 
         $userMessage = [
             'chat_topic_id' => $requestDTO->getTopicId(),
-            'topic_id' => (int)$requestDTO->getTopicId(),
+            'topic_id' => (int) $requestDTO->getTopicId(),
             'chat_conversation_id' => $requestDTO->getConversationId(),
             'prompt' => $requestDTO->getPrompt(),
             'attachments' => null,

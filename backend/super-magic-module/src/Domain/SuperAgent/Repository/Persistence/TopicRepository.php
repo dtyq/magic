@@ -269,6 +269,18 @@ class TopicRepository implements TopicRepositoryInterface
             ]) > 0;
     }
 
+    public function updateTopicStatusAndSandboxId(int $id, $taskId, TaskStatus $status, string $sandboxId): bool
+    {
+        return $this->model::query()
+            ->where('id', $id)
+            ->update([
+                'current_task_id' => $taskId,
+                'current_task_status' => $status->value,
+                'sandbox_id' => $sandboxId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
     /**
      * 获取最近更新时间超过指定时间的话题列表.
      *
