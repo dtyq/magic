@@ -88,6 +88,8 @@ interface TopicRepositoryInterface
 
     public function updateTopicStatusAndSandboxId(int $id, $taskId, TaskStatus $status, string $sandboxId): bool;
 
+    public function updateTopicStatusAndSandboxId(int $id, $taskId, TaskStatus $status, string $sandboxId): bool;
+
     /**
      * 获取最近更新时间超过指定时间的话题列表.
      *
