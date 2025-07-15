@@ -58,7 +58,7 @@ class OpenTaskApi extends AbstractApi
         $taskId = $this->request->input('task_id', '');
         $status = $this->request->input('status', '');
         /**
-         * @var MagicUserEntity|null
+         * @var null|MagicUserEntity
          */
         $userEntity = null;
 
@@ -111,7 +111,7 @@ class OpenTaskApi extends AbstractApi
         $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
 
         /**
-         * @var MagicUserEntity|null
+         * @var null|MagicUserEntity
          */
         $userEntity = null;
 
@@ -171,7 +171,7 @@ class OpenTaskApi extends AbstractApi
         $requestDTO = CreateScriptTaskRequestDTO::fromRequest($this->request);
 
         /**
-         * @var MagicUserEntity|null
+         * @var null|MagicUserEntity
          */
         $userEntity = null;
 
