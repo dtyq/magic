@@ -24,6 +24,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\FileConvertConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -33,11 +34,14 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\PdfConverterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\PdfConverter\Request\PdfConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
@@ -69,13 +73,14 @@ class WorkspaceAppService extends AbstractAppService
         protected TaskDomainService $taskDomainService,
         protected AccountAppService $accountAppService,
         protected SandboxService $sandboxService,
-        protected PdfConverterInterface $pdfConverterService,
+        protected FileConverterInterface $fileConverterService,
+        protected FileConvertStatusManager $fileConvertStatusManager,
         protected LockerInterface $locker,
         protected ChatAppService $chatAppService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
         protected Producer $producer,
-        LoggerFactory $loggerFactory,
+        protected LoggerFactory $loggerFactory,
         protected FileCleanupAppService $fileCleanupAppService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -560,7 +565,7 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             $downloadNames = [];
-            if ($downloadMode == 'download') {
+            if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames, $options);
@@ -733,114 +738,275 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 批量转换文件为 PDF.
+     * 批量转换文件.
      *
      * @param MagicUserAuthorization $userAuthorization 用户授权信息
-     * @param array $fileIds 文件ID列表
-     * @param array $options PDF转换选项
+     * @param ConvertFilesRequestDTO $requestDTO 文件转换请求
      * @return array 转换结果
-     * @throws BusinessException
      */
-    public function convertFilesToPdf(MagicUserAuthorization $userAuthorization, array $fileIds, array $options = []): array
+    public function convertFiles(MagicUserAuthorization $userAuthorization, ConvertFilesRequestDTO $requestDTO): array
     {
+        $fileIds = $requestDTO->file_ids;
+        $options = $requestDTO->options;
+        $convertType = $requestDTO->convert_type;
+        $projectId = $requestDTO->project_id;
+        $userId = $userAuthorization->getId();
+
         if (empty($fileIds)) {
-            throw new BusinessException('File IDs cannot be empty.', SuperAgentErrorCode::BATCH_FILE_IDS_REQUIRED->value);
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_FILE_IDS_REQUIRED);
         }
 
-        $this->logger->info('[PDF Converter] Received request to convert files to PDF', [
-            'user_id' => $userAuthorization->getId(),
-            'file_ids_count' => count($fileIds),
-        ]);
-
-        // 1. 批量获取文件实体
-        $fileEntities = $this->taskDomainService->getTaskFiles($fileIds);
-        if (empty($fileEntities)) {
-            throw new BusinessException('No accessible files found.', SuperAgentErrorCode::BATCH_NO_VALID_FILES->value);
+        // 基础验证
+        if (count($fileIds) > 50) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
-        // 2. 批量获取话题并校验归属权
-        $topicIds = array_unique(array_map(fn ($file) => $file->getTopicId(), $fileEntities));
+        // 检查项目访问权限
+        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+        if ($projectEntity->getUserId() !== $userId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        // 权限验证：获取用户可访问的文件
+        $userFiles = $this->taskDomainService->getTaskFiles($fileIds);
+        if (empty($userFiles)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
+        }
+
+        // 验证文件归属权并过滤
+        $validFiles = [];
+        $topicIds = array_unique(array_map(fn ($file) => $file->getTopicId(), $userFiles));
         $topics = $this->workspaceDomainService->getTopicsByIds($topicIds);
-
         $topicsById = [];
         foreach ($topics as $topic) {
             $topicsById[$topic->getId()] = $topic;
         }
-
-        // 3. 验证文件归属，收集 file_key，并统一校验沙箱ID
-        $fileKeys = [];
-        $failedFileIds = array_flip($fileIds);
-        $sandboxId = null;
-        $allowedExtensions = ['html', 'md', 'markdown'];
-
-        foreach ($fileEntities as $fileEntity) {
-            // 校验文件类型
-            if (! in_array(strtolower($fileEntity->getFileExtension()), $allowedExtensions, true)) {
-                $this->logger->warning('[PDF Converter] Unsupported file type for conversion, skipping.', [
-                    'file_id' => $fileEntity->getFileId(),
-                    'file_name' => $fileEntity->getFileName(),
-                    'extension' => $fileEntity->getFileExtension(),
-                ]);
-                continue;
-            }
-
+        foreach ($userFiles as $fileEntity) {
             $topic = $topicsById[$fileEntity->getTopicId()] ?? null;
-
-            if (! $topic || $topic->getUserId() !== $userAuthorization->getId()) {
-                $this->logger->warning('[PDF Converter] User does not have permission for file, skipping.', [
-                    'file_id' => $fileEntity->getFileId(), 'user_id' => $userAuthorization->getId(),
-                ]);
-                continue;
+            if ($topic && $topic->getUserId() === $userId) {
+                $validFiles[] = $fileEntity;
             }
-
-            $currentSandboxId = $topic->getSandboxId();
-            if (empty($currentSandboxId)) {
-                $this->logger->error('File topic has no sandbox_id', ['file_id' => $fileEntity->getFileId(), 'topic_id' => $topic->getId()]);
-                continue;
-            }
-
-            if ($sandboxId === null) {
-                $sandboxId = $currentSandboxId;
-            } elseif ($sandboxId !== $currentSandboxId) {
-                throw new BusinessException('Files must be in the same sandbox.', SuperAgentErrorCode::VALIDATE_FAILED->value);
-            }
-
-            $fileKeys[] = $fileEntity->getFileKey();
-            unset($failedFileIds[$fileEntity->getFileId()]);
         }
 
-        if (empty($fileKeys)) {
-            throw new BusinessException('No accessible files with permission.', SuperAgentErrorCode::BATCH_ACCESS_DENIED->value);
-        }
-        // 4. 创建PDF转换请求
-        $pdfRequest = new PdfConverterRequest($fileKeys, $options);
-
-        // 5. 调用PDF转换服务
-        $response = $this->pdfConverterService->convert($sandboxId, $pdfRequest);
-        if (! $response->isSuccess() || empty($response->getConvertedFiles())) {
-            $errorMessage = $response->isSuccess()
-                ? 'PDF conversion resulted in no files.'
-                : $response->getMessage();
-            throw new BusinessException($errorMessage, SuperAgentErrorCode::FILE_UPLOAD_FAILED->value);
+        if (empty($validFiles)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_ACCESS_DENIED);
         }
 
-        // 6. 注册临时文件以供清理
-        $this->registerConvertedPdfsForCleanup($userAuthorization, $response->getConvertedFiles());
+        // 生成任务键
+        $taskKey = FileConvertConstant::generateTaskKey($userId, $fileIds, $convertType, $options);
 
-        // 7. 返回下载链接
-        $downloadUrls = $response->getDownloadUrls();
-        $this->logger->info('[PDF Converter] Successfully converted files to PDF', [
-            'user_id' => $userAuthorization->getId(),
-            'download_urls_count' => count($downloadUrls),
-            'batch_id' => $response->getBatchId(),
+        $this->logger->info('[File Converter] Received request to convert files', [
+            'user_id' => $userId,
+            'file_ids_count' => count($fileIds),
+            'convert_type' => $convertType,
+            'task_key' => $taskKey,
         ]);
 
+        // 检查任务是否已存在且已完成
+        $existingTask = $this->fileConvertStatusManager->getTaskStatus($taskKey);
+        if ($existingTask && $existingTask['status'] === FileConvertConstant::STATUS_READY) {
+            $this->logger->info('[File Converter] Task already completed, returning existing result', [
+                'task_key' => $taskKey,
+                'user_id' => $userId,
+            ]);
+
+            return [
+                'status' => 'ready',
+                'task_key' => $taskKey,
+                'download_url' => $existingTask['result']['download_url'] ?? '',
+                'file_count' => $existingTask['result']['file_count'] ?? count($validFiles),
+                'message' => 'Files are ready for download',
+            ];
+        }
+
+        // 初始化任务状态
+        $this->fileConvertStatusManager->initializeTask($taskKey, $userId, count($validFiles), $convertType);
+
+        // 直接处理文件转换
+        $this->processFileConversionSync($taskKey, $userAuthorization, $requestDTO, $validFiles, $projectEntity);
+
         return [
-            'success' => true,
-            'download_urls' => array_filter($downloadUrls),
-            'failed_files' => array_keys($failedFileIds),
-            'batch_id' => $response->getBatchId(),
+            'status' => 'processing',
+            'task_key' => $taskKey,
+            'download_url' => null,
+            'file_count' => count($validFiles),
+            'message' => 'Processing, please check status later',
         ];
+    }
+
+    /**
+     * 获取文件转换任务状态.
+     *
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param string $taskKey 任务键
+     * @return array 任务状态
+     * @throws BusinessException
+     */
+    public function checkFileConvertStatus(MagicUserAuthorization $userAuthorization, string $taskKey): array
+    {
+        $userId = (string) $userAuthorization->getId();
+
+        // 验证用户权限
+        if (! $this->fileConvertStatusManager->verifyUserPermission($taskKey, $userId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_ACCESS_DENIED, 'file.convert_access_denied');
+        }
+
+        // 获取任务状态
+        $taskStatus = $this->fileConvertStatusManager->getTaskStatus($taskKey);
+        if (! $taskStatus) {
+            return [
+                'status' => 'processing',
+                'download_url' => null,
+                'progress' => 0,
+                'message' => 'Task not found or expired',
+            ];
+        }
+
+        $status = $taskStatus['status'];
+        $progress = $taskStatus['progress'] ?? [];
+        $result = $taskStatus['result'] ?? [];
+        $error = $taskStatus['error'] ?? '';
+
+        switch ($status) {
+            case FileConvertConstant::STATUS_READY:
+                $downloadUrl = $result['download_url'] ?? '';
+                return [
+                    'status' => 'ready',
+                    'download_url' => $downloadUrl,
+                    'progress' => 100,
+                    'message' => 'Files are ready for download',
+                    'file_count' => $result['file_count'] ?? 0,
+                    'convert_type' => $taskStatus['convert_type'] ?? 'unknown',
+                ];
+
+            case FileConvertConstant::STATUS_FAILED:
+                return [
+                    'status' => 'failed',
+                    'download_url' => null,
+                    'progress' => null,
+                    'message' => $error ?: 'Task failed',
+                ];
+
+            case FileConvertConstant::STATUS_PROCESSING:
+            default:
+                $progressValue = $progress['percentage'] ?? 0;
+                $progressMessage = $progress['message'] ?? 'Processing...';
+
+                return [
+                    'status' => 'processing',
+                    'download_url' => null,
+                    'progress' => (int) $progressValue,
+                    'message' => $progressMessage,
+                ];
+        }
+    }
+
+    /**
+     * 同步处理文件转换.
+     *
+     * @param string $taskKey 任务键
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param ConvertFilesRequestDTO $requestDTO 请求DTO
+     * @param array $validFiles 有效文件列表
+     * @param mixed $projectEntity 项目实体
+     */
+    private function processFileConversionSync(string $taskKey, MagicUserAuthorization $userAuthorization, ConvertFilesRequestDTO $requestDTO, array $validFiles, $projectEntity): void
+    {
+        try {
+            $options = $requestDTO->options;
+            $convertType = $requestDTO->convert_type;
+            $totalFiles = count($validFiles);
+
+            $this->fileConvertStatusManager->setTaskProgress($taskKey, 0, $totalFiles, 'Starting file conversion');
+
+            // 验证文件类型并收集 file_key，统一校验沙箱ID
+            $fileKeys = [];
+            $sandboxId = null;
+
+            $processedCount = 0;
+            foreach ($validFiles as $fileEntity) {
+                ++$processedCount;
+                $this->fileConvertStatusManager->setTaskProgress($taskKey, $processedCount, $totalFiles, "Processing file {$processedCount}/{$totalFiles}");
+
+                // 获取沙箱ID
+                $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
+                if (! $topicEntity) {
+                    continue;
+                }
+
+                $currentSandboxId = $topicEntity->getSandboxId();
+                if (empty($currentSandboxId)) {
+                    $this->logger->error('File topic has no sandbox_id', [
+                        'file_id' => $fileEntity->getFileId(),
+                        'topic_id' => $topicEntity->getId(),
+                    ]);
+                    continue;
+                }
+
+                if ($sandboxId === null) {
+                    $sandboxId = $currentSandboxId;
+                } elseif ($sandboxId !== $currentSandboxId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED);
+                }
+
+                $fileKeys[] = $fileEntity->getFileKey();
+            }
+
+            if (empty($fileKeys)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
+            }
+
+            $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
+
+            // 创建文件转换请求
+            $fileRequest = new FileConverterRequest($convertType, $fileKeys, $options);
+            // 调用文件转换服务
+            $response = $this->fileConverterService->convert($sandboxId, $fileRequest);
+            if (! $response->isSuccess()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED);
+            }
+
+            // 获取沙箱返回的ZIP下载地址
+            $zipDownloadUrl = $response->getZipDownloadUrl();
+            if (empty($zipDownloadUrl)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED);
+            }
+
+            // 生成ZIP文件名
+            $zipFileName = sprintf(
+                '%s_%s_%s.zip',
+                $projectEntity->getProjectName() ?: 'converted_files',
+                $convertType,
+                date('YmdHi')
+            );
+
+            // 标记任务完成
+            $result = [
+                'success' => true,
+                'download_url' => $zipDownloadUrl,
+                'zip_file_name' => $zipFileName,
+                'file_count' => count($fileKeys),
+                'batch_id' => $response->getBatchId(),
+            ];
+
+            $this->fileConvertStatusManager->setTaskCompleted($taskKey, $result);
+
+            $this->logger->info('[File Converter] Successfully converted files and got ZIP download URL', [
+                'task_key' => $taskKey,
+                'user_id' => $userAuthorization->getId(),
+                'zip_download_url' => $zipDownloadUrl,
+                'zip_file_name' => $zipFileName,
+                'file_count' => count($fileKeys),
+                'batch_id' => $response->getBatchId(),
+                'convert_type' => $convertType,
+            ]);
+        } catch (Throwable $e) {
+            $this->fileConvertStatusManager->setTaskFailed($taskKey, $e->getMessage());
+            $this->logger->error('[File Converter] File conversion failed', [
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
