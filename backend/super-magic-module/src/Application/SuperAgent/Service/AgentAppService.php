@@ -13,14 +13,9 @@ use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
@@ -30,7 +25,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperat
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -50,8 +44,6 @@ class AgentAppService
         private SandboxGatewayInterface $gateway,
         private SandboxAgentInterface $agent,
         private readonly FileProcessAppService $fileProcessAppService,
-        private readonly FileAppService $fileAppService,
-        private readonly MagicUserInfoAppService $userInfoAppService,
         private readonly AgentDomainService $agentDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
@@ -283,64 +275,6 @@ class AgentAppService
             'timeout_seconds' => $timeoutSeconds,
         ]);
         throw new SandboxOperationException('Wait for workspace ready', 'Workspace ready timeout after ' . $timeoutSeconds . ' seconds', 3003);
-    }
-
-    /**
-     * 构建初始化消息.
-     */
-    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
-    {
-        // 1. 获取上传配置信息
-        $storageType = StorageBucketType::Private->value;
-        $expires = 3600; // Credential valid for 1 hour
-        // Create user authorization object
-        $userAuthorization = new MagicUserAuthorization();
-        $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        // Use unified FileAppService to get STS Token
-        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
-
-        // 2. 构建元数据
-        $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
-        $userInfo = UserInfoValueObject::fromArray($userInfoArray);
-        $messageMetadata = new MessageMetadata(
-            agentUserId: $taskContext->getAgentUserId(),
-            userId: $dataIsolation->getCurrentUserId(),
-            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            chatTopicId: $taskContext->getChatTopicId(),
-            instruction: $taskContext->getInstruction()->value,
-            sandboxId: $taskContext->getSandboxId(),
-            superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            language: di(TranslatorInterface::class)->getLocale(),
-            userInfo: $userInfo,
-        );
-
-        return [
-            'message_id' => (string) IdGenerator::getSnowId(),
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'project_id' => (string) $taskContext->getTask()->getProjectId(),
-            'type' => MessageType::Init->value,
-            'upload_config' => $stsConfig,
-            'message_subscription_config' => [
-                'method' => 'POST',
-                'url' => config('super-magic.sandbox.callback_host', '') . '/api/v1/super-agent/tasks/deliver-message',
-                'headers' => [
-                    'token' => config('super-magic.sandbox.token', ''),
-                ],
-                'enable_obfuscation' => true,
-            ],
-            'sts_token_refresh' => [
-                'method' => 'POST',
-                'url' => config('super-magic.sandbox.callback_host', '') . '/api/v1/super-agent/file/refresh-sts-token',
-                'headers' => [
-                    'token' => config('super-magic.sandbox.token', ''),
-                ],
-            ],
-            'metadata' => $messageMetadata->toArray(),
-            'task_mode' => $taskContext->getTask()->getTaskMode(),
-            'agent_mode' => $taskContext->getAgentMode(),
-            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
-        ];
     }
 
     /**

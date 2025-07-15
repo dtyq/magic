@@ -39,9 +39,9 @@ class ScriptTaskEntity extends AbstractEntity
             'script_name' => $this->scriptName,
         ];
 
-        // 移除null值
+        // 移除空值
         return array_filter($result, function ($value) {
-            return $value !== null;
+            return !empty($value);
         });
     }
 
