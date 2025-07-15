@@ -144,7 +144,7 @@ class TaskEntity extends AbstractEntity
         });
     }
 
-     /**
+    /**
      * Create DTO from array.
      */
     public static function fromArray(array $data): self
@@ -167,10 +167,9 @@ class TaskEntity extends AbstractEntity
             'conversation_id' => $data['conversation_id'] ?? $data['conversationId'] ?? null,
             'created_at' => $data['created_at'] ?? $data['createdAt'] ?? null,
             'updated_at' => $data['updated_at'] ?? $data['updatedAt'] ?? null,
-            'deleted_at' => $data['deleted_at'] ?? $data['deletedAt'] ?? null
+            'deleted_at' => $data['deleted_at'] ?? $data['deletedAt'] ?? null,
         ]);
     }
-
 
     public function getId(): int
     {

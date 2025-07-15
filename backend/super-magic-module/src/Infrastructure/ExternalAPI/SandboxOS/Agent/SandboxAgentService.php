@@ -282,7 +282,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                "/api/task/script-task",
+                '/api/task/script-task',
                 $request->toArray()
             );
 
@@ -293,7 +293,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
                     'sandbox_id' => $sandboxId,
                     'script_name' => $request->getScriptName(),
                     'arguments' => $request->getArguments(),
-                    ]);
+                ]);
             } else {
                 $this->logger->error('[Sandbox][Agent] Failed to save files', [
                     'sandbox_id' => $sandboxId,

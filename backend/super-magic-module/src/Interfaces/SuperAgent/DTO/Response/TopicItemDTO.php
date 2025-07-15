@@ -52,7 +52,6 @@ class TopicItemDTO extends AbstractDTO
      */
     protected string $topicMode = '';
 
-
     /**
      * @var string 沙箱ID
      */

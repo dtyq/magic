@@ -7,13 +7,12 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
-use Hyperf\Validation\Request\FormRequest;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Infrastructure\Core\AbstractRequestDTO;
 
 class CreateAgentTaskRequestDTO extends AbstractRequestDTO
 {
     protected string $taskId = '';
+
     protected string $prompt = '';
 
     protected string $accessToken = '';
@@ -39,7 +38,6 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
         ];
     }
 
-
     /**
      * 属性名称.
      */
@@ -51,12 +49,10 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
         ];
     }
 
-
     public function getTaskId(): string
     {
         return $this->taskId;
     }
-
 
     public function getConversationId(): string
     {
@@ -83,7 +79,7 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
         return $this->accessToken;
     }
 
-    /**
+    /*
      * 准备数据.
      */
     // protected function prepareForValidation(): void
@@ -99,5 +95,4 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
     //     $this->prompt = (string) $this->input('prompt', '');
     //     $this->params = $this->has('params') ? (string) $this->input('params') : null;
     // }
-
 }

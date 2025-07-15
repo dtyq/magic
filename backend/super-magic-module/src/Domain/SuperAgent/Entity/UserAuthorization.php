@@ -11,7 +11,6 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\PlatformType;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 
-
 class UserAuthorization
 {
     /**

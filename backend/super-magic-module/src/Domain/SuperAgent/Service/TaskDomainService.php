@@ -13,6 +13,8 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
+
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -54,7 +56,6 @@ class TaskDomainService
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
-     * @param UserMessageDTO $userMessageDTO User message DTO containing all necessary parameters
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
@@ -574,6 +575,12 @@ class TaskDomainService
         return $this->taskRepository->updateTaskStatusBySandboxIds($sandboxIds, $taskStatus->value, $errMsg);
     }
 
+    public function executeScriptTask(ScriptTaskEntity $scriptTaskEntity): void
+    {
+        $scriptTaskRequest = ScriptTaskRequest::create($scriptTaskEntity->getTaskId(), $scriptTaskEntity->getArguments(), $scriptTaskEntity->getScriptName());
+        $this->sandboxAgent->executeScriptTask($scriptTaskEntity->getSandboxId(), $scriptTaskRequest);
+    }
+
     /**
      * Check if file is hidden file.
      *
@@ -596,12 +603,5 @@ class TaskDomainService
         }
 
         return false; // It's not a hidden file
-    }
-
-
-    public function executeScriptTask(ScriptTaskEntity $scriptTaskEntity): void
-    {
-        $scriptTaskRequest = ScriptTaskRequest::create($scriptTaskEntity->getTaskId(), $scriptTaskEntity->getArguments(), $scriptTaskEntity->getScriptName());
-        $this->sandboxAgent->executeScriptTask($scriptTaskEntity->getSandboxId(), $scriptTaskRequest);
     }
 }

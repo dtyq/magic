@@ -7,24 +7,30 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
-use Hyperf\Validation\Request\FormRequest;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Infrastructure\Core\AbstractRequestDTO;
 
 class InitSandboxRequestDTO extends AbstractRequestDTO
 {
     protected string $taskType = '';
+
     protected string $agentName = '';
+
     protected string $toolName = '';
+
     protected string $customName = '';
+
     protected string $modelId = '';
+
     protected string $workspaceId = '';
+
     protected string $projectId = '';
 
     protected string $projectMode = 'general';
 
     protected string $topicId = '';
+
     protected string $prompt = '';
+
     protected ?string $params = null;
 
     protected string $accessToken = '';
@@ -37,17 +43,17 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationRules(): array
     {
         return [
-            'task_type' => 'required|string',//任务类型，支持agent、tool、custom三种模式
+            'task_type' => 'required|string', // 任务类型，支持agent、tool、custom三种模式
             // 'agent_name' => 'required_if:task_type,agent|string',//如果是agent模式，则需要传入agent_name
             // 'tool_name' => 'required_if:task_type,tool|string',//如果是tool模式，则需要传入tool_name
             // 'custom_name' => 'required_if:task_type,custom|string',//如果是custom模式，则需要传入custom_name
             // 'model_id' => 'string',//模型ID
-            'workspace_id' => 'string',//工作区ID
-            'project_id' => 'string',//项目ID
-            'project_mode' => 'string',//项目模式
-            'topic_id' => 'string',//话题ID
+            'workspace_id' => 'string', // 工作区ID
+            'project_id' => 'string', // 项目ID
+            'project_mode' => 'string', // 项目模式
+            'topic_id' => 'string', // 话题ID
             // 'prompt' => 'required_if:task_type,agent|string',//任务提示词,如果是agent模式，则需要传入prompt
-            'params' => 'object',//自定入params
+            'params' => 'object', // 自定入params
         ];
     }
 
@@ -55,8 +61,8 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     {
         return [
             'task_type.required' => '任务类型不能为空',
-                // 'agent_name.required_if' => 'agent名称不能为空',
-                // 'tool_name.required_if' => 'tool名称不能为空',
+            // 'agent_name.required_if' => 'agent名称不能为空',
+            // 'tool_name.required_if' => 'tool名称不能为空',
             // 'custom_name.required_if' => 'custom名称不能为空',
             // 'model_id.string' => '模型ID不能为空',
             'workspace_id.integer' => '工作区ID不能为空',
@@ -67,7 +73,6 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'params.object' => '参数不能为空',
         ];
     }
-
 
     /**
      * 属性名称.
@@ -88,7 +93,6 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'params' => '参数',
         ];
     }
-
 
     public function getTaskType(): string
     {
@@ -185,7 +189,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
         return $this->accessToken;
     }
 
-    /**
+    /*
      * 准备数据.
      */
     // protected function prepareForValidation(): void
@@ -201,5 +205,4 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     //     $this->prompt = (string) $this->input('prompt', '');
     //     $this->params = $this->has('params') ? (string) $this->input('params') : null;
     // }
-
 }
