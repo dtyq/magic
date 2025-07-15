@@ -13,6 +13,7 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
@@ -401,6 +402,9 @@ class HandleAgentMessageAppService extends AbstractAppService
         }
 
         try {
+            /**
+             * @var TaskFileEntity $taskFileEntity
+             */
             // Call FileProcessAppService directly to process attachment
             [$fileId, $taskFileEntity] = $this->fileProcessAppService->processFileByFileKey(
                 $attachment['file_key'],
@@ -415,6 +419,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
             $attachment['topic_id'] = $task->getTopicId();
+            $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
