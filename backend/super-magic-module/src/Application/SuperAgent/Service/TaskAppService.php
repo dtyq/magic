@@ -128,6 +128,7 @@ class TaskAppService extends AbstractAppService
                 agentUserId: $agentUserId,
                 chatConversationId: $conversationId,
                 chatTopicId: $chatTopicId,
+                topicId: $topicId,
                 prompt: $prompt,
                 attachments: $attachments,
                 mentions: null,
