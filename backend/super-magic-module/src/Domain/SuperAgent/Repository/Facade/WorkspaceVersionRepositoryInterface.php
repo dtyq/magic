@@ -23,5 +23,7 @@ interface WorkspaceVersionRepositoryInterface
 
     public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity;
 
+    public function getLatestUpdateVersionProjectId(int $projectId): ?WorkspaceVersionEntity;
+
     public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int;
 }

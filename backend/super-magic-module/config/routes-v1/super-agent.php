@@ -48,6 +48,8 @@ Router::addGroup(
             Router::delete('/{id}', [ProjectApi::class, 'destroy']);
             // 获取项目下的话题列表
             Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
+            // 检查是否需要更新项目文件列表
+            Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
         });
 
         // 话题相关

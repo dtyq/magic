@@ -114,6 +114,14 @@ class ProjectApi extends AbstractApi
         return $this->projectAppService->getProjectTopics($requestContext, (int) $id, $page, $pageSize);
     }
 
+    public function checkFileListUpdate(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->projectAppService->checkFileListUpdate($requestContext, (int) $id);
+    }
+
     /**
      * Get project attachments.
      */

@@ -291,6 +291,17 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
+    public function checkFileListUpdate(RequestContext $requestContext, int $projectId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
+
+        return [
+            'last_updated_at' => $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId),
+        ];
+    }
+
     /**
      * 获取项目附件列表（登录用户模式）.
      */
@@ -403,15 +414,7 @@ class ProjectAppService extends AbstractAppService
         // 构建树状结构（登录用户模式特有功能）
         $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
 
-        // 获取文件最线更新的时间
-        $lastUpdatedTime = '';
-        $lastFileEntity = $this->taskFileDomainService->getLatestUpdatedByProjectId((int) $requestDTO->getProjectId());
-        if ($lastFileEntity) {
-            $lastUpdatedTime = $lastFileEntity->getUpdatedAt();
-        }
-
         return [
-            'last_updated_at' => $lastUpdatedTime,
             'total' => $result['total'],
             'list' => $list,
             'tree' => $tree,
