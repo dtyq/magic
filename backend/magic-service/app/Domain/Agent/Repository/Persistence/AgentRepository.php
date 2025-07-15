@@ -31,6 +31,9 @@ class AgentRepository extends AbstractRepository implements AgentRepositoryInter
 
         // 设置查询条件
         if ($agentQuery->getIds()) {
+            if (empty($agentQuery->getIds())) {
+                return ['total' => 0, 'list' => []];
+            }
             $builder->whereIn('id', $agentQuery->getIds());
         }
         if ($agentQuery->getStatus()) {
