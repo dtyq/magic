@@ -88,6 +88,15 @@ class WorkspaceVersionRepository implements WorkspaceVersionRepositoryInterface
         return $this->toEntity($model);
     }
 
+    public function getLatestUpdateVersionProjectId(int $projectId): ?WorkspaceVersionEntity
+    {
+        $model = WorkspaceVersionModel::query()->where('project_id', $projectId)->orderBy('id', 'desc')->first();
+        if (! $model) {
+            return null;
+        }
+        return $this->toEntity($model);
+    }
+
     public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int
     {
         $model = WorkspaceVersionModel::query()->where('commit_hash', $commitHash)->where('project_id', $projectId)->orderBy('tag', 'desc')->first();

@@ -12,11 +12,13 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 
 class TaskFileDomainService
 {
     public function __construct(
         protected TaskFileRepositoryInterface $taskFileRepository,
+        protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
         protected TopicRepositoryInterface $topicRepository,
     ) {
     }
@@ -73,9 +75,29 @@ class TaskFileDomainService
     /**
      * Get the latest updated file by project ID.
      */
-    public function getLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    public function getLatestUpdatedByProjectId(int $projectId): string
     {
-        return $this->taskFileRepository->findLatestUpdatedByProjectId($projectId);
+        $lastUpdatedTime = null;
+
+        // 获取文件最新更新的时间
+        $lastFileEntity = $this->taskFileRepository->findLatestUpdatedByProjectId($projectId);
+        if ($lastFileEntity) {
+            $lastUpdatedTime = $lastFileEntity->getUpdatedAt();
+        }
+
+        // 获取版本更新时间
+        $lastVersionEntity = $this->workspaceVersionRepository->getLatestUpdateVersionProjectId($projectId);
+        if ($lastVersionEntity) {
+            $versionUpdatedTime = $lastVersionEntity->getUpdatedAt();
+
+            // 使用 strtotime 进行更安全的时间比较
+            if ($lastUpdatedTime === null || strtotime($versionUpdatedTime) > strtotime($lastUpdatedTime)) {
+                $lastUpdatedTime = $versionUpdatedTime;
+            }
+        }
+
+        // 如果两个时间都为空，返回空字符串；否则返回最新时间
+        return $lastUpdatedTime ?? '';
     }
 
     /**
