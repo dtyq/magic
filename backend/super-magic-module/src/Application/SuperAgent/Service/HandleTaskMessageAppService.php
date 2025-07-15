@@ -217,7 +217,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         $taskId = '';
         try {
             // Get topic information
-            $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
+            $topicEntity = $this->topicDomainService->getTopicById($userMessageDTO->getTopicId());
             if (is_null($topicEntity)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
@@ -393,7 +393,6 @@ class HandleTaskMessageAppService extends AbstractAppService
     {
         $taskEntity = $this->taskDomainService->getTaskById($taskId);
 
-        var_dump($taskEntity, '=====taskEntity');
         if (empty($taskEntity)) {
             // 抛异常，任务不存在
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
