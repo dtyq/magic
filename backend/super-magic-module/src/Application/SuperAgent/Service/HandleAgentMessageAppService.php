@@ -25,6 +25,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
@@ -33,6 +35,7 @@ use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
+use function Hyperf\Translation\trans;
 
 /**
  * Handle Agent Message Application Service
@@ -576,9 +579,9 @@ class HandleAgentMessageAppService extends AbstractAppService
 
         // Get sandbox status, if sandbox is running, send interrupt command
         try {
-            $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
+            $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
             if ($result->getStatus() === SandboxStatus::RUNNING) {
-                $this->agentAppService->sendInterruptMessage(
+                $this->agentDomainService->sendInterruptMessage(
                     $dataIsolation,
                     $taskContext->getTask()->getSandboxId(),
                     (string) $taskContext->getTask()->getId(),
