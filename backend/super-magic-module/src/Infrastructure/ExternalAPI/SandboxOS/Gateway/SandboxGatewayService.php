@@ -601,7 +601,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 return '';
             }
 
-            $projectId = $topic->getProjectId();
+            $projectId = (string) $topic->getProjectId();
 
             $createResult = $this->createSandbox(['sandbox_id' => $sandboxId, 'project_id' => $projectId]);
 
