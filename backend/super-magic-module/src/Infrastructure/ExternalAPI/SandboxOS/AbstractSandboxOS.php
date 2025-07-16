@@ -46,7 +46,8 @@ abstract class AbstractSandboxOS
         $this->enableSandbox = config('super-magic.sandbox.enabled', true);
 
         if (empty($this->baseUrl)) {
-            throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set');
+            var_dump( config('super-magic', ''));
+            // throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set');
         }
 
         $this->client = new Client([
