@@ -570,6 +570,7 @@ class WorkspaceAppService extends AbstractAppService
             $result[] = [
                 'file_id' => $fileId,
                 'url' => $fileLink->getUrl(),
+                'config' => config('super-magic', ''),
             ];
         }
 
