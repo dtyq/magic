@@ -135,7 +135,7 @@ Router::addGroup('/api/v1/super-agent', static function () {
 });
 
 // super-magic 开放api , 注意，后续的api均使用super-magic 不使用super-agent
-Router::addGroup('/api/v1/open-api/super-maigc', static function () {
+Router::addGroup('/api/v1/open-api/super-magic', static function () {
     Router::post('/sandbox/init', [SandboxApi::class, 'initSandbox']);
     // 创建agent任务
     Router::post('/agent-task', [OpenTaskApi::class, 'agentTask']);
