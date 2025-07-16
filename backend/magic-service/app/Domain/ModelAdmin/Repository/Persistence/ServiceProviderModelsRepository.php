@@ -45,8 +45,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray = $this->prepareEntityForSave($serviceProviderModelsEntity, $isNew);
 
         if ($isNew) {
-            $snowId = IdGenerator::getSnowId();
-            $entityArray['model_parent_id'] = $snowId;
+            $entityArray['model_parent_id'] = 0;
             $this->serviceProviderModelsModel::query()->insert($entityArray);
             $serviceProviderModelsEntity->setId($entityArray['id']);
         } else {
@@ -434,6 +433,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray['translate'] = Json::encode($modelArray['translate'] ?: []);
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
         $modelArray['visible_applications'] = Json::encode($modelArray['visible_applications'] ?: []);
+        $modelArray['super_magic_display_state'] = $modelArray['super_magic_display_state'] ?? 0;
         $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
@@ -534,10 +534,10 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
     }
 
     /**
-     * 根据服务商配置IDs、modelId和激活状态查找对应的模型.
-     * @param array $configIds 服务商配置ID数组
-     * @param string $modelVersion 模型ID
-     * @return ServiceProviderModelsEntity[] 找到的激活模型数组
+     * find active models by config ids, model version and status.
+     * @param array $configIds provider config ids
+     * @param string $modelVersion model version
+     * @return ServiceProviderModelsEntity[] found active models
      */
     public function getActiveModelsByConfigIdsAndModelVersion(array $configIds, string $modelVersion): array
     {
@@ -549,7 +549,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->whereIn('service_provider_config_id', $configIds)
             ->where('model_version', $modelVersion)
             ->where('status', Status::ACTIVE->value)
-            ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
+            ->orderBy('created_at', 'desc'); // order by created at desc
 
         return $this->executeQueryAndToEntities($query);
     }
@@ -590,6 +590,31 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
 
         return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * Get models with super magic display state enabled for current organization.
+     * @param string $organizationCode Organization code
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    {
+        $query = $this->serviceProviderModelsModel::query()
+            ->where('super_magic_display_state', 1)
+            ->where('organization_code', $organizationCode)
+            ->where('status', Status::ACTIVE->value);
+
+        return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * 更新模型的 model_parent_id.
+     */
+    public function updateModelParentId(int $modelId, int $parentId): void
+    {
+        $this->serviceProviderModelsModel::query()
+            ->where('id', $modelId)
+            ->update(['model_parent_id' => $parentId]);
     }
 
     /**
