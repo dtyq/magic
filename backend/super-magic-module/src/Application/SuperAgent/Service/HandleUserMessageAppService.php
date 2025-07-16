@@ -59,7 +59,7 @@ class HandleUserMessageAppService extends AbstractAppService
         $this->logger = $loggerFactory->get(get_class($this));
     }
 
-    public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto)
+    public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto): void
     {
         // Get topic information
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getChatTopicId());
@@ -93,11 +93,8 @@ class HandleUserMessageAppService extends AbstractAppService
             );
         }
     }
-    /*
-    * user send message to agent
-    */
 
-    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
+    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {
         $topicId = 0;
         $taskId = '';
@@ -159,6 +156,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
+                mcpConfig: $userMessageDTO->getMcpConfig(),
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
