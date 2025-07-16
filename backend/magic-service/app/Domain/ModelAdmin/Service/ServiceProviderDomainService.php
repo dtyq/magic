@@ -462,10 +462,9 @@ class ServiceProviderDomainService
     /**
      * 初始化组织的服务商信息
      * 当新加入一个组织后，初始化该组织的服务商和模型配置.
-     * @return ServiceProviderConfigDTO[] 初始化后的服务商配置列表
      * @throws LockException
      */
-    public function initOrganizationServiceProviders(string $organizationCode, ?ServiceProviderCategory $serviceProviderCategory = null): array
+    public function initOrganizationServiceProviders(string $organizationCode, ?ServiceProviderCategory $serviceProviderCategory = null)
     {
         $lockKey = 'service_provider:init:' . $organizationCode;
         $userId = uniqid('service_provider'); // 使用唯一ID作为锁的拥有者
@@ -474,60 +473,22 @@ class ServiceProviderDomainService
         if (! $this->redisLocker->mutexLock($lockKey, $userId, 60)) {
             $this->logger->warning(sprintf('获取 initOrganizationServiceProviders 锁失败, organizationCode: %s', $organizationCode));
             // 获取锁失败，返回空结果，避免并发操作
-            return [];
+            return;
         }
 
         try {
             $this->logger->info(sprintf('获取 initOrganizationServiceProviders 锁成功, 开始执行初始化, organizationCode: %s', $organizationCode));
 
-            $result = [];
             Db::beginTransaction();
             try {
-                // 获取所有服务商（如果指定了类别，则只获取该类别的服务商）
-                $serviceProviders = $this->serviceProviderRepository->getAllByCategory(1, 1000, $serviceProviderCategory);
-                if (empty($serviceProviders)) {
-                    return [];
-                }
-
-                // 收集需要同步模型的服务商（官方和VLM类型）
-                $officialAndVlmProviders = [];
-                $serviceProviderMap = [];
-
-                // collect vlm and official provider
-                foreach ($serviceProviders as $serviceProvider) {
-                    if ($serviceProvider->getCategory() === ServiceProviderCategory::LLM->value) {
-                        continue;
-                    }
-                    $serviceProviderMap[$serviceProvider->getId()] = $serviceProvider;
-                    // 收集需要同步模型的服务商（官方和VLM类型）
-                    $isOfficial = ServiceProviderType::from($serviceProvider->getProviderType()) === ServiceProviderType::OFFICIAL;
-                    if ($isOfficial || ServiceProviderCategory::from($serviceProvider->getCategory()) === ServiceProviderCategory::VLM) {
-                        $officialAndVlmProviders[] = $serviceProvider->getId();
-                    }
-                }
-
-                // 批量创建服务商配置
-                $configEntities = $this->batchCreateServiceProviderConfigs($serviceProviders, $organizationCode);
-
-                // process vlm and official provider
-                if (! empty($officialAndVlmProviders)) {
-                    $this->batchSyncServiceProviderModels($officialAndVlmProviders, $organizationCode);
-                }
-
                 // Special handling: Initialize models for new organization's Magic service provider from all LLM service providers in official organization
                 if ($serviceProviderCategory === null || $serviceProviderCategory === ServiceProviderCategory::LLM) {
                     $this->initMagicServiceProviderModels($organizationCode);
                 }
 
-                // 构建返回结果
-                foreach ($configEntities as $configEntity) {
-                    $serviceProviderId = $configEntity->getServiceProviderId();
-                    if (isset($serviceProviderMap[$serviceProviderId])) {
-                        $result[] = $this->buildServiceProviderConfigDTO(
-                            $serviceProviderMap[$serviceProviderId],
-                            $configEntity
-                        );
-                    }
+                // Special handling: Initialize models for new organization's VLM service providers from all VLM service providers in official organization
+                if ($serviceProviderCategory === null || $serviceProviderCategory === ServiceProviderCategory::VLM) {
+                    $this->initVLMServiceProviderModels($organizationCode);
                 }
 
                 Db::commit();
@@ -536,8 +497,6 @@ class ServiceProviderDomainService
                 Db::rollBack();
                 ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError, __('service_provider.init_organization_providers_failed'));
             }
-
-            return $result;
         } finally {
             // 确保锁被释放
             $this->redisLocker->release($lockKey, $userId);
@@ -610,6 +569,7 @@ class ServiceProviderDomainService
                 $newModel = clone $baseModel;
                 $newModel->setServiceProviderConfigId($newConfigId);
                 $newModel->setOrganizationCode($orgCode);
+                $newModel->setModelParentId($baseModel->getId());
                 $modelsToSave[] = $newModel;
             }
         }
@@ -714,12 +674,15 @@ class ServiceProviderDomainService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotActive);
         }
 
+        if ($serviceProviderModelEntity->getIsOffice()) {
+            // 获取父级的模型服务商 id
+            $serviceProviderConfigId = $this->getModelById((string) $serviceProviderModelEntity->getModelParentId())->getServiceProviderConfigId();
+        } else {
+            $serviceProviderConfigId = $serviceProviderModelEntity->getServiceProviderConfigId();
+        }
+
         // 3. 获取服务商配置
-        $serviceProviderConfigId = $serviceProviderModelEntity->getServiceProviderConfigId();
-        $serviceProviderConfigEntity = $this->serviceProviderConfigRepository->getByIdAndOrganizationCode(
-            (string) $serviceProviderConfigId,
-            $organizationCode
-        );
+        $serviceProviderConfigEntity = $this->serviceProviderConfigRepository->getById($serviceProviderConfigId);
 
         // 4. 获取服务商信息
         $serviceProviderId = $serviceProviderConfigEntity->getServiceProviderId();
@@ -1699,15 +1662,22 @@ class ServiceProviderDomainService
             return false;
         }
 
-        // 2. Get Magic service provider configuration for new organization
+        // 2. Ensure Magic service provider configuration exists for new organization
         $newOrgConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
             [$magicServiceProvider->getId()],
             $organizationCode
         );
+
+        // If Magic service provider configuration doesn't exist, create it
         if (empty($newOrgConfigs)) {
-            return false;
+            $createdConfigs = $this->batchCreateServiceProviderConfigs([$magicServiceProvider], $organizationCode);
+            if (empty($createdConfigs)) {
+                return false;
+            }
+            $magicConfigId = $createdConfigs[0]->getId();
+        } else {
+            $magicConfigId = $newOrgConfigs[0]->getId();
         }
-        $magicConfigId = $newOrgConfigs[0]->getId();
 
         // 3. Get all LLM type service provider configurations in official organization (exclude Magic itself)
         $officeOrganization = config('service_provider.office_organization');
@@ -1774,6 +1744,159 @@ class ServiceProviderDomainService
         // 7. Batch save models
         $this->serviceProviderModelsRepository->batchSaveModels($modelsToSave);
         $this->logger->info(sprintf('Initialized %d models for organization %s Magic service provider', count($modelsToSave), $organizationCode));
+
+        return true;
+    }
+
+    /**
+     * Initialize VLM service provider models for new organization
+     * VLM service provider models come from all VLM type service providers (exclude Magic) in official organization.
+     * Models will be copied to both Magic service provider and other VLM service providers.
+     *
+     * @param string $organizationCode New organization code
+     * @return bool Whether initialization is successful
+     */
+    private function initVLMServiceProviderModels(string $organizationCode): bool
+    {
+        // If it's official organization, no need to process
+        if ($this->isOfficial($organizationCode)) {
+            return true;
+        }
+
+        // 1. Get all VLM type service providers from official organization
+        $officeOrganization = config('service_provider.office_organization');
+        $allVLMProviders = $this->serviceProviderRepository->getAllByCategory(1, 1000, ServiceProviderCategory::VLM);
+
+        $officeVLMProviderIds = [];
+        $magicServiceProvider = null;
+        foreach ($allVLMProviders as $provider) {
+            if ($provider->getProviderCode() === ServiceProviderCode::Magic->value) {
+                $magicServiceProvider = $provider;
+            } else {
+                $officeVLMProviderIds[] = $provider->getId();
+            }
+        }
+
+        if (empty($officeVLMProviderIds) || ! $magicServiceProvider) {
+            return true;
+        }
+
+        // 2. Ensure all VLM service provider configurations exist for new organization
+        $allVLMProviderIds = array_merge($officeVLMProviderIds, [$magicServiceProvider->getId()]);
+        $existingConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
+            $allVLMProviderIds,
+            $organizationCode
+        );
+
+        // Create mapping of existing configurations
+        $existingConfigMap = [];
+        foreach ($existingConfigs as $config) {
+            $existingConfigMap[$config->getServiceProviderId()] = $config->getId();
+        }
+
+        // Create configurations for missing service providers
+        $missingProviders = [];
+        foreach ($allVLMProviders as $provider) {
+            if (! isset($existingConfigMap[$provider->getId()])) {
+                $missingProviders[] = $provider;
+            }
+        }
+
+        if (! empty($missingProviders)) {
+            $createdConfigs = $this->batchCreateServiceProviderConfigs($missingProviders, $organizationCode);
+            foreach ($createdConfigs as $config) {
+                $existingConfigMap[$config->getServiceProviderId()] = $config->getId();
+            }
+        }
+
+        // Get Magic service provider config ID
+        $magicConfigId = $existingConfigMap[$magicServiceProvider->getId()] ?? null;
+        if (! $magicConfigId) {
+            return false;
+        }
+
+        // Create mapping from service provider ID to config ID for current organization (excluding Magic)
+        $currentOrgConfigMap = [];
+        foreach ($officeVLMProviderIds as $providerId) {
+            if (isset($existingConfigMap[$providerId])) {
+                $currentOrgConfigMap[$providerId] = $existingConfigMap[$providerId];
+            }
+        }
+
+        // 3. Get configurations of these VLM service providers in official organization
+        $officeConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
+            $officeVLMProviderIds,
+            $officeOrganization
+        );
+
+        if (empty($officeConfigs)) {
+            return true;
+        }
+
+        $officeConfigMap = [];
+        $officeConfigIds = [];
+        foreach ($officeConfigs as $config) {
+            $id = $config->getId();
+            $officeConfigIds[] = $id;
+            $officeConfigMap[$id] = [
+                'status' => $config->getStatus(),
+                'service_provider_id' => $config->getServiceProviderId(),
+            ];
+        }
+
+        // 4. Get all models under these configurations
+        $allModels = $this->serviceProviderModelsRepository->getModelsByConfigIds($officeConfigIds);
+
+        if (empty($allModels)) {
+            return true;
+        }
+
+        $modelsToSave = [];
+
+        // 5. Create model copies for current organization's Magic service provider (with modelParentId)
+        foreach ($allModels as $baseModel) {
+            $newModel = clone $baseModel;
+            $newModel->setId(null);
+            $newModel->setServiceProviderConfigId($magicConfigId);
+            $newModel->setOrganizationCode($organizationCode);
+            $newModel->setIsOffice(true); // Mark as official model for Magic service provider
+            $newModel->setModelParentId($baseModel->getId());
+
+            // Model is enabled only when both service provider and model are active; otherwise disabled
+            $bothActive = ($baseModel->getStatus() === Status::ACTIVE->value)
+                          && ($officeConfigMap[$baseModel->getServiceProviderConfigId()]['status'] === Status::ACTIVE->value);
+
+            $newModel->setStatus($bothActive ? Status::ACTIVE->value : Status::DISABLE->value);
+            $modelsToSave[] = $newModel;
+        }
+
+        // 6. Create model copies for current organization's other VLM service providers (without modelParentId)
+        foreach ($allModels as $baseModel) {
+            $serviceProviderId = $officeConfigMap[$baseModel->getServiceProviderConfigId()]['service_provider_id'];
+
+            // Check if current organization has this service provider
+            if (! isset($currentOrgConfigMap[$serviceProviderId])) {
+                continue;
+            }
+
+            $newModel = clone $baseModel;
+            $newModel->setId(null);
+            $newModel->setServiceProviderConfigId($currentOrgConfigMap[$serviceProviderId]);
+            $newModel->setOrganizationCode($organizationCode);
+            $newModel->setIsOffice(false); // Mark as non-official model for other VLM service providers
+            $newModel->setModelParentId(0); // No parent model ID for other VLM service providers
+
+            // Model is enabled only when both service provider and model are active; otherwise disabled
+            $bothActive = ($baseModel->getStatus() === Status::ACTIVE->value)
+                          && ($officeConfigMap[$baseModel->getServiceProviderConfigId()]['status'] === Status::ACTIVE->value);
+
+            $newModel->setStatus($bothActive ? Status::ACTIVE->value : Status::DISABLE->value);
+            $modelsToSave[] = $newModel;
+        }
+
+        // 7. Batch save models
+        $this->serviceProviderModelsRepository->batchSaveModels($modelsToSave);
+        $this->logger->info(sprintf('Initialized %d VLM models for organization %s (Magic + other VLM providers)', count($modelsToSave), $organizationCode));
 
         return true;
     }
