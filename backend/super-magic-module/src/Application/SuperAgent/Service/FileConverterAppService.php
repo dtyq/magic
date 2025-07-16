@@ -392,7 +392,7 @@ class FileConverterAppService
                 $response = $this->fileConverterService->convert($sandboxId, $projectId, $fileRequest);
 
                 if (! $response->isSuccess()) {
-                    $this->fileConvertStatusManager->setTaskFailed($taskKey, 'File conversion failed: ' . $response->getMessage());
+                    $this->fileConvertStatusManager->setTaskFailed($taskKey, 'File conversion failed,reason: ' . $response->getMessage());
                     return;
                 }
 
