@@ -28,7 +28,7 @@ class ExternalStdioExecutor implements ExternalStdioExecutorInterface
     private ContainerInterface $container;
 
     private array $allowedCommands = [
-        'npx', 'node',
+        'npx', 'uvx', 'node', 'python',
     ];
 
     private bool $canExecute;
