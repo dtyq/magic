@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
@@ -28,8 +27,7 @@ use Hyperf\Logger\LoggerFactory;
 class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayInterface
 {
     public function __construct(
-        LoggerFactory $loggerFactory,
-        private readonly TopicRepositoryInterface $topicRepository
+        LoggerFactory $loggerFactory
     ) {
         parent::__construct($loggerFactory);
     }
@@ -461,6 +459,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function ensureSandboxAndProxy(
         string $sandboxId,
+        string $projectId,
         string $method,
         string $path,
         array $data = [],
@@ -468,7 +467,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     ): GatewayResult {
         try {
             // 1. 确保沙箱存在并且可用
-            $actualSandboxId = $this->ensureSandboxAvailable($sandboxId);
+            $actualSandboxId = $this->ensureSandboxAvailable($sandboxId, $projectId);
             if (empty($actualSandboxId)) {
                 return GatewayResult::error('Failed to create or access sandbox');
             }
@@ -487,6 +486,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Error in ensureSandboxAndProxy', [
                 'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
                 'method' => $method,
                 'path' => $path,
                 'error' => $e->getMessage(),
@@ -572,7 +572,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     /**
      * 确保沙箱存在并且可用.
      */
-    private function ensureSandboxAvailable(string $sandboxId): string
+    private function ensureSandboxAvailable(string $sandboxId, string $projectId): string
     {
         try {
             // 如果沙箱ID不为空，先检查沙箱状态
@@ -604,22 +604,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 $this->logger->info('[Sandbox][Gateway] Sandbox ID is empty, creating new sandbox');
             }
 
-            // 根据 sandbox_id 查询 project_id
-            $topic = $this->topicRepository->getTopicBySandboxId($sandboxId);
-            if (! $topic) {
-                $this->logger->error('[Sandbox][Gateway] Sandbox ID not found in topic repository', [
-                    'sandbox_id' => $sandboxId,
-                ]);
-                return '';
-            }
-
-            $projectId = (string) $topic->getProjectId();
-
+            // 直接使用传入的 project_id 参数
             $createResult = $this->createSandbox(['sandbox_id' => $sandboxId, 'project_id' => $projectId]);
 
             if (! $createResult->isSuccess()) {
                 $this->logger->error('[Sandbox][Gateway] Failed to create sandbox', [
                     'requested_sandbox_id' => $sandboxId,
+                    'project_id' => $projectId,
                     'code' => $createResult->getCode(),
                     'message' => $createResult->getMessage(),
                 ]);
@@ -657,6 +648,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Gateway] Error ensuring sandbox availability', [
                 'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
                 'error' => $e->getMessage(),
             ]);
             return '';

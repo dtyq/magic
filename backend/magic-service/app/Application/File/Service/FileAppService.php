@@ -102,6 +102,11 @@ class FileAppService extends AbstractAppService
         return $this->fileDomainService->getLink($getSenderOrganizationCode, $key, $bucketType, $downloadNames, $options);
     }
 
+    public function getLinks(string $organizationCode, array $fileKeys, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): array
+    {
+        return $this->fileDomainService->getLinks($organizationCode, $fileKeys, $bucketType, $downloadNames, $options);
+    }
+
     public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile): void
     {
         $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile);

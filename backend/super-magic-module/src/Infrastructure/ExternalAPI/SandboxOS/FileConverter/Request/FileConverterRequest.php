@@ -15,7 +15,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Contract\RequestInterfa
  */
 class FileConverterRequest implements RequestInterface
 {
-    private array $fileKeys = [];
+    private array $fileUrls = [];
 
     private array $options = [];
 
@@ -27,10 +27,16 @@ class FileConverterRequest implements RequestInterface
 
     private string $taskKey = '';
 
-    public function __construct(string $convertType, array $fileKeys, array $options = [], string $taskKey = '')
+    private string $sandboxId = '';
+
+    private array $stsTemporaryCredential = [];
+
+    public function __construct(string $sandboxId, string $convertType, array $fileUrls, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '')
     {
+        $this->sandboxId = $sandboxId;
         $this->convertType = $convertType;
-        $this->fileKeys = $fileKeys;
+        $this->fileUrls = $fileUrls;
+        $this->stsTemporaryCredential = $stsTemporaryCredential;
         $this->taskKey = $taskKey;
 
         if (isset($options['is_debug'])) {
@@ -63,10 +69,30 @@ class FileConverterRequest implements RequestInterface
         $this->options = array_merge($defaultOptions, $options);
     }
 
+    public function getSandboxId(): string
+    {
+        return $this->sandboxId;
+    }
+
+    public function getConvertType(): string
+    {
+        return $this->convertType;
+    }
+
+    public function getFileKeys(): array
+    {
+        return array_column($this->fileUrls, 'file_key');
+    }
+
+    public function getStsTemporaryCredential(): array
+    {
+        return $this->stsTemporaryCredential;
+    }
+
     public function toArray(): array
     {
         $result = [
-            'file_keys' => $this->fileKeys,
+            'file_urls' => $this->fileUrls,
             'output_format' => $this->outputFormat,
             'is_debug' => $this->isDebug,
             'convert_type' => $this->convertType,
@@ -76,6 +102,11 @@ class FileConverterRequest implements RequestInterface
         // 只有当 options 不为空时才包含该字段
         if (! empty($this->options)) {
             $result['options'] = $this->options;
+        }
+
+        // 只有当 stsTemporaryCredential 不为空时才包含该字段
+        if (! empty($this->stsTemporaryCredential)) {
+            $result['sts_temporary_credential'] = $this->stsTemporaryCredential;
         }
 
         return $result;

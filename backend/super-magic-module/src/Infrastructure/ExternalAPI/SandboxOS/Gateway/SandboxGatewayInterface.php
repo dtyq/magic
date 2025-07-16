@@ -66,6 +66,7 @@ interface SandboxGatewayInterface
      * 这是一个便捷方法，避免每个服务都需要重复实现沙箱检查和创建逻辑。
      *
      * @param string $sandboxId Sandbox ID (可以为空，会自动生成)
+     * @param string $projectId Project ID
      * @param string $method HTTP method
      * @param string $path Target path
      * @param array $data Request data
@@ -74,6 +75,7 @@ interface SandboxGatewayInterface
      */
     public function ensureSandboxAndProxy(
         string $sandboxId,
+        string $projectId,
         string $method,
         string $path,
         array $data = [],

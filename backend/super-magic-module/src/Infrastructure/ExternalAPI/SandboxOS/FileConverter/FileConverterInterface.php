@@ -15,14 +15,15 @@ interface FileConverterInterface
     /**
      * 转换文件.
      */
-    public function convert(string $sandboxId, FileConverterRequest $request): FileConverterResponse;
+    public function convert(string $sandboxId, string $projectId, FileConverterRequest $request): FileConverterResponse;
 
     /**
      * 查询转换结果.
      *
      * @param string $sandboxId 沙箱ID
+     * @param string $projectId 项目ID
      * @param string $taskKey 任务key
      * @return FileConverterResponse 转换结果
      */
-    public function queryConvertResult(string $sandboxId, string $taskKey): FileConverterResponse;
+    public function queryConvertResult(string $sandboxId, string $projectId, string $taskKey): FileConverterResponse;
 }

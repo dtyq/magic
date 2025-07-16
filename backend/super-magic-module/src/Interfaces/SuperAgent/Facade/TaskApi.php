@@ -16,6 +16,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileConverterAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
@@ -43,6 +44,7 @@ class TaskApi extends AbstractApi
         protected UserDomainService $userDomainService,
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
+        protected FileConverterAppService $fileConverterAppService,
     ) {
     }
 
@@ -180,7 +182,7 @@ class TaskApi extends AbstractApi
         $userAuthorization = $requestContext->getUserAuthorization();
 
         // 调用应用服务
-        return $this->workspaceAppService->convertFiles($userAuthorization, $dto);
+        return $this->fileConverterAppService->convertFiles($userAuthorization, $dto);
     }
 
     /**
@@ -201,6 +203,6 @@ class TaskApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        return $this->workspaceAppService->checkFileConvertStatus($userAuthorization, $taskKey);
+        return $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
     }
 }
