@@ -128,46 +128,7 @@ class AgentAppService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
-        $this->logger->info('[Sandbox][App] Sending chat message to agent', [
-            'sandbox_id' => $taskContext->getSandboxId(),
-        ]);
-
-        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getProjectId());
-
-        $attachmentUrls = [];
-        if (! empty($mentionsJsonStruct)) {
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
-        }
-
-        $mcpDataIsolation = MCPDataIsolation::create(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId()
-        );
-        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
-
-        // 构建参数
-        $chatMessage = ChatMessageRequest::create(
-            messageId: (string) IdGenerator::getSnowId(),
-            userId: $dataIsolation->getCurrentUserId(),
-            taskId: (string) $taskContext->getTask()->getId(),
-            prompt: $taskContext->getTask()->getPrompt(),
-            taskMode: $taskContext->getTask()->getTaskMode(),
-            agentMode: $taskContext->getAgentMode(),
-            attachments: $attachmentUrls,
-            mentions: $mentionsJsonStruct,
-            mcpConfig: $mcpConfig,
-        );
-
-        $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
-
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Failed to send chat message to agent', [
-                'sandbox_id' => $taskContext->getSandboxId(),
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Send chat message', $result->getMessage(), $result->getCode());
-        }
+        $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
 
     /**
