@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
@@ -128,7 +130,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $dataIsolation->getCurrentUserId()
             );
-            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $mentionsJson) ?? [];
+            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $mentionsJson ) ?? [];
 
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
