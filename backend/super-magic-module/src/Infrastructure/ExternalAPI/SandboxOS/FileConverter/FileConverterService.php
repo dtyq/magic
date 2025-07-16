@@ -75,21 +75,18 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
     public function queryConvertResult(string $sandboxId, string $projectId, string $taskKey): FileConverterResponse
     {
         try {
-            // 使用网关的 ensureSandboxAndProxy 方法查询转换结果
-            $result = $this->gateway->ensureSandboxAndProxy(
+            // 查询转换结果不需要调试模式，直接使用 proxySandboxRequest
+            $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
-                $projectId,
                 'GET',
-                "api/file/converts/{$taskKey}",
+                'api/file/converts/' . $taskKey,
             );
 
             $response = FileConverterResponse::fromGatewayResult($result);
 
             if ($response->isSuccess()) {
-                $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
                 $this->logger->info('[File Converter] Query conversion result successful', [
-                    'original_sandbox_id' => $sandboxId,
-                    'actual_sandbox_id' => $actualSandboxId,
+                    'sandbox_id' => $sandboxId,
                     'project_id' => $projectId,
                     'task_key' => $taskKey,
                     'batch_id' => $response->getBatchId(),

@@ -575,7 +575,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     private function ensureSandboxAvailable(string $sandboxId, string $projectId): string
     {
         try {
-            // 如果沙箱ID不为空，先检查沙箱状态
+            // 检查沙箱是否可用
             if (! empty($sandboxId)) {
                 $statusResult = $this->getSandboxStatus($sandboxId);
 
