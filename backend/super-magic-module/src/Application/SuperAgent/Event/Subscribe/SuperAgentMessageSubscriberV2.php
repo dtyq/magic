@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
@@ -34,6 +36,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 {
     protected LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         protected readonly TaskAppService $SuperAgentAppService,
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
@@ -41,6 +45,10 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
         MagicConversationDomainService $magicConversationDomainService,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
+        if (container()->has(SupperMagicAgentMCPInterface::class)) {
+            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
+        }
+
         parent::__construct($magicConversationDomainService);
     }
 
@@ -115,6 +123,13 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // raw content
             $rawContent = $this->getRawContent($userCallAgentEvent);
 
+            // MCP config
+            $mcpDataIsolation = MCPDataIsolation::create(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            );
+            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $mentionsJson ) ?? [];
+
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
                 agentUserId: $agentUserId,
@@ -127,7 +142,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 instruction: $chatInstructs,
                 topicMode: $topicMode,
                 taskMode: $taskMode,
-                rawContent: $rawContent
+                rawContent: $rawContent,
+                mcpConfig: $mcpConfig
             );
 
             // Call handle user message service
