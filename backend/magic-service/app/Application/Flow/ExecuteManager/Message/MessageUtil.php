@@ -63,7 +63,9 @@ class MessageUtil
                     }
                     // todo 批量处理
                     $chatFile = self::report2ChatFile($attachment, $executionData);
-                    $chatAttachments[] = new ChatAttachment($chatFile->toArray());
+                    $chatAttachment = new ChatAttachment($chatFile->toArray());
+                    $chatAttachment->setFileUrl($attachment->getUrl());
+                    $chatAttachments[] = $chatAttachment;
 
                     if ($attachment instanceof ExternalAttachment) {
                         // 异步下载外链文件并上传到本服务 oss
@@ -104,7 +106,9 @@ class MessageUtil
                     }
 
                     $chatFile = self::report2ChatFile($attachment, $executionData);
-                    $chatAttachments[] = new ChatAttachment($chatFile->toArray());
+                    $chatAttachment = new ChatAttachment($chatFile->toArray());
+                    $chatAttachment->setFileUrl($attachment->getUrl());
+                    $chatAttachments[] = $chatAttachment;
 
                     if ($attachment instanceof ExternalAttachment) {
                         // 异步下载外链文件并上传到本服务 oss
