@@ -7,18 +7,13 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
@@ -35,19 +30,13 @@ class AgentAppService
 {
     private LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
-        private SandboxAgentInterface $agent,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly AgentDomainService $agentDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
     }
 
     /**
