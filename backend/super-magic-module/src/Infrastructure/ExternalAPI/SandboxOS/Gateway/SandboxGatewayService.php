@@ -331,7 +331,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         array $headers = []
     ): GatewayResult {
         $maxRetries = 3;
-        $baseDelay = 1000; // Base delay in milliseconds
+        $baseDelay = 2000; // Base delay in milliseconds
 
         $this->logger->debug('[Sandbox][Gateway] Proxying request to sandbox', [
             'sandbox_id' => $sandboxId,
