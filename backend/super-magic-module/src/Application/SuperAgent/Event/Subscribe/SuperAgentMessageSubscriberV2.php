@@ -128,7 +128,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $dataIsolation->getCurrentUserId()
             );
-            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $mentionsJson ) ?? [];
+            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $mentionsJson) ?? [];
 
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
