@@ -39,7 +39,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] Creating sandbox', ['config' => $config]);
 
         try {
-            $response = $this->client->post($this->buildApiPath('api/v1/sandboxes'), [
+            $response = $this->getClient()->post($this->buildApiPath('api/v1/sandboxes'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => $config,
                 'timeout' => 30,
@@ -120,7 +120,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                 }
 
-                $response = $this->client->get($this->buildApiPath("api/v1/sandboxes/{$sandboxId}"), [
+                $response = $this->getClient()->get($this->buildApiPath("api/v1/sandboxes/{$sandboxId}"), [
                     'headers' => $this->getAuthHeaders(),
                     'timeout' => 10,
                 ]);
@@ -245,7 +245,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                 }
 
-                $response = $this->client->post($this->buildApiPath('api/v1/sandboxes/queries'), [
+                $response = $this->getClient()->post($this->buildApiPath('api/v1/sandboxes/queries'), [
                     'headers' => $this->getAuthHeaders(),
                     'json' => ['sandbox_ids' => array_values($filteredSandboxIds)], // Ensure indexed array
                     'timeout' => 15,
@@ -364,7 +364,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                 }
 
-                $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
+                $response = $this->getClient()->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
                 $result = GatewayResult::fromApiResponse($responseData);
