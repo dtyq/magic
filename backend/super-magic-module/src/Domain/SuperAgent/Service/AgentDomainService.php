@@ -192,6 +192,7 @@ class AgentDomainService
             taskMode: $taskContext->getTask()->getTaskMode(),
             attachments: $attachmentUrls,
             mentions: $mentionsJsonStruct,
+            mcpConfig: $taskContext->getMcpConfig(),
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
