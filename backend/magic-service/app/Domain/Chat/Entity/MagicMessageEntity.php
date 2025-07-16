@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Entity;
 
+use App\Domain\Chat\DTO\Message\ChatMessage\Item\ChatInstruction;
 use App\Domain\Chat\DTO\Message\EmptyMessage;
+use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\MessageInterface;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -216,6 +218,18 @@ class MagicMessageEntity extends AbstractEntity
     {
         $this->content = $content;
         return $this;
+    }
+
+    /**
+     * @return array<ChatInstruction>
+     */
+    public function getChatInstructions(): array
+    {
+        $messageContent = $this->getContent();
+        if (! $messageContent instanceof MagicMessageStruct) {
+            return [];
+        }
+        return $messageContent->getInstructs() ?? [];
     }
 
     public function getReceiveType(): ConversationType
