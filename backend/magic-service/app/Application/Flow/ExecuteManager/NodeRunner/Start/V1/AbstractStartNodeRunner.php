@@ -7,13 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\Flow\ExecuteManager\NodeRunner\Start\V1;
 
-use App\Application\Agent\Service\MagicAgentAppService;
 use App\Application\Flow\ExecuteManager\Attachment\AbstractAttachment;
 use App\Application\Flow\ExecuteManager\Attachment\AttachmentUtil;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\Memory\LLMMemoryMessage;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
-use App\Domain\Chat\DTO\Message\ChatMessage\Item\InstructionConfig;
 use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
@@ -257,23 +255,43 @@ abstract class AbstractStartNodeRunner extends NodeRunner
         if (! $magicFlowEntity || ! $magicFlowEntity->getType()->isMain()) {
             return;
         }
-        $instructions = $this->getInstructions($messageEntity);
-        // 如果部分流程指令为空，但助理配置是有流程指令的，后端兜底，存储默认值
-        if (! empty($executionData->getAgentId())) {
-            $magicAgentInstruction = di(MagicAgentAppService::class)->getInstruct($executionData->getAgentId());
-            // 分组存储
-            foreach ($magicAgentInstruction as $groupInstructions) {
-                foreach ($groupInstructions['items'] as $instruct) {
-                    if (isset($instruct['instruction_type'])
-                        && $instruct['instruction_type'] == InstructionType::Flow->value
-                        && ! isset($instructions[$instruct['id']])) {
-                        $instructConfig = new InstructionConfig($instruct);
-                        $defaultValue = $instruct['default_value'] ?? '';
-                        $instructions[$instruct['id']] = $instructConfig->getNameAndValueByType($defaultValue);
-                    }
-                }
+
+        // 获取当前消息体的指令值
+        $messageChatInstructions = $messageEntity->getChatInstructions();
+        $messageChatInstructionIdMaps = [];
+        $messageChatInstructionNameMaps = [];
+        foreach ($messageChatInstructions as $messageChatInstruction) {
+            if ($messageChatInstruction->getInstruction()->getId()) {
+                $messageChatInstructionIdMaps[$messageChatInstruction->getInstruction()->getId()] = $messageChatInstruction;
+            }
+            if ($messageChatInstruction->getInstruction()->getName()) {
+                $messageChatInstructionNameMaps[$messageChatInstruction->getInstruction()->getName()] = $messageChatInstruction;
             }
         }
+
+        $instructions = [];
+        // 只放当前 agent 配置的流程指令
+        foreach ($executionData->getInstructionConfigs() as $instructionConfig) {
+            if (! $instructionConfig->isFlowInstructionType()) {
+                continue;
+            }
+
+            // 通过 id 查找
+            $messageChatInstruction = $messageChatInstructionIdMaps[$instructionConfig->getId()] ?? null;
+            if (! $messageChatInstruction) {
+                // 通过 name 查找
+                $messageChatInstruction = $messageChatInstructionNameMaps[$instructionConfig->getName()] ?? null;
+            }
+
+            if ($messageChatInstruction) {
+                $value = $messageChatInstruction->getValue();
+            } else {
+                // 如果消息体中没有指令值，使用默认值
+                $value = $instructionConfig->getDefaultValue();
+            }
+            $instructions[$instructionConfig->getId()] = $instructionConfig->getNameAndValueByType($value);
+        }
+
         $executionData->saveNodeContext('instructions', $instructions);
     }
 
