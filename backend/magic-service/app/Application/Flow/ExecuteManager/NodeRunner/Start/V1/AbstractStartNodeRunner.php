@@ -13,10 +13,8 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\Memory\LLMMemoryMessage;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
 use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
-use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\MagicMessageEntity;
-use App\Domain\Chat\Entity\ValueObject\InstructionType;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\MagicFlowMessage;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\Branch;
@@ -293,30 +291,6 @@ abstract class AbstractStartNodeRunner extends NodeRunner
         }
 
         $executionData->saveNodeContext('instructions', $instructions);
-    }
-
-    private function getInstructions(MagicMessageEntity $messageEntity): array
-    {
-        $result = [];
-        $messageContent = $messageEntity->getContent();
-
-        if (! ($messageContent instanceof MagicMessageStruct) || empty($messageContent->getInstructs())) {
-            return $result;
-        }
-
-        foreach ($messageContent->getInstructs() as $chatInstruction) {
-            // 跳过对话指令
-            if ($chatInstruction->getInstruction()->getInstructionType() === InstructionType::Conversation->value) {
-                continue;
-            }
-
-            $instruction = $chatInstruction->getInstruction();
-            $id = $instruction->getId();
-            $instructionValue = $chatInstruction->getValue();
-            $result[$id] = $instruction->getNameAndValueByType($instructionValue);
-        }
-
-        return $result;
     }
 
     /**
