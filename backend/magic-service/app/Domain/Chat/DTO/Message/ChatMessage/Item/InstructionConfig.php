@@ -89,9 +89,16 @@ class InstructionConfig extends AbstractEntity
 
     protected bool $switch_on = false;
 
+    protected string $defaultValue = '';
+
     public function __construct(array $instruction)
     {
         parent::__construct($instruction);
+    }
+
+    public function isFlowInstructionType(): bool
+    {
+        return $this->instructionType === InstructionType::Flow->value;
     }
 
     public function getContent(): string
@@ -298,6 +305,16 @@ class InstructionConfig extends AbstractEntity
         $this->switch_on = $switch_on;
     }
 
+    public function getDefaultValue(): string
+    {
+        return $this->defaultValue;
+    }
+
+    public function setDefaultValue(mixed $defaultValue): void
+    {
+        $this->defaultValue = is_string($defaultValue) ? $defaultValue : '';
+    }
+
     /**
      * 根据指令组件类型获取对应的名称和值.
      *
@@ -324,7 +341,7 @@ class InstructionConfig extends AbstractEntity
                 // 单选类型
                 // 查找对应的 InstructionValue 对象
                 foreach ($this->values as $instructionValueObj) {
-                    if ($instructionValueObj->getId() === $instructionValue) {
+                    if ($instructionValueObj->getId() === $instructionValue || $instructionValueObj->getValue() === $value) {
                         $name = $instructionValueObj->getName();
                         $value = $instructionValueObj->getValue();
                         break;
