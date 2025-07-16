@@ -17,6 +17,7 @@ use App\Application\Flow\ExecuteManager\Stream\FlowEventStreamManager;
 use App\Application\Kernel\EnvManager;
 use App\Domain\Agent\Entity\MagicAgentEntity;
 use App\Domain\Agent\Entity\MagicAgentVersionEntity;
+use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Chat\DTO\Agent\SenderExtraDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\Item\ChatInstruction;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
@@ -415,6 +416,12 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             conversationId: ConversationId::Routine->gen($magicFlow->getCode() . '_routine'),
             executionType: ExecutionType::Routine,
         );
+        if ($magicFlow->getType()->isMain()) {
+            $agent = di(MagicAgentDomainService::class)->getByFlowCode($magicFlow->getCode());
+            if ($agent) {
+                $executionData->setAgentId($agent->getId());
+            }
+        }
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
 
         $executor->execute();
