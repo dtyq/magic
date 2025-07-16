@@ -12,6 +12,7 @@ use App\Application\Flow\ExecuteManager\Attachment\AttachmentUtil;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\Memory\LLMMemoryMessage;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
+use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Chat\DTO\Message\ChatMessage\VoiceMessage;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\MagicMessageEntity;
@@ -252,6 +253,11 @@ abstract class AbstractStartNodeRunner extends NodeRunner
         $magicFlowEntity = $executionData->getMagicFlowEntity();
         if (! $magicFlowEntity || ! $magicFlowEntity->getType()->isMain()) {
             return;
+        }
+        // 兜底，如果没有 agent 的流程指令，尝试实时获取
+        if (empty($executionData->getInstructionConfigs())) {
+            $instructs = di(MagicAgentDomainService::class)->getAgentById($magicFlowEntity->getAgentId())->getInstructs();
+            $executionData->setInstructionConfigs($instructs);
         }
 
         // 获取当前消息体的指令值
