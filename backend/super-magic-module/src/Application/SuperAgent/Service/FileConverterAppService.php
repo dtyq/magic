@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
@@ -381,7 +382,10 @@ class FileConverterAppService
         FileConverterRequest $fileRequest,
         string $projectId
     ): void {
-        go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId) {
+        $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
+
+        go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId) {
+            CoContext::setRequestId($requestId);
             try {
                 // 从请求中获取沙箱ID、文件键和转换类型
                 $sandboxId = $fileRequest->getSandboxId();
