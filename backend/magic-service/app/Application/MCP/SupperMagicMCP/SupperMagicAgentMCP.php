@@ -81,9 +81,12 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
 
             $builtinSuperMagicServer = SuperMagicChatBuiltInMCPServer::createByChatParams($dataIsolation, $agentIds, $toolIds);
 
-            $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer], [
-                $builtinSuperMagicServer->getCode() => $this->createBuiltinSuperMagicServerOptions($dataIsolation, $agentIds, $toolIds),
-            ]);
+            $serverOptions = [];
+            if ($builtinSuperMagicServer) {
+                $serverOptions[$builtinSuperMagicServer->getCode()] = $this->createBuiltinSuperMagicServerOptions($dataIsolation, $agentIds, $toolIds);
+            }
+
+            $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer], $serverOptions);
 
             $mcpServers = [
                 'mcpServers' => $mcpServers,
