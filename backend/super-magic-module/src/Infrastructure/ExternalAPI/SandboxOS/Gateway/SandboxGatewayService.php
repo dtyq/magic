@@ -456,136 +456,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
-     * 确保沙箱可用并代理请求.
-     */
-    public function ensureSandboxAndProxy(
-        string $sandboxId,
-        string $projectId,
-        string $method,
-        string $path,
-        array $data = [],
-        array $headers = []
-    ): GatewayResult {
-        try {
-            // 1. 确保沙箱存在并且可用
-            $actualSandboxId = $this->ensureSandboxAvailable($sandboxId, $projectId);
-
-            // 2. 代理请求到沙箱
-            $result = $this->proxySandboxRequest($actualSandboxId, $method, $path, $data, $headers);
-
-            // 3. 在结果中包含实际使用的沙箱ID
-            if ($result->isSuccess()) {
-                $resultData = $result->getData();
-                $resultData['actual_sandbox_id'] = $actualSandboxId;
-                $result = GatewayResult::success($resultData, $result->getMessage());
-            }
-            $this->logger->info('ensureSandboxAndProxy Sandbox operation success', [
-                'sandbox_id' => $sandboxId,
-                'project_id' => $projectId,
-                'method' => $method,
-                'path' => $path,
-            ]);
-            return $result;
-        } catch (SandboxOperationException $e) {
-            $this->logger->error('ensureSandboxAndProxy Sandbox operation failed', [
-                'sandbox_id' => $sandboxId,
-                'project_id' => $projectId,
-                'method' => $method,
-                'path' => $path,
-                'error' => $e->getMessage(),
-                'code' => $e->getCode(),
-            ]);
-            return new GatewayResult($e->getCode(), $e->getMessage(), []);
-        } catch (Exception $e) {
-            $this->logger->error('ensureSandboxAndProxy Unexpected error', [
-                'sandbox_id' => $sandboxId,
-                'project_id' => $projectId,
-                'method' => $method,
-                'path' => $path,
-                'error' => $e->getMessage(),
-            ]);
-            return GatewayResult::error('Unexpected error: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Check if the error is retryable.
-     * Retryable errors include timeout, connection errors, and 5xx server errors.
-     */
-    private function isRetryableError(GuzzleException $e): bool
-    {
-        // First, check for specific Guzzle exception types
-
-        // ConnectException includes all network connection issues (timeouts, DNS errors, etc.)
-        if ($e instanceof ConnectException) {
-            return true;
-        }
-
-        // ServerException for 5xx HTTP errors - these are often temporary
-        if ($e instanceof ServerException) {
-            return true;
-        }
-
-        // For RequestException (parent of many exceptions), check if it has a response
-        if ($e instanceof RequestException && $e->hasResponse()) {
-            $statusCode = $e->getResponse()->getStatusCode();
-
-            // Retry on 5xx server errors
-            if ($statusCode >= 500 && $statusCode < 600) {
-                return true;
-            }
-
-            // Retry on specific 4xx errors that might be temporary
-            $retryable4xxCodes = [
-                408, // Request Timeout
-                429, // Too Many Requests (rate limiting)
-            ];
-
-            if (in_array($statusCode, $retryable4xxCodes)) {
-                return true;
-            }
-        }
-
-        // Fall back to string matching for specific cURL errors (as backup)
-        $errorMessage = $e->getMessage();
-
-        // Timeout errors
-        if (strpos($errorMessage, 'cURL error 28') !== false) { // Operation timed out
-            return true;
-        }
-
-        // Connection errors
-        if (strpos($errorMessage, 'cURL error 7') !== false) { // Couldn't connect to host
-            return true;
-        }
-
-        // Other retryable cURL errors
-        $retryableCurlErrors = [
-            'cURL error 6',  // Couldn't resolve host
-            'cURL error 52', // Empty reply from server
-            'cURL error 56', // Failure with receiving network data
-            'cURL error 35', // SSL connect error
-        ];
-
-        foreach ($retryableCurlErrors as $curlError) {
-            if (strpos($errorMessage, $curlError) !== false) {
-                return true;
-            }
-        }
-
-        // Don't retry on:
-        // - ClientException (4xx errors except 408, 429)
-        // - Authentication errors
-        // - Bad request format errors
-        // - Other non-network related errors
-
-        return false;
-    }
-
-    /**
      * 确保沙箱存在并且可用.
      */
-    private function ensureSandboxAvailable(string $sandboxId, string $projectId): string
+    public function ensureSandboxAvailable(string $sandboxId, string $projectId): string
     {
         try {
             // 检查沙箱是否可用
@@ -689,6 +562,80 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
             throw new SandboxOperationException('Ensure sandbox availability', $e->getMessage(), 2000);
         }
+    }
+
+    /**
+     * Check if the error is retryable.
+     * Retryable errors include timeout, connection errors, and 5xx server errors.
+     */
+    private function isRetryableError(GuzzleException $e): bool
+    {
+        // First, check for specific Guzzle exception types
+
+        // ConnectException includes all network connection issues (timeouts, DNS errors, etc.)
+        if ($e instanceof ConnectException) {
+            return true;
+        }
+
+        // ServerException for 5xx HTTP errors - these are often temporary
+        if ($e instanceof ServerException) {
+            return true;
+        }
+
+        // For RequestException (parent of many exceptions), check if it has a response
+        if ($e instanceof RequestException && $e->hasResponse()) {
+            $statusCode = $e->getResponse()->getStatusCode();
+
+            // Retry on 5xx server errors
+            if ($statusCode >= 500 && $statusCode < 600) {
+                return true;
+            }
+
+            // Retry on specific 4xx errors that might be temporary
+            $retryable4xxCodes = [
+                408, // Request Timeout
+                429, // Too Many Requests (rate limiting)
+            ];
+
+            if (in_array($statusCode, $retryable4xxCodes)) {
+                return true;
+            }
+        }
+
+        // Fall back to string matching for specific cURL errors (as backup)
+        $errorMessage = $e->getMessage();
+
+        // Timeout errors
+        if (strpos($errorMessage, 'cURL error 28') !== false) { // Operation timed out
+            return true;
+        }
+
+        // Connection errors
+        if (strpos($errorMessage, 'cURL error 7') !== false) { // Couldn't connect to host
+            return true;
+        }
+
+        // Other retryable cURL errors
+        $retryableCurlErrors = [
+            'cURL error 6',  // Couldn't resolve host
+            'cURL error 52', // Empty reply from server
+            'cURL error 56', // Failure with receiving network data
+            'cURL error 35', // SSL connect error
+        ];
+
+        foreach ($retryableCurlErrors as $curlError) {
+            if (strpos($errorMessage, $curlError) !== false) {
+                return true;
+            }
+        }
+
+        // Don't retry on:
+        // - ClientException (4xx errors except 408, 429)
+        // - Authentication errors
+        // - Bad request format errors
+        // - Other non-network related errors
+
+        return false;
     }
 
     /**
