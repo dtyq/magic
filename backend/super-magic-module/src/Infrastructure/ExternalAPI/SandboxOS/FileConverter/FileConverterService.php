@@ -23,13 +23,14 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         parent::__construct($loggerFactory);
     }
 
-    public function convert(string $sandboxId, FileConverterRequest $request): FileConverterResponse
+    public function convert(string $sandboxId, string $projectId, FileConverterRequest $request): FileConverterResponse
     {
         $requestData = $request->toArray();
         try {
             // 使用网关的 ensureSandboxAndProxy 方法，自动处理沙箱检查和创建
             $result = $this->gateway->ensureSandboxAndProxy(
                 $sandboxId,
+                $projectId,
                 'POST',
                 'api/file/converts',
                 $requestData
@@ -42,12 +43,14 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
                 $this->logger->info('[File Converter] Conversion successful', [
                     'original_sandbox_id' => $sandboxId,
                     'actual_sandbox_id' => $actualSandboxId,
+                    'project_id' => $projectId,
                     'batch_id' => $response->getBatchId(),
                     'converted_files_count' => count($response->getConvertedFiles()),
                 ]);
             } else {
                 $this->logger->error('[File Converter] Conversion failed', [
                     'sandbox_id' => $sandboxId,
+                    'project_id' => $projectId,
                     'code' => $response->getCode(),
                     'message' => $response->getMessage(),
                 ]);
@@ -57,6 +60,7 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         } catch (Exception $e) {
             $this->logger->error('[File Converter] Unexpected error during conversion', [
                 'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
                 'error' => $e->getMessage(),
             ]);
 
@@ -68,12 +72,13 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         }
     }
 
-    public function queryConvertResult(string $sandboxId, string $taskKey): FileConverterResponse
+    public function queryConvertResult(string $sandboxId, string $projectId, string $taskKey): FileConverterResponse
     {
         try {
             // 使用网关的 ensureSandboxAndProxy 方法查询转换结果
             $result = $this->gateway->ensureSandboxAndProxy(
                 $sandboxId,
+                $projectId,
                 'GET',
                 "api/file/converts/{$taskKey}",
             );
@@ -85,12 +90,14 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
                 $this->logger->info('[File Converter] Query conversion result successful', [
                     'original_sandbox_id' => $sandboxId,
                     'actual_sandbox_id' => $actualSandboxId,
+                    'project_id' => $projectId,
                     'task_key' => $taskKey,
                     'batch_id' => $response->getBatchId(),
                 ]);
             } else {
                 $this->logger->error('[File Converter] Query conversion result failed', [
                     'sandbox_id' => $sandboxId,
+                    'project_id' => $projectId,
                     'task_key' => $taskKey,
                     'code' => $response->getCode(),
                     'message' => $response->getMessage(),
@@ -101,6 +108,7 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         } catch (Exception $e) {
             $this->logger->error('[File Converter] Unexpected error during query conversion result', [
                 'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
                 'task_key' => $taskKey,
                 'error' => $e->getMessage(),
             ]);

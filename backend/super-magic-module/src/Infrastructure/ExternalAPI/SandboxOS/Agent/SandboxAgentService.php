@@ -43,8 +43,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 自动确保沙箱可用并转发请求
-            $result = $this->gateway->ensureSandboxAndProxy(
+            // 通过Gateway转发到Agent API
+            $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
                 'api/v1/messages/chat',
@@ -54,10 +54,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $response = AgentResponse::fromGatewayResult($result);
 
             if ($response->isSuccess()) {
-                $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
                 $this->logger->info('[Sandbox][Agent] Agent initialized successfully', [
-                    'original_sandbox_id' => $sandboxId,
-                    'actual_sandbox_id' => $actualSandboxId,
+                    'sandbox_id' => $sandboxId,
                     'agent_id' => $response->getAgentId(),
                 ]);
             } else {
@@ -97,8 +95,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 自动确保沙箱可用并转发请求
-            $result = $this->gateway->ensureSandboxAndProxy(
+            // 通过Gateway转发到Agent API
+            $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
                 'api/v1/messages/chat',
@@ -107,10 +105,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
 
             $response = AgentResponse::fromGatewayResult($result);
 
-            $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
             $this->logger->debug('[Sandbox][Agent] Chat message sent to agent', [
-                'original_sandbox_id' => $sandboxId,
-                'actual_sandbox_id' => $actualSandboxId,
+                'sandbox_id' => $sandboxId,
                 'success' => $response->isSuccess(),
                 'message_id' => $response->getMessageId(),
                 'has_response' => $response->hasResponseMessage(),
@@ -144,8 +140,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 自动确保沙箱可用并转发请求
-            $result = $this->gateway->ensureSandboxAndProxy(
+            // 通过Gateway转发到Agent API
+            $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
                 'api/v1/messages/chat',
@@ -155,10 +151,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $response = AgentResponse::fromGatewayResult($result);
 
             if ($response->isSuccess()) {
-                $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
                 $this->logger->info('[Sandbox][Agent] Interrupt message sent successfully', [
-                    'original_sandbox_id' => $sandboxId,
-                    'actual_sandbox_id' => $actualSandboxId,
+                    'sandbox_id' => $sandboxId,
                     'user_id' => $request->getUserId(),
                     'task_id' => $request->getTaskId(),
                 ]);
@@ -195,8 +189,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 自动确保沙箱可用并转发请求
-            $result = $this->gateway->ensureSandboxAndProxy(
+            // 通过Gateway转发到Agent API
+            $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'GET',
                 'api/v1/workspace/status',
@@ -205,10 +199,8 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
 
             $response = AgentResponse::fromGatewayResult($result);
 
-            $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
             $this->logger->debug('[Sandbox][Agent] Workspace status retrieved', [
-                'original_sandbox_id' => $sandboxId,
-                'actual_sandbox_id' => $actualSandboxId,
+                'sandbox_id' => $sandboxId,
                 'success' => $response->isSuccess(),
                 'status' => $response->getDataValue('status'),
             ]);

@@ -383,6 +383,55 @@ class FileConvertStatusManager
         }
     }
 
+    /**
+     * Set project ID for task.
+     *
+     * @param string $taskKey Task key
+     * @param string $projectId Project ID
+     * @return bool True if successful, false otherwise
+     */
+    public function setProjectId(string $taskKey, string $projectId): bool
+    {
+        try {
+            $cacheKey = FileConvertConstant::getTaskKey($taskKey);
+            $taskData = $this->getTaskData($taskKey);
+
+            if (! $taskData) {
+                $this->logger->warning('Task not found when setting project ID', [
+                    'task_key' => $taskKey,
+                    'project_id' => $projectId,
+                ]);
+                return false;
+            }
+
+            // Update project ID
+            $taskData['project_id'] = $projectId;
+            $taskData['updated_at'] = time();
+
+            $success = $this->redis->setex(
+                $cacheKey,
+                FileConvertConstant::TTL_TASK_STATUS,
+                json_encode($taskData, JSON_UNESCAPED_UNICODE)
+            );
+
+            if ($success) {
+                $this->logger->debug('Task project ID updated', [
+                    'task_key' => $taskKey,
+                    'project_id' => $projectId,
+                ]);
+            }
+
+            return $success;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to set project ID', [
+                'task_key' => $taskKey,
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
     // ====== Duplicate Request Management ======
 
     /**
