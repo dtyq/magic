@@ -42,7 +42,7 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
 
     protected ContainerInterface $container;
 
-    protected string $officeOrganization;
+    protected ?string $officeOrganization;
 
     /**
      * 构造函数，注入依赖.
