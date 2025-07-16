@@ -27,10 +27,12 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
     {
         $requestData = $request->toArray();
         try {
-            // 使用网关的 ensureSandboxAndProxy 方法，自动处理沙箱检查和创建
-            $result = $this->gateway->ensureSandboxAndProxy(
-                $sandboxId,
-                $projectId,
+            // 使用网关的 ensureSandbox 方法，确保沙箱存在
+            $actualSandboxId = $this->gateway->ensureSandboxAvailable($sandboxId, $projectId);
+
+            // 然后直接代理请求到沙箱
+            $result = $this->gateway->proxySandboxRequest(
+                $actualSandboxId,
                 'POST',
                 'api/file/converts',
                 $requestData
@@ -39,7 +41,6 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
             $response = FileConverterResponse::fromGatewayResult($result);
 
             if ($response->isSuccess()) {
-                $actualSandboxId = $result->getDataValue('actual_sandbox_id') ?? $sandboxId;
                 $this->logger->info('FileConverter Conversion successful', [
                     'original_sandbox_id' => $sandboxId,
                     'actual_sandbox_id' => $actualSandboxId,
@@ -81,68 +82,7 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         ]);
 
         try {
-            // 先检查沙箱状态，避免无谓的请求转发
-            $statusResult = $this->gateway->getSandboxStatus($sandboxId);
-
-            if (! $statusResult->isSuccess()) {
-                $this->logger->error('FileConverter Failed to get sandbox status', [
-                    'sandbox_id' => $sandboxId,
-                    'project_id' => $projectId,
-                    'task_key' => $taskKey,
-                    'code' => $statusResult->getCode(),
-                    'message' => $statusResult->getMessage(),
-                ]);
-
-                return FileConverterResponse::fromApiResponse([
-                    'code' => 2000,
-                    'message' => '无法获取沙箱状态，请稍后重试',
-                    'data' => [],
-                ]);
-            }
-
-            $sandboxStatus = $statusResult->getStatus();
-            $this->logger->info('FileConverter Sandbox status check', [
-                'sandbox_id' => $sandboxId,
-                'project_id' => $projectId,
-                'task_key' => $taskKey,
-                'sandbox_status' => $sandboxStatus,
-            ]);
-
-            // 根据沙箱状态返回相应的提示
-            switch ($sandboxStatus) {
-                case 'NotFound':
-                    return FileConverterResponse::fromApiResponse([
-                        'code' => 2001,
-                        'message' => '沙箱不存在，转换结果可能已被清理，请重新提交转换任务',
-                        'data' => [],
-                    ]);
-
-                case 'Pending':
-                    return FileConverterResponse::fromApiResponse([
-                        'code' => 2002,
-                        'message' => '沙箱正在启动中，请稍后查询转换结果',
-                        'data' => [],
-                    ]);
-
-                case 'Exited':
-                    return FileConverterResponse::fromApiResponse([
-                        'code' => 2003,
-                        'message' => '沙箱已退出，转换结果可能已丢失，请重新提交转换任务',
-                        'data' => [],
-                    ]);
-
-                case 'Running':
-                    // 沙箱正常运行，继续查询转换结果
-                    break;
-                default:
-                    return FileConverterResponse::fromApiResponse([
-                        'code' => 2004,
-                        'message' => '沙箱状态异常(' . $sandboxStatus . ')，请稍后重试或重新提交转换任务',
-                        'data' => [],
-                    ]);
-            }
-
-            // 查询转换结果不应该自动创建沙箱，因为结果存储在原始沙箱中
+            // 直接查询转换结果，不检查沙箱状态，因为 create 方法会保证沙箱启动
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'GET',

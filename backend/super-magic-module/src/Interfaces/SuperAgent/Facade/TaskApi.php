@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileConverterAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
@@ -191,6 +192,13 @@ class TaskApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        return $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
+        $result = $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
+
+        // 如果状态是 ready 但是没有下载地址，说明任务发生了错误
+        if ($result['status'] === ConvertStatusEnum::COMPLETED->value && empty($result['download_url'])) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONVERT_FAILED, 'file.convert_failed');
+        }
+
+        return $result;
     }
 }
