@@ -14,9 +14,9 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileConverterAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileConverterAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
@@ -46,6 +46,7 @@ class TaskApi extends AbstractApi
         protected AgentAppService $agentAppService,
         protected FileConverterAppService $fileConverterAppService,
     ) {
+        parent::__construct($request);
     }
 
     /**
