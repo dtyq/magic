@@ -31,11 +31,11 @@ stages:
   # 检查必要工具是否安装
   - which git || echo "Git is required"
   - which bc || echo "BC is required for time calculation"
-  
+
   # 配置Git
   - git config --global user.name "GitLab CI"
   - git config --global user.email "gitlab-ci@example.com"
-  
+
   # 配置Git仓库URL环境变量
   - |
     if [ -z "$GIT_REPO_URL" ]; then
@@ -47,17 +47,17 @@ stages:
     if [ -z "$GIT_REPO_DOMAIN" ]; then
       export GIT_REPO_DOMAIN="github.com"
     fi
-  
+
   # 初始化通用变量
   - NOW=$(date +%s)
   - CURRENT_BRANCH=$CI_COMMIT_REF_NAME
   - echo "当前分支"
   - echo $CURRENT_BRANCH
-  
+
 
 # 同步到子仓库
 sync-to-sub-repos:
-  extends: 
+  extends:
     - .sync-vars
   needs:
     - job: "analyse-job"
@@ -72,14 +72,17 @@ sync-to-sub-repos:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-master"
       changes:
         - "backend/magic-service/**/*"
+        - "backend/super-magic-module/**/*"
       when: on_success
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-pre-release"
       changes:
         - "backend/magic-service/**/*"
+        - "backend/super-magic-module/**/*"
       when: on_success
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-released"
       changes:
         - "backend/magic-service/**/*"
+        - "backend/super-magic-module/**/*"
       when: on_success
   before_script: *common-before-script
   script:
@@ -88,7 +91,7 @@ sync-to-sub-repos:
     - rm -rf $MAIN_DIR
     - mkdir -p $MAIN_DIR
     - cd $MAIN_DIR
-    
+
     # 克隆源仓库
     - git clone https://oauth2:${GITLAB_TOKEN}@${GITLAB_DOMAIN}/dtyq/magic.git
     - ls -la
@@ -104,4 +107,3 @@ sync-to-sub-repos:
     # 同步代码
     - chmod +x ./bin/backend_split_all.sh
     - ./bin/backend_split_all.sh
-
