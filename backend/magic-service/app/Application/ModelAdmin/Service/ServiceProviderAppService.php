@@ -57,7 +57,8 @@ class ServiceProviderAppService
         $serviceProviderConfigDTOS = $this->serviceProviderDomainService->getServiceProviderConfigs($organizationCode, $serviceProviderCategory);
         // 如果获取的服务商列表为空，则初始化该类别的服务商
         if (empty($serviceProviderConfigDTOS)) {
-            $serviceProviderConfigDTOS = $this->serviceProviderDomainService->initOrganizationServiceProviders($organizationCode, $serviceProviderCategory);
+            $this->serviceProviderDomainService->initOrganizationServiceProviders($organizationCode, $serviceProviderCategory);
+            $serviceProviderConfigDTOS = $this->serviceProviderDomainService->getServiceProviderConfigs($organizationCode, $serviceProviderCategory);
         }
 
         foreach ($serviceProviderConfigDTOS as $serviceProviderConfigDTO) {
