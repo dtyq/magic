@@ -70,6 +70,7 @@ class FileConverterAppService
         $fileIds = $requestDTO->file_ids;
         $convertType = $requestDTO->convert_type;
         $projectId = $requestDTO->project_id;
+        $taskKey = null;
 
         $this->logger->info('Received request to convert files', [
             'user_id' => $userId,
@@ -78,34 +79,55 @@ class FileConverterAppService
             'convert_type' => $convertType,
         ]);
 
-        // 基础验证
-        $this->validateConvertRequest($fileIds);
+        try {
+            // 基础验证
+            $this->validateConvertRequest($fileIds);
 
-        // 权限验证和文件获取
-        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-        if ($projectEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+            // 权限验证和文件获取
+            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+            if ($projectEntity->getUserId() !== $userId) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+            }
+
+            $validFiles = $this->getValidFiles($fileIds, $userId);
+
+            // 重复请求检查
+            $taskKey = $this->handleDuplicateRequest($userAuthorization, $fileIds, $convertType, $userId);
+            if (is_array($taskKey)) {
+                return $taskKey; // 返回现有任务状态
+            }
+
+            // 初始化任务并开始处理
+            $this->fileConvertStatusManager->initializeTask($taskKey, $userId, count($validFiles), $convertType);
+            $this->processFileConversion($taskKey, $userAuthorization, $requestDTO, $validFiles, $projectEntity);
+
+            return [
+                'status' => ConvertStatusEnum::PROCESSING->value,
+                'task_key' => $taskKey,
+                'download_url' => null,
+                'file_count' => count($validFiles),
+                'message' => 'Processing, please check status later',
+            ];
+        } catch (Throwable $e) {
+            // 如果任务已经初始化，标记为失败
+            if ($taskKey) {
+                $this->fileConvertStatusManager->setTaskFailed($taskKey, $e->getMessage());
+            }
+
+            $this->logger->error('Convert files request failed', [
+                'user_id' => $userId,
+                'project_id' => $projectId,
+                'file_ids_count' => count($fileIds),
+                'convert_type' => $convertType,
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
         }
-
-        $validFiles = $this->getValidFiles($fileIds, $userId);
-
-        // 重复请求检查
-        $taskKey = $this->handleDuplicateRequest($userAuthorization, $fileIds, $convertType, $userId);
-        if (is_array($taskKey)) {
-            return $taskKey; // 返回现有任务状态
-        }
-
-        // 初始化任务并开始处理
-        $this->fileConvertStatusManager->initializeTask($taskKey, $userId, count($validFiles), $convertType);
-        $this->processFileConversion($taskKey, $userAuthorization, $requestDTO, $validFiles, $projectEntity);
-
-        return [
-            'status' => ConvertStatusEnum::PROCESSING->value,
-            'task_key' => $taskKey,
-            'download_url' => null,
-            'file_count' => count($validFiles),
-            'message' => 'Processing, please check status later',
-        ];
     }
 
     /**
@@ -157,7 +179,12 @@ class FileConverterAppService
             $this->logger->error('Query convert result failed', [
                 'task_key' => $taskKey,
                 'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'user_id' => $userId,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return $this->getLocalTaskStatus($taskStatus);
@@ -174,13 +201,13 @@ class FileConverterAppService
         array $validFiles,
         ProjectEntity $projectEntity
     ): void {
-        try {
-            $totalFiles = count($validFiles);
-            $userId = $userAuthorization->getId();
-            $convertType = $requestDTO->convert_type;
-            $organizationCode = $userAuthorization->getOrganizationCode();
-            $projectId = (string) $projectEntity->getId();
+        $totalFiles = count($validFiles);
+        $userId = $userAuthorization->getId();
+        $convertType = $requestDTO->convert_type;
+        $organizationCode = $userAuthorization->getOrganizationCode();
+        $projectId = (string) $projectEntity->getId();
 
+        try {
             $this->fileConvertStatusManager->setTaskProgress($taskKey, 0, $totalFiles, 'Starting file conversion');
 
             // 生成沙箱ID并存储任务信息
@@ -227,7 +254,13 @@ class FileConverterAppService
                     $this->logger->error('Async conversion failed', [
                         'task_key' => $taskKey,
                         'project_id' => $projectId,
+                        'sandbox_id' => $actualSandboxId,
+                        'user_id' => $userAuthorization->getId(),
+                        'convert_type' => $convertType,
                         'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'trace' => $e->getTraceAsString(),
                     ]);
                 }
             });
@@ -244,7 +277,13 @@ class FileConverterAppService
             $this->fileConvertStatusManager->setTaskFailed($taskKey, $e->getMessage());
             $this->logger->error('File conversion failed', [
                 'task_key' => $taskKey,
+                'project_id' => $projectEntity->getId(),
+                'user_id' => $userId,
+                'convert_type' => $convertType,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -385,8 +424,23 @@ class FileConverterAppService
 
         $downloadUrl = null;
         if ($zipOssKey) {
-            $fileLinks = $this->fileAppService->getLinks($userAuthorization->getOrganizationCode(), [$zipOssKey]);
-            $downloadUrl = $fileLinks[$zipOssKey]->getUrl() ?? null;
+            try {
+                $fileLinks = $this->fileAppService->getLinks($userAuthorization->getOrganizationCode(), [$zipOssKey]);
+                $downloadUrl = $fileLinks[$zipOssKey]->getUrl() ?? null;
+            } catch (Throwable $e) {
+                $this->logger->error('Failed to generate download URL for converted file', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userAuthorization->getId(),
+                    'organization_code' => $userAuthorization->getOrganizationCode(),
+                    'zip_oss_key' => $zipOssKey,
+                    'batch_id' => $response->getBatchId(),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                $downloadUrl = null;
+            }
         }
 
         $totalFiles = $response->getTotalFiles();

@@ -24,18 +24,25 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\AuthManager;
+use Throwable;
 
 #[ApiResponse('low_code')]
 class TaskApi extends AbstractApi
 {
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
         protected TopicTaskAppService $topicTaskAppService,
         protected TaskAppService $taskAppService,
         protected FileConverterAppService $fileConverterAppService,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     /**
@@ -170,8 +177,23 @@ class TaskApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        // 调用应用服务
-        return $this->fileConverterAppService->convertFiles($userAuthorization, $dto);
+        try {
+            // 调用应用服务
+            return $this->fileConverterAppService->convertFiles($userAuthorization, $dto);
+        } catch (Throwable $e) {
+            $this->logger->error('Convert files API failed', [
+                'user_id' => $userAuthorization->getId(),
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'project_id' => $dto->project_id,
+                'file_ids_count' => count($dto->file_ids),
+                'convert_type' => $dto->convert_type,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -192,13 +214,36 @@ class TaskApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        $result = $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
+        try {
+            $result = $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
 
-        // 如果状态是 ready 但是没有下载地址，说明任务发生了错误
-        if ($result->getStatus() === ConvertStatusEnum::COMPLETED->value && empty($result->getDownloadUrl())) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONVERT_FAILED, 'file.convert_failed');
+            // 如果状态是 ready 但是没有下载地址，说明任务发生了错误
+            if ($result->getStatus() === ConvertStatusEnum::COMPLETED->value && empty($result->getDownloadUrl())) {
+                $this->logger->error('File conversion completed but no download URL available', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userAuthorization->getId(),
+                    'organization_code' => $userAuthorization->getOrganizationCode(),
+                    'status' => $result->getStatus(),
+                    'total_files' => $result->getTotalFiles(),
+                    'success_count' => $result->getSuccessCount(),
+                    'batch_id' => $result->getBatchId(),
+                    'convert_type' => $result->getConvertType(),
+                ]);
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONVERT_FAILED, 'file.convert_failed');
+            }
+
+            return $result->toArray();
+        } catch (Throwable $e) {
+            $this->logger->error('Check file convert status failed', [
+                'task_key' => $taskKey,
+                'user_id' => $userAuthorization->getId(),
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         }
-
-        return $result->toArray();
     }
 }
