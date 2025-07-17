@@ -672,7 +672,7 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId());
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode());
 
         // 处理文件 URL
         $list = [];
