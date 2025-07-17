@@ -27,7 +27,6 @@ use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileConvertStatusResponseDTO;
 use Exception;
-use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
