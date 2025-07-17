@@ -21,14 +21,14 @@ class FileConverterResponse implements ResponseInterface
 
     private string $message;
 
-    private array $data;
+    private ConverterDataDTO $data;
 
     public function __construct(bool $success, int $code, string $message, array $data = [])
     {
         $this->success = $success;
         $this->code = $code;
         $this->message = $message;
-        $this->data = $data;
+        $this->data = ConverterDataDTO::fromArray($data);
     }
 
     public static function fromGatewayResult(GatewayResult $result): self
@@ -68,31 +68,31 @@ class FileConverterResponse implements ResponseInterface
 
     public function getData(): array
     {
+        return $this->data->toArray();
+    }
+
+    public function getDataDTO(): ConverterDataDTO
+    {
         return $this->data;
     }
 
     public function getBatchId(): ?string
     {
-        return $this->data['batch_id'] ?? null;
+        return $this->data->batchId;
     }
 
+    /**
+     * @return FileItemDTO[]
+     */
     public function getConvertedFiles(): array
     {
-        return $this->data['files'] ?? [];
-    }
-
-    public function getDownloadUrls(): array
-    {
-        return array_map(
-            fn ($file) => $file['oss_download_url'] ?? null,
-            $this->getConvertedFiles()
-        );
+        return $this->data->files;
     }
 
     public function getOssKeys(): array
     {
         return array_map(
-            fn ($file) => $file['oss_key'] ?? null,
+            fn (FileItemDTO $file) => $file->ossKey,
             $this->getConvertedFiles()
         );
     }
@@ -102,7 +102,7 @@ class FileConverterResponse implements ResponseInterface
      */
     public function getTotalFiles(): int
     {
-        return $this->data['total_files'] ?? 0;
+        return $this->data->totalFiles;
     }
 
     /**
@@ -110,23 +110,7 @@ class FileConverterResponse implements ResponseInterface
      */
     public function getSuccessCount(): int
     {
-        return $this->data['success_count'] ?? 0;
-    }
-
-    /**
-     * 获取ZIP文件下载地址.
-     */
-    public function getZipDownloadUrl(): ?string
-    {
-        $files = $this->getConvertedFiles();
-
-        foreach ($files as $file) {
-            if (($file['type'] ?? null) === 'zip') {
-                return $file['oss_download_url'] ?? null;
-            }
-        }
-
-        return null;
+        return $this->data->successCount;
     }
 
     /**
@@ -134,7 +118,6 @@ class FileConverterResponse implements ResponseInterface
      */
     public function getConversionRate(): ?float
     {
-        $rate = $this->data['conversion_rate'] ?? null;
-        return $rate !== null ? (float) $rate : null;
+        return $this->data->conversionRate;
     }
 }

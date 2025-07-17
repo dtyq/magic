@@ -20,6 +20,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response\FileConverterResponse;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response\FileItemDTO;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
@@ -142,8 +144,14 @@ class FileConverterAppService
                 return $this->buildResponseFromConvertResult($response, $taskKey, $userAuthorization);
             }
 
-            // 如果查询失败，返回本地状态作为备用
-            return $this->getLocalTaskStatus($taskStatus);
+            // 如果查询失败，直接返回失败状态，并记录日志
+            $this->logger->warning('[File Converter] Query convert result failed from sandbox', [
+                'task_key' => $taskKey,
+                'sandbox_id' => $sandboxId,
+                'response_code' => $response->getCode(),
+                'response_message' => $response->getMessage(),
+            ]);
+            return $this->buildFailedResponse($response);
         } catch (Exception $e) {
             // 查询异常时返回本地状态
             $this->logger->error('Query convert result failed', [
@@ -279,6 +287,7 @@ class FileConverterAppService
 
     /**
      * 注册转换后的文件以供定时清理.
+     * @param FileItemDTO[] $convertedFiles
      */
     private function registerConvertedFilesForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles, ?string $batchId): void
     {
@@ -288,22 +297,22 @@ class FileConverterAppService
 
         $filesForCleanup = [];
         foreach ($convertedFiles as $file) {
-            if (empty($file['oss_key'])) {
+            if (empty($file->ossKey)) {
                 continue;
             }
 
             // 从oss_key解析文件名
-            $filename = $this->extractFilenameFromOssKey($file['oss_key']);
+            $filename = $this->extractFilenameFromOssKey($file->ossKey);
             if (empty($filename)) {
                 // 如果无法从oss_key解析文件名，使用filename字段
-                $filename = $file['filename'] ?? basename($file['oss_key']);
+                $filename = $file->filename ?: basename($file->ossKey);
             }
 
             $filesForCleanup[] = [
                 'organization_code' => $userAuthorization->getOrganizationCode(),
-                'file_key' => $file['oss_key'],
+                'file_key' => $file->ossKey,
                 'file_name' => $filename,
-                'file_size' => $file['size'] ?? 0,
+                'file_size' => 0, // FileItemDTO 中没有 size 字段，设置为0
                 'source_type' => 'file_conversion',
                 'source_id' => $batchId,
                 'expire_after_seconds' => 7200, // 2 小时后过期
@@ -345,31 +354,41 @@ class FileConverterAppService
 
     /**
      * 从转换结果构建响应.
-     * @param mixed $response
      */
-    private function buildResponseFromConvertResult($response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
+    private function buildResponseFromConvertResult(FileConverterResponse $response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
     {
-        $data = $response->getData();
-        $status = $data['status'] ?? ConvertStatusEnum::PROCESSING->value;
+        $status = $response->getDataDTO()->status;
 
         switch ($status) {
             case ConvertStatusEnum::COMPLETED->value:
-                return $this->buildCompletedResponse($response, $data, $taskKey, $userAuthorization);
+                return $this->buildCompletedResponse($response, $taskKey, $userAuthorization);
             case ConvertStatusEnum::FAILED->value:
                 return $this->buildFailedResponse($response);
             case ConvertStatusEnum::PROCESSING->value:
             default:
-                return $this->buildProcessingResponseFromResult($response, $data, $taskKey);
+                return $this->buildProcessingResponseFromResult($response, $taskKey);
         }
     }
 
     /**
      * 构建完成状态的响应.
-     * @param mixed $response
      */
-    private function buildCompletedResponse($response, array $data, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
+    private function buildCompletedResponse(FileConverterResponse $response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
     {
-        $downloadUrl = $response->getZipDownloadUrl();
+        $zipOssKey = null;
+        foreach ($response->getConvertedFiles() as $file) {
+            if ($file->type === 'zip') {
+                $zipOssKey = $file->ossKey;
+                break;
+            }
+        }
+
+        $downloadUrl = null;
+        if ($zipOssKey) {
+            $fileLinks = $this->fileAppService->getLinks($userAuthorization->getOrganizationCode(), [$zipOssKey]);
+            $downloadUrl = $fileLinks[$zipOssKey]->getUrl() ?? null;
+        }
+
         $totalFiles = $response->getTotalFiles();
         $successCount = $response->getSuccessCount();
 
@@ -385,7 +404,7 @@ class FileConverterAppService
             $downloadUrl ? 'Files are ready for download' : 'Conversion completed but no download file available',
             $totalFiles,
             $successCount,
-            $data['convert_type'] ?? 'unknown',
+            $response->getDataDTO()->convertType,
             $response->getBatchId(),
             $taskKey,
             $response->getConversionRate()
@@ -394,9 +413,8 @@ class FileConverterAppService
 
     /**
      * 构建失败状态的响应.
-     * @param mixed $response
      */
-    private function buildFailedResponse($response): FileConvertStatusResponseDTO
+    private function buildFailedResponse(FileConverterResponse $response): FileConvertStatusResponseDTO
     {
         return new FileConvertStatusResponseDTO(
             ConvertStatusEnum::FAILED->value,
@@ -412,15 +430,10 @@ class FileConverterAppService
 
     /**
      * 构建处理中状态的响应（从结果）.
-     * @param mixed $response
      */
-    private function buildProcessingResponseFromResult($response, array $data, string $taskKey): FileConvertStatusResponseDTO
+    private function buildProcessingResponseFromResult(FileConverterResponse $response, string $taskKey): FileConvertStatusResponseDTO
     {
-        // 处理进度信息，可能是百分比数字
-        $progressValue = 0;
-        if (isset($data['progress'])) {
-            $progressValue = is_numeric($data['progress']) ? (int) $data['progress'] : 0;
-        }
+        $progressValue = $response->getDataDTO()->progress ?? 0;
 
         return new FileConvertStatusResponseDTO(
             ConvertStatusEnum::PROCESSING->value,
