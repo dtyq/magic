@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Qbhy\HyperfAuth\AuthManager;
 
 /**
@@ -119,7 +120,12 @@ class ProjectApi extends AbstractApi
         // Set user authorization
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        return $this->projectAppService->checkFileListUpdate($requestContext, (int) $id);
+        $dataIsolation = DataIsolation::create(
+            $requestContext->getUserAuthorization()->getOrganizationCode(),
+            $requestContext->getUserAuthorization()->getId()
+        );
+
+        return $this->projectAppService->checkFileListUpdate($requestContext, (int) $id, $dataIsolation);
     }
 
     /**

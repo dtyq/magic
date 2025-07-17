@@ -367,6 +367,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 $response = $this->getClient()->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
+                if(empty($responseData)){
+                    return GatewayResult::error('HTTP request failed: ');
+
+                }
                 $result = GatewayResult::fromApiResponse($responseData);
 
                 $this->logger->debug('[Sandbox][Gateway] Proxy request completed', [
@@ -513,5 +517,12 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         // - Other non-network related errors
 
         return false;
+    }
+
+    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode,string $taskId): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode,'task_id' => $taskId]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId,'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode,'task_id' => $taskId]);
     }
 }
