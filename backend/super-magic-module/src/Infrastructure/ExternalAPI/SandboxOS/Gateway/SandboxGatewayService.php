@@ -367,9 +367,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 $response = $this->getClient()->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
-                if(empty($responseData)){
+                if (empty($responseData)) {
                     return GatewayResult::error('HTTP request failed: ');
-
                 }
                 $result = GatewayResult::fromApiResponse($responseData);
 
@@ -445,6 +444,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
     }
 
+    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
+    }
+
     /**
      * Check if the error is retryable.
      * Retryable errors include timeout, connection errors, and 5xx server errors.
@@ -517,12 +523,5 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         // - Other non-network related errors
 
         return false;
-    }
-
-    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode,string $taskId): GatewayResult
-    {
-        $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode,'task_id' => $taskId]);
-
-        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId,'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode,'task_id' => $taskId]);
     }
 }

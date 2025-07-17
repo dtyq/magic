@@ -29,8 +29,9 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionReposito
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
-use RuntimeException;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
+use Throwable;
 
 class WorkspaceDomainService
 {
@@ -818,8 +819,7 @@ class WorkspaceDomainService
         return $result;
     }
 
-
-    public function diffFileListAndVersionFile(array $result, int $projectId, string $organizationCode = '',string $taskId,string $sandboxId):bool
+    public function diffFileListAndVersionFile(array $result, int $projectId, string $organizationCode = '', string $taskId, string $sandboxId): bool
     {
         $dir = '.workspace';
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
@@ -848,17 +848,17 @@ class WorkspaceDomainService
                 }
             }
         }
-        if(empty($gitVersionNotExistResult)){
+        if (empty($gitVersionNotExistResult)) {
             return false;
         }
-        #对gitVersionNotExistResult 进行去重
+        # 对gitVersionNotExistResult 进行去重
         $gitVersionNotExistResult = array_unique($gitVersionNotExistResult);
 
         # gitVersionNotExistResult 不为空，说明有文件更新，但是没有触发suer-magic的文件上传，需要再调用suer-magic的 api 进行一次文件上传
         if (! empty($gitVersionNotExistResult)) {
             try {
-                $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string)$projectId, $organizationCode,$taskId);
-            } catch (\Throwable $e) {
+                $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string) $projectId, $organizationCode, $taskId);
+            } catch (Throwable $e) {
                 $this->logger->error('[Sandbox][Domain] uploadFile failed', ['error' => $e->getMessage()]);
             }
 
@@ -866,8 +866,6 @@ class WorkspaceDomainService
         }
         return false;
     }
-
-
 
     /**
      * 应用数据隔离到查询条件.
