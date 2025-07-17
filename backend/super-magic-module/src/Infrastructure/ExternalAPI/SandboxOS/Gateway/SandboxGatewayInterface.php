@@ -62,4 +62,6 @@ interface SandboxGatewayInterface
     public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
 
     public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult;
+
+    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult;
 }

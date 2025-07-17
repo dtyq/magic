@@ -39,7 +39,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] Creating sandbox', ['config' => $config]);
 
         try {
-            $response = $this->client->post($this->buildApiPath('api/v1/sandboxes'), [
+            $response = $this->getClient()->post($this->buildApiPath('api/v1/sandboxes'), [
                 'headers' => $this->getAuthHeaders(),
                 'json' => $config,
                 'timeout' => 30,
@@ -120,7 +120,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                 }
 
-                $response = $this->client->get($this->buildApiPath("api/v1/sandboxes/{$sandboxId}"), [
+                $response = $this->getClient()->get($this->buildApiPath("api/v1/sandboxes/{$sandboxId}"), [
                     'headers' => $this->getAuthHeaders(),
                     'timeout' => 10,
                 ]);
@@ -245,7 +245,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                 }
 
-                $response = $this->client->post($this->buildApiPath('api/v1/sandboxes/queries'), [
+                $response = $this->getClient()->post($this->buildApiPath('api/v1/sandboxes/queries'), [
                     'headers' => $this->getAuthHeaders(),
                     'json' => ['sandbox_ids' => array_values($filteredSandboxIds)], // Ensure indexed array
                     'timeout' => 15,
@@ -364,9 +364,12 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                 }
 
-                $response = $this->client->request($method, $this->buildApiPath($proxyPath), $requestOptions);
+                $response = $this->getClient()->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
                 $responseData = json_decode($response->getBody()->getContents(), true);
+                if (empty($responseData)) {
+                    return GatewayResult::error('HTTP request failed: ');
+                }
                 $result = GatewayResult::fromApiResponse($responseData);
 
                 $this->logger->debug('[Sandbox][Gateway] Proxy request completed', [
@@ -439,6 +442,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+    }
+
+    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
     }
 
     /**

@@ -10,4 +10,5 @@ return [
     'continue' => 'Continue',
     'initialize_error' => 'The system is currently busy, please try again later.',
     'agent_stopped' => 'Task has been terminated',
+    'finished_task_action' => 'Output of completed result file',
 ];

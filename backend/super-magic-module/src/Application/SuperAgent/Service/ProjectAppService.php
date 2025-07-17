@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -50,6 +51,7 @@ class ProjectAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
@@ -289,6 +291,33 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
+    public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
+
+        // 通过领域服务获取话题附件列表
+        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
+            (int) $projectId,
+            $dataIsolation,
+            1,
+            2000
+        );
+
+        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
+        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
+        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
+        # #检测git version 跟database 的files表是否匹配
+        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, (string) $taskEntity->getId(), $topicEntity->getSandboxId(), $dataIsolation->getCurrentOrganizationCode());
+        if ($result) {
+            $lastUpdatedAt = date('Y-m-d H:i:s');
+        }
+        return [
+            'last_updated_at' => $lastUpdatedAt,
+        ];
+    }
+
     /**
      * 获取项目附件列表（登录用户模式）.
      */
@@ -353,7 +382,7 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getFileType()
         );
 
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId());
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode());
 
         // 处理文件 URL
         $list = [];
@@ -371,6 +400,7 @@ class ProjectAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
 
@@ -401,9 +431,9 @@ class ProjectAppService extends AbstractAppService
         $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
 
         return [
+            'total' => $result['total'],
             'list' => $list,
             'tree' => $tree,
-            'total' => $result['total'],
         ];
     }
 }

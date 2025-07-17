@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
@@ -112,6 +113,19 @@ class ProjectApi extends AbstractApi
         $pageSize = (int) $this->request->input('page_size', 10);
 
         return $this->projectAppService->getProjectTopics($requestContext, (int) $id, $page, $pageSize);
+    }
+
+    public function checkFileListUpdate(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $dataIsolation = DataIsolation::create(
+            $requestContext->getUserAuthorization()->getOrganizationCode(),
+            $requestContext->getUserAuthorization()->getId()
+        );
+
+        return $this->projectAppService->checkFileListUpdate($requestContext, (int) $id, $dataIsolation);
     }
 
     /**
