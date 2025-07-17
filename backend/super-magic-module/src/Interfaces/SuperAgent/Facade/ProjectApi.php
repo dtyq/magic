@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
@@ -16,7 +17,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Qbhy\HyperfAuth\AuthManager;
 
 /**

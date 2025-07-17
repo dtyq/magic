@@ -291,15 +291,14 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
-    public function checkFileListUpdate(RequestContext $requestContext, int $projectId,DataIsolation $dataIsolation): array
+    public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
 
-
         $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
-         // 通过领域服务获取话题附件列表
-         $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
+        // 通过领域服务获取话题附件列表
+        $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
             (int) $projectEntity->getCurrentTopicId(),
             $dataIsolation,
             1,
@@ -309,10 +308,10 @@ class ProjectAppService extends AbstractAppService
         $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
         $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
         $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
-         ##检测git version 跟database 的files表是否匹配
-        $result=$this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, $dataIsolation->getCurrentOrganizationCode(),(string)$taskEntity->getId(),$topicEntity->getSandboxId());
-        if($result){
-           $lastUpdatedAt=date('Y-m-d H:i:s');
+        # #检测git version 跟database 的files表是否匹配
+        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, $dataIsolation->getCurrentOrganizationCode(), (string) $taskEntity->getId(), $topicEntity->getSandboxId());
+        if ($result) {
+            $lastUpdatedAt = date('Y-m-d H:i:s');
         }
         return [
             'last_updated_at' => $lastUpdatedAt,
