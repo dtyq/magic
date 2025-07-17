@@ -340,7 +340,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         array $headers = []
     ): GatewayResult {
         $maxRetries = 3;
-        $baseDelay = 2000; // Base delay in milliseconds
+        $baseDelay = 1000; // Base delay in milliseconds
 
         $this->logger->debug('[Sandbox][Gateway] Proxying request to sandbox', [
             'sandbox_id' => $sandboxId,
@@ -453,6 +453,13 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+    }
+
+    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult
+    {
+        $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
+
+        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
     }
 
     /**
