@@ -803,30 +803,12 @@ class WorkspaceDomainService
 
         # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
         $gitVersionResult = [];
-
-        $fileKeys = [];
         foreach ($result['list'] as $item) {
-            # Find the project_id pattern in the file_key and extract everything after it
-            $projectPattern = 'project_' . $projectId;
-            $pos = strpos($item['file_key'], $projectPattern);
-            if ($pos !== false) {
-                # Get the position after the project_id and the following slash
-                $startPos = $pos + strlen($projectPattern) + 1; // +1 for the slash
-                $fileKeys[] = substr($item['file_key'], $startPos);
-            } else {
-                # Fallback: if project_id pattern not found, keep original logic
-                $fileKeys[] = substr($item['file_key'], strlen((string) $projectId) + 1);
+            foreach ($dir as $dirItem) {
+                if (strpos($item['file_key'], $dirItem) !== false) {
+                    $gitVersionResult[] = $item;
+                }
             }
-        }
-
-        foreach ($dir as $dirItem) {
-            if (in_array($dirItem, $fileKeys)) {
-                $gitVersionResult[] = $dirItem;
-            }
-        }
-
-        if (empty($gitVersionResult)) {
-            return $result;
         }
 
         $newResult = array_merge($fileResult, $gitVersionResult);
