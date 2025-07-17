@@ -49,7 +49,7 @@ class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
             $args = $executionData->getTriggerData()?->getParams();
             $searchKeyword = $args['user_prompt'] ?? '';
             $agentConversationId = $executionData->getOriginConversationId();
-            $assistantAuthorization = $this->getAssistantAuthorization($agentConversationId);
+            $assistantAuthorization = $this->getAssistantAuthorization($executionData->getAgentUserId());
 
             $requestContext = new RequestContext();
             $requestContext->setUserAuthorization($assistantAuthorization);
