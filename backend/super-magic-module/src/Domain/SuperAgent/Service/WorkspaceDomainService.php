@@ -803,12 +803,30 @@ class WorkspaceDomainService
 
         # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
         $gitVersionResult = [];
+
+        $fileKeys = [];
         foreach ($result['list'] as $item) {
-            foreach ($dir as $dirItem) {
-                if (strpos($item['file_key'], $dirItem) !== false) {
-                    $gitVersionResult[] = $item;
-                }
+            # Find the project_id pattern in the file_key and extract everything after it
+            $projectPattern = 'project_' . $projectId;
+            $pos = strpos($item['file_key'], $projectPattern);
+            if ($pos !== false) {
+                # Get the position after the project_id and the following slash
+                $startPos = $pos + strlen($projectPattern) + 1; // +1 for the slash
+                $fileKeys[] = substr($item['file_key'], $startPos);
+            } else {
+                # Fallback: if project_id pattern not found, keep original logic
+                $fileKeys[] = substr($item['file_key'], strlen((string) $projectId) + 1);
             }
+        }
+
+        foreach ($dir as $dirItem) {
+            if (in_array($dirItem, $fileKeys)) {
+                $gitVersionResult[] = $dirItem;
+            }
+        }
+
+        if (empty($gitVersionResult)) {
+            return $result;
         }
 
         $newResult = array_merge($fileResult, $gitVersionResult);
@@ -832,6 +850,7 @@ class WorkspaceDomainService
         $dir = json_decode($workspaceVersion->getDir(), true);
         # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
         # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
+
         $dir = array_filter($dir, function ($item) {
             if (strpos($item, '.') === false) {
                 return false;
@@ -841,20 +860,37 @@ class WorkspaceDomainService
 
         # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
         $gitVersionNotExistResult = [];
+
+        $fileKeys = [];
         foreach ($result['list'] as $item) {
-            foreach ($dir as $dirItem) {
-                if (strpos($item['file_key'], $dirItem) === false) {
-                    $gitVersionNotExistResult[] = $dirItem;
-                }
+            # Find the project_id pattern in the file_key and extract everything after it
+            $projectPattern = 'project_' . $projectId;
+            $pos = strpos($item['file_key'], $projectPattern);
+            if ($pos !== false) {
+                # Get the position after the project_id and the following slash
+                $startPos = $pos + strlen($projectPattern) + 1; // +1 for the slash
+                $fileKeys[] = substr($item['file_key'], $startPos);
+            } else {
+                # Fallback: if project_id pattern not found, keep original logic
+                $fileKeys[] = substr($item['file_key'], strlen((string) $projectId) + 1);
             }
         }
+
+        foreach ($dir as $dirItem) {
+            if (! in_array($dirItem, $fileKeys)) {
+                $gitVersionNotExistResult[] = $dirItem;
+            }
+        }
+
         if (empty($gitVersionNotExistResult)) {
             return false;
         }
         # 对gitVersionNotExistResult 进行去重
         $gitVersionNotExistResult = array_unique($gitVersionNotExistResult);
+
         # 重新排序
         $gitVersionNotExistResult = array_values($gitVersionNotExistResult);
+
         # gitVersionNotExistResult 不为空，说明有文件更新，但是没有触发suer-magic的文件上传，需要再调用suer-magic的 api 进行一次文件上传
         if (! empty($gitVersionNotExistResult)) {
             try {
