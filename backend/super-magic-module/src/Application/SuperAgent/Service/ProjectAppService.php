@@ -311,11 +311,12 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
-    public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array
+    public function checkFileListUpdate(RequestContext $requestContext, int $projectId,DataIsolation $dataIsolation): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
+
+        $projectEntity = $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
         // 通过领域服务获取话题附件列表
         $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
