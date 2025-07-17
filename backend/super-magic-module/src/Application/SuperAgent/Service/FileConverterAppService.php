@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\F
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileConvertStatusResponseDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -108,7 +109,7 @@ class FileConverterAppService
     /**
      * 获取文件转换任务状态
      */
-    public function checkFileConvertStatus(MagicUserAuthorization $userAuthorization, string $taskKey): array
+    public function checkFileConvertStatus(MagicUserAuthorization $userAuthorization, string $taskKey): FileConvertStatusResponseDTO
     {
         $userId = $userAuthorization->getId();
 
@@ -120,32 +121,17 @@ class FileConverterAppService
         // 获取任务状态
         $taskStatus = $this->fileConvertStatusManager->getTaskStatus($taskKey);
         if (! $taskStatus) {
-            return [
-                'status' => ConvertStatusEnum::PROCESSING->value,
-                'download_url' => null,
-                'progress' => 0,
-                'message' => 'Task not found or expired',
-            ];
+            return $this->createProcessingResponse('Task not found or expired');
         }
 
         $sandboxId = $taskStatus['sandbox_id'] ?? '';
         if (empty($sandboxId)) {
-            return [
-                'status' => ConvertStatusEnum::PROCESSING->value,
-                'download_url' => null,
-                'progress' => 0,
-                'message' => 'Sandbox ID not found',
-            ];
+            return $this->createProcessingResponse('Sandbox ID not found');
         }
 
         $projectId = $taskStatus['project_id'] ?? '';
         if (empty($projectId)) {
-            return [
-                'status' => ConvertStatusEnum::PROCESSING->value,
-                'download_url' => null,
-                'progress' => 0,
-                'message' => 'Project ID not found',
-            ];
+            return $this->createProcessingResponse('Project ID not found');
         }
 
         try {
@@ -153,65 +139,11 @@ class FileConverterAppService
             $response = $this->fileConverterService->queryConvertResult($sandboxId, $projectId, $taskKey);
 
             if ($response->isSuccess()) {
-                $data = $response->getData();
-                $status = $data['status'] ?? ConvertStatusEnum::PROCESSING->value;
-
-                switch ($status) {
-                    case ConvertStatusEnum::COMPLETED->value:
-                        $downloadUrl = $response->getZipDownloadUrl();
-                        $totalFiles = $response->getTotalFiles();
-                        $successCount = $response->getSuccessCount();
-
-                        // 如果有下载URL，注册清理
-                        if ($downloadUrl) {
-                            $this->registerConvertedFilesForCleanup($userAuthorization, $response->getConvertedFiles(), $response->getBatchId());
-                        }
-
-                        return [
-                            'status' => ConvertStatusEnum::COMPLETED->value,
-                            'download_url' => $downloadUrl,
-                            'progress' => 100,
-                            'message' => $downloadUrl ? 'Files are ready for download' : 'Conversion completed but no download file available',
-                            'file_count' => $totalFiles,
-                            'success_count' => $successCount,
-                            'convert_type' => $data['convert_type'] ?? 'unknown',
-                            'batch_id' => $response->getBatchId(),
-                            'task_id' => $response->getBatchId(),
-                            'conversion_rate' => $response->getConversionRate(),
-                        ];
-
-                    case ConvertStatusEnum::FAILED->value:
-                        return [
-                            'status' => ConvertStatusEnum::FAILED->value,
-                            'download_url' => null,
-                            'progress' => null,
-                            'message' => $response->getMessage() ?: 'Task failed',
-                            'batch_id' => $response->getBatchId(),
-                        ];
-
-                    case ConvertStatusEnum::PROCESSING->value:
-                    default:
-                        // 处理进度信息，可能是百分比数字
-                        $progressValue = 0;
-                        if (isset($data['progress'])) {
-                            $progressValue = is_numeric($data['progress']) ? (int) $data['progress'] : 0;
-                        }
-
-                        return [
-                            'status' => ConvertStatusEnum::PROCESSING->value,
-                            'download_url' => null,
-                            'progress' => $progressValue,
-                            'message' => $response->getMessage() ?: 'Processing...',
-                            'batch_id' => $response->getBatchId(),
-                            'total_files' => $response->getTotalFiles(),
-                            'success_count' => $response->getSuccessCount(),
-                            'conversion_rate' => $response->getConversionRate(),
-                        ];
-                }
-            } else {
-                // 如果查询失败，返回本地状态作为备用
-                return $this->getLocalTaskStatus($taskStatus);
+                return $this->buildResponseFromConvertResult($response, $taskKey, $userAuthorization);
             }
+
+            // 如果查询失败，返回本地状态作为备用
+            return $this->getLocalTaskStatus($taskStatus);
         } catch (Exception $e) {
             // 查询异常时返回本地状态
             $this->logger->error('Query convert result failed', [
@@ -227,7 +159,7 @@ class FileConverterAppService
     /**
      * 处理文件转换.
      */
-    private function processFileConversion(
+    protected function processFileConversion(
         string $taskKey,
         MagicUserAuthorization $userAuthorization,
         ConvertFilesRequestDTO $requestDTO,
@@ -399,50 +331,192 @@ class FileConverterAppService
     }
 
     /**
+     * 创建处理中状态的响应.
+     */
+    private function createProcessingResponse(string $message, int $progress = 0): FileConvertStatusResponseDTO
+    {
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::PROCESSING->value,
+            null,
+            $progress,
+            $message
+        );
+    }
+
+    /**
+     * 从转换结果构建响应.
+     * @param mixed $response
+     */
+    private function buildResponseFromConvertResult($response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
+    {
+        $data = $response->getData();
+        $status = $data['status'] ?? ConvertStatusEnum::PROCESSING->value;
+
+        switch ($status) {
+            case ConvertStatusEnum::COMPLETED->value:
+                return $this->buildCompletedResponse($response, $data, $taskKey, $userAuthorization);
+            case ConvertStatusEnum::FAILED->value:
+                return $this->buildFailedResponse($response);
+            case ConvertStatusEnum::PROCESSING->value:
+            default:
+                return $this->buildProcessingResponseFromResult($response, $data, $taskKey);
+        }
+    }
+
+    /**
+     * 构建完成状态的响应.
+     * @param mixed $response
+     */
+    private function buildCompletedResponse($response, array $data, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
+    {
+        $downloadUrl = $response->getZipDownloadUrl();
+        $totalFiles = $response->getTotalFiles();
+        $successCount = $response->getSuccessCount();
+
+        // 如果有下载URL，注册清理
+        if ($downloadUrl) {
+            $this->registerConvertedFilesForCleanup($userAuthorization, $response->getConvertedFiles(), $response->getBatchId());
+        }
+
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::COMPLETED->value,
+            $downloadUrl,
+            100,
+            $downloadUrl ? 'Files are ready for download' : 'Conversion completed but no download file available',
+            $totalFiles,
+            $successCount,
+            $data['convert_type'] ?? 'unknown',
+            $response->getBatchId(),
+            $taskKey,
+            $response->getConversionRate()
+        );
+    }
+
+    /**
+     * 构建失败状态的响应.
+     * @param mixed $response
+     */
+    private function buildFailedResponse($response): FileConvertStatusResponseDTO
+    {
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::FAILED->value,
+            null,
+            null,
+            $response->getMessage() ?: 'Task failed',
+            null,
+            null,
+            null,
+            $response->getBatchId()
+        );
+    }
+
+    /**
+     * 构建处理中状态的响应（从结果）.
+     * @param mixed $response
+     */
+    private function buildProcessingResponseFromResult($response, array $data, string $taskKey): FileConvertStatusResponseDTO
+    {
+        // 处理进度信息，可能是百分比数字
+        $progressValue = 0;
+        if (isset($data['progress'])) {
+            $progressValue = is_numeric($data['progress']) ? (int) $data['progress'] : 0;
+        }
+
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::PROCESSING->value,
+            null,
+            $progressValue,
+            $response->getMessage() ?: 'Processing...',
+            $response->getTotalFiles(),
+            $response->getSuccessCount(),
+            null,
+            $response->getBatchId(),
+            $taskKey,
+            $response->getConversionRate()
+        );
+    }
+
+    /**
      * 获取本地任务状态
      */
-    private function getLocalTaskStatus(array $taskStatus): array
+    private function getLocalTaskStatus(array $taskStatus): FileConvertStatusResponseDTO
     {
         $status = $taskStatus['status'];
         $progress = $taskStatus['progress'] ?? [];
         $result = $taskStatus['result'] ?? [];
         $error = $taskStatus['error'] ?? '';
+        $conversionRate = $result['conversion_rate'] ?? null;
 
         switch ($status) {
             case ConvertStatusEnum::COMPLETED->value:
-                $downloadUrl = $result['download_url'] ?? '';
-                return [
-                    'status' => ConvertStatusEnum::COMPLETED->value,
-                    'download_url' => $downloadUrl,
-                    'progress' => 100,
-                    'message' => 'Files are ready for download',
-                    'file_count' => $result['file_count'] ?? 0,
-                    'convert_type' => $taskStatus['convert_type'] ?? 'unknown',
-                    'conversion_rate' => $result['conversion_rate'] ?? null,
-                ];
-
+                return $this->buildLocalCompletedResponse($result, $taskStatus['convert_type'] ?? 'unknown', $conversionRate);
             case ConvertStatusEnum::FAILED->value:
-                return [
-                    'status' => ConvertStatusEnum::FAILED->value,
-                    'download_url' => null,
-                    'progress' => null,
-                    'message' => $error ?: 'Task failed',
-                    'conversion_rate' => $result['conversion_rate'] ?? null,
-                ];
-
+                return $this->buildLocalFailedResponse($error, $conversionRate);
             case ConvertStatusEnum::PROCESSING->value:
             default:
-                $progressValue = $progress['percentage'] ?? 0;
-                $progressMessage = $progress['message'] ?? 'Processing...';
-
-                return [
-                    'status' => ConvertStatusEnum::PROCESSING->value,
-                    'download_url' => null,
-                    'progress' => (int) $progressValue,
-                    'message' => $progressMessage,
-                    'conversion_rate' => $result['conversion_rate'] ?? null,
-                ];
+                return $this->buildLocalProcessingResponse($progress, $conversionRate);
         }
+    }
+
+    /**
+     * 构建本地完成状态的响应.
+     */
+    private function buildLocalCompletedResponse(array $result, string $convertType, ?float $conversionRate): FileConvertStatusResponseDTO
+    {
+        $downloadUrl = $result['download_url'] ?? '';
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::COMPLETED->value,
+            $downloadUrl,
+            100,
+            'Files are ready for download',
+            null,
+            null,
+            $convertType,
+            null,
+            null,
+            $conversionRate
+        );
+    }
+
+    /**
+     * 构建本地失败状态的响应.
+     */
+    private function buildLocalFailedResponse(string $error, ?float $conversionRate): FileConvertStatusResponseDTO
+    {
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::FAILED->value,
+            null,
+            null,
+            $error ?: 'Task failed',
+            null,
+            null,
+            null,
+            null,
+            null,
+            $conversionRate
+        );
+    }
+
+    /**
+     * 构建本地处理中状态的响应.
+     */
+    private function buildLocalProcessingResponse(array $progress, ?float $conversionRate): FileConvertStatusResponseDTO
+    {
+        $progressValue = $progress['percentage'] ?? 0;
+        $progressMessage = $progress['message'] ?? 'Processing...';
+
+        return new FileConvertStatusResponseDTO(
+            ConvertStatusEnum::PROCESSING->value,
+            null,
+            (int) $progressValue,
+            $progressMessage,
+            null,
+            null,
+            null,
+            null,
+            null,
+            $conversionRate
+        );
     }
 
     /**
@@ -513,15 +587,15 @@ class FileConverterAppService
 
             $taskStatus = $this->checkFileConvertStatus($userAuthorization, $existingTaskKey);
 
-            if (isset($taskStatus['status']) && $taskStatus['status'] === ConvertStatusEnum::FAILED->value) {
+            if ($taskStatus->getStatus() === ConvertStatusEnum::FAILED->value) {
                 $this->fileConvertStatusManager->clearDuplicateTaskKey($requestKey);
                 $this->logger->info('Failed task detected, clearing duplicate cache to allow retry', [
                     'user_id' => $userId,
                     'task_key' => $existingTaskKey,
                 ]);
             } else {
-                $taskStatus['task_key'] = $existingTaskKey;
-                return $taskStatus;
+                $taskStatus->setTaskKey($existingTaskKey);
+                return $taskStatus->toArray();
             }
         }
 
