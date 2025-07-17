@@ -27,8 +27,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
 use RuntimeException;
+use Psr\Log\LoggerInterface;
 
 class WorkspaceDomainService
 {
@@ -39,6 +41,8 @@ class WorkspaceDomainService
         protected TaskRepositoryInterface $taskRepository,
         protected TaskDomainService $taskDomainService,
         protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
+        protected SandboxGatewayInterface $gateway,
+        protected LoggerInterface $logger,
     ) {
     }
 
@@ -767,7 +771,7 @@ class WorkspaceDomainService
     /**
      * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
      */
-    public function filterResultByGitVersion(array $result, int $projectId): array
+    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode = ''): array
     {
         $dir = '.workspace';
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
@@ -780,10 +784,10 @@ class WorkspaceDomainService
         }
 
         # 遍历result的updatedAt ，如果updatedAt 小于workspaceVersion 的updated_at ，则保持在一个临时数组
-        $tempResult1 = [];
+        $fileResult = [];
         foreach ($result['list'] as $item) {
             if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
-                $tempResult1[] = $item;
+                $fileResult[] = $item;
             }
         }
         $dir = json_decode($workspaceVersion->getDir(), true);
@@ -797,21 +801,73 @@ class WorkspaceDomainService
         });
 
         # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
-        $tempResult2 = [];
+        $gitVersionResult = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
                 if (strpos($item['file_key'], $dirItem) !== false) {
-                    $tempResult2[] = $item;
+                    $gitVersionResult[] = $item;
                 }
             }
         }
-        $tempResult = array_merge($tempResult1, $tempResult2);
+
+        $newResult = array_merge($fileResult, $gitVersionResult);
 
         # 对tempResult进行去重
-        $result['list'] = array_unique($tempResult, SORT_REGULAR);
+        $result['list'] = array_unique($newResult, SORT_REGULAR);
         $result['total'] = count($result['list']);
         return $result;
     }
+
+
+    public function diffFileListAndVersionFile(array $result, int $projectId, string $organizationCode = '',string $taskId,string $sandboxId):bool
+    {
+        $dir = '.workspace';
+        $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
+        if (empty($workspaceVersion)) {
+            return false;
+        }
+        if (empty($workspaceVersion->getDir())) {
+            return false;
+        }
+        $dir = json_decode($workspaceVersion->getDir(), true);
+        # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
+        # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
+        $dir = array_filter($dir, function ($item) {
+            if (strpos($item, '.') === false) {
+                return false;
+            }
+            return true;
+        });
+
+        # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
+        $gitVersionNotExistResult = [];
+        foreach ($result['list'] as $item) {
+            foreach ($dir as $dirItem) {
+                if (strpos($item['file_key'], $dirItem) === false) {
+                    $gitVersionNotExistResult[] = $dirItem;
+                }
+            }
+        }
+        if(empty($gitVersionNotExistResult)){
+            return false;
+        }
+        #对gitVersionNotExistResult 进行去重
+        $gitVersionNotExistResult = array_unique($gitVersionNotExistResult);
+
+        # gitVersionNotExistResult 不为空，说明有文件更新，但是没有触发suer-magic的文件上传，需要再调用suer-magic的 api 进行一次文件上传
+        if (! empty($gitVersionNotExistResult)) {
+            try {
+                $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string)$projectId, $organizationCode,$taskId);
+            } catch (\Throwable $e) {
+                $this->logger->error('[Sandbox][Domain] uploadFile failed', ['error' => $e->getMessage()]);
+            }
+
+            return true;
+        }
+        return false;
+    }
+
+
 
     /**
      * 应用数据隔离到查询条件.

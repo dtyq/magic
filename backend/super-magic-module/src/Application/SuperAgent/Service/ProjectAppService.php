@@ -291,14 +291,31 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
-    public function checkFileListUpdate(RequestContext $requestContext, int $projectId): array
+    public function checkFileListUpdate(RequestContext $requestContext, int $projectId,DataIsolation $dataIsolation): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
+        $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
+
+         // 通过领域服务获取话题附件列表
+         $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
+            (int) $projectEntity->getCurrentTopicId(),
+            $dataIsolation,
+            1,
+            2000
+        );
+
+        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
+        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
+        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
+         ##检测git version 跟database 的files表是否匹配
+        $result=$this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, $dataIsolation->getCurrentOrganizationCode(),(string)$taskEntity->getId(),$topicEntity->getSandboxId());
+        if($result){
+           $lastUpdatedAt=date('Y-m-d H:i:s');
+        }
         return [
-            'last_updated_at' => $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId),
+            'last_updated_at' => $lastUpdatedAt,
         ];
     }
 
@@ -366,7 +383,7 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getFileType()
         );
 
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId());
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode());
 
         // 处理文件 URL
         $list = [];
