@@ -208,10 +208,10 @@ class TaskApi extends AbstractApi
         $result = $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
 
         // 如果状态是 ready 但是没有下载地址，说明任务发生了错误
-        if ($result['status'] === ConvertStatusEnum::COMPLETED->value && empty($result['download_url'])) {
+        if ($result->getStatus() === ConvertStatusEnum::COMPLETED->value && empty($result->getDownloadUrl())) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONVERT_FAILED, 'file.convert_failed');
         }
 
-        return $result;
+        return $result->toArray();
     }
 }
