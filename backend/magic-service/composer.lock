@@ -6390,16 +6390,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.25",
+            "version": "v1.1.26",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "2b569728cb3fc3e46d0cac9dec51b7a4cfa34f00"
+                "reference": "8c5871fec932db1b730cdc5dad7d405079b51878"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=2b569728cb3fc3e46d0cac9dec51b7a4cfa34f00",
-                "reference": "2b569728cb3fc3e46d0cac9dec51b7a4cfa34f00",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=8c5871fec932db1b730cdc5dad7d405079b51878",
+                "reference": "8c5871fec932db1b730cdc5dad7d405079b51878",
                 "shasum": ""
             },
             "require": {
@@ -6464,9 +6464,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.25"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.26"
             },
-            "time": "2025-07-15T19:34:40+08:00"
+            "time": "2025-07-18T00:58:37+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -19516,8 +19516,8 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "dtyq/cloudfile": 20,
-        "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
+        "dtyq/magic-enterprise-service": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19534,6 +19534,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "platform-dev": [],
+    "plugin-api-version": "2.3.0"
 }
