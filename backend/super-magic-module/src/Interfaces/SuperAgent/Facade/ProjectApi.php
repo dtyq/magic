@@ -17,7 +17,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Qbhy\HyperfAuth\AuthManager;
 
 /**
