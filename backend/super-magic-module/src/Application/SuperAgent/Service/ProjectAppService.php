@@ -298,8 +298,8 @@ class ProjectAppService extends AbstractAppService
         $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
         // 通过领域服务获取话题附件列表
-        $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
-            (int) $projectEntity->getCurrentTopicId(),
+        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
+            (int) $projectId,
             $dataIsolation,
             1,
             2000
