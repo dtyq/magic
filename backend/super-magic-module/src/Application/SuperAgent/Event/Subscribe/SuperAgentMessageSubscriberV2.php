@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
-use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
