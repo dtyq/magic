@@ -533,11 +533,4 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
         return false;
     }
-
-    public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode,string $taskId): GatewayResult
-    {
-        $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode,'task_id' => $taskId]);
-
-        return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId,'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode,'task_id' => $taskId]);
-    }
 }
