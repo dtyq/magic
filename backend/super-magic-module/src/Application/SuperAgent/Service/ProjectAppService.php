@@ -299,10 +299,9 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
-    public function checkFileListUpdate(RequestContext $requestContext, int $projectId,DataIsolation $dataIsolation): array
+    public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
-
 
         $projectEntity = $projectEntity = $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
