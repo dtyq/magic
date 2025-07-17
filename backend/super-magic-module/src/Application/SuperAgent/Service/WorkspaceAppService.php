@@ -730,6 +730,42 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
+     * 注册转换后的PDF文件以供定时清理.
+     */
+    public function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
+    {
+        if (empty($convertedFiles)) {
+            return;
+        }
+
+        $filesForCleanup = [];
+        foreach ($convertedFiles as $file) {
+            if (empty($file['oss_key']) || empty($file['filename'])) {
+                continue;
+            }
+
+            $filesForCleanup[] = [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'file_key' => $file['oss_key'],
+                'file_name' => $file['filename'],
+                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
+                'source_type' => 'pdf_conversion',
+                'source_id' => $file['batch_id'] ?? null,
+                'expire_after_seconds' => 7200, // 2 小时后过期
+                'bucket_type' => 'private',
+            ];
+        }
+
+        if (! empty($filesForCleanup)) {
+            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
+            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
+                'user_id' => $userAuthorization->getId(),
+                'files_count' => count($filesForCleanup),
+            ]);
+        }
+    }
+
+    /**
      * 初始化用户工作区.
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
@@ -812,43 +848,6 @@ class WorkspaceAppService extends AbstractAppService
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
-        }
-    }
-
-    /**
-     * 注册转换后的PDF文件以供定时清理.
-     */
-    /* @phpstan-ignore-next-line */
-    private function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
-    {
-        if (empty($convertedFiles)) {
-            return;
-        }
-
-        $filesForCleanup = [];
-        foreach ($convertedFiles as $file) {
-            if (empty($file['oss_key']) || empty($file['filename'])) {
-                continue;
-            }
-
-            $filesForCleanup[] = [
-                'organization_code' => $userAuthorization->getOrganizationCode(),
-                'file_key' => $file['oss_key'],
-                'file_name' => $file['filename'],
-                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
-                'source_type' => 'pdf_conversion',
-                'source_id' => $file['batch_id'] ?? null,
-                'expire_after_seconds' => 7200, // 2 小时后过期
-                'bucket_type' => 'private',
-            ];
-        }
-
-        if (! empty($filesForCleanup)) {
-            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
-            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
-                'user_id' => $userAuthorization->getId(),
-                'files_count' => count($filesForCleanup),
-            ]);
         }
     }
 }

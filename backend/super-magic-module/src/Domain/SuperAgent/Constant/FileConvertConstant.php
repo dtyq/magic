@@ -29,24 +29,8 @@ class FileConvertConstant
     public const CACHE_KEY_LOCK = self::CACHE_PREFIX . 'lock:';        // Processing lock
 
     // ====== Task Status Constants ======
-
-    /**
-     * Task status enums.
-     */
-    public const STATUS_PROCESSING = 'processing';   // Task is being processed
-
-    public const STATUS_READY = 'ready';            // Task completed successfully
-
-    public const STATUS_FAILED = 'failed';          // Task failed
-
-    /**
-     * All valid status values.
-     */
-    public const VALID_STATUSES = [
-        self::STATUS_PROCESSING,
-        self::STATUS_READY,
-        self::STATUS_FAILED,
-    ];
+    // Status constants have been moved to ConvertStatusEnum
+    // Use ConvertStatusEnum instead for status values
 
     // ====== TTL Constants (in seconds) ======
 
@@ -130,10 +114,11 @@ class FileConvertConstant
      *
      * @param string $status Status to check
      * @return bool True if valid, false otherwise
+     * @deprecated Use ConvertStatusEnum::isValid() instead
      */
     public static function isValidStatus(string $status): bool
     {
-        return in_array($status, self::VALID_STATUSES, true);
+        return ConvertStatusEnum::isValid($status);
     }
 
     /**

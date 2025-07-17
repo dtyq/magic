@@ -60,27 +60,13 @@ interface SandboxGatewayInterface
     ): GatewayResult;
 
     /**
-     * 确保沙箱可用并代理请求.
+     * 确保沙箱存在并且可用.
      *
-     * 此方法会自动检查沙箱状态，如果沙箱不存在或不可用，会先创建沙箱，然后再代理请求。
-     * 这是一个便捷方法，避免每个服务都需要重复实现沙箱检查和创建逻辑。
-     *
-     * @param string $sandboxId Sandbox ID (可以为空，会自动生成)
+     * @param string $sandboxId Sandbox ID
      * @param string $projectId Project ID
-     * @param string $method HTTP method
-     * @param string $path Target path
-     * @param array $data Request data
-     * @param array $headers Additional headers
-     * @return GatewayResult Proxy result, 成功时包含实际使用的sandbox_id
+     * @return string 实际使用的沙箱ID
      */
-    public function ensureSandboxAndProxy(
-        string $sandboxId,
-        string $projectId,
-        string $method,
-        string $path,
-        array $data = [],
-        array $headers = []
-    ): GatewayResult;
+    public function ensureSandboxAvailable(string $sandboxId, string $projectId): string;
 
     public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
 

@@ -128,4 +128,13 @@ class FileConverterResponse implements ResponseInterface
 
         return null;
     }
+
+    /**
+     * 获取转换率.
+     */
+    public function getConversionRate(): ?float
+    {
+        $rate = $this->data['conversion_rate'] ?? null;
+        return $rate !== null ? (float) $rate : null;
+    }
 }
