@@ -858,7 +858,11 @@ class WorkspaceDomainService
         # gitVersionNotExistResult 不为空，说明有文件更新，但是没有触发suer-magic的文件上传，需要再调用suer-magic的 api 进行一次文件上传
         if (! empty($gitVersionNotExistResult)) {
             try {
-                $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string) $projectId, $organizationCode, $taskId);
+                # 查看沙箱是否存活
+                $sandboxStatus = $this->gateway->getSandboxStatus($sandboxId);
+                if ($sandboxStatus->isRunning()) {
+                    $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string) $projectId, $organizationCode, $taskId);
+                }
             } catch (Throwable $e) {
                 $this->logger->error('[Sandbox][Domain] uploadFile failed', ['error' => $e->getMessage()]);
             }
