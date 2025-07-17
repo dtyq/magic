@@ -174,14 +174,12 @@ class AgentDomainService
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
 
-        $attachmentUrls = [];
-        if (! empty($taskContext->getTask()->getAttachments())) {
-            $attachments = json_decode($taskContext->getTask()->getAttachments());
-            $fileIds = array_filter(array_column($attachments, 'file_id'));
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $taskContext->getTask()->getProjectId());
-        }
-
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getTask()->getProjectId());
+
+        $attachmentUrls = [];
+        if (! empty($mentionsJsonStruct)) {
+            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
+        }
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
