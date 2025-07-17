@@ -192,7 +192,7 @@ JSON
         $radio = $args['radio'] ?? Radio::OneToOne->value;
         $model = $modelVersion;
         $agentConversationId = $executionData->getOriginConversationId();
-        $assistantAuthorization = $this->getAssistantAuthorization($agentConversationId);
+        $assistantAuthorization = $this->getAssistantAuthorization($executionData->getAgentUserId());
 
         $requestContext = new RequestContext();
         $requestContext->setUserAuthorization($assistantAuthorization);
@@ -215,15 +215,9 @@ JSON
         return [];
     }
 
-    protected function getAssistantAuthorization(string $agentConversationId): MagicUserAuthorization
+    protected function getAssistantAuthorization(string $assistantUserId): MagicUserAuthorization
     {
         // 获取助理的用户信息。生成的图片上传者是助理自己。
-        $agentConversationEntity = $this->getMagicConversationDomainService()->getConversationByIdWithoutCheck($agentConversationId);
-        if (! $agentConversationEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'assistant_not_found');
-        }
-        // 助理信息
-        $assistantUserId = $agentConversationEntity->getUserId();
         $assistantInfoEntity = $this->getMagicUserDomainService()->getUserById($assistantUserId);
         if ($assistantInfoEntity === null) {
             ExceptionBuilder::throw(GenericErrorCode::SystemError, 'assistant_not_found');
