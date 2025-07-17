@@ -22,7 +22,7 @@ class ExternalStdioServiceConfig extends AbstractServiceConfig
     protected array $env = [];
 
     private array $allowedCommands = [
-        'npx',
+        'npx', 'uvx', 'node', 'python',
     ];
 
     public function getCommand(): string

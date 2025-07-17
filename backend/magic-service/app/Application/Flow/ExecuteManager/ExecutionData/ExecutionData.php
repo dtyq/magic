@@ -10,6 +10,7 @@ namespace App\Application\Flow\ExecuteManager\ExecutionData;
 use App\Application\Flow\ExecuteManager\Attachment\AbstractAttachment;
 use App\Application\Flow\ExecuteManager\Attachment\Attachment;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\Message;
+use App\Domain\Chat\DTO\Message\ChatMessage\Item\InstructionConfig;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
@@ -126,6 +127,12 @@ class ExecutionData
     private string $uniqueParentId = '';
 
     private ?MagicFlowEntity $magicFlowEntity = null;
+
+    /**
+     * 当前 agent 的指令配置列表.
+     * @var array<InstructionConfig>
+     */
+    private array $instructionConfigs = [];
 
     public function __construct(
         FlowDataIsolation $flowDataIsolation,
@@ -516,6 +523,29 @@ class ExecutionData
         $contactDataIsolation = ContactDataIsolation::create($this->dataIsolation->getCurrentOrganizationCode(), $this->dataIsolation->getCurrentUserId());
         $user = di(MagicUserDomainService::class)->getByAiCode($contactDataIsolation, $flowCode);
         return $user?->getUserId() ?? '';
+    }
+
+    /**
+     * @return InstructionConfig[]
+     */
+    public function getInstructionConfigs(): array
+    {
+        return $this->instructionConfigs;
+    }
+
+    public function setInstructionConfigs(?array $instructionConfigs): void
+    {
+        foreach ($instructionConfigs ?? [] as $instructionConfig) {
+            if (isset($instructionConfig['items']) && is_array($instructionConfig['items'])) {
+                foreach ($instructionConfig['items'] as $item) {
+                    $this->instructionConfigs[] = new InstructionConfig($item);
+                }
+                continue;
+            }
+            if (is_array($instructionConfig)) {
+                $this->instructionConfigs[] = new InstructionConfig($instructionConfig);
+            }
+        }
     }
 
     public function rewind(): void
