@@ -134,26 +134,41 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 continue;
             }
 
-            $mcpServerConfig = MCPServerConfigUtil::create(
-                $mcpDataIsolation,
-                $mcpServer,
-                $localHttpUrl,
-            );
-            if (! $mcpServerConfig) {
-                continue;
-            }
-            if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
-                $token = $this->tempAuth->create([
-                    'user_id' => $dataIsolation->getCurrentUserId(),
-                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                    'server_code' => $mcpServer->getCode(),
-                ], 3600);
-                $mcpServerConfig->setToken($token);
-            }
-            $config = $mcpServerConfig->toArray();
-            $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
+            try {
+                $mcpServerConfig = MCPServerConfigUtil::create(
+                    $mcpDataIsolation,
+                    $mcpServer,
+                    $localHttpUrl,
+                );
+                if (! $mcpServerConfig) {
+                    continue;
+                }
+                if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
+                    $token = $this->tempAuth->create([
+                        'user_id' => $dataIsolation->getCurrentUserId(),
+                        'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                        'server_code' => $mcpServer->getCode(),
+                    ], 3600);
+                    $mcpServerConfig->setToken($token);
+                }
+                $config = $mcpServerConfig->toArray();
+                $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
 
-            $servers[$mcpServer->getName()] = $config;
+                $servers[$mcpServer->getName()] = $config;
+            } catch (Throwable $throwable) {
+                $this->logger->error('CreateChatMessageRequestMcpConfigError', [
+                    'mcp_server' => [
+                        'id' => $mcpServer->getId(),
+                        'code' => $mcpServer->getCode(),
+                        'name' => $mcpServer->getName(),
+                        'description' => $mcpServer->getDescription(),
+                    ],
+                    'message' => $throwable->getMessage(),
+                    'code' => $throwable->getCode(),
+                    'file' => $throwable->getFile(),
+                    'line' => $throwable->getLine(),
+                ]);
+            }
         }
         return $servers;
     }
