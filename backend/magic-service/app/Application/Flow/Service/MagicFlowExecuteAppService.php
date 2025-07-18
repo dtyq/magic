@@ -257,6 +257,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         if (! $account) {
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'account not found');
         }
+        EnvManager::initDataIsolationEnv($flowDataIsolation, force: true);
         $operator = $this->createExecutionOperator($flowDataIsolation);
         $operator->setSourceId('mcp_tool');
 
@@ -311,6 +312,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         if (! $user) {
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'user not found');
         }
+        EnvManager::initDataIsolationEnv($flowDataIsolation, force: true);
         $account = $this->magicAccountDomainService->getByMagicId($user->getMagicId());
         if (! $account) {
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'account not found');
