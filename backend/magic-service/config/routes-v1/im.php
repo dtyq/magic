@@ -9,38 +9,41 @@ use App\Interfaces\Chat\Facade\MagicChatHttpApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/im', static function () {
-    // 会话
+    // Typing completions (conversationId and topicId are not required)
+    Router::post('/typing/completions', [MagicChatHttpApi::class, 'typingCompletions']);
+
+    // conversation
     Router::addGroup('/conversations', static function () {
-        // 话题列表查询接口
+        // Topic list query interface
         Router::post('/{conversationId}/topics/queries', [MagicChatHttpApi::class, 'getTopicList']);
-        // 智能重命名话题
+        // Intelligent topic renaming
         Router::put('/{conversationId}/topics/{topicId}/name', [MagicChatHttpApi::class, 'intelligenceGetTopicName']);
-        // 会话列表查询接口
+        // Conversation list query interface
         Router::post('/queries', [MagicChatHttpApi::class, 'conversationQueries']);
-        // 聊天窗口打字时补全
+        // Typing completions when chatting in the window
         Router::post('/{conversationId}/completions', [MagicChatHttpApi::class, 'conversationChatCompletions']);
-        // 保存交互指令
+        // Save interaction instructions
         Router::post('/{conversationId}/instructs', [MagicChatHttpApi::class, 'saveInstruct']);
 
-        // 会话的历史消息滚动加载
+        // Conversation history message scrolling load
         Router::post('/{conversationId}/messages/queries', [MagicChatHttpApi::class, 'messageQueries']);
-        // （前端性能有问题的临时方案）按会话 id 分组获取几条最新消息.
+        // (Temporary solution for frontend performance issues) Get the latest messages of several groups by conversation id.
         Router::post('/messages/queries', [MagicChatHttpApi::class, 'conversationsMessagesGroupQueries']);
     });
 
-    // 消息
+    // Message
     Router::addGroup('/messages', static function () {
-        // （新设备登录）拉取账号最近一段时间的消息
+        // (New device login) Pull the latest messages of the account
         Router::get('', [MagicChatHttpApi::class, 'pullRecentMessage']);
-        // 拉取账号下所有组织的消息（支持全量滑动窗口拉取）
+        // Pull all organization messages of the account (supports full sliding window pull)
         Router::get('/page', [MagicChatHttpApi::class, 'pullByPageToken']);
-        // 消息接收人列表
+        // Message recipient list
         Router::get('/{messageId}/recipients', [MagicChatHttpApi::class, 'getMessageReceiveList']);
-        // 根据app_message_id 拉取消息
+        // Pull message by app_message_id
         Router::post('/app-message-ids/{appMessageId}/queries', [MagicChatHttpApi::class, 'pullByAppMessageId']);
     });
 
-    // 文件
+    // File
     Router::addGroup('/files', static function () {
         Router::post('', [MagicChatHttpApi::class, 'fileUpload']);
         Router::post('/download-urls/queries', [MagicChatHttpApi::class, 'getFileDownUrl']);
