@@ -23,6 +23,8 @@ use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\ErrorCode\MCPErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Codec\Json;
@@ -141,7 +143,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                     $localHttpUrl,
                 );
                 if (! $mcpServerConfig) {
-                    continue;
+                    ExceptionBuilder::throw(MCPErrorCode::NotFound, 'ServerConfigCreateFailed');
                 }
                 if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
                     $token = $this->tempAuth->create([
@@ -153,10 +155,8 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 }
                 $config = $mcpServerConfig->toArray();
                 $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
-
-                $servers[$mcpServer->getName()] = $config;
             } catch (Throwable $throwable) {
-                $this->logger->error('CreateChatMessageRequestMcpConfigError', [
+                $this->logger->notice('CreateChatMessageRequestMcpConfigNotice', [
                     'mcp_server' => [
                         'id' => $mcpServer->getId(),
                         'code' => $mcpServer->getCode(),
@@ -168,7 +168,13 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                     'file' => $throwable->getFile(),
                     'line' => $throwable->getLine(),
                 ]);
+                $config = [
+                    'name' => $mcpServer->getName(),
+                    'error_message' => $throwable->getMessage(),
+                ];
             }
+
+            $servers[$mcpServer->getName()] = $config;
         }
         return $servers;
     }
