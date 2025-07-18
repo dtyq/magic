@@ -30,12 +30,12 @@ class ChatCompletionsDTO extends AbstractDTO
         $this->topicId = $topicId;
     }
 
-    public function getConversationId(): string
+    public function getConversationId(): ?string
     {
         return $this->conversationId;
     }
 
-    public function setConversationId(string $conversationId): void
+    public function setConversationId(?string $conversationId): void
     {
         $this->conversationId = $conversationId;
     }

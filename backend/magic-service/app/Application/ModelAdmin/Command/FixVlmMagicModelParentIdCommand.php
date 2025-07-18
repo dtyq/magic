@@ -28,7 +28,7 @@ use Symfony\Component\Console\Input\InputOption;
 class FixVlmMagicModelParentIdCommand extends HyperfCommand
 {
     /**
-     * 命令描述.
+     * 命令描述. php bin/hyperf.php fix:vlm-magic-model-parent-id --organization=7huf6bease5n --dry-run.
      */
     protected string $description = '修复文生图 Magic 服务商模型的父子关系，重新建立 modelParentId 关联';
 
@@ -66,6 +66,7 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
     {
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, '预检查模式，只检查不修复');
         $this->addOption('batch-size', null, InputOption::VALUE_OPTIONAL, '批量处理大小', 100);
+        $this->addOption('organization', 'o', InputOption::VALUE_OPTIONAL, '指定要修复的组织编码，不指定则修复所有组织');
     }
 
     /**
@@ -75,14 +76,16 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
     {
         $isDryRun = $this->input->getOption('dry-run');
         $batchSize = (int) $this->input->getOption('batch-size');
+        $targetOrganization = $this->input->getOption('organization');
 
         $this->line('开始修复文生图 Magic 服务商模型的父子关系...', 'info');
         $this->line('预检查模式: ' . ($isDryRun ? '是' : '否'), 'info');
         $this->line('批量处理大小: ' . $batchSize, 'info');
+        $this->line('指定组织: ' . ($targetOrganization ? $targetOrganization : '所有组织'), 'info');
 
         try {
             // 1. 查找需要修复的模型
-            $brokenModels = $this->findBrokenModels();
+            $brokenModels = $this->findBrokenModels($targetOrganization);
             if (empty($brokenModels)) {
                 $this->line('没有找到需要修复的模型', 'info');
                 return;
@@ -116,9 +119,10 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
 
     /**
      * 查找需要修复的模型.
+     * @param null|string $targetOrganization 指定的组织编码
      * @return array 需要修复的模型列表
      */
-    protected function findBrokenModels(): array
+    protected function findBrokenModels(?string $targetOrganization = null): array
     {
         $this->line('正在查找需要修复的模型...', 'info');
 
@@ -133,13 +137,22 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
         $allMagicConfigs = $this->serviceProviderConfigRepository->getsByServiceProviderId($magicServiceProvider->getId());
         $nonOfficeConfigs = [];
         foreach ($allMagicConfigs as $config) {
+            // 如果指定了组织编码，只处理指定组织
+            if ($targetOrganization && $config->getOrganizationCode() !== $targetOrganization) {
+                continue;
+            }
+
+            // 排除官方组织
             if ($config->getOrganizationCode() !== $this->officeOrganization) {
                 $nonOfficeConfigs[] = $config;
             }
         }
 
         if (empty($nonOfficeConfigs)) {
-            $this->line('未找到非官方组织的 Magic 服务商配置', 'info');
+            $message = $targetOrganization
+                ? "未找到组织 {$targetOrganization} 的 Magic 服务商配置"
+                : '未找到非官方组织的 Magic 服务商配置';
+            $this->line($message, 'info');
             return [];
         }
 
@@ -153,12 +166,14 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
         foreach ($allModels as $model) {
             // 检查是否是文生图模型且 modelParentId 为 0 或 null
             if ($model->getCategory() === ServiceProviderCategory::VLM->value
-                && ($model->getModelParentId() === 0 || $model->getModelParentId() === null) && $model->getIsOffice() === 1) {
+                && ($model->getModelParentId() === 0 || $model->getModelParentId() === null)
+                && $model->getIsOffice() === 1) {
                 $brokenModels[] = $model;
             }
         }
 
-        $this->line('找到需要修复的模型数量: ' . count($brokenModels), 'info');
+        $organizationInfo = $targetOrganization ? "组织 {$targetOrganization} " : '';
+        $this->line("找到{$organizationInfo}需要修复的模型数量: " . count($brokenModels), 'info');
         return $brokenModels;
     }
 
