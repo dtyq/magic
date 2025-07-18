@@ -72,21 +72,25 @@ class MagicConversationAppService extends AbstractAppService
         MagicUserAuthorization $userAuthorization
     ): string {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        // Check if conversation ID belongs to current user
-        $this->magicConversationDomainService->getConversationById($chatCompletionsDTO->getConversationId(), $dataIsolation);
+
+        // Check if conversation ID belongs to current user (skip if conversation_id is null)
+        $conversationId = $chatCompletionsDTO->getConversationId();
+        if ($conversationId) {
+            $this->magicConversationDomainService->getConversationById($conversationId, $dataIsolation);
+        }
 
         // Generate a unique debounce key based on user ID and conversation ID
         $debounceKey = sprintf(
             'chat_completions_debounce:%s:%s',
             $userAuthorization->getMagicId(),
-            $chatCompletionsDTO->getConversationId()
+            $conversationId ?? 'standalone'
         );
 
         // Use the sliding window utility for debouncing, executing only the last request within a 1-second window
         if (! $this->slidingWindowUtil->shouldExecuteWithDebounce($debounceKey, 0.1)) {
             $this->logger->info('Chat completions request skipped due to debounce', [
                 'user_id' => $userAuthorization->getId(),
-                'conversation_id' => $chatCompletionsDTO->getConversationId(),
+                'conversation_id' => $conversationId,
                 'debounce_key' => $debounceKey,
             ]);
             return '';
@@ -297,13 +301,16 @@ class MagicConversationAppService extends AbstractAppService
             ## Current User:
             Nickname: {userNickname}
             
+            ## Current Time:
+            {currentTime}
+            
             Please provide the best completion suggestion for the user's current input, or return the special identifier to end completion.
         Prompt;
 
         // Replace placeholders for base system prompt (cacheable)
         $baseSystemPrompt = str_replace(
-            ['{historyContext}', '{noCompletionChar}', '{userNickname}'],
-            [$historyContext, self::NO_COMPLETION_NEEDED, $userAuthorization->getNickname()],
+            ['{historyContext}', '{noCompletionChar}', '{userNickname}', '{currentTime}'],
+            [$historyContext, self::NO_COMPLETION_NEEDED, $userAuthorization->getNickname(), date('Y-m-d H:i:s')],
             $baseSystemPrompt
         );
 
