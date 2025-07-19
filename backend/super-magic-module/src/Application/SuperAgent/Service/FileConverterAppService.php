@@ -661,6 +661,11 @@ class FileConverterAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
+        // Sort files by filename using natural sorting (slide01, slide02, etc.)
+        usort($filteredFiles, function (TaskFileEntity $a, TaskFileEntity $b) {
+            return strnatcasecmp($a->getFileName(), $b->getFileName());
+        });
+
         return $filteredFiles;
     }
 
