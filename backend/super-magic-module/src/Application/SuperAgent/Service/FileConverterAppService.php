@@ -14,9 +14,9 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
@@ -44,8 +44,7 @@ class FileConverterAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private readonly ProjectDomainService $projectDomainService,
-        private readonly TaskDomainService $taskDomainService,
-        private readonly WorkspaceDomainService $workspaceDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,
         private readonly FileAppService $fileAppService,
@@ -89,6 +88,7 @@ class FileConverterAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
             }
 
+            /** @var TaskFileEntity[] $validFiles */
             $validFiles = $this->getValidFiles($fileIds, $userId);
 
             // 重复请求检查
@@ -193,6 +193,12 @@ class FileConverterAppService
 
     /**
      * 处理文件转换.
+     *
+     * @param string $taskKey 任务键
+     * @param MagicUserAuthorization $userAuthorization 用户授权
+     * @param ConvertFilesRequestDTO $requestDTO 转换请求DTO
+     * @param TaskFileEntity[] $validFiles 有效文件列表
+     * @param ProjectEntity $projectEntity 项目实体
      */
     protected function processFileConversion(
         string $taskKey,
@@ -602,34 +608,22 @@ class FileConverterAppService
 
     /**
      * 获取用户有权限的有效文件.
+     *
+     * @param array $fileIds 文件ID数组
+     * @param string $userId 用户ID
+     * @return TaskFileEntity[] 用户文件列表
      */
     private function getValidFiles(array $fileIds, string $userId): array
     {
-        $userFiles = $this->taskDomainService->getTaskFiles($fileIds);
+        /** @var TaskFileEntity[] $userFiles */
+        $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
+
+        // Check if there are valid files
         if (empty($userFiles)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
-        // 验证文件归属权并过滤
-        $validFiles = [];
-        $topicIds = array_unique(array_map(static fn ($file) => $file->getTopicId(), $userFiles));
-        $topics = $this->workspaceDomainService->getTopicsByIds($topicIds);
-        $topicsById = [];
-        foreach ($topics as $topic) {
-            $topicsById[$topic->getId()] = $topic;
-        }
-        foreach ($userFiles as $fileEntity) {
-            $topic = $topicsById[$fileEntity->getTopicId()] ?? null;
-            if ($topic && $topic->getUserId() === $userId) {
-                $validFiles[] = $fileEntity;
-            }
-        }
-
-        if (empty($validFiles)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_ACCESS_DENIED);
-        }
-
-        return $validFiles;
+        return $userFiles;
     }
 
     /**
@@ -673,6 +667,11 @@ class FileConverterAppService
 
     /**
      * 构建文件URL数组.
+     *
+     * @param TaskFileEntity[] $validFiles 有效文件列表
+     * @param string $organizationCode 组织代码
+     * @param string $userId 用户ID
+     * @return array 文件URL数组
      */
     private function buildFileUrls(array $validFiles, string $organizationCode, string $userId): array
     {
