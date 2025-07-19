@@ -34,8 +34,8 @@ use Throwable;
 use function Hyperf\Coroutine\go;
 
 /**
- * 文件转换应用服务
- * 负责协调文件转换的完整流程，包括沙箱创建、初始化和文件转换.
+ * File Converter Application Service.
+ * Coordinates the entire file conversion process, including sandbox creation, initialization, and file conversion.
  */
 class FileConverterAppService
 {
@@ -55,13 +55,13 @@ class FileConverterAppService
     }
 
     /**
-     * 批量转换文件
-     * 主要流程：
-     * 1. 验证文件权限和项目访问权限
-     * 2. 根据项目ID生成固定的沙箱ID
-     * 3. 创建沙箱并初始化Agent
-     * 4. 调用文件转换接口
-     * 5. 返回统一格式的响应.
+     * Batch converts files.
+     * Main process:
+     * 1. Validate file permissions and project access rights.
+     * 2. Generate a fixed sandbox ID based on the project ID.
+     * 3. Create a sandbox and initialize the Agent.
+     * 4. Call the file conversion interface.
+     * 5. Return a response in a unified format.
      */
     public function convertFiles(MagicUserAuthorization $userAuthorization, ConvertFilesRequestDTO $requestDTO): array
     {
@@ -79,10 +79,10 @@ class FileConverterAppService
         ]);
 
         try {
-            // 基础验证
+            // Basic validation
             $this->validateConvertRequest($fileIds);
 
-            // 权限验证和文件获取
+            // Permission validation and file retrieval
             $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
             if ($projectEntity->getUserId() !== $userId) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
@@ -91,13 +91,13 @@ class FileConverterAppService
             /** @var TaskFileEntity[] $validFiles */
             $validFiles = $this->getValidFiles($fileIds, $userId);
 
-            // 重复请求检查
+            // Check for duplicate requests
             $taskKey = $this->handleDuplicateRequest($userAuthorization, $fileIds, $convertType, $userId);
             if (is_array($taskKey)) {
-                return $taskKey; // 返回现有任务状态
+                return $taskKey; // Return existing task status
             }
 
-            // 初始化任务并开始处理
+            // Initialize the task and start processing
             $this->fileConvertStatusManager->initializeTask($taskKey, $userId, count($validFiles), $convertType);
             $this->processFileConversion($taskKey, $userAuthorization, $requestDTO, $validFiles, $projectEntity);
 
@@ -109,7 +109,7 @@ class FileConverterAppService
                 'message' => 'Processing, please check status later',
             ];
         } catch (Throwable $e) {
-            // 如果任务已经初始化，标记为失败
+            // If the task has been initialized, mark it as failed
             if ($taskKey) {
                 $this->fileConvertStatusManager->setTaskFailed($taskKey, $e->getMessage());
             }
@@ -131,18 +131,18 @@ class FileConverterAppService
     }
 
     /**
-     * 获取文件转换任务状态
+     * Checks the status of a file conversion task.
      */
     public function checkFileConvertStatus(MagicUserAuthorization $userAuthorization, string $taskKey): FileConvertStatusResponseDTO
     {
         $userId = $userAuthorization->getId();
 
-        // 验证用户权限
+        // Verify user permissions
         if (! $this->fileConvertStatusManager->verifyUserPermission($taskKey, $userId)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_ACCESS_DENIED, 'file.convert_access_denied');
         }
 
-        // 获取任务状态
+        // Get task status
         $taskStatus = $this->fileConvertStatusManager->getTaskStatus($taskKey);
         if (! $taskStatus) {
             return $this->createProcessingResponse('Task not found or expired');
@@ -159,14 +159,14 @@ class FileConverterAppService
         }
 
         try {
-            // 调用沙箱网关查询转换结果
+            // Call the sandbox gateway to query the conversion result
             $response = $this->fileConverterService->queryConvertResult($sandboxId, $projectId, $taskKey);
 
             if ($response->isSuccess()) {
                 return $this->buildResponseFromConvertResult($response, $taskKey, $userAuthorization);
             }
 
-            // 如果查询失败，直接返回失败状态，并记录日志
+            // If the query fails, return a failed status directly and log it
             $this->logger->warning('[File Converter] Query convert result failed from sandbox', [
                 'task_key' => $taskKey,
                 'sandbox_id' => $sandboxId,
@@ -175,7 +175,7 @@ class FileConverterAppService
             ]);
             return $this->buildFailedResponse($response);
         } catch (Exception $e) {
-            // 查询异常时返回本地状态
+            // Return local status on query exception
             $this->logger->error('Query convert result failed', [
                 'task_key' => $taskKey,
                 'sandbox_id' => $sandboxId,
@@ -192,13 +192,13 @@ class FileConverterAppService
     }
 
     /**
-     * 处理文件转换.
+     * Processes the file conversion.
      *
-     * @param string $taskKey 任务键
-     * @param MagicUserAuthorization $userAuthorization 用户授权
-     * @param ConvertFilesRequestDTO $requestDTO 转换请求DTO
-     * @param TaskFileEntity[] $validFiles 有效文件列表
-     * @param ProjectEntity $projectEntity 项目实体
+     * @param string $taskKey the task key
+     * @param MagicUserAuthorization $userAuthorization user authorization
+     * @param ConvertFilesRequestDTO $requestDTO the conversion request DTO
+     * @param TaskFileEntity[] $validFiles the list of valid files
+     * @param ProjectEntity $projectEntity the project entity
      */
     protected function processFileConversion(
         string $taskKey,
@@ -216,19 +216,19 @@ class FileConverterAppService
         try {
             $this->fileConvertStatusManager->setTaskProgress($taskKey, 0, $totalFiles, 'Starting file conversion');
 
-            // 生成沙箱ID并存储任务信息
+            // Generate a sandbox ID and store task information
             $sandboxId = $this->generateFileConverterSandboxId($projectEntity->getId());
             $this->fileConvertStatusManager->setSandboxId($taskKey, $sandboxId);
             $this->fileConvertStatusManager->setProjectId($taskKey, $projectId);
 
-            // 构建文件URLs和获取临时凭证
+            // Build file URLs and get temporary credentials
             $fileUrls = $this->buildFileUrls($validFiles, $organizationCode, $userId);
             $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
-            // 同步确保沙箱可用并协程执行转换
+            // Synchronously ensure sandbox is available and execute conversion in a coroutine
             $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId);
-            // 创建文件转换请求
+            // Create file conversion request
             $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileUrls, $stsTemporaryCredential, $requestDTO->options, $taskKey);
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
@@ -295,43 +295,43 @@ class FileConverterAppService
     }
 
     /**
-     * 根据项目ID生成固定的沙箱ID（用于文件转换）.
+     * Generates a fixed sandbox ID for file conversion based on the project ID.
      */
     private function generateFileConverterSandboxId(int $projectId): string
     {
-        // 使用项目ID + 文件转换业务标识生成固定的沙箱ID
+        // Use project ID + file conversion business identifier to generate a fixed sandbox ID
         return WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_file_converter');
     }
 
     /**
-     * 根据工作目录生成临时目录路径.
+     * Generates a temporary directory path based on the working directory.
      *
-     * @param string $workDir 工作目录路径，例如：/SUPER_MAGIC/usi_7839078ce6af2d3249b82e7aaed643b8/project_803277391451111425
-     * @return string 临时目录路径，例如：/SUPER_MAGIC/usi_7839078ce6af2d3249b82e7aaed643b8/temp
+     * @param string $workDir The working directory path, e.g., /SUPER_MAGIC/usi_7839078ce6af2d3249b82e7aaed643b8/project_803277391451111425
+     * @return string The temporary directory path, e.g., /SUPER_MAGIC/usi_7839078ce6af2d3249b82e7aaed643b8/temp
      */
     private function generateTempDir(string $workDir): string
     {
-        // 移除末尾的斜杠
+        // Remove trailing slash
         $workDir = rtrim($workDir, '/');
 
-        // 提取路径的前两部分（/SUPER_MAGIC/usi_xxx）
+        // Extract the first two parts of the path (/SUPER_MAGIC/usi_xxx)
         $pathParts = explode('/', $workDir);
 
-        // 重新组装用户级别的基础路径
+        // Reassemble the user-level base path
         $userBasePath = '';
         if (count($pathParts) >= 3) {
-            // $pathParts[0] 是空字符串（因为路径以 / 开头）
-            // $pathParts[1] 是 SUPER_MAGIC
-            // $pathParts[2] 是用户ID
+            // $pathParts[0] is an empty string (because the path starts with /)
+            // $pathParts[1] is SUPER_MAGIC
+            // $pathParts[2] is the user ID
             $userBasePath = '/' . $pathParts[1] . '/' . $pathParts[2];
         }
 
-        // 生成用户级别的临时目录
+        // Generate the user-level temporary directory
         return $userBasePath . '/temp';
     }
 
     /**
-     * 注册转换后的文件以供定时清理.
+     * Registers converted files for scheduled cleanup.
      * @param FileItemDTO[] $convertedFiles
      */
     private function registerConvertedFilesForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles, ?string $batchId): void
@@ -346,10 +346,10 @@ class FileConverterAppService
                 continue;
             }
 
-            // 从oss_key解析文件名
+            // Parse filename from oss_key
             $filename = $this->extractFilenameFromOssKey($file->ossKey);
             if (empty($filename)) {
-                // 如果无法从oss_key解析文件名，使用filename字段
+                // If filename cannot be parsed from oss_key, use the filename field
                 $filename = $file->filename ?: basename($file->ossKey);
             }
 
@@ -357,10 +357,10 @@ class FileConverterAppService
                 'organization_code' => $userAuthorization->getOrganizationCode(),
                 'file_key' => $file->ossKey,
                 'file_name' => $filename,
-                'file_size' => 0, // FileItemDTO 中没有 size 字段，设置为0
+                'file_size' => 0, // The size field is not in FileItemDTO, set to 0
                 'source_type' => 'file_conversion',
                 'source_id' => $batchId,
-                'expire_after_seconds' => 7200, // 2 小时后过期
+                'expire_after_seconds' => 7200, // Expires after 2 hours
                 'bucket_type' => 'private',
             ];
         }
@@ -376,16 +376,16 @@ class FileConverterAppService
     }
 
     /**
-     * 从OSS Key中提取文件名.
+     * Extracts the filename from an OSS Key.
      */
     private function extractFilenameFromOssKey(string $ossKey): string
     {
-        // 从OSS Key中提取文件名（路径的最后一部分）
+        // Extract filename from OSS Key (the last part of the path)
         return basename($ossKey);
     }
 
     /**
-     * 创建处理中状态的响应.
+     * Creates a response for the processing state.
      */
     private function createProcessingResponse(string $message, int $progress = 0): FileConvertStatusResponseDTO
     {
@@ -398,7 +398,7 @@ class FileConverterAppService
     }
 
     /**
-     * 从转换结果构建响应.
+     * Builds a response from the conversion result.
      */
     private function buildResponseFromConvertResult(FileConverterResponse $response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
     {
@@ -416,7 +416,7 @@ class FileConverterAppService
     }
 
     /**
-     * 构建完成状态的响应.
+     * Builds a response for the completed state.
      */
     private function buildCompletedResponse(FileConverterResponse $response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
     {
@@ -452,7 +452,7 @@ class FileConverterAppService
         $totalFiles = $response->getTotalFiles();
         $successCount = $response->getSuccessCount();
 
-        // 如果有下载URL，注册清理
+        // If there is a download URL, register for cleanup
         if ($downloadUrl) {
             $this->registerConvertedFilesForCleanup($userAuthorization, $response->getConvertedFiles(), $response->getBatchId());
         }
@@ -472,7 +472,7 @@ class FileConverterAppService
     }
 
     /**
-     * 构建失败状态的响应.
+     * Builds a response for the failed state.
      */
     private function buildFailedResponse(FileConverterResponse $response): FileConvertStatusResponseDTO
     {
@@ -489,7 +489,7 @@ class FileConverterAppService
     }
 
     /**
-     * 构建处理中状态的响应（从结果）.
+     * Builds a response for the processing state (from result).
      */
     private function buildProcessingResponseFromResult(FileConverterResponse $response, string $taskKey): FileConvertStatusResponseDTO
     {
@@ -510,7 +510,7 @@ class FileConverterAppService
     }
 
     /**
-     * 获取本地任务状态
+     * Gets the local task status.
      */
     private function getLocalTaskStatus(array $taskStatus): FileConvertStatusResponseDTO
     {
@@ -532,7 +532,7 @@ class FileConverterAppService
     }
 
     /**
-     * 构建本地完成状态的响应.
+     * Builds a local response for the completed state.
      */
     private function buildLocalCompletedResponse(array $result, string $convertType, ?float $conversionRate): FileConvertStatusResponseDTO
     {
@@ -552,7 +552,7 @@ class FileConverterAppService
     }
 
     /**
-     * 构建本地失败状态的响应.
+     * Builds a local response for the failed state.
      */
     private function buildLocalFailedResponse(string $error, ?float $conversionRate): FileConvertStatusResponseDTO
     {
@@ -571,7 +571,7 @@ class FileConverterAppService
     }
 
     /**
-     * 构建本地处理中状态的响应.
+     * Builds a local response for the processing state.
      */
     private function buildLocalProcessingResponse(array $progress, ?float $conversionRate): FileConvertStatusResponseDTO
     {
@@ -593,7 +593,7 @@ class FileConverterAppService
     }
 
     /**
-     * 验证转换请求的基础参数.
+     * Validates the basic parameters of the conversion request.
      */
     private function validateConvertRequest(array $fileIds): void
     {
@@ -607,11 +607,11 @@ class FileConverterAppService
     }
 
     /**
-     * 获取用户有权限的有效文件.
+     * Retrieves valid files to which the user has permission.
      *
-     * @param array $fileIds 文件ID数组
-     * @param string $userId 用户ID
-     * @return TaskFileEntity[] 用户文件列表
+     * @param array $fileIds array of file IDs
+     * @param string $userId the user ID
+     * @return TaskFileEntity[] list of user files
      */
     private function getValidFiles(array $fileIds, string $userId): array
     {
@@ -623,13 +623,51 @@ class FileConverterAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
-        return $userFiles;
+        // Filter out index.html files (case-insensitive), but not if it's the only file.
+        $filteredFiles = [];
+        $totalFiles = count($userFiles);
+        foreach ($userFiles as $fileEntity) {
+            $fileName = $fileEntity->getFileName();
+            // Check if the filename or file key's basename is index.html (case-insensitive)
+            $isIndexHtml = strcasecmp($fileName, 'index.html') === 0;
+
+            // If it's an index.html file and there's more than one file, filter it out.
+            if ($isIndexHtml && $totalFiles > 1) {
+                $this->logger->info('Filtered out index.html file from conversion (multiple files case)', [
+                    'user_id' => $userId,
+                    'file_id' => $fileEntity->getFileId(),
+                    'file_name' => $fileName,
+                    'file_key' => $fileEntity->getFileKey(),
+                    'total_files' => $totalFiles,
+                ]);
+                continue; // Skip index.html file
+            }
+
+            // If it's a single index.html file, keep it and log it.
+            if ($isIndexHtml && $totalFiles === 1) {
+                $this->logger->info('Keeping single index.html file for conversion', [
+                    'user_id' => $userId,
+                    'file_id' => $fileEntity->getFileId(),
+                    'file_name' => $fileName,
+                    'file_key' => $fileEntity->getFileKey(),
+                ]);
+            }
+
+            $filteredFiles[] = $fileEntity;
+        }
+
+        // Check if there are still valid files after filtering.
+        if (empty($filteredFiles)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
+        }
+
+        return $filteredFiles;
     }
 
     /**
-     * 处理重复请求检查.
+     * Handles duplicate request checks.
      *
-     * @return array|string 如果是新请求返回taskKey，如果是重复请求返回现有任务状态
+     * @return array|string returns the taskKey for a new request, or the status of an existing task for a duplicate request
      */
     private function handleDuplicateRequest(MagicUserAuthorization $userAuthorization, array $fileIds, string $convertType, string $userId)
     {
@@ -666,12 +704,12 @@ class FileConverterAppService
     }
 
     /**
-     * 构建文件URL数组.
+     * Builds an array of file URLs.
      *
-     * @param TaskFileEntity[] $validFiles 有效文件列表
-     * @param string $organizationCode 组织代码
-     * @param string $userId 用户ID
-     * @return array 文件URL数组
+     * @param TaskFileEntity[] $validFiles list of valid files
+     * @param string $organizationCode the organization code
+     * @param string $userId the user ID
+     * @return array an array of file URLs
      */
     private function buildFileUrls(array $validFiles, string $organizationCode, string $userId): array
     {
@@ -710,7 +748,7 @@ class FileConverterAppService
     }
 
     /**
-     * 获取STS临时凭证.
+     * Gets temporary STS credentials.
      */
     private function getStsCredential(MagicUserAuthorization $userAuthorization, string $workDir): array
     {
@@ -719,7 +757,7 @@ class FileConverterAppService
             $userAuthorization,
             'private',
             $tempDir,
-            7200 // 2小时过期
+            7200 // Expires in 2 hours
         );
     }
 }
