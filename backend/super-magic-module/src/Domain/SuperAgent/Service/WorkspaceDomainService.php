@@ -879,13 +879,16 @@ class WorkspaceDomainService
                 # 查看沙箱是否存活
                 $sandboxStatus = $this->gateway->getSandboxStatus($sandboxId);
                 if ($sandboxStatus->isRunning()) {
-                    $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string) $projectId, $organizationCode, $taskId);
+                    $gatewayResult = $this->gateway->uploadFile($sandboxId, $gitVersionNotExistResult, (string) $projectId, $organizationCode, $taskId);
+                    if ($gatewayResult->isSuccess()) {
+                        return true;
+                    }
+                } else {
+                    return false;
                 }
             } catch (Throwable $e) {
                 $this->logger->error('[Sandbox][Domain] uploadFile failed', ['error' => $e->getMessage()]);
             }
-
-            return true;
         }
         return false;
     }
