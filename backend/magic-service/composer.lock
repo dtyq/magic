@@ -2570,16 +2570,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.48",
+            "version": "v0.0.49",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "9ef14bca56801459faba3cf082b7682560b4cbf2"
+                "reference": "8632e8caab2cfa8b02618b0a63c8721388918132"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=9ef14bca56801459faba3cf082b7682560b4cbf2",
-                "reference": "9ef14bca56801459faba3cf082b7682560b4cbf2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=8632e8caab2cfa8b02618b0a63c8721388918132",
+                "reference": "8632e8caab2cfa8b02618b0a63c8721388918132",
                 "shasum": ""
             },
             "require": {
@@ -2671,9 +2671,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.48"
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.49"
             },
-            "time": "2025-07-19T19:14:17+08:00"
+            "time": "2025-07-19T21:27:44+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
