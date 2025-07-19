@@ -15,7 +15,6 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -90,12 +89,12 @@ class FileBatchAppService extends AbstractAppService
 
         // Check if task already exists and completed
         $taskStatus = $this->statusManager->getTaskStatus($batchKey);
-        if ($taskStatus && $taskStatus['status'] === ConvertStatusEnum::COMPLETED->value) {
+        if ($taskStatus && $taskStatus['status'] === 'ready') {
             // Task completed, return download link
             $downloadUrl = $taskStatus['result']['download_url'] ?? '';
 
             return new CreateBatchDownloadResponseDTO(
-                ConvertStatusEnum::COMPLETED->value,
+                'ready',
                 $batchKey,
                 $downloadUrl,
                 $taskStatus['result']['file_count'] ?? count($userFiles),
@@ -114,7 +113,7 @@ class FileBatchAppService extends AbstractAppService
         $this->publishBatchJob($batchKey, $userFiles, $userId, $userAuthorization->getOrganizationCode(), $targetName, $workdir);
 
         return new CreateBatchDownloadResponseDTO(
-            ConvertStatusEnum::PROCESSING->value,
+            'processing',
             $batchKey,
             null,
             count($userFiles),
@@ -148,7 +147,7 @@ class FileBatchAppService extends AbstractAppService
 
         if (! $taskStatus) {
             return new CheckBatchDownloadResponseDTO(
-                ConvertStatusEnum::PROCESSING->value,
+                'processing',
                 null,
                 0,
                 'Task not found or expired'
@@ -161,7 +160,7 @@ class FileBatchAppService extends AbstractAppService
         $error = $taskStatus['error'] ?? '';
 
         switch ($status) {
-            case ConvertStatusEnum::COMPLETED->value:
+            case 'ready':
                 $fileKey = $result['zip_file_key'] ?? '';
                 if (! empty($fileKey)) {
                     $downloadUrl = $this->generateDownloadUrl($fileKey, $userAuthorization->getOrganizationCode());
@@ -169,27 +168,27 @@ class FileBatchAppService extends AbstractAppService
                     $downloadUrl = $result['download_url'] ?? '';
                 }
                 return new CheckBatchDownloadResponseDTO(
-                    ConvertStatusEnum::COMPLETED->value,
+                    'ready',
                     $downloadUrl,
                     100,
                     'Files are ready'
                 );
 
-            case ConvertStatusEnum::FAILED->value:
+            case 'failed':
                 return new CheckBatchDownloadResponseDTO(
-                    ConvertStatusEnum::FAILED->value,
+                    'failed',
                     null,
                     null,
                     $error ?: 'Task failed'
                 );
 
-            case ConvertStatusEnum::PROCESSING->value:
+            case 'processing':
             default:
                 $progressValue = $progress['percentage'] ?? 0;
                 $progressMessage = $progress['message'] ?? 'Processing...';
 
                 return new CheckBatchDownloadResponseDTO(
-                    ConvertStatusEnum::PROCESSING->value,
+                    'processing',
                     null,
                     (int) $progressValue,
                     $progressMessage
