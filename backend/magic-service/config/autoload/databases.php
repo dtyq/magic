@@ -21,8 +21,8 @@ return [
             'min_connections' => 1,
             'max_connections' => 200,
             'connect_timeout' => 10.0,
-            'wait_timeout' => 10.0,  // 增加等待超时时间
-            'heartbeat' => 30,       // 启用心跳检测，每10秒检查一次
+            'wait_timeout' => 3.0,
+            'heartbeat' => -1,
             'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
         ],
         // 'cache' => [
