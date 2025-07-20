@@ -39,6 +39,7 @@ class FileApi extends AbstractApi
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
+        private readonly FileSaveContentAppService $fileSaveContentAppService,
         private readonly FileManagementAppService $fileManagementAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,

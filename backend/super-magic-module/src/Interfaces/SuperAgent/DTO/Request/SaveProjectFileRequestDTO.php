@@ -24,9 +24,14 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     private ?string $projectId = null;
 
     /**
-     * 来源字段.
+     * 话题ID（可选）.
      */
-    private int $source = 0;
+    private string $topicId = '';
+
+    /**
+     * 任务ID（可选）.
+     */
+    private string $taskId = '';
 
     /**
      * 文件键（OSS中的路径）.
@@ -74,6 +79,11 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     private int $preFileId = -1;
 
     /**
+     * 来源字段.
+     */
+    private int $source = 0;
+
+    /**
      * 从请求数据创建DTO.
      */
     public static function fromRequest(array $data): self
@@ -81,6 +91,8 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance = new self();
 
         $instance->projectId = $data['project_id'] ?? null;
+        $instance->topicId = $data['topic_id'] ?? '';
+        $instance->taskId = $data['task_id'] ?? '';
         $instance->source = (int) ($data['source'] ?? 0);
         $instance->fileKey = $data['file_key'] ?? '';
         $instance->fileName = $data['file_name'] ?? '';
@@ -106,14 +118,25 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
-    public function getSource(): int
+    public function getTopicId(): string
     {
-        return $this->source;
+        return $this->topicId;
     }
 
-    public function setSource(int $source): self
+    public function setTopicId(string $topicId): self
     {
-        $this->source = $source;
+        $this->topicId = $topicId;
+        return $this;
+    }
+
+    public function getTaskId(): string
+    {
+        return $this->taskId;
+    }
+
+    public function setTaskId(string $taskId): self
+    {
+        $this->taskId = $taskId;
         return $this;
     }
 
@@ -216,6 +239,17 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
+    public function getSource(): int
+    {
+        return $this->source;
+    }
+
+    public function setSource(int $source): self
+    {
+        $this->source = $source;
+        return $this;
+    }
+
     /**
      * 转换为 TaskFileEntity 实体.
      */
@@ -263,6 +297,8 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     {
         return [
             'project_id' => $this->projectId,
+            'topic_id' => $this->topicId,
+            'task_id' => $this->taskId,
             'source' => $this->source,
             'file_key' => $this->fileKey,
             'file_name' => $this->fileName,

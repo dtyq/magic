@@ -12,14 +12,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 
 class WorkDirectoryUtil
 {
-    public static function getFullPrefix(string $organizationCode): string
-    {
-        $md5Key = md5(StorageBucketType::Private->value);
-        $appId = config('kk_brd_service.app_id');
-
-        return "{$organizationCode}/{$appId}/{$md5Key}" . '/';
-    }
-
     public static function getPrefix(string $workDir): string
     {
         $md5Key = md5(StorageBucketType::Private->value);
