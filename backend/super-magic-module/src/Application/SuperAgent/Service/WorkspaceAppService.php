@@ -595,7 +595,7 @@ class WorkspaceAppService extends AbstractAppService
         $result = [];
 
         // 获取 topic 详情
-        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $topicId);
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
