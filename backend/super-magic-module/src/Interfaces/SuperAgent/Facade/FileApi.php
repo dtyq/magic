@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
@@ -32,6 +33,7 @@ class FileApi extends AbstractApi
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
         private readonly FileSaveContentAppService $fileSaveContentAppService,
+        private readonly FileManagementAppService $fileManagementAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
@@ -196,9 +198,15 @@ class FileApi extends AbstractApi
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
 
         // 并发执行沙箱保存和OSS保存
-        $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
+        // $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
 
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
+    }
+
+    public function deleteFile(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        return $this->fileManagementAppService->deleteFile($requestContext, (int) $id);
     }
 
     /**
@@ -263,7 +271,7 @@ class FileApi extends AbstractApi
         $requestDTO = ProjectUploadTokenRequestDTO::fromRequest($requestData);
 
         // 调用应用服务
-        return $this->fileProcessAppService->getProjectUploadToken($requestContext, $requestDTO);
+        return $this->fileManagementAppService->getProjectUploadToken($requestContext, $requestDTO);
     }
 
     /**
@@ -282,6 +290,6 @@ class FileApi extends AbstractApi
         $requestDTO = SaveProjectFileRequestDTO::fromRequest($requestData);
 
         // 调用应用服务
-        return $this->fileProcessAppService->saveProjectFile($requestContext, $requestDTO);
+        return $this->fileManagementAppService->saveFile($requestContext, $requestDTO);
     }
 }

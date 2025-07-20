@@ -72,4 +72,52 @@ interface CloudFileRepositoryInterface
      * @return bool True if deleted successfully, false otherwise
      */
     public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool;
+
+    /**
+     * List objects by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $prefix Object prefix to filter
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (marker, max-keys, delimiter, etc.)
+     * @return array List of objects
+     */
+    public function listObjectsByCredential(
+        string $organizationCode,
+        string $prefix = '',
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array;
+
+    /**
+     * Delete object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (version_id, etc.)
+     */
+    public function deleteObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
+     * Copy object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (source_bucket, source_version_id, metadata_directive, etc.)
+     */
+    public function copyObjectByCredential(
+        string $organizationCode,
+        string $sourceKey,
+        string $destinationKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
 }

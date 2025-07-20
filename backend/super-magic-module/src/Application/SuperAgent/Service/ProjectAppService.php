@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -50,6 +51,7 @@ class ProjectAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
@@ -97,7 +99,7 @@ class ProjectAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('创建默认项目, projectId=%s', $projectEntity->getId()));
             // 获取项目目录
-            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+            $workDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
 
             // Initialize Magic Chat Conversation
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
@@ -128,6 +130,11 @@ class ProjectAppService extends AbstractAppService
             $projectEntity->setWorkDir($workDir);
             $this->projectDomainService->saveProjectEntity($projectEntity);
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
+
+            // 如果附件不为空，且附件是未绑定的状态，则保存附件
+            if ($requestDTO->getFiles()) {
+                $this->taskFileDomainService->bindProject($projectEntity->getId(), $requestDTO->getFiles());
+            }
 
             Db::commit();
             return ['project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(), 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray()];

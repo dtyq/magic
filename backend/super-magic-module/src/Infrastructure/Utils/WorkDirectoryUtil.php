@@ -11,9 +11,29 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 
 class WorkDirectoryUtil
 {
-    public static function generateWorkDir(string $userId, int $projectId): string
+    public static function getRootDir(string $userId, int $projectId): string
     {
         return sprintf('/%s/%s/project_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $projectId);
+    }
+
+    public static function getWorkDir(string $userId, int $projectId): string
+    {
+        return self::getRootDir($userId, $projectId) . '/workspace';
+    }
+
+    public static function getAgentChatHistoryDir(string $userId, int $projectId): string
+    {
+        return self::getRootDir($userId, $projectId) . '/chat-history';
+    }
+
+    public static function getTopicMessageTempDir(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getRootDir($userId, $projectId) . sprintf('/runtime/messages/topic_%d', $topicId);
+    }
+
+    public static function getProjectFilePackDir(string $userId, int $projectId):string
+    {
+        return self::getRootDir($userId, $projectId) . '/runtime/pack';
     }
 
     public static function getRelativeFilePath(string $fileKey, string $workDir): string
@@ -44,10 +64,12 @@ class WorkDirectoryUtil
         // Remove trailing slash if exists
         $workDir = rtrim($workDir, '/');
 
-        // Check if it contains the expected pattern: SUPER_MAGIC/{userId}/project_{projectId}
+        // Check if it contains the expected pattern: SUPER_MAGIC/{userId}/project_{projectId}[/workspace]
+        // Supports both legacy format (project_id only) and new format (with /workspace suffix)
         // The pattern should work for both relative and absolute paths
         $pattern = sprintf(
-            '/.*\/%s\/%s\/project_\d+$/',
+            '/(?:.*\/%s|^%s)\/%s\/project_\d+(\/workspace)?$/',
+            preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote($userId, '/')
         );
@@ -71,11 +93,13 @@ class WorkDirectoryUtil
         // Remove trailing slash if exists
         $workDir = rtrim($workDir, '/');
 
-        // Expected format: path/to/SUPER_MAGIC/{userId}/project_{projectId}
+        // Expected format: path/to/SUPER_MAGIC/{userId}/project_{projectId}[/workspace]
+        // Supports both legacy format (project_id only) and new format (with /workspace suffix)
         // We need to find the pattern: SUPER_MAGIC/{specificUserId}/project_{projectId}
         // The pattern should work for both relative and absolute paths
         $pattern = sprintf(
-            '/.*\/%s\/%s\/project_(\d+)$/',
+            '/(?:.*\/%s|^%s)\/%s\/project_(\d+)(?:\/workspace)?$/',
+            preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote($userId, '/')
         );

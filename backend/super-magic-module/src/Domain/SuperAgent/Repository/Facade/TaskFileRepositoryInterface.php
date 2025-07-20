@@ -16,6 +16,8 @@ interface TaskFileRepositoryInterface
      */
     public function getById(int $id): ?TaskFileEntity;
 
+    public function getFilesByIds(array $fileIds): array;
+
     /**
      * 根据fileKey获取文件.
      */

@@ -27,6 +27,37 @@ abstract class SimpleUpload
     abstract public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void;
 
     /**
+     * List objects by credential
+     *
+     * @param array $credential Credential information
+     * @param string $prefix Object prefix to filter
+     * @param array $options Additional options (marker, max-keys, etc.)
+     * @return array List of objects
+     */
+    abstract public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array;
+
+    /**
+     * Delete object by credential
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to delete
+     * @param array $options Additional options
+     * @return void
+     */
+    abstract public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void;
+
+    /**
+     * Copy object by credential
+     *
+     * @param array $credential Credential information
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param array $options Additional options
+     * @return void
+     */
+    abstract public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void;
+
+    /**
      * 分片上传文件
      * 默认实现抛出"暂未实现"异常，子类需要重写此方法.
      *

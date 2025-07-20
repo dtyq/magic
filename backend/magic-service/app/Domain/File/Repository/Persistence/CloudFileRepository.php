@@ -308,6 +308,172 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         }
     }
 
+    /**
+     * List objects by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $prefix Object prefix to filter
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (marker, max-keys, delimiter, etc.)
+     * @return array List of objects
+     */
+    public function listObjectsByCredential(
+        string $organizationCode,
+        string $prefix = '',
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array {
+        try {
+            $filesystem = $this->cloudFile->get($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => '',  // No dir restriction for listing
+                'expires' => 3600,
+            ]);
+
+            $result = $filesystem->listObjectsByCredential($credentialPolicy, $prefix, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('list_objects_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'prefix' => $prefix,
+                'bucket_type' => $bucketType->value,
+                'object_count' => count($result['objects'] ?? []),
+                'is_truncated' => $result['is_truncated'] ?? false,
+            ]);
+
+            return $result;
+        } catch (Throwable $exception) {
+            $this->logger->error('list_objects_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'prefix' => $prefix,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Delete object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (version_id, etc.)
+     * @throws Throwable
+     */
+    public function deleteObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if file path starts with organization code
+            if (!Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Object deletion failed: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                throw new \InvalidArgumentException('Object key does not belong to specified organization');
+            }
+
+            $filesystem = $this->cloudFile->get($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => '',  // No dir restriction for deletion
+                'expires' => 3600,
+            ]);
+
+            $filesystem->deleteObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('delete_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'version_id' => $options['version_id'] ?? null,
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('delete_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Copy object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (source_bucket, source_version_id, metadata_directive, etc.)
+     * @throws Throwable
+     */
+    public function copyObjectByCredential(
+        string $organizationCode,
+        string $sourceKey,
+        string $destinationKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if both keys belong to organization code or are explicitly allowed
+            if (!Str::startsWith($sourceKey, $organizationCode) && !($options['allow_cross_organization'] ?? false)) {
+                $this->logger->warning('Object copy failed: source key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'source_key' => $sourceKey,
+                ]);
+                throw new \InvalidArgumentException('Source key does not belong to specified organization');
+            }
+
+            if (!Str::startsWith($destinationKey, $organizationCode)) {
+                $this->logger->warning('Object copy failed: destination key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'destination_key' => $destinationKey,
+                ]);
+                throw new \InvalidArgumentException('Destination key does not belong to specified organization');
+            }
+
+            $filesystem = $this->cloudFile->get($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => '',  // No dir restriction for copying
+                'expires' => 3600,
+            ]);
+
+            $filesystem->copyObjectByCredential($credentialPolicy, $sourceKey, $destinationKey, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('copy_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket_type' => $bucketType->value,
+                'source_bucket' => $options['source_bucket'] ?? null,
+                'metadata_directive' => $options['metadata_directive'] ?? 'COPY',
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('copy_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
     protected function getOptions(string $organizationCode, array $options = []): array
     {
         $defaultOptions = [

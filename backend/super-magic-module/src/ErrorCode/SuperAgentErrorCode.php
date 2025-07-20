@@ -100,6 +100,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.multiple_projects_not_allowed')]
     case MULTIPLE_PROJECTS_NOT_ALLOWED = 51165;
 
+    #[ErrorMessage('file.file_not_found')]
+    case FILE_NOT_FOUND = 51166;
+
+    #[ErrorMessage('file.delete_failed')]
+    case FILE_DELETE_FAILED = 51167;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;

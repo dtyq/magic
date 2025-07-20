@@ -769,7 +769,7 @@ class WorkspaceAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
             // 获取工作区目录
-            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+            $workDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
 
             // Step 4: Create default topic
             $this->logger->info('开始创建默认话题');

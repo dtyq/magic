@@ -8,16 +8,26 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Hyperf\DbConnection\Db;
+use Throwable;
 
 class TaskFileDomainService
 {
     public function __construct(
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected TopicRepositoryInterface $topicRepository,
+        protected CloudFileRepositoryInterface $cloudFileRepository
     ) {
     }
 
@@ -161,64 +171,92 @@ class TaskFileDomainService
         return substr($fileKey, $pos + strlen($workDir));
     }
 
+    public function bindProject(int $projectId, array $fileIds): bool
+    {
+        $fileEntities = $this->taskFileRepository->getFilesByIds($fileIds);
+        if (empty($fileEntities)) {
+            return false;
+        }
+        foreach ($fileEntities as $fileEntity) {
+            if ($fileEntity->getProjectId() > 0) {
+                continue;
+            }
+            $fileEntity->setProjectId($projectId);
+            $this->taskFileRepository->updateById($fileEntity);
+        }
+        return true;
+    }
+
     /**
      * Save project file.
      *
      * @param DataIsolation $dataIsolation Data isolation context
-     * @param string $projectId Project ID
-     * @param string $topicId Topic ID (optional)
-     * @param string $taskId Task ID (optional)
-     * @param string $fileKey File key in OSS
-     * @param string $fileName File name
-     * @param int $fileSize File size in bytes
-     * @param string $fileType File type
+     * @param TaskFileEntity $taskFileEntity Task file entity with data to save
      * @return TaskFileEntity Saved file entity
      */
     public function saveProjectFile(
         DataIsolation $dataIsolation,
-        string $projectId,
-        string $topicId,
-        string $taskId,
-        string $fileKey,
-        string $fileName,
-        int $fileSize,
-        string $fileType
+        TaskFileEntity $taskFileEntity
     ): TaskFileEntity {
         // Check if file already exists by project_id and file_key
-        $existingFile = $this->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-        if ($existingFile !== null) {
-            return $existingFile;
+        if ($taskFileEntity->getProjectId() > 0 && !empty($taskFileEntity->getFileKey())) {
+            $existingFile = $this->taskFileRepository->getByFileKey($taskFileEntity->getFileKey());
+            if ($existingFile !== null) {
+                return $existingFile;
+            }
         }
 
-        // Create new file entity
-        $entity = new TaskFileEntity();
-        $entity->setUserId($dataIsolation->getCurrentUserId());
-        $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $entity->setProjectId((int) $projectId);
-        $entity->setTopicId(! empty($topicId) ? (int) $topicId : 0);
-        $entity->setTaskId(! empty($taskId) ? (int) $taskId : 0);
-        $entity->setFileId(IdGenerator::getSnowId());
-        $entity->setFileKey($fileKey);
-        $entity->setFileName($fileName);
-        $entity->setFileSize($fileSize);
-        $entity->setFileType($fileType);
+        // Set data isolation context
+        $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
+        $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        
+        // Generate file ID if not set
+        if ($taskFileEntity->getFileId() === 0) {
+            $taskFileEntity->setFileId(IdGenerator::getSnowId());
+        }
 
-        // Set default values as per requirements
-        $entity->setStorageType(''); // Default empty string
-        $entity->setIsHidden(false); // Default 0 (false)
-
-        // Extract file extension from file name
-        $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
-        $entity->setFileExtension($fileExtension);
+        // Extract file extension from file name if not set
+        if (empty($taskFileEntity->getFileExtension()) && !empty($taskFileEntity->getFileName())) {
+            $fileExtension = pathinfo($taskFileEntity->getFileName(), PATHINFO_EXTENSION);
+            $taskFileEntity->setFileExtension($fileExtension);
+        }
 
         // Set timestamps
         $now = date('Y-m-d H:i:s');
-        $entity->setCreatedAt($now);
-        $entity->setUpdatedAt($now);
+        $taskFileEntity->setCreatedAt($now);
+        $taskFileEntity->setUpdatedAt($now);
 
         // Save to repository
-        $this->insert($entity);
+        $this->insert($taskFileEntity);
 
-        return $entity;
+        return $taskFileEntity;
+    }
+
+    public function deleteProjectFiles(DataIsolation $dataIsolation, int $fileId): bool
+    {
+        // Check file exists
+        $fileEntity = $this->taskFileRepository->getById($fileId);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+        }
+
+        if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+        }
+
+        Db::beginTransaction();
+        try {
+            // Delete cloud file
+            $this->cloudFileRepository->deleteObjectByCredential($dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey());
+
+            // Delete file record
+            $this->taskFileRepository->deleteById($fileId);
+
+            Db::commit();
+            return true;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
     }
 }

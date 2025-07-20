@@ -79,12 +79,15 @@ Router::addGroup(
         });
 
         Router::addGroup('/file', static function () {
+            // 获取项目文件上传STS Token
+            Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 保存附件
+            Router::post('', [FileApi::class, 'saveProjectFile']);
             // 保存文件内容
             Router::post('/save', [FileApi::class, 'saveFileContent']);
-            // 获取项目文件上传STS Token
-            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
-            // 保存项目文件
-            Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
+            // 删除附件
+            Router::delete('/{id}', [FileApi::class, 'deleteFile']);
+
             // 批量下载相关
             Router::addGroup('/batch-download', static function () {
                 // 创建批量下载任务
