@@ -28,6 +28,11 @@ class TopicDomainService
         return $this->topicRepository->getTopicById($id);
     }
 
+    public function getTopicWithDeleted(int $id): ?TopicEntity
+    {
+        return $this->topicRepository->getTopicWithDeleted($id);
+    }
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
     {
         return $this->topicRepository->getTopicBySandboxId($sandboxId);
