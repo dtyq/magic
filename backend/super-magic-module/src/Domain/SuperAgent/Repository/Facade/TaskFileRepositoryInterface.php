@@ -186,4 +186,24 @@ interface TaskFileRepositoryInterface
     public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
+
+    /**
+     * 根据项目ID获取所有文件的file_key列表（高性能查询）
+     */
+    public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array;
+
+    /**
+     * 批量插入新文件记录
+     */
+    public function batchInsertFiles(\App\Domain\Contact\Entity\ValueObject\DataIsolation $dataIsolation, int $projectId, array $newFileKeys, array $objectStorageFiles = []): void;
+
+    /**
+     * 批量标记文件为已删除
+     */
+    public function batchMarkAsDeleted(array $deletedFileKeys): void;
+
+    /**
+     * 批量更新文件信息
+     */
+    public function batchUpdateFiles(array $updatedFileKeys): void;
 }

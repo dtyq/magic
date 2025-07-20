@@ -32,6 +32,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
+use Psr\SimpleCache\CacheInterface;
 
 #[ApiResponse('low_code')]
 class FileApi extends AbstractApi
@@ -45,6 +46,7 @@ class FileApi extends AbstractApi
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
         private readonly SandboxFileNotificationAppService $sandboxFileNotificationAppService,
+        private readonly CacheInterface $cache,
     ) {
     }
 
