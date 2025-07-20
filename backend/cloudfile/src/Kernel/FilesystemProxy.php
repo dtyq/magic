@@ -146,7 +146,7 @@ class FilesystemProxy extends Filesystem
      */
     public function listObjectsByCredential(CredentialPolicy $credentialPolicy, string $prefix = '', array $options = []): array
     {
-        $credentialPolicy->setSts(false);
+        $credentialPolicy->setSts(true);
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         return $this->getSimpleUploadInstance($this->adapterName)->listObjectsByCredential($credential, $prefix, $options);
     }
@@ -176,7 +176,7 @@ class FilesystemProxy extends Filesystem
      */
     public function copyObjectByCredential(CredentialPolicy $credentialPolicy, string $sourceKey, string $destinationKey, array $options = []): void
     {
-        $credentialPolicy->setSts(false);
+        $credentialPolicy->setSts(true);
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         $this->getSimpleUploadInstance($this->adapterName)->copyObjectByCredential($credential, $sourceKey, $destinationKey, $options);
     }

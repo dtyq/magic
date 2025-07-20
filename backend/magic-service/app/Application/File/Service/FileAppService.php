@@ -92,6 +92,58 @@ class FileAppService extends AbstractAppService
         return $result;
     }
 
+    /**
+     * 批量获取文件下载链接（避免N+1查询问题）
+     */
+    public function getBatchLinks(string $organizationCode, array $fileKeys, ?StorageBucketType $bucketType = null): array
+    {
+        if (empty($fileKeys)) {
+            return [];
+        }
+
+        $bucketType = $bucketType ?? StorageBucketType::Private;
+        
+        try {
+            // 检查是否支持批量获取链接的方法
+            if (method_exists($this->fileDomainService, 'getLinks')) {
+                $links = $this->fileDomainService->getLinks($organizationCode, $fileKeys, $bucketType);
+                
+                $result = [];
+                foreach ($fileKeys as $fileKey) {
+                    $result[$fileKey] = isset($links[$fileKey]) ? $links[$fileKey]->getUrl() : '';
+                }
+                
+                return $result;
+            }
+            
+            // 降级处理：使用现有的单个获取方法
+            return $this->getFallbackLinks($organizationCode, $fileKeys, $bucketType);
+        } catch (\Throwable $e) {
+            // 降级处理：单个获取
+            return $this->getFallbackLinks($organizationCode, $fileKeys, $bucketType);
+        }
+    }
+
+    /**
+     * 降级方案：单个获取文件链接
+     */
+    private function getFallbackLinks(string $organizationCode, array $fileKeys, ?StorageBucketType $bucketType = null): array
+    {
+        $bucketType = $bucketType ?? StorageBucketType::Private;
+        $result = [];
+        
+        foreach ($fileKeys as $fileKey) {
+            try {
+                $link = $this->getLink($organizationCode, $fileKey, $bucketType);
+                $result[$fileKey] = $link ? $link->getUrl() : '';
+            } catch (\Throwable $e) {
+                $result[$fileKey] = '';
+            }
+        }
+        
+        return $result;
+    }
+
     public function getDefaultIcons(): array
     {
         return $this->fileDomainService->getDefaultIcons();

@@ -25,6 +25,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
+use Psr\SimpleCache\CacheInterface;
 
 #[ApiResponse('low_code')]
 class FileApi extends AbstractApi
@@ -37,6 +38,7 @@ class FileApi extends AbstractApi
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
+        private readonly CacheInterface $cache,
     ) {
     }
 
@@ -291,5 +293,33 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         return $this->fileManagementAppService->saveFile($requestContext, $requestDTO);
+    }
+
+    /**
+     * 获取项目文件列表（优化版本）
+     *
+     * @param RequestContext $requestContext 请求上下文  
+     * @param string $id 项目ID
+     * @return array 文件列表
+     */
+    public function getProjectFileList(RequestContext $requestContext, string $id): array
+    {
+        // 1. 缓存检查
+//        $cacheKey = sprintf('project_files:%s', $id);
+//        $cachedData = $this->cache->get($cacheKey);
+//        if ($cachedData !== null) {
+//            return $cachedData;
+//        }
+//
+        // 2. 设置用户授权
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        
+        // 3. 调用应用服务
+        $result = $this->fileManagementAppService->getProjectFileList($requestContext, (int) $id);
+        
+        // 4. 缓存结果（5秒TTL）
+        // $this->cache->set($cacheKey, $result, 5);
+        
+        return $result;
     }
 }

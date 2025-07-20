@@ -578,7 +578,6 @@ class TosSimpleUpload extends SimpleUpload
                 'prefix' => $listOutput->getPrefix(),
                 'marker' => $listOutput->getMarker(),
                 'max_keys' => $listOutput->getMaxKeys(),
-                'is_truncated' => $listOutput->getIsTruncated(),
                 'next_marker' => $listOutput->getNextMarker(),
                 'objects' => $objects,
                 'common_prefixes' => []
@@ -666,8 +665,10 @@ class TosSimpleUpload extends SimpleUpload
             $this->sdkContainer->getLogger()->info('delete_object_success', [
                 'bucket' => $sdkConfig['bucket'],
                 'object_key' => $objectKey,
+                'delete_marker' => $deleteOutput->getDeleteMarker(),
                 'version_id' => $deleteOutput->getVersionID(),
             ]);
+
         } catch (TosClientException $exception) {
             $this->sdkContainer->getLogger()->error('delete_object_client_error', [
                 'bucket' => $sdkConfig['bucket'] ?? 'unknown',
