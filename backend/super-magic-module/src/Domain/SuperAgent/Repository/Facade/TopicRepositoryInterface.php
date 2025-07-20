@@ -17,6 +17,8 @@ interface TopicRepositoryInterface
      */
     public function getTopicById(int $id): ?TopicEntity;
 
+    public function getTopicWithDeleted(int $id): ?TopicEntity;
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity;
 
     /**

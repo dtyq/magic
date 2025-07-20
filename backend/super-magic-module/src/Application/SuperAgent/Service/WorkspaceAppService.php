@@ -459,7 +459,7 @@ class WorkspaceAppService extends AbstractAppService
         ];
 
         // 获取 topic 信息
-        $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
         if ($topicEntity != null) {
             $data['project_id'] = (string) $topicEntity->getProjectId();
         }
