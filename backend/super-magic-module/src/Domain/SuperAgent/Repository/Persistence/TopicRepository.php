@@ -34,7 +34,7 @@ class TopicRepository implements TopicRepositoryInterface
 
     public function getTopicWithDeleted(int $id): ?TopicEntity
     {
-        $model = $this->model::query()->find($id);
+        $model = $this->model::query()->withTrashed()->find($id);
         if (! $model) {
             return null;
         }
