@@ -23,6 +23,8 @@ interface TopicRepositoryInterface
      */
     public function getTopicsByIds(array $ids): array;
 
+    public function getTopicWithDeleted(int $id): ?TopicEntity;
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity;
 
     /**
