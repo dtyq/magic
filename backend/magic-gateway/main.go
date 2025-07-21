@@ -227,7 +227,15 @@ func servicesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		containerID := r.Header.Get("X-Container-ID")
-		logger.Printf("服务列表请求来自容器: %s", containerID)
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
+
+		// 如果X-Container-ID为空但magic-user-id存在，使用magic-user-id
+		if containerID == "" && magicUserID != "" {
+			containerID = magicUserID
+		}
+
+		logger.Printf("服务列表请求来自容器: %s, 用户: %s, 组织: %s", containerID, magicUserID, magicOrganizationCode)
 
 		// 获取可用服务列表
 		services := []ServiceInfo{}
@@ -475,9 +483,16 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 获取用户ID
 	userID := r.Header.Get("X-USER-ID")
+	magicUserID := r.Header.Get("magic-user-id")
+	magicOrganizationCode := r.Header.Get("magic-organization-code")
+	if userID == "" && magicUserID != "" {
+		userID = magicUserID
+	}
+
 	if userID == "" {
 		userID = "default-user"
 	}
+
 
 	logger.Printf("认证请求来自本地用户: %s", userID)
 
@@ -632,8 +647,15 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 		// 获取请求的环境变量
 		varsParam := r.URL.Query().Get("vars")
 		userID := r.Header.Get("X-USER-ID")
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
 
-		logger.Printf("环境变量请求来自用户 %s: %s", userID, varsParam)
+		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
+		if userID == "" && magicUserID != "" {
+			userID = magicUserID
+		}
+
+		logger.Printf("环境变量请求来自用户 %s, 组织: %s, 变量: %s", userID, magicOrganizationCode, varsParam)
 
 		// 不再返回实际的环境变量值，而是返回可用的环境变量名称列表
 		allowedVarNames := getAvailableEnvVarNames()
@@ -832,7 +854,15 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 	handler := withAuth(func(w http.ResponseWriter, r *http.Request) {
 		// 获取用户信息
 		userID := r.Header.Get("X-USER-ID")
-		logger.Printf("代理请求来自用户: %s, 路径: %s", userID, path)
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
+
+		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
+		if userID == "" && magicUserID != "" {
+			userID = magicUserID
+		}
+
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s", userID, magicOrganizationCode, path)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -1089,6 +1119,21 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 设置请求头
 		proxyReq.Header = proxyHeaders
+
+		// 透传magic-user-id和magic-organization-code到目标API
+		if magicUserID != "" {
+			proxyReq.Header.Set("magic-user-id", magicUserID)
+			if debugMode {
+				logger.Printf("透传magic-user-id: %s", magicUserID)
+			}
+		}
+
+		if magicOrganizationCode != "" {
+			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
+			if debugMode {
+				logger.Printf("透传magic-organization-code: %s", magicOrganizationCode)
+			}
+		}
 
 		// 如果需要添加API密钥且请求头中没有Authorization
 		if shouldAddApiKey && !headerExists(proxyHeaders, "Authorization") {
