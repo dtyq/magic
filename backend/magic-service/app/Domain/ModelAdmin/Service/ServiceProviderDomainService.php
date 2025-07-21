@@ -142,7 +142,6 @@ class ServiceProviderDomainService
         $serviceProviderModelsEntity->setIcon(FileAssembler::formatPath($serviceProviderModelsEntity->getIcon()));
 
         $serviceProviderModelsEntity->setCategory($serviceProviderEntity->getCategory());
-        $serviceProviderModelsEntity->valid();
 
         // 校验model_id
 
