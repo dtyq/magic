@@ -493,8 +493,11 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		userID = "default-user"
 	}
 
+	if magicOrganizationCode == "" {
+		magicOrganizationCode = ""
+	}
 
-	logger.Printf("认证请求来自本地用户: %s", userID)
+	logger.Printf("认证请求来自本地用户: %s, 组织: %s", userID, magicOrganizationCode)
 
 	// 创建唯一标识
 	tokenID := fmt.Sprintf("%d-%s", time.Now().UnixNano(), userID)
