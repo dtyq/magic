@@ -25,10 +25,18 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
     {
         $authorization = $this->getAuthorization();
 
-        $DTO = new MCPServerDTO($this->request->all());
+        $requestData = $this->request->all();
+        $DTO = new MCPServerDTO($requestData);
 
         $DO = MCPServerAssembler::createDO($DTO);
-        $entity = $this->mcpServerAppService->save($authorization, $DO);
+
+        // Prepare tool entities at API layer only if tools parameter exists
+        $toolEntities = null;
+        if (array_key_exists('tools', $requestData)) {
+            $toolEntities = MCPServerAssembler::createToolEntities($requestData['tools'], $DO->getCode());
+        }
+
+        $entity = $this->mcpServerAppService->save($authorization, $DO, $toolEntities);
         $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
         $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
         return MCPServerAssembler::createDTO($entity, $icons, $users);
@@ -56,10 +64,14 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
     public function show(string $code)
     {
         $authorization = $this->getAuthorization();
-        $entity = $this->mcpServerAppService->show($authorization, $code);
+        $data = $this->mcpServerAppService->show($authorization, $code);
+        $entity = $data['mcp_server'];
         $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
         $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        return MCPServerAssembler::createDTO($entity, $icons, $users);
+        $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
+        $result = $mcpServerDTO->toArray();
+        $result['tools'] = $data['tools'] ?? null;
+        return $result;
     }
 
     public function destroy(string $code)
