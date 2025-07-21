@@ -169,6 +169,10 @@ class MCPServerAppService extends AbstractMCPAppService
         }
         $orgData['icons'] = $icons;
 
+        // 获取用户填写的配置
+        $validationResults = MCPServerConfigUtil::batchValidateUserConfigurations($dataIsolation, $orgData['list'] ?? []);
+        $orgData['validation_results'] = $validationResults;
+
         return $orgData;
     }
 
