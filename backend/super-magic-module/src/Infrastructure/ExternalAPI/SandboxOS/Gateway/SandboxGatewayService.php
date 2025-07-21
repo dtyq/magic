@@ -27,6 +27,7 @@ use Hyperf\Logger\LoggerFactory;
 class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayInterface
 {
     private ?string $userId = null;
+
     private ?string $organizationCode = null;
 
     public function __construct(LoggerFactory $loggerFactory)
@@ -53,24 +54,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->userId = null;
         $this->organizationCode = null;
         return $this;
-    }
-
-    /**
-     * Override parent getAuthHeaders to include user-specific headers.
-     */
-    protected function getAuthHeaders(): array
-    {
-        $headers = parent::getAuthHeaders();
-        
-        if ($this->userId !== null) {
-            $headers['magic-user-id'] = $this->userId;
-        }
-        
-        if ($this->organizationCode !== null) {
-            $headers['magic-organization-code'] = $this->organizationCode;
-        }
-        
-        return $headers;
     }
 
     /**
@@ -481,6 +464,24 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
+    }
+
+    /**
+     * Override parent getAuthHeaders to include user-specific headers.
+     */
+    protected function getAuthHeaders(): array
+    {
+        $headers = parent::getAuthHeaders();
+
+        if ($this->userId !== null) {
+            $headers['magic-user-id'] = $this->userId;
+        }
+
+        if ($this->organizationCode !== null) {
+            $headers['magic-organization-code'] = $this->organizationCode;
+        }
+
+        return $headers;
     }
 
     /**

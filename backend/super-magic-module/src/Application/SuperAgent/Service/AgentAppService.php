@@ -71,12 +71,12 @@ class AgentAppService
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
         );
-        
+
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
-
+        $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
         // 添加详细的调试日志，检查 result 对象
@@ -113,18 +113,11 @@ class AgentAppService
     /**
      * 获取沙箱状态
      *
-     * @param DataIsolation $dataIsolation 数据隔离上下文
      * @param string $sandboxId 沙箱ID
      * @return SandboxStatusResult 沙箱状态结果
      */
-    public function getSandboxStatus(DataIsolation $dataIsolation, string $sandboxId): SandboxStatusResult
+    public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
-        // Set user context for gateway requests
-        $this->gateway->setUserContext(
-            $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getCurrentOrganizationCode()
-        );
-        
         $this->logger->info('[Sandbox][App] Getting sandbox status', [
             'sandbox_id' => $sandboxId,
         ]);
@@ -188,7 +181,7 @@ class AgentAppService
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
         );
-        
+
         $this->logger->info('[Sandbox][App] Initializing agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
@@ -219,7 +212,7 @@ class AgentAppService
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
         );
-        
+
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
@@ -282,7 +275,7 @@ class AgentAppService
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
         );
-        
+
         $this->logger->info('[Sandbox][App] Sending interrupt message to agent', [
             'sandbox_id' => $sandboxId,
             'task_id' => $taskId,
@@ -461,11 +454,11 @@ class AgentAppService
 
         $magicApiGateway = config('super-magic.magic-gateway.api_url', '');
         $magicApiUrl = config('super-magic.sandbox.callback_host', '');
-        $apiUrl = !empty($magicApiGateway) ? $magicApiGateway : $magicApiUrl;
+        $apiUrl = ! empty($magicApiGateway) ? $magicApiGateway : $magicApiUrl;
 
         $magicApiGatewayToken = config('super-magic.magic-gateway.magic_api_key', '');
         $magicApiUrlToken = config('super-magic.sandbox.token', '');
-        $token = !empty($magicApiGatewayToken) ? $magicApiGatewayToken : $magicApiUrlToken;
+        $token = ! empty($magicApiGatewayToken) ? $magicApiGatewayToken : $magicApiUrlToken;
 
         return [
             'message_id' => (string) IdGenerator::getSnowId(),

@@ -89,7 +89,7 @@ class FileApi extends AbstractApi
         }
 
         $sandboxToken = config('super-magic.sandbox.token', '');
-        $magicApiKey =  config('super-magic.magic-gateway.magic_api_key', '');
+        $magicApiKey = config('super-magic.magic-gateway.magic_api_key', '');
         if ($sandboxToken !== $token && $magicApiKey !== $token) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
         }
