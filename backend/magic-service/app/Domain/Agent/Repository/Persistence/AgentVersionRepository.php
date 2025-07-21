@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Agent\Repository\Persistence;
 
+use App\Domain\Agent\Constant\MagicAgentReleaseStatus;
 use App\Domain\Agent\Constant\MagicAgentVersionStatus;
 use App\Domain\Agent\Entity\MagicAgentVersionEntity;
 use App\Domain\Agent\Entity\ValueObject\AgentDataIsolation;
@@ -42,6 +43,7 @@ class AgentVersionRepository extends AbstractRepository implements AgentVersionR
         }
 
         $versionBuilder->whereIn('id', $botVersionIds);
+        $versionBuilder->where('release_scope', '=', MagicAgentReleaseStatus::PUBLISHED_TO_ENTERPRISE->value);
         $data = $this->getByPage($versionBuilder, $page, $query);
         $list = [];
         /** @var MagicAgentVersionModel $item */
