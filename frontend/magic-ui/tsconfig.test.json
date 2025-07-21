@@ -21,9 +21,7 @@
 		"composite": true,
 		"jsx": "react-jsx",
 		"typeRoots": ["./types"],
-		"paths": {
-			
-		}
+		"paths": {}
 	},
-	"include": ["components/**/__tests__/**/*.ts", "components/**/__tests__/**/*.tsx"]
+	"include": ["test/*.ts", "components/**/__tests__/*.tsx", "types/**/*", "components/**/*"]
 }

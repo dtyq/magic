@@ -23,6 +23,11 @@ class TaskFileItemDTO extends AbstractDTO
     public string $taskId;
 
     /**
+     * 项目ID.
+     */
+    public string $projectId = '';
+
+    /**
      * 文件类型.
      */
     public string $fileType;
@@ -63,6 +68,16 @@ class TaskFileItemDTO extends AbstractDTO
     public bool $isHidden;
 
     /**
+     * 主题ID.
+     */
+    public string $topicId = '';
+
+    /**
+     * 更新时间.
+     */
+    public string $updatedAt = '';
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity): self
@@ -70,6 +85,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto = new self();
         $dto->fileId = (string) $entity->getFileId();
         $dto->taskId = (string) $entity->getTaskId();
+        $dto->projectId = (string) $entity->getProjectId();
         $dto->fileType = $entity->getFileType();
         $dto->fileName = $entity->getFileName();
         $dto->fileExtension = $entity->getFileExtension();
@@ -78,6 +94,8 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->relativeFilePath = '';
         $dto->fileUrl = $entity->getExternalUrl();
         $dto->isHidden = $entity->getIsHidden();
+        $dto->topicId = (string) $entity->getTopicId();
+        $dto->updatedAt = (string) $entity->getUpdatedAt();
 
         return $dto;
     }
@@ -90,6 +108,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto = new self();
         $dto->fileId = (string) ($data['file_id'] ?? '');
         $dto->taskId = (string) ($data['task_id'] ?? '');
+        $dto->projectId = (string) ($data['project_id'] ?? '');
         $dto->fileType = $data['file_type'] ?? '';
         $dto->fileName = $data['file_name'] ?? '';
         $dto->fileExtension = $data['file_extension'] ?? '';
@@ -98,6 +117,8 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->relativeFilePath = $data['relative_file_path'] ?? '';
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
         $dto->isHidden = $data['is_hidden'] ?? false;
+        $dto->topicId = (string) ($data['topic_id'] ?? '');
+        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
         return $dto;
     }
 
@@ -110,6 +131,7 @@ class TaskFileItemDTO extends AbstractDTO
         return [
             'file_id' => $this->fileId,
             'task_id' => $this->taskId,
+            'project_id' => $this->projectId,
             'file_type' => $this->fileType,
             'file_name' => $this->fileName,
             'file_extension' => $this->fileExtension,
@@ -118,6 +140,8 @@ class TaskFileItemDTO extends AbstractDTO
             'relative_file_path' => $this->relativeFilePath,
             'file_url' => $this->fileUrl,
             'is_hidden' => $this->isHidden,
+            'topic_id' => $this->topicId,
+            'updated_at' => $this->updatedAt,
         ];
     }
 }

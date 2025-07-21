@@ -125,7 +125,7 @@ class OdinQdrantVectorStore implements VectorStoreInterface
                     (string) $scoredPoint->version,
                     $scoredPoint->score,
                     $scoredPoint->payload,
-                    $scoredPoint->vector?->vector ?? [],
+                    $scoredPoint->vector->vector ?? [],
                 );
             }
             return null;
@@ -138,17 +138,15 @@ class OdinQdrantVectorStore implements VectorStoreInterface
         $filter = $this->getFilter($payloadFilter);
 
         $result = $this->points->queryPoints($collectionName, $limit, $filter);
-        $result = array_map(function (Record $record) {
+        return array_map(function (Record $record) {
             return new PointInfo(
                 (string) $record->id->id,
                 '',
                 0,
                 $record->payload,
-                $record->vector?->vector ?? [],
+                $record->vector->vector ?? [],
             );
         }, $result, array_keys($result));
-
-        return array_filter($result);
     }
 
     private function getFilter(array $payloadFilter = []): ?Filter

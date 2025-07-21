@@ -24,7 +24,7 @@ class SaveFileContentRequestDTO implements JsonSerializable
     /**
      * File ID.
      */
-    private int $fileId = 0;
+    private string $fileId = '';
 
     /**
      * File content (HTML).
@@ -36,7 +36,7 @@ class SaveFileContentRequestDTO implements JsonSerializable
      */
     private bool $enableShadow = true;
 
-    public function __construct(int $fileId = 0, string $content = '', bool $enableShadow = true)
+    public function __construct(string $fileId = '', string $content = '', bool $enableShadow = true)
     {
         $this->fileId = $fileId;
         $this->content = $content;
@@ -48,9 +48,9 @@ class SaveFileContentRequestDTO implements JsonSerializable
      */
     public static function fromRequest(array $requestData): self
     {
-        $fileId = (int) ($requestData['file_id'] ?? 0);
+        $fileId = (string) ($requestData['file_id'] ?? '');
         $content = (string) ($requestData['content'] ?? '');
-        $enableShadow = (bool) ($requestData['enable_shadow'] ?? true);
+        $enableShadow = (bool) ($requestData['enable_shadow'] ?? false);
 
         $dto = new self($fileId, $content, $enableShadow);
         $dto->validate();
@@ -63,7 +63,7 @@ class SaveFileContentRequestDTO implements JsonSerializable
      */
     public function validate(): void
     {
-        if ($this->fileId <= 0) {
+        if (empty($this->fileId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_id_required');
         }
 
@@ -77,12 +77,12 @@ class SaveFileContentRequestDTO implements JsonSerializable
         }
     }
 
-    public function getFileId(): int
+    public function getFileId(): string
     {
         return $this->fileId;
     }
 
-    public function setFileId(int $fileId): void
+    public function setFileId(string $fileId): void
     {
         $this->fileId = $fileId;
     }

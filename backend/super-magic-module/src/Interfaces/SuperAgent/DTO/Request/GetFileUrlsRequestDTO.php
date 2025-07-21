@@ -25,6 +25,8 @@ class GetFileUrlsRequestDTO
 
     private string $topicId;
 
+    private string $projectId;
+
     /**
      * Cache setting, default is true.
      */
@@ -39,6 +41,7 @@ class GetFileUrlsRequestDTO
         $this->token = $params['token'] ?? '';
         $this->downloadMode = $params['download_mode'] ?? 'download';
         $this->topicId = $params['topic_id'] ?? '';
+        $this->projectId = $params['project_id'] ?? '';
         $this->cache = $params['cache'] ?? true;
 
         $this->validate();
@@ -75,6 +78,11 @@ class GetFileUrlsRequestDTO
         return $this->topicId;
     }
 
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
     public function getCache(): bool
     {
         return $this->cache;
@@ -85,6 +93,7 @@ class GetFileUrlsRequestDTO
      *
      * @throws BusinessException 如果验证失败则抛出异常
      */
+    /* @phpstan-ignore-next-line */
     private function validate(): void
     {
         if (empty($this->fileIds)) {

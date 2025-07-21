@@ -7,18 +7,12 @@ module.exports = {
 		"@dtyq/eslint-config/prettier",
 	],
 	parserOptions: {
-		project: [
-			"./tsconfig.json",
-			"./tsconfig.*.json",
-		],
+		project: ["./tsconfig.json"],
 	},
 	settings: {
 		"import/resolver": {
 			typescript: {
-				project: [
-					"./tsconfig.json",
-					"./tsconfig.*json",
-				],
+				project: ["./tsconfig.json"],
 			},
 		},
 	},

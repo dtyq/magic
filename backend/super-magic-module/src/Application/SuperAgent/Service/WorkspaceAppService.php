@@ -9,8 +9,9 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
-use App\Domain\Chat\Service\MagicTopicDomainService;
+use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -22,14 +23,19 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
@@ -38,8 +44,9 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveWorkspaceResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\WorkspaceListResponseDTO;
-use Exception;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -55,14 +62,18 @@ class WorkspaceAppService extends AbstractAppService
         protected WorkspaceDomainService $workspaceDomainService,
         protected MagicConversationDomainService $magicConversationDomainService,
         protected MagicUserDomainService $userDomainService,
-        protected MagicTopicDomainService $topicDomainService,
+        protected MagicChatTopicDomainService $magicTopicDomainService,
         protected FileAppService $fileAppService,
         protected TaskDomainService $taskDomainService,
         protected AccountAppService $accountAppService,
         protected SandboxService $sandboxService,
         protected LockerInterface $locker,
         protected ChatAppService $chatAppService,
-        LoggerFactory $loggerFactory
+        protected ProjectDomainService $projectDomainService,
+        protected TopicDomainService $topicDomainService,
+        protected Producer $producer,
+        protected LoggerFactory $loggerFactory,
+        protected FileCleanupAppService $fileCleanupAppService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -88,48 +99,102 @@ class WorkspaceAppService extends AbstractAppService
             $conditions,
             $requestDTO->page,
             $requestDTO->pageSize,
+            'id',
+            'desc',
             $dataIsolation
         );
 
         // 设置默认值
         $result['auto_create'] = false;
 
-        // 如果有工作区列表，获取所有工作区的话题列表
-        if (! empty($result['list'])) {
-            $workspaceIds = [];
-            foreach ($result['list'] as $workspace) {
+        if (empty($result['list'])) {
+            $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+                $dataIsolation,
+                '',
+                ''
+            );
+            $result['list'] = [$workspaceEntity->toArray()];
+            $result['total'] = 1;
+            $result['auto_create'] = true;
+        }
+
+        // 提取所有工作区ID
+        $workspaceIds = [];
+        foreach ($result['list'] as $workspace) {
+            if (is_array($workspace)) {
+                $workspaceIds[] = $workspace['id'];
+            } else {
                 $workspaceIds[] = $workspace->getId();
             }
-
-            // 获取所有工作区的话题列表，以工作区ID为键
-            $topicList = $this->workspaceDomainService->getWorkspaceTopics($workspaceIds, $dataIsolation, false);
-            $topics = [];
-            // 重新按工作区 ID 分组
-            foreach ($topicList['list'] as $topic) {
-                $workspaceId = (int) $topic->getWorkspaceId();
-                if (! isset($topics[$workspaceId])) {
-                    $topics[$workspaceId] = [];
-                }
-                $topics[$workspaceId][] = $topic;
-            }
-            $result['topics'] = $topics;
-        } else {
-            // 如果 result 为空则创建一个默认会话和话题，并新建一个工作区和目录与其绑定
-            // 使用默认的工作区名称和话题名称创建工作区
-            $creationResult = $this->initUserWorkspace($dataIsolation);
-
-            // 将新创建的工作区添加到结果中
-            if (! empty($creationResult['workspace'])) {
-                $result['list'] = [$creationResult['workspace']];
-                $result['total'] = 1;
-                $result['auto_create'] = $creationResult['auto_create']; // 使用创建结果中的auto_create
-                // 使用创建时返回的任务状态信息
-                $workspaceId = $creationResult['workspace']->getId();
-                $result['topics'][$workspaceId] = [$creationResult['topic']];
-            }
         }
-        // 转换为响应DTO
-        return WorkspaceListResponseDTO::fromResult($result);
+        $workspaceIds = array_unique($workspaceIds);
+
+        // 批量获取工作区状态
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch($workspaceIds);
+
+        // 转换为响应DTO并传入状态映射
+        return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap);
+    }
+
+    /**
+     * 获取工作区详情.
+     */
+    public function getWorkspaceDetail(RequestContext $requestContext, int $workspaceId): WorkspaceItemDTO
+    {
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
+
+        // 获取工作区详情
+        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+        if ($workspaceEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+        }
+
+        // 验证工作区是否属于当前用户
+        if ($workspaceEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
+        }
+
+        // 计算工作区状态
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch([$workspaceId]);
+        $workspaceStatus = $workspaceStatusMap[$workspaceId] ?? null;
+
+        // 返回工作区详情DTO
+        return WorkspaceItemDTO::fromEntity($workspaceEntity, $workspaceStatus);
+    }
+
+    public function createWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+            $dataIsolation,
+            '',
+            $requestDTO->getWorkspaceName()
+        );
+
+        return SaveWorkspaceResultDTO::fromId((int) $workspaceEntity->getId());
+    }
+
+    public function updateWorkspace(RequestContext $requestContext, SaveWorkspaceRequestDTO $requestDTO): SaveWorkspaceResultDTO
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        if (empty($requestDTO->getWorkspaceId())) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND);
+        }
+
+        $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+
+        return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
     }
 
     /**
@@ -208,7 +273,7 @@ class WorkspaceAppService extends AbstractAppService
     {
         // 获取当前话题的创建者
         $topicEntity = $this->workspaceDomainService->getTopicById((int) $requestDto->getTopicId());
-        if (empty($topicEntity)) {
+        if ($topicEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         if ($topicEntity->getCreatedUid() != $userAuthorization->getId()) {
@@ -250,7 +315,7 @@ class WorkspaceAppService extends AbstractAppService
         // 处理文件 URL
         $list = [];
         $organizationCode = $userAuthorization->getOrganizationCode();
-
+        $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
             // 创建DTO
@@ -262,6 +327,7 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileExtension = $entity->getFileExtension();
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
+            $dto->topicId = (string) $entity->getTopicId();
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
@@ -275,7 +341,11 @@ class WorkspaceAppService extends AbstractAppService
             } else {
                 $dto->fileUrl = '';
             }
-
+            // 判断filekey是否重复，如果重复，则跳过
+            if (in_array($fileKey, $fileKeys)) {
+                continue;
+            }
+            $fileKeys[] = $fileKey;
             $list[] = $dto->toArray();
         }
 
@@ -302,7 +372,40 @@ class WorkspaceAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 调用领域服务执行删除
-        $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
+        Db::beginTransaction();
+        try {
+            // 删除工作区
+            $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
+
+            // 删除工作区下的项目
+            $this->projectDomainService->deleteProjectsByWorkspaceId($dataIsolation, $workspaceId);
+
+            // 删除工作的话题
+            $this->topicDomainService->deleteTopicsByWorkspaceId($dataIsolation, $workspaceId);
+
+            // 投递消息，停止所有运行中的任务
+            $event = new StopRunningTaskEvent(
+                DeleteDataType::WORKSPACE,
+                $workspaceId,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                '工作区已被删除'
+            );
+            $publisher = new StopRunningTaskPublisher($event);
+            $this->producer->produce($publisher);
+
+            $this->logger->info(sprintf(
+                '已投递停止任务消息，工作区ID: %d, 事件ID: %s',
+                $workspaceId,
+                $event->getEventId()
+            ));
+
+            Db::commit();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('删除工作区失败：' . $e->getMessage());
+            throw $e;
+        }
 
         return true;
     }
@@ -358,9 +461,9 @@ class WorkspaceAppService extends AbstractAppService
         ];
 
         // 获取 topic 信息
-        $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
         if ($topicEntity != null) {
-            $data['sandbox_id'] = $topicEntity->getSandboxId();
+            $data['project_id'] = (string) $topicEntity->getProjectId();
         }
         return $data;
     }
@@ -447,14 +550,14 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             // 验证文件是否属于当前用户
-            $topicEntity = $this->workspaceDomainService->getTopicById($fileEntity->getTopicId());
-            if (empty($topicEntity) || $topicEntity->getUserId() !== $userAuthorization->getId()) {
+            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $userAuthorization->getId());
+            if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
                 // 如果这个话题不是本人的，不处理
                 continue;
             }
 
             $downloadNames = [];
-            if ($downloadMode == 'download') {
+            if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames, $options);
@@ -493,15 +596,23 @@ class WorkspaceAppService extends AbstractAppService
         $organizationCode = AccessTokenUtil::getOrganizationCode($token);
         $result = [];
 
+        // 获取 topic 详情
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+        }
+
         foreach ($fileIds as $fileId) {
             $fileEntity = $this->taskDomainService->getTaskFile((int) $fileId);
-            if (empty($fileEntity) || $fileEntity->getTopicId() != $topicId) {
-                // 如果文件不存在或不属于该话题，跳过
+            $isBelongTopic = ((string) $fileEntity?->getTopicId()) === $topicId;
+            $isBelongProject = ((string) $fileEntity?->getProjectId()) == $topicEntity->getProjectId();
+            if (empty($fileEntity) || (! $isBelongTopic && ! $isBelongProject)) {
+                // 如果文件不存在或既不属于该话题也不属于该项目，跳过
                 continue;
             }
 
             $downloadNames = [];
-            if ($downloadMode == 'download') {
+            if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames);
@@ -563,7 +674,7 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        $result = $this->filterResultByGitVersion($result, $topicEntity->getWorkspaceCommitHash(), $topicEntity->getId());
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode());
 
         // 处理文件 URL
         $list = [];
@@ -581,6 +692,7 @@ class WorkspaceAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->topicId = (string) $entity->getTopicId();
 
             // Calculate relative file path by removing workDir from fileKey
             $fileKey = $entity->getFileKey();
@@ -608,7 +720,7 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         // 构建树状结构
-        $tree = $this->assembleTaskFilesTree($sandboxId, $workDir, $list);
+        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
 
         return [
             'list' => $list,
@@ -618,180 +730,39 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 将文件列表组装成树状结构，支持无限极嵌套.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @param string $workDir 工作目录
-     * @param array $files 文件列表数据
-     * @return array 组装后的树状结构数据
+     * 注册转换后的PDF文件以供定时清理.
      */
-    private function assembleTaskFilesTree(string $sandboxId, string $workDir, array $files): array
+    public function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
     {
-        if (empty($files)) {
-            return [];
+        if (empty($convertedFiles)) {
+            return;
         }
 
-        // 文件树根节点
-        $root = [
-            'type' => 'root',
-            'is_directory' => true,
-            'is_hidden' => false,
-            'children' => [],
-        ];
-
-        // 目录映射，用于快速查找目录节点
-        $directoryMap = ['' => &$root]; // 根目录的引用
-
-        // 去掉workDir开头可能的斜杠，确保匹配
-        $workDir = ltrim($workDir, '/');
-
-        // 遍历所有文件路径，确定根目录
-        $rootDir = '';
-        foreach ($files as $file) {
-            if (empty($file['file_key'])) {
-                continue; // 跳过没有文件路径的记录
+        $filesForCleanup = [];
+        foreach ($convertedFiles as $file) {
+            if (empty($file['oss_key']) || empty($file['filename'])) {
+                continue;
             }
 
-            $filePath = $file['file_key'];
-
-            // 查找workDir在文件路径中的位置
-            $workDirPos = strpos($filePath, $workDir);
-            if ($workDirPos === false) {
-                continue; // 找不到workDir，跳过
-            }
-
-            // 获取workDir结束的位置
-            $rootDir = substr($filePath, 0, $workDirPos + strlen($workDir));
-            break;
+            $filesForCleanup[] = [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'file_key' => $file['oss_key'],
+                'file_name' => $file['filename'],
+                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
+                'source_type' => 'pdf_conversion',
+                'source_id' => $file['batch_id'] ?? null,
+                'expire_after_seconds' => 7200, // 2 小时后过期
+                'bucket_type' => 'private',
+            ];
         }
 
-        // 如果没有找到有效的根目录，创建一个扁平的目录结构
-        if (empty($rootDir)) {
-            // 直接将所有文件作为根节点的子节点
-            foreach ($files as $file) {
-                if (empty($file['file_key'])) {
-                    continue; // 跳过没有文件路径的记录
-                }
-
-                // 提取文件名，通常是路径最后一部分
-                $pathParts = explode('/', $file['file_key']);
-                $fileName = end($pathParts);
-
-                // 创建文件节点
-                $fileNode = $file;
-                $fileNode['type'] = 'file';
-                $fileNode['is_directory'] = false;
-                $fileNode['children'] = [];
-                $fileNode['name'] = $fileName;
-
-                // 添加到根节点
-                $root['children'][] = $fileNode;
-            }
-
-            return $root['children'];
+        if (! empty($filesForCleanup)) {
+            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
+            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
+                'user_id' => $userAuthorization->getId(),
+                'files_count' => count($filesForCleanup),
+            ]);
         }
-
-        // 处理所有文件
-        foreach ($files as $file) {
-            if (empty($file['file_key'])) {
-                continue; // 跳过没有文件路径的记录
-            }
-
-            $filePath = $file['file_key'];
-
-            // 提取相对路径
-            if (strpos($filePath, $rootDir) === 0) {
-                // 移除根目录前缀，获取相对路径
-                $relativePath = substr($filePath, strlen($rootDir));
-                $relativePath = ltrim($relativePath, '/');
-
-                // 创建文件节点
-                $fileNode = $file;
-                $fileNode['type'] = 'file';
-                $fileNode['is_directory'] = false;
-                $fileNode['children'] = [];
-
-                // 如果相对路径为空，表示文件直接位于根目录
-                if (empty($relativePath)) {
-                    $root['children'][] = $fileNode;
-                    continue;
-                }
-
-                // 分析相对路径，提取目录部分和文件名
-                $pathParts = explode('/', $relativePath);
-                $fileName = array_pop($pathParts); // 移除并获取最后一部分作为文件名
-
-                if (empty($pathParts)) {
-                    // 没有目录部分，文件直接位于根目录下
-                    $root['children'][] = $fileNode;
-                    continue;
-                }
-
-                // 逐级构建目录
-                $currentPath = '';
-                $parent = &$root;
-                $parentIsHidden = false; // 父级是否为隐藏目录
-
-                foreach ($pathParts as $dirName) {
-                    if (empty($dirName)) {
-                        continue; // 跳过空目录名
-                    }
-
-                    // 更新当前路径
-                    $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
-
-                    // 如果当前路径的目录不存在，创建它
-                    if (! isset($directoryMap[$currentPath])) {
-                        // 判断当前目录是否为隐藏目录
-                        $isHiddenDir = $this->isHiddenDirectory($dirName) || $parentIsHidden;
-
-                        // 创建新目录节点
-                        $newDir = [
-                            'name' => $dirName,
-                            'path' => $currentPath,
-                            'type' => 'directory',
-                            'is_directory' => true,
-                            'is_hidden' => $isHiddenDir,
-                            'children' => [],
-                        ];
-
-                        // 将新目录添加到父目录的子项中
-                        $parent['children'][] = $newDir;
-
-                        // 保存目录引用到映射中
-                        $directoryMap[$currentPath] = &$parent['children'][count($parent['children']) - 1];
-                    }
-
-                    // 更新父目录引用为当前目录
-                    $parent = &$directoryMap[$currentPath];
-                    // 更新父级隐藏状态，如果当前目录是隐藏的，那么其子级都应该是隐藏的
-                    $parentIsHidden = $parent['is_hidden'] ?? false;
-                }
-
-                // 如果父目录是隐藏的，那么文件也应该被标记为隐藏
-                if ($parentIsHidden) {
-                    $fileNode['is_hidden'] = true;
-                }
-
-                // 将文件添加到最终目录的子项中
-                $parent['children'][] = $fileNode;
-            }
-        }
-
-        // 返回根目录的子项作为结果
-        return $root['children'];
-    }
-
-    /**
-     * 判断目录名是否为隐藏目录
-     * 隐藏目录的判断规则：目录名以 . 开头.
-     *
-     * @param string $dirName 目录名
-     * @return bool true-隐藏目录，false-普通目录
-     */
-    private function isHiddenDirectory(string $dirName): bool
-    {
-        return str_starts_with($dirName, '.');
     }
 
     /**
@@ -805,82 +776,78 @@ class WorkspaceAppService extends AbstractAppService
      */
     private function initUserWorkspace(
         DataIsolation $dataIsolation,
-        string $workspaceName = AgentConstant::DEFAULT_WORKSPACE_NAME
+        string $workspaceName = ''
     ): array {
         $this->logger->info('开始初始化用户工作区');
-        // 获取超级麦吉用户
-        [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
-        $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
-        // 新建工作区，绑定会话id
-        $result = $this->workspaceDomainService->createWorkspace(
-            $dataIsolation,
-            new WorkspaceCreationParams(
+        Db::beginTransaction();
+        try {
+            // Step 1: Initialize Magic Chat Conversation
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+            $this->logger->info(sprintf('初始化超级麦吉, chatConversationId=%s, chatConversationTopicId=%s', $chatConversationId, $chatConversationTopicId));
+
+            // Step 2: Create workspace
+            $this->logger->info('开始创建默认工作区');
+            $workspaceEntity = $this->workspaceDomainService->createWorkspace(
+                $dataIsolation,
                 $chatConversationId,
-                $workspaceName, // 使用参数中的工作区名称
+                $workspaceName
+            );
+            $this->logger->info(sprintf('创建默认工作区成功, workspaceId=%s', $workspaceEntity->getId()));
+            if (! $workspaceEntity->getId()) {
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
+            }
+
+            // 创建默认项目
+            $this->logger->info('开始创建默认项目');
+            $projectEntity = $this->projectDomainService->createProject(
+                $workspaceEntity->getId(),
+                '',
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+            $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
+            // 获取工作区目录
+            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+
+            // Step 4: Create default topic
+            $this->logger->info('开始创建默认话题');
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                $workspaceEntity->getId(),
+                $projectEntity->getId(),
+                $chatConversationId,
                 $chatConversationTopicId,
-                AgentConstant::DEFAULT_TOPIC_NAME // 使用固定的话题名称
-            )
-        );
-        $workspaceEntity = $result['workspace'];
-        $topicEntity = $result['topic'];
+                '',
+                $workDir
+            );
+            $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
 
-        if (empty($workspaceEntity)) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.create_workspace_failed');
-        }
-        // 返回创建的结果，包含实体对象和auto_create=true
-        return [
-            'workspace' => $workspaceEntity,  // 直接返回实体对象
-            'topic' => $topicEntity,  // 直接返回实体对象
-            'auto_create' => true,  // 添加auto_create字段
-        ];
-    }
-
-    /**
-     * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
-     */
-    private function filterResultByGitVersion(array $result, string $commitHash, int $topicId): array
-    {
-        $dir = '.workspace';
-        $workspaceVersion = $this->workspaceDomainService->getWorkspaceVersionByCommitAndTopic($commitHash, $topicId, $dir);
-        if (empty($workspaceVersion)) {
-            return $result;
-        }
-
-        if (empty($workspaceVersion->getDir())) {
-            return $result;
-        }
-
-        # 遍历result的updatedAt ，如果updatedAt 小于workspaceVersion 的updated_at ，则保持在一个临时数组
-        $tempResult1 = [];
-        foreach ($result['list'] as $item) {
-            if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
-                $tempResult1[] = $item;
+            // Step 5: Update workspace current topic
+            if ($topicEntity->getId()) {
+                // 设置工作区信息
+                $workspaceEntity->setCurrentTopicId($topicEntity->getId());
+                $workspaceEntity->setCurrentProjectId($projectEntity->getId());
+                $this->workspaceDomainService->saveWorkspaceEntity($workspaceEntity);
+                $this->logger->info(sprintf('工作区%s已设置当前话题%s', $workspaceEntity->getId(), $topicEntity->getId()));
+                // 设置项目信息
+                $projectEntity->setCurrentTopicId($topicEntity->getId());
+                $projectEntity->setWorkspaceId($workspaceEntity->getId());
+                $projectEntity->setWorkDir($workDir);
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+                $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
             }
-        }
-        $dir = json_decode($workspaceVersion->getDir(), true);
-        # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
-        # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
-        $dir = array_filter($dir, function ($item) {
-            if (strpos($item, '.') === false) {
-                return false;
-            }
-            return true;
-        });
+            Db::commit();
 
-        # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
-        $tempResult2 = [];
-        foreach ($result['list'] as $item) {
-            foreach ($dir as $dirItem) {
-                if (strpos($item['file_key'], $dirItem) !== false) {
-                    $tempResult2[] = $item;
-                }
-            }
+            // Return creation result
+            return [
+                'workspace' => $workspaceEntity,
+                'topic' => $topicEntity,
+                'project' => $projectEntity,
+                'auto_create' => true,
+            ];
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
         }
-        $tempResult = array_merge($tempResult1, $tempResult2);
-
-        # 对tempResult进行去重
-        $result['list'] = array_unique($tempResult, SORT_REGULAR);
-        $result['total'] = count($result['list']);
-        return $result;
     }
 }

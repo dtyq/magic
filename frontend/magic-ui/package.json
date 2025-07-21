@@ -5,9 +5,33 @@
 	"description": "",
 	"license": "Apache License 2.0",
 	"type": "module",
-	"main": "index.js",
+	"main": "dist/cjs/index.js",
+	"module": "dist/es/index.js",
+	"types": "dist/types/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/es/index.js",
+			"require": "./dist/cjs/index.js"
+		},
+		"./*": {
+			"types": "./dist/types/*/index.d.ts",
+			"import": "./dist/es/components/*/index.js",
+			"require": "./dist/cjs/components/*/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"build": "vite build",
+		"test": "vitest --watch=false",
+		"test:update": "vitest --update --watch=false",
+		"dev": "vite",
+		"lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+		"lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+		"format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+		"prepare": "husky"
 	},
 	"lint-staged": {
 		"./src/**/*.{js,jsx,ts,tsx}": [
@@ -32,10 +56,11 @@
 		]
 	},
 	"dependencies": {
+		"@tabler/icons-react": "^3.34.0",
 		"ahooks": "^3.7.11",
 		"antd": "^5.24.4",
 		"antd-style": "^3.6.2",
-		"dayjs": "^1.11.11",
+		"lodash-es": "^4.17.21",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1"
 	},
@@ -56,15 +81,26 @@
 		"eslint-plugin-prettier": "^4.2.1",
 		"eslint-plugin-react": "^7.31.5",
 		"eslint-plugin-react-hooks": "^4.6.0",
+		"glob": "^11.0.3",
 		"husky": "^9.0.11",
 		"jsdom": "^26.0.0",
 		"lint-staged": "^15.2.2",
 		"prettier": "^2.7.1",
 		"sort-package-json": "^2.10.0",
 		"stylelint": "^15.11.0",
+		"terser": "^5.43.1",
 		"typescript": "^5.4.5",
 		"vite": "^6.0.3",
+		"vite-plugin-dts": "^3.0.0",
 		"vitest": "^3.0.7"
+	},
+	"peerDependencies": {
+		"@tabler/icons-react": "^3.34.0",
+		"ahooks": "^3.7.11",
+		"antd": "^5.24.4",
+		"antd-style": "^3.6.2",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1"
 	},
 	"packageManager": "pnpm@10.6.5",
 	"engines": {

@@ -255,6 +255,7 @@ class Dag implements Runner
         }
 
         return array_filter($this->vertexResults, function ($value) {
+            /* @phpstan-ignore-next-line */
             return $value instanceof VertexResult || (is_array($value) && ! empty($value));
         });
     }

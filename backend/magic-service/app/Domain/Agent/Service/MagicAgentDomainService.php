@@ -12,6 +12,7 @@ use App\Domain\Agent\Constant\MagicAgentVersionStatus;
 use App\Domain\Agent\Constant\SystemInstructType;
 use App\Domain\Agent\Entity\MagicAgentEntity;
 use App\Domain\Agent\Entity\ValueObject\Query\MagicAgentQuery;
+use App\Domain\Agent\Event\MagicAgentDeletedEvent;
 use App\Domain\Agent\Event\MagicAgentSavedEvent;
 use App\Domain\Agent\Factory\MagicAgentVersionFactory;
 use App\Domain\Agent\Repository\Persistence\MagicAgentRepository;
@@ -95,9 +96,10 @@ class MagicAgentDomainService
             ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED);
         }
         Db::transaction(function () use ($id, $organizationCode) {
-            // 删除助理
+            $magicAgentEntity = $this->agentRepository->getAgentById($id);
             $this->agentRepository->deleteAgentById($id, $organizationCode);
             $this->agentVersionRepository->deleteByAgentId($id, $organizationCode);
+            AsyncEventUtil::dispatch(new MagicAgentDeletedEvent($magicAgentEntity));
         });
         return true;
     }

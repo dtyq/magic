@@ -1,4 +1,4 @@
-import React, { createContext, useMemo, useState } from "react"
+import { createContext, useMemo } from "react"
 import type { ThemeAppearance } from "antd-style"
 import { ThemeProvider as AntdThemeProvider } from "antd-style"
 import type { PropsWithChildren } from "react"
@@ -20,11 +20,11 @@ interface ThemeContextState {
 	setTheme: (theme: ThemeAppearance) => void
 }
 
+type Theme = "light" | "dark" | "auto"
+
 const ThemeContext = createContext<ThemeContextState>({} as ThemeContextState)
 
-function ThemeProvider({ children }: PropsWithChildren) {
-	const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto")
-
+function ThemeProvider({ children, theme }: PropsWithChildren & { theme: Theme }) {
 	const prefersColorScheme = useMemo(() => {
 		if (theme === "auto") {
 			return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"

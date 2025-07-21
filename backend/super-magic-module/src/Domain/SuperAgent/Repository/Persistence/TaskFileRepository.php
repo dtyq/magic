@@ -11,7 +11,6 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
-use Exception;
 
 class TaskFileRepository implements TaskFileRepositoryInterface
 {
@@ -28,6 +27,22 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
+    public function getTaskFilesByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $models = $this->model::query()->whereIn('file_id', $ids)->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
     /**
      * 根据fileKey获取文件.
      */
@@ -38,6 +53,22 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             $query = $query->where('topic_id', $topicId);
         }
         $model = $query->first();
+
+        if (! $model) {
+            return null;
+        }
+        return new TaskFileEntity($model->toArray());
+    }
+
+    /**
+     * 根据项目ID和fileKey获取文件.
+     */
+    public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('file_key', $fileKey)
+            ->first();
 
         if (! $model) {
             return null;
@@ -70,6 +101,50 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 如果指定了存储类型，添加存储类型过滤条件
         if (! empty($storageType)) {
             $query->where('storage_type', $storageType);
+        }
+
+        // 过滤已经被删除的， deleted_at 不为空
+        $query->whereNull('deleted_at');
+
+        // 先获取总数
+        $total = $query->count();
+
+        // 获取分页数据，使用Eloquent的get()方法让$casts生效
+        $models = $query->skip($offset)
+            ->take($pageSize)
+            ->orderBy('file_id', 'desc')
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return [
+            'list' => $list,
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * 根据项目ID获取文件列表.
+     *
+     * @param int $projectId 项目ID
+     * @param int $page 页码
+     * @param int $pageSize 每页数量
+     * @param array $fileType 文件类型过滤
+     * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
+     */
+    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = []): array
+    {
+        $offset = ($page - 1) * $pageSize;
+
+        // 构建查询
+        $query = $this->model::query()->where('project_id', $projectId);
+
+        // 如果指定了文件类型数组且不为空，添加文件类型过滤条件
+        if (! empty($fileType)) {
+            $query->whereIn('file_type', $fileType);
         }
 
         // 过滤已经被删除的， deleted_at 不为空
@@ -150,14 +225,13 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     {
         $date = date('Y-m-d H:i:s');
         $entity->setCreatedAt($date);
-        $entity->setUpdatedAt($date);
 
         $entityArray = $entity->toArray();
         $model = $this->model::query()->create($entityArray);
 
         // 设置数据库生成的ID
         if (! empty($model->file_id)) {
-            $entity->setFileId($model->file_id);
+            $entity->setFileId($entity->getFileId());
         }
 
         return $entity;
@@ -172,7 +246,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 首先检查是否已经存在相同的file_key和topic_id的记录
         $existingEntity = $this->model::query()
             ->where('file_key', $entity->getFileKey())
-            ->where('topic_id', $entity->getTopicId())
             ->first();
 
         // 如果已存在记录，则返回已存在的实体
@@ -190,27 +263,12 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         $entityArray = $entity->toArray();
 
-        try {
-            $this->model::query()->create($entityArray);
-            return $entity;
-        } catch (Exception $e) {
-            // 如果在尝试创建时出现异常（如唯一键冲突），再次查询尝试获取
-            $existingEntity = $this->model::query()
-                ->where('file_key', $entity->getFileKey())
-                ->where('topic_id', $entity->getTopicId())
-                ->first();
-
-            if ($existingEntity) {
-                return new TaskFileEntity($existingEntity->toArray());
-            }
-
-            return null;
-        }
+        $this->model::query()->create($entityArray);
+        return $entity;
     }
 
     public function updateById(TaskFileEntity $entity): TaskFileEntity
     {
-        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $entity->toArray();
 
         $this->model::query()
@@ -282,5 +340,38 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $entities;
+    }
+
+    public function findUserFilesByProjectId(string $projectId): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('is_hidden', 0)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->limit(1000)
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
+    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->withTrashed()
+            ->where('project_id', $projectId)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
     }
 }

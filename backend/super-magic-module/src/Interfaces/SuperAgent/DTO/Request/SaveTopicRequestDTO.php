@@ -7,70 +7,41 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
-use App\Infrastructure\Core\AbstractDTO;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use App\Infrastructure\Core\AbstractRequestDTO;
 
 /**
- * 保存话题请求DTO
- * 用于接收新增或更新话题的请求参数.
+ * Save topic request DTO
+ * Used to receive request parameters for creating or updating topic.
  */
-class SaveTopicRequestDTO extends AbstractDTO
+class SaveTopicRequestDTO extends AbstractRequestDTO
 {
     /**
-     * 话题ID，为空时表示新增
-     * 字符串类型，对应任务状态表的主键.
+     * Topic ID, empty means create new topic.
      */
     public string $id = '';
 
     /**
-     * 工作区ID.
+     * Workspace ID.
      */
-    public string $workspace_id = '';
+    public string $workspaceId = '';
 
     /**
-     * 话题名称.
+     * Topic name.
      */
-    public string $topic_name = '';
+    public string $topicName = '';
 
     /**
-     * 获取验证规则.
+     * Project ID.
      */
-    public function rules(): array
-    {
-        return [
-            'id' => 'nullable|string',
-            'workspace_id' => 'required|string',
-            'topic_name' => 'required|string|max:100',
-        ];
-    }
+    public string $projectId = '';
 
     /**
-     * 获取验证失败的自定义错误信息.
+     * Project mode.
      */
-    public function messages(): array
-    {
-        return [
-            'workspace_id.required' => '工作区ID不能为空',
-            'workspace_id.string' => '工作区ID必须是字符串',
-            'topic_name.required' => '话题名称不能为空',
-            'topic_name.max' => '话题名称不能超过100个字符',
-        ];
-    }
+    public string $projectMode = '';
 
     /**
-     * 从请求中创建DTO实例.
-     */
-    public static function fromRequest(RequestInterface $request): self
-    {
-        $data = new self();
-        $data->id = $request->input('id', '');
-        $data->workspace_id = $request->input('workspace_id', '');
-        $data->topic_name = $request->input('topic_name', '');
-        return $data;
-    }
-
-    /**
-     * 获取任务状态ID(主键).
+     * Get topic ID (primary key).
      */
     public function getId(): string
     {
@@ -78,26 +49,72 @@ class SaveTopicRequestDTO extends AbstractDTO
     }
 
     /**
-     * 获取工作区ID.
+     * Get workspace ID.
      */
     public function getWorkspaceId(): string
     {
-        return $this->workspace_id;
+        return $this->workspaceId;
     }
 
     /**
-     * 获取话题名称.
+     * Get topic name.
      */
     public function getTopicName(): string
     {
-        return $this->topic_name;
+        return $this->topicName;
     }
 
     /**
-     * 是否为更新操作.
+     * Get project ID.
+     */
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
+    /**
+     * Get project mode.
+     */
+    public function getProjectMode(): string
+    {
+        return $this->projectMode;
+    }
+
+    /**
+     * Check if this is an update operation.
      */
     public function isUpdate(): bool
     {
         return ! empty($this->id);
+    }
+
+    /**
+     * Get validation rules.
+     */
+    protected static function getHyperfValidationRules(): array
+    {
+        return [
+            'id' => 'nullable|string',
+            'workspace_id' => 'required|string',
+            'topic_name' => 'present|string|max:100',
+            'project_id' => 'required|string',
+            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,super-magic',
+        ];
+    }
+
+    /**
+     * Get custom error messages for validation failures.
+     */
+    protected static function getHyperfValidationMessage(): array
+    {
+        return [
+            'workspace_id.required' => 'Workspace ID cannot be empty',
+            'workspace_id.string' => 'Workspace ID must be a string',
+            'topic_name.present' => 'Topic name field is required',
+            'topic_name.max' => 'Topic name cannot exceed 100 characters',
+            'project_id.required' => 'Project ID cannot be empty',
+            'project_id.string' => 'Project ID must be a string',
+            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, super-magic',
+        ];
     }
 }

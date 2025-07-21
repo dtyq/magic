@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Tiptap\CustomExtension;
 
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionInterface;
 use App\Infrastructure\Util\Tiptap\AbstractCustomNode;
+use App\Interfaces\Agent\Assembler\MentionAssembler;
 use Hyperf\Codec\Json;
 
 /**
@@ -26,13 +28,16 @@ class MentionNode extends AbstractCustomNode
             ],
             'id' => [
                 'default' => null,
-                'isRequired' => true,
+                'isRequired' => false,
             ],
             'label' => [
                 'default' => null,
-                'isRequired' => true,
+                'isRequired' => false,
             ],
             'avatar' => [
+                'default' => null,
+            ],
+            'attrs' => [
                 'default' => null,
             ],
         ];
@@ -41,6 +46,11 @@ class MentionNode extends AbstractCustomNode
     public function renderText($node): string
     {
         $nodeForArray = Json::decode(Json::encode($node));
+        // 可能引用 superAgent 的文件/mcp/flow等
+        $superAgentMention = MentionAssembler::fromArray($nodeForArray);
+        if ($superAgentMention instanceof MentionInterface) {
+            return $superAgentMention->getMentionTextStruct();
+        }
         $userName = $nodeForArray['attrs']['label'] ?? '';
         return '@' . $userName;
     }

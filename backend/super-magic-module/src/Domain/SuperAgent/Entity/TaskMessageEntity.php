@@ -63,6 +63,11 @@ class TaskMessageEntity extends AbstractEntity
     protected string $content = '';
 
     /**
+     * @var null|string 原始消息内容
+     */
+    protected ?string $rawContent = null;
+
+    /**
      * @var null|array 步骤信息
      */
     protected ?array $steps = null;
@@ -76,6 +81,11 @@ class TaskMessageEntity extends AbstractEntity
      * @var null|array 附件信息
      */
     protected ?array $attachments = null;
+
+    /**
+     * @var null|array 提及信息
+     */
+    protected ?array $mentions = null;
 
     /**
      * @var string 事件类型
@@ -94,7 +104,7 @@ class TaskMessageEntity extends AbstractEntity
         $this->id = IdGenerator::getSnowId();
         $this->messageId = isset($data['message_id']) ? (string) $data['message_id'] : (string) IdGenerator::getSnowId();
         $this->sendTimestamp = time();
-        $this->initProperty($data);
+        parent::__construct($data);
     }
 
     public function getId(): int
@@ -195,6 +205,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getRawContent(): string
+    {
+        return $this->rawContent ?? '';
+    }
+
+    public function setRawContent(?string $rawContent): self
+    {
+        $this->rawContent = $rawContent;
+        return $this;
+    }
+
     public function getSteps(): ?array
     {
         return $this->steps;
@@ -225,6 +246,17 @@ class TaskMessageEntity extends AbstractEntity
     public function setAttachments(?array $attachments): self
     {
         $this->attachments = empty($attachments) ? null : $attachments;
+        return $this;
+    }
+
+    public function getMentions(): ?array
+    {
+        return $this->mentions;
+    }
+
+    public function setMentions(?array $mentions): self
+    {
+        $this->mentions = empty($mentions) ? null : $mentions;
         return $this;
     }
 
@@ -268,9 +300,11 @@ class TaskMessageEntity extends AbstractEntity
             'topic_id' => $this->topicId,
             'status' => $this->status,
             'content' => $this->content,
+            'raw_content' => $this->rawContent,
             'steps' => $this->steps,
             'tool' => $this->tool,
             'attachments' => $this->attachments,
+            'mentions' => $this->getMentions(),
             'event' => $this->event,
             'send_timestamp' => $this->sendTimestamp,
             'show_in_ui' => $this->showInUi,

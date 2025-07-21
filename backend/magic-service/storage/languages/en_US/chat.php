@@ -22,5 +22,13 @@ return [
         'stream' => [
             'type_not_support' => 'The message type is not supported for stream messages',
         ],
+        'voice' => [
+            'attachment_required' => 'Voice message must contain an audio attachment',
+            'single_attachment_only' => 'Voice message can only contain one attachment, current count: :count',
+            'attachment_empty' => 'Voice message attachment cannot be empty',
+            'audio_format_required' => 'Voice message attachment must be audio format, current type: :type',
+            'duration_positive' => 'Voice duration must be greater than 0 seconds, current duration: :duration seconds',
+            'duration_exceeds_limit' => 'Voice duration cannot exceed :max_duration seconds, current duration: :duration seconds',
+        ],
     ],
 ];

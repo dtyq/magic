@@ -327,14 +327,19 @@ class UserDepartmentDetailDTO extends AbstractDTO
 
     /**
      * 用户在多个部门时的部门信息，包含完整路径。
-     * @phpstan-ignore-next-line
-     * @var array<string,DepartmentPathNodeDTO[]>
+     * @param array<string,array>|array<string,DepartmentPathNodeDTO[]> $fullPathNodes
      */
     public function setFullPathNodes(array $fullPathNodes): UserDepartmentDetailDTO
     {
         foreach ($fullPathNodes as $key => $value) {
             $this->fullPathNodes[$key] = array_map(function ($pathNode) {
-                return new DepartmentPathNodeDTO($pathNode);
+                if (is_array($pathNode)) {
+                    return new DepartmentPathNodeDTO($pathNode);
+                }
+                if ($pathNode instanceof DepartmentPathNodeDTO) {
+                    return $pathNode;
+                }
+                return null;
             }, $value);
         }
         return $this;

@@ -17,5 +17,13 @@ interface WorkspaceVersionRepositoryInterface
 
     public function findByTopicId(int $topicId): array;
 
-    public function findByCommitHashAndTopicId(string $commitHash, int $topicId, string $folder = ''): ?WorkspaceVersionEntity;
+    public function findByCommitHashAndProjectId(string $commitHash, int $projectId, string $folder = ''): ?WorkspaceVersionEntity;
+
+    public function findByProjectId(int $projectId, string $folder = ''): ?WorkspaceVersionEntity;
+
+    public function getLatestVersionByProjectId(int $projectId): ?WorkspaceVersionEntity;
+
+    public function getLatestUpdateVersionProjectId(int $projectId): ?WorkspaceVersionEntity;
+
+    public function getTagByCommitHashAndProjectId(string $commitHash, int $projectId): int;
 }

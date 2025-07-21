@@ -20,13 +20,7 @@ class MagicAgentVersionFactory
         if (isset($botVersion['visibility_config']) && is_string($botVersion['visibility_config'])) {
             $botVersion['visibility_config'] = Json::decode($botVersion['visibility_config']);
         }
-        $magicAgentVersionEntity = new MagicAgentVersionEntity($botVersion);
-        $magicAgentVersionEntity->setAgentId($magicAgentVersionEntity->getRootId());
-        $magicAgentVersionEntity->setAgentAvatar($magicAgentVersionEntity->getRobotAvatar());
-        $magicAgentVersionEntity->setAgentName($magicAgentVersionEntity->getRobotName());
-        $magicAgentVersionEntity->setAgentDescription($magicAgentVersionEntity->getRobotDescription());
-        $magicAgentVersionEntity->setAgentDescription($magicAgentVersionEntity->getRobotDescription());
-        return $magicAgentVersionEntity;
+        return new MagicAgentVersionEntity($botVersion);
     }
 
     public static function toEntities(array $botVersions): array

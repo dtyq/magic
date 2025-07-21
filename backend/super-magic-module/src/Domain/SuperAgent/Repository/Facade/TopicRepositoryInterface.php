@@ -17,6 +17,14 @@ interface TopicRepositoryInterface
      */
     public function getTopicById(int $id): ?TopicEntity;
 
+    /**
+     * 批量获取话题.
+     * @return TopicEntity[]
+     */
+    public function getTopicsByIds(array $ids): array;
+
+    public function getTopicWithDeleted(int $id): ?TopicEntity;
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity;
 
     /**
@@ -55,6 +63,8 @@ interface TopicRepositoryInterface
      */
     public function updateTopicWithUpdatedAt(TopicEntity $topicEntity, string $updatedAt): bool;
 
+    public function updateTopicByCondition(array $condition, array $data): bool;
+
     /**
      * 删除话题.
      */
@@ -76,7 +86,7 @@ interface TopicRepositoryInterface
      */
     public function getTopicStatusMetrics(array $conditions = []): array;
 
-    public function updateTopicStatus(int $id, $taskId, TaskStatus $status): bool;
+    public function updateTopicStatus(int $id, $taskId, string $sandboxId, TaskStatus $status): bool;
 
     /**
      * 获取最近更新时间超过指定时间的话题列表.
@@ -87,5 +97,19 @@ interface TopicRepositoryInterface
      */
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array;
 
+    /**
+     * 根据项目ID获取话题列表.
+     */
+    public function getTopicsByProjectId(int $projectId, string $userId): array;
+
     public function updateTopicStatusBySandboxIds(array $sandboxIds, string $status);
+
+    /**
+     * 统计项目下的话题数量.
+     */
+    public function countTopicsByProjectId(int $projectId): int;
+
+    public function getRunningWorkspaceIds(array $workspaceIds): array;
+
+    public function getRunningProjectIds(array $projectIds): array;
 }

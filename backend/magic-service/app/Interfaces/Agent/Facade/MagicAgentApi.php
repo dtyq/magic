@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Agent\Facade;
 
+use App\Application\Agent\Service\AgentAppService;
 use App\Application\Agent\Service\MagicAgentAppService;
 use App\Application\Chat\Service\MagicAccountAppService;
 use App\Application\Chat\Service\MagicUserContactAppService;
@@ -23,6 +24,8 @@ use App\Domain\Agent\Entity\MagicAgentVersionEntity;
 use App\Domain\Agent\Entity\ValueObject\Query\MagicAgentQuery;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\AddFriendType;
+use App\Infrastructure\Core\ValueObject\Page;
+use App\Interfaces\Agent\Assembler\AgentAssembler;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Agent\Assembler\MagicAgentAssembler;
 use App\Interfaces\Agent\Assembler\MagicBotThirdPlatformChatAssembler;
@@ -53,6 +56,9 @@ class MagicAgentApi extends AbstractApi
     #[Inject]
     protected MagicBotThirdPlatformChatAssembler $magicAgentThirdPlatformChatAssembler;
 
+    #[Inject]
+    protected AgentAppService $agentAppService;
+
     public function queries()
     {
         /** @var MagicUserAuthorization $authentication */
@@ -73,12 +79,10 @@ class MagicAgentApi extends AbstractApi
         $authentication = $this->getAuthorization();
         $inputs = $this->request->all();
         $query = new MagicAgentQuery($inputs);
-        $agentName = $inputs['agent_name'] ?? $inputs['robot_name'] ?? '';
-        $query->setAgentName($agentName);
         $query->setOrder(['id' => 'desc']);
-        $page = $this->createPage();
-        $data = $this->magicAgentAppService->queriesAvailable($authentication, $query, $page);
-        return $this->magicAgentAssembler->createPageListAgentDTO($data['total'], $data['list'], $page, $data['avatars']);
+        $page = Page::createNoPage();
+        $data = $this->agentAppService->queriesAvailable($authentication, $query, $page);
+        return AgentAssembler::createAvailableList($page, $data['total'], $data['list'], $data['icons']);
     }
 
     // 创建/修改助理

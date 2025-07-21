@@ -259,3 +259,46 @@ class TokenUsageTracker:
             # 使用报告管理器生成完整报告
             cost_report = self._report_manager.get_cost_report()
             return self._report_manager.format_report(cost_report)
+        
+    def get_usage_report(self) -> 'TokenUsageReport':
+        """获取token使用报告（汇总格式）
+        
+        优先从内存中获取数据，如果内存为空则从报告管理器的文件中获取
+        
+        Returns:
+            TokenUsageReport: 包含所有模型token使用统计的汇总报告
+            如果没有使用记录，返回空的汇总报告
+        """
+        from agentlang.llms.token_usage.models import TokenUsageReport, TokenUsage
+        
+        usages = []
+        
+        # 首先尝试从内存中获取数据
+        with self._lock:
+            if self._usage:
+                # 内存中有数据，直接使用
+                for model_id, usage in self._usage.items():
+                    # 复制并设置模型ID和名称
+                    model_usage = TokenUsage(
+                        input_tokens=usage.input_tokens,
+                        output_tokens=usage.output_tokens,
+                        total_tokens=usage.total_tokens,
+                        input_tokens_details=usage.input_tokens_details,
+                        output_tokens_details=usage.output_tokens_details,
+                        model_id=model_id,
+                        model_name=model_id
+                    )
+                    usages.append(model_usage)
+        
+        # 如果内存中没有数据，但有报告管理器，则从文件中获取
+        if not usages and self._report_manager:
+            try:
+                cost_report = self._report_manager.get_cost_report()
+                # 将CostReport转换为TokenUsageReport
+                return TokenUsageReport.from_cost_report(cost_report)
+            except Exception as e:
+                logger.warning(f"从报告管理器获取数据失败: {e}")
+        
+        # 创建汇总报告
+        return TokenUsageReport.create_summary_report(usages)
+

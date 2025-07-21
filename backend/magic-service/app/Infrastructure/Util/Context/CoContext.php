@@ -38,6 +38,16 @@ class CoContext
         return Context::set('x-b3-trace-id', $tranceId);
     }
 
+    public static function setLanguage(string $language): void
+    {
+        Context::set('language', $language);
+    }
+
+    public static function getLanguage(): string
+    {
+        return Context::get('language', 'zh_CN') ?: 'zh_CN';
+    }
+
     /**
      * @deprecated
      */

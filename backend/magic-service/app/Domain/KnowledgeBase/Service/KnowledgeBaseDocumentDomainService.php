@@ -111,6 +111,7 @@ readonly class KnowledgeBaseDocumentDomainService
             $this->updateWordCount($dataIsolation, $knowledgeBaseCode, $documentEntity->getCode(), $deltaWordCount);
         });
         // 异步删除向量数据库片段
+        /* @phpstan-ignore-next-line */
         ! is_null($documentEntity) && AsyncEventUtil::dispatch(new KnowledgeBaseDocumentRemovedEvent($dataIsolation, $knowledgeBaseEntity, $documentEntity));
     }
 

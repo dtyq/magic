@@ -1,0 +1,174 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicButton > 快照测试 > 不同尺寸按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r2a magic-btn-default magic-btn-color-default magic-btn-variant-outlined magic-btn-sm acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      小按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 不同尺寸按钮快照 2`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r2e magic-btn-default magic-btn-color-default magic-btn-variant-outlined magic-btn-lg acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      大按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 主要按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r1e magic-btn-primary magic-btn-color-primary magic-btn-variant-solid acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      主要按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 加载状态按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r22 magic-btn-default magic-btn-color-default magic-btn-variant-outlined magic-btn-loading acss-1i6z9ln"
+    type="button"
+  >
+    <span
+      class="magic-btn-icon magic-btn-loading-icon"
+    >
+      <span
+        aria-label="loading"
+        class="anticon anticon-loading anticon-spin"
+        role="img"
+      >
+        <svg
+          aria-hidden="true"
+          data-icon="loading"
+          fill="currentColor"
+          focusable="false"
+          height="1em"
+          viewBox="0 0 1024 1024"
+          width="1em"
+        >
+          <path
+            d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 00-94.3-139.9 437.71 437.71 0 00-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"
+          />
+        </svg>
+      </span>
+    </span>
+    <span>
+      加载按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 带图标按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r26 magic-btn-default magic-btn-color-default magic-btn-variant-outlined acss-1i6z9ln"
+    type="button"
+  >
+    <span
+      class="magic-btn-icon"
+    >
+      <span>
+        🚀
+      </span>
+    </span>
+    <span>
+      带图标按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 文本按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r1m magic-btn-text magic-btn-color-default magic-btn-variant-text acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      文本按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 禁用状态按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r1u magic-btn-default magic-btn-color-default magic-btn-variant-outlined acss-1i6z9ln"
+    disabled=""
+    type="button"
+  >
+    <span>
+      禁用按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 虚线按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r1i magic-btn-dashed magic-btn-color-default magic-btn-variant-dashed acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      虚线按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 链接按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r1q magic-btn-link magic-btn-color-link magic-btn-variant-link acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      链接按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`MagicButton > 快照测试 > 隐藏按钮快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicButton > 快照测试 > 默认按钮快照 1`] = `
+<DocumentFragment>
+  <button
+    aria-describedby="test-id"
+    class="magic-btn css-dev-only-do-not-override-yotw4n css-var-r1a magic-btn-default magic-btn-color-default magic-btn-variant-outlined acss-1i6z9ln"
+    type="button"
+  >
+    <span>
+      默认按钮
+    </span>
+  </button>
+</DocumentFragment>
+`;

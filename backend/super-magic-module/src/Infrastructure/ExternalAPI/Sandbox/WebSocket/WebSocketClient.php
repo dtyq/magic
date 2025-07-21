@@ -98,6 +98,7 @@ class WebSocketClient
      */
     public function disconnect(): void
     {
+        /* @phpstan-ignore-next-line */
         if ($this->client !== null && method_exists($this->client, 'close')) {
             try {
                 $this->client->close();

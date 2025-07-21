@@ -11,12 +11,16 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
@@ -27,8 +31,10 @@ class FileApi extends AbstractApi
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
+        private readonly FileSaveContentAppService $fileSaveContentAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
+        protected AgentFileAppService $agentFileAppService,
     ) {
     }
 
@@ -93,6 +99,30 @@ class FileApi extends AbstractApi
         return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
     }
 
+    /**
+     * 刷新 STS Token.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 刷新结果
+     */
+    public function refreshTmpStsToken(RequestContext $requestContext): array
+    {
+        $token = $this->request->header('token', '');
+        if (empty($token)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
+        }
+
+        if ($token !== config('super-magic.sandbox.token', '')) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
+        }
+
+        // 创建DTO并从请求中解析数据
+        $requestData = $this->request->all();
+        $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
+
+        return $this->fileProcessAppService->refreshStsToken($refreshStsTokenDTO);
+    }
+
     public function workspaceAttachments(RequestContext $requestContext): array
     {
         // $topicId = $this->request->input('topic_id', '');
@@ -127,27 +157,47 @@ class FileApi extends AbstractApi
     }
 
     /**
+     * 获取文件版本列表.
+     */
+    public function getFileVersions(RequestContext $requestContext)
+    {
+        $fileId = (int) $this->request->input('file_id', '');
+        $topicId = (int) $this->request->input('topic_id', '');
+        return $this->agentFileAppService->getFileVersions($fileId, $topicId);
+    }
+
+    /**
+     * 获取文件版本内容.
+     */
+    public function getFileVersionContent(RequestContext $requestContext)
+    {
+        $fileId = (int) $this->request->input('file_id', '');
+        $commitHash = $this->request->input('commit_hash', '');
+        $topicId = (int) $this->request->input('topic_id', '');
+        return $this->agentFileAppService->getFileVersionContent($fileId, $commitHash, $topicId);
+    }
+
+    /**
      * 批量保存文件内容.
+     * 并发执行沙箱文件编辑和OSS保存.
      *
      * @param RequestContext $requestContext 请求上下文
      * @return array 批量保存结果
      */
     public function saveFileContent(RequestContext $requestContext): array
     {
-        // 获取原始请求数据
         $requestData = $this->request->all();
-
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization($this->getAuthorization());
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 验证请求格式必须是数组
-        if (! is_array($requestData) || empty($requestData)) {
+        if (empty($requestData)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'files_array_required');
         }
 
-        // 创建批量保存DTO
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $userAuthorization = $requestContext->getUserAuthorization();
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
+
+        // 并发执行沙箱保存和OSS保存
+        $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
+
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
     }
 
@@ -195,5 +245,43 @@ class FileApi extends AbstractApi
         $responseDTO = $this->fileBatchAppService->checkBatchDownload($requestContext, $batchKey);
 
         return $responseDTO->toArray();
+    }
+
+    /**
+     * 获取项目文件上传STS Token.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 获取结果
+     */
+    public function getProjectUploadToken(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestData = $this->request->all();
+        $requestDTO = ProjectUploadTokenRequestDTO::fromRequest($requestData);
+
+        // 调用应用服务
+        return $this->fileProcessAppService->getProjectUploadToken($requestContext, $requestDTO);
+    }
+
+    /**
+     * 保存项目文件.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 保存结果
+     */
+    public function saveProjectFile(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestData = $this->request->all();
+        $requestDTO = SaveProjectFileRequestDTO::fromRequest($requestData);
+
+        // 调用应用服务
+        return $this->fileProcessAppService->saveProjectFile($requestContext, $requestDTO);
     }
 }

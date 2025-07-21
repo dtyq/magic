@@ -117,7 +117,7 @@ class KnowledgeConfig
     {
         $min = 1;
         $max = 100;
-        if (! is_numeric($limit) || $limit < $min || $limit > $max) {
+        if ($limit < $min || $limit > $max) {
             ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.node.knowledge_similarity.limit_valid', ['min' => $min, 'max' => $max]);
         }
 

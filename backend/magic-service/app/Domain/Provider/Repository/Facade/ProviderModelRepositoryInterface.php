@@ -16,6 +16,8 @@ interface ProviderModelRepositoryInterface
 {
     public function getById(ProviderDataIsolation $dataIsolation, int $id, bool $checkModelEnabled = true): ?ProviderModelEntity;
 
+    public function getOfficeModelById(int $id, bool $checkModelEnabled = true): ?ProviderModelEntity;
+
     /**
      * @param array<int> $ids
      * @return array<int, ProviderModelEntity> 返回以id为key的实体对象数组

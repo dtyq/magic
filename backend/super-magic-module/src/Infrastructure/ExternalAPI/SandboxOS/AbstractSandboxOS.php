@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS;
 
 use GuzzleHttp\Client;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Guzzle\ClientFactory;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -19,8 +21,6 @@ use RuntimeException;
  */
 abstract class AbstractSandboxOS
 {
-    protected Client $client;
-
     protected LoggerInterface $logger;
 
     protected string $baseUrl = '';
@@ -32,28 +32,57 @@ abstract class AbstractSandboxOS
     public function __construct(LoggerFactory $loggerFactory)
     {
         $this->logger = $loggerFactory->get('sandbox');
-        // Initialize HTTP client
-        $this->initializeClient();
     }
 
     /**
-     * Initialize HTTP client with configuration.
+     * Get HTTP client with proper connection management for long-running processes.
      */
-    protected function initializeClient(): void
+    protected function getClient(): Client
     {
-        $this->baseUrl = config('super-magic.sandbox.gateway', '');
-        $this->token = config('super-magic.sandbox.token', '');
-        $this->enableSandbox = config('super-magic.sandbox.enabled', true);
+        // Always create a fresh client using Hyperf's ClientFactory for better connection management
+        $clientFactory = ApplicationContext::getContainer()->get(ClientFactory::class);
 
-        if (empty($this->baseUrl)) {
-            throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set');
-        }
-
-        $this->client = new Client([
-            'base_uri' => $this->baseUrl,
+        return $clientFactory->create([
+            'base_uri' => $this->getBaseUrl(),
             'timeout' => 30,
             'http_errors' => false,
         ]);
+    }
+
+    /**
+     * Get base URL with lazy initialization.
+     */
+    protected function getBaseUrl(): string
+    {
+        if (empty($this->baseUrl)) {
+            $this->baseUrl = config('super-magic.sandbox.gateway', '');
+            if (empty($this->baseUrl)) {
+                throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set');
+            }
+        }
+        return $this->baseUrl;
+    }
+
+    /**
+     * Get token with lazy initialization.
+     */
+    protected function getToken(): string
+    {
+        if (empty($this->token)) {
+            $this->token = config('super-magic.sandbox.token', '');
+        }
+        return $this->token;
+    }
+
+    /**
+     * Get sandbox enabled status with lazy initialization.
+     */
+    protected function isEnabledSandbox(): bool
+    {
+        if (! isset($this->enableSandbox)) {
+            $this->enableSandbox = config('super-magic.sandbox.enabled', true);
+        }
+        return $this->enableSandbox;
     }
 
     /**
@@ -63,7 +92,7 @@ abstract class AbstractSandboxOS
     protected function getAuthHeaders(): array
     {
         return [
-            'X-Sandbox-Gateway' => $this->token,
+            'X-Sandbox-Gateway' => $this->getToken(),
             'Content-Type' => 'application/json',
         ];
     }

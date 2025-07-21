@@ -110,13 +110,12 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelConfigEntity = new ModelConfigEntity();
 
-            // Determine object type based on model type
+            // Determine object type based on model class name
             $isImageModel = $model instanceof ImageGenerationModel;
             $objectType = $isImageModel ? 'image' : 'model';
 
             // Set common fields
             $modelConfigEntity->setModel($model->getModelName());
-            // Model type
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());
@@ -449,7 +448,7 @@ class LLMAppService extends AbstractLLMAppService
             if (! $model || $model instanceof MagicAILocalModel) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
             }
-
+            /* @phpstan-ignore-next-line */
             if ($model instanceof AwsBedrockModel && method_exists($model, 'setConfig')) {
                 $model->setConfig(array_merge($model->getConfig(), $this->createAwsAutoCacheConfig($proxyModelRequest)));
             }
@@ -459,6 +458,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $proxyModelRequest->addBusinessParam('model_id', $proxyModelRequest->getModel());
             $proxyModelRequest->addBusinessParam('app_id', $contextData['app_code'] ?? '');
+            $proxyModelRequest->addBusinessParam('service_provider_id', $modelAttributes?->getProviderId() ?? '');
             $proxyModelRequest->addBusinessParam('service_provider_model_id', $modelAttributes?->getProviderModelId() ?? '');
             $proxyModelRequest->addBusinessParam('source_id', $contextData['source_id'] ?? '');
             $proxyModelRequest->addBusinessParam('user_name', $contextData['user_name'] ?? '');

@@ -232,7 +232,7 @@ class MagicLLMDomainService
        - 如果一个事件涉及多个引用，合并所有相关引用编号。
        - 不要在 "description" 中添加引用。
     2. **时间处理**：
-       - 事件时间尽量精确到月份（如 "2023-05"），若搜索内容未提供具体月份，但有指出上半年或者下半年，可以使用（“2023 上半年”），若没有则，使用年份（如 "2023"）。
+       - 事件时间尽量精确到月份（如 "2023-05"），若搜索内容未提供具体月份，但有指出上半年或者下半年，可以使用（"2023 上半年"），若没有则，使用年份（如 "2023"）。
        - 若同一事件在多个引用中出现，优先使用最早的时间。
        - 若时间不明确，根据上下文推测最早可能的时间，并确保合理。
     3. **事件提取与筛选**：
@@ -319,42 +319,10 @@ class MagicLLMDomainService
         $this->logger = $this->loggerFactory->get(get_class($this));
     }
 
-    /**
-     * @throws Throwable
-     */
     public function generatePPTFromMindMap(AISearchCommonQueryVo $queryVo, string $mindMap): string
     {
         // 直接用思维导图生成 ppt
         return $mindMap;
-        //        $userMessage = $queryVo->getUserMessage();
-        //        $conversationId = $queryVo->getConversationId();
-        //        $model = $queryVo->getModel();
-        //        $systemPrompt = str_replace(['{mind_map}', '{date_now}'], [$mindMap, date('Y年 m月 d日, H时 i分 s秒')], $this->pptQueryPrompt);
-        //        $this->logger->info(Json::encode([
-        //            'log_title' => 'mindSearch systemPrompt ppt',
-        //        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        //        // 访问 llm
-        //        try {
-        //            $generatePPTResponse = (string) $this->llmChat(
-        //                $systemPrompt,
-        //                $userMessage,
-        //                $model,
-        //                null,
-        //                null,
-        //                $conversationId,
-        //                $queryVo->getMagicApiBusinessParam()
-        //            );
-        //            // 去掉换行符
-        //            $generatePPTResponse = str_replace('\n', '', $generatePPTResponse);
-        //            $this->logger->info(Json::encode([
-        //                'log_title' => 'mindSearch generatePPTFromMindMap',
-        //                'log_content' => $generatePPTResponse,
-        //            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        //            return $this->stripMarkdownCodeBlock($generatePPTResponse, 'markdown');
-        //        } catch (Throwable $e) {
-        //            $this->logger->error(sprintf('mindSearch 生成PPT时发生错误:%s,file:%s,line:%s trace:%s, will generate again.', $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
-        //            throw $e;
-        //        }
     }
 
     /**

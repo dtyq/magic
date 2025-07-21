@@ -15,6 +15,8 @@ class WorkspaceVersionEntity extends AbstractEntity
 
     protected int $topicId = 0;
 
+    protected int $projectId = 0;
+
     protected string $sandboxId = '';
 
     protected string $commitHash = '';
@@ -28,6 +30,8 @@ class WorkspaceVersionEntity extends AbstractEntity
     protected ?string $updatedAt = null;
 
     protected ?string $deletedAt = null;
+
+    protected int $tag = 0;
 
     public function getId(): int
     {
@@ -125,6 +129,28 @@ class WorkspaceVersionEntity extends AbstractEntity
     public function setDeletedAt(?string $deletedAt): self
     {
         $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function getTag(): int
+    {
+        return $this->tag;
+    }
+
+    public function setTag(int $tag): self
+    {
+        $this->tag = $tag;
+        return $this;
+    }
+
+    public function getProjectId(): int
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId(int $projectId): self
+    {
+        $this->projectId = $projectId;
         return $this;
     }
 }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Middleware;
 
+use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Di\Annotation\Inject;
 use Psr\Http\Message\ResponseInterface;
@@ -23,7 +24,9 @@ class LocaleMiddleware implements MiddlewareInterface
     {
         $language = $request->getHeader('language')[0] ?? null;
         if (! empty($language)) {
-            $this->translator->setLocale(str_replace('-', '_', $language));
+            $language = str_replace('-', '_', $language);
+            CoContext::setLanguage($language);
+            $this->translator->setLocale($language);
         }
 
         return $handler->handle($request);

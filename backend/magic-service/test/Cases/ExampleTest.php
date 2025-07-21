@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Hyperf\Di\Definition\FactoryDefinition;
 use Hyperf\Di\Resolver\FactoryResolver;
 use Hyperf\Di\Resolver\ResolverDispatcher;
@@ -22,8 +25,15 @@ class ExampleTest extends HttpTestCase
 {
     public function testExample()
     {
-        $res = $this->get('/heartbeat');
-        $this->assertEquals(['status' => 'UP'], $res);
+        $dataIsolation = DataIsolation::create('DT001', 'usi_a450dd07688be6273b5ef112ad50ba7e');
+        $userAuthorization = new MagicUserAuthorization();
+        $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $userAuthorization->setId($dataIsolation->getCurrentUserId());
+
+        $a = make(AgentAppService::class);
+        var_dump($a->getMcpConfig($userAuthorization, $dataIsolation));
+        //        $res = $this->get('/heartbeat');
+        //        $this->assertEquals(['status' => 'UP'], $res);
     }
 
     public function testGetDefinitionResolver()

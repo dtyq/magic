@@ -99,5 +99,9 @@ return (new Config())
             ->exclude('runtime')
             ->exclude('vendor')
             ->in(__DIR__)
+            # cs-fix 企业包,同时排除包的 vendor 目录
+            ->append(Finder::create()->in(__DIR__.'/vendor/dtyq/magic-enterprise-service')->exclude('vendor'))
+            ->append(Finder::create()->in(__DIR__.'/vendor/dtyq/billing-manager')->exclude('vendor'))
+            ->append(Finder::create()->in(__DIR__.'/vendor/dtyq/super-magic-module')->exclude('vendor'))
     )
     ->setUsingCache(false);

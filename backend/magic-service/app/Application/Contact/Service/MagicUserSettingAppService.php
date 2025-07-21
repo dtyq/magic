@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Contact\Service;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\Query\MagicUserSettingQuery;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
@@ -39,8 +40,18 @@ class MagicUserSettingAppService extends AbstractContactAppService
     public function get(Authenticatable $authorization, string $key): ?MagicUserSettingEntity
     {
         $dataIsolation = $this->createDataIsolation($authorization);
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
-        return $this->magicUserSettingDomainService->get($dataIsolation, $key);
+        $setting = $this->magicUserSettingDomainService->get($dataIsolation, $key);
+
+        $key = UserSettingKey::tryFrom($key);
+        if ($setting) {
+            $key?->getValueHandler()?->populateValue($flowDataIsolation, $setting);
+        } else {
+            $setting = $key?->getValueHandler()?->generateDefault() ?? null;
+        }
+
+        return $setting;
     }
 
     /**

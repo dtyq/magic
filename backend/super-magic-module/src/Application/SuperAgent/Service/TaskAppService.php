@@ -27,6 +27,8 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
@@ -60,6 +62,7 @@ use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
@@ -116,7 +119,17 @@ class TaskAppService extends AbstractAppService
             // 检查用户任务数量限制和白名单
             $this->beforeInitTask($dataIsolation, $instruction, $topicEntity);
             // 初始化任务
-            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $instruction, $taskMode, $prompt, $attachments);
+            $userMessageDTO = new UserMessageDTO(
+                agentUserId: $agentUserId,
+                chatConversationId: $conversationId,
+                chatTopicId: $chatTopicId,
+                prompt: $prompt,
+                attachments: $attachments,
+                mentions: null,
+                instruction: $instruction,
+                taskMode: $taskMode
+            );
+            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $userMessageDTO);
             $taskId = (string) $taskEntity->getId();
 
             // 初始化上下文
@@ -141,16 +154,27 @@ class TaskAppService extends AbstractAppService
             // 处理用户发送的信息
             // 记录用户发送的消息
             $attachmentsArr = is_null($attachments) ? [] : json_decode($attachments, true);
-            $this->taskDomainService->recordUserMessage(
-                (string) $taskEntity->getId(),
-                $dataIsolation->getCurrentUserId(),
-                $agentUserId,
-                $prompt,
-                null,
-                $taskEntity->getTopicId(),
-                '',
-                $attachmentsArr
+
+            // Create TaskMessageDTO for user message
+            $taskMessageDTO = new TaskMessageDTO(
+                taskId: (string) $taskEntity->getId(),
+                role: Role::User->value,
+                senderUid: $dataIsolation->getCurrentUserId(),
+                receiverUid: $agentUserId,
+                messageType: 'chat',
+                content: $prompt,
+                status: null,
+                steps: null,
+                tool: null,
+                topicId: $taskEntity->getTopicId(),
+                event: '',
+                attachments: $attachmentsArr,
+                mentions: null,
+                showInUi: true,
+                messageId: null
             );
+
+            $this->taskDomainService->recordTaskMessage($taskMessageDTO);
             // 处理用户上传的附件
             $this->fileProcessAppService->processInitialAttachments($attachments, $taskEntity, $dataIsolation);
 
@@ -259,7 +283,7 @@ class TaskAppService extends AbstractAppService
         }
 
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, []));
         $this->logger->info(sprintf('投递任务开始事件，话题id：%s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
@@ -298,7 +322,7 @@ class TaskAppService extends AbstractAppService
         }
 
         // 更新话题状态
-        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, TaskStatus::ERROR);
+        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, $topicEntity->getSandboxId(), TaskStatus::ERROR);
 
         // 触发完成事件
         AsyncEventUtil::dispatch(new RunTaskAfterEvent(
@@ -857,7 +881,7 @@ class TaskAppService extends AbstractAppService
 
         // 3. 处理工具附件（如果有）
         try {
-            if ($tool !== null && ! empty($tool['attachments'])) {
+            if (! empty($tool['attachments'])) {
                 $this->processToolAttachments($tool, $taskContext);
                 // 使用工具处理器处理文件ID匹配
                 ToolProcessor::processToolAttachments($tool);
@@ -879,21 +903,27 @@ class TaskAppService extends AbstractAppService
 
             // 4. 记录AI消息
             $task = $taskContext->getTask();
-            $this->taskDomainService->recordAiMessage(
-                (string) $task->getId(),
-                $taskContext->getAgentUserId(),
-                $task->getUserId(),
-                $messageType,
-                $content,
-                $status,
-                $steps,
-                $tool,
-                $task->getTopicId(),
-                $event,
-                $attachments,
-                $showInUi,
-                $messageId
+
+            // Create TaskMessageDTO for AI message
+            $taskMessageDTO = new TaskMessageDTO(
+                taskId: (string) $task->getId(),
+                role: Role::Assistant->value,
+                senderUid: $taskContext->getAgentUserId(),
+                receiverUid: $task->getUserId(),
+                messageType: $messageType,
+                content: $content,
+                status: $status,
+                steps: $steps,
+                tool: $tool,
+                topicId: $task->getTopicId(),
+                event: $event,
+                attachments: $attachments,
+                mentions: null,
+                showInUi: $showInUi,
+                messageId: $messageId
             );
+
+            $this->taskDomainService->recordTaskMessage($taskMessageDTO);
 
             // 5. 发送消息到客户端
             if ($showInUi) {
@@ -1167,7 +1197,7 @@ class TaskAppService extends AbstractAppService
                 $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
                 $this->logger->warning('拒绝状态更新', [
                     'task_id' => $taskId,
-                    'current_status' => $currentStatus?->value ?? 'null',
+                    'current_status' => $currentStatus->value ?? null,
                     'new_status' => $status->value,
                     'reason' => $reason,
                     'error_msg' => $errMsg,
@@ -1189,7 +1219,7 @@ class TaskAppService extends AbstractAppService
             // 记录成功日志
             $this->logger->info('任务状态更新完成', [
                 'task_id' => $taskId,
-                'previous_status' => $currentStatus?->value ?? 'null',
+                'previous_status' => $currentStatus->value ?? null,
                 'new_status' => $status->value,
                 'error_msg' => $errMsg,
             ]);
@@ -1239,9 +1269,9 @@ class TaskAppService extends AbstractAppService
 
         // 处理工具附件
         if (! empty($tool['attachments'])) {
-            for ($i = 0; $i < count($tool['attachments']); ++$i) {
+            foreach ($tool['attachments'] as $i => $iValue) {
                 $tool['attachments'][$i] = $this->processSingleAttachment(
-                    $tool['attachments'][$i],
+                    $iValue,
                     $task,
                     $dataIsolation
                 );
@@ -1296,6 +1326,7 @@ class TaskAppService extends AbstractAppService
                 fileKey: $fileKey,
                 content: $content,
                 dataIsolation: $taskContext->getDataIsolation(),
+                projectId: $task->getProjectId(),
                 topicId: $task->getTopicId(),
                 taskId: (int) $task->getId()
             );
@@ -1330,9 +1361,9 @@ class TaskAppService extends AbstractAppService
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
 
-        for ($i = 0; $i < count($attachments); ++$i) {
+        foreach ($attachments as $i => $iValue) {
             $attachments[$i] = $this->processSingleAttachment(
-                $attachments[$i],
+                $iValue,
                 $task,
                 $dataIsolation
             );
@@ -1365,6 +1396,7 @@ class TaskAppService extends AbstractAppService
                 $attachment['file_key'],
                 $dataIsolation,
                 $attachment,
+                $task->getProjectId(),
                 $task->getTopicId(),
                 (int) $task->getId(),
                 $attachment['file_tag'] ?? TaskFileType::PROCESS->value

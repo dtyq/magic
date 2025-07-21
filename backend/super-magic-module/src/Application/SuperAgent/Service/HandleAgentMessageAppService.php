@@ -10,8 +10,10 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
 use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
@@ -25,6 +27,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
@@ -327,21 +330,26 @@ class HandleAgentMessageAppService extends AbstractAppService
     {
         $task = $taskContext->getTask();
 
-        $this->taskDomainService->recordAiMessage(
-            (string) $task->getId(),
-            $taskContext->getAgentUserId(),
-            $task->getUserId(),
-            $messageData['messageType'],
-            $messageData['content'],
-            $messageData['status'],
-            $messageData['steps'],
-            $messageData['tool'],
-            $task->getTopicId(),
-            $messageData['event'],
-            $messageData['attachments'],
-            $messageData['showInUi'],
-            $messageData['messageId']
+        // Create TaskMessageDTO for AI message
+        $taskMessageDTO = new TaskMessageDTO(
+            taskId: (string) $task->getId(),
+            role: Role::Assistant->value,
+            senderUid: $taskContext->getAgentUserId(),
+            receiverUid: $task->getUserId(),
+            messageType: $messageData['messageType'],
+            content: $messageData['content'],
+            status: $messageData['status'],
+            steps: $messageData['steps'],
+            tool: $messageData['tool'],
+            topicId: $task->getTopicId(),
+            event: $messageData['event'],
+            attachments: $messageData['attachments'],
+            mentions: null,
+            showInUi: $messageData['showInUi'],
+            messageId: $messageData['messageId']
         );
+
+        $this->taskDomainService->recordTaskMessage($taskMessageDTO);
     }
 
     /**
@@ -382,9 +390,9 @@ class HandleAgentMessageAppService extends AbstractAppService
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
 
-        for ($i = 0; $i < count($tool['attachments']); ++$i) {
+        foreach ($tool['attachments'] as $i => $iValue) {
             $tool['attachments'][$i] = $this->processSingleAttachment(
-                $tool['attachments'][$i],
+                $iValue,
                 $task,
                 $dataIsolation
             );
@@ -403,9 +411,9 @@ class HandleAgentMessageAppService extends AbstractAppService
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
 
-        for ($i = 0; $i < count($attachments); ++$i) {
+        foreach ($attachments as $i => $iValue) {
             $attachments[$i] = $this->processSingleAttachment(
-                $attachments[$i],
+                $iValue,
                 $task,
                 $dataIsolation
             );
@@ -428,11 +436,15 @@ class HandleAgentMessageAppService extends AbstractAppService
         }
 
         try {
+            /**
+             * @var TaskFileEntity $taskFileEntity
+             */
             // Call FileProcessAppService directly to process attachment
             [$fileId, $taskFileEntity] = $this->fileProcessAppService->processFileByFileKey(
                 $attachment['file_key'],
                 $dataIsolation,
                 $attachment,
+                $task->getProjectId(),
                 $task->getTopicId(),
                 (int) $task->getId(),
                 $attachment['file_tag'] ?? TaskFileType::PROCESS->value
@@ -440,6 +452,7 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
+            $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
@@ -503,6 +516,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 fileKey: $fileKey,
                 content: $content,
                 dataIsolation: $taskContext->getDataIsolation(),
+                projectId: $task->getProjectId(),
                 topicId: $task->getTopicId(),
                 taskId: (int) $task->getId()
             );

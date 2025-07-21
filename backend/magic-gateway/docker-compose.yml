@@ -17,7 +17,7 @@ services:
 
   # Redis服务
   magic-redis:
-    image: redis:alpine
+    image: public.ecr.aws/docker/library/redis:alpine
     container_name: api-gateway-redis
     volumes:
       - ./redis_data:/data
