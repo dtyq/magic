@@ -46,6 +46,21 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
             $result = $mcpServerDTO->toArray();
             $tools = $this->mcpServerAppService->getToolsForServer($authorization, $entity->getCode());
             $result['tools'] = $tools;
+            if ($result['tools']) {
+                $result['tools'] = array_map(function ($tool) {
+                    return [
+                        'id' => (string) $tool->getId(),
+                        'name' => $tool->getName(),
+                        'description' => $tool->getDescription(),
+                        'source' => $tool->getSource()->value,
+                        'rel_code' => $tool->getRelCode(),
+                        'rel_info' => $tool->getRelInfo(),
+                        'rel_version_code' => $tool->getRelVersionCode(),
+                        'version' => $tool->getVersion(),
+                        'enabled' => $tool->isEnabled(),
+                    ];
+                }, $result['tools']);
+            }
             return $result;
         }
 
@@ -81,6 +96,21 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
         $result = $mcpServerDTO->toArray();
         $result['tools'] = $data['tools'] ?? null;
+        if ($result['tools']) {
+            $result['tools'] = array_map(function ($tool) {
+                return [
+                    'id' => (string) $tool->getId(),
+                    'name' => $tool->getName(),
+                    'description' => $tool->getDescription(),
+                    'source' => $tool->getSource()->value,
+                    'rel_code' => $tool->getRelCode(),
+                    'rel_info' => $tool->getRelInfo(),
+                    'rel_version_code' => $tool->getRelVersionCode(),
+                    'version' => $tool->getVersion(),
+                    'enabled' => $tool->isEnabled(),
+                ];
+            }, $result['tools']);
+        }
         return $result;
     }
 
@@ -101,17 +131,7 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
 
         $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
         $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
-
-        // For SSE type servers, include tools in response
-        if ($entity->getType()->value === 'sse') {
-            $result = $mcpServerDTO->toArray();
-            $tools = $this->mcpServerAppService->getToolsForServer($authorization, $entity->getCode());
-            $result['tools'] = $tools;
-            return $result;
-        }
-
-        return $mcpServerDTO;
+        return MCPServerAssembler::createDTO($entity, $icons, $users);
     }
 
     public function checkStatus(string $code)
