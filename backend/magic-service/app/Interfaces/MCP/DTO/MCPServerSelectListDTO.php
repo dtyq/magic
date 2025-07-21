@@ -45,6 +45,20 @@ class MCPServerSelectListDTO extends AbstractDTO
 
     public int $userOperation = 0;
 
+    public bool $checkRequireFields = false;
+
+    public bool $checkAuth = false;
+
+    public function setCheckRequireFields(bool $checkRequireFields): void
+    {
+        $this->checkRequireFields = $checkRequireFields;
+    }
+
+    public function setCheckAuth(bool $checkAuth): void
+    {
+        $this->checkAuth = $checkAuth;
+    }
+
     public function getUserOperation(): int
     {
         return $this->userOperation;
