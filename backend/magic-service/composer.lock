@@ -2211,12 +2211,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "285056241549c1b6a7362dd42348444f93a0a4fd"
+                "reference": "f021ab81bec216d8836f14f0fd17c99704af9402"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=285056241549c1b6a7362dd42348444f93a0a4fd",
-                "reference": "285056241549c1b6a7362dd42348444f93a0a4fd",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f021ab81bec216d8836f14f0fd17c99704af9402",
+                "reference": "f021ab81bec216d8836f14f0fd17c99704af9402",
                 "shasum": ""
             },
             "require": {
@@ -2319,7 +2319,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-18T17:58:43+08:00"
+            "time": "2025-07-21T16:47:37+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -17203,12 +17203,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "5e472fed1bcf8d3a967247576053a20ef3cfefc0"
+                "reference": "2976f12cdae3501980aabb46810cf807f7fdec44"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/5e472fed1bcf8d3a967247576053a20ef3cfefc0",
-                "reference": "5e472fed1bcf8d3a967247576053a20ef3cfefc0",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/2976f12cdae3501980aabb46810cf807f7fdec44",
+                "reference": "2976f12cdae3501980aabb46810cf807f7fdec44",
                 "shasum": ""
             },
             "conflict": {
@@ -17858,6 +17858,7 @@
                 "silverstripe/taxonomy": ">=1.3,<1.3.1|>=2,<2.0.1",
                 "silverstripe/userforms": "<3|>=5,<5.4.2",
                 "silverstripe/versioned-admin": ">=1,<1.11.1",
+                "simogeo/filemanager": "<=2.5",
                 "simple-updates/phpwhois": "<=1",
                 "simplesamlphp/saml2": "<=4.16.15|>=5.0.0.0-alpha1,<=5.0.0.0-alpha19",
                 "simplesamlphp/saml2-legacy": "<=4.16.15",
@@ -18152,7 +18153,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-17T21:05:33+00:00"
+            "time": "2025-07-20T17:05:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
