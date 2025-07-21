@@ -36,6 +36,9 @@ class TopicDomainService
     public function getSandboxIdByTopicId(int $topicId): ?string
     {
         $topic = $this->getTopicById($topicId);
+        if (empty($topic)) {
+            return null;
+        }
         return $topic->getSandboxId();
     }
 

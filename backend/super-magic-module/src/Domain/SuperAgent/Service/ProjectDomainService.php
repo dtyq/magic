@@ -110,6 +110,11 @@ class ProjectDomainService
         return $project;
     }
 
+    public function getProjectNotUserId(int $projectId): ProjectEntity
+    {
+        return $this->projectRepository->findById($projectId);
+    }
+
     /**
      * Get projects by conditions
      * 根据条件获取项目列表，支持分页和排序.

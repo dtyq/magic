@@ -212,6 +212,15 @@ class ProjectAppService extends AbstractAppService
         return $this->projectDomainService->getProject($projectId, $userId);
     }
 
+
+       /**
+     * 获取项目详情.
+     */
+    public function getProjectNotUserId(int $projectId): ProjectEntity
+    {
+        return $this->projectDomainService->getProjectNotUserId($projectId);
+    }
+
     /**
      * 获取项目列表（带分页）.
      */

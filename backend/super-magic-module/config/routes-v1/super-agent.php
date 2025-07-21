@@ -132,6 +132,13 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // 获取文件版本内容
         Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
     });
+
+    Router::addGroup('/sandbox', static function () {
+        // 初始化沙盒
+        Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
+        // 获取沙盒状态
+        Router::post('/status', [SandboxApi::class, 'getSandboxStatus']);
+    });
 });
 
 // super-magic 开放api , 注意，后续的api均使用super-magic 不使用super-agent
