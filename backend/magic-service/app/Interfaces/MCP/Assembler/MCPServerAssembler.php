@@ -138,7 +138,7 @@ class MCPServerAssembler
         return new PageDTO($page->getPage(), $total, $list);
     }
 
-    public static function createSelectListDTO(MCPServerEntity $mcpServerEntity, array $icons = []): MCPServerSelectListDTO
+    public static function createSelectListDTO(MCPServerEntity $mcpServerEntity, array $icons = [], array $validationResult = []): MCPServerSelectListDTO
     {
         $DTO = new MCPServerSelectListDTO();
         $DTO->setId($mcpServerEntity->getCode());
@@ -149,15 +149,21 @@ class MCPServerAssembler
         $DTO->setRequireFields($mcpServerEntity->getServiceConfig()->getRequireFields());
         $DTO->setOffice($mcpServerEntity->isOffice());
         $DTO->setUserOperation($mcpServerEntity->getUserOperation());
+
+        // Set validation results
+        $DTO->setCheckRequireFields($validationResult['check_require_fields'] ?? false);
+        $DTO->setCheckAuth($validationResult['check_auth'] ?? false);
+
         return $DTO;
     }
 
     /**
      * @param array<string, FileLink> $icons
+     * @param array<string, array{check_require_fields: bool, check_auth: bool}> $validationResults
      */
-    public static function createSelectPageListDTO(int $total, array $list, Page $page, array $icons = []): PageDTO
+    public static function createSelectPageListDTO(int $total, array $list, Page $page, array $icons = [], array $validationResults = []): PageDTO
     {
-        $list = array_map(fn (MCPServerEntity $mcpServerEntity) => self::createSelectListDTO($mcpServerEntity, $icons), $list);
+        $list = array_map(fn (MCPServerEntity $mcpServerEntity) => self::createSelectListDTO($mcpServerEntity, $icons, $validationResults[$mcpServerEntity->getCode()] ?? []), $list);
         return new PageDTO($page->getPage(), $total, $list);
     }
 }
