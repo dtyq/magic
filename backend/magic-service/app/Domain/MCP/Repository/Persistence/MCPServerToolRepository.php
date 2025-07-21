@@ -29,18 +29,21 @@ class MCPServerToolRepository extends MCPAbstractRepository implements MCPServer
         return MCPServerToolFactory::createEntity($model);
     }
 
-    public function getByMcpServerCode(MCPDataIsolation $dataIsolation, string $mcpServerCode): ?MCPServerToolEntity
+    /**
+     * 根据mcpServerCode查询工具.
+     * @return array<MCPServerToolEntity>
+     */
+    public function getByMcpServerCode(MCPDataIsolation $dataIsolation, string $mcpServerCode): array
     {
         $builder = $this->createBuilder($dataIsolation, MCPServerToolModel::query());
 
-        /** @var null|MCPServerToolModel $model */
-        $model = $builder->where('mcp_server_code', $mcpServerCode)->first();
-
-        if (! $model) {
-            return null;
+        /** @var array<MCPServerToolModel> $models */
+        $models = $builder->where('mcp_server_code', $mcpServerCode)->get();
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = MCPServerToolFactory::createEntity($model);
         }
-
-        return MCPServerToolFactory::createEntity($model);
+        return $entities;
     }
 
     /**
@@ -79,10 +82,45 @@ class MCPServerToolRepository extends MCPAbstractRepository implements MCPServer
         return $entity;
     }
 
+    /**
+     * Batch insert multiple new tool entities.
+     *
+     * @param array<MCPServerToolEntity> $entities
+     * @return array<MCPServerToolEntity>
+     */
+    public function batchInsert(MCPDataIsolation $dataIsolation, array $entities): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $insertData = [];
+        foreach ($entities as $entity) {
+            $data = $this->getAttributes($entity);
+            $data['options'] = json_encode($data['options'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $data['rel_info'] = json_encode($data['rel_info'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $insertData[] = $data;
+        }
+
+        // Perform batch insert for all entities
+        MCPServerToolModel::insert($insertData);
+
+        return $entities;
+    }
+
     public function delete(MCPDataIsolation $dataIsolation, int $id): bool
     {
         $builder = $this->createBuilder($dataIsolation, MCPServerToolModel::query());
         return $builder->where('id', $id)->delete() > 0;
+    }
+
+    /**
+     * Delete all tools for a specific MCP server.
+     */
+    public function deleteByMcpServerCode(MCPDataIsolation $dataIsolation, string $mcpServerCode): bool
+    {
+        $builder = $this->createBuilder($dataIsolation, MCPServerToolModel::query());
+        return $builder->where('mcp_server_code', $mcpServerCode)->delete() >= 0;
     }
 
     /**
