@@ -15,6 +15,9 @@ use App\Application\Flow\ExecuteManager\ExecutionData\TriggerData;
 use App\Application\Flow\ExecuteManager\MagicFlowExecutor;
 use App\Application\Flow\ExecuteManager\Stream\FlowEventStreamManager;
 use App\Application\Kernel\EnvManager;
+use App\Domain\Agent\Entity\MagicAgentEntity;
+use App\Domain\Agent\Entity\MagicAgentVersionEntity;
+use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Chat\DTO\Agent\SenderExtraDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\Item\ChatInstruction;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
@@ -24,6 +27,7 @@ use App\Domain\Chat\Entity\ValueObject\InstructionType;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Flow\Entity\MagicFlowEntity;
 use App\Domain\Flow\Entity\MagicFlowExecuteLogEntity;
+use App\Domain\Flow\Entity\MagicFlowVersionEntity;
 use App\Domain\Flow\Entity\ValueObject\ConversationId;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\TriggerType;
@@ -74,7 +78,8 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
 
         $dataIsolation = $this->createFlowDataIsolation($authorization);
 
-        $magicFlow = $this->getFlow($dataIsolation, $flowId, [Type::Main]);
+        $flowData = $this->getFlow($dataIsolation, $flowId, [Type::Main]);
+        $magicFlow = $flowData['flow'];
 
         $triggerData = new TriggerData(
             triggerTime: new DateTime($messageEntity?->getSendTime() ?? $seqEntity->getCreatedAt()),
@@ -103,6 +108,9 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         $executionData->setSenderEntities($senderUserEntity, $seqEntity, $messageEntity);
         $executionData->setTopicId($seqEntity->getExtra()?->getTopicId());
         $executionData->setAgentId($magicFlow->getAgentId());
+        if ($flowData['agent_version']) {
+            $executionData->setInstructionConfigs($flowData['agent_version']->getInstructs());
+        }
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
         $executor->execute();
 
@@ -131,7 +139,9 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         $operator->setRealName($account?->getRealName());
         $operator->setSourceId($apiChatDTO->getShareOptions('source_id', 'sk_flow'));
 
-        $magicFlow = $this->getFlow($flowDataIsolation, $apiChatDTO->getFlowCode(), [Type::Main]);
+        $flowData = $this->getFlow($flowDataIsolation, $apiChatDTO->getFlowCode(), [Type::Main]);
+        $magicFlow = $flowData['flow'];
+
         // 设置指令
         $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);
         if (! empty($apiChatDTO->getInstruction())) {
@@ -156,6 +166,9 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             executionType: ExecutionType::SKApi,
         );
         $executionData->setAgentId($magicFlow->getAgentId());
+        if ($flowData['agent_version']) {
+            $executionData->setInstructionConfigs($flowData['agent_version']->getInstructs());
+        }
         $executionData->setStream($apiChatDTO->isStream(), $apiChatDTO->getVersion());
         $executor = new MagicFlowExecutor($magicFlow, $executionData, async: $apiChatDTO->isAsync());
         if ($apiChatDTO->isStream()) {
@@ -195,7 +208,8 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         if ($apiChatDTO->getShareOptions('source_id') === 'oauth2_flow') {
             $operationValidate = '';
         }
-        $magicFlow = $this->getFlow($flowDataIsolation, $apiChatDTO->getFlowCode(), [Type::Sub, Type::Tools], operationValidate: $operationValidate);
+        $flowData = $this->getFlow($flowDataIsolation, $apiChatDTO->getFlowCode(), [Type::Sub, Type::Tools], operationValidate: $operationValidate);
+        $magicFlow = $flowData['flow'];
 
         // 设置指令
         $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);
@@ -233,6 +247,64 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         ];
     }
 
+    public function apiChatByMCPTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO): array
+    {
+        $user = $this->magicUserDomainService->getByUserId($flowDataIsolation->getCurrentUserId());
+        if (! $user) {
+            ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'user not found');
+        }
+        $account = $this->magicAccountDomainService->getByMagicId($user->getMagicId());
+        if (! $account) {
+            ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'account not found');
+        }
+        $operator = $this->createExecutionOperator($flowDataIsolation);
+        $operator->setSourceId('mcp_tool');
+
+        $flowData = $this->getFlow(
+            $flowDataIsolation,
+            $apiChatDTO->getFlowCode(),
+            [Type::Main],
+        );
+        $magicFlow = $flowData['flow'];
+
+        // Set instruction for chat scenario
+        $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);
+        if (! empty($apiChatDTO->getInstruction())) {
+            $msgInstruct = $this->generateChatInstruction($apiChatDTO);
+            $messageEntity->setInstructs($msgInstruct);
+        }
+
+        $triggerData = new TriggerData(
+            triggerTime: new DateTime(),
+            userInfo: ['user_entity' => $user, 'account_entity' => $account],
+            messageInfo: ['message_entity' => TriggerData::createMessageEntity($messageEntity)],
+            params: $apiChatDTO->getParams(),
+            globalVariable: $magicFlow->getGlobalVariable(),
+            attachments: AttachmentUtil::getByApiArray($apiChatDTO->getAttachments()),
+        );
+        $originConversationId = $apiChatDTO->getConversationId() ?: IdGenerator::getUniqueId32();
+        $executionData = new ExecutionData(
+            flowDataIsolation: $flowDataIsolation,
+            operator: $operator,
+            triggerType: TriggerType::ChatMessage,
+            triggerData: $triggerData,
+            conversationId: ConversationId::ApiKeyChat->gen($originConversationId),
+            originConversationId: $originConversationId,
+            executionType: ExecutionType::SKApi,
+        );
+        $executionData->setAgentId($magicFlow->getAgentId());
+        if ($flowData['agent_version']) {
+            $executionData->setInstructionConfigs($flowData['agent_version']->getInstructs());
+        }
+        $executor = new MagicFlowExecutor($magicFlow, $executionData);
+        $executor->execute();
+
+        return [
+            'messages' => $executionData->getReplyMessagesArray(),
+            'conversation_id' => $executionData->getOriginConversationId(),
+        ];
+    }
+
     public function apiParamCallByMCPTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO): array
     {
         $user = $this->magicUserDomainService->getByUserId($flowDataIsolation->getCurrentUserId());
@@ -246,13 +318,14 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         $operator = $this->createExecutionOperator($flowDataIsolation);
         $operator->setSourceId('mcp_tool');
 
-        $magicFlow = $this->getFlow(
+        $flowData = $this->getFlow(
             $flowDataIsolation,
             $apiChatDTO->getFlowCode(),
             [Type::Tools],
             operationValidate: 'read',
             flowVersionCode: $apiChatDTO->getFlowVersionCode()
         );
+        $magicFlow = $flowData['flow'];
 
         $messageEntity = new TextMessage(['content' => $apiChatDTO->getMessage()]);
 
@@ -343,6 +416,12 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             conversationId: ConversationId::Routine->gen($magicFlow->getCode() . '_routine'),
             executionType: ExecutionType::Routine,
         );
+        if ($magicFlow->getType()->isMain()) {
+            $agent = di(MagicAgentDomainService::class)->getByFlowCode($magicFlow->getCode());
+            if ($agent) {
+                $executionData->setAgentId($agent->getId());
+            }
+        }
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
 
         $executor->execute();
@@ -455,10 +534,21 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         return $msgInstruct;
     }
 
-    private function getFlow(FlowDataIsolation $dataIsolation, string $flowId, ?array $types = null, string $operationValidate = '', string $flowVersionCode = ''): MagicFlowEntity
+    /**
+     * 获取流程信息.
+     *
+     * @return array{flow: MagicFlowEntity, flow_version?: ?MagicFlowVersionEntity, agent?: ?MagicAgentEntity, agent_version?: ?MagicAgentVersionEntity}
+     */
+    private function getFlow(FlowDataIsolation $dataIsolation, string $flowId, ?array $types = null, string $operationValidate = '', string $flowVersionCode = ''): array
     {
         if ($tool = BuiltInToolSetCollector::getToolByCode($flowId)) {
-            return $tool->generateToolFlow($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+            $flow = $tool->generateToolFlow($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+            return [
+                'flow' => $flow,
+                'flow_version' => null,
+                'agent' => null,
+                'agent_version' => null,
+            ];
         }
 
         $magicFlow = $this->magicFlowDomainService->getByCode($dataIsolation, $flowId);
@@ -469,6 +559,9 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'flow.executor.unsupported_flow_type');
         }
 
+        $flowVersion = null;
+        $agent = null;
+        $agentVersion = null;
         $agentId = '';
         switch ($magicFlow->getType()) {
             case Type::Main:
@@ -477,6 +570,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
                 if ($agent->getCreatedUid() !== $dataIsolation->getCurrentUserId() && ! $agent->isAvailable()) {
                     ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'flow.agent_disabled');
                 }
+                $agentVersion = $agent;
                 if ($agent->getAgentVersionId()) {
                     $agentVersion = $this->magicAgentVersionDomainService->getById($agent->getAgentVersionId());
                     $flowVersionCode = $agentVersion->getFlowVersion();
@@ -504,6 +598,11 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             $this->getFlowOperation($dataIsolation, $magicFlow)->validate($operationValidate, $flowId);
         }
 
-        return $magicFlow;
+        return [
+            'flow' => $magicFlow,
+            'flow_version' => $flowVersion,
+            'agent' => $agent,
+            'agent_version' => $agentVersion,
+        ];
     }
 }

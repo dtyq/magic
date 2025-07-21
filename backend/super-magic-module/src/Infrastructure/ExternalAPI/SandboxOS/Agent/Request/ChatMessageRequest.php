@@ -23,7 +23,8 @@ class ChatMessageRequest
         private string $taskMode = 'chat',
         private string $agentMode = '',
         private array $attachments = [],
-        private array $mentions = []
+        private array $mentions = [],
+        private array $mcpConfig = [],
     ) {
     }
 
@@ -38,9 +39,20 @@ class ChatMessageRequest
         string $taskMode = 'chat',
         string $agentMode = '',
         array $attachments = [],
-        array $mentions = []
+        array $mentions = [],
+        array $mcpConfig = []
     ): self {
-        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions);
+        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions, $mcpConfig);
+    }
+
+    public function getMcpConfig(): array
+    {
+        return $this->mcpConfig;
+    }
+
+    public function setMcpConfig(array $mcpConfig): void
+    {
+        $this->mcpConfig = $mcpConfig;
     }
 
     /**
@@ -196,6 +208,7 @@ class ChatMessageRequest
             'agent_mode' => $this->agentMode,
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
+            'mcp_config' => $this->mcpConfig,
         ];
     }
 }

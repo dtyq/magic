@@ -2,42 +2,15 @@ import { colorScales as baseColorScales } from "../ThemeProvider/colors"
 import type { ButtonProps, ThemeConfig } from "antd"
 import { Button, Tooltip } from "antd"
 import type { GetAntdTheme } from "antd-style"
-import { useTheme, ThemeProvider, createStyles, cx } from "antd-style"
+import { useTheme, ThemeProvider, cx } from "antd-style"
 import { forwardRef, memo, useMemo, type CSSProperties, type ReactNode } from "react"
+import { useStyles } from "./style"
 
 export interface MagicButtonProps extends ButtonProps {
 	justify?: CSSProperties["justifyContent"]
 	theme?: boolean
 	tip?: ReactNode
 }
-
-const useStyles = createStyles(
-	(
-		{ css, prefixCls, token, isDarkMode },
-		{ justify }: { justify?: CSSProperties["justifyContent"] },
-	) => ({
-		magicButton: css`
-			display: flex;
-			align-items: center;
-			justify-content: ${justify};
-			box-shadow: none;
-
-      .${prefixCls}-btn-icon { 
-				display: flex;
-				align-items: center;
-				justify-content: center;
-			}
-
-			--${prefixCls}-button-default-hover-color: ${token.colorText} !important;
-			--${prefixCls}-button-default-hover-border-color: ${token.colorBorder} !important;
-			--${prefixCls}-button-default-hover-bg: ${token.magicColorUsages.fill[0]} !important;
-			--${prefixCls}-button-default-bg: ${
-			isDarkMode ? token.magicColorUsages.bg[1] : token.colorWhite
-		} !important;
-			--${prefixCls}-button-default-color: ${token.colorTextSecondary} !important;
-		`,
-	}),
-)
 
 const MagicButton = memo(
 	forwardRef<HTMLButtonElement, MagicButtonProps>(

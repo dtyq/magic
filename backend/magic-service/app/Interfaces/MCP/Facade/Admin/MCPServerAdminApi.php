@@ -9,6 +9,7 @@ namespace App\Interfaces\MCP\Facade\Admin;
 
 use App\Application\MCP\Service\MCPServerAppService;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\Domain\Provider\Entity\ValueObject\Query\Page;
 use App\Interfaces\MCP\Assembler\MCPServerAssembler;
 use App\Interfaces\MCP\DTO\MCPServerDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -72,5 +73,17 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $authorization = $this->getAuthorization();
 
         return $this->mcpServerAppService->checkStatus($authorization, $code);
+    }
+
+    public function availableQueries()
+    {
+        $authorization = $this->getAuthorization();
+        $query = new MCPServerQuery($this->request->all());
+        $query->setEnabled(true);
+        $query->setOrder(['id' => 'desc']);
+        $page = Page::createNoPage();
+        $result = $this->mcpServerAppService->availableQueries($authorization, $query, $page);
+
+        return MCPServerAssembler::createSelectPageListDTO($result['total'], $result['list'], $page, $result['icons']);
     }
 }

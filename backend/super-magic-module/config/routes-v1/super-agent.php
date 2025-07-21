@@ -48,6 +48,8 @@ Router::addGroup(
             Router::delete('/{id}', [ProjectApi::class, 'destroy']);
             // 获取项目下的话题列表
             Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
+            // 检查是否需要更新项目文件列表
+            Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
         });
 
         // 话题相关
@@ -113,6 +115,14 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::post('/tasks/get-file-url', [TaskApi::class, 'getFileUrls']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
+
+    // 文件转换相关
+    Router::addGroup('/file-convert', static function () {
+        // 创建文件转换任务
+        Router::post('/create', [TaskApi::class, 'convertFiles']);
+        // 检查文件转换状态
+        Router::get('/check', [TaskApi::class, 'checkFileConvertStatus']);
+    });
 
     // 文件相关
     Router::addGroup('/file', static function () {

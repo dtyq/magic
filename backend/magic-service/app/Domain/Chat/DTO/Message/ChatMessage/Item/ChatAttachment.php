@@ -29,6 +29,8 @@ class ChatAttachment extends AbstractEntity
 
     protected string $fileName = '';
 
+    protected string $fileUrl;
+
     public function __construct(array $attachment = [])
     {
         parent::__construct($attachment);
@@ -90,5 +92,15 @@ class ChatAttachment extends AbstractEntity
     public function setFileName(string $fileName): void
     {
         $this->fileName = $fileName;
+    }
+
+    public function setFileUrl(string $fileUrl): void
+    {
+        $this->fileUrl = $fileUrl;
+    }
+
+    public function getFileUrl(): string
+    {
+        return empty($this->fileUrl) ? '' : $this->fileUrl;
     }
 }

@@ -90,4 +90,6 @@ const MagicAvatar = forwardRef<HTMLSpanElement, MagicAvatarProps>(
 	},
 )
 
+MagicAvatar.displayName = "MagicAvatar"
+
 export default MagicAvatar

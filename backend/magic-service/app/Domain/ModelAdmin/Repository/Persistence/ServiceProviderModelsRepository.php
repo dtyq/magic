@@ -433,6 +433,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray['translate'] = Json::encode($modelArray['translate'] ?: []);
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
         $modelArray['visible_applications'] = Json::encode($modelArray['visible_applications'] ?: []);
+        $modelArray['super_magic_display_state'] = $modelArray['super_magic_display_state'] ?? 0;
         $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
@@ -589,6 +590,31 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->orderBy('created_at', 'desc'); // 按创建时间倒序排列
 
         return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * Get models with super magic display state enabled for current organization.
+     * @param string $organizationCode Organization code
+     * @return ServiceProviderModelsEntity[]
+     */
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    {
+        $query = $this->serviceProviderModelsModel::query()
+            ->where('super_magic_display_state', 1)
+            ->where('organization_code', $organizationCode)
+            ->where('status', Status::ACTIVE->value);
+
+        return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * 更新模型的 model_parent_id.
+     */
+    public function updateModelParentId(int $modelId, int $parentId): void
+    {
+        $this->serviceProviderModelsModel::query()
+            ->where('id', $modelId)
+            ->update(['model_parent_id' => $parentId]);
     }
 
     /**

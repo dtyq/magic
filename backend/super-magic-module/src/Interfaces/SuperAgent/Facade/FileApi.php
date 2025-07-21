@@ -14,6 +14,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
@@ -30,6 +31,7 @@ class FileApi extends AbstractApi
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
+        private readonly FileSaveContentAppService $fileSaveContentAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
@@ -177,26 +179,25 @@ class FileApi extends AbstractApi
 
     /**
      * 批量保存文件内容.
+     * 并发执行沙箱文件编辑和OSS保存.
      *
      * @param RequestContext $requestContext 请求上下文
      * @return array 批量保存结果
      */
     public function saveFileContent(RequestContext $requestContext): array
     {
-        // 获取原始请求数据
         $requestData = $this->request->all();
-
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization($this->getAuthorization());
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 验证请求格式必须是数组
         if (empty($requestData)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'files_array_required');
         }
 
-        // 创建批量保存DTO
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $userAuthorization = $requestContext->getUserAuthorization();
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
+
+        // 并发执行沙箱保存和OSS保存
+        $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
+
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
     }
 

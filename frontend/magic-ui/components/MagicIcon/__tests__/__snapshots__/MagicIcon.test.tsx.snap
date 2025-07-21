@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MagicIcon > 快照测试 > 不同图标快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicIcon > 快照测试 > 基础图标快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicIcon > 快照测试 > 大尺寸图标快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicIcon > 快照测试 > 小尺寸图标快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicIcon > 快照测试 > 带点击事件图标快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicIcon > 快照测试 > 带类名图标快照 1`] = `<DocumentFragment />`;
+
+exports[`MagicIcon > 快照测试 > 带自定义样式图标快照 1`] = `<DocumentFragment />`;

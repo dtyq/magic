@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 
 /**
@@ -52,4 +53,13 @@ interface SandboxAgentInterface
      * @return AgentResponse 工作区状态响应
      */
     public function getWorkspaceStatus(string $sandboxId): AgentResponse;
+
+    /**
+     * 保存文件到沙箱.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param SaveFilesRequest $request 文件保存请求
+     * @return AgentResponse 保存响应
+     */
+    public function saveFiles(string $sandboxId, SaveFilesRequest $request): AgentResponse;
 }

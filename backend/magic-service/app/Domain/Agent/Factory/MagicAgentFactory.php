@@ -15,30 +15,12 @@ class MagicAgentFactory
     public static function modelToEntity(MagicAgentModel $model): MagicAgentEntity
     {
         $entityArray = $model->toArray();
-        $magicAgentEntity = new MagicAgentEntity($entityArray);
-        $magicAgentEntity->setAgentDescription($magicAgentEntity->getRobotDescription());
-        $magicAgentEntity->setAgentVersionId($magicAgentEntity->getBotVersionId());
-        $magicAgentEntity->setAgentAvatar($magicAgentEntity->getRobotAvatar());
-        $magicAgentEntity->setAgentName($magicAgentEntity->getRobotName());
-        if (isset($entityArray['last_version_info'])) {
-            $lastVersionInfo = $magicAgentEntity->getLastVersionInfo();
-            $lastVersionInfo['agent_id'] = $lastVersionInfo['root_id'];
-            $lastVersionInfo['agent_name'] = $lastVersionInfo['robot_name'];
-            $lastVersionInfo['agent_description'] = $lastVersionInfo['robot_description'];
-            $lastVersionInfo['agent_avatar'] = $lastVersionInfo['robot_avatar'];
-            $magicAgentEntity->setLastVersionInfo($lastVersionInfo);
-        }
-
-        return $magicAgentEntity;
+        return self::toEntity($entityArray);
     }
 
     public static function toEntity(array $bot): MagicAgentEntity
     {
         $magicAgentEntity = new MagicAgentEntity($bot);
-        $magicAgentEntity->setAgentVersionId($magicAgentEntity->getBotVersionId());
-        $magicAgentEntity->setAgentAvatar($magicAgentEntity->getRobotAvatar());
-        $magicAgentEntity->setAgentName($magicAgentEntity->getRobotName());
-        $magicAgentEntity->setAgentDescription($magicAgentEntity->getRobotDescription());
         if (isset($bot['last_version_info'])) {
             $lastVersionInfo = $magicAgentEntity->getLastVersionInfo();
             $lastVersionInfo['agent_id'] = $lastVersionInfo['root_id'];

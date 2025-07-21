@@ -9,8 +9,10 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -43,6 +45,8 @@ class AgentAppService
 {
     private LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
@@ -52,6 +56,9 @@ class AgentAppService
         private readonly MagicUserInfoAppService $userInfoAppService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
+        if (container()->has(SupperMagicAgentMCPInterface::class)) {
+            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
+        }
     }
 
     /**
@@ -192,12 +199,18 @@ class AgentAppService
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
 
-        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions());
+        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getProjectId());
 
         $attachmentUrls = [];
         if (! empty($mentionsJsonStruct)) {
             $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
         }
+
+        $mcpDataIsolation = MCPDataIsolation::create(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId()
+        );
+        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext->getTask()->getMentions()) ?? [];
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
@@ -209,6 +222,7 @@ class AgentAppService
             agentMode: $taskContext->getAgentMode(),
             attachments: $attachmentUrls,
             mentions: $mentionsJsonStruct,
+            mcpConfig: $mcpConfig,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -426,6 +440,7 @@ class AgentAppService
                 'headers' => [
                     'token' => config('super-magic.sandbox.token', ''),
                 ],
+                'enable_obfuscation' => true,
             ],
             'sts_token_refresh' => [
                 'method' => 'POST',
@@ -446,9 +461,10 @@ class AgentAppService
      *
      * @param DataIsolation $dataIsolation 数据隔离对象
      * @param null|string $mentionsJson mentions 的 JSON 字符串
+     * @param null|int $projectId 项目 ID
      * @return array 处理后的 mentions 数组
      */
-    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson): array
+    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson, ?int $projectId): array
     {
         $mentionsJsonStruct = [];
 
@@ -466,7 +482,7 @@ class AgentAppService
             return $mentionsJsonStruct;
         }
 
-        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds);
+        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $projectId);
 
         // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
         $fileIdToFileMap = [];

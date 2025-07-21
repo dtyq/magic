@@ -28,6 +28,11 @@ class TopicDomainService
         return $this->topicRepository->getTopicById($id);
     }
 
+    public function getTopicWithDeleted(int $id): ?TopicEntity
+    {
+        return $this->topicRepository->getTopicWithDeleted($id);
+    }
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
     {
         return $this->topicRepository->getTopicBySandboxId($sandboxId);
@@ -349,11 +354,15 @@ class TopicDomainService
             ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_denied');
         }
 
-        // 更新话题名称
-        $topicEntity->setTopicName($topicName);
-        // 设置更新者用户ID
-        $topicEntity->setUpdatedUid($userId);
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'topic_name' => $topicName,
+            'updated_uid' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
         // 保存更新
-        return $this->topicRepository->updateTopic($topicEntity);
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
 }

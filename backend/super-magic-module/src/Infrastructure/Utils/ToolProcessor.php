@@ -9,6 +9,8 @@ namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
+use function Hyperf\Translation\trans;
+
 /**
  * Tool Processor Utility
  * Handles various tool processing operations including file ID matching and output content generation.
@@ -42,7 +44,7 @@ class ToolProcessor
         return [
             'id' => (string) IdGenerator::getSnowId(),
             'name' => 'finish_task',
-            'action' => '已完成结果文件的输出',
+            'action' => trans('task.finished_task_action'),
             'detail' => [
                 'type' => self::determineFileType($file['file_extension'] ?? ''),
                 'data' => [
