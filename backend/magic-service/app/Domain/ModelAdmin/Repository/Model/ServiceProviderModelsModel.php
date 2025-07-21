@@ -35,6 +35,7 @@ class ServiceProviderModelsModel extends Model
         'organization_code',
         'visible_organizations',
         'visible_applications',
+        'load_balancing_weight',
         'is_office',
         'created_at',
         'updated_at',

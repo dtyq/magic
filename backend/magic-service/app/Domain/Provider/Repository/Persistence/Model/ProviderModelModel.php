@@ -47,7 +47,7 @@ class ProviderModelModel extends AbstractModel
         'id', 'service_provider_config_id', 'name', 'model_version', 'category', 'model_id',
         'model_type', 'config', 'description', 'sort', 'icon', 'organization_code',
         'status', 'disabled_by', 'translate', 'model_parent_id', 'visible_organizations', 'visible_applications',
-        'is_office', 'created_at', 'updated_at', 'deleted_at',
+        'load_balancing_weight', 'is_office', 'created_at', 'updated_at', 'deleted_at',
     ];
 
     protected array $casts = [
@@ -69,6 +69,7 @@ class ProviderModelModel extends AbstractModel
         'model_parent_id' => 'integer',
         'visible_organizations' => 'array',
         'visible_applications' => 'array',
+        'load_balancing_weight' => 'integer',
         'is_office' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

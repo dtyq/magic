@@ -155,14 +155,15 @@ class ServiceProviderDomainService
             // 同步其他组织
             $this->syncSaveModelsToOtherServiceProvider($serviceProviderModelsEntity);
         } else {
+            $serviceProviderModelsEntity->setLoadBalancingWeight(50);
             // 非官方组织不可添加官方模型以及文生图模型
             $isOfficialProvider = ServiceProviderType::from($serviceProviderEntity->getProviderType()) === ServiceProviderType::OFFICIAL;
             // 只能给大模型服务商添加模型
             if ($isOfficialProvider || ServiceProviderCategory::from($serviceProviderEntity->getCategory()) === ServiceProviderCategory::VLM) {
                 ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter);
             }
+            $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         }
-        $this->serviceProviderModelsRepository->saveModels($serviceProviderModelsEntity);
         return $serviceProviderModelsEntity;
     }
 
@@ -186,6 +187,20 @@ class ServiceProviderDomainService
 
         $serviceProviderModelsEntity->setCategory($serviceProviderEntity->getCategory());
         $serviceProviderModelsEntity->valid();
+
+        // 权限控制：只有官方组织才能修改负载均衡权重
+        $organizationCode = $serviceProviderModelsEntity->getOrganizationCode();
+        if ($this->isOfficial($organizationCode)) {
+            // 验证负载均衡权重范围
+            $loadBalancingWeight = $serviceProviderModelsEntity->getLoadBalancingWeight();
+            if ($loadBalancingWeight < 0 || $loadBalancingWeight > 100) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.load_balancing_weight_range_error'));
+            }
+        } else {
+            // 非官方组织不可修改负载均衡权重，重置为默认值
+            $serviceProviderModelsEntity->setLoadBalancingWeight(50);
+        }
+
         $this->handleNonOfficialProviderModel($serviceProviderModelsEntity, $serviceProviderEntity);
         return $serviceProviderModelsEntity;
     }
@@ -1615,6 +1630,7 @@ class ServiceProviderDomainService
                     $modelEntity->setModelParentId($modelParentId);
                     $modelEntity->setIsOffice(false);
                     $modelEntity->setStatus(Status::DISABLE->value);
+                    $modelEntity->setLoadBalancingWeight($serviceProviderModelsEntity->getLoadBalancingWeight());
                     $modelEntities[] = $modelEntity;
                 }
             }
@@ -1631,6 +1647,7 @@ class ServiceProviderDomainService
             $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
             $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
             $updateConsumerModel->setVisibleApplications($serviceProviderModelsEntity->getVisibleApplications());
+            $updateConsumerModel->setLoadBalancingWeight($serviceProviderModelsEntity->getLoadBalancingWeight());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }
