@@ -25,7 +25,11 @@ class MCPServerToolDomainService
         return $this->mcpServerToolRepository->getById($dataIsolation, $id);
     }
 
-    public function getByMcpServerCode(MCPDataIsolation $dataIsolation, string $mcpServerCode): ?MCPServerToolEntity
+    /**
+     * 根据mcpServerCode查询工具.
+     * @return array<MCPServerToolEntity>
+     */
+    public function getByMcpServerCode(MCPDataIsolation $dataIsolation, string $mcpServerCode): array
     {
         return $this->mcpServerToolRepository->getByMcpServerCode($dataIsolation, $mcpServerCode);
     }
@@ -58,9 +62,44 @@ class MCPServerToolDomainService
         return $this->mcpServerToolRepository->save($dataIsolation, $entity);
     }
 
+    /**
+     * Batch insert multiple new tool entities.
+     *
+     * @param array<MCPServerToolEntity> $entities
+     * @return array<MCPServerToolEntity>
+     */
+    public function batchInsert(MCPDataIsolation $dataIsolation, array $entities): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $preparedEntities = [];
+
+        foreach ($entities as $savingEntity) {
+            $savingEntity->setCreator($dataIsolation->getCurrentUserId());
+            $savingEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+
+            $entity = clone $savingEntity;
+            $entity->prepareForCreation();
+            $preparedEntities[] = $entity;
+        }
+
+        // Use repository batch insert
+        return $this->mcpServerToolRepository->batchInsert($dataIsolation, $preparedEntities);
+    }
+
     public function delete(MCPDataIsolation $dataIsolation, int $id): bool
     {
         return $this->mcpServerToolRepository->delete($dataIsolation, $id);
+    }
+
+    /**
+     * Delete all tools for a specific MCP server.
+     */
+    public function deleteByMcpServerCode(MCPDataIsolation $dataIsolation, string $mcpServerCode): bool
+    {
+        return $this->mcpServerToolRepository->deleteByMcpServerCode($dataIsolation, $mcpServerCode);
     }
 
     /**

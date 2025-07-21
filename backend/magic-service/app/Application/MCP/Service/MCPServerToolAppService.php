@@ -7,10 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\Service;
 
-use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Domain\MCP\Entity\MCPServerToolEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
-use App\Domain\MCP\Entity\ValueObject\ToolOptions;
 use App\Domain\MCP\Entity\ValueObject\ToolSource;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -87,40 +85,6 @@ class MCPServerToolAppService extends AbstractMCPAppService
         }
 
         return $this->mcpServerToolDomainService->delete($dataIsolation, $id);
-    }
-
-    private function appendInfoWithSource(MCPDataIsolation $dataIsolation, MCPServerToolEntity $entity): void
-    {
-        switch ($entity->getSource()) {
-            case ToolSource::FlowTool:
-                $flowDataIsolation = $this->createFlowDataIsolation($dataIsolation);
-                if (empty($entity->getRelCode())) {
-                    ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'rel_code']);
-                }
-                $tool = ToolsExecutor::getToolFlows($flowDataIsolation, [$entity->getRelCode()])[0] ?? null;
-                if (! $tool || ! $tool->isEnabled()) {
-                    ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.not_found', ['label' => $entity->getRelCode()]);
-                }
-                $this->getToolSetOperation($flowDataIsolation, $tool->getToolSetId())->validate('r', $tool->getVersionCode());
-
-                if (empty($entity->getRelVersionCode())) {
-                    $entity->setRelVersionCode($tool->getVersionCode());
-                }
-                if ($entity->getRelVersionCode()) {
-                    $toolVersion = $this->magicFlowVersionDomainService->show($flowDataIsolation, $entity->getRelCode(), $entity->getRelVersionCode());
-                    $tool = $toolVersion->getMagicFlow() ?? $tool;
-                    $entity->setVersion($toolVersion->getName());
-                }
-
-                $entity->setOptions(new ToolOptions(
-                    $tool->getName(),
-                    $tool->getDescription(),
-                    $tool->getInput()?->getForm()?->getForm()?->toJsonSchema() ?? [],
-                ));
-                break;
-            default:
-                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'source']);
-        }
     }
 
     /**

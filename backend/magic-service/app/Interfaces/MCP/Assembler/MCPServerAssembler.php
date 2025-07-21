@@ -8,9 +8,11 @@ declare(strict_types=1);
 namespace App\Interfaces\MCP\Assembler;
 
 use App\Domain\MCP\Entity\MCPServerEntity;
+use App\Domain\MCP\Entity\MCPServerToolEntity;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalStdioServiceConfig;
 use App\Domain\MCP\Entity\ValueObject\ServiceType;
+use App\Domain\MCP\Entity\ValueObject\ToolSource;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
@@ -91,6 +93,40 @@ class MCPServerAssembler
         }
 
         return $mcpServerEntity;
+    }
+
+    /**
+     * Create tool entities from raw tools data.
+     *
+     * @param null|array $toolsData Raw tools data from request
+     * @param string $mcpServerCode MCP server code to associate with tools
+     * @return array<MCPServerToolEntity> Array of tool entities
+     */
+    public static function createToolEntities(?array $toolsData, string $mcpServerCode): array
+    {
+        if ($toolsData === null) {
+            return [];
+        }
+
+        $toolEntities = [];
+        foreach ($toolsData as $toolData) {
+            $toolEntity = new MCPServerToolEntity();
+            $toolEntity->setMcpServerCode($mcpServerCode);
+            $toolEntity->setName($toolData['name'] ?? '');
+            $toolEntity->setDescription($toolData['description'] ?? '');
+            $toolEntity->setSource(ToolSource::fromValue($toolData['source'] ?? 0) ?? ToolSource::Unknown);
+            $toolEntity->setRelCode($toolData['rel_code'] ?? '');
+            $toolEntity->setRelVersionCode($toolData['rel_version_code'] ?? '');
+            $toolEntity->setVersion($toolData['version'] ?? '');
+
+            if (isset($toolData['enabled'])) {
+                $toolEntity->setEnabled($toolData['enabled']);
+            }
+
+            $toolEntities[] = $toolEntity;
+        }
+
+        return $toolEntities;
     }
 
     /**
