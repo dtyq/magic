@@ -2192,16 +2192,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.61",
+            "version": "0.0.62",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "6a959b477fabfe2c851848729cec97056a0f08e3"
+                "reference": "b71a110bfa47bc1cdcd874cf154b506565af20fa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=6a959b477fabfe2c851848729cec97056a0f08e3",
-                "reference": "6a959b477fabfe2c851848729cec97056a0f08e3",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b71a110bfa47bc1cdcd874cf154b506565af20fa",
+                "reference": "b71a110bfa47bc1cdcd874cf154b506565af20fa",
                 "shasum": ""
             },
             "require": {
@@ -2302,9 +2302,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.61"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.62"
             },
-            "time": "2025-07-18T11:17:57+00:00"
+            "time": "2025-07-21T18:01:36+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -17188,12 +17188,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "5e472fed1bcf8d3a967247576053a20ef3cfefc0"
+                "reference": "2976f12cdae3501980aabb46810cf807f7fdec44"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/5e472fed1bcf8d3a967247576053a20ef3cfefc0",
-                "reference": "5e472fed1bcf8d3a967247576053a20ef3cfefc0",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/2976f12cdae3501980aabb46810cf807f7fdec44",
+                "reference": "2976f12cdae3501980aabb46810cf807f7fdec44",
                 "shasum": ""
             },
             "conflict": {
@@ -17843,6 +17843,7 @@
                 "silverstripe/taxonomy": ">=1.3,<1.3.1|>=2,<2.0.1",
                 "silverstripe/userforms": "<3|>=5,<5.4.2",
                 "silverstripe/versioned-admin": ">=1,<1.11.1",
+                "simogeo/filemanager": "<=2.5",
                 "simple-updates/phpwhois": "<=1",
                 "simplesamlphp/saml2": "<=4.16.15|>=5.0.0.0-alpha1,<=5.0.0.0-alpha19",
                 "simplesamlphp/saml2-legacy": "<=4.16.15",
@@ -18137,7 +18138,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-17T21:05:33+00:00"
+            "time": "2025-07-20T17:05:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
