@@ -39,7 +39,17 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $entity = $this->mcpServerAppService->save($authorization, $DO, $toolEntities);
         $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
         $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        return MCPServerAssembler::createDTO($entity, $icons, $users);
+        $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
+
+        // For SSE type servers, include tools in response
+        if ($entity->getType()->value === 'sse') {
+            $result = $mcpServerDTO->toArray();
+            $tools = $this->mcpServerAppService->getToolsForServer($authorization, $entity->getCode());
+            $result['tools'] = $tools;
+            return $result;
+        }
+
+        return $mcpServerDTO;
     }
 
     public function queries()
@@ -80,6 +90,30 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         return $this->mcpServerAppService->destroy($authorization, $code);
     }
 
+    public function updateStatus(string $code)
+    {
+        $authorization = $this->getAuthorization();
+        $requestData = $this->request->all();
+
+        // enabled 参数默认为 false
+        $enabled = (bool) ($requestData['enabled'] ?? false);
+        $entity = $this->mcpServerAppService->updateStatus($authorization, $code, $enabled);
+
+        $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
+        $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
+        $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
+
+        // For SSE type servers, include tools in response
+        if ($entity->getType()->value === 'sse') {
+            $result = $mcpServerDTO->toArray();
+            $tools = $this->mcpServerAppService->getToolsForServer($authorization, $entity->getCode());
+            $result['tools'] = $tools;
+            return $result;
+        }
+
+        return $mcpServerDTO;
+    }
+
     public function checkStatus(string $code)
     {
         $authorization = $this->getAuthorization();
@@ -96,6 +130,12 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $page = Page::createNoPage();
         $result = $this->mcpServerAppService->availableQueries($authorization, $query, $page);
 
-        return MCPServerAssembler::createSelectPageListDTO($result['total'], $result['list'], $page, $result['icons']);
+        return MCPServerAssembler::createSelectPageListDTO(
+            $result['total'],
+            $result['list'],
+            $page,
+            $result['icons'],
+            $result['validation_results'] ?? []
+        );
     }
 }
