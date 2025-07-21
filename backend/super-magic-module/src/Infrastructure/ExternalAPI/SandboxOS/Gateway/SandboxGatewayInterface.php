@@ -18,6 +18,23 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxS
 interface SandboxGatewayInterface
 {
     /**
+     * Set user context for the current request.
+     * This method should be called before making any requests that require user information.
+     *
+     * @param string|null $userId User ID
+     * @param string|null $organizationCode Organization code
+     * @return self Returns self for method chaining
+     */
+    public function setUserContext(?string $userId, ?string $organizationCode): self;
+
+    /**
+     * Clear user context.
+     *
+     * @return self Returns self for method chaining
+     */
+    public function clearUserContext(): self;
+
+    /**
      * 创建沙箱.
      *
      * @param array $config 沙箱配置参数
@@ -59,7 +76,7 @@ interface SandboxGatewayInterface
         array $headers = []
     ): GatewayResult;
 
-    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
+    public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir = '.workspace'): GatewayResult;
 
-    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult;
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir = '.workspace'): GatewayResult;
 }

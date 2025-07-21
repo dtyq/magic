@@ -64,8 +64,14 @@ class AgentAppService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $projectId, string $sandboxID): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID): string
     {
+        // Set user context for gateway requests
+        $this->gateway->setUserContext(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
@@ -107,11 +113,18 @@ class AgentAppService
     /**
      * 获取沙箱状态
      *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
      * @param string $sandboxId 沙箱ID
      * @return SandboxStatusResult 沙箱状态结果
      */
-    public function getSandboxStatus(string $sandboxId): SandboxStatusResult
+    public function getSandboxStatus(DataIsolation $dataIsolation, string $sandboxId): SandboxStatusResult
     {
+        // Set user context for gateway requests
+        $this->gateway->setUserContext(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        
         $this->logger->info('[Sandbox][App] Getting sandbox status', [
             'sandbox_id' => $sandboxId,
         ]);
@@ -170,6 +183,12 @@ class AgentAppService
 
     public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        // Set user context for gateway requests
+        $this->gateway->setUserContext(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        
         $this->logger->info('[Sandbox][App] Initializing agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
@@ -195,6 +214,12 @@ class AgentAppService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        // Set user context for gateway requests
+        $this->gateway->setUserContext(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
         ]);
@@ -252,6 +277,12 @@ class AgentAppService
         string $taskId,
         string $reason,
     ): AgentResponse {
+        // Set user context for gateway requests
+        $this->gateway->setUserContext(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        
         $this->logger->info('[Sandbox][App] Sending interrupt message to agent', [
             'sandbox_id' => $sandboxId,
             'task_id' => $taskId,
@@ -428,6 +459,14 @@ class AgentAppService
             userInfo: $userInfo,
         );
 
+        $magicApiGateway = config('super-magic.magic-gateway.api_url', '');
+        $magicApiUrl = config('super-magic.sandbox.callback_host', '');
+        $apiUrl = !empty($magicApiGateway) ? $magicApiGateway : $magicApiUrl;
+
+        $magicApiGatewayToken = config('super-magic.magic-gateway.magic_api_key', '');
+        $magicApiUrlToken = config('super-magic.sandbox.token', '');
+        $token = !empty($magicApiGatewayToken) ? $magicApiGatewayToken : $magicApiUrlToken;
+
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
@@ -436,23 +475,23 @@ class AgentAppService
             'upload_config' => $stsConfig,
             'message_subscription_config' => [
                 'method' => 'POST',
-                'url' => config('super-magic.sandbox.callback_host', '') . '/api/v1/super-agent/tasks/deliver-message',
+                'url' => $apiUrl . '/api/v1/super-agent/tasks/deliver-message',
                 'headers' => [
-                    'token' => config('super-magic.sandbox.token', ''),
+                    'token' => $token,
                 ],
                 'enable_obfuscation' => true,
             ],
             'sts_token_refresh' => [
                 'method' => 'POST',
-                'url' => config('super-magic.sandbox.callback_host', '') . '/api/v1/super-agent/file/refresh-sts-token',
+                'url' => $apiUrl . '/api/v1/super-agent/file/refresh-sts-token',
                 'headers' => [
-                    'token' => config('super-magic.sandbox.token', ''),
+                    'token' => $token,
                 ],
             ],
             'metadata' => $messageMetadata->toArray(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
-            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'magic_service_host' => $apiUrl,
         ];
     }
 

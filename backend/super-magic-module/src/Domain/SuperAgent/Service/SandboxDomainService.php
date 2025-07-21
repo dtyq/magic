@@ -36,7 +36,6 @@ class SandboxDomainService
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
-
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
         // 添加详细的调试日志，检查 result 对象

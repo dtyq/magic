@@ -26,9 +26,51 @@ use Hyperf\Logger\LoggerFactory;
  */
 class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayInterface
 {
+    private ?string $userId = null;
+    private ?string $organizationCode = null;
+
     public function __construct(LoggerFactory $loggerFactory)
     {
         parent::__construct($loggerFactory);
+    }
+
+    /**
+     * Set user context for the current request.
+     * This method should be called before making any requests that require user information.
+     */
+    public function setUserContext(?string $userId, ?string $organizationCode): self
+    {
+        $this->userId = $userId;
+        $this->organizationCode = $organizationCode;
+        return $this;
+    }
+
+    /**
+     * Clear user context.
+     */
+    public function clearUserContext(): self
+    {
+        $this->userId = null;
+        $this->organizationCode = null;
+        return $this;
+    }
+
+    /**
+     * Override parent getAuthHeaders to include user-specific headers.
+     */
+    protected function getAuthHeaders(): array
+    {
+        $headers = parent::getAuthHeaders();
+        
+        if ($this->userId !== null) {
+            $headers['magic-user-id'] = $this->userId;
+        }
+        
+        if ($this->organizationCode !== null) {
+            $headers['magic-organization-code'] = $this->organizationCode;
+        }
+        
+        return $headers;
     }
 
     /**
@@ -434,7 +476,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey, 'git_directory' => $gitDir]);
     }
 
-    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir = '.workspace'): GatewayResult
     {
         $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
