@@ -479,24 +479,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/content', ['file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
     }
 
-    /**
-     * Override parent getAuthHeaders to include user-specific headers.
-     */
-    protected function getAuthHeaders(): array
-    {
-        $headers = parent::getAuthHeaders();
-
-        if ($this->userId !== null) {
-            $headers['magic-user-id'] = $this->userId;
-        }
-
-        if ($this->organizationCode !== null) {
-            $headers['magic-organization-code'] = $this->organizationCode;
-        }
-
-        return $headers;
-    }
-
     public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult
     {
         $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
@@ -611,6 +593,24 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
             throw new SandboxOperationException('Ensure sandbox availability', $e->getMessage(), 2000);
         }
+    }
+
+    /**
+     * Override parent getAuthHeaders to include user-specific headers.
+     */
+    protected function getAuthHeaders(): array
+    {
+        $headers = parent::getAuthHeaders();
+
+        if ($this->userId !== null) {
+            $headers['magic-user-id'] = $this->userId;
+        }
+
+        if ($this->organizationCode !== null) {
+            $headers['magic-organization-code'] = $this->organizationCode;
+        }
+
+        return $headers;
     }
 
     /**
