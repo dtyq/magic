@@ -40,7 +40,7 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
         $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
         $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
         $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
-        
+
         // For SSE type servers, include tools in response
         if ($entity->getType()->value === 'sse') {
             $result = $mcpServerDTO->toArray();
@@ -48,7 +48,7 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
             $result['tools'] = $tools;
             return $result;
         }
-        
+
         return $mcpServerDTO;
     }
 
@@ -94,15 +94,15 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
     {
         $authorization = $this->getAuthorization();
         $requestData = $this->request->all();
-        
+
         // enabled 参数默认为 false
         $enabled = (bool) ($requestData['enabled'] ?? false);
         $entity = $this->mcpServerAppService->updateStatus($authorization, $code, $enabled);
-        
+
         $icons = $this->mcpServerAppService->getIcons($entity->getOrganizationCode(), [$entity->getIcon()]);
         $users = $this->mcpServerAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
         $mcpServerDTO = MCPServerAssembler::createDTO($entity, $icons, $users);
-        
+
         // For SSE type servers, include tools in response
         if ($entity->getType()->value === 'sse') {
             $result = $mcpServerDTO->toArray();
@@ -110,7 +110,7 @@ class MCPServerAdminApi extends AbstractMCPAdminApi
             $result['tools'] = $tools;
             return $result;
         }
-        
+
         return $mcpServerDTO;
     }
 

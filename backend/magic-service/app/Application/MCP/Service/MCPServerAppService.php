@@ -233,13 +233,13 @@ class MCPServerAppService extends AbstractMCPAppService
         $entity->setEnabled($enabled);
         $entity = $this->mcpServerDomainService->save($dataIsolation, $entity);
         $entity->setUserOperation($operation->value);
-        
+
         return $entity;
     }
 
     /**
      * Get tools for a specific MCP server.
-     * 
+     *
      * @return null|array<MCPServerToolEntity>
      */
     public function getToolsForServer(Authenticatable $authorization, string $code): ?array
