@@ -217,6 +217,52 @@ class MCPServerAppService extends AbstractMCPAppService
         return $this->mcpServerDomainService->delete($dataIsolation, $code);
     }
 
+    public function updateStatus(Authenticatable $authorization, string $code, bool $enabled): MCPServerEntity
+    {
+        $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        $operation = $this->getMCPServerOperation($dataIsolation, $code);
+        $operation->validate('w', $code);
+
+        $entity = $this->mcpServerDomainService->getByCode($dataIsolation, $code);
+        if (! $entity) {
+            ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $code]);
+        }
+
+        // Only update the enabled status
+        $entity->setEnabled($enabled);
+        $entity = $this->mcpServerDomainService->save($dataIsolation, $entity);
+        $entity->setUserOperation($operation->value);
+        
+        return $entity;
+    }
+
+    /**
+     * Get tools for a specific MCP server.
+     * 
+     * @return null|array<MCPServerToolEntity>
+     */
+    public function getToolsForServer(Authenticatable $authorization, string $code): ?array
+    {
+        $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        $operation = $this->getMCPServerOperation($dataIsolation, $code);
+        $operation->validate('r', $code);
+
+        // Get server entity to check type
+        $entity = $this->mcpServerDomainService->getByCode($dataIsolation, $code);
+        if (! $entity) {
+            return null;
+        }
+
+        // Only return tools for SSE type servers
+        if ($entity->getType() === ServiceType::SSE) {
+            return $this->mcpServerToolDomainService->getByMcpServerCodes($dataIsolation, [$code]);
+        }
+
+        return null;
+    }
+
     public function checkStatus(Authenticatable $authorization, string $code): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
