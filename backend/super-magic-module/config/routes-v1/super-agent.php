@@ -81,6 +81,8 @@ Router::addGroup(
         Router::addGroup('/file', static function () {
             // 获取项目文件上传STS Token
             Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 获取话题文件上传STS Token
+            Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
             // 保存附件
             Router::post('', [FileApi::class, 'saveProjectFile']);
             // 保存文件内容

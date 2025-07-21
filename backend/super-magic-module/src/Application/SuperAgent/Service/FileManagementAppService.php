@@ -19,11 +19,13 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\FileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
@@ -37,6 +39,7 @@ class FileManagementAppService extends AbstractAppService
     public function __construct(
         private readonly FileAppService $fileAppService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
@@ -93,6 +96,55 @@ class FileManagementAppService extends AbstractAppService
                 'Failed to get project upload token: %s, Project ID: %s',
                 $e->getMessage(),
                 $requestDTO->getProjectId()
+            ));
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
+        }
+    }
+
+    /**
+     * 获取话题文件上传STS Token.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param TopicUploadTokenRequestDTO $requestDTO Request DTO
+     * @return array 获取结果
+     */
+    public function getTopicUploadToken(RequestContext $requestContext, TopicUploadTokenRequestDTO $requestDTO): array
+    {
+        try {
+            $topicId = $requestDTO->getTopicId();
+            $expires = $requestDTO->getExpires();
+
+            // 获取当前用户信息
+            $userAuthorization = $requestContext->getUserAuthorization();
+
+            // 创建数据隔离对象
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
+            $userId = $dataIsolation->getCurrentUserId();
+            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+            // 生成话题工作目录
+            $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+            if (empty($topicEntity)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.not_found');
+            }
+            $workDir = WorkDirectoryUtil::getTopicUploadDir($userId, $topicEntity->getProjectId(), $topicEntity->getId());
+
+            // 获取STS Token
+            $userAuthorization = new MagicUserAuthorization();
+            $userAuthorization->setOrganizationCode($organizationCode);
+            $storageType = StorageBucketType::Private->value;
+
+            return $this->fileAppService->getStsTemporaryCredential(
+                $userAuthorization,
+                $storageType,
+                $workDir,
+                $expires
+            );
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to get topic upload token: %s, Topic ID: %s',
+                $e->getMessage(),
+                $requestDTO->getTopicId()
             ));
             ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
         }

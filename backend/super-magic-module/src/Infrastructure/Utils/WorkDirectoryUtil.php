@@ -26,14 +26,32 @@ class WorkDirectoryUtil
         return self::getRootDir($userId, $projectId) . '/chat-history';
     }
 
-    public static function getTopicMessageTempDir(string $userId, int $projectId, int $topicId): string
+    /**
+     * Get topic root directory path.
+     *
+     * @param string $userId User ID
+     * @param int $projectId Project ID
+     * @param int $topicId Topic ID
+     * @return string Topic root directory path
+     */
+    public static function getTopicRootDir(string $userId, int $projectId, int $topicId): string
     {
-        return self::getRootDir($userId, $projectId) . sprintf('/runtime/messages/topic_%d', $topicId);
+        return self::getRootDir($userId, $projectId) . sprintf('/.runtime/topic_%s', $topicId);
+    }
+
+    public static function getTopicUploadDir(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getTopicRootDir($userId, $projectId, $topicId) . '/uploads';
+    }
+
+    public static function getTopicMessageDir(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getTopicRootDir($userId, $projectId, $topicId) . '/message';
     }
 
     public static function getProjectFilePackDir(string $userId, int $projectId):string
     {
-        return self::getRootDir($userId, $projectId) . '/runtime/pack';
+        return self::getRootDir($userId, $projectId) . '/.runtime/pack';
     }
 
     public static function getRelativeFilePath(string $fileKey, string $workDir): string

@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -274,6 +275,25 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         return $this->fileManagementAppService->getProjectUploadToken($requestContext, $requestDTO);
+    }
+
+    /**
+     * 获取话题文件上传STS Token.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 获取结果
+     */
+    public function getTopicUploadToken(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestData = $this->request->all();
+        $requestDTO = TopicUploadTokenRequestDTO::fromRequest($requestData);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->getTopicUploadToken($requestContext, $requestDTO);
     }
 
     /**
