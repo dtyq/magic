@@ -173,6 +173,8 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                     'error_message' => $throwable->getMessage(),
                 ];
             }
+            $config = $mcpServerConfig->toArray();
+            $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
 
             $servers[$mcpServer->getName()] = $config;
         }

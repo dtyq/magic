@@ -433,7 +433,6 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray['translate'] = Json::encode($modelArray['translate'] ?: []);
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
         $modelArray['visible_applications'] = Json::encode($modelArray['visible_applications'] ?: []);
-        $modelArray['super_magic_display_state'] = $modelArray['super_magic_display_state'] ?? 0;
         $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
@@ -605,6 +604,16 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
             ->where('status', Status::ACTIVE->value);
 
         return $this->executeQueryAndToEntities($query);
+    }
+
+    /**
+     * 更新模型的 model_parent_id.
+     */
+    public function updateModelParentId(int $modelId, int $parentId): void
+    {
+        $this->serviceProviderModelsModel::query()
+            ->where('id', $modelId)
+            ->update(['model_parent_id' => $parentId]);
     }
 
     /**

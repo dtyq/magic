@@ -164,13 +164,14 @@ MAGIC_MODEL="MAGIC_MODEL"
 
 ### 1. 获取临时令牌
 
-**重要提示：** 
+**重要提示：**
 1. 获取临时令牌的请求**只能**从宿主机本地（localhost/127.0.0.1）发起，容器内无法直接获取令牌。这是出于安全考虑设计的。
 2. 获取令牌时**必须**提供有效的 `X-Gateway-API-Key` 请求头，其值必须与环境变量中的 `MAGIC_GATEWAY_API_KEY` 匹配。
 
 ```bash
 curl -X POST http://localhost:8000/auth \
-  -H "X-USER-ID: your-user-id" \
+  -H "magic-user-id: your-user-id" \
+  -H "magic-organization-code: your-organization-code" \
   -H "X-Gateway-API-Key: your-gateway-api-key-here"
 ```
 
@@ -259,7 +260,7 @@ curl -X POST http://host.docker.internal:8000/OPENAI_API_BASE_URL/v1/chat/comple
   -H "Magic-Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "OPENAI_MODEL", 
+    "model": "OPENAI_MODEL",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -324,7 +325,7 @@ curl -X POST http://host.docker.internal:8000/v1/chat/completions \
   -H "Magic-Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "env:OPENAI_MODEL", 
+    "model": "env:OPENAI_MODEL",
     "api_base": "${OPENAI_API_BASE_URL}",
     "messages": [
       {"role": "user", "content": "Hello!"}
@@ -478,7 +479,7 @@ go build -o api-gateway
 1. 在生产环境中更改 `JWT_SECRET`
 2. 在需要时添加 HTTPS 代理层
 3. 限制允许访问的容器
-4. 定期轮换 API 密钥 
+4. 定期轮换 API 密钥
 
 ## 环境变量替换功能
 
@@ -494,4 +495,4 @@ API网关提供了强大的环境变量替换功能，可以在不同位置替�
 
 3. **URL路径替换** - 使用环境变量作为URL路径前缀：`/OPENAI_API_BASE_URL/v1/chat/completions`
 
-这使得容器可以安全地使用环境变量，而无需知道实际值。API网关会自动检测和替换请求中的环境变量引用，所有替换都在代理端完成，确保敏感信息不会暴露给容器。 
+这使得容器可以安全地使用环境变量，而无需知道实际值。API网关会自动检测和替换请求中的环境变量引用，所有替换都在代理端完成，确保敏感信息不会暴露给容器。
