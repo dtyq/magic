@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -42,6 +44,8 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
@@ -53,9 +57,12 @@ class HandleUserMessageAppService extends AbstractAppService
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
+        if (container()->has(SupperMagicAgentMCPInterface::class)) {
+            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
+        }
     }
 
-    public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto)
+    public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto): void
     {
         // Get topic information
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getChatTopicId());
@@ -93,7 +100,7 @@ class HandleUserMessageAppService extends AbstractAppService
     * user send message to agent
     */
 
-    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
+    public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {
         $topicId = 0;
         $taskId = '';
@@ -156,6 +163,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
             );
+
+            // MCP config
+            $mcpDataIsolation = MCPDataIsolation::create(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            );
+            $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
+
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
 
