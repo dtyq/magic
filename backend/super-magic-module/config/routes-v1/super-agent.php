@@ -83,12 +83,23 @@ Router::addGroup(
         });
 
         Router::addGroup('/file', static function () {
+            // 获取项目文件上传STS Token
+            Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 获取话题文件上传STS Token
+            Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
+            // 创建文件和文件夹
+            Router::post('', [FileApi::class, 'createFile']);
+            // 保存附件关系
+            Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
             // 保存文件内容
             Router::post('/save', [FileApi::class, 'saveFileContent']);
-            // 获取项目文件上传STS Token
-            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
-            // 保存项目文件
-            Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
+            // 删除附件
+            Router::delete('/{id}', [FileApi::class, 'deleteFile']);
+            // 删除目录及其下所有文件
+            Router::post('/directory/delete', [FileApi::class, 'deleteDirectory']);
+            // 重命名文件
+            Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
+
             // 批量下载相关
             Router::addGroup('/batch-download', static function () {
                 // 创建批量下载任务

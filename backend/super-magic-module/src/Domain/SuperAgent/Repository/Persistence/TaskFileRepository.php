@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -25,6 +26,18 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             return null;
         }
         return new TaskFileEntity($model->toArray());
+    }
+
+    public function getFilesByIds(array $fileIds): array
+    {
+        $models = $this->model::query()->whereIn('file_id', $fileIds)->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
     }
 
     public function getTaskFilesByIds(array $ids): array
@@ -373,5 +386,128 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return new TaskFileEntity($model->toArray());
+    }
+
+    /**
+     * 根据项目ID获取所有文件的file_key列表（高性能查询）.
+     */
+    public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array
+    {
+        $query = $this->model::query()
+            ->select(['file_key'])
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at')
+            ->limit($limit);
+
+        return $query->pluck('file_key')->toArray();
+    }
+
+    /**
+     * 批量插入新文件记录.
+     */
+    public function batchInsertFiles(DataIsolation $dataIsolation, int $projectId, array $newFileKeys, array $objectStorageFiles = []): void
+    {
+        if (empty($newFileKeys)) {
+            return;
+        }
+
+        $insertData = [];
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($newFileKeys as $fileKey) {
+            // 从对象存储文件信息中获取详细信息
+            $fileInfo = $objectStorageFiles[$fileKey] ?? [];
+
+            $insertData[] = [
+                'file_id' => IdGenerator::getSnowId(),
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                'project_id' => $projectId,
+                'topic_id' => 0,
+                'task_id' => 0,
+                'file_key' => $fileKey,
+                'file_name' => $fileInfo['file_name'] ?? basename($fileKey),
+                'file_extension' => $fileInfo['file_extension'] ?? pathinfo($fileKey, PATHINFO_EXTENSION),
+                'file_type' => 'auto_sync',
+                'file_size' => $fileInfo['file_size'] ?? 0,
+                'storage_type' => 'workspace',
+                'is_hidden' => false,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        // 使用批量插入提升性能
+        $this->model::query()->insert($insertData);
+    }
+
+    /**
+     * 批量标记文件为已删除.
+     */
+    public function batchMarkAsDeleted(array $deletedFileKeys): void
+    {
+        if (empty($deletedFileKeys)) {
+            return;
+        }
+
+        $this->model::query()
+            ->whereIn('file_key', $deletedFileKeys)
+            ->whereNull('deleted_at')
+            ->update([
+                'deleted_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
+     * 批量更新文件信息.
+     */
+    public function batchUpdateFiles(array $updatedFileKeys): void
+    {
+        if (empty($updatedFileKeys)) {
+            return;
+        }
+
+        // 简化实现：只更新修改时间
+        $this->model::query()
+            ->whereIn('file_key', $updatedFileKeys)
+            ->whereNull('deleted_at')
+            ->update([
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
+     * 根据目录路径查找文件列表.
+     */
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('file_key', 'like', $directoryPath . '%')
+            ->whereNull('deleted_at')
+            ->limit($limit)
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
+    /**
+     * 批量删除文件.
+     */
+    public function deleteByIds(array $fileIds): void
+    {
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->delete();
     }
 }

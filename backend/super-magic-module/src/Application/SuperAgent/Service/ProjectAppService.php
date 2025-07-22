@@ -14,6 +14,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -99,7 +100,7 @@ class ProjectAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('创建默认项目, projectId=%s', $projectEntity->getId()));
             // 获取项目目录
-            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+            $workDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
 
             // Initialize Magic Chat Conversation
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
@@ -130,6 +131,11 @@ class ProjectAppService extends AbstractAppService
             $projectEntity->setWorkDir($workDir);
             $this->projectDomainService->saveProjectEntity($projectEntity);
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
+
+            // 如果附件不为空，且附件是未绑定的状态，则保存附件
+            if ($requestDTO->getFiles()) {
+                $this->taskFileDomainService->bindProject($projectEntity->getId(), $requestDTO->getFiles());
+            }
 
             Db::commit();
             return ['project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(), 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray()];
@@ -414,6 +420,9 @@ class ProjectAppService extends AbstractAppService
         $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
             // 创建DTO
             $dto = new TaskFileItemDTO();
             $dto->fileId = (string) $entity->getFileId();
@@ -427,6 +436,7 @@ class ProjectAppService extends AbstractAppService
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            $dto->isDirectory = $entity->getIsDirectory();
 
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
@@ -443,7 +453,7 @@ class ProjectAppService extends AbstractAppService
             } else {
                 $dto->fileUrl = '';
             }
-            // 判断filekey是否重复，如果重复，则跳过
+            // 判断file key是否重复，如果重复，则跳过
             if (in_array($fileKey, $fileKeys)) {
                 continue;
             }
@@ -452,7 +462,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 构建树状结构（登录用户模式特有功能）
-        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
+        $tree = FileTreeUtil::assembleFilesTree($list);
 
         return [
             'total' => $result['total'],

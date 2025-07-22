@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperat
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
@@ -516,7 +517,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
             $task = $taskContext->getTask();
-            $workDir = rtrim($task->getWorkdir(), '/') . '/task_' . $task->getId() . '/.chat/';
+            $workDir = WorkDirectoryUtil::getTopicMessageDir($task->getUserId(), $task->getProjectId(), $task->getTopicId());
 
             // Call FileProcessAppService to save content
             $fileId = $this->fileProcessAppService->saveToolMessageContent(
