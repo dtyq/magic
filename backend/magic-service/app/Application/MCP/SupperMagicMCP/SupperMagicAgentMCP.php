@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\SupperMagicMCP;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Application\MCP\BuiltInMCP\SuperMagicChat\SuperMagicChatBuiltInMCPServer;
 use App\Application\MCP\Service\MCPServerAppService;
@@ -27,6 +28,7 @@ use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Core\ValueObject\Page;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -47,8 +49,9 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
     }
 
-    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, ?string $mentions = null, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
+    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, TaskContext $taskContext, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
     {
+        $mentions = $taskContext->getTask()->getMentions();
         $this->logger->debug('CreateChatMessageRequestMcpConfigArgs', ['mentions' => $mentions, 'agentIds' => $agentIds, 'mcpIds' => $mcpIds, 'toolIds' => $toolIds]);
         try {
             if ($mentions !== null) {
@@ -88,12 +91,22 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 $serverOptions[$builtinSuperMagicServer->getCode()] = $this->createBuiltinSuperMagicServerOptions($dataIsolation, $agentIds, $toolIds);
             }
 
+            $globalMcpIds = $this->getGlobalMcpServerIds($dataIsolation);
+            $mcpIds = array_merge($mcpIds, $globalMcpIds);
+
+            $projectId = $taskContext->getTask()->getProjectId();
+            if ($projectId) {
+                $projectMcpIds = $this->getProjectMcpServerIds($dataIsolation, (string) $projectId);
+                $mcpIds = array_merge($mcpIds, $projectMcpIds);
+            }
+
             $mcpServers = $this->createMcpServers($dataIsolation, $mcpIds, [$builtinSuperMagicServer], $serverOptions);
 
             $mcpServers = [
                 'mcpServers' => $mcpServers,
             ];
             $this->logger->debug('CreateChatMessageRequestMcpConfig', $mcpServers);
+            $taskContext->setMcpConfig($mcpServers);
             return $mcpServers;
         } catch (Throwable $throwable) {
             $this->logger->error('CreateChatMessageRequestMcpConfigError', [
@@ -111,17 +124,9 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $dataIsolation = DataIsolation::create($mcpDataIsolation->getCurrentOrganizationCode(), $mcpDataIsolation->getCurrentUserId());
         $servers = [];
 
-        $mcpSettings = $this->magicUserSettingDomainService->get($dataIsolation, 'super_magic_mcp_servers');
-        if (! $mcpSettings) {
-            return $servers;
-        }
-        $mcpServerIds = array_column($mcpSettings->getValue()['servers'], 'id');
-        $mcpServerIds = array_filter($mcpServerIds);
-        $mcpServerIds = array_values(array_unique(array_merge($mcpServerIds, $mcpIds)));
-
         $query = new MCPServerQuery();
         $query->setEnabled(true);
-        $query->setCodes($mcpServerIds);
+        $query->setCodes($mcpIds);
         $data = $this->MCPServerAppService->availableQueries($mcpDataIsolation, $query, Page::createNoPage());
         $mcpServers = $data['list'] ?? [];
         /** @var array<MCPServerEntity> $mcpServers */
@@ -132,7 +137,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $localHttpUrl = config('super-magic.sandbox.callback_host', '');
 
         foreach ($mcpServers as $mcpServer) {
-            if (! $mcpServer->isBuiltIn() && ! in_array($mcpServer->getCode(), $mcpServerIds, true)) {
+            if (! $mcpServer->isBuiltIn() && ! in_array($mcpServer->getCode(), $mcpIds, true)) {
                 continue;
             }
 
@@ -177,6 +182,36 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
             $servers[$mcpServer->getName()] = $config;
         }
         return $servers;
+    }
+
+    /**
+     * 获取全局的 MCP 服务器 ID 列表.
+     */
+    private function getGlobalMcpServerIds(MCPDataIsolation $mcpDataIsolation): array
+    {
+        $dataIsolation = DataIsolation::create($mcpDataIsolation->getCurrentOrganizationCode(), $mcpDataIsolation->getCurrentUserId());
+        $mcpServerIds = [];
+
+        $mcpSettings = $this->magicUserSettingDomainService->get($dataIsolation, UserSettingKey::SuperMagicMCPServers->value);
+        if ($mcpSettings) {
+            $mcpServerIds = array_filter(array_column($mcpSettings->getValue()['servers'], 'id'));
+        }
+        return $mcpServerIds;
+    }
+
+    /**
+     * 获取项目的 MCP 服务器 ID 列表.
+     */
+    private function getProjectMcpServerIds(MCPDataIsolation $mcpDataIsolation, string $projectId): array
+    {
+        $dataIsolation = DataIsolation::create($mcpDataIsolation->getCurrentOrganizationCode(), $mcpDataIsolation->getCurrentUserId());
+        $mcpServerIds = [];
+
+        $mcpSettings = $this->magicUserSettingDomainService->get($dataIsolation, UserSettingKey::genSuperMagicProjectMCPServers($projectId));
+        if ($mcpSettings) {
+            $mcpServerIds = array_filter(array_column($mcpSettings->getValue()['servers'], 'id'));
+        }
+        return $mcpServerIds;
     }
 
     private function createBuiltinSuperMagicServerOptions(MCPDataIsolation $dataIsolation, array $agentIds = [], array $toolIds = []): array

@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\Interfaces\MCP\Facade\Admin\MCPOAuth2BindingApi;
 use App\Interfaces\MCP\Facade\Admin\MCPServerAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPServerToolAdminApi;
+use App\Interfaces\MCP\Facade\Admin\MCPSuperMagicProjectSettingAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPUserSettingAdminApi;
 use Dtyq\PhpMcp\Server\Framework\Hyperf\HyperfMcpServer;
 use Hyperf\HttpServer\Router\Router;
@@ -24,6 +25,11 @@ Router::addGroup('/api/v1/mcp', function () {
         Router::post('/{code}/tool', [MCPServerToolAdminApi::class, 'save']);
         Router::get('/{code}/tool/{id}', [MCPServerToolAdminApi::class, 'show']);
         Router::delete('/{code}/tool/{id}', [MCPServerToolAdminApi::class, 'destroy']);
+    });
+
+    Router::addGroup('/super-magic', function () {
+        Router::put('/project/{projectId}/setting', [MCPSuperMagicProjectSettingAdminApi::class, 'save']);
+        Router::get('/project/{projectId}/setting', [MCPSuperMagicProjectSettingAdminApi::class, 'get']);
     });
 
     Router::post('/available/queries', [MCPServerAdminApi::class, 'availableQueries']);
