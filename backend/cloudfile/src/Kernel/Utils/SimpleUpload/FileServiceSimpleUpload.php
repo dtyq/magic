@@ -182,4 +182,63 @@ class FileServiceSimpleUpload extends SimpleUpload
         $simpleUpload = $this->simpleUploadInstances[$platform];
         $simpleUpload->copyObjectByCredential($credential, $sourceKey, $destinationKey, $options);
     }
+
+    /**
+     * Get object metadata by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @return array 对象元数据
+     * @throws CloudFileException
+     */
+    public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
+    {
+        $platform = $credential['platform'] ?? '';
+        $platformCredential = $credential['temporary_credential'] ?? [];
+        if (empty($platform) || empty($platformCredential)) {
+            throw new CloudFileException('credential is empty');
+        }
+
+        if (! isset($this->simpleUploadsMap[$platform])) {
+            throw new CloudFileException('platform is invalid');
+        }
+
+        if (! isset($this->simpleUploadInstances[$platform])) {
+            $this->simpleUploadInstances[$platform] = new $this->simpleUploadsMap[$platform]($this->sdkContainer);
+        }
+
+        $simpleUpload = $this->simpleUploadInstances[$platform];
+        return $simpleUpload->getHeadObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * Create object by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @throws CloudFileException
+     */
+    public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
+    {
+        $platform = $credential['platform'] ?? '';
+        $platformCredential = $credential['temporary_credential'] ?? [];
+        if (empty($platform) || empty($platformCredential)) {
+            throw new CloudFileException('credential is empty');
+        }
+
+        if (! isset($this->simpleUploadsMap[$platform])) {
+            throw new CloudFileException('platform is invalid');
+        }
+
+        if (! isset($this->simpleUploadInstances[$platform])) {
+            $this->simpleUploadInstances[$platform] = new $this->simpleUploadsMap[$platform]($this->sdkContainer);
+        }
+
+        $simpleUpload = $this->simpleUploadInstances[$platform];
+        $simpleUpload->createObjectByCredential($credential, $objectKey, $options);
+    }
 }

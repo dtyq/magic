@@ -296,6 +296,35 @@ class FilesystemProxy extends Filesystem
     }
 
     /**
+     * 获取对象元数据 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @return array 对象元数据
+     */
+    public function getHeadObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): array
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        return $this->getSimpleUploadInstance($this->adapterName)->getHeadObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * 创建对象 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项 (content, content_type等)
+     */
+    public function createObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): void
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->createObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
      * Download file by chunks.
      *
      * @param string $filePath Remote file path

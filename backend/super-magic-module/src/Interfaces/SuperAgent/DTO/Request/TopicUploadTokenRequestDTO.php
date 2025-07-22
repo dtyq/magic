@@ -69,4 +69,4 @@ class TopicUploadTokenRequestDTO implements JsonSerializable
             'expires' => $this->expires,
         ];
     }
-} 
+}

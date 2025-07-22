@@ -106,6 +106,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.delete_failed')]
     case FILE_DELETE_FAILED = 51167;
 
+    #[ErrorMessage('file.file_exist')]
+    case FILE_EXIST = 51168;
+
+    #[ErrorMessage('file.file_rename_failed')]
+    case FILE_RENAME_FAILED = 51169;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;

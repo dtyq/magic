@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use JsonSerializable;
 
 /**
@@ -25,7 +24,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     /**
      * 来源字段.
      */
-    private TaskFileSource $source;
+    private int $source = 0;
 
     /**
      * 文件键（OSS中的路径）.
@@ -63,6 +62,11 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     private ?int $parentId = null;
 
     /**
+     * 存储类型（可选，默认为空字符串）.
+     */
+    private string $storageType = '';
+
+    /**
      * 从请求数据创建DTO.
      */
     public static function fromRequest(array $data): self
@@ -70,7 +74,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance = new self();
 
         $instance->projectId = $data['project_id'] ?? null;
-        $instance->source = isset($data['source']) ? TaskFileSource::fromValue($data['source']) : TaskFileSource::HOME;
+        $instance->source = (int) ($data['source'] ?? 0);
         $instance->fileKey = $data['file_key'] ?? '';
         $instance->fileName = $data['file_name'] ?? '';
         $instance->fileSize = (int) ($data['file_size'] ?? 0);
@@ -78,6 +82,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->isDirectory = (bool) ($data['is_directory'] ?? false);
         $instance->sort = (int) ($data['sort'] ?? 0);
         $instance->parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
+        $instance->storageType = $data['storage_type'] ?? '';
 
         return $instance;
     }
@@ -93,12 +98,12 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
-    public function getSource(): TaskFileSource
+    public function getSource(): int
     {
         return $this->source;
     }
 
-    public function setSource(TaskFileSource $source): self
+    public function setSource(int $source): self
     {
         $this->source = $source;
         return $this;
@@ -181,6 +186,17 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
+    public function getStorageType(): string
+    {
+        return $this->storageType;
+    }
+
+    public function setStorageType(string $storageType): self
+    {
+        $this->storageType = $storageType;
+        return $this;
+    }
+
     /**
      * 转换为 TaskFileEntity 实体.
      */
@@ -192,20 +208,26 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $taskFileEntity->setFileSize($this->fileSize);
         $taskFileEntity->setFileType($this->fileType);
         $taskFileEntity->setSource($this->source);
-        
+
         // 设置项目ID（如果有）
-        if (!empty($this->projectId)) {
+        if (! empty($this->projectId)) {
             $taskFileEntity->setProjectId((int) $this->projectId);
         }
-        
+
         // 使用DTO中的值
         $taskFileEntity->setIsDirectory($this->isDirectory);
         $taskFileEntity->setSort($this->sort);
         $taskFileEntity->setParentId($this->parentId);
-        // 设置默认值
-        $taskFileEntity->setStorageType(StorageType::WORKSPACE);
-        $taskFileEntity->setIsHidden(false);
         
+        // 设置存储类型
+        if (!empty($this->storageType)) {
+            $taskFileEntity->setStorageType($this->storageType);
+        } else {
+            $taskFileEntity->setStorageType(StorageType::WORKSPACE);
+        }
+        
+        $taskFileEntity->setIsHidden(false);
+
         return $taskFileEntity;
     }
 
@@ -216,7 +238,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     {
         return [
             'project_id' => $this->projectId,
-            'source' => $this->source->value,
+            'source' => $this->source,
             'file_key' => $this->fileKey,
             'file_name' => $this->fileName,
             'file_size' => $this->fileSize,
@@ -224,6 +246,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
             'is_directory' => $this->isDirectory,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
+            'storage_type' => $this->storageType,
         ];
     }
 }

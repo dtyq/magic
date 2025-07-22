@@ -22,7 +22,10 @@ enum StorageType: string
     /**
      * 消息存储.
      */
-    case MESSAGE = 'message';
+    case TOPIC = 'topic';
+
+    case OBJECT_STORAGE = 'object_storage';
+    case OTHERS = '';
 
     /**
      * 获取存储类型名称.
@@ -31,7 +34,9 @@ enum StorageType: string
     {
         return match ($this) {
             self::WORKSPACE => '工作空间',
-            self::MESSAGE => '消息',
+            self::TOPIC => '话题',
+            self::OBJECT_STORAGE => '对象存储',
+            self::OTHERS => '其他',
         };
     }
 
@@ -42,7 +47,9 @@ enum StorageType: string
     {
         return match ($this) {
             self::WORKSPACE => '存储在工作空间中的文件',
-            self::MESSAGE => '存储在消息中的文件',
+            self::TOPIC => '存储在消息中的文件',
+            self::OBJECT_STORAGE => '存储在对象存储中的文件',
+            self::OTHERS => '其他存储方式',
         };
     }
 
@@ -53,7 +60,7 @@ enum StorageType: string
     {
         return match ($value) {
             'workspace' => self::WORKSPACE,
-            'message' => self::MESSAGE,
+            'topic' => self::TOPIC,
             // 兜底：未知值统一转为 WORKSPACE（处理脏数据）
             default => self::WORKSPACE,
         };
@@ -66,7 +73,7 @@ enum StorageType: string
     {
         return [
             self::WORKSPACE->value => self::WORKSPACE->getName(),
-            self::MESSAGE->value => self::MESSAGE->getName(),
+            self::TOPIC->value => self::TOPIC->getName(),
         ];
     }
 

@@ -27,7 +27,7 @@ abstract class SimpleUpload
     abstract public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void;
 
     /**
-     * List objects by credential
+     * List objects by credential.
      *
      * @param array $credential Credential information
      * @param string $prefix Object prefix to filter
@@ -37,25 +37,42 @@ abstract class SimpleUpload
     abstract public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array;
 
     /**
-     * Delete object by credential
+     * Delete object by credential.
      *
      * @param array $credential Credential information
      * @param string $objectKey Object key to delete
      * @param array $options Additional options
-     * @return void
      */
     abstract public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void;
 
     /**
-     * Copy object by credential
+     * Copy object by credential.
      *
      * @param array $credential Credential information
      * @param string $sourceKey Source object key
      * @param string $destinationKey Destination object key
      * @param array $options Additional options
-     * @return void
      */
     abstract public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void;
+
+    /**
+     * Get object metadata by credential.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to get metadata
+     * @param array $options Additional options
+     * @return array Object metadata
+     */
+    abstract public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array;
+
+    /**
+     * Create object by credential (file or folder).
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to create
+     * @param array $options Additional options (content, content_type, etc.)
+     */
+    abstract public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void;
 
     /**
      * 分片上传文件

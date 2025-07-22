@@ -66,7 +66,7 @@ class ObsSimpleUpload extends SimpleUpload
     }
 
     /**
-     * List objects by credential (not implemented yet)
+     * List objects by credential (not implemented yet).
      */
     public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array
     {
@@ -74,7 +74,7 @@ class ObsSimpleUpload extends SimpleUpload
     }
 
     /**
-     * Delete object by credential (not implemented yet)
+     * Delete object by credential (not implemented yet).
      */
     public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void
     {
@@ -82,10 +82,26 @@ class ObsSimpleUpload extends SimpleUpload
     }
 
     /**
-     * Copy object by credential (not implemented yet)
+     * Copy object by credential (not implemented yet).
      */
     public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void
     {
         throw new CloudFileException('copyObjectByCredential not implemented for ObsSimpleUpload');
+    }
+
+    /**
+     * Get object metadata by credential (not implemented yet).
+     */
+    public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
+    {
+        throw new CloudFileException('getHeadObjectByCredential not implemented for ObsSimpleUpload');
+    }
+
+    /**
+     * Create object by credential (not implemented yet).
+     */
+    public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
+    {
+        throw new CloudFileException('createObjectByCredential not implemented for ObsSimpleUpload');
     }
 }

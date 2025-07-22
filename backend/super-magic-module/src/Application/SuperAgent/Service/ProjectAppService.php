@@ -14,6 +14,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -368,6 +369,9 @@ class ProjectAppService extends AbstractAppService
         $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
             // 创建DTO
             $dto = new TaskFileItemDTO();
             $dto->fileId = (string) $entity->getFileId();
@@ -380,6 +384,7 @@ class ProjectAppService extends AbstractAppService
             $dto->isHidden = $entity->getIsHidden();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            $dto->isDirectory = $entity->getIsDirectory();
 
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
@@ -396,7 +401,7 @@ class ProjectAppService extends AbstractAppService
             } else {
                 $dto->fileUrl = '';
             }
-            // 判断filekey是否重复，如果重复，则跳过
+            // 判断file key是否重复，如果重复，则跳过
             if (in_array($fileKey, $fileKeys)) {
                 continue;
             }
@@ -405,7 +410,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 构建树状结构（登录用户模式特有功能）
-        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
+        $tree = FileTreeUtil::assembleFilesTree($list);
 
         return [
             'list' => $list,

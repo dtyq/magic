@@ -7,10 +7,27 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use Exception;
+use InvalidArgumentException;
 
 class WorkDirectoryUtil
 {
+    public static function getFullPrefix(string $organizationCode): string
+    {
+        $md5Key = md5(StorageBucketType::Private->value);
+        $appId = config('kk_brd_service.app_id');
+
+        return "{$organizationCode}/{$appId}/{$md5Key}" . '/';
+    }
+
+    public static function getPrefix(string $workDir): string
+    {
+        $md5Key = md5(StorageBucketType::Private->value);
+        return "{$md5Key}/" . trim($workDir, '/') . '/';
+    }
+
     public static function getRootDir(string $userId, int $projectId): string
     {
         return sprintf('/%s/%s/project_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $projectId);
@@ -49,7 +66,7 @@ class WorkDirectoryUtil
         return self::getTopicRootDir($userId, $projectId, $topicId) . '/message';
     }
 
-    public static function getProjectFilePackDir(string $userId, int $projectId):string
+    public static function getProjectFilePackDir(string $userId, int $projectId): string
     {
         return self::getRootDir($userId, $projectId) . '/.runtime/pack';
     }
@@ -170,5 +187,70 @@ class WorkDirectoryUtil
         }
 
         return $result;
+    }
+
+    /**
+     * Validate target name for file operations.
+     *
+     * @param string $targetName Target name to validate
+     * @throws Exception If validation fails
+     */
+    public static function validateTargetName(string $targetName): void
+    {
+        // Check if target_name is empty
+        if (empty(trim($targetName))) {
+            throw new InvalidArgumentException('Target name is required');
+        }
+
+        // Trim the target name
+        $targetName = trim($targetName);
+
+        // Check for null bytes (security risk)
+        if (strpos($targetName, "\0") !== false) {
+            throw new InvalidArgumentException('Target name contains invalid null byte');
+        }
+
+        // Remove or validate dangerous characters that could cause file system issues
+        // Windows forbidden characters: < > : " | ? *
+        // Also check for control characters (ASCII 0-31)
+        if (preg_match('/[<>:"|?*\x00-\x1f]/', $targetName)) {
+            throw new InvalidArgumentException('Target name contains invalid characters');
+        }
+
+        // Prevent path traversal attacks
+        if (strpos($targetName, '..') !== false) {
+            throw new InvalidArgumentException('Target name contains path traversal attempt');
+        }
+
+        // Check for excessive path depth (prevent overly deep nesting)
+        $pathParts = array_filter(explode('/', trim($targetName, '/')));
+        if (count($pathParts) > 10) {  // Maximum 10 levels deep
+            throw new InvalidArgumentException('Target name path is too deep (maximum 10 levels allowed)');
+        }
+
+        // Check individual path components
+        foreach ($pathParts as $part) {
+            // Each part should not be empty after trimming
+            $part = trim($part);
+            if (empty($part)) {
+                throw new InvalidArgumentException('Target name contains empty path component');
+            }
+
+            // Each part should not be too long (typical filesystem limit is 255 bytes)
+            if (strlen($part) > 255) {
+                throw new InvalidArgumentException('Target name component is too long (maximum 255 bytes per component)');
+            }
+
+            // Check for Windows reserved names (case-insensitive)
+            $reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+            if (in_array(strtoupper($part), $reservedNames)) {
+                throw new InvalidArgumentException("Target name contains reserved name: {$part}");
+            }
+        }
+
+        // Check total path length (typical limit is 4096 bytes on most systems)
+        if (strlen($targetName) > 1000) {  // Conservative limit
+            throw new InvalidArgumentException('Target name is too long (maximum 1000 characters allowed)');
+        }
     }
 }

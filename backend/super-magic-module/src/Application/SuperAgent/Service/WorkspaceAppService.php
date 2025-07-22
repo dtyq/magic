@@ -718,7 +718,7 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         // 构建树状结构
-        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
+        $tree = FileTreeUtil::assembleFilesTree($list);
 
         return [
             'list' => $list,

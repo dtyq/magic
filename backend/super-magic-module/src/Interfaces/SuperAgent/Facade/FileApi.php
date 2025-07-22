@@ -17,16 +17,19 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
-use Psr\SimpleCache\CacheInterface;
+use Throwable;
 
 #[ApiResponse('low_code')]
 class FileApi extends AbstractApi
@@ -34,12 +37,10 @@ class FileApi extends AbstractApi
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
-        private readonly FileSaveContentAppService $fileSaveContentAppService,
         private readonly FileManagementAppService $fileManagementAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
-        private readonly CacheInterface $cache,
     ) {
     }
 
@@ -212,6 +213,33 @@ class FileApi extends AbstractApi
         return $this->fileManagementAppService->deleteFile($requestContext, (int) $id);
     }
 
+    public function deleteDirectory(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestDTO = DeleteDirectoryRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->deleteDirectory($requestContext, $requestDTO);
+    }
+
+    public function renameFile(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $targetName = $this->request->input('target_name', '');
+
+        // Validate target_name parameter using WorkDirectoryUtil
+        try {
+            WorkDirectoryUtil::validateTargetName($targetName);
+        } catch (Throwable $e) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, $e->getMessage());
+        }
+
+        return $this->fileManagementAppService->renameFile($requestContext, (int) $id, $targetName);
+    }
+
     /**
      * Create batch download task.
      *
@@ -297,6 +325,24 @@ class FileApi extends AbstractApi
     }
 
     /**
+     * 创建文件或文件夹.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 创建结果
+     */
+    public function createFile(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestDTO = CreateFileRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->createFile($requestContext, $requestDTO);
+    }
+
+    /**
      * 保存项目文件.
      *
      * @param RequestContext $requestContext 请求上下文
@@ -313,33 +359,5 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         return $this->fileManagementAppService->saveFile($requestContext, $requestDTO);
-    }
-
-    /**
-     * 获取项目文件列表（优化版本）
-     *
-     * @param RequestContext $requestContext 请求上下文  
-     * @param string $id 项目ID
-     * @return array 文件列表
-     */
-    public function getProjectFileList(RequestContext $requestContext, string $id): array
-    {
-        // 1. 缓存检查
-//        $cacheKey = sprintf('project_files:%s', $id);
-//        $cachedData = $this->cache->get($cacheKey);
-//        if ($cachedData !== null) {
-//            return $cachedData;
-//        }
-//
-        // 2. 设置用户授权
-        $requestContext->setUserAuthorization($this->getAuthorization());
-        
-        // 3. 调用应用服务
-        $result = $this->fileManagementAppService->getProjectFileList($requestContext, (int) $id);
-        
-        // 4. 缓存结果（5秒TTL）
-        // $this->cache->set($cacheKey, $result, 5);
-        
-        return $result;
     }
 }

@@ -177,7 +177,7 @@ class TaskFileEntity extends AbstractEntity
 
     public function getStorageType(): StorageType
     {
-        if (!isset($this->storageType)) {
+        if (! isset($this->storageType)) {
             $this->storageType = StorageType::WORKSPACE;
         }
         return $this->storageType;
@@ -237,7 +237,7 @@ class TaskFileEntity extends AbstractEntity
         return $this->source;
     }
 
-    public function setSource(TaskFileSource|string|int $source): void
+    public function setSource(int|string|TaskFileSource $source): void
     {
         if ($source instanceof TaskFileSource) {
             $this->source = $source;
