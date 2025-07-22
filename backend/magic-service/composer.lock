@@ -2589,12 +2589,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "24426a02e33f1466dc7dedc4284d6dadad5d6c90"
+                "reference": "fce742c32a86484b0c7f1fbc5e157684630dc2a0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=24426a02e33f1466dc7dedc4284d6dadad5d6c90",
-                "reference": "24426a02e33f1466dc7dedc4284d6dadad5d6c90",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=fce742c32a86484b0c7f1fbc5e157684630dc2a0",
+                "reference": "fce742c32a86484b0c7f1fbc5e157684630dc2a0",
                 "shasum": ""
             },
             "require": {
@@ -2688,7 +2688,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-22T23:38:44+08:00"
+            "time": "2025-07-23T00:09:49+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17203,12 +17203,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "a0e87d477a9951beccbd1f03617ef0fecf0beb9f"
+                "reference": "0b1f127d644a2ff8af1c8bd2955dbe3c11812017"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/a0e87d477a9951beccbd1f03617ef0fecf0beb9f",
-                "reference": "a0e87d477a9951beccbd1f03617ef0fecf0beb9f",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0b1f127d644a2ff8af1c8bd2955dbe3c11812017",
+                "reference": "0b1f127d644a2ff8af1c8bd2955dbe3c11812017",
                 "shasum": ""
             },
             "conflict": {
@@ -17626,6 +17626,7 @@
                 "magneto/core": "<1.9.4.4-dev",
                 "maikuolan/phpmussel": ">=1,<1.6",
                 "mainwp/mainwp": "<=4.4.3.3",
+                "manogi/nova-tiptap": "<=3.2.6",
                 "mantisbt/mantisbt": "<=2.26.3",
                 "marcwillmann/turn": "<0.3.3",
                 "marshmallow/nova-tiptap": "<5.7",
@@ -18154,7 +18155,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-22T15:06:27+00:00"
+            "time": "2025-07-22T16:07:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
