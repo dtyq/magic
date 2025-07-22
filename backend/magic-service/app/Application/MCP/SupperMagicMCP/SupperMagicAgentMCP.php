@@ -27,6 +27,7 @@ use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Core\ValueObject\Page;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -47,8 +48,9 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
     }
 
-    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, ?string $mentions = null, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
+    public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, TaskContext $taskContext, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
     {
+        $mentions = $taskContext->getTask()->getMentions();
         $this->logger->debug('CreateChatMessageRequestMcpConfigArgs', ['mentions' => $mentions, 'agentIds' => $agentIds, 'mcpIds' => $mcpIds, 'toolIds' => $toolIds]);
         try {
             if ($mentions !== null) {
