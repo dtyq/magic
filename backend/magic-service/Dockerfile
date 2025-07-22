@@ -1,4 +1,4 @@
-FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/brd/hyperf-dockerfile:8.3-alpine-3.20-swow-1.5.3-jsonpath-parle-xlswriter-debuggable
+FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.3-alpine-3.21-swow-ci-jsonpath-parle-xlswriter
 
 ##
 # ---------- env settings ----------
