@@ -174,8 +174,6 @@ class AgentAppService
         while (time() < $endTime) {
             try {
                 $response = $this->getWorkspaceStatus($sandboxId);
-
-                var_dump($response, '=====response');
                 $status = $response->getDataValue('status');
 
                 $this->logger->debug('[Sandbox][App] Workspace status check', [
