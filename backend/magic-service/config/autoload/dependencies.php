@@ -75,6 +75,8 @@ use App\Domain\Contact\Repository\Persistence\MagicDepartmentUserRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserIdRelationRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserSettingRepository;
+use App\Domain\Contact\Service\Facade\MagicUserDomainExtendInterface;
+use App\Domain\Contact\Service\MagicUserDomainExtendService;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowAIModelRepositoryInterface;
@@ -316,6 +318,7 @@ $dependencies = [
     MagicDepartmentUserRepositoryInterface::class => MagicDepartmentUserRepository::class,
     MagicDepartmentRepositoryInterface::class => MagicDepartmentRepository::class,
     MagicUserSettingRepositoryInterface::class => MagicUserSettingRepository::class,
+    MagicUserDomainExtendInterface::class => MagicUserDomainExtendService::class,
 
     // 认证体系
 

@@ -62,4 +62,13 @@ class PermissionChecker
         $permission = di(PermissionInterface::class);
         return $permission->isOrganizationAdmin($organizationCode, $mobile);
     }
+
+    /**
+     * 获取用户拥有管理员权限的组织编码列表.
+     */
+    public static function getUserOrganizationAdminList(string $mageId): array
+    {
+        $permission = di(PermissionInterface::class);
+        return $permission->getOrganizationAdminList($mageId);
+    }
 }
