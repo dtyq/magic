@@ -1986,12 +1986,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "029509e2bdeafe377c0326e0aa1f8a08f033d508"
+                "reference": "7265a4415f003189afa593fece29fe9953707649"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=029509e2bdeafe377c0326e0aa1f8a08f033d508",
-                "reference": "029509e2bdeafe377c0326e0aa1f8a08f033d508",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=7265a4415f003189afa593fece29fe9953707649",
+                "reference": "7265a4415f003189afa593fece29fe9953707649",
                 "shasum": ""
             },
             "require": {
@@ -2068,7 +2068,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
             },
-            "time": "2025-06-23T13:35:43+00:00"
+            "time": "2025-07-22T22:39:33+08:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2589,12 +2589,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "2f1a269856dd206ee472eb99e3b329dafa0ba986"
+                "reference": "24426a02e33f1466dc7dedc4284d6dadad5d6c90"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=2f1a269856dd206ee472eb99e3b329dafa0ba986",
-                "reference": "2f1a269856dd206ee472eb99e3b329dafa0ba986",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=24426a02e33f1466dc7dedc4284d6dadad5d6c90",
+                "reference": "24426a02e33f1466dc7dedc4284d6dadad5d6c90",
                 "shasum": ""
             },
             "require": {
@@ -2688,7 +2688,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-22T20:28:00+08:00"
+            "time": "2025-07-22T23:38:44+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17203,12 +17203,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "2699ef22973a999fb9b79ed9e5fe576381068928"
+                "reference": "a0e87d477a9951beccbd1f03617ef0fecf0beb9f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/2699ef22973a999fb9b79ed9e5fe576381068928",
-                "reference": "2699ef22973a999fb9b79ed9e5fe576381068928",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/a0e87d477a9951beccbd1f03617ef0fecf0beb9f",
+                "reference": "a0e87d477a9951beccbd1f03617ef0fecf0beb9f",
                 "shasum": ""
             },
             "conflict": {
@@ -17533,10 +17533,10 @@
                 "imdbphp/imdbphp": "<=5.1.1",
                 "impresscms/impresscms": "<=1.4.5",
                 "impresspages/impresspages": "<1.0.13",
-                "in2code/femanager": "<5.5.5|>=6,<6.4.1|>=7,<7.4.2|>=8,<8.2.2",
+                "in2code/femanager": "<6.4.2|>=7,<7.5.3|>=8,<8.3.1",
                 "in2code/ipandlanguageredirect": "<5.1.2",
                 "in2code/lux": "<17.6.1|>=18,<24.0.2",
-                "in2code/powermail": "<7.5.1|>=8,<8.5.1|>=9,<10.9.1|>=11,<12.4.1",
+                "in2code/powermail": "<7.5.1|>=8,<8.5.1|>=9,<10.9.1|>=11,<12.5.3|==13",
                 "innologi/typo3-appointments": "<2.0.6",
                 "intelliants/subrion": "<4.2.2",
                 "inter-mediator/inter-mediator": "==5.5",
@@ -18154,7 +18154,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-21T22:05:55+00:00"
+            "time": "2025-07-22T15:06:27+00:00"
         },
         {
             "name": "sebastian/cli-parser",
