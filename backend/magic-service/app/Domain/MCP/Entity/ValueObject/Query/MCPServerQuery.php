@@ -29,7 +29,7 @@ class MCPServerQuery extends AbstractQuery
 
     public function setCodes(?array $codes): void
     {
-        $this->codes = $codes;
+        $this->codes = array_filter(array_unique($codes));
     }
 
     public function getName(): ?string
