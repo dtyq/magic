@@ -44,7 +44,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         protected MagicFlowDomainService $magicFlowDomainService,
         LoggerFactory $loggerFactory,
     ) {
-        $this->logger = $loggerFactory->get('SupperMagicAgentMCP', 'debug');
+        $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
     }
 
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, ?string $mentions = null, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
