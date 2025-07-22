@@ -97,6 +97,13 @@ Router::addGroup(
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
         });
+
+        Router::addGroup('/sandbox', static function () {
+            // 初始化沙盒
+            Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
+            // 获取沙盒状态
+            Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+        });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
 );
@@ -131,13 +138,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/versions', [FileApi::class, 'getFileVersions']);
         // 获取文件版本内容
         Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
-    });
-
-    Router::addGroup('/sandbox', static function () {
-        // 初始化沙盒
-        Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
-        // 获取沙盒状态
-        Router::post('/status', [SandboxApi::class, 'getSandboxStatus']);
     });
 });
 

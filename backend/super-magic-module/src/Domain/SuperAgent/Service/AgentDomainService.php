@@ -99,7 +99,7 @@ class AgentDomainService
                 'error' => $result->getMessage(),
                 'code' => $result->getCode(),
             ]);
-            throw new SandboxOperationException('Get sandbox status', $result->getMessage(), $result->getCode());
+            // throw new SandboxOperationException('Get sandbox status', $result->getMessage(), $result->getCode());
         }
 
         $this->logger->info('[Sandbox][App] Sandbox status retrieved', [
