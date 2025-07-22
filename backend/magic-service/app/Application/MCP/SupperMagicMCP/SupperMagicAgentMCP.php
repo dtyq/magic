@@ -46,13 +46,23 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         protected MagicFlowDomainService $magicFlowDomainService,
         LoggerFactory $loggerFactory,
     ) {
-        $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
+        $this->logger = $loggerFactory->get('SupperMagicAgentMCP', 'debug');
     }
 
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, TaskContext $taskContext, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
     {
         $mentions = $taskContext->getTask()->getMentions();
-        $this->logger->debug('CreateChatMessageRequestMcpConfigArgs', ['mentions' => $mentions, 'agentIds' => $agentIds, 'mcpIds' => $mcpIds, 'toolIds' => $toolIds]);
+        $this->logger->debug('CreateChatMessageRequestMcpConfigArgs', ['task_context' => [
+            'task_id' => $taskContext->getTask()->getId(),
+            'chat_conversation_id' => $taskContext->getChatConversationId(),
+            'chat_topic_id' => $taskContext->getChatTopicId(),
+            'agent_user_id' => $taskContext->getAgentUserId(),
+            'sandbox_id' => $taskContext->getSandboxId(),
+            'instruction' => $taskContext->getInstruction()->value,
+            'agent_mode' => $taskContext->getAgentMode(),
+            'project_id' => $taskContext->getTask()->getProjectId(),
+            'mentions' => $mentions,
+        ], 'agentIds' => $agentIds, 'mcpIds' => $mcpIds, 'toolIds' => $toolIds]);
         try {
             if ($mentions !== null) {
                 $mentions = str_replace('\"', '"', $mentions);
