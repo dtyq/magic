@@ -210,7 +210,7 @@ class AgentAppService
             $dataIsolation->getCurrentOrganizationCode(),
             $dataIsolation->getCurrentUserId()
         );
-        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext->getTask()->getMentions()) ?? [];
+        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
