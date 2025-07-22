@@ -128,7 +128,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $dataIsolation->getCurrentUserId()
             );
-            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $mentionsJson) ?? [];
 
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
@@ -143,8 +142,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 topicMode: $topicMode,
                 taskMode: $taskMode,
                 rawContent: $rawContent,
-                mcpConfig: $mcpConfig
+                mcpConfig: []
             );
+
+            $taskContext = $this->handleUserMessageAppService->getTaskContext($dataIsolation, $userMessageDTO);
+            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
+            $userMessageDTO->setMcpConfig($mcpConfig);
 
             // Call handle user message service
             if ($chatInstructs == ChatInstruction::Interrupted) {
