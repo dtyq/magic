@@ -76,17 +76,4 @@ enum StorageType: string
             self::TOPIC->value => self::TOPIC->getName(),
         ];
     }
-
-    /**
-     * 判断是否为有效的存储类型值
-     */
-    public static function isValid(string $value): bool
-    {
-        try {
-            self::fromValue($value);
-            return true;
-        } catch (InvalidArgumentException) {
-            return false;
-        }
-    }
 }
