@@ -92,6 +92,11 @@ class UserMessageDTO
         return $this->mcpConfig;
     }
 
+    public function setMcpConfig(array $mcpConfig): void
+    {
+        $this->mcpConfig = $mcpConfig;
+    }
+
     /**
      * Create DTO from array.
      */
