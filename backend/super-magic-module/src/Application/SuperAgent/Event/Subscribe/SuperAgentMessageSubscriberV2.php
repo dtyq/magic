@@ -17,6 +17,7 @@ use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
@@ -123,6 +124,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 
             // raw content
             $rawContent = $this->getRawContent($userCallAgentEvent);
+
 
             // MCP config
             $mcpDataIsolation = MCPDataIsolation::create(
