@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
-use InvalidArgumentException;
-
 /**
  * 存储类型枚举.
  */
