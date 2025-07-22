@@ -11,6 +11,8 @@ use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\Query\MagicUserSettingQuery;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -25,12 +27,33 @@ class MagicUserSettingAppService extends AbstractContactAppService
     ) {
     }
 
+    public function saveProjectMcpServerConfig(Authenticatable $authorization, string $projectId, array $servers): MagicUserSettingEntity
+    {
+        $dataIsolation = $this->createDataIsolation($authorization);
+        $entity = new MagicUserSettingEntity();
+        $entity->setKey(UserSettingKey::genSuperMagicProjectMCPServers($projectId));
+        $entity->setValue([
+            'servers' => $servers,
+        ]);
+        return $this->magicUserSettingDomainService->save($dataIsolation, $entity);
+    }
+
+    public function getProjectMcpServerConfig(Authenticatable $authorization, string $projectId): ?MagicUserSettingEntity
+    {
+        $key = UserSettingKey::genSuperMagicProjectMCPServers($projectId);
+        return $this->get($authorization, $key);
+    }
+
     /**
      * @param MagicUserAuthorization $authorization
      */
     public function save(Authenticatable $authorization, MagicUserSettingEntity $entity): MagicUserSettingEntity
     {
         $dataIsolation = $this->createDataIsolation($authorization);
+        $key = UserSettingKey::make($entity->getKey());
+        if (! $key->isValid()) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied);
+        }
         return $this->magicUserSettingDomainService->save($dataIsolation, $entity);
     }
 
@@ -44,7 +67,7 @@ class MagicUserSettingAppService extends AbstractContactAppService
 
         $setting = $this->magicUserSettingDomainService->get($dataIsolation, $key);
 
-        $key = UserSettingKey::tryFrom($key);
+        $key = UserSettingKey::make($key);
         if ($setting) {
             $key?->getValueHandler()?->populateValue($flowDataIsolation, $setting);
         } else {
