@@ -41,12 +41,20 @@ class TopicDomainService
     public function getSandboxIdByTopicId(int $topicId): ?string
     {
         $topic = $this->getTopicById($topicId);
+        if (empty($topic)) {
+            return null;
+        }
         return $topic->getSandboxId();
     }
 
     public function updateTopicStatus(int $id, int $taskId, TaskStatus $taskStatus): bool
     {
         return $this->topicRepository->updateTopicStatus($id, $taskId, $taskStatus);
+    }
+
+    public function updateTopicStatusAndSandboxId(int $id, int $taskId, TaskStatus $taskStatus, string $sandboxId): bool
+    {
+        return $this->topicRepository->updateTopicStatusAndSandboxId($id, $taskId, $taskStatus, $sandboxId);
     }
 
     public function updateTopicStatusAndSandboxId(int $id, int $taskId, TaskStatus $taskStatus, string $sandboxId): bool

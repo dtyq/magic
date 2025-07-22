@@ -97,6 +97,9 @@ class HandleUserMessageAppService extends AbstractAppService
             );
         }
     }
+    /*
+    * user send message to agent
+    */
 
     public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {

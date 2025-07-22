@@ -72,6 +72,16 @@ class TopicAppService extends AbstractAppService
         return TopicItemDTO::fromEntity($topicEntity);
     }
 
+    public function getTopicById(int $id): TopicItemDTO
+    {
+        // 获取话题内容
+        $topicEntity = $this->topicDomainService->getTopicById($id);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+        return TopicItemDTO::fromEntity($topicEntity);
+    }
+
     public function createTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): TopicItemDTO
     {
         // 获取用户授权信息

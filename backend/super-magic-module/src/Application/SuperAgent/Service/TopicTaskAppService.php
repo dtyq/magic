@@ -161,6 +161,7 @@ class TopicTaskAppService extends AbstractAppService
             // Log success
             $this->logger->info('Task status update completed', [
                 'task_id' => $taskId,
+                'sandbox_id' => $task->getSandboxId(),
                 'previous_status' => $currentStatus->value ?? 'null',
                 'new_status' => $status->value,
                 'error_msg' => $errMsg,
@@ -168,6 +169,7 @@ class TopicTaskAppService extends AbstractAppService
         } catch (Throwable $e) {
             $this->logger->error('Failed to update task status', [
                 'task_id' => $taskId,
+                'sandbox_id' => $task->getSandboxId(),
                 'status' => $status->value,
                 'error' => $e->getMessage(),
                 'error_msg' => $errMsg,
