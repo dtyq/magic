@@ -180,7 +180,7 @@ class FileDomainService
     }
 
     /**
-     * 构建最终文件列表（包含URL）
+     * 构建最终文件列表（包含URL）.
      */
     private function buildFinalFileList(array $objectStorageFiles, string $organizationCode): array
     {

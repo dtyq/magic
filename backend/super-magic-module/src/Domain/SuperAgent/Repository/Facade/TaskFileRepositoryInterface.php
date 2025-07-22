@@ -188,22 +188,39 @@ interface TaskFileRepositoryInterface
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
 
     /**
-     * 根据项目ID获取所有文件的file_key列表（高性能查询）
+     * 根据项目ID获取所有文件的file_key列表（高性能查询）.
      */
     public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array;
 
     /**
-     * 批量插入新文件记录
+     * 批量插入新文件记录.
      */
-    public function batchInsertFiles(\App\Domain\Contact\Entity\ValueObject\DataIsolation $dataIsolation, int $projectId, array $newFileKeys, array $objectStorageFiles = []): void;
+    public function batchInsertFiles(DataIsolation $dataIsolation, int $projectId, array $newFileKeys, array $objectStorageFiles = []): void;
 
     /**
-     * 批量标记文件为已删除
+     * 批量标记文件为已删除.
      */
     public function batchMarkAsDeleted(array $deletedFileKeys): void;
 
     /**
-     * 批量更新文件信息
+     * 批量更新文件信息.
      */
     public function batchUpdateFiles(array $updatedFileKeys): void;
+
+    /**
+     * 根据目录路径查找文件列表.
+     *
+     * @param int $projectId 项目ID
+     * @param string $directoryPath 目录路径
+     * @param int $limit 查询限制
+     * @return TaskFileEntity[] 文件列表
+     */
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array;
+
+    /**
+     * 批量删除文件.
+     *
+     * @param array $fileIds 文件ID数组
+     */
+    public function deleteByIds(array $fileIds): void;
 }

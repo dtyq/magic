@@ -445,28 +445,4 @@ class AliyunSimpleUpload extends SimpleUpload
         }
         return $method . "\n" . $contentMd5 . "\n" . $contentType . "\n" . $date . "\n" . $canonicalizedOSSHeaders . $canonicalizedResource;
     }
-
-    /**
-     * List objects by credential (not implemented yet)
-     */
-    public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array
-    {
-        throw new CloudFileException('listObjectsByCredential not implemented for AliyunSimpleUpload');
-    }
-
-    /**
-     * Delete object by credential (not implemented yet)
-     */
-    public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void
-    {
-        throw new CloudFileException('deleteObjectByCredential not implemented for AliyunSimpleUpload');
-    }
-
-    /**
-     * Copy object by credential (not implemented yet)
-     */
-    public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void
-    {
-        throw new CloudFileException('copyObjectByCredential not implemented for AliyunSimpleUpload');
-    }
 }
