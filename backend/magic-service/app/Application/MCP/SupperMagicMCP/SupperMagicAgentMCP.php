@@ -23,6 +23,8 @@ use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\ErrorCode\MCPErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Codec\Json;
@@ -134,24 +136,43 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 continue;
             }
 
-            $mcpServerConfig = MCPServerConfigUtil::create(
-                $mcpDataIsolation,
-                $mcpServer,
-                $localHttpUrl,
-            );
-            if (! $mcpServerConfig) {
-                continue;
+            try {
+                $mcpServerConfig = MCPServerConfigUtil::create(
+                    $mcpDataIsolation,
+                    $mcpServer,
+                    $localHttpUrl,
+                );
+                if (! $mcpServerConfig) {
+                    ExceptionBuilder::throw(MCPErrorCode::NotFound, 'ServerConfigCreateFailed');
+                }
+                if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
+                    $token = $this->tempAuth->create([
+                        'user_id' => $dataIsolation->getCurrentUserId(),
+                        'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                        'server_code' => $mcpServer->getCode(),
+                    ], 3600);
+                    $mcpServerConfig->setToken($token);
+                }
+                $config = $mcpServerConfig->toArray();
+                $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
+            } catch (Throwable $throwable) {
+                $this->logger->notice('CreateChatMessageRequestMcpConfigNotice', [
+                    'mcp_server' => [
+                        'id' => $mcpServer->getId(),
+                        'code' => $mcpServer->getCode(),
+                        'name' => $mcpServer->getName(),
+                        'description' => $mcpServer->getDescription(),
+                    ],
+                    'message' => $throwable->getMessage(),
+                    'code' => $throwable->getCode(),
+                    'file' => $throwable->getFile(),
+                    'line' => $throwable->getLine(),
+                ]);
+                $config = [
+                    'name' => $mcpServer->getName(),
+                    'error_message' => $throwable->getMessage(),
+                ];
             }
-            if (str_starts_with($mcpServerConfig->getUrl(), $localHttpUrl)) {
-                $token = $this->tempAuth->create([
-                    'user_id' => $dataIsolation->getCurrentUserId(),
-                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                    'server_code' => $mcpServer->getCode(),
-                ], 3600);
-                $mcpServerConfig->setToken($token);
-            }
-            $config = $mcpServerConfig->toArray();
-            $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
 
             $servers[$mcpServer->getName()] = $config;
         }

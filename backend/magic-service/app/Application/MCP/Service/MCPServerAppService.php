@@ -11,8 +11,10 @@ use App\Application\MCP\Utils\MCPExecutor\MCPExecutorFactory;
 use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\MCP\Entity\MCPServerEntity;
+use App\Domain\MCP\Entity\MCPServerToolEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\Domain\MCP\Entity\ValueObject\ServiceType;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\ErrorCode\MCPErrorCode;
@@ -20,12 +22,16 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\PhpMcp\Types\Tools\Tool;
+use Hyperf\DbConnection\Annotation\Transactional;
 use Qbhy\HyperfAuth\Authenticatable;
 use Throwable;
 
 class MCPServerAppService extends AbstractMCPAppService
 {
-    public function show(Authenticatable $authorization, string $code): MCPServerEntity
+    /**
+     * @return array{mcp_server: MCPServerEntity, tools: ?array<MCPServerToolEntity>}
+     */
+    public function show(Authenticatable $authorization, string $code): array
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
 
@@ -40,7 +46,16 @@ class MCPServerAppService extends AbstractMCPAppService
             ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
         $entity->setUserOperation($operation->value);
-        return $entity;
+
+        $tools = null;
+        if ($entity->getType() === ServiceType::SSE) {
+            // For SSE type, we need to load tools
+            $tools = $this->mcpServerToolDomainService->getByMcpServerCode($dataIsolation, $code);
+        }
+        return [
+            'mcp_server' => $entity,
+            'tools' => $tools,
+        ];
     }
 
     /**
@@ -154,10 +169,18 @@ class MCPServerAppService extends AbstractMCPAppService
         }
         $orgData['icons'] = $icons;
 
+        // 获取用户填写的配置
+        $validationResults = MCPServerConfigUtil::batchValidateUserConfigurations($dataIsolation, $orgData['list'] ?? []);
+        $orgData['validation_results'] = $validationResults;
+
         return $orgData;
     }
 
-    public function save(Authenticatable $authorization, MCPServerEntity $entity): MCPServerEntity
+    /**
+     * @param null|array<MCPServerToolEntity> $toolEntities
+     */
+    #[Transactional]
+    public function save(Authenticatable $authorization, MCPServerEntity $entity, ?array $toolEntities = null): MCPServerEntity
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
 
@@ -173,6 +196,13 @@ class MCPServerAppService extends AbstractMCPAppService
             $entity
         );
         $entity->setUserOperation($operation->value);
+
+        // Handle batch tool management for SSE type
+        // null = don't operate on tools, [] = clear all tools, [tools...] = replace with new tools
+        if ($toolEntities !== null && $entity->getType() === ServiceType::SSE) {
+            $this->batchManageTools($dataIsolation, $entity->getCode(), $toolEntities);
+        }
+
         return $entity;
     }
 
@@ -189,6 +219,52 @@ class MCPServerAppService extends AbstractMCPAppService
         }
 
         return $this->mcpServerDomainService->delete($dataIsolation, $code);
+    }
+
+    public function updateStatus(Authenticatable $authorization, string $code, bool $enabled): MCPServerEntity
+    {
+        $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        $operation = $this->getMCPServerOperation($dataIsolation, $code);
+        $operation->validate('w', $code);
+
+        $entity = $this->mcpServerDomainService->getByCode($dataIsolation, $code);
+        if (! $entity) {
+            ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $code]);
+        }
+
+        // Only update the enabled status
+        $entity->setEnabled($enabled);
+        $entity = $this->mcpServerDomainService->save($dataIsolation, $entity);
+        $entity->setUserOperation($operation->value);
+
+        return $entity;
+    }
+
+    /**
+     * Get tools for a specific MCP server.
+     *
+     * @return null|array<MCPServerToolEntity>
+     */
+    public function getToolsForServer(Authenticatable $authorization, string $code): ?array
+    {
+        $dataIsolation = $this->createMCPDataIsolation($authorization);
+
+        $operation = $this->getMCPServerOperation($dataIsolation, $code);
+        $operation->validate('r', $code);
+
+        // Get server entity to check type
+        $entity = $this->mcpServerDomainService->getByCode($dataIsolation, $code);
+        if (! $entity) {
+            return null;
+        }
+
+        // Only return tools for SSE type servers
+        if ($entity->getType() === ServiceType::SSE) {
+            return $this->mcpServerToolDomainService->getByMcpServerCodes($dataIsolation, [$code]);
+        }
+
+        return null;
     }
 
     public function checkStatus(Authenticatable $authorization, string $code): array
