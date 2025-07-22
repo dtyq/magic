@@ -178,7 +178,7 @@ class SandboxApi extends AbstractApi
         $workspaceId = $requestDTO->getWorkspaceId();
         if ($workspaceId > 0) {
             $workspace = $this->workspaceAppService->getWorkspaceDetail($requestContext, (int) $workspaceId);
-            if (empty($workspace)) {
+            if (empty($workspace->getId())) {
                 // 抛异常，工作区不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'workspace_not_found');
             }
@@ -199,7 +199,7 @@ class SandboxApi extends AbstractApi
 
         if ($projectId > 0) {
             $project = $this->projectAppService->getProject((int) $projectId, $userId);
-            if (empty($project)) {
+            if (empty($project->getId())) {
                 // 抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
             }
@@ -225,7 +225,7 @@ class SandboxApi extends AbstractApi
         $topicId = $requestDTO->getTopicId();
         if ($topicId > 0) {
             $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
-            if (empty($topic)) {
+            if (empty($topic->getId())) {
                 // 抛异常，话题不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }

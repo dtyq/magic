@@ -14,7 +14,7 @@ parameters:
     - app
     - ./config
     - ./vendor/dtyq/magic-enterprise-service/src
-    - ./vendor/dtyq/super-magic-module/src
+    - ./../super-magic-module/src
     - ./vendor/dtyq/magic-enterprise-service/config
     - ./vendor/dtyq/billing-manager/src
   excludePaths:
