@@ -96,6 +96,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 'mcpServers' => $mcpServers,
             ];
             $this->logger->debug('CreateChatMessageRequestMcpConfig', $mcpServers);
+            $taskContext->setMcpConfig($mcpServers);
             return $mcpServers;
         } catch (Throwable $throwable) {
             $this->logger->error('CreateChatMessageRequestMcpConfigError', [
