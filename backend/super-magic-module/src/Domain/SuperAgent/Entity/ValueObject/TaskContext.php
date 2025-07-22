@@ -38,6 +38,7 @@ class TaskContext
         private string $taskId = '',
         private ChatInstruction $instruction = ChatInstruction::Normal,
         private string $agentMode = '',
+        private array $mcpConfig = [],
     ) {
     }
 
@@ -161,6 +162,11 @@ class TaskContext
         return $this->agentMode;
     }
 
+    public function getMcpConfig(): array
+    {
+        return $this->mcpConfig;
+    }
+
     /**
      * 创建一个带有新任务但保留其他参数的上下文.
      */
@@ -176,6 +182,7 @@ class TaskContext
             $this->taskId,
             $this->instruction,
             $this->agentMode,
+            $this->mcpConfig,
         );
     }
 
@@ -200,6 +207,12 @@ class TaskContext
     public function setAgentMode(string $agentMode): self
     {
         $this->agentMode = $agentMode;
+        return $this;
+    }
+
+    public function setMcpConfig(array $mcpConfig): self
+    {
+        $this->mcpConfig = $mcpConfig;
         return $this;
     }
 }
