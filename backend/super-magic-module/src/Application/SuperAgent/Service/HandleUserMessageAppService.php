@@ -7,10 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
-use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -44,7 +42,6 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
 
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
@@ -57,9 +54,6 @@ class HandleUserMessageAppService extends AbstractAppService
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
     }
 
     public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto): void
@@ -96,6 +90,59 @@ class HandleUserMessageAppService extends AbstractAppService
             );
         }
     }
+
+
+
+    public function getTaskContext(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): TaskContext
+    {
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
+        if (is_null($topicEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        $data = [
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'workspace_id' => $topicEntity->getWorkspaceId(),
+            'project_id' => $topicEntity->getProjectId(),
+            'topic_id' => $topicEntity->getId(),
+            'task_id' => '', // Initially empty, this is agent's task id
+            'task_mode' => $topicEntity->getTaskMode(),
+            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+            'prompt' => $userMessageDTO->getPrompt(),
+            'attachments' => $userMessageDTO->getAttachments(),
+            'mentions' => $userMessageDTO->getMentions(),
+            'task_status' => TaskStatus::WAITING->value,
+            'work_dir' => $topicEntity->getWorkDir() ?? '',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $taskEntity = TaskEntity::fromArray($data);
+        // Initialize task
+        $taskEntity = $this->taskDomainService->initTopicTask(
+            dataIsolation: $dataIsolation,
+            topicEntity: $topicEntity,
+            taskEntity: $taskEntity
+        );
+
+        // Send message to agent
+        $taskContext = new TaskContext(
+            task: $taskEntity,
+            dataIsolation: $dataIsolation,
+            chatConversationId: $userMessageDTO->getChatConversationId(),
+            chatTopicId: $userMessageDTO->getChatTopicId(),
+            agentUserId: $userMessageDTO->getAgentUserId(),
+            sandboxId: $topicEntity->getSandboxId(),
+            taskId: (string) $taskEntity->getId(),
+            instruction: ChatInstruction::FollowUp,
+            agentMode: $userMessageDTO->getTopicMode()->value,
+        );
+        return $taskContext;
+    }
+
+    /*
+    * user send message to agent
+    */
 
     public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {
@@ -159,14 +206,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
+                mcpConfig: $userMessageDTO->getMcpConfig()
             );
-
-            // MCP config
-            $mcpDataIsolation = MCPDataIsolation::create(
-                $dataIsolation->getCurrentOrganizationCode(),
-                $dataIsolation->getCurrentUserId()
-            );
-            $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
 
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);

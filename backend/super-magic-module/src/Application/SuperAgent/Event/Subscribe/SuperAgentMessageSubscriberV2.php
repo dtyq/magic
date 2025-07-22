@@ -14,6 +14,7 @@ use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
@@ -115,6 +116,13 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // raw content
             $rawContent = $this->getRawContent($userCallAgentEvent);
 
+
+            // MCP config
+            $mcpDataIsolation = MCPDataIsolation::create(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            );
+
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
                 agentUserId: $agentUserId,
@@ -128,7 +136,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 topicMode: $topicMode,
                 taskMode: $taskMode,
                 rawContent: $rawContent,
+                mcpConfig: []
             );
+
+            $taskContext = $this->handleUserMessageAppService->getTaskContext($dataIsolation, $userMessageDTO);
+            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
+            $userMessageDTO->setMcpConfig($mcpConfig);
 
             // Call handle user message service
             if ($chatInstructs == ChatInstruction::Interrupted) {
