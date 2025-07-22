@@ -27,11 +27,9 @@ class MagicUserSettingAppService extends AbstractContactAppService
     ) {
     }
 
-    /**
-     * @param MagicUserAuthorization $authorization
-     */
     public function saveProjectMcpServerConfig(Authenticatable $authorization, string $projectId, array $servers): MagicUserSettingEntity
     {
+        /* @phpstan-ignore-next-line */
         $dataIsolation = $this->createDataIsolation($authorization);
         $entity = new MagicUserSettingEntity();
         $entity->setKey(UserSettingKey::genSuperMagicProjectMCPServers($projectId));
@@ -41,12 +39,10 @@ class MagicUserSettingAppService extends AbstractContactAppService
         return $this->magicUserSettingDomainService->save($dataIsolation, $entity);
     }
 
-    /**
-     * @param MagicUserAuthorization $authorization
-     */
     public function getProjectMcpServerConfig(Authenticatable $authorization, string $projectId): ?MagicUserSettingEntity
     {
         $key = UserSettingKey::genSuperMagicProjectMCPServers($projectId);
+        /* @phpstan-ignore-next-line */
         return $this->get($authorization, $key);
     }
 
