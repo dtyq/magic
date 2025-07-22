@@ -65,4 +65,17 @@ class OperationPermissionApi extends AbstractPermissionApi
         $isAdmin = PermissionChecker::isOrganizationAdmin($authorization->getOrganizationCode(), $authorization->getMobile());
         return ['is_admin' => $isAdmin];
     }
+
+    /**
+     * 获取用户拥有管理员权限的组织编码列表.
+     */
+    public function getUserOrganizationAdminList(): array
+    {
+        $organizationCodes = PermissionChecker::getUserOrganizationAdminList($this->getAuthorization()->getMagicId());
+
+        return [
+            'organization_codes' => $organizationCodes,
+            'total' => count($organizationCodes),
+        ];
+    }
 }

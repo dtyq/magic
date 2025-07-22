@@ -22,6 +22,9 @@
     <testsuite name="登录测试">
       <directory suffix="Test.php">test/Cases/Api/Login</directory>
     </testsuite>
+    <testsuite name="聊天用户API测试">
+      <directory suffix="Test.php">test/Cases/Api/Chat</directory>
+    </testsuite>
   </testsuites>
 
   <!-- 覆盖率统计的目录配置，不是执行单测的目录 -->

@@ -10,6 +10,7 @@ namespace App\Interfaces\Chat\Facade;
 use App\Application\Chat\Service\MagicAccountAppService;
 use App\Application\Chat\Service\MagicUserContactAppService;
 use App\Domain\Contact\DTO\FriendQueryDTO;
+use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\AccountEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\AccountStatus;
@@ -148,5 +149,32 @@ class MagicChatUserApi extends AbstractApi
         // Pass null if organization code is empty
         $organizationCode = empty($organizationCode) ? null : $organizationCode;
         return $this->userAppService->getUsersDetailByAccountAuthorization($authorization, $organizationCode);
+    }
+
+    /*
+     * 是否允许更新用户信息.
+     */
+    public function getUserUpdatePermission(): array
+    {
+        $authorization = $this->getAuthorization();
+        return $this->userAppService->getUserUpdatePermission($authorization);
+    }
+
+    /**
+     * 更新用户信息
+     * 支持更新字段：
+     * 1. avatar_url: 头像
+     * 2. nickname:   昵称.
+     */
+    public function updateUserInfo(RequestInterface $request): array
+    {
+        $authorization = $this->getAuthorization();
+
+        $userUpdateDTO = new UserUpdateDTO();
+        $userUpdateDTO->setAvatarUrl($request->input('avatar_url', null));
+        $userUpdateDTO->setNickname($request->input('nickname', null));
+
+        $userEntity = $this->userAppService->updateUserInfo($authorization, $userUpdateDTO);
+        return $userEntity->toArray();
     }
 }
