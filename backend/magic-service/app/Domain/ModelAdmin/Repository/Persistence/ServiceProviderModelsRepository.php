@@ -433,6 +433,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray['translate'] = Json::encode($modelArray['translate'] ?: []);
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
         $modelArray['visible_applications'] = Json::encode($modelArray['visible_applications'] ?: []);
+        $modelArray['super_magic_display_state'] = $modelArray['super_magic_display_state'] ?? 0;
         $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
