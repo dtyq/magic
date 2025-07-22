@@ -1,4 +1,4 @@
-FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/brd/hyperf-dockerfile:8.3-alpine-3.20-swow-1.5.3-jsonpath-parle-xlswriter-debuggable
+FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.3-alpine-3.21-swow-ci-jsonpath-parle-xlswriter
 
 ##
 # ---------- env settings ----------
@@ -36,7 +36,7 @@ RUN --mount=type=secret,id=composer,target=/root/.composer/auth.json \
     --mount=type=cache,id=magic-service-phpstan,target=/tmp/phpstan \
     export COMPOSER_ALLOW_SUPERUSER=1 ; \
     # 安装依赖
-    composer install -o && \
+    php -d swow.enable=0  $(which composer) i -o && \
     # 可选的：生成缓存
     php bin/hyperf.php
     # rm -rf /opt/www/runtime
