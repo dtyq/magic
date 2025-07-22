@@ -25,8 +25,6 @@ COPY . /opt/www
 #    apk update && \
 #    apk add --no-cache php-posix
 
-
-
 # 使用 --mount=type=secret 挂载 secret 文件时，该挂载操作是在 RUN 指令执行 期间 进行的。
 # 这意味着 secret 文件只在 当前 RUN 指令的上下文中可用。一旦该 RUN 指令执行完毕，secret 文件就会被移除，并且不会被包含在下一层中。
 # 要解决这个问题，你需要将所有需要访问 secret 文件的操作放在 同一个 RUN 指令中
@@ -36,7 +34,7 @@ RUN --mount=type=secret,id=composer,target=/root/.composer/auth.json \
     --mount=type=cache,id=magic-service-phpstan,target=/tmp/phpstan \
     export COMPOSER_ALLOW_SUPERUSER=1 ; \
     # 安装依赖
-    composer install -o && \
+    php -d swow.enable=0  $(which composer) i -o && \
     # 可选的：生成缓存
     php bin/hyperf.php
     # rm -rf /opt/www/runtime
