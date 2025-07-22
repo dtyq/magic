@@ -43,7 +43,6 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
-
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
@@ -92,8 +91,6 @@ class HandleUserMessageAppService extends AbstractAppService
         }
     }
 
-
-
     public function getTaskContext(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): TaskContext
     {
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
@@ -127,7 +124,7 @@ class HandleUserMessageAppService extends AbstractAppService
         );
 
         // Send message to agent
-        $taskContext = new TaskContext(
+        return new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
             chatConversationId: $userMessageDTO->getChatConversationId(),
@@ -138,7 +135,6 @@ class HandleUserMessageAppService extends AbstractAppService
             instruction: ChatInstruction::FollowUp,
             agentMode: $userMessageDTO->getTopicMode()->value,
         );
-        return $taskContext;
     }
 
     /*
