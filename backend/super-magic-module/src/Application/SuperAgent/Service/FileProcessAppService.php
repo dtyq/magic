@@ -21,9 +21,11 @@ use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -85,7 +87,9 @@ class FileProcessAppService extends AbstractAppService
         int $projectId,
         int $topicId,
         int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
+        string $fileType = FileType::PROCESS->value,
+        string $storageType = StorageType::WORKSPACE->value,
+        int $source = TaskFileSource::AGENT->value,
     ): array {
         $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
             dataIsolation: $dataIsolation,
@@ -94,7 +98,10 @@ class FileProcessAppService extends AbstractAppService
             projectId: $projectId,
             topicId: $topicId,
             taskId: $taskId,
-            fileType: $fileType
+            fileType: $fileType,
+            isUpdate: true,
+            storageType: $storageType,
+            source: $source,
         );
         return [$taskFileEntity->getFileId(), $taskFileEntity];
     }
@@ -171,9 +178,9 @@ class FileProcessAppService extends AbstractAppService
                     'filename' => $fileInfo['file_name'],
                     'display_filename' => $fileInfo['file_name'],
                     'file_size' => $fileInfo['file_size'],
-                    'file_tag' => 'user_upload',
+                    'file_tag' => FileType::USER_UPLOAD->value,
                     'file_url' => $fileInfo['external_url'] ?? '',
-                    'storage_type' => $attachment['storage_type'] ?? 'workspace',
+                    'storage_type' => $attachment['storage_type'] ?? StorageType::WORKSPACE->value,
                 ];
 
                 // Process single attachment
@@ -185,7 +192,9 @@ class FileProcessAppService extends AbstractAppService
                         $task->getProjectId(),
                         $task->getTopicId(),
                         (int) $task->getId(),
-                        'user_upload'
+                        FileType::USER_UPLOAD->value,
+                        StorageType::WORKSPACE->value,
+                        TaskFileSource::AGENT->value,
                     );
                     ++$stats['success'];
                 } catch (Throwable $e) {
@@ -343,7 +352,7 @@ class FileProcessAppService extends AbstractAppService
                             projectId: $task->getProjectId(),
                             topicId: $topicId,
                             taskId: $task->getId(),
-                            fileType: $attachment['file_type'] ?? 'system_auto_upload'
+                            fileType: $attachment['file_type'] ?? FileType::SYSTEM_AUTO_UPLOAD->value
                         );
                         ++$stats['success'];
                         $stats['files'][] = [
@@ -858,9 +867,9 @@ class FileProcessAppService extends AbstractAppService
                 'filename' => $fileName,
                 'display_filename' => $fileName,
                 'file_size' => $uploadResult['size'],
-                'file_tag' => 'tool_message_content',
+                'file_tag' => FileType::TOOL_MESSAGE_CONTENT,
                 'file_url' => $uploadResult['url'] ?? '',
-                'storage_type' => 'message',
+                'storage_type' => StorageType::TOPIC->value,
             ];
 
             // 4. Save file information to database
@@ -871,7 +880,9 @@ class FileProcessAppService extends AbstractAppService
                 projectId: $projectId,
                 topicId: $topicId,
                 taskId: $taskId,
-                fileType: 'tool_message_content'
+                fileType: 'tool_message_content',
+                isUpdate: false,
+                storageType: StorageType::TOPIC->value,
             );
 
             // 5. Set as hidden file
