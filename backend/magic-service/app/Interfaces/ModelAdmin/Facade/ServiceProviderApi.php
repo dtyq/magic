@@ -15,6 +15,7 @@ use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Entity\ServiceProviderConfigEntity;
 use App\Domain\ModelAdmin\Entity\ServiceProviderModelsEntity;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
+use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
@@ -231,6 +232,19 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
         // 直接获取所有LLM类型的非官方服务商
         return $this->serviceProviderAppService->getAllNonOfficialProviders(ServiceProviderCategory::LLM, $authenticatable->getOrganizationCode());
+    }
+
+    /**
+     * Get super magic display models and Magic provider models visible to current organization.
+     * @return SuperMagicModelsDTO[]
+     */
+    public function getSuperMagicDisplayModels(RequestInterface $request): array
+    {
+        /** @var MagicUserAuthorization $authenticatable */
+        $authenticatable = $this->getAuthorization();
+        $organizationCode = $authenticatable->getOrganizationCode();
+
+        return $this->serviceProviderAppService->getSuperMagicDisplayModelsForOrganization($organizationCode);
     }
 
     private function getPhone(string $userId)

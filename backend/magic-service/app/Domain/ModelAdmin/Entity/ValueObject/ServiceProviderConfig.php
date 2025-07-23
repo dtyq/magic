@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelAdmin\Entity\ValueObject;
 
-use App\Domain\ModelAdmin\Entity\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 
-class ServiceProviderConfig extends AbstractEntity
+class ServiceProviderConfig extends AbstractDTO
 {
     protected string $ak = '';
 
