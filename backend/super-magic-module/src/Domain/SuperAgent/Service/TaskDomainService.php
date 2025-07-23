@@ -12,8 +12,6 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
-use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
-use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -64,10 +62,10 @@ class TaskDomainService
         $topicId = $topicEntity->getId();
 
         // Get task mode from DTO, fallback to topic's task mode if empty
-//         $taskMode = $topicEntity->getTopicMode();
-//         if ($taskMode === '') {
-//             $taskMode = $topicEntity->getTaskMode();
-//         }
+        //         $taskMode = $topicEntity->getTopicMode();
+        //         if ($taskMode === '') {
+        //             $taskMode = $topicEntity->getTaskMode();
+        //         }
 
         // Create new task entity
         // $taskEntity = new TaskEntity([
