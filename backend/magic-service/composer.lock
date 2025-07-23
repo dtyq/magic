@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.351.3",
+            "version": "3.351.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "7c58f4a8acd2230daad1ef23bceb9972e62bdf94"
+                "reference": "19dfd2db0f6ce35e1947e8bff4d956614b4aaaaf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/7c58f4a8acd2230daad1ef23bceb9972e62bdf94",
-                "reference": "7c58f4a8acd2230daad1ef23bceb9972e62bdf94",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/19dfd2db0f6ce35e1947e8bff4d956614b4aaaaf",
+                "reference": "19dfd2db0f6ce35e1947e8bff4d956614b4aaaaf",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.3"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.4"
             },
-            "time": "2025-07-21T18:04:02+00:00"
+            "time": "2025-07-22T18:12:04+00:00"
         },
         {
             "name": "brick/math",
@@ -17188,12 +17188,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "2699ef22973a999fb9b79ed9e5fe576381068928"
+                "reference": "0b1f127d644a2ff8af1c8bd2955dbe3c11812017"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/2699ef22973a999fb9b79ed9e5fe576381068928",
-                "reference": "2699ef22973a999fb9b79ed9e5fe576381068928",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0b1f127d644a2ff8af1c8bd2955dbe3c11812017",
+                "reference": "0b1f127d644a2ff8af1c8bd2955dbe3c11812017",
                 "shasum": ""
             },
             "conflict": {
@@ -17518,10 +17518,10 @@
                 "imdbphp/imdbphp": "<=5.1.1",
                 "impresscms/impresscms": "<=1.4.5",
                 "impresspages/impresspages": "<1.0.13",
-                "in2code/femanager": "<5.5.5|>=6,<6.4.1|>=7,<7.4.2|>=8,<8.2.2",
+                "in2code/femanager": "<6.4.2|>=7,<7.5.3|>=8,<8.3.1",
                 "in2code/ipandlanguageredirect": "<5.1.2",
                 "in2code/lux": "<17.6.1|>=18,<24.0.2",
-                "in2code/powermail": "<7.5.1|>=8,<8.5.1|>=9,<10.9.1|>=11,<12.4.1",
+                "in2code/powermail": "<7.5.1|>=8,<8.5.1|>=9,<10.9.1|>=11,<12.5.3|==13",
                 "innologi/typo3-appointments": "<2.0.6",
                 "intelliants/subrion": "<4.2.2",
                 "inter-mediator/inter-mediator": "==5.5",
@@ -17611,6 +17611,7 @@
                 "magneto/core": "<1.9.4.4-dev",
                 "maikuolan/phpmussel": ">=1,<1.6",
                 "mainwp/mainwp": "<=4.4.3.3",
+                "manogi/nova-tiptap": "<=3.2.6",
                 "mantisbt/mantisbt": "<=2.26.3",
                 "marcwillmann/turn": "<0.3.3",
                 "marshmallow/nova-tiptap": "<5.7",
@@ -18139,7 +18140,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-21T22:05:55+00:00"
+            "time": "2025-07-22T16:07:09+00:00"
         },
         {
             "name": "sebastian/cli-parser",
