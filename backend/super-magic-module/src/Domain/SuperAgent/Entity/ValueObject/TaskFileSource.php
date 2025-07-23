@@ -7,13 +7,13 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
-use InvalidArgumentException;
-
 /**
  * 任务文件来源枚举.
  */
 enum TaskFileSource: int
 {
+    case DEFAULT = 0;
+
     /**
      * 首页.
      */
@@ -35,6 +35,7 @@ enum TaskFileSource: int
     public function getName(): string
     {
         return match ($this) {
+            self::DEFAULT => '默认',
             self::HOME => '首页',
             self::PROJECT_DIRECTORY => '项目目录',
             self::AGENT => 'Agent',
@@ -47,6 +48,7 @@ enum TaskFileSource: int
     public function getDescription(): string
     {
         return match ($this) {
+            self::DEFAULT => '默认来源，来源于用户上传的文件',
             self::HOME => '来源于首页上传的文件',
             self::PROJECT_DIRECTORY => '来源于项目目录的文件',
             self::AGENT => '来源于Agent生成的文件',
@@ -66,32 +68,7 @@ enum TaskFileSource: int
             1 => self::HOME,
             2 => self::PROJECT_DIRECTORY,
             3 => self::AGENT,
-            default => throw new InvalidArgumentException("Invalid TaskFileSource value: {$value}"),
+            default => self::DEFAULT,
         };
-    }
-
-    /**
-     * 获取所有可用的来源选项.
-     */
-    public static function getAllOptions(): array
-    {
-        return [
-            self::HOME->value => self::HOME->getName(),
-            self::PROJECT_DIRECTORY->value => self::PROJECT_DIRECTORY->getName(),
-            self::AGENT->value => self::AGENT->getName(),
-        ];
-    }
-
-    /**
-     * 判断是否为有效的来源值
-     */
-    public static function isValid(int|string $value): bool
-    {
-        try {
-            self::fromValue($value);
-            return true;
-        } catch (InvalidArgumentException) {
-            return false;
-        }
     }
 }

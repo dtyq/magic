@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use JsonSerializable;
 
 /**
@@ -44,7 +46,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     /**
      * 文件类型（可选，默认为user_upload）.
      */
-    private string $fileType = 'user_upload';
+    private string $fileType = FileType::USER_UPLOAD->value;
 
     /**
      * 是否是目录（可选，默认为false）.
@@ -78,7 +80,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->fileKey = $data['file_key'] ?? '';
         $instance->fileName = $data['file_name'] ?? '';
         $instance->fileSize = (int) ($data['file_size'] ?? 0);
-        $instance->fileType = $data['file_type'] ?? 'user_upload';
+        $instance->fileType = $data['file_type'] ?? FileType::USER_UPLOAD->value;
         $instance->isDirectory = (bool) ($data['is_directory'] ?? false);
         $instance->sort = (int) ($data['sort'] ?? 0);
         $instance->parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
@@ -218,14 +220,20 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $taskFileEntity->setIsDirectory($this->isDirectory);
         $taskFileEntity->setSort($this->sort);
         $taskFileEntity->setParentId($this->parentId);
-        
+
         // 设置存储类型
-        if (!empty($this->storageType)) {
+        if (! empty($this->storageType)) {
             $taskFileEntity->setStorageType($this->storageType);
         } else {
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
         }
-        
+
+        if (! empty($this->source)) {
+            $taskFileEntity->setSource($this->source);
+        } else {
+            $taskFileEntity->setSource(TaskFileSource::DEFAULT);
+        }
+
         $taskFileEntity->setIsHidden(false);
 
         return $taskFileEntity;

@@ -29,10 +29,10 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
@@ -1086,7 +1086,7 @@ class TaskAppService extends AbstractAppService
                 'file_size' => $fileEntity->getFileSize(),
                 'filename' => $fileEntity->getFileName(),
                 'display_filename' => $fileEntity->getFileName(),
-                'file_tag' => 'user_upload',
+                'file_tag' => FileType::USER_UPLOAD->value,
                 'file_url' => $fileEntity->getExternalUrl(),
             ];
         }
@@ -1399,7 +1399,7 @@ class TaskAppService extends AbstractAppService
                 $task->getProjectId(),
                 $task->getTopicId(),
                 (int) $task->getId(),
-                $attachment['file_tag'] ?? TaskFileType::PROCESS->value
+                $attachment['file_tag'] ?? FileType::PROCESS->value
             );
 
             // 保存文件ID到附件信息中

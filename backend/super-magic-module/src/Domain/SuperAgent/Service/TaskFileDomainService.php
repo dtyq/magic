@@ -13,6 +13,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -292,7 +293,7 @@ class TaskFileDomainService
             $taskFileEntity->setFileKey($fileKey);
             $taskFileEntity->setFileName($fileName);
             $taskFileEntity->setFileSize(0); // Empty file/folder initially
-            $taskFileEntity->setFileType('user_upload');
+            $taskFileEntity->setFileType(FileType::USER_UPLOAD->value);
             $taskFileEntity->setIsDirectory($isDirectory);
             $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
             $taskFileEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
