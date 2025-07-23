@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelAdmin\Entity\ValueObject;
 
-use App\Domain\ModelAdmin\Entity\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 
-class ModelConfig extends AbstractEntity
+class ModelConfig extends AbstractDTO
 {
     protected ?int $maxTokens = null;
 
