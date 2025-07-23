@@ -6375,16 +6375,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.26",
+            "version": "v1.1.28",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "8c5871fec932db1b730cdc5dad7d405079b51878"
+                "reference": "b416b2838b31fb0f1ba16816319bc2cd3346cd38"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=8c5871fec932db1b730cdc5dad7d405079b51878",
-                "reference": "8c5871fec932db1b730cdc5dad7d405079b51878",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=b416b2838b31fb0f1ba16816319bc2cd3346cd38",
+                "reference": "b416b2838b31fb0f1ba16816319bc2cd3346cd38",
                 "shasum": ""
             },
             "require": {
@@ -6449,9 +6449,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.26"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.28"
             },
-            "time": "2025-07-18T00:58:37+08:00"
+            "time": "2025-07-24T00:00:20+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -19519,6 +19519,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "platform-dev": [],
+    "plugin-api-version": "2.3.0"
 }
