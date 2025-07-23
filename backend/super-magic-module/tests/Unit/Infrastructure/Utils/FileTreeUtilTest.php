@@ -22,7 +22,7 @@ class FileTreeUtilTest extends TestCase
      */
     public function testAssembleFilesTreeWithEmptyInput(): void
     {
-        $result = FileTreeUtil::assembleFilesTree('', []);
+        $result = FileTreeUtil::assembleFilesTree([]);
         $this->assertEmpty($result);
     }
 
@@ -50,7 +50,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
         $this->assertEquals('src', $result[0]['name']);
@@ -85,7 +85,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
         $this->assertEquals('uploads', $result[0]['name']);
@@ -202,7 +202,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/runtime/', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         // Should have 3 top-level items: runtime, shehu-brand-introduction, extract_shehu_brand.py, uploads
         $this->assertCount(4, $result);
@@ -263,7 +263,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(2, $result);
 
@@ -302,7 +302,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
 
@@ -368,7 +368,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
         $project = $result[0];
@@ -419,7 +419,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         // Should only include the valid file
         $this->assertCount(1, $result);
