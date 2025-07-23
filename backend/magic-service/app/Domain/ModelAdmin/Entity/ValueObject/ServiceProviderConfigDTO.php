@@ -8,9 +8,9 @@ declare(strict_types=1);
 namespace App\Domain\ModelAdmin\Entity\ValueObject;
 
 use App\Domain\ModelAdmin\Constant\Status;
-use App\Domain\ModelAdmin\Entity\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 
-class ServiceProviderConfigDTO extends AbstractEntity
+class ServiceProviderConfigDTO extends AbstractDTO
 {
     protected string $id = '';
 

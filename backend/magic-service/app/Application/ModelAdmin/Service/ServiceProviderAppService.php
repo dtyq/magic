@@ -23,6 +23,7 @@ use App\Domain\ModelAdmin\Entity\ServiceProviderOriginalModelsEntity;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
+use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\Domain\ModelAdmin\Service\Provider\ConnectResponse;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -256,18 +257,24 @@ class ServiceProviderAppService
     /**
      * Get super magic display models and Magic provider models visible to current organization.
      * @param string $organizationCode Organization code
-     * @return ServiceProviderModelsDTO[]
+     * @return SuperMagicModelsDTO[]
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
         $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
 
+        $icons = array_column($models, 'icon');
+
+        $iconUrlMap = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
+
         $modelDTOs = [];
         foreach ($models as $model) {
-            $modelDTO = new ServiceProviderModelsDTO($model->toArray());
-            // Process model icon
-            $this->processModelIcon($modelDTO, $model->getOrganizationCode());
-            $modelDTOs[] = $modelDTO;
+            $modelConfig = $model->getConfig();
+            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
+                $modelDTO = new SuperMagicModelsDTO($model->toArray());
+                $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
+                $modelDTOs[] = $modelDTO;
+            }
         }
 
         return $modelDTOs;
