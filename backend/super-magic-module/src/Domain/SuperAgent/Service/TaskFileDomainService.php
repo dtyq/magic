@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -301,6 +302,10 @@ class TaskFileDomainService
             $fileKey = rtrim($fileKey, '/') . '/';
         }
 
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($organizationCode, $dataIsolation->getCurrentUserId(), $projectEntity->getId(), $fileKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+        }
+
         // Check if file already exists
         $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
         if ($existingFile !== null) {
@@ -394,7 +399,9 @@ class TaskFileDomainService
             // 3. 批量删除云存储文件
             $fileKeys = [];
             foreach ($fileEntities as $fileEntity) {
-                $fileKeys[] = $fileEntity->getFileKey();
+                if (WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
+                    $fileKeys[] = $fileEntity->getFileKey();
+                }
             }
 
             // 删除云存储文件（批量操作）
@@ -440,20 +447,23 @@ class TaskFileDomainService
         }
     }
 
-    public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetObject): void
+    public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetName): void
     {
-        // target file exist
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $prefix = WorkDirectoryUtil::getPrefix($workDir);
-        $fullTargetFileKey = WorkDirectoryUtil::getFullPrefix($organizationCode) . trim($workDir, '/') . '/' . trim($targetObject, '/');
-
+        $dir = dirname($fileEntity->getFileKey());
+        $fullTargetFileKey = $dir . DIRECTORY_SEPARATOR . $targetName;
         $targetFileEntity = $this->taskFileRepository->getByFileKey($fullTargetFileKey);
         if ($targetFileEntity !== null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
         }
 
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getFileId(), $fullTargetFileKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+        }
+
         Db::beginTransaction();
         try {
+            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
             // call cloud file service
             $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey);
 
@@ -465,6 +475,70 @@ class TaskFileDomainService
 
             Db::commit();
             return;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
+    }
+
+    public function moveProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, int $targetParentId): void
+    {
+        if ($targetParentId <= 0) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+        }
+
+        $targetParentEntity = $this->taskFileRepository->getById($targetParentId);
+        if ($targetParentEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+        }
+
+        // Validate target parent is a directory
+        if (! $targetParentEntity->getIsDirectory()) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'file.target_parent_not_directory');
+        }
+
+        // Validate target parent belongs to same project
+        if ($targetParentEntity->getProjectId() !== $fileEntity->getProjectId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+        }
+
+        // Validate target parent belongs to same user
+        if ($targetParentEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+        }
+
+        // Build full target file key
+        $targetParentPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
+
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getFileId(), $targetParentPath)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+        }
+
+        // Check if target file already exists
+        $targetParentEntity = $this->taskFileRepository->getByFileKey($targetParentPath);
+        if (! empty($targetParentEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
+        }
+
+        // Prevent moving file to itself or its subdirectory (for directories)
+        if ($fileEntity->getIsDirectory()) {
+            // todo need to update this
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'file.cannot_move_to_subdirectory');
+        }
+
+        Db::beginTransaction();
+        try {
+            // Call cloud file service to move the file
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetParentPath);
+
+            // Update file record
+            $fileEntity->setFileKey($targetParentPath);
+            $fileEntity->setParentId($targetParentId);
+            $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $this->taskFileRepository->updateById($fileEntity);
+
+            Db::commit();
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;

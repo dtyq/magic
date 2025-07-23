@@ -260,7 +260,6 @@ class FileManagementAppService extends AbstractAppService
             // 返回创建结果
             return [
                 'file_id' => (string) $taskFileEntity->getFileId(),
-                'file_key' => $taskFileEntity->getFileKey(),
                 'is_directory' => $taskFileEntity->getIsDirectory(),
             ];
         } catch (Throwable $e) {
@@ -281,6 +280,9 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+            }
             $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity);
             return ['file_id' => $fileId];
         } catch (Throwable $e) {
@@ -360,6 +362,27 @@ class FileManagementAppService extends AbstractAppService
                 $fileId
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_RENAME_FAILED, 'file.file_rename_failed');
+        }
+    }
+
+    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+            $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
+            return ['file_id' => $fileId, 'target_parent_id' => $targetParentId];
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to move project file: %s, File ID: %s, Target Parent ID: %s',
+                $e->getMessage(),
+                $fileId,
+                $targetParentId
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, 'file.file_move_failed');
         }
     }
 }
