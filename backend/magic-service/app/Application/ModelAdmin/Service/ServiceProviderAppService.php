@@ -23,6 +23,7 @@ use App\Domain\ModelAdmin\Entity\ServiceProviderOriginalModelsEntity;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
+use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\Domain\ModelAdmin\Service\Provider\ConnectResponse;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -124,6 +125,11 @@ class ServiceProviderAppService
     // 保存模型
     public function saveModelToServiceProvider(ServiceProviderModelsEntity $serviceProviderModelsEntity): ServiceProviderModelsDTO
     {
+        $officialOrganization = config('service_provider.office_organization');
+        if ($serviceProviderModelsEntity->getOrganizationCode() !== $officialOrganization) {
+            $serviceProviderModelsEntity->setSuperMagicDisplayState(0);
+        }
+
         $serviceProviderModelsEntity = $this->serviceProviderDomainService->saveModelsToServiceProvider($serviceProviderModelsEntity);
         $serviceProviderModelsDTO = new ServiceProviderModelsDTO($serviceProviderModelsEntity->toArray());
 
@@ -246,6 +252,32 @@ class ServiceProviderAppService
         $config->setAk($this->serviceProviderDomainService->maskString($config->getAk()));
         $config->setSk($this->serviceProviderDomainService->maskString($config->getSk()));
         $config->setApiKey($this->serviceProviderDomainService->maskString($config->getApiKey()));
+    }
+
+    /**
+     * Get super magic display models and Magic provider models visible to current organization.
+     * @param string $organizationCode Organization code
+     * @return SuperMagicModelsDTO[]
+     */
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    {
+        $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
+
+        $icons = array_column($models, 'icon');
+
+        $iconUrlMap = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
+
+        $modelDTOs = [];
+        foreach ($models as $model) {
+            $modelConfig = $model->getConfig();
+            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
+                $modelDTO = new SuperMagicModelsDTO($model->toArray());
+                $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
+                $modelDTOs[] = $modelDTO;
+            }
+        }
+
+        return $modelDTOs;
     }
 
     /**
