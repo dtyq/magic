@@ -60,18 +60,7 @@ enum StorageType: string
             'workspace' => self::WORKSPACE,
             'topic' => self::TOPIC,
             // 兜底：未知值统一转为 WORKSPACE（处理脏数据）
-            default => self::WORKSPACE,
+            default => self::OTHERS,
         };
-    }
-
-    /**
-     * 获取所有可用的存储类型选项.
-     */
-    public static function getAllOptions(): array
-    {
-        return [
-            self::WORKSPACE->value => self::WORKSPACE->getName(),
-            self::TOPIC->value => self::TOPIC->getName(),
-        ];
     }
 }

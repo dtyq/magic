@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
-use InvalidArgumentException;
-
 /**
  * 文件类型枚举.
  */
@@ -79,52 +77,5 @@ enum FileType: string
             self::DOCUMENT => '文档类型的文件',
             self::AUTO_SYNC => '自动同步的文件',
         };
-    }
-
-    /**
-     * 从字符串创建枚举实例.
-     */
-    public static function fromValue(string $value): self
-    {
-        return match ($value) {
-            'user_upload' => self::USER_UPLOAD,
-            'process' => self::PROCESS,
-            'browser' => self::BROWSER,
-            'system_auto_upload' => self::SYSTEM_AUTO_UPLOAD,
-            'tool_message_content' => self::TOOL_MESSAGE_CONTENT,
-            'document' => self::DOCUMENT,
-            'auto_sync' => self::AUTO_SYNC,
-            // 兜底：未知值统一转为 USER_UPLOAD（处理脏数据）
-            default => self::USER_UPLOAD,
-        };
-    }
-
-    /**
-     * 获取所有可用的文件类型选项.
-     */
-    public static function getAllOptions(): array
-    {
-        return [
-            self::USER_UPLOAD->value => self::USER_UPLOAD->getName(),
-            self::PROCESS->value => self::PROCESS->getName(),
-            self::BROWSER->value => self::BROWSER->getName(),
-            self::SYSTEM_AUTO_UPLOAD->value => self::SYSTEM_AUTO_UPLOAD->getName(),
-            self::TOOL_MESSAGE_CONTENT->value => self::TOOL_MESSAGE_CONTENT->getName(),
-            self::DOCUMENT->value => self::DOCUMENT->getName(),
-            self::AUTO_SYNC->value => self::AUTO_SYNC->getName(),
-        ];
-    }
-
-    /**
-     * 判断是否为有效的文件类型值
-     */
-    public static function isValid(string $value): bool
-    {
-        try {
-            self::fromValue($value);
-            return true;
-        } catch (InvalidArgumentException) {
-            return false;
-        }
     }
 }
