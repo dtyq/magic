@@ -18,22 +18,22 @@ return new class extends Migration {
         if (Schema::hasTable('magic_super_agent_task_files')) {
             Schema::table('magic_super_agent_task_files', function (Blueprint $table) {
                 // 添加 is_directory 字段 - 是否为目录
-                if (!Schema::hasColumn('magic_super_agent_task_files', 'is_directory')) {
+                if (! Schema::hasColumn('magic_super_agent_task_files', 'is_directory')) {
                     $table->tinyInteger('is_directory')->default(0)->comment('是否为目录：0-否，1-是');
                 }
 
                 // 添加 sort 字段 - 排序字段
-                if (!Schema::hasColumn('magic_super_agent_task_files', 'sort')) {
+                if (! Schema::hasColumn('magic_super_agent_task_files', 'sort')) {
                     $table->integer('sort')->default(0)->comment('排序字段');
                 }
 
                 // 添加 parent_id 字段 - 父级ID
-                if (!Schema::hasColumn('magic_super_agent_task_files', 'parent_id')) {
+                if (! Schema::hasColumn('magic_super_agent_task_files', 'parent_id')) {
                     $table->unsignedBigInteger('parent_id')->nullable()->comment('父级ID');
                 }
 
                 // 添加 source 字段 - 来源字段
-                if (!Schema::hasColumn('magic_super_agent_task_files', 'source')) {
+                if (! Schema::hasColumn('magic_super_agent_task_files', 'source')) {
                     $table->tinyInteger('source')->default(1)->comment('来源字段：1-首页，2-项目目录，3-agent');
                 }
 

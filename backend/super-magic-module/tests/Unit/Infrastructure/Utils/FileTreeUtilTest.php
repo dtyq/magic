@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace Dtyq\SuperMagic\Tests\Unit\Infrastructure\Utils;
 
@@ -10,49 +13,50 @@ use PHPUnit\Framework\TestCase;
 /**
  * FileTreeUtil 测试类
  * 测试文件树构建工具的各种场景.
+ * @internal
  */
 class FileTreeUtilTest extends TestCase
 {
     /**
-     * Test assembleFilesTree with empty input
+     * Test assembleFilesTree with empty input.
      */
     public function testAssembleFilesTreeWithEmptyInput(): void
     {
-        $result = FileTreeUtil::assembleFilesTree('', []);
+        $result = FileTreeUtil::assembleFilesTree([]);
         $this->assertEmpty($result);
     }
 
     /**
-     * Test assembleFilesTree with new is_directory field
+     * Test assembleFilesTree with new is_directory field.
      */
     public function testAssembleFilesTreeWithIsDirectoryField(): void
     {
         $files = [
-                         [
-                 'file_id' => '1',
-                 'file_name' => 'src',
-                 'relative_file_path' => '/src/',
-                 'is_directory' => true,
-                 'file_size' => 0,
-                 'file_extension' => '',
-             ],
-                         [
-                 'file_id' => '2',
-                 'file_name' => 'index.php',
-                 'relative_file_path' => '/src/index.php',
-                 'is_directory' => false,
-                 'file_size' => 1024,
-                 'file_extension' => 'php',
-             ],
+            [
+                'file_id' => '1',
+                'file_name' => 'src',
+                'relative_file_path' => '/src/',
+                'is_directory' => true,
+                'file_size' => 0,
+                'file_extension' => '',
+            ],
+            [
+                'file_id' => '2',
+                'file_name' => 'index.php',
+                'relative_file_path' => '/src/index.php',
+                'is_directory' => false,
+                'file_size' => 1024,
+                'file_extension' => 'php',
+            ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
         $this->assertEquals('src', $result[0]['name']);
         $this->assertTrue($result[0]['is_directory']);
         $this->assertEquals('directory', $result[0]['type']);
-        
+
         $this->assertCount(1, $result[0]['children']);
         $this->assertEquals('index.php', $result[0]['children'][0]['name']);
         $this->assertFalse($result[0]['children'][0]['is_directory']);
@@ -60,7 +64,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test assembleFilesTree with legacy data (no is_directory field)
+     * Test assembleFilesTree with legacy data (no is_directory field).
      */
     public function testAssembleFilesTreeWithLegacyData(): void
     {
@@ -81,124 +85,124 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
         $this->assertEquals('uploads', $result[0]['name']);
         $this->assertTrue($result[0]['is_directory']);
-        
+
         $this->assertCount(1, $result[0]['children']);
         $this->assertEquals('document.pdf', $result[0]['children'][0]['name']);
         $this->assertFalse($result[0]['children'][0]['is_directory']);
     }
 
     /**
-     * Test assembleFilesTree with the provided real data
+     * Test assembleFilesTree with the provided real data.
      */
     public function testAssembleFilesTreeWithProvidedData(): void
     {
         $files = [
             [
-                "file_id" => "806248045966565377",
-                "task_id" => "0",
-                "project_id" => "804396912083546113",
-                "file_type" => "user_upload",
-                "file_name" => "runtime",
-                "file_extension" => "",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/runtime/",
-                "file_size" => 0,
-                "relative_file_path" => "/runtime/",
-                "file_url" => "https://example.com/runtime/",
-                "is_hidden" => false,
-                "topic_id" => "0"
+                'file_id' => '806248045966565377',
+                'task_id' => '0',
+                'project_id' => '804396912083546113',
+                'file_type' => 'user_upload',
+                'file_name' => 'runtime',
+                'file_extension' => '',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/runtime/',
+                'file_size' => 0,
+                'relative_file_path' => '/runtime/',
+                'file_url' => 'https://example.com/runtime/',
+                'is_hidden' => false,
+                'topic_id' => '0',
             ],
             [
-                "file_id" => "804398420044881920",
-                "task_id" => "804397254884012032",
-                "project_id" => "804396912083546113",
-                "file_type" => "system_auto_upload",
-                "file_name" => "index.md",
-                "file_extension" => "md",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/index.md",
-                "file_size" => 838,
-                "relative_file_path" => "/shehu-brand-introduction/index.md",
-                "file_url" => "https://example.com/shehu-brand-introduction/index.md",
-                "is_hidden" => false,
-                "topic_id" => "804396912272289795"
+                'file_id' => '804398420044881920',
+                'task_id' => '804397254884012032',
+                'project_id' => '804396912083546113',
+                'file_type' => 'system_auto_upload',
+                'file_name' => 'index.md',
+                'file_extension' => 'md',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/index.md',
+                'file_size' => 838,
+                'relative_file_path' => '/shehu-brand-introduction/index.md',
+                'file_url' => 'https://example.com/shehu-brand-introduction/index.md',
+                'is_hidden' => false,
+                'topic_id' => '804396912272289795',
             ],
             [
-                "file_id" => "804398302629535745",
-                "task_id" => "804397254884012032",
-                "project_id" => "804396912083546113",
-                "file_type" => "system_auto_upload",
-                "file_name" => "shehu-brand-highlights.md",
-                "file_extension" => "md",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/shehu-brand-highlights.md",
-                "file_size" => 1753,
-                "relative_file_path" => "/shehu-brand-introduction/shehu-brand-highlights.md",
-                "file_url" => "https://example.com/shehu-brand-introduction/shehu-brand-highlights.md",
-                "is_hidden" => false,
-                "topic_id" => "804396912272289795"
+                'file_id' => '804398302629535745',
+                'task_id' => '804397254884012032',
+                'project_id' => '804396912083546113',
+                'file_type' => 'system_auto_upload',
+                'file_name' => 'shehu-brand-highlights.md',
+                'file_extension' => 'md',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/shehu-brand-highlights.md',
+                'file_size' => 1753,
+                'relative_file_path' => '/shehu-brand-introduction/shehu-brand-highlights.md',
+                'file_url' => 'https://example.com/shehu-brand-introduction/shehu-brand-highlights.md',
+                'is_hidden' => false,
+                'topic_id' => '804396912272289795',
             ],
             [
-                "file_id" => "804398143174684673",
-                "task_id" => "804397254884012032",
-                "project_id" => "804396912083546113",
-                "file_type" => "system_auto_upload",
-                "file_name" => "shehu-brand-summary.md",
-                "file_extension" => "md",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/shehu-brand-summary.md",
-                "file_size" => 1101,
-                "relative_file_path" => "/shehu-brand-introduction/shehu-brand-summary.md",
-                "file_url" => "https://example.com/shehu-brand-introduction/shehu-brand-summary.md",
-                "is_hidden" => false,
-                "topic_id" => "804396912272289795"
+                'file_id' => '804398143174684673',
+                'task_id' => '804397254884012032',
+                'project_id' => '804396912083546113',
+                'file_type' => 'system_auto_upload',
+                'file_name' => 'shehu-brand-summary.md',
+                'file_extension' => 'md',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/shehu-brand-summary.md',
+                'file_size' => 1101,
+                'relative_file_path' => '/shehu-brand-introduction/shehu-brand-summary.md',
+                'file_url' => 'https://example.com/shehu-brand-introduction/shehu-brand-summary.md',
+                'is_hidden' => false,
+                'topic_id' => '804396912272289795',
             ],
             [
-                "file_id" => "804398036583141376",
-                "task_id" => "804397254884012032",
-                "project_id" => "804396912083546113",
-                "file_type" => "process",
-                "file_name" => "shehu-brand-profile.md",
-                "file_extension" => "md",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/shehu-brand-profile.md",
-                "file_size" => 3131,
-                "relative_file_path" => "/shehu-brand-introduction/shehu-brand-profile.md",
-                "file_url" => "https://example.com/shehu-brand-introduction/shehu-brand-profile.md",
-                "is_hidden" => false,
-                "topic_id" => "804396912272289795"
+                'file_id' => '804398036583141376',
+                'task_id' => '804397254884012032',
+                'project_id' => '804396912083546113',
+                'file_type' => 'process',
+                'file_name' => 'shehu-brand-profile.md',
+                'file_extension' => 'md',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/shehu-brand-introduction/shehu-brand-profile.md',
+                'file_size' => 3131,
+                'relative_file_path' => '/shehu-brand-introduction/shehu-brand-profile.md',
+                'file_url' => 'https://example.com/shehu-brand-introduction/shehu-brand-profile.md',
+                'is_hidden' => false,
+                'topic_id' => '804396912272289795',
             ],
             [
-                "file_id" => "804397580504608768",
-                "task_id" => "804397254884012032",
-                "project_id" => "804396912083546113",
-                "file_type" => "system_auto_upload",
-                "file_name" => "extract_shehu_brand.py",
-                "file_extension" => "py",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/extract_shehu_brand.py",
-                "file_size" => 2549,
-                "relative_file_path" => "/extract_shehu_brand.py",
-                "file_url" => "https://example.com/extract_shehu_brand.py",
-                "is_hidden" => false,
-                "topic_id" => "804396912272289795"
+                'file_id' => '804397580504608768',
+                'task_id' => '804397254884012032',
+                'project_id' => '804396912083546113',
+                'file_type' => 'system_auto_upload',
+                'file_name' => 'extract_shehu_brand.py',
+                'file_extension' => 'py',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/extract_shehu_brand.py',
+                'file_size' => 2549,
+                'relative_file_path' => '/extract_shehu_brand.py',
+                'file_url' => 'https://example.com/extract_shehu_brand.py',
+                'is_hidden' => false,
+                'topic_id' => '804396912272289795',
             ],
             [
-                "file_id" => "804397048436170753",
-                "task_id" => "0",
-                "project_id" => "804396912083546113",
-                "file_type" => "user_upload",
-                "file_name" => "她互与大人糖品牌对比报告(1).xlsx",
-                "file_extension" => "xlsx",
-                "file_key" => "DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/uploads/她互与大人糖品牌对比报告(1).xlsx",
-                "file_size" => 12677,
-                "relative_file_path" => "/uploads/她互与大人糖品牌对比报告(1).xlsx",
-                "file_url" => "https://example.com/uploads/file.xlsx",
-                "is_hidden" => false,
-                "topic_id" => "804396912272289795"
+                'file_id' => '804397048436170753',
+                'task_id' => '0',
+                'project_id' => '804396912083546113',
+                'file_type' => 'user_upload',
+                'file_name' => '她互与大人糖品牌对比报告(1).xlsx',
+                'file_extension' => 'xlsx',
+                'file_key' => 'DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/uploads/她互与大人糖品牌对比报告(1).xlsx',
+                'file_size' => 12677,
+                'relative_file_path' => '/uploads/她互与大人糖品牌对比报告(1).xlsx',
+                'file_url' => 'https://example.com/uploads/file.xlsx',
+                'is_hidden' => false,
+                'topic_id' => '804396912272289795',
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('/SUPER_MAGIC/usi_516c3a162c868e6f02de247a10e59d05/project_804396912083546113/runtime/', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         // Should have 3 top-level items: runtime, shehu-brand-introduction, extract_shehu_brand.py, uploads
         $this->assertCount(4, $result);
@@ -231,7 +235,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test assembleFilesTree with hidden files and directories
+     * Test assembleFilesTree with hidden files and directories.
      */
     public function testAssembleFilesTreeWithHiddenFiles(): void
     {
@@ -259,7 +263,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(2, $result);
 
@@ -284,7 +288,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test assembleFilesTree with deep nested structure
+     * Test assembleFilesTree with deep nested structure.
      */
     public function testAssembleFilesTreeWithDeepNesting(): void
     {
@@ -298,73 +302,73 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
-        
+
         // Navigate through the nested structure
         $current = $result[0];
         $this->assertEquals('level1', $current['name']);
         $this->assertTrue($current['is_directory']);
-        
+
         $current = $current['children'][0];
         $this->assertEquals('level2', $current['name']);
         $this->assertTrue($current['is_directory']);
-        
+
         $current = $current['children'][0];
         $this->assertEquals('level3', $current['name']);
         $this->assertTrue($current['is_directory']);
-        
+
         $current = $current['children'][0];
         $this->assertEquals('level4', $current['name']);
         $this->assertTrue($current['is_directory']);
-        
+
         $current = $current['children'][0];
         $this->assertEquals('deep.txt', $current['name']);
         $this->assertFalse($current['is_directory']);
     }
 
     /**
-     * Test assembleFilesTree with mixed file types in same directory
+     * Test assembleFilesTree with mixed file types in same directory.
      */
     public function testAssembleFilesTreeWithMixedFileTypes(): void
     {
         $files = [
-                         [
-                 'file_id' => '1',
-                 'file_name' => 'docs',
-                 'relative_file_path' => '/project/docs/',
-                 'is_directory' => true,
-                 'file_size' => 0,
-                 'file_extension' => '',
-             ],
-                         [
-                 'file_id' => '2',
-                 'file_name' => 'readme.md',
-                 'relative_file_path' => '/project/readme.md',
-                 'is_directory' => false,
-                 'file_size' => 512,
-                 'file_extension' => 'md',
-             ],
-                         [
-                 'file_id' => '3',
-                 'file_name' => 'config.json',
-                 'relative_file_path' => '/project/config.json',
-                 'is_directory' => false,
-                 'file_size' => 256,
-                 'file_extension' => 'json',
-             ],
-                         [
-                 'file_id' => '4',
-                 'file_name' => 'api.md',
-                 'relative_file_path' => '/project/docs/api.md',
-                 'is_directory' => false,
-                 'file_size' => 1024,
-                 'file_extension' => 'md',
-             ],
+            [
+                'file_id' => '1',
+                'file_name' => 'docs',
+                'relative_file_path' => '/project/docs/',
+                'is_directory' => true,
+                'file_size' => 0,
+                'file_extension' => '',
+            ],
+            [
+                'file_id' => '2',
+                'file_name' => 'readme.md',
+                'relative_file_path' => '/project/readme.md',
+                'is_directory' => false,
+                'file_size' => 512,
+                'file_extension' => 'md',
+            ],
+            [
+                'file_id' => '3',
+                'file_name' => 'config.json',
+                'relative_file_path' => '/project/config.json',
+                'is_directory' => false,
+                'file_size' => 256,
+                'file_extension' => 'json',
+            ],
+            [
+                'file_id' => '4',
+                'file_name' => 'api.md',
+                'relative_file_path' => '/project/docs/api.md',
+                'is_directory' => false,
+                'file_size' => 1024,
+                'file_extension' => 'md',
+            ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         $this->assertCount(1, $result);
         $project = $result[0];
@@ -387,7 +391,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test assembleFilesTree with files missing relative_file_path
+     * Test assembleFilesTree with files missing relative_file_path.
      */
     public function testAssembleFilesTreeWithMissingRelativePath(): void
     {
@@ -415,7 +419,7 @@ class FileTreeUtilTest extends TestCase
             ],
         ];
 
-        $result = FileTreeUtil::assembleFilesTree('', $files);
+        $result = FileTreeUtil::assembleFilesTree($files);
 
         // Should only include the valid file
         $this->assertCount(1, $result);
@@ -423,7 +427,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test getTreeStats method
+     * Test getTreeStats method.
      */
     public function testGetTreeStats(): void
     {
@@ -462,7 +466,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test flattenTree method
+     * Test flattenTree method.
      */
     public function testFlattenTree(): void
     {
@@ -499,7 +503,7 @@ class FileTreeUtilTest extends TestCase
     }
 
     /**
-     * Test findNodeByPath method
+     * Test findNodeByPath method.
      */
     public function testFindNodeByPath(): void
     {
@@ -534,4 +538,4 @@ class FileTreeUtilTest extends TestCase
         $node = FileTreeUtil::findNodeByPath($tree, 'nonexistent/path');
         $this->assertNull($node);
     }
-} 
+}

@@ -351,13 +351,12 @@ class TaskFileDomainService
         Db::beginTransaction();
         try {
             // 1. 查找目录下所有文件（限制500条）
-            $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($projectId, $targetPath, 2);
+            $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($projectId, $targetPath);
 
             if (empty($fileEntities)) {
                 Db::commit();
                 return 0;
             }
-
             $deletedCount = 0;
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
 
