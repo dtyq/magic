@@ -456,7 +456,7 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
         }
 
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getFileId(), $fullTargetFileKey)) {
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fullTargetFileKey)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
         }
 
@@ -470,6 +470,8 @@ class TaskFileDomainService
             // rename file record
             $fileEntity->setFileKey($fullTargetFileKey);
             $fileEntity->setFileName(basename($fullTargetFileKey));
+            $fileExtension = pathinfo(basename($fullTargetFileKey), PATHINFO_EXTENSION);
+            $fileEntity->setFileExtension($fileExtension);
             $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $this->taskFileRepository->updateById($fileEntity);
 
@@ -510,7 +512,7 @@ class TaskFileDomainService
         // Build full target file key
         $targetParentPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
 
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getFileId(), $targetParentPath)) {
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $targetParentPath)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
         }
 
