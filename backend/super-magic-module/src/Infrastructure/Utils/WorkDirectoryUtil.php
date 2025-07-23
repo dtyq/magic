@@ -416,8 +416,8 @@ class WorkDirectoryUtil
         $path = preg_replace('#/+#', '/', $path);
 
         // Split path into components
-        $isAbsolute = (str_starts_with($path, '/'));
-        $components = array_filter(explode('/', $path), fn(string $part): bool => strlen($part) > 0);
+        $isAbsolute = str_starts_with($path, '/');
+        $components = array_filter(explode('/', $path), fn (string $part): bool => strlen($part) > 0);
         $normalizedComponents = [];
 
         foreach ($components as $component) {
