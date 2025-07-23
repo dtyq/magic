@@ -596,4 +596,25 @@ class FileManagementAppService extends AbstractAppService
             'cache_time' => date('Y-m-d H:i:s'),
         ];
     }
+
+    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+            $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
+            return ['file_id' => $fileId, 'target_parent_id' => $targetParentId];
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to move project file: %s, File ID: %s, Target Parent ID: %s',
+                $e->getMessage(),
+                $fileId,
+                $targetParentId
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, 'file.file_move_failed');
+        }
+    }
 }
