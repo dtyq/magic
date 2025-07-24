@@ -105,6 +105,7 @@ use App\Domain\Flow\Repository\Persistence\MagicFlowVersionRepository;
 use App\Domain\Flow\Repository\Persistence\MagicFlowWaitMessageRepository;
 use App\Domain\Group\Repository\Facade\MagicGroupRepositoryInterface;
 use App\Domain\Group\Repository\Persistence\MagicGroupRepository;
+use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
@@ -188,6 +189,7 @@ use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
+use App\Infrastructure\ImageGenerate\DefaultWatermarkConfig;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
@@ -371,6 +373,8 @@ $dependencies = [
 
     // high-availability
     EndpointProviderInterface::class => ModelGatewayEndpointProvider::class,
+
+    WatermarkConfigInterface::class => DefaultWatermarkConfig::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并
