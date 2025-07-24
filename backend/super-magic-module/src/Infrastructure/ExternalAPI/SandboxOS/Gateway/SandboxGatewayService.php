@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
@@ -458,6 +459,115 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $this->logger->info('[Sandbox][Gateway] uploadFile', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
 
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/file/upload', ['sandbox_id' => $sandboxId, 'file_paths' => $filePaths, 'project_id' => $projectId, 'organization_code' => $organizationCode, 'task_id' => $taskId]);
+    }
+
+    /**
+     * 确保沙箱存在并且可用.
+     */
+    public function ensureSandboxAvailable(string $sandboxId, string $projectId): string
+    {
+        try {
+            // 检查沙箱是否可用
+            if (! empty($sandboxId)) {
+                $statusResult = $this->getSandboxStatus($sandboxId);
+
+                // 如果沙箱存在且状态为运行中，直接返回
+                if ($statusResult->isSuccess()
+                    && $statusResult->getCode() === ResponseCode::SUCCESS
+                    && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                    $this->logger->info('ensureSandboxAvailable Sandbox is available, using existing sandbox', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+                    return $sandboxId;
+                }
+
+                // 如果沙箱状态为 Pending，等待其变为 Running
+                if ($statusResult->isSuccess()
+                    && $statusResult->getCode() === ResponseCode::SUCCESS
+                    && $statusResult->getStatus() === SandboxStatus::PENDING) {
+                    $this->logger->info('ensureSandboxAvailable Sandbox is pending, waiting for it to become running', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+
+                    try {
+                        // 等待现有沙箱变为 Running
+                        return $this->waitForSandboxRunning($sandboxId, 'existing');
+                    } catch (SandboxOperationException $e) {
+                        // 如果等待失败，继续创建新沙箱
+                        $this->logger->warning('ensureSandboxAvailable Failed to wait for existing sandbox, creating new sandbox', [
+                            'sandbox_id' => $sandboxId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                // 记录需要创建新沙箱的原因
+                if ($statusResult->getCode() === ResponseCode::NOT_FOUND) {
+                    $this->logger->info('ensureSandboxAvailable Sandbox not found, creating new sandbox', [
+                        'sandbox_id' => $sandboxId,
+                    ]);
+                } else {
+                    $this->logger->info('ensureSandboxAvailable Sandbox status is not available, creating new sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'current_status' => $statusResult->getStatus(),
+                    ]);
+                }
+            } else {
+                $this->logger->info('ensureSandboxAvailable Sandbox ID is empty, creating new sandbox');
+            }
+
+            // 创建新沙箱
+            $createResult = $this->createSandbox(['sandbox_id' => $sandboxId, 'project_id' => $projectId]);
+
+            if (! $createResult->isSuccess()) {
+                $this->logger->error('ensureSandboxAvailable Failed to create sandbox', [
+                    'requested_sandbox_id' => $sandboxId,
+                    'project_id' => $projectId,
+                    'code' => $createResult->getCode(),
+                    'message' => $createResult->getMessage(),
+                ]);
+                throw new SandboxOperationException('Create sandbox', $createResult->getMessage(), $createResult->getCode());
+            }
+
+            $newSandboxId = $createResult->getDataValue('sandbox_id');
+
+            // 添加调试日志，检查是否正确获取到了 sandbox_id
+            $this->logger->info('ensureSandboxAvailable Created sandbox, starting to wait for it to become running', [
+                'requested_sandbox_id' => $sandboxId,
+                'new_sandbox_id' => $newSandboxId,
+                'project_id' => $projectId,
+                'create_result_data' => $createResult->getData(),
+            ]);
+
+            // 如果没有获取到 sandbox_id，直接返回错误
+            if (empty($newSandboxId) || $newSandboxId !== $sandboxId) {
+                $this->logger->error('ensureSandboxAvailable Failed to get sandbox_id from create result', [
+                    'requested_sandbox_id' => $sandboxId,
+                    'project_id' => $projectId,
+                    'new_sandbox_id' => $newSandboxId,
+                    'create_result_data' => $createResult->getData(),
+                ]);
+                throw new SandboxOperationException('Get sandbox_id from create result', 'Failed to get sandbox_id from create result', 2001);
+            }
+
+            // 等待新沙箱变为 Running
+            return $this->waitForSandboxRunning($newSandboxId, 'new');
+        } catch (SandboxOperationException $e) {
+            // 重新抛出沙箱操作异常
+            $this->logger->error('ensureSandboxAvailable Error ensuring sandbox availability', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        } catch (Exception $e) {
+            $this->logger->error('ensureSandboxAvailable Error ensuring sandbox availability', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Ensure sandbox availability', $e->getMessage(), 2000);
+        }
     }
 
     /**
