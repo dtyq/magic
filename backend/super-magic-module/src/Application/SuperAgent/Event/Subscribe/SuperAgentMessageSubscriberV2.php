@@ -143,7 +143,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 topicMode: $topicMode,
                 taskMode: $taskMode,
                 rawContent: $rawContent,
-                mcpConfig: []
+                mcpConfig: [],
                 modelId: $modelId
             );
 
