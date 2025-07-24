@@ -12,6 +12,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -93,7 +94,7 @@ class TaskDomainService
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
-        $topicEntity->setTaskMode($topicEntity->getTaskMode());
+        $topicEntity->setTaskMode($taskEntity->getTaskMode());
         $topicEntity->setTopicMode($topicEntity->getTopicMode());
         $this->topicRepository->updateTopic($topicEntity);
 
