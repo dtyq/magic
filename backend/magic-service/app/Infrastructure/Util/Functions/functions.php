@@ -352,7 +352,7 @@ if (! function_exists('is_url')) {
          * This pattern is derived from Symfony\Component\Validator\Constraints\UrlValidator (2.7.4).
          *
          * (c) Fabien Potencier <fabien@symfony.com> http://symfony.com
-         * 
+         *
          * Modified to support URLs with spaces by automatically encoding them.
          */
         $pattern = '~^
