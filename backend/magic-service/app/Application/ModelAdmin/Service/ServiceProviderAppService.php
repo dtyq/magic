@@ -272,7 +272,9 @@ class ServiceProviderAppService
             $modelConfig = $model->getConfig();
             if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
                 $modelDTO = new SuperMagicModelsDTO($model->toArray());
-                $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
+                if (isset($iconUrlMap[$modelDTO->getIcon()])) {
+                    $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
+                }
                 $modelDTOs[] = $modelDTO;
             }
         }

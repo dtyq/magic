@@ -28,7 +28,7 @@ class UserMessageDTO
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
-        private array $mcpConfig = [],
+        private readonly ?string $modelId = null,
     ) {
     }
 
@@ -87,14 +87,9 @@ class UserMessageDTO
         return $this->rawContent;
     }
 
-    public function getMcpConfig(): array
+    public function getModelId(): ?string
     {
-        return $this->mcpConfig;
-    }
-
-    public function setMcpConfig(array $mcpConfig): void
-    {
-        $this->mcpConfig = $mcpConfig;
+        return $this->modelId;
     }
 
     /**
@@ -118,7 +113,7 @@ class UserMessageDTO
                 : TopicMode::GENERAL,
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
             rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
-            mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
+            modelId: $data['modelId'] ?? null,
         );
     }
 
@@ -139,7 +134,7 @@ class UserMessageDTO
             'topic_mode' => $this->topicMode->value,
             'task_mode' => $this->taskMode,
             'raw_content' => $this->rawContent,
-            'mcp_config' => $this->mcpConfig,
+            'model_id' => $this->modelId,
         ];
     }
 }
