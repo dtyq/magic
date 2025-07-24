@@ -85,6 +85,8 @@ Router::addGroup(
         Router::addGroup('/file', static function () {
             // 获取项目文件上传STS Token
             Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 兼容
+            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
             // 获取话题文件上传STS Token
             Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
             // 创建文件和文件夹
@@ -99,6 +101,8 @@ Router::addGroup(
             Router::post('/directory/delete', [FileApi::class, 'deleteDirectory']);
             // 重命名文件
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
+            // 移动文件
+            Router::post('/{id}/move', [FileApi::class, 'moveFile']);
 
             // 批量下载相关
             Router::addGroup('/batch-download', static function () {

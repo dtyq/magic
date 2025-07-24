@@ -83,6 +83,16 @@ class WorkDirectoryUtil
         return $fileKey;
     }
 
+    public static function checkEffectiveFileKey(string $organizationCode, string $userId, int $projectId, string $fileKey): bool
+    {
+        if (empty($organizationCode) || empty($userId) || empty($projectId) || empty($fileKey)) {
+            return false;
+        }
+
+        $fullPrefix = rtrim(self::getFullPrefix($organizationCode), '/') . '/' . ltrim(self::getRootDir($userId, $projectId), '/');
+        return self::isPathUnderDirectory($fullPrefix, $fileKey);
+    }
+
     /**
      * Validate if the given work directory path is valid.
      *
@@ -252,5 +262,196 @@ class WorkDirectoryUtil
         if (strlen($targetName) > 1000) {  // Conservative limit
             throw new InvalidArgumentException('Target name is too long (maximum 1000 characters allowed)');
         }
+    }
+
+    /**
+     * Validate if a filename (without path) is valid for file operations.
+     *
+     * @param string $fileName Filename to validate (should not contain path separators)
+     * @return bool True if the filename is valid, false otherwise
+     *
+     * Examples of INVALID inputs (will return false):
+     * - '/a'           // Directory path (starts with /)
+     * - '/b/'          // Directory path (starts and ends with /)
+     * - 'dir/'         // Directory path (ends with /)
+     * - 'a/b'          // Nested path
+     * - 'dir\\file'    // Windows path separator
+     * - '../file'      // Path traversal
+     * - 'CON.txt'      // Windows reserved name
+     * - 'file?.txt'    // Invalid characters
+     * - ''             // Empty string
+     * - '.'            // Current directory
+     * - '..'           // Parent directory
+     *
+     * Examples of VALID inputs (will return true):
+     * - 'document.txt'
+     * - 'README.md'
+     * - 'config.json'
+     * - '用户手册.pdf'
+     * - 'data-2024.csv'
+     */
+    public static function isValidFileName(string $fileName): bool
+    {
+        // Check if filename is empty
+        if (empty(trim($fileName))) {
+            return false;
+        }
+
+        // Trim the filename
+        $fileName = trim($fileName);
+
+        // Check for null bytes (security risk)
+        if (strpos($fileName, "\0") !== false) {
+            return false;
+        }
+
+        // Check for path separators (filename should not contain paths)
+        if (strpos($fileName, '/') !== false || strpos($fileName, '\\') !== false) {
+            return false;
+        }
+
+        // Check for dangerous characters that could cause file system issues
+        // Windows forbidden characters: < > : " | ? *
+        // Also check for control characters (ASCII 0-31)
+        if (preg_match('/[<>:"|?*\x00-\x1f]/', $fileName)) {
+            return false;
+        }
+
+        // Prevent path traversal patterns
+        if (strpos($fileName, '..') !== false) {
+            return false;
+        }
+
+        // Check filename length (typical filesystem limit is 255 bytes)
+        if (strlen($fileName) > 255) {
+            return false;
+        }
+
+        // Check for Windows reserved names (case-insensitive)
+        // First, remove extension to check the base name
+        $baseName = pathinfo($fileName, PATHINFO_FILENAME);
+        $reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+        if (in_array(strtoupper($baseName), $reservedNames)) {
+            return false;
+        }
+
+        // Check for filenames that are just dots
+        if ($fileName === '.' || $fileName === '..') {
+            return false;
+        }
+
+        // Check for filenames starting or ending with spaces or dots (problematic on Windows)
+        if (preg_match('/^[\s.]+|[\s.]+$/', $fileName)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a target path is under or equal to a specified base directory.
+     *
+     * @param string $basePath Base directory path to check against
+     * @param string $targetPath Target path to validate
+     * @return bool True if target path is under base path or equal to it, false otherwise
+     *
+     * Examples:
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project') → true (equal)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project/file.txt') → true (under)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project/subdir/file.txt') → true (nested)
+     * - isPathUnderDirectory('/workspace/project', '/workspace') → false (parent)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/other') → false (sibling)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project/../other') → false (traversal)
+     */
+    public static function isPathUnderDirectory(string $basePath, string $targetPath): bool
+    {
+        // Check for null bytes BEFORE trimming (security risk)
+        if (strpos($basePath, "\0") !== false || strpos($targetPath, "\0") !== false) {
+            return false;
+        }
+
+        // Check for empty paths
+        if (empty(trim($basePath)) || empty(trim($targetPath))) {
+            return false;
+        }
+
+        // Trim and normalize paths
+        $basePath = trim($basePath);
+        $targetPath = trim($targetPath);
+
+        // Normalize paths by removing redundant separators and resolving . and .. components
+        $normalizedBasePath = self::normalizePath($basePath);
+        $normalizedTargetPath = self::normalizePath($targetPath);
+
+        // If normalization failed (invalid paths), return false
+        if ($normalizedBasePath === false || $normalizedTargetPath === false) {
+            return false;
+        }
+
+        // Ensure both paths end with a trailing slash for proper comparison (except for exact equality)
+        $basePathWithSlash = rtrim($normalizedBasePath, '/') . '/';
+        $targetPathWithSlash = rtrim($normalizedTargetPath, '/') . '/';
+
+        // Check if paths are exactly equal
+        if ($normalizedBasePath === $normalizedTargetPath) {
+            return true;
+        }
+
+        // Check if target path starts with base path (is under base directory)
+        return strpos($targetPathWithSlash, $basePathWithSlash) === 0;
+    }
+
+    /**
+     * Normalize a file path by resolving . and .. components and removing redundant separators.
+     *
+     * @param string $path Path to normalize
+     * @return false|string Normalized path or false if path is invalid
+     */
+    private static function normalizePath(string $path): false|string
+    {
+        // Convert Windows backslashes to forward slashes
+        $path = str_replace('\\', '/', $path);
+
+        // Remove multiple consecutive slashes
+        $path = preg_replace('#/+#', '/', $path);
+
+        // Split path into components
+        $isAbsolute = str_starts_with($path, '/');
+        $components = array_filter(explode('/', $path), fn (string $part): bool => strlen($part) > 0);
+        $normalizedComponents = [];
+
+        foreach ($components as $component) {
+            if ($component === '.') {
+                // Current directory - skip
+                continue;
+            }
+            if ($component === '..') {
+                // Parent directory
+                if (empty($normalizedComponents)) {
+                    // If we're at the root and encounter .., this is invalid for absolute paths
+                    if ($isAbsolute) {
+                        return false;
+                    }
+                    // For relative paths, we can't go above the starting point in our context
+                    return false;
+                }
+                // Go up one level
+                array_pop($normalizedComponents);
+            } else {
+                // Regular component
+                $normalizedComponents[] = $component;
+            }
+        }
+
+        // Reconstruct the path
+        $normalizedPath = ($isAbsolute ? '/' : '') . implode('/', $normalizedComponents);
+
+        // Handle root directory case
+        if ($isAbsolute && $normalizedPath === '/') {
+            return '/';
+        }
+
+        // Remove trailing slash for non-root paths
+        return rtrim($normalizedPath, '/');
     }
 }
