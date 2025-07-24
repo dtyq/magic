@@ -124,8 +124,8 @@ class SuperAgentExtra extends AbstractDTO
         if (empty($this->model)) {
             return '';
         }
-        if (is_array($this->model) && isset($this->model['id']) && is_string($this->model['id'])) {
-            return $this->model['id'];
+        if (is_array($this->model) && isset($this->model['model_id']) && is_string($this->model['model_id'])) {
+            return $this->model['model_id'];
         }
         return '';
     }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine;
 
+use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -19,6 +20,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateRespon
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\Engine\Coroutine;
@@ -39,6 +41,9 @@ class VolcengineModel implements ImageGenerate
 
     #[Inject]
     protected LoggerInterface $logger;
+
+    #[Inject]
+    protected WatermarkConfigInterface $watermarkConfig;
 
     private VolcengineAPI $api;
 
@@ -126,7 +131,7 @@ class VolcengineModel implements ImageGenerate
                     // 提交任务（带重试）
                     $taskId = $this->submitAsyncTask($imageGenerateRequest, $isImageToImage);
                     // 轮询结果（带重试）
-                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel());
+                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel(), $imageGenerateRequest->getOrganizationCode());
 
                     return [
                         'success' => true,
@@ -283,17 +288,30 @@ class VolcengineModel implements ImageGenerate
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
     )]
-    private function pollTaskResult(string $taskId, string $model): array
+    private function pollTaskResult(string $taskId, string $model, string $organizationCode): array
     {
         $reqKey = $model;
         $retryCount = 0;
+
+        $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($organizationCode);
+        $reqJson = ['return_url' => true];
+        if ($watermarkConfig !== null) {
+            $volcengineArray = $watermarkConfig->toArray();
+            $reqJson['logo_info'] = $volcengineArray;
+            $this->logger->info('火山文生图：添加水印配置', [
+                'orgCode' => $organizationCode,
+                'logo_info' => $volcengineArray,
+            ]);
+        }
+
+        $reqJsonString = Json::encode($reqJson);
 
         while ($retryCount < self::MAX_RETRY_COUNT) {
             try {
                 $params = [
                     'task_id' => $taskId,
                     'req_key' => $reqKey,
-                    'req_json' => '{"return_url":true}',
+                    'req_json' => $reqJsonString,
                 ];
 
                 $response = $this->api->getTaskResult($params);

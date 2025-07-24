@@ -234,8 +234,8 @@ class TaskContext
         if (! empty($this->modelId) && empty($this->dynamicConfig['models'][$this->getModelId()])) {
             // 添加默认配置
             $this->dynamicConfig['models'][$this->getModelId()] = [
-                'api_key' => 'MAGIC_API_KEY',
-                'api_base_url' => 'MAGIC_API_BASE_URL',
+                'api_key' => '${MAGIC_API_KEY}',
+                'api_base_url' => '${MAGIC_API_BASE_URL}',
                 'name' => $this->getModelId(),
             ];
         }

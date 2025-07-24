@@ -178,6 +178,7 @@ class LLMAppService extends AbstractLLMAppService
         if (! is_array($data['reference_images'])) {
             $data['reference_images'] = [$data['reference_images']];
         }
+        $data['organization_code'] = $authorization->getOrganizationCode();
 
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);

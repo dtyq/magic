@@ -78,6 +78,7 @@ class ImageGenerateFactory
         $request->setUseSr((bool) $data['use_sr']);
         $request->setReferenceImage($data['reference_images']);
         $request->setModel($data['model']);
+        $request->setOrganizationCode($data['organization_code']);
         return $request;
     }
 
