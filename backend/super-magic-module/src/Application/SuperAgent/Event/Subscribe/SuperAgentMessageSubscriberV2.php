@@ -143,7 +143,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 taskMode: $taskMode,
                 rawContent: $rawContent,
                 mcpConfig: [],
-                modelId: $superAgentExtra->getModelId(),
+                modelId: $superAgentExtra?->getModelId() ?? '',
             );
 
             $taskContext = $this->handleUserMessageAppService->getTaskContext($dataIsolation, $userMessageDTO);
