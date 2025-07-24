@@ -93,7 +93,7 @@ class TaskDomainService
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
-        $topicEntity->setTaskMode($topicEntity->getTaskMode());
+        $topicEntity->setTaskMode($taskEntity->getTaskMode());
         $topicEntity->setTopicMode($topicEntity->getTopicMode());
         $this->topicRepository->updateTopic($topicEntity);
 
