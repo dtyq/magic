@@ -113,7 +113,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
             'workspace_id' => 'required|string',
             'topic_name' => 'present|string|max:100',
             'project_id' => 'required|string',
-            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,super-magic',
+            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,summary,super-magic',
         ];
     }
 
@@ -129,7 +129,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
             'topic_name.max' => 'Topic name cannot exceed 100 characters',
             'project_id.required' => 'Project ID cannot be empty',
             'project_id.string' => 'Project ID must be a string',
-            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, super-magic',
+            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, summary, super-magic',
         ];
     }
 }

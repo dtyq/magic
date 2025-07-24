@@ -19,7 +19,7 @@ return new class extends Migration {
             if (Schema::hasColumn('magic_super_agent_project', 'project_mode')) {
                 return;
             }
-            $table->string('project_mode', 50)->nullable()->default(null)->comment('项目模式: general-通用模式, ppt-PPT模式, data_analysis-数据分析模式, report-研报模式')->after('current_topic_status');
+            $table->string('project_mode', 50)->nullable()->default(null)->comment('项目模式: general-通用模式, ppt-PPT模式, data_analysis-数据分析模式, report-研报模式, meeting-会议模式, summary-总结模式, super_magic-超级麦吉模式')->after('current_topic_status');
         });
 
         echo '为项目表添加项目模式字段完成' . PHP_EOL;
