@@ -36,8 +36,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     public function __construct(
         protected readonly TaskAppService $SuperAgentAppService,
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
