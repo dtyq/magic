@@ -203,7 +203,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
-                mcpConfig: $userMessageDTO->getMcpConfig()
+                mcpConfig: $userMessageDTO->getMcpConfig(),
+                modelId: $userMessageDTO->getModelId(),
             );
 
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
@@ -251,7 +252,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 chatConversationId: $userMessageDTO->getChatConversationId(),
                 errorMessage: trans('task.initialize_error'),
             );
-            throw new BusinessException('Initialize task failed', 500);
+            throw new BusinessException('Initialize task failed', 500, $e);
         }
     }
 

@@ -35,6 +35,8 @@ class SuperAgentExtra extends AbstractDTO
      */
     protected ?string $topicPattern;
 
+    protected ?array $model = null;
+
     /**
      * 获取 mentions 的 JSON 结构数组.
      */
@@ -110,5 +112,26 @@ class SuperAgentExtra extends AbstractDTO
     public function setTopicPattern(?string $topicPattern): void
     {
         $this->topicPattern = $topicPattern;
+    }
+
+    public function getModel(): ?array
+    {
+        return $this->model;
+    }
+
+    public function getModelId(): string
+    {
+        if (empty($this->model)) {
+            return '';
+        }
+        if (is_array($this->model) && isset($this->model['id']) && is_string($this->model['id'])) {
+            return $this->model['id'];
+        }
+        return '';
+    }
+
+    public function setModel(?array $model): void
+    {
+        $this->model = $model;
     }
 }
