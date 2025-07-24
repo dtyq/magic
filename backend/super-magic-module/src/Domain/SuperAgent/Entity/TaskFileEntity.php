@@ -47,6 +47,8 @@ class TaskFileEntity extends AbstractEntity
 
     protected ?int $parentId = null;
 
+    protected ?string $metadata = null;
+
     protected TaskFileSource $source;
 
     protected string $createdAt = '';
@@ -232,6 +234,16 @@ class TaskFileEntity extends AbstractEntity
         $this->parentId = $parentId;
     }
 
+    public function getMetadata(): ?string
+    {
+        return $this->metadata;
+    }
+
+    public function setMetadata(?string $metadata): void
+    {
+        $this->metadata = $metadata;
+    }
+
     public function getSource(): TaskFileSource
     {
         return $this->source;
@@ -296,6 +308,7 @@ class TaskFileEntity extends AbstractEntity
             'is_directory' => $this->isDirectory,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
+            'metadata' => $this->metadata,
             'source' => $this->source->value,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,

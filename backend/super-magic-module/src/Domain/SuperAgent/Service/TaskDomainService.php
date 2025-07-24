@@ -309,14 +309,38 @@ class TaskDomainService
         bool $isUpdate = false,
         string $storageType = StorageType::WORKSPACE->value,
         int $source = TaskFileSource::AGENT->value,
+        ?int $parentId = null,
     ): TaskFileEntity {
         // First, check if the file already exists
         $taskFileEntity = $this->getTaskFileByFileKey($fileKey, $topicId);
 
         // If exists and no need to update, return directly
-        if (! empty($taskFileEntity)) {
-            $taskFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        if ($taskFileEntity && ! $isUpdate) {
+            return $taskFileEntity;
+        }
+
+        // If exists, update and return
+        if ($taskFileEntity) {
+            $taskFileEntity->setFileKey($fileKey);
+            $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $taskFileEntity->setTopicId($topicId);
+            $taskFileEntity->setTaskId($taskId);
+            $taskFileEntity->setFileType($fileType);
+            $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
+            $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
+            $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
+            // Check and set whether it's a hidden file
+            $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+            // Update storage type if provided
+            if (isset($fileData['storage_type'])) {
+                $taskFileEntity->setStorageType($fileData['storage_type']);
+            }
+            if ($parentId !== null) {
+                $taskFileEntity->setParentId($parentId);
+            }
+
             return $this->taskFileRepository->updateById($taskFileEntity);
+            // return $taskFileEntity;
         }
 
         // If not exists, create new entity
@@ -348,6 +372,11 @@ class TaskDomainService
         // Set storage type, default to workspace
         $taskFileEntity->setStorageType($storageType);
         $taskFileEntity->setSource($source);
+
+        // Set parent_id if provided
+        if ($parentId !== null) {
+            $taskFileEntity->setParentId($parentId);
+        }
 
         // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity
         $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);

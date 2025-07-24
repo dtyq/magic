@@ -24,7 +24,7 @@ return new class extends Migration {
 
                 // 添加 sort 字段 - 排序字段
                 if (! Schema::hasColumn('magic_super_agent_task_files', 'sort')) {
-                    $table->integer('sort')->default(0)->comment('排序字段');
+                    $table->bigInteger('sort')->default(0)->comment('排序字段');
                 }
 
                 // 添加 parent_id 字段 - 父级ID
@@ -34,7 +34,7 @@ return new class extends Migration {
 
                 // 添加 source 字段 - 来源字段
                 if (! Schema::hasColumn('magic_super_agent_task_files', 'source')) {
-                    $table->tinyInteger('source')->default(1)->comment('来源字段：1-首页，2-项目目录，3-agent');
+                    $table->tinyInteger('source')->default(0)->comment('来源字段：1-首页，2-项目目录，3-agent');
                 }
 
                 // 添加索引

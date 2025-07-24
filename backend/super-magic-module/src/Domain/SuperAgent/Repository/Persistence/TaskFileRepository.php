@@ -122,10 +122,12 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 先获取总数
         $total = $query->count();
 
-        // 获取分页数据，使用Eloquent的get()方法让$casts生效
+        // 获取分页数据，使用Eloquent的get()方法让$casts生效，按层级和排序字段排序
         $models = $query->skip($offset)
             ->take($pageSize)
-            ->orderBy('file_id', 'desc')
+            ->orderBy('parent_id', 'ASC')  // 按父目录分组
+            ->orderBy('sort', 'ASC')       // 按排序值排序
+            ->orderBy('file_id', 'ASC')    // 排序值相同时按ID排序
             ->get();
 
         $list = [];
@@ -166,10 +168,12 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 先获取总数
         $total = $query->count();
 
-        // 获取分页数据，使用Eloquent的get()方法让$casts生效
+        // 获取分页数据，使用Eloquent的get()方法让$casts生效，按层级和排序字段排序
         $models = $query->skip($offset)
             ->take($pageSize)
-            ->orderBy('file_id', 'desc')
+            ->orderBy('parent_id', 'ASC')  // 按父目录分组
+            ->orderBy('sort', 'ASC')       // 按排序值排序
+            ->orderBy('file_id', 'ASC')    // 排序值相同时按ID排序
             ->get();
 
         $list = [];
@@ -509,5 +513,105 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         $this->model::query()
             ->whereIn('file_id', $fileIds)
             ->delete();
+    }
+
+    /**
+     * 获取指定父目录下的最小排序值.
+     */
+    public function getMinSortByParentId(?int $parentId, int $projectId): ?int
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->min('sort');
+    }
+
+    /**
+     * 获取指定父目录下的最大排序值.
+     */
+    public function getMaxSortByParentId(?int $parentId, int $projectId): ?int
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->max('sort');
+    }
+
+    /**
+     * 获取指定文件的排序值.
+     */
+    public function getSortByFileId(int $fileId): ?int
+    {
+        return $this->model::query()
+            ->where('file_id', $fileId)
+            ->whereNull('deleted_at')
+            ->value('sort');
+    }
+
+    /**
+     * 获取指定排序值之后的下一个排序值.
+     */
+    public function getNextSortAfter(?int $parentId, int $currentSort, int $projectId): ?int
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('sort', '>', $currentSort)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->min('sort');
+    }
+
+    /**
+     * 获取同一父目录下的所有兄弟节点.
+     */
+    public function getSiblingsByParentId(?int $parentId, int $projectId, string $orderBy = 'sort', string $direction = 'ASC'): array
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->orderBy($orderBy, $direction)->get()->toArray();
+    }
+
+    /**
+     * 批量更新排序值.
+     */
+    public function batchUpdateSort(array $updates): void
+    {
+        if (empty($updates)) {
+            return;
+        }
+
+        foreach ($updates as $update) {
+            $this->model::query()
+                ->where('file_id', $update['file_id'])
+                ->update(['sort' => $update['sort'], 'updated_at' => date('Y-m-d H:i:s')]);
+        }
     }
 }
