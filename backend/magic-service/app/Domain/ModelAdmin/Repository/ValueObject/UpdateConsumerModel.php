@@ -27,6 +27,8 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected int $loadBalancingWeight;
 
+    protected int $sort = 1;
+
     public function getModelId(): string
     {
         return $this->modelId;
@@ -105,5 +107,15 @@ class UpdateConsumerModel extends AbstractEntity
     public function setSuperMagicDisplayState(int $superMagicDisplayState): void
     {
         $this->superMagicDisplayState = $superMagicDisplayState;
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(int $sort): void
+    {
+        $this->sort = $sort;
     }
 }

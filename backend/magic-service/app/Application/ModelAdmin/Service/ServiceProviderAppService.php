@@ -263,6 +263,10 @@ class ServiceProviderAppService
     {
         $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
 
+        usort($models, function ($a, $b) {
+            return $b->getSort() <=> $a->getSort();
+        });
+
         $icons = array_column($models, 'icon');
 
         $iconUrlMap = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
