@@ -53,7 +53,7 @@ class AttachmentsProcessedEventSubscriber implements ListenerInterface
     public function process(object $event): void
     {
         // Type check
-        if (!$event instanceof AttachmentsProcessedEvent) {
+        if (! $event instanceof AttachmentsProcessedEvent) {
             return;
         }
 
@@ -118,4 +118,4 @@ class AttachmentsProcessedEventSubscriber implements ListenerInterface
             ]);
         }
     }
-} 
+}
