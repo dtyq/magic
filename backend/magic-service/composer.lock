@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c4f5678685c1d15d18df335171ca11b0",
+    "content-hash": "3a80f7c553854dcf41ec278c3951cd8b",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.351.4",
+            "version": "3.351.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "19dfd2db0f6ce35e1947e8bff4d956614b4aaaaf"
+                "reference": "2f00efa2544d158ea366c1e1174097ef330ec883"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/19dfd2db0f6ce35e1947e8bff4d956614b4aaaaf",
-                "reference": "19dfd2db0f6ce35e1947e8bff4d956614b4aaaaf",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/2f00efa2544d158ea366c1e1174097ef330ec883",
+                "reference": "2f00efa2544d158ea366c1e1174097ef330ec883",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.4"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.5"
             },
-            "time": "2025-07-22T18:12:04+00:00"
+            "time": "2025-07-23T18:04:16+00:00"
         },
         {
             "name": "brick/math",
@@ -1981,16 +1981,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.6",
+            "version": "dev-master",
             "source": {
                 "type": "git",
-                "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "029509e2bdeafe377c0326e0aa1f8a08f033d508"
+                "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
+                "reference": "4547525188b9b51f93239d1fa8ec1eb32c44c0e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/029509e2bdeafe377c0326e0aa1f8a08f033d508",
-                "reference": "029509e2bdeafe377c0326e0aa1f8a08f033d508",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=4547525188b9b51f93239d1fa8ec1eb32c44c0e0",
+                "reference": "4547525188b9b51f93239d1fa8ec1eb32c44c0e0",
                 "shasum": ""
             },
             "require": {
@@ -2038,7 +2038,22 @@
                     "Dtyq\\CloudFile\\": "src"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "autoload-dev": {
+                "psr-4": {
+                    "Dtyq\\CloudFile\\Tests\\": "tests"
+                }
+            },
+            "scripts": {
+                "cs-fix": [
+                    "php-cs-fixer fix $1"
+                ],
+                "test": [
+                    "./vendor/bin/phpunit"
+                ],
+                "analyse": [
+                    "phpstan analyse --memory-limit 1024M -c phpstan.neon"
+                ]
+            },
             "license": [
                 "Apache License 2.0"
             ],
@@ -2050,10 +2065,9 @@
             ],
             "description": "Package description here.",
             "support": {
-                "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.6"
+                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/master"
             },
-            "time": "2025-06-23T13:35:43+00:00"
+            "time": "2025-06-23T13:27:34+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -10266,16 +10280,16 @@
         },
         {
             "name": "phpoffice/phpspreadsheet",
-            "version": "2.3.9",
+            "version": "2.3.10",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHPOffice/PhpSpreadsheet.git",
-                "reference": "12e0d9f5ef459bf4d3427ef1bbe256b0d85f1e3a"
+                "reference": "22058ce75b774bf40ceefcadd090a424d558f1ca"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHPOffice/PhpSpreadsheet/zipball/12e0d9f5ef459bf4d3427ef1bbe256b0d85f1e3a",
-                "reference": "12e0d9f5ef459bf4d3427ef1bbe256b0d85f1e3a",
+                "url": "https://api.github.com/repos/PHPOffice/PhpSpreadsheet/zipball/22058ce75b774bf40ceefcadd090a424d558f1ca",
+                "reference": "22058ce75b774bf40ceefcadd090a424d558f1ca",
                 "shasum": ""
             },
             "require": {
@@ -10365,9 +10379,9 @@
             ],
             "support": {
                 "issues": "https://github.com/PHPOffice/PhpSpreadsheet/issues",
-                "source": "https://github.com/PHPOffice/PhpSpreadsheet/tree/2.3.9"
+                "source": "https://github.com/PHPOffice/PhpSpreadsheet/tree/2.3.10"
             },
-            "time": "2025-06-23T01:20:15+00:00"
+            "time": "2025-07-23T04:43:28+00:00"
         },
         {
             "name": "phpoffice/phpword",
@@ -19519,6 +19533,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
 }
