@@ -15,7 +15,7 @@ use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Entity\ServiceProviderConfigEntity;
 use App\Domain\ModelAdmin\Entity\ServiceProviderModelsEntity;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
+use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
@@ -236,7 +236,7 @@ class ServiceProviderApi extends AbstractApi
 
     /**
      * Get super magic display models and Magic provider models visible to current organization.
-     * @return ServiceProviderModelsDTO[]
+     * @return SuperMagicModelsDTO[]
      */
     public function getSuperMagicDisplayModels(RequestInterface $request): array
     {
