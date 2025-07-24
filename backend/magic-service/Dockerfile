@@ -39,6 +39,8 @@ RUN --mount=type=secret,id=composer,target=/root/.composer/auth.json \
     php bin/hyperf.php
     # rm -rf /opt/www/runtime
 
+
+
 # 可选的：标记expose端口
 EXPOSE 9501
 EXPOSE 9502
