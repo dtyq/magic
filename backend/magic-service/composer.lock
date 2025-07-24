@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.351.5",
+            "version": "3.351.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "2f00efa2544d158ea366c1e1174097ef330ec883"
+                "reference": "cd02c2ebf54695e71e70e4188e833b7beaada079"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/2f00efa2544d158ea366c1e1174097ef330ec883",
-                "reference": "2f00efa2544d158ea366c1e1174097ef330ec883",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/cd02c2ebf54695e71e70e4188e833b7beaada079",
+                "reference": "cd02c2ebf54695e71e70e4188e833b7beaada079",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.5"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.6"
             },
-            "time": "2025-07-23T18:04:16+00:00"
+            "time": "2025-07-24T18:03:51+00:00"
         },
         {
             "name": "brick/math",
@@ -6389,16 +6389,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.28",
+            "version": "v1.1.29",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "b416b2838b31fb0f1ba16816319bc2cd3346cd38"
+                "reference": "63c0f8f50960b689f4513272156ad41c42fb33fb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=b416b2838b31fb0f1ba16816319bc2cd3346cd38",
-                "reference": "b416b2838b31fb0f1ba16816319bc2cd3346cd38",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=63c0f8f50960b689f4513272156ad41c42fb33fb",
+                "reference": "63c0f8f50960b689f4513272156ad41c42fb33fb",
                 "shasum": ""
             },
             "require": {
@@ -6463,9 +6463,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.28"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.29"
             },
-            "time": "2025-07-24T00:00:20+08:00"
+            "time": "2025-07-25T02:27:25+08:00"
         },
         {
             "name": "hyperf/phar",
