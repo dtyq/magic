@@ -12,6 +12,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 
@@ -110,6 +111,11 @@ class ProjectDomainService
         return $project;
     }
 
+    public function getProjectNotUserId(int $projectId): ProjectEntity
+    {
+        return $this->projectRepository->findById($projectId);
+    }
+
     /**
      * Get projects by conditions
      * 根据条件获取项目列表，支持分页和排序.
@@ -147,5 +153,17 @@ class ProjectDomainService
         ];
 
         return $this->projectRepository->updateProjectByCondition($conditions, $data);
+    }
+
+    public function updateProjectMode(int $id, TopicMode $topicMode): bool
+    {
+        $projectEntity = $this->projectRepository->findById($id);
+        if (! $projectEntity || ! empty($projectEntity->getProjectMode())) {
+            return false;
+        }
+        $projectEntity->setProjectMode($topicMode->value);
+        $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $this->projectRepository->save($projectEntity);
+        return true;
     }
 }

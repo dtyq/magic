@@ -61,4 +61,20 @@ class MagicUserSettingApi extends AbstractApi
             page: $page
         );
     }
+
+    public function saveProjectTopicModelConfig(string $topicId)
+    {
+        $authorization = $this->getAuthorization();
+        $model = $this->request->input('model', []);
+
+        $userSetting = $this->magicUserSettingAppService->saveProjectTopicModelConfig($authorization, $topicId, $model);
+        return $userSetting->getValue();
+    }
+
+    public function getProjectTopicModelConfig(string $topicId)
+    {
+        $authorization = $this->getAuthorization();
+        $userSetting = $this->magicUserSettingAppService->getProjectTopicModelConfig($authorization, $topicId);
+        return $userSetting?->getValue() ?? [];
+    }
 }

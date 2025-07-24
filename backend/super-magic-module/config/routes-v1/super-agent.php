@@ -83,12 +83,27 @@ Router::addGroup(
         });
 
         Router::addGroup('/file', static function () {
+            // 获取项目文件上传STS Token
+            Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 兼容
+            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
+            // 获取话题文件上传STS Token
+            Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
+            // 创建文件和文件夹
+            Router::post('', [FileApi::class, 'createFile']);
+            // 保存附件关系
+            Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
             // 保存文件内容
             Router::post('/save', [FileApi::class, 'saveFileContent']);
-            // 获取项目文件上传STS Token
-            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
-            // 保存项目文件
-            Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
+            // 删除附件
+            Router::delete('/{id}', [FileApi::class, 'deleteFile']);
+            // 删除目录及其下所有文件
+            Router::post('/directory/delete', [FileApi::class, 'deleteDirectory']);
+            // 重命名文件
+            Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
+            // 移动文件
+            Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+
             // 批量下载相关
             Router::addGroup('/batch-download', static function () {
                 // 创建批量下载任务
@@ -96,6 +111,13 @@ Router::addGroup(
                 // 检查批量下载状态
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
+        });
+
+        Router::addGroup('/sandbox', static function () {
+            // 初始化沙盒
+            Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
+            // 获取沙盒状态
+            Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
@@ -115,8 +137,18 @@ Router::addGroup('/api/v1/super-agent', static function () {
 
     // 获取任务附件
     Router::post('/tasks/get-file-url', [TaskApi::class, 'getFileUrls']);
+    // 批量转换文件为 PDF
+    Router::post('/tasks/pdf/conversions', [TaskApi::class, 'convertFilesToPdf']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
+
+    // 文件转换相关
+    Router::addGroup('/file-convert', static function () {
+        // 创建文件转换任务
+        Router::post('/create', [TaskApi::class, 'convertFiles']);
+        // 检查文件转换状态
+        Router::get('/check', [TaskApi::class, 'checkFileConvertStatus']);
+    });
 
     // 文件相关
     Router::addGroup('/file', static function () {

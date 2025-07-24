@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -71,12 +72,14 @@ class FileSaveContentAppService
             // 3. 根据项目创建一个沙箱
             $projectId = (string) $projectId;
             $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId);
-            $this->sandboxDomainService->createSandbox($projectId, $sandboxId);
+            $dataIsolation = DataIsolation::create($userAuth->getOrganizationCode(), $userAuth->getId());
+            $this->sandboxDomainService->createSandbox($dataIsolation, $projectId, $sandboxId);
 
             // 4. 检查沙箱是否就绪
             $this->sandboxDomainService->waitForSandboxReady($sandboxId);
 
             // 5, 调用文件接口
+
             $result = $this->superMagicDomainService->saveFileData($sandboxId, $fileDataList, $projectEntity->getWorkDir());
             $this->logger->info('[SandboxFileEdit] File save completed', [
                 'user_id' => $userAuth->getId(),

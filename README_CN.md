@@ -3,6 +3,7 @@
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
 </div>
 
+
 ![麦吉开源产品矩阵](https://public-cdn.letsmagic.cn/static/img/super-magic-publish-header.png?v=20250515)
 
 # 🔥 麦吉 - 首个开源一站式 AI 生产力平台

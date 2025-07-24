@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 
 interface TaskFileRepositoryInterface
@@ -15,6 +16,14 @@ interface TaskFileRepositoryInterface
      * 根据ID获取文件.
      */
     public function getById(int $id): ?TaskFileEntity;
+
+    public function getFilesByIds(array $fileIds): array;
+
+    /**
+     * 根据ID批量获取文件.
+     * @return TaskFileEntity[]
+     */
+    public function getTaskFilesByIds(array $ids): array;
 
     /**
      * 根据fileKey获取文件.
@@ -105,4 +114,41 @@ interface TaskFileRepositoryInterface
     public function findUserFilesByProjectId(string $projectId): array;
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
+
+    /**
+     * 根据项目ID获取所有文件的file_key列表（高性能查询）.
+     */
+    public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array;
+
+    /**
+     * 批量插入新文件记录.
+     */
+    public function batchInsertFiles(DataIsolation $dataIsolation, int $projectId, array $newFileKeys, array $objectStorageFiles = []): void;
+
+    /**
+     * 批量标记文件为已删除.
+     */
+    public function batchMarkAsDeleted(array $deletedFileKeys): void;
+
+    /**
+     * 批量更新文件信息.
+     */
+    public function batchUpdateFiles(array $updatedFileKeys): void;
+
+    /**
+     * 根据目录路径查找文件列表.
+     *
+     * @param int $projectId 项目ID
+     * @param string $directoryPath 目录路径
+     * @param int $limit 查询限制
+     * @return TaskFileEntity[] 文件列表
+     */
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array;
+
+    /**
+     * 批量删除文件.
+     *
+     * @param array $fileIds 文件ID数组
+     */
+    public function deleteByIds(array $fileIds): void;
 }

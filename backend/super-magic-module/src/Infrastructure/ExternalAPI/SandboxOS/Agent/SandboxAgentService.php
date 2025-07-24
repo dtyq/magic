@@ -44,7 +44,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 根据文档使用统一的 /api/v1/messages/chat 端点
+            // 通过Gateway转发到Agent API
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
@@ -96,7 +96,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 根据文档使用统一的 /api/v1/messages/chat 端点
+            // 通过Gateway转发到Agent API
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
@@ -141,7 +141,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 根据文档使用统一的 /api/v1/messages/chat 端点
+            // 通过Gateway转发到Agent API
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
@@ -190,7 +190,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         ]);
 
         try {
-            // 通过Gateway转发到Agent API - 获取工作区状态
+            // 通过Gateway转发到Agent API
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'GET',

@@ -18,4 +18,14 @@ return [
     'batch_no_valid_files' => 'No valid accessible files found',
     'batch_access_denied' => 'Batch download task access denied',
     'batch_publish_failed' => 'Failed to publish batch download task',
+
+    // File conversion related
+    'convert_file_ids_required' => 'File IDs are required',
+    'convert_too_many_files' => 'Cannot convert more than 50 files',
+    'convert_no_valid_files' => 'No valid files for conversion',
+    'convert_access_denied' => 'File conversion task access denied',
+    'convert_same_sandbox_required' => 'Files must be in the same sandbox',
+    'convert_create_zip_failed' => 'Failed to create ZIP file',
+    'convert_no_converted_files' => 'No valid converted files to create ZIP',
+    'convert_failed' => 'File conversion failed, please try again',
 ];

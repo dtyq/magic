@@ -249,7 +249,7 @@ class InitAgentRequest
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
-            'magic_service_host' => $this->magicServiceHost,
+            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
         ];
     }
 }

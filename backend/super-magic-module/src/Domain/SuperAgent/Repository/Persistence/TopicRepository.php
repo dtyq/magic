@@ -35,6 +35,34 @@ class TopicRepository implements TopicRepositoryInterface
         return new TopicEntity($data);
     }
 
+    public function getTopicsByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $models = $this->model::query()->whereNull('deleted_at')->whereIn('id', $ids)->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $data = $this->convertModelToEntityData($model->toArray());
+            $entities[] = new TopicEntity($data);
+        }
+
+        return $entities;
+    }
+
+    public function getTopicWithDeleted(int $id): ?TopicEntity
+    {
+        $model = $this->model::query()->withTrashed()->find($id);
+        if (! $model) {
+            return null;
+        }
+
+        $data = $this->convertModelToEntityData($model->toArray());
+        return new TopicEntity($data);
+    }
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
     {
         $model = $this->model::query()->whereNull('deleted_at')->where('sandbox_id', $sandboxId)->first();
@@ -257,12 +285,11 @@ class TopicRepository implements TopicRepositoryInterface
         ];
     }
 
-    public function updateTopicStatus(int $id, $taskId, string $sandboxId, TaskStatus $status): bool
+    public function updateTopicStatus(int $id, $taskId, TaskStatus $status): bool
     {
         return $this->model::query()
             ->where('id', $id)
             ->update([
-                'sandbox_id' => $sandboxId,
                 'current_task_id' => $taskId,
                 'current_task_status' => $status->value,
                 'updated_at' => date('Y-m-d H:i:s'),

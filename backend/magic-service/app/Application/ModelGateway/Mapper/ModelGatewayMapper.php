@@ -30,6 +30,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
@@ -38,7 +39,6 @@ use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\ModelOptions;
 use Hyperf\Odin\ModelMapper;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -57,8 +57,9 @@ class ModelGatewayMapper extends ModelMapper
      */
     protected array $rerank = [];
 
-    public function __construct(protected ConfigInterface $config, protected LoggerInterface $logger)
+    public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
     {
+        $logger = $loggerFactory->get('ModelGatewayMapper', 'debug');
         $this->models['chat'] = [];
         $this->models['embedding'] = [];
         parent::__construct($config, $logger);
@@ -539,14 +540,6 @@ class ModelGatewayMapper extends ModelMapper
 
         if (! $providerModel) {
             return null;
-        }
-        if (! in_array($providerModel->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
-            if ($providerModel->getModelParentId() && $providerModel->getId() !== $providerModel->getModelParentId()) {
-                $providerModel = di(ProviderModelDomainService::class)->getOfficeModelById($providerModel->getModelParentId(), $checkModelEnabled);
-                if (! $providerModel) {
-                    return null;
-                }
-            }
         }
 
         $providerConfig = di(ProviderConfigDomainService::class)->getById($providerDataIsolation, $providerModel->getProviderConfigId(), $checkProviderEnabled);

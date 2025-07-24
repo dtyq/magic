@@ -27,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -202,7 +203,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
-                mcpConfig: $userMessageDTO->getMcpConfig()
+                mcpConfig: $userMessageDTO->getMcpConfig(),
+                modelId: $userMessageDTO->getModelId(),
             );
 
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
@@ -220,12 +222,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // Send error message directly to client
-            $this->clientMessageAppService->sendErrorMessageToClient(
+            $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
+            $this->clientMessageAppService->sendReminderMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: $e->getMessage()
+                remind: $e->getMessage(),
+                remindEvent: $remindType
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
@@ -248,7 +252,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 chatConversationId: $userMessageDTO->getChatConversationId(),
                 errorMessage: trans('task.initialize_error'),
             );
-            throw new BusinessException('Initialize task failed', 500);
+            throw new BusinessException('Initialize task failed', 500, $e);
         }
     }
 
@@ -311,6 +315,9 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         // Create sandbox container
         $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        // update topic sandbox id
+        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
+        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent

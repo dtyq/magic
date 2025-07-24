@@ -25,6 +25,8 @@ class ChatMessageRequest
         private array $attachments = [],
         private array $mentions = [],
         private array $mcpConfig = [],
+        private string $modelId = '',
+        private array $dynamicConfig = [],
     ) {
     }
 
@@ -40,9 +42,23 @@ class ChatMessageRequest
         string $agentMode = '',
         array $attachments = [],
         array $mentions = [],
-        array $mcpConfig = []
+        array $mcpConfig = [],
+        string $modelId = '',
+        array $dynamicConfig = [],
     ): self {
-        return new self($messageId, $userId, $taskId, $prompt, $taskMode, $agentMode, $attachments, $mentions, $mcpConfig);
+        return new self(
+            $messageId,
+            $userId,
+            $taskId,
+            $prompt,
+            $taskMode,
+            $agentMode,
+            $attachments,
+            $mentions,
+            $mcpConfig,
+            $modelId,
+            $dynamicConfig
+        );
     }
 
     public function getMcpConfig(): array
@@ -193,6 +209,40 @@ class ChatMessageRequest
     }
 
     /**
+     * 获取模型ID.
+     */
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
+    /**
+     * 设置模型ID.
+     */
+    public function setModelId(string $modelId): self
+    {
+        $this->modelId = $modelId;
+        return $this;
+    }
+
+    /**
+     * 获取动态配置.
+     */
+    public function getDynamicConfig(): array
+    {
+        return $this->dynamicConfig;
+    }
+
+    /**
+     * 设置动态配置.
+     */
+    public function setDynamicConfig(array $dynamicConfig): self
+    {
+        $this->dynamicConfig = $dynamicConfig;
+        return $this;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
      */
@@ -209,6 +259,8 @@ class ChatMessageRequest
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
             'mcp_config' => $this->mcpConfig,
+            'model_id' => $this->modelId,
+            'dynamic_config' => $this->dynamicConfig,
         ];
     }
 }

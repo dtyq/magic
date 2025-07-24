@@ -19,9 +19,25 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleOrganizations;
 
+    protected string $modelId;
+
     protected array $visibleApplications;
 
     protected int $superMagicDisplayState;
+
+    protected int $loadBalancingWeight;
+
+    protected int $sort = 1;
+
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(string $modelId): void
+    {
+        $this->modelId = $modelId;
+    }
 
     public function getName(): string
     {
@@ -73,6 +89,16 @@ class UpdateConsumerModel extends AbstractEntity
         $this->visibleApplications = $visibleApplications;
     }
 
+    public function getLoadBalancingWeight(): int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(int $loadBalancingWeight): void
+    {
+        $this->loadBalancingWeight = $loadBalancingWeight;
+    }
+
     public function getSuperMagicDisplayState(): int
     {
         return $this->superMagicDisplayState;
@@ -81,5 +107,15 @@ class UpdateConsumerModel extends AbstractEntity
     public function setSuperMagicDisplayState(int $superMagicDisplayState): void
     {
         $this->superMagicDisplayState = $superMagicDisplayState;
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(int $sort): void
+    {
+        $this->sort = $sort;
     }
 }

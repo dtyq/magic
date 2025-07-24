@@ -11,13 +11,15 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -60,10 +62,10 @@ class TaskDomainService
         $topicId = $topicEntity->getId();
 
         // Get task mode from DTO, fallback to topic's task mode if empty
-        // $taskMode = $userMessageDTO->getTaskMode();
-        // if ($taskMode === '') {
-        //     $taskMode = $topicEntity->getTaskMode();
-        // }
+        //         $taskMode = $topicEntity->getTopicMode();
+        //         if ($taskMode === '') {
+        //             $taskMode = $topicEntity->getTaskMode();
+        //         }
 
         // Create new task entity
         // $taskEntity = new TaskEntity([
@@ -164,6 +166,18 @@ class TaskDomainService
         return $this->topicRepository->updateTopic($topicEntity);
     }
 
+    public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'sandbox_id' => $sandboxId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->taskRepository->updateTaskByCondition($conditions, $data);
+    }
+
     public function handleSandboxMessage(string $taskId, string $messageJson): TaskMessageEntity
     {
         $messageData = json_decode($messageJson, true);
@@ -249,10 +263,27 @@ class TaskDomainService
     }
 
     /**
+     * 批量获取任务文件.
+     * @return TaskFileEntity[]
+     */
+    public function getTaskFiles(array $fileIds): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+        return $this->taskFileRepository->getTaskFilesByIds($fileIds);
+    }
+
+    /**
      * Update task file.
      */
     public function updateTaskFile(TaskFileEntity $taskFileEntity): TaskFileEntity
     {
+        // 验证TaskFileEntity是否存在
+        $existingTaskFile = $this->taskFileRepository->getById($taskFileEntity->getFileId());
+        if (! $existingTaskFile) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'Task file not found');
+        }
         return $this->taskFileRepository->updateById($taskFileEntity);
     }
 
@@ -274,7 +305,10 @@ class TaskDomainService
         int $projectId,
         int $topicId,
         int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
+        string $fileType = FileType::PROCESS->value,
+        bool $isUpdate = false,
+        string $storageType = StorageType::WORKSPACE->value,
+        int $source = TaskFileSource::AGENT->value,
     ): TaskFileEntity {
         // First, check if the file already exists
         $taskFileEntity = $this->getTaskFileByFileKey($fileKey, $topicId);
@@ -312,7 +346,8 @@ class TaskDomainService
         // Check and set whether it's a hidden file
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         // Set storage type, default to workspace
-        $taskFileEntity->setStorageType($fileData['storage_type'] ?? 'workspace');
+        $taskFileEntity->setStorageType($storageType);
+        $taskFileEntity->setSource($source);
 
         // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity
         $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);

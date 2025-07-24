@@ -39,13 +39,19 @@ class AgentAppService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $projectId, string $sandboxID): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID): string
     {
+        // Set user context for gateway requests
+        $this->gateway->setUserContext(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
-
+        $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
         // 添加详细的调试日志，检查 result 对象

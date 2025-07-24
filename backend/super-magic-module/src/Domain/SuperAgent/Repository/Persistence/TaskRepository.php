@@ -375,4 +375,11 @@ class TaskRepository implements TaskRepositoryInterface
             ->whereNull('deleted_at')
             ->count();
     }
+
+    public function updateTaskByCondition(array $condition, array $data): bool
+    {
+        return $this->model::query()
+            ->where($condition)
+            ->update($data) > 0;
+    }
 }
