@@ -270,7 +270,7 @@ class ServiceProviderAppService
         $modelDTOs = [];
         foreach ($models as $model) {
             $modelConfig = $model->getConfig();
-            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
+            if ($modelConfig->isSupportFunction()) {
                 $modelDTO = new SuperMagicModelsDTO($model->toArray());
                 if (isset($iconUrlMap[$modelDTO->getIcon()])) {
                     $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
