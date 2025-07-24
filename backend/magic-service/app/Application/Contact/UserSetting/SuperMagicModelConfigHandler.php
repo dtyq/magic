@@ -45,7 +45,7 @@ class SuperMagicModelConfigHandler extends AbstractUserSettingHandler
         $setting->setValue([
             'model' => [
                 'model_id' => $modelId,
-                'id' => $providerModel->getId(),
+                'id' => (string) $providerModel->getId(),
                 'name' => $providerModel->getName(),
                 'icon' => $this->fileDomainService->getLink($providerDataIsolation->getCurrentOrganizationCode(), $providerModel->getIcon())?->getUrl() ?? '',
             ],
