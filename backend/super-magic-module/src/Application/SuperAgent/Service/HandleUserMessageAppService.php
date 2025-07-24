@@ -202,7 +202,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $agentMode,
-                mcpConfig: $userMessageDTO->getMcpConfig()
+                mcpConfig: $userMessageDTO->getMcpConfig(),
+                modelId: $userMessageDTO->getModelId(),
             );
 
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
