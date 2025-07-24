@@ -35,7 +35,6 @@ class UpdateConsumerModel extends AbstractEntity
         $this->modelId = $modelId;
     }
 
-
     public function getName(): string
     {
         return $this->name;
