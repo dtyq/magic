@@ -48,6 +48,11 @@ enum FileType: string
     case AUTO_SYNC = 'auto_sync';
 
     /**
+     * 目录.
+     */
+    case DIRECTORY = 'directory';
+
+    /**
      * 获取文件类型名称.
      */
     public function getName(): string
@@ -60,6 +65,7 @@ enum FileType: string
             self::TOOL_MESSAGE_CONTENT => '工具消息内容',
             self::DOCUMENT => '文档',
             self::AUTO_SYNC => '自动同步',
+            self::DIRECTORY => '目录',
         };
     }
 
@@ -76,6 +82,7 @@ enum FileType: string
             self::TOOL_MESSAGE_CONTENT => '工具消息中包含的文件内容',
             self::DOCUMENT => '文档类型的文件',
             self::AUTO_SYNC => '自动同步的文件',
+            self::DIRECTORY => '目录',
         };
     }
 }

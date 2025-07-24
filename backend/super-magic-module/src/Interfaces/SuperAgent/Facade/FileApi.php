@@ -245,7 +245,7 @@ class FileApi extends AbstractApi
         // Get request data and create DTO
         $requestDTO = MoveFileRequestDTO::fromRequest($this->request);
 
-        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId());
+        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), $requestDTO->getPreFileId());
     }
 
     /**

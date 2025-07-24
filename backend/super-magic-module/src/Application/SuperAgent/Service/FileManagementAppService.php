@@ -25,6 +25,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -155,10 +156,11 @@ class FileManagementAppService extends AbstractAppService
      */
     public function saveFile(RequestContext $requestContext, SaveProjectFileRequestDTO $requestDTO): array
     {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        Db::beginTransaction();
         try {
-            // 获取用户授权信息
-            $userAuthorization = $requestContext->getUserAuthorization();
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
             $projectId = $requestDTO->getProjectId();
 
             if (empty($requestDTO->getFileKey())) {
@@ -184,45 +186,58 @@ class FileManagementAppService extends AbstractAppService
             // 创建 TaskFileEntity 实体
             $taskFileEntity = $requestDTO->toEntity();
 
+            // 通过领域服务计算排序值
+            $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
+                $requestDTO->getParentId(),
+                $requestDTO->getPreFileId(),
+                (int) $requestDTO->getProjectId()
+            );
+
+            // 设置排序值
+            $taskFileEntity->setSort($sortValue);
+
             // 调用领域服务保存文件
-            $taskFileEntity = $this->taskFileDomainService->saveProjectFile(
+            $savedEntity = $this->taskFileDomainService->saveProjectFile(
                 $dataIsolation,
                 $taskFileEntity
             );
 
+            Db::commit();
+
             // 返回保存结果
             $result = [
-                'file_id' => (string) $taskFileEntity->getFileId(),
-                'file_key' => $taskFileEntity->getFileKey(),
-                'file_name' => $taskFileEntity->getFileName(),
-                'file_size' => $taskFileEntity->getFileSize(),
-                'file_type' => $taskFileEntity->getFileType(),
-                'source' => $taskFileEntity->getSource()->value,
-                'source_name' => $taskFileEntity->getSource()->getName(),
-                'is_directory' => $taskFileEntity->getIsDirectory(),
-                'sort' => $taskFileEntity->getSort(),
-                'parent_id' => $taskFileEntity->getParentId(),
-                'created_at' => $taskFileEntity->getCreatedAt(),
+                'file_id' => (string) $savedEntity->getFileId(),
+                'file_key' => $savedEntity->getFileKey(),
+                'file_name' => $savedEntity->getFileName(),
+                'file_size' => $savedEntity->getFileSize(),
+                'file_type' => $savedEntity->getFileType(),
+                'source' => $savedEntity->getSource()->value,
+                'source_name' => $savedEntity->getSource()->getName(),
+                'is_directory' => $savedEntity->getIsDirectory(),
+                'sort' => $savedEntity->getSort(),
+                'parent_id' => $savedEntity->getParentId(),
+                'created_at' => $savedEntity->getCreatedAt(),
                 'relative_file_path' => '',
             ];
 
             // 如果有项目ID，添加相对路径
             if (! empty($projectId)) {
                 $result['relative_file_path'] = WorkDirectoryUtil::getRelativeFilePath(
-                    $taskFileEntity->getFileKey(),
+                    $savedEntity->getFileKey(),
                     $projectEntity->getWorkDir()
                 );
             }
 
             return $result;
         } catch (Throwable $e) {
+            Db::rollBack();
             $this->logger->error(sprintf(
                 'Failed to save project file: %s, Project ID: %s, File Key: %s',
                 $e->getMessage(),
                 $requestDTO->getProjectId(),
                 $requestDTO->getFileKey()
             ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, 'file.file_save_failed');
         }
     }
 
@@ -235,10 +250,11 @@ class FileManagementAppService extends AbstractAppService
      */
     public function createFile(RequestContext $requestContext, CreateFileRequestDTO $requestDTO): array
     {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        Db::beginTransaction();
         try {
-            // 获取用户授权信息
-            $userAuthorization = $requestContext->getUserAuthorization();
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
             $projectId = (int) $requestDTO->getProjectId();
             $parentId = (int) $requestDTO->getParentId();
 
@@ -248,28 +264,38 @@ class FileManagementAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
             }
 
+            // 通过领域服务计算排序值
+            $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
+                $parentId === 0 ? null : $parentId,
+                $requestDTO->getPreFileId(),
+                $projectId
+            );
+
             // 调用领域服务创建文件或文件夹
             $taskFileEntity = $this->taskFileDomainService->createProjectFile(
                 $dataIsolation,
                 $projectEntity,
                 $parentId,
                 $requestDTO->getFileName(),
-                $requestDTO->getIsDirectory()
+                $requestDTO->getIsDirectory(),
+                $sortValue
             );
 
+            Db::commit();
             // 返回创建结果
             return [
                 'file_id' => (string) $taskFileEntity->getFileId(),
                 'is_directory' => $taskFileEntity->getIsDirectory(),
             ];
         } catch (Throwable $e) {
+            Db::rollBack();
             $this->logger->error(sprintf(
                 'Failed to create file: %s, Project ID: %s, File Name: %s',
                 $e->getMessage(),
                 $requestDTO->getProjectId(),
                 $requestDTO->getFileName()
             ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CREATE_FAILED, 'file.file_create_failed');
         }
     }
 
@@ -283,7 +309,8 @@ class FileManagementAppService extends AbstractAppService
             if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
             }
-            $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity);
+            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+            $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity, $projectEntity->getWorkDir());
             return ['file_id' => $fileId];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
@@ -365,24 +392,37 @@ class FileManagementAppService extends AbstractAppService
         }
     }
 
-    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId): array
+    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, int $preFileId = -1): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        Db::beginTransaction();
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+
+            // 通过领域服务处理排序逻辑
+            $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
+
+            // 执行原有的移动逻辑
             $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
-            return ['file_id' => $fileId, 'target_parent_id' => $targetParentId];
+
+            Db::commit();
+            return [
+                'file_id' => $fileId,
+                'target_parent_id' => $targetParentId,
+                'pre_file_id' => $preFileId,
+            ];
         } catch (Throwable $e) {
+            Db::rollBack();
             $this->logger->error(sprintf(
                 'Failed to move project file: %s, File ID: %s, Target Parent ID: %s',
                 $e->getMessage(),
                 $fileId,
                 $targetParentId
             ));
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, 'file.file_move_failed');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, 'file.file_move_failed');
         }
     }
 }

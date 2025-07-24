@@ -19,7 +19,9 @@ use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Stringable\Str;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 class CloudFileRepository implements CloudFileRepositoryInterface
@@ -375,12 +377,12 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     ): void {
         try {
             // Security check: validate if file path starts with organization code
-            if (!Str::startsWith($objectKey, $organizationCode)) {
+            if (! Str::startsWith($objectKey, $organizationCode)) {
                 $this->logger->warning('Object deletion failed: object key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'object_key' => $objectKey,
                 ]);
-                throw new \InvalidArgumentException('Object key does not belong to specified organization');
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
             }
 
             $filesystem = $this->cloudFile->get($bucketType->value);
@@ -432,20 +434,20 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     ): void {
         try {
             // Security check: validate if both keys belong to organization code or are explicitly allowed
-            if (!Str::startsWith($sourceKey, $organizationCode) && !($options['allow_cross_organization'] ?? false)) {
+            if (! Str::startsWith($sourceKey, $organizationCode) && ! ($options['allow_cross_organization'] ?? false)) {
                 $this->logger->warning('Object copy failed: source key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'source_key' => $sourceKey,
                 ]);
-                throw new \InvalidArgumentException('Source key does not belong to specified organization');
+                throw new InvalidArgumentException('Source key does not belong to specified organization');
             }
 
-            if (!Str::startsWith($destinationKey, $organizationCode)) {
+            if (! Str::startsWith($destinationKey, $organizationCode)) {
                 $this->logger->warning('Object copy failed: destination key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'destination_key' => $destinationKey,
                 ]);
-                throw new \InvalidArgumentException('Destination key does not belong to specified organization');
+                throw new InvalidArgumentException('Destination key does not belong to specified organization');
             }
 
             $filesystem = $this->cloudFile->get($bucketType->value);
@@ -497,12 +499,12 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     ): array {
         try {
             // Security check: validate if object key belongs to organization code
-            if (!Str::startsWith($objectKey, $organizationCode)) {
+            if (! Str::startsWith($objectKey, $organizationCode)) {
                 $this->logger->warning('Get object metadata failed: object key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'object_key' => $objectKey,
                 ]);
-                throw new \InvalidArgumentException('Object key does not belong to specified organization');
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
             }
 
             $filesystem = $this->cloudFile->get($bucketType->value);
@@ -555,19 +557,19 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     ): void {
         try {
             // Security check: validate if object key belongs to organization code
-            if (!Str::startsWith($objectKey, $organizationCode)) {
+            if (! Str::startsWith($objectKey, $organizationCode)) {
                 $this->logger->warning('Create object failed: object key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'object_key' => $objectKey,
                 ]);
-                throw new \InvalidArgumentException('Object key does not belong to specified organization');
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
             }
 
             // Check if it's a folder or file
             $isFolder = str_ends_with($objectKey, '/');
-            
+
             // Ensure folder names end with '/'
-            if (isset($options['is_folder']) && $options['is_folder'] && !$isFolder) {
+            if (isset($options['is_folder']) && $options['is_folder'] && ! $isFolder) {
                 $objectKey .= '/';
                 $isFolder = true;
             }
@@ -582,9 +584,9 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
             // Prepare options for creation
             $createOptions = $options;
-            
+
             // Set default content for folders
-            if ($isFolder && !isset($createOptions['content'])) {
+            if ($isFolder && ! isset($createOptions['content'])) {
                 $createOptions['content'] = '';
             }
 
@@ -626,10 +628,10 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         array $options = []
     ): void {
         // Ensure folder path ends with '/'
-        if (!str_ends_with($folderPath, '/')) {
+        if (! str_ends_with($folderPath, '/')) {
             $folderPath .= '/';
         }
-        
+
         $options['is_folder'] = true;
         $this->createObjectByCredential($prefix, $organizationCode, $folderPath, $bucketType, $options);
     }
@@ -654,7 +656,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     ): void {
         // Ensure file path doesn't end with '/'
         $filePath = rtrim($filePath, '/');
-        
+
         $options['content'] = $content;
         $options['is_folder'] = false;
         $this->createObjectByCredential($prefix, $organizationCode, $filePath, $bucketType, $options);
@@ -681,31 +683,31 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     ): void {
         try {
             // Security check: validate if both keys belong to organization code
-            if (!Str::startsWith($sourceKey, $organizationCode)) {
+            if (! Str::startsWith($sourceKey, $organizationCode)) {
                 $this->logger->warning('Object rename failed: source key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'source_key' => $sourceKey,
                 ]);
-                throw new \InvalidArgumentException('Source key does not belong to specified organization');
+                throw new InvalidArgumentException('Source key does not belong to specified organization');
             }
 
-            if (!Str::startsWith($destinationKey, $organizationCode)) {
+            if (! Str::startsWith($destinationKey, $organizationCode)) {
                 $this->logger->warning('Object rename failed: destination key does not belong to specified organization', [
                     'organization_code' => $organizationCode,
                     'destination_key' => $destinationKey,
                 ]);
-                throw new \InvalidArgumentException('Destination key does not belong to specified organization');
+                throw new InvalidArgumentException('Destination key does not belong to specified organization');
             }
 
             // Extract the new filename for download
             $newFileName = basename($destinationKey);
-            
+
             // Step 1: Copy object to new location with new download name
             $copyOptions = array_merge($options, [
                 'metadata_directive' => 'REPLACE',
                 'download_name' => $newFileName,
             ]);
-            
+
             $this->copyObjectByCredential(
                 $prefix,
                 $organizationCode,
@@ -722,7 +724,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                     $destinationKey,
                     $bucketType
                 );
-                
+
                 $this->logger->info('rename_destination_verified', [
                     'organization_code' => $organizationCode,
                     'destination_key' => $destinationKey,
@@ -735,7 +737,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                     'destination_key' => $destinationKey,
                     'error' => $verifyException->getMessage(),
                 ]);
-                throw new \RuntimeException(
+                throw new RuntimeException(
                     'Destination object verification failed after copy. Rename operation aborted to prevent data loss.',
                     0,
                     $verifyException

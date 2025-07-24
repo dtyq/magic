@@ -26,6 +26,30 @@ class FileTreeUtil
             return [];
         }
 
+        // 预处理：按排序值对文件进行排序
+        usort($files, function ($a, $b) {
+            // 首先按父目录分组
+            $aParentId = $a['parent_id'] ?? 0;
+            $bParentId = $b['parent_id'] ?? 0;
+
+            if ($aParentId !== $bParentId) {
+                return $aParentId <=> $bParentId;
+            }
+
+            // 同一父目录下按排序值排序
+            $aSortValue = $a['sort'] ?? 0;
+            $bSortValue = $b['sort'] ?? 0;
+
+            if ($aSortValue === $bSortValue) {
+                // 排序值相同时按file_id排序
+                $aFileId = $a['file_id'] ?? 0;
+                $bFileId = $b['file_id'] ?? 0;
+                return $aFileId <=> $bFileId;
+            }
+
+            return $aSortValue <=> $bSortValue;
+        });
+
         // 预处理：为每个文件确定类型和标准化路径
         $processedFiles = [];
         foreach ($files as $file) {
@@ -112,6 +136,9 @@ class FileTreeUtil
                 $directoryMap[$parentPath]['children'][] = $fileNode;
             }
         }
+
+        // 第三步：对所有目录的子节点进行排序
+        self::sortAllDirectoryChildren($root);
 
         return $root['children'];
     }
@@ -321,6 +348,46 @@ class FileTreeUtil
 
             // 更新父级隐藏状态
             $parentIsHidden = $directoryMap[$currentPath]['is_hidden'] ?? false;
+        }
+    }
+
+    /**
+     * 递归排序所有目录的子节点.
+     */
+    private static function sortAllDirectoryChildren(array &$directory): void
+    {
+        if (empty($directory['children'])) {
+            return;
+        }
+
+        // 对当前目录的子节点进行排序
+        usort($directory['children'], function ($a, $b) {
+            // 目录优先于文件
+            $aIsDir = $a['is_directory'] ?? false;
+            $bIsDir = $b['is_directory'] ?? false;
+
+            if ($aIsDir !== $bIsDir) {
+                return $bIsDir <=> $aIsDir; // 目录在前
+            }
+
+            // 按排序值排序
+            $aSort = $a['sort'] ?? $a['original_data']['sort'] ?? 0;
+            $bSort = $b['sort'] ?? $b['original_data']['sort'] ?? 0;
+
+            if ($aSort === $bSort) {
+                $aFileId = $a['file_id'] ?? $a['original_data']['file_id'] ?? 0;
+                $bFileId = $b['file_id'] ?? $b['original_data']['file_id'] ?? 0;
+                return $aFileId <=> $bFileId;
+            }
+
+            return $aSort <=> $bSort;
+        });
+
+        // 递归排序子目录
+        foreach ($directory['children'] as &$child) {
+            if ($child['is_directory'] ?? false) {
+                self::sortAllDirectoryChildren($child);
+            }
         }
     }
 }

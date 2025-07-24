@@ -69,6 +69,11 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     private string $storageType = '';
 
     /**
+     * 前置文件ID，用于指定插入位置，0=第一位，-1=末尾（默认）.
+     */
+    private int $preFileId = -1;
+
+    /**
      * 从请求数据创建DTO.
      */
     public static function fromRequest(array $data): self
@@ -85,6 +90,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->sort = (int) ($data['sort'] ?? 0);
         $instance->parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
         $instance->storageType = $data['storage_type'] ?? '';
+        $instance->preFileId = (int) ($data['pre_file_id'] ?? -1);
 
         return $instance;
     }
@@ -199,6 +205,17 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
+    public function getPreFileId(): int
+    {
+        return $this->preFileId;
+    }
+
+    public function setPreFileId(int $preFileId): self
+    {
+        $this->preFileId = $preFileId;
+        return $this;
+    }
+
     /**
      * 转换为 TaskFileEntity 实体.
      */
@@ -255,6 +272,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
             'storage_type' => $this->storageType,
+            'pre_file_id' => $this->preFileId,
         ];
     }
 }

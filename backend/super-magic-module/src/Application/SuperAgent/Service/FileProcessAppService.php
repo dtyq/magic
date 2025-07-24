@@ -90,6 +90,7 @@ class FileProcessAppService extends AbstractAppService
         string $fileType = FileType::PROCESS->value,
         string $storageType = StorageType::WORKSPACE->value,
         int $source = TaskFileSource::AGENT->value,
+        ?int $parentId = null,
     ): array {
         $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
             dataIsolation: $dataIsolation,
@@ -102,6 +103,7 @@ class FileProcessAppService extends AbstractAppService
             isUpdate: true,
             storageType: $storageType,
             source: $source,
+            parentId: $parentId,
         );
         return [$taskFileEntity->getFileId(), $taskFileEntity];
     }

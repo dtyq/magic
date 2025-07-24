@@ -78,6 +78,11 @@ class TaskFileItemDTO extends AbstractDTO
     public bool $isDirectory = false;
 
     /**
+     * 文件元数据，存储 JSON 字符串.
+     */
+    public ?string $metadata = null;
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity): self
@@ -96,6 +101,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->isHidden = $entity->getIsHidden();
         $dto->topicId = (string) $entity->getTopicId();
         $dto->isDirectory = $entity->getIsDirectory();
+        $dto->metadata = $entity->getMetadata();
 
         return $dto;
     }
@@ -119,6 +125,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->isHidden = $data['is_hidden'] ?? false;
         $dto->topicId = (string) ($data['topic_id'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
+        $dto->metadata = $data['metadata'] ?? null;
         return $dto;
     }
 
@@ -142,6 +149,7 @@ class TaskFileItemDTO extends AbstractDTO
             'is_hidden' => $this->isHidden,
             'topic_id' => $this->topicId,
             'is_directory' => $this->isDirectory,
+            'metadata' => $this->metadata,
         ];
     }
 }
