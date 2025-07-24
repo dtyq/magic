@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessa
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
@@ -257,6 +258,53 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             return $response;
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Agent] Unexpected error when saving files', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return AgentResponse::fromApiResponse([
+                'code' => 2000,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+    }
+
+    public function executeScriptTask(string $sandboxId, ScriptTaskRequest $request): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Agent] Executing script task', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $request->getTaskId(),
+        ]);
+
+        try {
+            // 通过Gateway转发到沙箱的文件编辑API
+            $result = $this->gateway->proxySandboxRequest(
+                $sandboxId,
+                'POST',
+                '/api/task/script-task',
+                $request->toArray()
+            );
+
+            $response = AgentResponse::fromGatewayResult($result);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Agent] Files saved successfully', [
+                    'sandbox_id' => $sandboxId,
+                    'script_name' => $request->getScriptName(),
+                    'arguments' => $request->getArguments(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Agent] Failed to save files', [
+                    'sandbox_id' => $sandboxId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Agent] Unexpected error when executing script task', [
                 'sandbox_id' => $sandboxId,
                 'error' => $e->getMessage(),
             ]);

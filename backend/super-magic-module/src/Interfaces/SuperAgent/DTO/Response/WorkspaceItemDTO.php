@@ -68,6 +68,11 @@ class WorkspaceItemDTO extends AbstractDTO
         return $dto;
     }
 
+    public function getId(): string
+    {
+        return $this->id;
+    }
+
     /**
      * Create DTO from array.
      *

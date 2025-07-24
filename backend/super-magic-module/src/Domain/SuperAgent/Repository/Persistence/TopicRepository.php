@@ -23,7 +23,10 @@ class TopicRepository implements TopicRepositoryInterface
 
     public function getTopicById(int $id): ?TopicEntity
     {
-        $model = $this->model::query()->whereNull('deleted_at')->find($id);
+        $model = $this->model::query()->whereNull('deleted_at')
+            ->where('id', $id)
+            ->orWhere('chat_topic_id', $id)
+            ->first();
         if (! $model) {
             return null;
         }
@@ -290,6 +293,18 @@ class TopicRepository implements TopicRepositoryInterface
                 'sandbox_id' => $sandboxId,
                 'current_task_id' => $taskId,
                 'current_task_status' => $status->value,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
+    public function updateTopicStatusAndSandboxId(int $id, $taskId, TaskStatus $status, string $sandboxId): bool
+    {
+        return $this->model::query()
+            ->where('id', $id)
+            ->update([
+                'current_task_id' => $taskId,
+                'current_task_status' => $status->value,
+                'sandbox_id' => $sandboxId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]) > 0;
     }

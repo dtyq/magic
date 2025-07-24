@@ -18,6 +18,8 @@ use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Domain\ModelGateway\Service\ApplicationDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -31,6 +33,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
@@ -89,7 +92,9 @@ class TaskAppService extends AbstractAppService
         protected MagicUserDomainService $userDomainService,
         protected TaskRepositoryInterface $taskRepository,
         protected LockerInterface $locker,
-        LoggerFactory $loggerFactory
+        LoggerFactory $loggerFactory,
+        protected AccessTokenDomainService $accessTokenDomainService,
+        protected ApplicationDomainService $applicationDomainService,
     ) {
         $this->messageBuilder = new MessageBuilderDomainService();
         $this->logger = $loggerFactory->get(get_class($this));
@@ -123,13 +128,46 @@ class TaskAppService extends AbstractAppService
                 agentUserId: $agentUserId,
                 chatConversationId: $conversationId,
                 chatTopicId: $chatTopicId,
+                topicId: $topicId,
                 prompt: $prompt,
                 attachments: $attachments,
                 mentions: null,
                 instruction: $instruction,
                 taskMode: $taskMode
             );
-            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $userMessageDTO);
+
+            // Get task mode from DTO, fallback to topic's task mode if empty
+            $taskMode = $userMessageDTO->getTaskMode();
+            if ($taskMode === '') {
+                $taskMode = $topicEntity->getTaskMode();
+            }
+            $data = [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'workspace_id' => $topicEntity->getWorkspaceId(),
+                'project_id' => $topicEntity->getProjectId(),
+                'topic_id' => $topicId,
+                'task_id' => '', // Initially empty, this is agent's task id
+                'task_mode' => $taskMode,
+                'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+                'prompt' => $userMessageDTO->getPrompt(),
+                'attachments' => $userMessageDTO->getAttachments(),
+                'mentions' => $userMessageDTO->getMentions(),
+                'task_status' => TaskStatus::WAITING->value,
+                'work_dir' => $topicEntity->getWorkDir() ?? '',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+            $taskEntity = TaskEntity::fromArray($data);
+
+            // Initialize task
+            $taskEntity = $this->taskDomainService->initTopicTask(
+                dataIsolation: $dataIsolation,
+                topicEntity: $topicEntity,
+                taskEntity: $taskEntity
+            );
+
+            $taskEntity = $this->taskDomainService->initTopicTask($dataIsolation, $topicEntity, $taskEntity);
             $taskId = (string) $taskEntity->getId();
 
             // 初始化上下文
@@ -174,7 +212,9 @@ class TaskAppService extends AbstractAppService
                 messageId: null
             );
 
-            $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+
+            $this->taskDomainService->recordTaskMessage($taskMessageEntity);
             // 处理用户上传的附件
             $this->fileProcessAppService->processInitialAttachments($attachments, $taskEntity, $dataIsolation);
 
@@ -537,6 +577,14 @@ class TaskAppService extends AbstractAppService
         $this->sendMessageToSandbox($session, $taskEntity->getId(), $chatMessage);
 
         return true;
+    }
+
+    /**
+     * Summary of getTaskById.
+     */
+    public function getTaskById(int $taskId): ?TaskEntity
+    {
+        return $this->taskDomainService->getTaskById($taskId);
     }
 
     /**
@@ -923,7 +971,9 @@ class TaskAppService extends AbstractAppService
                 messageId: $messageId
             );
 
-            $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+
+            $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
             // 5. 发送消息到客户端
             if ($showInUi) {

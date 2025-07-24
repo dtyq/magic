@@ -19,6 +19,7 @@ class UserMessageDTO
         private readonly string $agentUserId,
         private readonly string $chatConversationId,
         private readonly string $chatTopicId,
+        private readonly int $topicId,
         private readonly string $prompt,
         private readonly ?string $attachments = null,
         private readonly ?string $mentions = null,
@@ -26,7 +27,8 @@ class UserMessageDTO
         private readonly TopicMode $topicMode = TopicMode::GENERAL,
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
-        private readonly ?string $rawContent = null
+        private readonly ?string $rawContent = null,
+        private readonly array $mcpConfig = [],
     ) {
     }
 
@@ -43,6 +45,11 @@ class UserMessageDTO
     public function getChatTopicId(): string
     {
         return $this->chatTopicId;
+    }
+
+    public function getTopicId(): int
+    {
+        return $this->topicId;
     }
 
     public function getPrompt(): string
@@ -80,6 +87,16 @@ class UserMessageDTO
         return $this->rawContent;
     }
 
+    public function getMcpConfig(): array
+    {
+        return $this->mcpConfig;
+    }
+
+    public function setMcpConfig(array $mcpConfig): void
+    {
+        $this->mcpConfig = $mcpConfig;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -89,6 +106,7 @@ class UserMessageDTO
             agentUserId: $data['agent_user_id'] ?? $data['agentUserId'] ?? '',
             chatConversationId: $data['chat_conversation_id'] ?? $data['chatConversationId'] ?? '',
             chatTopicId: $data['chat_topic_id'] ?? $data['chatTopicId'] ?? '',
+            topicId: $data['topic_id'] ?? $data['topicId'] ?? 0,
             prompt: $data['prompt'] ?? '',
             attachments: $data['attachments'] ?? null,
             mentions: $data['mentions'] ?? null,
@@ -99,7 +117,8 @@ class UserMessageDTO
                 ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
                 : TopicMode::GENERAL,
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
-            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null
+            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
+            mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
         );
     }
 
@@ -112,6 +131,7 @@ class UserMessageDTO
             'agent_user_id' => $this->agentUserId,
             'chat_conversation_id' => $this->chatConversationId,
             'chat_topic_id' => $this->chatTopicId,
+            'topic_id' => $this->topicId,
             'prompt' => $this->prompt,
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
@@ -119,6 +139,7 @@ class UserMessageDTO
             'topic_mode' => $this->topicMode->value,
             'task_mode' => $this->taskMode,
             'raw_content' => $this->rawContent,
+            'mcp_config' => $this->mcpConfig,
         ];
     }
 }

@@ -14,12 +14,14 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
@@ -46,7 +48,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
-        private readonly AgentAppService $agentAppService,
+        private readonly AgentDomainService $agentDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -55,6 +57,7 @@ class HandleAgentMessageAppService extends AbstractAppService
     /**
      * Handle Agent Message - Main Entry Point
      * Responsible for overall business process orchestration.
+     * agent send message to user.
      */
     public function handleAgentMessage(TopicTaskMessageDTO $messageDTO): void
     {
@@ -111,9 +114,9 @@ class HandleAgentMessageAppService extends AbstractAppService
         );
 
         // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
+        $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
         if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage(
+            $this->agentDomainService->sendInterruptMessage(
                 $dataIsolation,
                 $taskContext->getTask()->getSandboxId(),
                 (string) $taskContext->getTask()->getId(),
@@ -349,7 +352,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             messageId: $messageData['messageId']
         );
 
-        $this->taskDomainService->recordTaskMessage($taskMessageDTO);
+        $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+        $this->taskDomainService->recordTaskMessage($taskMessageEntity);
     }
 
     /**

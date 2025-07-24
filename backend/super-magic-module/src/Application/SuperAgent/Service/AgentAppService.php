@@ -7,58 +7,33 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\Chat\Service\MagicUserInfoAppService;
-use App\Application\File\Service\FileAppService;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use App\Interfaces\Agent\Assembler\FileAssembler;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * Agent消息应用服务
- * 提供高级Agent通信功能，包括自动初始化和状态管理.
+ * Agent应用服务
+ * 负责协调Agent领域服务的调用，遵循DDD原则.
  */
 class AgentAppService
 {
     private LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
-        private SandboxAgentInterface $agent,
-        private readonly FileProcessAppService $fileProcessAppService,
-        private readonly FileAppService $fileAppService,
-        private readonly MagicUserInfoAppService $userInfoAppService,
+        private readonly AgentDomainService $agentDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
     }
 
     /**
@@ -112,27 +87,7 @@ class AgentAppService
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
-        $this->logger->info('[Sandbox][App] Getting sandbox status', [
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        $result = $this->gateway->getSandboxStatus($sandboxId);
-
-        if (! $result->isSuccess() && $result->getCode() !== ResponseCode::NOT_FOUND) {
-            $this->logger->error('[Sandbox][App] Failed to get sandbox status', [
-                'sandbox_id' => $sandboxId,
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Get sandbox status', $result->getMessage(), $result->getCode());
-        }
-
-        $this->logger->info('[Sandbox][App] Sandbox status retrieved', [
-            'sandbox_id' => $sandboxId,
-            'status' => $result->getStatus(),
-        ]);
-
-        return $result;
+        return $this->agentDomainService->getSandboxStatus($sandboxId);
     }
 
     /**
@@ -143,51 +98,15 @@ class AgentAppService
      */
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult
     {
-        $this->logger->info('[Sandbox][App] Getting batch sandbox status', [
-            'sandbox_ids' => $sandboxIds,
-            'count' => count($sandboxIds),
-        ]);
-
-        $result = $this->gateway->getBatchSandboxStatus($sandboxIds);
-
-        if (! $result->isSuccess() && $result->getCode() !== ResponseCode::NOT_FOUND) {
-            $this->logger->error('[Sandbox][App] Failed to get batch sandbox status', [
-                'sandbox_ids' => $sandboxIds,
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Get batch sandbox status', $result->getMessage(), $result->getCode());
-        }
-
-        $this->logger->info('[Sandbox][App] Batch sandbox status retrieved', [
-            'requested_count' => count($sandboxIds),
-            'returned_count' => $result->getTotalCount(),
-            'running_count' => $result->getRunningCount(),
-        ]);
-
-        return $result;
+        return $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
     }
 
+    /**
+     * 初始化Agent.
+     */
     public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
-        $this->logger->info('[Sandbox][App] Initializing agent', [
-            'sandbox_id' => $taskContext->getSandboxId(),
-        ]);
-
-        // 1. 构建初始化信息
-        $config = $this->generateInitializationInfo($dataIsolation, $taskContext);
-
-        // 2. 调用初始化接口
-        $result = $this->agent->initAgent($taskContext->getSandboxId(), InitAgentRequest::fromArray($config));
-
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Failed to initialize agent', [
-                'sandbox_id' => $taskContext->getSandboxId(),
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Initialize agent', $result->getMessage(), $result->getCode());
-        }
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
     }
 
     /**
@@ -195,46 +114,7 @@ class AgentAppService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
-        $this->logger->info('[Sandbox][App] Sending chat message to agent', [
-            'sandbox_id' => $taskContext->getSandboxId(),
-        ]);
-
-        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getProjectId());
-
-        $attachmentUrls = [];
-        if (! empty($mentionsJsonStruct)) {
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
-        }
-
-        $mcpDataIsolation = MCPDataIsolation::create(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId()
-        );
-        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
-
-        // 构建参数
-        $chatMessage = ChatMessageRequest::create(
-            messageId: (string) IdGenerator::getSnowId(),
-            userId: $dataIsolation->getCurrentUserId(),
-            taskId: (string) $taskContext->getTask()->getId(),
-            prompt: $taskContext->getTask()->getPrompt(),
-            taskMode: $taskContext->getTask()->getTaskMode(),
-            agentMode: $taskContext->getAgentMode(),
-            attachments: $attachmentUrls,
-            mentions: $mentionsJsonStruct,
-            mcpConfig: $mcpConfig,
-        );
-
-        $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
-
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Failed to send chat message to agent', [
-                'sandbox_id' => $taskContext->getSandboxId(),
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Send chat message', $result->getMessage(), $result->getCode());
-        }
+        $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
 
     /**
@@ -252,44 +132,7 @@ class AgentAppService
         string $taskId,
         string $reason,
     ): AgentResponse {
-        $this->logger->info('[Sandbox][App] Sending interrupt message to agent', [
-            'sandbox_id' => $sandboxId,
-            'task_id' => $taskId,
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'reason' => $reason,
-        ]);
-
-        // 发送中断消息
-        $messageId = (string) IdGenerator::getSnowId();
-        $interruptRequest = InterruptRequest::create(
-            $messageId,
-            $dataIsolation->getCurrentUserId(),
-            $taskId,
-            $reason,
-        );
-
-        $response = $this->agent->sendInterruptMessage($sandboxId, $interruptRequest);
-
-        if (! $response->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Failed to send interrupt message to agent', [
-                'sandbox_id' => $sandboxId,
-                'task_id' => $taskId,
-                'user_id' => $dataIsolation->getCurrentUserId(),
-                'reason' => $reason,
-                'error' => $response->getMessage(),
-                'code' => $response->getCode(),
-            ]);
-            throw new SandboxOperationException('Send interrupt message', $response->getMessage(), $response->getCode());
-        }
-
-        $this->logger->info('[Sandbox][App] Interrupt message sent to agent successfully', [
-            'sandbox_id' => $sandboxId,
-            'task_id' => $taskId,
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'reason' => $reason,
-        ]);
-
-        return $response;
+        return $this->agentDomainService->sendInterruptMessage($dataIsolation, $sandboxId, $taskId, $reason);
     }
 
     /**
@@ -300,27 +143,7 @@ class AgentAppService
      */
     public function getWorkspaceStatus(string $sandboxId): AgentResponse
     {
-        $this->logger->debug('[Sandbox][App] Getting workspace status', [
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        $result = $this->agent->getWorkspaceStatus($sandboxId);
-
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Failed to get workspace status', [
-                'sandbox_id' => $sandboxId,
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Get workspace status', $result->getMessage(), $result->getCode());
-        }
-
-        $this->logger->debug('[Sandbox][App] Workspace status retrieved', [
-            'sandbox_id' => $sandboxId,
-            'status' => $result->getDataValue('status'),
-        ]);
-
-        return $result;
+        return $this->agentDomainService->getWorkspaceStatus($sandboxId);
     }
 
     /**
@@ -330,7 +153,6 @@ class AgentAppService
      * @param string $sandboxId 沙箱ID
      * @param int $timeoutSeconds 超时时间（秒），默认10分钟
      * @param int $intervalSeconds 轮询间隔（秒），默认2秒
-     * @throws SandboxOperationException 当初始化失败或超时时抛出异常
      */
     public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 600, int $intervalSeconds = 2): void
     {
@@ -346,6 +168,8 @@ class AgentAppService
         while (time() < $endTime) {
             try {
                 $response = $this->getWorkspaceStatus($sandboxId);
+
+                var_dump($response, '=====response');
                 $status = $response->getDataValue('status');
 
                 $this->logger->debug('[Sandbox][App] Workspace status check', [
@@ -396,124 +220,5 @@ class AgentAppService
             'timeout_seconds' => $timeoutSeconds,
         ]);
         throw new SandboxOperationException('Wait for workspace ready', 'Workspace ready timeout after ' . $timeoutSeconds . ' seconds', 3003);
-    }
-
-    /**
-     * 构建初始化消息.
-     */
-    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
-    {
-        // 1. 获取上传配置信息
-        $storageType = StorageBucketType::Private->value;
-        $expires = 3600; // Credential valid for 1 hour
-        // Create user authorization object
-        $userAuthorization = new MagicUserAuthorization();
-        $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        // Use unified FileAppService to get STS Token
-        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
-
-        // 2. 构建元数据
-        $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
-        $userInfo = UserInfoValueObject::fromArray($userInfoArray);
-        $messageMetadata = new MessageMetadata(
-            agentUserId: $taskContext->getAgentUserId(),
-            userId: $dataIsolation->getCurrentUserId(),
-            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            chatTopicId: $taskContext->getChatTopicId(),
-            instruction: $taskContext->getInstruction()->value,
-            sandboxId: $taskContext->getSandboxId(),
-            superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            language: di(TranslatorInterface::class)->getLocale(),
-            userInfo: $userInfo,
-        );
-
-        return [
-            'message_id' => (string) IdGenerator::getSnowId(),
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'project_id' => (string) $taskContext->getTask()->getProjectId(),
-            'type' => MessageType::Init->value,
-            'upload_config' => $stsConfig,
-            'message_subscription_config' => [
-                'method' => 'POST',
-                'url' => config('super-magic.sandbox.callback_host', '') . '/api/v1/super-agent/tasks/deliver-message',
-                'headers' => [
-                    'token' => config('super-magic.sandbox.token', ''),
-                ],
-                'enable_obfuscation' => true,
-            ],
-            'sts_token_refresh' => [
-                'method' => 'POST',
-                'url' => config('super-magic.sandbox.callback_host', '') . '/api/v1/super-agent/file/refresh-sts-token',
-                'headers' => [
-                    'token' => config('super-magic.sandbox.token', ''),
-                ],
-            ],
-            'metadata' => $messageMetadata->toArray(),
-            'task_mode' => $taskContext->getTask()->getTaskMode(),
-            'agent_mode' => $taskContext->getAgentMode(),
-            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
-        ];
-    }
-
-    /**
-     * 构建 mentions 的 JSON 结构数组，只包含 type, file_path, file_url 三个字段.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param null|string $mentionsJson mentions 的 JSON 字符串
-     * @param null|int $projectId 项目 ID
-     * @return array 处理后的 mentions 数组
-     */
-    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson, ?int $projectId): array
-    {
-        $mentionsJsonStruct = [];
-
-        if (empty($mentionsJson)) {
-            return $mentionsJsonStruct;
-        }
-
-        $mentions = json_decode($mentionsJson, true);
-        if (empty($mentions) || ! is_array($mentions)) {
-            return $mentionsJsonStruct;
-        }
-
-        $fileIds = array_filter(array_column($mentions, 'file_id'));
-        if (empty($fileIds)) {
-            return $mentionsJsonStruct;
-        }
-
-        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $projectId);
-
-        // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
-        $fileIdToFileMap = [];
-        foreach ($filesWithUrl as $file) {
-            $fileIdToFileMap[$file['file_id']] = $file;
-        }
-
-        // 构建新的数据结构，只包含 type, file_path, file_url
-        foreach ($mentions as $mention) {
-            $fileId = $mention['file_id'] ?? null;
-            if (! $fileId) {
-                continue;
-            }
-
-            // 从原始 mentions 中获取 type
-            $type = $mention['type'] ?? MentionType::PROJECT_FILE->value;
-
-            // 直接通过 file_id 获取对应的文件信息
-            $matchedFile = $fileIdToFileMap[$fileId] ?? null;
-
-            if ($matchedFile) {
-                // 从 file_url 中提取 file_path
-                $filePath = $mention['file_path'] ?? '';
-                if (empty($filePath) && ! empty($matchedFile['file_url'])) {
-                    // 使用 FileAssembler::formatPath 从 URL 中提取路径
-                    $filePath = FileAssembler::formatPath($matchedFile['file_url']);
-                }
-                $mentionFile = ['type' => $type, 'file_path' => $filePath, 'file_metadata' => $matchedFile];
-                $mentionsJsonStruct[] = $mentionFile;
-            }
-        }
-        return $mentionsJsonStruct;
     }
 }
