@@ -78,8 +78,7 @@
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
         "dtyq/php-mcp": "0.1.*",
-        "dtyq/super-magic-module": "dev-enterprise-released",
-        "dtyq/magic-enterprise-service": "dev-master"
+        "dtyq/super-magic-module": "^v0.0"  
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
@@ -147,37 +146,5 @@
         "php-accessor": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/php-accessor generate"
     },
     "repositories": [
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/brd/token-sdk.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/brd/user-service-sdk.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/erp-service/service-sdk.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/brd/keewood-service-open-sdk.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/magic/magic-enterprise-service.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/dtyq/super-magic-module.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/dtyq/billing-manager.git"
-        },
-        {
-            "type": "gitlab",
-            "url": "https://git.kkgroup.cn/dtyq/cloudfile.git"
-        }
     ]
 }
