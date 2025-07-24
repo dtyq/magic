@@ -114,17 +114,25 @@ class FileSortUtil
     ): int {
         $minSort = $repository->getMinSortByParentId($parentId, $projectId);
 
-        if ($minSort === null || $minSort > self::DEFAULT_SORT_STEP) {
+        if ($minSort === null) {
+            // 没有文件，使用默认值
             return self::DEFAULT_SORT_STEP;
         }
 
-        $newSort = $minSort - self::DEFAULT_SORT_STEP;
-        if ($newSort < 1) {
-            // 需要重排，返回重排后的第一位值
+        if ($minSort > self::DEFAULT_SORT_STEP) {
+            // 最小值很大，可以使用默认值插入到前面
             return self::DEFAULT_SORT_STEP;
         }
 
-        return $newSort;
+        // 尝试计算一个更小的值，使用一半的步长
+        $halfStep = intval(self::DEFAULT_SORT_STEP / 2);
+        if ($minSort > $halfStep) {
+            return $minSort - $halfStep;
+        }
+
+        // 如果最小值太小，无法插入合理的值，需要重排
+        // 这里应该触发重排逻辑，暂时返回默认值
+        return self::DEFAULT_SORT_STEP;
     }
 
     /**
