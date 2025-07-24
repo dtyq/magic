@@ -203,6 +203,36 @@ interface TaskFileRepositoryInterface
     public function batchMarkAsDeleted(array $deletedFileKeys): void;
 
     /**
+     * 获取指定父目录下的最小排序值.
+     */
+    public function getMinSortByParentId(?int $parentId, int $projectId): ?int;
+
+    /**
+     * 获取指定父目录下的最大排序值.
+     */
+    public function getMaxSortByParentId(?int $parentId, int $projectId): ?int;
+
+    /**
+     * 获取指定文件的排序值.
+     */
+    public function getSortByFileId(int $fileId): ?int;
+
+    /**
+     * 获取指定排序值之后的下一个排序值.
+     */
+    public function getNextSortAfter(?int $parentId, int $currentSort, int $projectId): ?int;
+
+    /**
+     * 获取同一父目录下的所有兄弟节点.
+     */
+    public function getSiblingsByParentId(?int $parentId, int $projectId, string $orderBy = 'sort', string $direction = 'ASC'): array;
+
+    /**
+     * 批量更新排序值.
+     */
+    public function batchUpdateSort(array $updates): void;
+
+    /**
      * 批量更新文件信息.
      */
     public function batchUpdateFiles(array $updatedFileKeys): void;

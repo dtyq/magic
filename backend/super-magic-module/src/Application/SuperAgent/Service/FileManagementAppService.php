@@ -311,6 +311,13 @@ class FileManagementAppService extends AbstractAppService
                 $projectId
             );
 
+            // 通过领域服务计算排序值
+            $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
+                $parentId === 0 ? null : $parentId,
+                $requestDTO->getPreFileId(),
+                $projectId
+            );
+
             // 调用领域服务创建文件或文件夹
             $taskFileEntity = $this->taskFileDomainService->createProjectFile(
                 $dataIsolation,
@@ -597,24 +604,37 @@ class FileManagementAppService extends AbstractAppService
         ];
     }
 
-    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId): array
+    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, int $preFileId = -1): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        Db::beginTransaction();
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+
+            // 通过领域服务处理排序逻辑
+            $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
+
+            // 执行原有的移动逻辑
             $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
-            return ['file_id' => $fileId, 'target_parent_id' => $targetParentId];
+
+            Db::commit();
+            return [
+                'file_id' => $fileId,
+                'target_parent_id' => $targetParentId,
+                'pre_file_id' => $preFileId,
+            ];
         } catch (Throwable $e) {
+            Db::rollBack();
             $this->logger->error(sprintf(
                 'Failed to move project file: %s, File ID: %s, Target Parent ID: %s',
                 $e->getMessage(),
                 $fileId,
                 $targetParentId
             ));
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, 'file.file_move_failed');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, 'file.file_move_failed');
         }
     }
 }
