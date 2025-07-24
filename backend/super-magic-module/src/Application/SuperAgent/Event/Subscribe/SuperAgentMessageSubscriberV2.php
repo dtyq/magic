@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
@@ -40,6 +41,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
         protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
+        protected SupperMagicAgentMCPInterface $supperMagicAgentMCP,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
         parent::__construct($magicConversationDomainService);
