@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelAdmin\Entity\ValueObject;
 
-use App\Domain\ModelAdmin\Entity\AbstractEntity;
+use App\Infrastructure\Core\AbstractDTO;
 
-class ServiceProviderModelsDTO extends AbstractEntity
+class ServiceProviderModelsDTO extends AbstractDTO
 {
     protected string $id;
 
@@ -34,6 +34,8 @@ class ServiceProviderModelsDTO extends AbstractEntity
     protected int $status;
 
     protected ?string $disabledBy = null; // 禁用来源：official-官方禁用，user-用户禁用，NULL-未禁用
+
+    protected int $superMagicDisplayState = 0;
 
     protected int $sort;
 
@@ -222,5 +224,15 @@ class ServiceProviderModelsDTO extends AbstractEntity
     public function setVisibleApplications(array $visibleApplications): void
     {
         $this->visibleApplications = $visibleApplications;
+    }
+
+    public function getSuperMagicDisplayState(): int
+    {
+        return $this->superMagicDisplayState;
+    }
+
+    public function setSuperMagicDisplayState(int $superMagicDisplayState): void
+    {
+        $this->superMagicDisplayState = $superMagicDisplayState;
     }
 }
