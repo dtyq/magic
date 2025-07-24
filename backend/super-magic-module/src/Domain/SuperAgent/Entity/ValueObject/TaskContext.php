@@ -39,6 +39,8 @@ class TaskContext
         private ChatInstruction $instruction = ChatInstruction::Normal,
         private string $agentMode = '',
         private array $mcpConfig = [],
+        private string $modelId = '',
+        private array $dynamicConfig = [],
     ) {
     }
 
@@ -213,6 +215,37 @@ class TaskContext
     public function setMcpConfig(array $mcpConfig): self
     {
         $this->mcpConfig = $mcpConfig;
+        return $this;
+    }
+
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(string $modelId): self
+    {
+        $this->modelId = $modelId;
+        return $this;
+    }
+
+    public function getDynamicConfig(): array
+    {
+        if (! empty($this->modelId) && empty($this->dynamicConfig['models'][$this->getModelId()])) {
+            // 添加默认配置
+            $this->dynamicConfig['models'][$this->getModelId()] = [
+                'api_key' => $this->getModelId(),
+                'api_base_url' => $this->getModelId(),
+                'name' => $this->getModelId(),
+            ];
+        }
+
+        return $this->dynamicConfig;
+    }
+
+    public function setDynamicConfig(array $dynamicConfig): self
+    {
+        $this->dynamicConfig = $dynamicConfig;
         return $this;
     }
 }

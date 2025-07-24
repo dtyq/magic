@@ -223,6 +223,8 @@ class AgentAppService
             attachments: $attachmentUrls,
             mentions: $mentionsJsonStruct,
             mcpConfig: $mcpConfig,
+            modelId: $taskContext->getModelId(),
+            dynamicConfig: $taskContext->getDynamicConfig(),
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);

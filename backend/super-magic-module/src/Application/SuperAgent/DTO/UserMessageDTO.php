@@ -26,7 +26,8 @@ class UserMessageDTO
         private readonly TopicMode $topicMode = TopicMode::GENERAL,
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
-        private readonly ?string $rawContent = null
+        private readonly ?string $rawContent = null,
+        private readonly ?string $modelId = null,
     ) {
     }
 
@@ -80,6 +81,11 @@ class UserMessageDTO
         return $this->rawContent;
     }
 
+    public function getModelId(): ?string
+    {
+        return $this->modelId;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -99,7 +105,8 @@ class UserMessageDTO
                 ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
                 : TopicMode::GENERAL,
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
-            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null
+            rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
+            modelId: $data['modelId'] ?? null,
         );
     }
 
@@ -119,6 +126,7 @@ class UserMessageDTO
             'topic_mode' => $this->topicMode->value,
             'task_mode' => $this->taskMode,
             'raw_content' => $this->rawContent,
+            'model_id' => $this->modelId,
         ];
     }
 }

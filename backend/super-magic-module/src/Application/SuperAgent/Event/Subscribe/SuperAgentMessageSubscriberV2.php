@@ -81,6 +81,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $agentUserId = $userCallAgentEvent->agentUserEntity->getUserId() ?? '';
             $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
+            $modelId = $superAgentExtra->getModelId();
 
             // Parameter validation
             if (empty($conversationId) || empty($chatTopicId) || empty($organizationCode)
@@ -126,7 +127,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 instruction: $chatInstructs,
                 topicMode: $topicMode,
                 taskMode: $taskMode,
-                rawContent: $rawContent
+                rawContent: $rawContent,
+                modelId: $modelId
             );
 
             // Call handle user message service
