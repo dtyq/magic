@@ -28,6 +28,7 @@ class UserMessageDTO
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
+        private ?array $mcpConfig = null,
         private readonly ?string $modelId = null,
     ) {
     }
@@ -85,6 +86,16 @@ class UserMessageDTO
     public function getRawContent(): ?string
     {
         return $this->rawContent;
+    }
+
+    public function getMcpConfig(): ?array
+    {
+        return $this->mcpConfig;
+    }
+
+    public function setMcpConfig(array $mcpConfig): void
+    {
+        $this->mcpConfig = $mcpConfig;
     }
 
     public function getModelId(): ?string
