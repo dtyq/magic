@@ -11,6 +11,7 @@ use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\Query\MagicFlowAIModelQuery;
 use App\Domain\Flow\Service\MagicFlowAIModelDomainService;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
@@ -399,6 +400,10 @@ class ModelGatewayMapper extends ModelMapper
             $list[$name] = new OdinModel(key: $name, model: $model, attributes: $this->attributes[$name]);
         }
 
+        if (! $filter) {
+            $filter = new ModelFilter();
+        }
+
         // 加载 provider 配置的所有模型
         $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
         $providerModelQuery = new ProviderModelQuery();
@@ -453,13 +458,11 @@ class ModelGatewayMapper extends ModelMapper
         ProviderModelEntity $providerModelEntity,
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
-        ?ModelFilter $filter = null
+        ModelFilter $filter
     ): ?OdinModel {
-        if (! $filter) {
-            $filter = new ModelFilter();
-        }
         $checkVisibleOrganization = $filter->isCheckVisibleOrganization() ?? true;
         $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
+        $checkVisiblePackage = $filter->isCheckVisiblePackage() ?? true;
 
         if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($providerDataIsolation->getCurrentOrganizationCode(), $providerModelEntity->getVisibleOrganizations(), true)) {
             return null;
@@ -467,8 +470,9 @@ class ModelGatewayMapper extends ModelMapper
         if ($checkVisibleApplication && $providerModelEntity->getVisibleApplications() && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
             return null;
         }
-
-        $chat = false;
+        if ($checkVisiblePackage && $providerModelEntity->getVisiblePackages() && ! in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true)) {
+            return null;
+        }
         $functionCall = false;
         $multiModal = false;
         $embedding = false;
@@ -527,6 +531,11 @@ class ModelGatewayMapper extends ModelMapper
 
     private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?OdinModel
     {
+        if (! $filter) {
+            $filter = new ModelFilter();
+            $filter->setCurrentPackage(di(PackageFilterInterface::class)->getCurrentPackage($orgCode ?? ''));
+        }
+
         $checkModelEnabled = $filter?->isCheckModelEnabled() ?? true;
         $checkProviderEnabled = $filter?->isCheckProviderEnabled() ?? true;
 
