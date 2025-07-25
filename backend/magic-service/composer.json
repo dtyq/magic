@@ -148,6 +148,10 @@
     },
     "repositories": [
         {
+            "type": "path",
+            "url": "/Users/liangpeng/Documents/kk/magic/backend/super-magic-module"
+        },
+        {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/brd/token-sdk.git"
         },

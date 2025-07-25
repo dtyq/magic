@@ -815,7 +815,7 @@ class WorkspaceDomainService
 
         // Now $dir contains both files and directories from the workspace version
 
-        // Iterate through $result, if file_key in $result matches any item in $dir (partial string match), 
+        // Iterate through $result, if file_key in $result matches any item in $dir (partial string match),
         // keep it in a temporary array. This includes both files and directories.
         $tempResult2 = [];
         foreach ($result['list'] as $item) {
