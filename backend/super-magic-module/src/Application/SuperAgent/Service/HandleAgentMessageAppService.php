@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
@@ -522,7 +523,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             $attachment['file_id'] = (string) $fileId;
             $attachment['topic_id'] = $task->getTopicId();
             $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
-            $attachment['metadata'] = $taskFileEntity->getMetadata();
+            $attachment['metadata'] = FileMetadataUtil::getMetadataObject($taskFileEntity->getMetadata());
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',

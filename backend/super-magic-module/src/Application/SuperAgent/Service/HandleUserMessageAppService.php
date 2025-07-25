@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -318,7 +319,8 @@ class HandleUserMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $fullWorkdir = WorkDirectoryUtil::getFullPrefix($taskContext->getCurrentOrganizationCode()) . '/' . trim($taskContext->getTask()->getWorkDir(), '/') . '/';
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId(), $fullWorkdir);
         // update topic sandbox id
         $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);

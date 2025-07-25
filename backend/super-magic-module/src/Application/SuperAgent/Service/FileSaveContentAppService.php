@@ -72,8 +72,8 @@ class FileSaveContentAppService
             // 3. 根据项目创建一个沙箱
             $projectId = (string) $projectId;
             $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId);
-            $dataIsolation = DataIsolation::create($userAuth->getOrganizationCode(), $userAuth->getId());
-            $this->sandboxDomainService->createSandbox($dataIsolation, $projectId, $sandboxId);
+            $fullWorkdir = WorkDirectoryUtil::getFullPrefix($projectEntity->getUserOrganizationCode()) . '/' . trim($projectEntity->getWorkDir(), '/') . '/';
+            $this->sandboxDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
 
             // 4. 检查沙箱是否就绪
             $this->sandboxDomainService->waitForSandboxReady($sandboxId);
