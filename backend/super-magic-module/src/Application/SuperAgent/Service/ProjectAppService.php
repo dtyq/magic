@@ -385,7 +385,15 @@ class ProjectAppService extends AbstractAppService
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = $entity->getMetadata();
+
+            // Handle metadata JSON decoding
+            $metadata = $entity->getMetadata();
+            if ($metadata !== null) {
+                $decodedMetadata = json_decode($metadata, true);
+                $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+            } else {
+                $dto->metadata = null;
+            }
 
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
