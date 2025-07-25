@@ -34,6 +34,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
 use Hyperf\Logger\LoggerFactory;
@@ -471,7 +472,8 @@ class HandleTaskMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $fullWorkdir = WorkDirectoryUtil::getFullPrefix($taskContext->getCurrentOrganizationCode()) . '/' . trim($taskContext->getTask()->getWorkDir(), '/');
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId(), $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // user long term memory
@@ -500,7 +502,8 @@ class HandleTaskMessageAppService extends AbstractAppService
     private function createAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $fullWorkdir = WorkDirectoryUtil::getFullPrefix($taskContext->getCurrentOrganizationCode()) . '/' . trim($taskContext->getTask()->getWorkDir(), '/');
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId(), $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // user long term memory
