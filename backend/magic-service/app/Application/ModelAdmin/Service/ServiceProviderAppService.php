@@ -131,26 +131,6 @@ class ServiceProviderAppService
     {
         $serviceProviderConfigDTO = $this->serviceProviderDomainService->getServiceProviderConfigDetail($serviceProviderConfigId, $organizationCode);
 
-        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
-
-        $filteredModels = [];
-        $serviceProviderModelsDTOS = $serviceProviderConfigDTO->getModels();
-        foreach ($serviceProviderModelsDTOS as $serviceProviderModelsDTO) {
-            $visiblePackages = $serviceProviderModelsDTO->getVisiblePackages();
-
-            // 如果没有配置可见套餐，则对所有套餐可见
-            if (empty($visiblePackages)) {
-                $filteredModels[] = $serviceProviderModelsDTO;
-                continue;
-            }
-
-            // 如果配置了可见套餐，检查当前套餐是否在其中
-            if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
-                $filteredModels[] = $serviceProviderModelsDTO;
-            }
-        }
-        $serviceProviderConfigDTO->setModels($filteredModels);
-
         // 处理图标
         $this->processServiceProviderConfigIcons([$serviceProviderConfigDTO], $organizationCode);
 
