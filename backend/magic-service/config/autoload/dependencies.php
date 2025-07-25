@@ -121,6 +121,8 @@ use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
 use App\Domain\MCP\Repository\Persistence\MCPServerRepository;
 use App\Domain\MCP\Repository\Persistence\MCPServerToolRepository;
 use App\Domain\MCP\Repository\Persistence\MCPUserSettingRepository;
+use App\Domain\ModelAdmin\Service\Filter\DefaultPackageFilter;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -371,6 +373,9 @@ $dependencies = [
 
     // high-availability
     EndpointProviderInterface::class => ModelGatewayEndpointProvider::class,
+
+    // package filter
+    PackageFilterInterface::class => DefaultPackageFilter::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并

@@ -1121,61 +1121,32 @@ class ServiceProviderDomainService
      * @param string $organizationCode Organization code
      * @return ServiceProviderModelsEntity[]
      */
-    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode, string $currentPackage): array
     {
         // 1. Get models with super magic display state enabled
-        $superMagicModels = $this->serviceProviderModelsRepository->getSuperMagicDisplayModelsForOrganization($organizationCode);
+        $models = $this->serviceProviderModelsRepository->getSuperMagicDisplayModelsForOrganization($organizationCode);
 
         // 2. Get all models under Magic service provider for current organization
         $magicServiceProvider = $this->serviceProviderRepository->getOfficial(ServiceProviderCategory::LLM);
         if (! $magicServiceProvider) {
-            return $superMagicModels;
+            return $models;
         }
 
-        // Query service provider configurations by Magic service provider ID and current organization
-        $magicServiceProviderConfigs = $this->serviceProviderConfigRepository->getByServiceProviderIdsAndOrganizationCode(
-            [$magicServiceProvider->getId()],
-            $organizationCode
-        );
-
-        $magicModels = [];
-        foreach ($magicServiceProviderConfigs as $config) {
-            // Get all models under this service provider configuration (without status restriction)
-            $models = $this->serviceProviderModelsRepository->getModelStatusByServiceProviderConfigIdAndOrganizationCode(
-                (string) $config->getId(),
-                $organizationCode
-            );
-
-            // Add all models, filter by visible organizations later
-            foreach ($models as $model) {
-                $magicModels[] = $model;
+        $superMagicModels = [];
+        foreach ($models as $model) {
+            $modelConfig = $model->getConfig();
+            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal() && in_array($currentPackage, $model->getVisiblePackages()) && $model->getSuperMagicDisplayState()) {
+                $superMagicModels[] = $model;
             }
         }
 
-        // 3. Filter Magic provider models by visible organizations
-        $magicModelsEntities = [];
-        foreach ($magicModels as $model) {
-            $visibleOrganizations = $model->getVisibleOrganizations();
-
-            // Only return models when visible organizations is not empty and contains current organization
-            if (! empty($visibleOrganizations) && in_array($organizationCode, $visibleOrganizations)) {
-                $magicModelsEntities[] = $model;
-            }
-        }
-
-        // 4. Merge results and remove duplicates (by model ID)
-        $allModels = array_merge($superMagicModels, $magicModelsEntities);
+        // 根据 modelId 去重
         $uniqueModels = [];
-        $modelIds = [];
-
-        foreach ($allModels as $model) {
-            if (! in_array($model->getId(), $modelIds)) {
-                $modelIds[] = $model->getId();
-                $uniqueModels[] = $model;
-            }
+        foreach ($superMagicModels as $model) {
+            $uniqueModels[$model->getModelId()] = $model;
         }
 
-        return $uniqueModels;
+        return array_values($uniqueModels);
     }
 
     /**
@@ -1651,6 +1622,7 @@ class ServiceProviderDomainService
             });
 
             $modelParentId = $serviceProviderModelsEntity->getId();
+            $visiblePackages = $serviceProviderModelsEntity->getVisiblePackages();
             $modelEntities = [];
             // 处理官方模型
             foreach ($serviceProviderConfigEntities as $serviceProviderConfigEntity) {
@@ -1687,13 +1659,7 @@ class ServiceProviderDomainService
             $modelArray = $serviceProviderModelsEntity->toArray();
             $this->serviceProviderModelsRepository->updateOfficeModel($serviceProviderModelsEntity->getId(), $modelArray);
             // 修改客户的模型信息
-            $updateConsumerModel = new UpdateConsumerModel();
-            $updateConsumerModel->setName($serviceProviderModelsEntity->getName());
-            $updateConsumerModel->setIcon($serviceProviderModelsEntity->getIcon());
-            $updateConsumerModel->setTranslate($serviceProviderModelsEntity->getTranslate());
-            $updateConsumerModel->setVisibleOrganizations($serviceProviderModelsEntity->getVisibleOrganizations());
-            $updateConsumerModel->setVisibleApplications($serviceProviderModelsEntity->getVisibleApplications());
-            $updateConsumerModel->setSuperMagicDisplayState($serviceProviderModelsEntity->getSuperMagicDisplayState());
+            $updateConsumerModel = new UpdateConsumerModel($serviceProviderModelsEntity->toArray());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }

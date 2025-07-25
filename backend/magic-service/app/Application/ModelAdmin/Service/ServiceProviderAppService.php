@@ -24,6 +24,7 @@ use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\Provider\ConnectResponse;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -42,6 +43,7 @@ class ServiceProviderAppService
         protected ServiceProviderDomainService $serviceProviderDomainService,
         protected MagicOrganizationEnvDomainService $organizationEnvDomainService,
         protected readonly FileDomainService $fileDomainService,
+        protected PackageFilterInterface $packageFilter,
     ) {
     }
 
@@ -95,6 +97,29 @@ class ServiceProviderAppService
             $serviceProviderConfigDTOs = $this->filterServiceProvidersByModelTypes($serviceProviderConfigDTOs, $modelTypes);
         }
 
+        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+
+        // 应用套餐过滤
+        foreach ($serviceProviderConfigDTOs as $serviceProviderConfigDTO) {
+            $filteredModels = [];
+            $models = $serviceProviderConfigDTO->getModels();
+            foreach ($models as $model) {
+                $visiblePackages = $model->getVisiblePackages();
+
+                // 如果没有配置可见套餐，则对所有套餐可见
+                if (empty($visiblePackages)) {
+                    $filteredModels[] = $model;
+                    continue;
+                }
+
+                // 如果配置了可见套餐，检查当前套餐是否在其中
+                if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
+                    $filteredModels[] = $model;
+                }
+            }
+            $serviceProviderConfigDTO->setModels($filteredModels);
+        }
+
         // 处理图标
         $this->processServiceProviderConfigIcons($serviceProviderConfigDTOs, $organizationCode);
 
@@ -105,6 +130,26 @@ class ServiceProviderAppService
     public function getServiceProviderConfig(string $serviceProviderConfigId, string $organizationCode): ServiceProviderConfigDTO
     {
         $serviceProviderConfigDTO = $this->serviceProviderDomainService->getServiceProviderConfigDetail($serviceProviderConfigId, $organizationCode);
+
+        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+
+        $filteredModels = [];
+        $serviceProviderModelsDTOS = $serviceProviderConfigDTO->getModels();
+        foreach ($serviceProviderModelsDTOS as $serviceProviderModelsDTO) {
+            $visiblePackages = $serviceProviderModelsDTO->getVisiblePackages();
+
+            // 如果没有配置可见套餐，则对所有套餐可见
+            if (empty($visiblePackages)) {
+                $filteredModels[] = $serviceProviderModelsDTO;
+                continue;
+            }
+
+            // 如果配置了可见套餐，检查当前套餐是否在其中
+            if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
+                $filteredModels[] = $serviceProviderModelsDTO;
+            }
+        }
+        $serviceProviderConfigDTO->setModels($filteredModels);
 
         // 处理图标
         $this->processServiceProviderConfigIcons([$serviceProviderConfigDTO], $organizationCode);
@@ -261,7 +306,9 @@ class ServiceProviderAppService
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
-        $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
+        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+
+        $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode, $currentPackage);
 
         $icons = array_column($models, 'icon');
 
@@ -269,14 +316,11 @@ class ServiceProviderAppService
 
         $modelDTOs = [];
         foreach ($models as $model) {
-            $modelConfig = $model->getConfig();
-            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
-                $modelDTO = new SuperMagicModelsDTO($model->toArray());
-                if (isset($iconUrlMap[$modelDTO->getIcon()])) {
-                    $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
-                }
-                $modelDTOs[] = $modelDTO;
+            $modelDTO = new SuperMagicModelsDTO($model->toArray());
+            if (isset($iconUrlMap[$modelDTO->getIcon()])) {
+                $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
             }
+            $modelDTOs[] = $modelDTO;
         }
 
         return $modelDTOs;
