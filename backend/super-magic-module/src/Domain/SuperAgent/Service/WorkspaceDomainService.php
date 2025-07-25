@@ -784,7 +784,7 @@ class WorkspaceDomainService
     /**
      * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
      */
-    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode = ''): array
+    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode): array
     {
         $dir = '.workspace';
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
@@ -800,7 +800,7 @@ class WorkspaceDomainService
         $tempResult1 = [];
         foreach ($result['list'] as $item) {
             if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
-                $fileResult[] = $item;
+                $tempResult1[] = $item;
             }
         }
         $dir = json_decode($workspaceVersion->getDir(), true);
@@ -815,18 +815,17 @@ class WorkspaceDomainService
 
         // Now $dir contains both files and directories from the workspace version
 
-        // Iterate through $result, if file_key in $result matches any item in $dir (partial string match),
+        // Iterate through $result, if file_key in $result matches any item in $dir (partial string match), 
         // keep it in a temporary array. This includes both files and directories.
         $tempResult2 = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
                 if (strpos($item['file_key'], $dirItem) !== false) {
-                    $gitVersionResult[] = $item;
+                    $tempResult2[] = $item;
                 }
             }
         }
-
-        $newResult = array_merge($fileResult, $gitVersionResult);
+        $tempResult = array_merge($tempResult1, $tempResult2);
 
         // Remove duplicates from the merged result
         $result['list'] = array_unique($tempResult, SORT_REGULAR);
