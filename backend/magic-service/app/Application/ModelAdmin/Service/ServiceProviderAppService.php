@@ -353,7 +353,13 @@ class ServiceProviderAppService
             'source_id' => 'connectivity_test',
         ]);
         try {
-            $modelFilter = new ModelFilter(checkModelEnabled: false, checkProviderEnabled: false, checkVisibleOrganization: false, checkVisibleApplication: false);
+            $modelFilter = new ModelFilter(
+                checkModelEnabled: false,
+                checkProviderEnabled: false,
+                checkVisibleOrganization: false,
+                checkVisibleApplication: false,
+                checkVisiblePackage: false
+            );
             $llmAppService->embeddings($proxyModelRequest, $modelFilter);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);
@@ -381,7 +387,13 @@ class ServiceProviderAppService
         ]);
         /* @var ChatCompletionResponse $response */
         try {
-            $modelFilter = new ModelFilter(checkModelEnabled: false, checkProviderEnabled: false, checkVisibleOrganization: false, checkVisibleApplication: false);
+            $modelFilter = new ModelFilter(
+                checkModelEnabled: false,
+                checkProviderEnabled: false,
+                checkVisibleOrganization: false,
+                checkVisibleApplication: false,
+                checkVisiblePackage: false
+            );
             $llmAppService->chatCompletion($completionDTO, $modelFilter);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);

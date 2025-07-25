@@ -243,8 +243,8 @@ class ServiceProviderModelsDTO extends AbstractDTO
         return $this->visiblePackages;
     }
 
-    public function setVisiblePackages(array $visiblePackages): void
+    public function setVisiblePackages(?array $visiblePackages): void
     {
-        $this->visiblePackages = $visiblePackages;
+        $this->visiblePackages = $visiblePackages ?? [];
     }
 }
