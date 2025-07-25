@@ -39,6 +39,7 @@ class ProviderModelFactory
             ->setModelParentId($model->model_parent_id)
             ->setVisibleOrganizations($model->visible_organizations)
             ->setVisibleApplications($model->visible_applications)
+            ->setVisiblePackages($model->visible_packages)
             ->setIsOffice((bool) $model->is_office);
 
         return $entity;

@@ -13,6 +13,7 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\ModelGateway\Service\ApplicationDomainService;
@@ -39,6 +40,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ServiceProviderDomainService $serviceProviderDomainService,
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
+        protected PackageFilterInterface $packageFilter,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
