@@ -796,25 +796,28 @@ class WorkspaceDomainService
             return $result;
         }
 
-        # 遍历result的updatedAt ，如果updatedAt 小于workspaceVersion 的updated_at ，则保持在一个临时数组
-        $fileResult = [];
+        // Keep items with updated_at >= workspaceVersion updated_at in a temporary array
+        $tempResult1 = [];
         foreach ($result['list'] as $item) {
             if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
                 $fileResult[] = $item;
             }
         }
         $dir = json_decode($workspaceVersion->getDir(), true);
-        # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
-        # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
-        $dir = array_filter($dir, function ($item) {
-            if (strpos($item, '.') === false) {
-                return false;
-            }
-            return true;
-        });
+        // Remove the directory filtering logic - directories should be included in results
+        // Original problematic code:
+        // $dir = array_filter($dir, function ($item) {
+        //     if (strpos($item, '.') === false) {
+        //         return false;
+        //     }
+        //     return true;
+        // });
 
-        # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
-        $gitVersionResult = [];
+        // Now $dir contains both files and directories from the workspace version
+
+        // Iterate through $result, if file_key in $result matches any item in $dir (partial string match),
+        // keep it in a temporary array. This includes both files and directories.
+        $tempResult2 = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
                 if (strpos($item['file_key'], $dirItem) !== false) {
@@ -825,8 +828,8 @@ class WorkspaceDomainService
 
         $newResult = array_merge($fileResult, $gitVersionResult);
 
-        # 对tempResult进行去重
-        $result['list'] = array_unique($newResult, SORT_REGULAR);
+        // Remove duplicates from the merged result
+        $result['list'] = array_unique($tempResult, SORT_REGULAR);
         $result['total'] = count($result['list']);
         return $result;
     }
