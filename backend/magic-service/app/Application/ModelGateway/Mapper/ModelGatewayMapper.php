@@ -412,6 +412,7 @@ class ModelGatewayMapper extends ModelMapper
         $providerModelQuery->setStatus(Status::Enabled);
         $providerModelQuery->setCategory(Category::LLM);
         $providerModelQuery->setModelType($modelType);
+        $providerModelQuery->setOrder(['sort' => 'desc']);
         $providerModelData = di(ProviderModelDomainService::class)->queries($providerDataIsolation, $providerModelQuery, Page::createNoPage());
         $providerConfigIds = [];
         foreach ($providerModelData['list'] as $providerModel) {
@@ -475,6 +476,7 @@ class ModelGatewayMapper extends ModelMapper
         if ($checkVisiblePackage && $providerModelEntity->getVisiblePackages() && ! in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true)) {
             return null;
         }
+        $chat = false;
         $functionCall = false;
         $multiModal = false;
         $embedding = false;
