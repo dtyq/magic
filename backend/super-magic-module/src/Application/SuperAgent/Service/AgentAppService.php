@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
@@ -32,6 +34,7 @@ class AgentAppService
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
         private readonly AgentDomainService $agentDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -112,7 +115,14 @@ class AgentAppService
      */
     public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
+        // user long term memory
+        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
+            $dataIsolation->getCurrentOrganizationCode(),
+            AppCodeEnum::SUPER_MAGIC->value,
+            $dataIsolation->getCurrentUserId(),
+        );
+
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
     }
 
     /**
