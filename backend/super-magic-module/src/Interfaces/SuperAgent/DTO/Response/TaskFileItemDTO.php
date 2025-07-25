@@ -83,9 +83,9 @@ class TaskFileItemDTO extends AbstractDTO
     public string $updatedAt = '';
 
     /**
-     * 文件元数据，存储 JSON 字符串.
+     * 文件元数据，解析后的数组.
      */
-    public ?string $metadata = null;
+    public ?array $metadata = null;
 
     /**
      * 从实体创建DTO.
@@ -107,7 +107,15 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->topicId = (string) $entity->getTopicId();
         $dto->isDirectory = $entity->getIsDirectory();
         $dto->updatedAt = (string) $entity->getUpdatedAt();
-        $dto->metadata = $entity->getMetadata();
+
+        // Handle metadata JSON decoding
+        $metadata = $entity->getMetadata();
+        if ($metadata !== null) {
+            $decodedMetadata = json_decode($metadata, true);
+            $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+        } else {
+            $dto->metadata = null;
+        }
 
         return $dto;
     }
@@ -132,7 +140,22 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->topicId = (string) ($data['topic_id'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->updatedAt = (string) ($data['updated_at'] ?? '');
-        $dto->metadata = $data['metadata'] ?? null;
+
+        // Handle metadata - could be string (JSON) or array
+        $metadata = $data['metadata'] ?? null;
+        if ($metadata !== null) {
+            if (is_string($metadata)) {
+                $decodedMetadata = json_decode($metadata, true);
+                $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+            } elseif (is_array($metadata)) {
+                $dto->metadata = $metadata;
+            } else {
+                $dto->metadata = null;
+            }
+        } else {
+            $dto->metadata = null;
+        }
+
         return $dto;
     }
 
