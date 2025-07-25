@@ -57,6 +57,15 @@ class FileMetadataUtil
         return $config;
     }
 
+    public static function getMetadataObject(?string $metadataStr): ?array
+    {
+        if ($metadataStr !== null) {
+            $decodedMetadata = json_decode($metadataStr, true);
+            return (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+        }
+        return null;
+    }
+
     /**
      * Extract JavaScript object by matching braces.
      */
