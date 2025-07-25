@@ -643,4 +643,62 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
         return false;
     }
+
+    /**
+     * 等待沙箱变为 Running 状态
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $type 沙箱类型（existing|new）用于日志区分
+     * @return string 返回沙箱ID（成功）
+     * @throws SandboxOperationException 当等待失败时抛出异常
+     */
+    private function waitForSandboxRunning(string $sandboxId, string $type): string
+    {
+        $maxRetries = 15; // 最多等待约30秒
+        $retryDelay = 2; // 每次间隔2秒
+
+        $this->logger->info("ensureSandboxAvailable Starting to wait for {$type} sandbox to become running", [
+            'sandbox_id' => $sandboxId,
+            'type' => $type,
+            'max_retries' => $maxRetries,
+            'retry_delay' => $retryDelay,
+        ]);
+
+        for ($i = 0; $i < $maxRetries; ++$i) {
+            $statusResult = $this->getSandboxStatus($sandboxId);
+
+            if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->info("ensureSandboxAvailable {$type} sandbox is now running", [
+                    'sandbox_id' => $sandboxId,
+                    'type' => $type,
+                    'attempts' => $i + 1,
+                ]);
+                return $sandboxId;
+            }
+
+            // 如果是现有沙箱且状态变为 Exited，提前退出
+            if ($type === 'existing' && $statusResult->getStatus() === SandboxStatus::EXITED) {
+                $this->logger->info('ensureSandboxAvailable Existing sandbox exited while waiting', [
+                    'sandbox_id' => $sandboxId,
+                    'current_status' => $statusResult->getStatus(),
+                ]);
+                throw new SandboxOperationException('Wait for existing sandbox', 'Existing sandbox exited while waiting', 2002);
+            }
+
+            $this->logger->info("ensureSandboxAvailable Waiting for {$type} sandbox to become ready...", [
+                'sandbox_id' => $sandboxId,
+                'type' => $type,
+                'current_status' => $statusResult->getStatus(),
+                'attempt' => $i + 1,
+            ]);
+            sleep($retryDelay);
+        }
+
+        $this->logger->error("ensureSandboxAvailable Timeout waiting for {$type} sandbox to become running", [
+            'sandbox_id' => $sandboxId,
+            'type' => $type,
+        ]);
+
+        throw new SandboxOperationException('Wait for sandbox ready', "Timeout waiting for {$type} sandbox to become running", 2003);
+    }
 }
