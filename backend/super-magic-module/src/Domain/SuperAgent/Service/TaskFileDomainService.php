@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterf
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\DbConnection\Db;
 use Throwable;
@@ -279,7 +280,8 @@ class TaskFileDomainService
         ProjectEntity $projectEntity,
         int $parentId,
         string $fileName,
-        bool $isDirectory
+        bool $isDirectory,
+        int $sortValue = 0
     ): TaskFileEntity {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $workDir = $projectEntity->getWorkDir();
@@ -360,12 +362,15 @@ class TaskFileDomainService
         }
     }
 
-    public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity): bool
+    public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir): bool
     {
+        if (WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+        }
+
         Db::beginTransaction();
         try {
             // Delete cloud file
-            $workDir = WorkDirectoryUtil::getRootDir($dataIsolation->getCurrentUserId(), $fileEntity->getProjectId());
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey());
 
@@ -563,5 +568,349 @@ class TaskFileDomainService
         }
 
         return $fileEntity;
+    }
+
+    /**
+     * 为新文件计算排序值（领域逻辑）.
+     */
+    public function calculateSortForNewFile(?int $parentId, int $preFileId, int $projectId): int
+    {
+        if ($preFileId === 0) {
+            return $this->calculateFirstPositionSort($parentId, $projectId);
+        }
+
+        if ($preFileId === -1) {
+            return $this->calculateLastPositionSort($parentId, $projectId);
+        }
+
+        return $this->calculateAfterPositionSort($parentId, $preFileId, $projectId);
+    }
+
+    /**
+     * 处理移动文件时的排序（领域协调）.
+     */
+    public function handleFileSortOnMove(
+        TaskFileEntity $fileEntity,
+        int $targetParentId,
+        int $preFileId
+    ): void {
+        $newParentId = $targetParentId === 0 ? null : $targetParentId;
+
+        // 计算新的排序值
+        $newSort = $this->calculateSortForNewFile(
+            $newParentId,
+            $preFileId,
+            $fileEntity->getProjectId()
+        );
+
+        // 更新实体
+        $fileEntity->setSort($newSort);
+        $fileEntity->setParentId($newParentId);
+
+        // 如果需要重排，委托给基础设施层
+        if ($this->needsReorder($newParentId, $fileEntity->getProjectId())) {
+            $updates = FileSortUtil::reorderSiblings(
+                $this->taskFileRepository,
+                $newParentId,
+                $fileEntity->getProjectId()
+            );
+
+            if (! empty($updates)) {
+                $this->taskFileRepository->batchUpdateSort($updates);
+            }
+        }
+    }
+
+    /**
+     * Find or create directory structure and return parent ID for a file.
+     * This method ensures all necessary directories exist for the given file path.
+     *
+     * @param int $projectId Project ID
+     * @param string $fullFileKey Complete file key from storage
+     * @param string $workDir Project work directory
+     * @return int The file_id of the direct parent directory
+     */
+    public function findOrCreateDirectoryAndGetParentId(int $projectId, string $userId, string $organizationCode, string $fullFileKey, string $workDir): int
+    {
+        // 1. Get relative path of the file
+        $relativePath = WorkDirectoryUtil::getRelativeFilePath($fullFileKey, $workDir);
+
+        // 2. Get parent directory path
+        $parentDirPath = dirname($relativePath);
+
+        // 3. If file is in root directory, return project root directory ID
+        if ($parentDirPath === '.' || $parentDirPath === '/' || empty($parentDirPath)) {
+            return $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode);
+        }
+
+        // 4. Ensure all directory levels exist and return the final parent ID
+        return $this->ensureDirectoryPathExists($projectId, $parentDirPath, $workDir, $userId, $organizationCode);
+    }
+
+    /**
+     * 计算插入第一位的排序值
+     */
+    private function calculateFirstPositionSort(?int $parentId, int $projectId): int
+    {
+        $minSort = $this->taskFileRepository->getMinSortByParentId($parentId, $projectId);
+
+        if ($minSort === null) {
+            // 没有文件，使用默认值
+            return FileSortUtil::DEFAULT_SORT_STEP;
+        }
+
+        if ($minSort > FileSortUtil::DEFAULT_SORT_STEP) {
+            // 最小值很大，可以使用默认值插入到前面
+            return FileSortUtil::DEFAULT_SORT_STEP;
+        }
+
+        // 尝试计算一个更小的值，使用一半的步长
+        $halfStep = intval(FileSortUtil::DEFAULT_SORT_STEP / 2);
+        if ($minSort > $halfStep) {
+            return $minSort - $halfStep;
+        }
+
+        // 如果最小值太小，无法插入合理的值，需要重排
+        // 这里应该触发重排逻辑，暂时返回默认值
+        return FileSortUtil::DEFAULT_SORT_STEP;
+    }
+
+    /**
+     * 计算插入末尾的排序值
+     */
+    private function calculateLastPositionSort(?int $parentId, int $projectId): int
+    {
+        $maxSort = $this->taskFileRepository->getMaxSortByParentId($parentId, $projectId);
+
+        if ($maxSort === null) {
+            return FileSortUtil::DEFAULT_SORT_STEP;
+        }
+
+        return $maxSort + FileSortUtil::DEFAULT_SORT_STEP;
+    }
+
+    /**
+     * 计算插入到指定文件后的排序值
+     */
+    private function calculateAfterPositionSort(?int $parentId, int $preFileId, int $projectId): int
+    {
+        $preSort = $this->taskFileRepository->getSortByFileId($preFileId);
+        if ($preSort === null) {
+            // 前置文件不存在，插入到末尾
+            return $this->calculateLastPositionSort($parentId, $projectId);
+        }
+
+        $nextSort = $this->taskFileRepository->getNextSortAfter($parentId, $preSort, $projectId);
+
+        if ($nextSort === null) {
+            // 插入到末尾
+            return $preSort + FileSortUtil::DEFAULT_SORT_STEP;
+        }
+
+        $gap = $nextSort - $preSort;
+        if ($gap >= FileSortUtil::MIN_SORT_GAP) {
+            return $preSort + intval($gap / 2);
+        }
+
+        // 空隙不够，需要重排，先触发重排再计算
+        return $this->calculateAfterReorder($parentId, $preFileId, $projectId);
+    }
+
+    /**
+     * 检查是否需要重排.
+     */
+    private function needsReorder(?int $parentId, int $projectId): bool
+    {
+        // 检查是否有连续的排序值过于密集
+        $siblings = $this->taskFileRepository->getSiblingsByParentId($parentId, $projectId, 'sort', 'ASC');
+
+        for ($i = 0; $i < count($siblings) - 1; ++$i) {
+            $gap = $siblings[$i + 1]['sort'] - $siblings[$i]['sort'];
+            if ($gap < FileSortUtil::MIN_SORT_GAP) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 重排后计算排序值
+     */
+    private function calculateAfterReorder(?int $parentId, int $preFileId, int $projectId): int
+    {
+        // 触发重排
+        $updates = FileSortUtil::reorderSiblings($this->taskFileRepository, $parentId, $projectId);
+        if (! empty($updates)) {
+            $this->taskFileRepository->batchUpdateSort($updates);
+        }
+
+        // 重新计算
+        return $this->calculateAfterPositionSort($parentId, $preFileId, $projectId);
+    }
+
+    /**
+     * Find or create project root directory.
+     *
+     * @param int $projectId Project ID
+     * @param string $workDir Project work directory
+     * @return int Root directory file_id
+     */
+    private function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode): int
+    {
+        // Look for existing root directory (parent_id IS NULL and is_directory = true)
+        $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
+
+        if ($rootDir !== null) {
+            return $rootDir->getFileId();
+        }
+
+        $fullWorkDir = WorkDirectoryUtil::getFullPrefix($organizationCode) . ltrim($workDir, '/');
+
+        // Create root directory if not exists
+        $rootDirEntity = new TaskFileEntity();
+        $rootDirEntity->setFileId(IdGenerator::getSnowId());
+        $rootDirEntity->setUserId($userId);
+        $rootDirEntity->setOrganizationCode($organizationCode);
+        $rootDirEntity->setProjectId($projectId);
+        $rootDirEntity->setFileName('/');
+        $rootDirEntity->setFileKey(rtrim($fullWorkDir, '/') . '/');
+        $rootDirEntity->setFileSize(0);
+        $rootDirEntity->setFileType(FileType::DIRECTORY->value);
+        $rootDirEntity->setIsDirectory(true);
+        $rootDirEntity->setParentId(null);
+        $rootDirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
+        $rootDirEntity->setStorageType(StorageType::WORKSPACE);
+        $rootDirEntity->setIsHidden(true);
+        $rootDirEntity->setSort(0);
+
+        $now = date('Y-m-d H:i:s');
+        $rootDirEntity->setCreatedAt($now);
+        $rootDirEntity->setUpdatedAt($now);
+
+        $this->insert($rootDirEntity);
+
+        return $rootDirEntity->getFileId();
+    }
+
+    /**
+     * Ensure the complete directory path exists, creating missing directories.
+     *
+     * @param int $projectId Project ID
+     * @param string $dirPath Directory path (e.g., "a/b/c")
+     * @param string $workDir Project work directory
+     * @return int The file_id of the final directory in the path
+     */
+    private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode): int
+    {
+        // Cache to avoid duplicate database queries in single request
+        static $pathCache = [];
+        $cacheKey = "{$projectId}:{$dirPath}";
+
+        if (isset($pathCache[$cacheKey])) {
+            return $pathCache[$cacheKey];
+        }
+
+        // Split path into parts and process each level
+        $pathParts = array_filter(explode('/', trim($dirPath, '/')));
+        $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode);
+        $currentPath = '';
+
+        foreach ($pathParts as $dirName) {
+            $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
+            $currentCacheKey = "{$projectId}:{$currentPath}";
+
+            // Check cache first
+            if (isset($pathCache[$currentCacheKey])) {
+                $currentParentId = $pathCache[$currentCacheKey];
+                continue;
+            }
+
+            // Look for existing directory
+            $existingDir = $this->findDirectoryByParentIdAndName($currentParentId, $dirName, $projectId);
+
+            if ($existingDir !== null) {
+                $currentParentId = $existingDir->getFileId();
+            } else {
+                // Create new directory
+                $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode);
+                $currentParentId = $newDirId;
+            }
+
+            // Cache the result
+            $pathCache[$currentCacheKey] = $currentParentId;
+        }
+
+        $pathCache[$cacheKey] = $currentParentId;
+        return $currentParentId;
+    }
+
+    /**
+     * Find directory by parent ID and name.
+     *
+     * @param null|int $parentId Parent directory ID (null for root level)
+     * @param string $dirName Directory name
+     * @param int $projectId Project ID
+     * @return null|TaskFileEntity Found directory entity or null
+     */
+    private function findDirectoryByParentIdAndName(?int $parentId, string $dirName, int $projectId): ?TaskFileEntity
+    {
+        // Get all siblings under the parent directory
+        $siblings = $this->taskFileRepository->getSiblingsByParentId($parentId, $projectId);
+
+        foreach ($siblings as $sibling) {
+            // Convert array to entity for consistency (if needed)
+            if (is_array($sibling)) {
+                if ($sibling['is_directory'] && $sibling['file_name'] === $dirName) {
+                    return $this->taskFileRepository->getById($sibling['file_id']);
+                }
+            } elseif ($sibling instanceof TaskFileEntity) {
+                if ($sibling->getIsDirectory() && $sibling->getFileName() === $dirName) {
+                    return $sibling;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Create a new directory entity.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory ID
+     * @param string $dirName Directory name
+     * @param string $relativePath Relative path from project root
+     * @param string $workDir Project work directory
+     * @return int Created directory file_id
+     */
+    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode): int
+    {
+        $dirEntity = new TaskFileEntity();
+        $dirEntity->setFileId(IdGenerator::getSnowId());
+        $dirEntity->setProjectId($projectId);
+        $dirEntity->setUserId($userId);
+        $dirEntity->setOrganizationCode($organizationCode);
+        $dirEntity->setFileName($dirName);
+
+        // Build complete file_key: workDir + relativePath + trailing slash
+        $fileKey = WorkDirectoryUtil::getFullPrefix($organizationCode) . trim($workDir, '/') . '/' . trim($relativePath, '/') . '/';
+        $dirEntity->setFileKey($fileKey);
+        $dirEntity->setFileSize(0);
+        $dirEntity->setFileType(FileType::DIRECTORY->value);
+        $dirEntity->setIsDirectory(true);
+        $dirEntity->setParentId($parentId);
+        $dirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
+        $dirEntity->setStorageType(StorageType::WORKSPACE);
+        $dirEntity->setIsHidden(false);
+        $dirEntity->setSort(0);
+
+        $now = date('Y-m-d H:i:s');
+        $dirEntity->setCreatedAt($now);
+        $dirEntity->setUpdatedAt($now);
+
+        $this->insert($dirEntity);
+
+        return $dirEntity->getFileId();
     }
 }

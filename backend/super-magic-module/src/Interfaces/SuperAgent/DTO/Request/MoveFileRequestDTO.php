@@ -16,9 +16,19 @@ class MoveFileRequestDTO extends AbstractRequestDTO
      */
     public string $targetParentId = '';
 
+    /**
+     * The ID of the previous file for positioning, 0=first position, -1=last position (default).
+     */
+    public int $preFileId = -1;
+
     public function getTargetParentId(): string
     {
         return $this->targetParentId;
+    }
+
+    public function getPreFileId(): int
+    {
+        return $this->preFileId;
     }
 
     /**
@@ -28,6 +38,7 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     {
         return [
             'target_parent_id' => 'required|string',
+            'pre_file_id' => 'integer|min:-1', // -1表示末尾，0表示第一位，>0表示指定位置
         ];
     }
 
@@ -39,6 +50,8 @@ class MoveFileRequestDTO extends AbstractRequestDTO
         return [
             'target_parent_id.required' => 'Target parent ID cannot be empty',
             'target_parent_id.string' => 'Target parent ID must be a string',
+            'pre_file_id.integer' => 'Pre file ID must be an integer',
+            'pre_file_id.min' => 'Pre file ID must be -1 or greater',
         ];
     }
 }

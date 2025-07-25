@@ -54,7 +54,7 @@ class AgentAppService
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
 
-        // 添加详细的调试日志，检查 result 对象
+        // 添加详细的调试日志，检查 result 对象 的结构
         $this->logger->info('[Sandbox][App] Gateway result analysis', [
             'result_class' => get_class($result),
             'result_is_success' => $result->isSuccess(),

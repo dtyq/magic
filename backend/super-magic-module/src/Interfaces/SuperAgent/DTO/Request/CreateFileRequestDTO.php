@@ -36,6 +36,11 @@ class CreateFileRequestDTO extends AbstractRequestDTO
     public bool $isDirectory = false;
 
     /**
+     * The ID of the previous file for positioning, 0=first position, -1=last position (default).
+     */
+    public int $preFileId = -1;
+
+    /**
      * Get project ID.
      */
     public function getProjectId(): string
@@ -68,6 +73,14 @@ class CreateFileRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get pre file ID for positioning.
+     */
+    public function getPreFileId(): int
+    {
+        return $this->preFileId;
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -82,6 +95,7 @@ class CreateFileRequestDTO extends AbstractRequestDTO
                 'regex:/^[^\/\:*?"<>|]+$/', // 禁止特殊字符
             ],
             'is_directory' => 'nullable|boolean',
+            'pre_file_id' => 'integer|min:-1', // -1表示末尾，0表示第一位，>0表示指定位置
         ];
     }
 
@@ -100,6 +114,8 @@ class CreateFileRequestDTO extends AbstractRequestDTO
             'file_name.max' => 'File name cannot exceed 255 characters',
             'file_name.regex' => 'File name cannot contain the following characters: / \ : * ? " < > |',
             'is_directory.boolean' => 'Is directory must be a boolean value',
+            'pre_file_id.integer' => 'Pre file ID must be an integer',
+            'pre_file_id.min' => 'Pre file ID must be -1 or greater',
         ];
     }
 }

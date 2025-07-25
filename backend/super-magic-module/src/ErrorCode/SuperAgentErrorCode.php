@@ -121,8 +121,14 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.illegal_file_name')]
     case FILE_ILLEGAL_NAME = 51172;
 
+    #[ErrorMessage('file.file_create_failed')]
+    case FILE_CREATE_FAILED = 51173;
+
+    #[ErrorMessage('file.file_save_failed')]
+    case FILE_SAVE_FAILED = 51174;
+
     #[ErrorMessage('file.illegal_file_key')]
-    case FILE_ILLEGAL_KEY = 51173;
+    case FILE_ILLEGAL_KEY = 51175;
 
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
