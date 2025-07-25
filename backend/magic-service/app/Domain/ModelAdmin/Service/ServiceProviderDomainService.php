@@ -1149,7 +1149,7 @@ class ServiceProviderDomainService
         $superMagicModels = [];
         foreach ($models as $model) {
             $modelConfig = $model->getConfig();
-            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal() && in_array($currentPackage, $model->getVisiblePackages()) && $model->getSuperMagicDisplayState()) {
+            if ($modelConfig->isSupportFunction() && in_array($currentPackage, $model->getVisiblePackages()) && $model->getSuperMagicDisplayState()) {
                 $superMagicModels[] = $model;
             }
         }
@@ -1159,6 +1159,11 @@ class ServiceProviderDomainService
         foreach ($superMagicModels as $model) {
             $uniqueModels[$model->getModelId()] = $model;
         }
+
+        // 根据 sort 排序，大到小
+        usort($uniqueModels, function ($a, $b) {
+            return $b->getSort() <=> $a->getSort();
+        });
 
         return array_values($uniqueModels);
     }
