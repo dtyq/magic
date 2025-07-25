@@ -44,19 +44,11 @@ class AgentAppService
      */
     public function createSandbox(string $projectId, string $sandboxID, string $workDir): string
     {
-        // Set user context for gateway requests
-        $this->gateway->setUserContext(
-            $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getCurrentOrganizationCode()
-        );
-
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-
-        $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID, 'project_oss_path' => $workDir]);
 
         // 添加详细的调试日志，检查 result 对象 的结构
