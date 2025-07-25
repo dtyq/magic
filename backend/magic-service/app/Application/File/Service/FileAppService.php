@@ -21,6 +21,7 @@ use Dtyq\CloudFile\Kernel\AdapterName;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Hyperf\Cache\Annotation\Cacheable;
 use Psr\SimpleCache\CacheInterface;
 use Qbhy\HyperfAuth\Authenticatable;
 use Swow\Psr7\Message\UploadedFile;
@@ -92,6 +93,7 @@ class FileAppService extends AbstractAppService
         return $result;
     }
 
+    #[Cacheable(prefix: 'default_icons', ttl: 60)]
     public function getDefaultIcons(): array
     {
         return $this->fileDomainService->getDefaultIcons();
