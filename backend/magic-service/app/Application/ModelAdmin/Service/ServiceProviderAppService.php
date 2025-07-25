@@ -24,6 +24,7 @@ use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\Provider\ConnectResponse;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -42,6 +43,7 @@ class ServiceProviderAppService
         protected ServiceProviderDomainService $serviceProviderDomainService,
         protected MagicOrganizationEnvDomainService $organizationEnvDomainService,
         protected readonly FileDomainService $fileDomainService,
+        protected PackageFilterInterface $packageFilter,
     ) {
     }
 
@@ -93,6 +95,29 @@ class ServiceProviderAppService
         // 如果提供了modelTypes数组，则使用它进行过滤
         if (! empty($modelTypes)) {
             $serviceProviderConfigDTOs = $this->filterServiceProvidersByModelTypes($serviceProviderConfigDTOs, $modelTypes);
+        }
+
+        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+
+        // 应用套餐过滤
+        foreach ($serviceProviderConfigDTOs as $serviceProviderConfigDTO) {
+            $filteredModels = [];
+            $models = $serviceProviderConfigDTO->getModels();
+            foreach ($models as $model) {
+                $visiblePackages = $model->getVisiblePackages();
+
+                // 如果没有配置可见套餐，则对所有套餐可见
+                if (empty($visiblePackages)) {
+                    $filteredModels[] = $model;
+                    continue;
+                }
+
+                // 如果配置了可见套餐，检查当前套餐是否在其中
+                if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
+                    $filteredModels[] = $model;
+                }
+            }
+            $serviceProviderConfigDTO->setModels($filteredModels);
         }
 
         // 处理图标
@@ -261,7 +286,9 @@ class ServiceProviderAppService
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
-        $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
+        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+
+        $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode, $currentPackage);
 
         $modelDTOs = [];
 
@@ -307,7 +334,13 @@ class ServiceProviderAppService
             'source_id' => 'connectivity_test',
         ]);
         try {
-            $modelFilter = new ModelFilter(checkModelEnabled: false, checkProviderEnabled: false, checkVisibleOrganization: false, checkVisibleApplication: false);
+            $modelFilter = new ModelFilter(
+                checkModelEnabled: false,
+                checkProviderEnabled: false,
+                checkVisibleOrganization: false,
+                checkVisibleApplication: false,
+                checkVisiblePackage: false
+            );
             $llmAppService->embeddings($proxyModelRequest, $modelFilter);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);
@@ -335,7 +368,13 @@ class ServiceProviderAppService
         ]);
         /* @var ChatCompletionResponse $response */
         try {
-            $modelFilter = new ModelFilter(checkModelEnabled: false, checkProviderEnabled: false, checkVisibleOrganization: false, checkVisibleApplication: false);
+            $modelFilter = new ModelFilter(
+                checkModelEnabled: false,
+                checkProviderEnabled: false,
+                checkVisibleOrganization: false,
+                checkVisibleApplication: false,
+                checkVisiblePackage: false
+            );
             $llmAppService->chatCompletion($completionDTO, $modelFilter);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);

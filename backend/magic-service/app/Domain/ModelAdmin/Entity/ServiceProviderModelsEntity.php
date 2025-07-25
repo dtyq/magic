@@ -50,6 +50,8 @@ class ServiceProviderModelsEntity extends AbstractEntity
 
     protected array $visibleApplications = [];
 
+    protected array $visiblePackages = [];
+
     protected int $status = Status::ACTIVE->value; // 状态
 
     protected int $isOffice = 0; // 是否为官方模型：0-否，1-是
@@ -362,5 +364,21 @@ class ServiceProviderModelsEntity extends AbstractEntity
     public function setModelParentId(int $modelParentId): void
     {
         $this->modelParentId = $modelParentId;
+    }
+
+    public function getVisiblePackages(): array
+    {
+        return $this->visiblePackages;
+    }
+
+    public function setVisiblePackages(null|array|string $visiblePackages): void
+    {
+        if (is_string($visiblePackages)) {
+            $visiblePackages = Json::decode($visiblePackages);
+        }
+        if (is_null($visiblePackages)) {
+            $visiblePackages = [];
+        }
+        $this->visiblePackages = $visiblePackages;
     }
 }

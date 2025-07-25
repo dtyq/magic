@@ -57,6 +57,8 @@ class ProviderModelEntity extends AbstractEntity
 
     protected array $visibleApplications = [];
 
+    protected array $visiblePackages = [];
+
     protected bool $isOffice = false;
 
     public function getId(): ?int
@@ -266,9 +268,9 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visibleOrganizations;
     }
 
-    public function setVisibleOrganizations(array $visibleOrganizations): self
+    public function setVisibleOrganizations(?array $visibleOrganizations): self
     {
-        $this->visibleOrganizations = $visibleOrganizations;
+        $this->visibleOrganizations = $visibleOrganizations ?? [];
         return $this;
     }
 
@@ -277,9 +279,20 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visibleApplications;
     }
 
-    public function setVisibleApplications(array $visibleApplications): self
+    public function setVisibleApplications(?array $visibleApplications): self
     {
-        $this->visibleApplications = $visibleApplications;
+        $this->visibleApplications = $visibleApplications ?? [];
+        return $this;
+    }
+
+    public function getVisiblePackages(): array
+    {
+        return $this->visiblePackages;
+    }
+
+    public function setVisiblePackages(?array $visiblePackages): self
+    {
+        $this->visiblePackages = $visiblePackages ?? [];
         return $this;
     }
 

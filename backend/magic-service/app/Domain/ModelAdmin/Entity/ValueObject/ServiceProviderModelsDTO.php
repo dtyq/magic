@@ -47,6 +47,8 @@ class ServiceProviderModelsDTO extends AbstractDTO
 
     protected array $visibleApplications = [];
 
+    protected array $visiblePackages = [];
+
     public function getDisabledBy(): ?string
     {
         return $this->disabledBy;
@@ -234,5 +236,15 @@ class ServiceProviderModelsDTO extends AbstractDTO
     public function setSuperMagicDisplayState(int $superMagicDisplayState): void
     {
         $this->superMagicDisplayState = $superMagicDisplayState;
+    }
+
+    public function getVisiblePackages(): array
+    {
+        return $this->visiblePackages;
+    }
+
+    public function setVisiblePackages(?array $visiblePackages): void
+    {
+        $this->visiblePackages = $visiblePackages ?? [];
     }
 }

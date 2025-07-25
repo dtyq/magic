@@ -35,7 +35,7 @@ readonly class FileDomainService
         return $list;
     }
 
-    public function getLink(string $organizationCode, string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
+    public function getLink(string $organizationCode, ?string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
     {
         if (empty($filePath)) {
             return null;

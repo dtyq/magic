@@ -7,10 +7,12 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Mapper;
 
+use App\Domain\File\Service\FileDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\Query\MagicFlowAIModelQuery;
 use App\Domain\Flow\Service\MagicFlowAIModelDomainService;
 use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
@@ -399,12 +401,18 @@ class ModelGatewayMapper extends ModelMapper
             $list[$name] = new OdinModel(key: $name, model: $model, attributes: $this->attributes[$name]);
         }
 
+        if (! $filter) {
+            $filter = new ModelFilter();
+            $filter->setCurrentPackage(di(PackageFilterInterface::class)->getCurrentPackage($organizationCode));
+        }
+
         // 加载 provider 配置的所有模型
         $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
         $providerModelQuery = new ProviderModelQuery();
         $providerModelQuery->setStatus(Status::Enabled);
         $providerModelQuery->setCategory(Category::LLM);
         $providerModelQuery->setModelType($modelType);
+        $providerModelQuery->setOrder(['sort' => 'desc']);
         $providerModelData = di(ProviderModelDomainService::class)->queries($providerDataIsolation, $providerModelQuery, Page::createNoPage());
         $providerConfigIds = [];
         foreach ($providerModelData['list'] as $providerModel) {
@@ -453,19 +461,52 @@ class ModelGatewayMapper extends ModelMapper
         ProviderModelEntity $providerModelEntity,
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
-        ?ModelFilter $filter = null
+        ModelFilter $filter
     ): ?OdinModel {
-        if (! $filter) {
-            $filter = new ModelFilter();
-        }
-        $checkVisibleOrganization = $filter->isCheckVisibleOrganization() ?? true;
         $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
+        $checkVisiblePackage = $filter->isCheckVisiblePackage() ?? true;
 
-        if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($providerDataIsolation->getCurrentOrganizationCode(), $providerModelEntity->getVisibleOrganizations(), true)) {
-            return null;
+        // 如果是官方组织的数据隔离，则不需要检查可见性
+        if ($providerDataIsolation->isOfficialOrganization()) {
+            $checkVisibleApplication = false;
+            $checkVisiblePackage = false;
         }
-        if ($checkVisibleApplication && $providerModelEntity->getVisibleApplications() && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
-            return null;
+
+        // 套餐、应用，采用或的关系
+        $hasVisibleApplications = $checkVisibleApplication && $providerModelEntity->getVisibleApplications();
+        $hasVisiblePackages = $checkVisiblePackage && $providerModelEntity->getVisiblePackages();
+
+        // 如果配置了可见性检查，使用或的关系判断
+        if ($hasVisibleApplications || $hasVisiblePackages) {
+            $applicationMatched = false;
+            $packageMatched = false;
+
+            // 检查应用可见性（只有配置了才检查）
+            if ($hasVisibleApplications) {
+                $applicationMatched = in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true);
+            }
+
+            // 检查套餐可见性（只有配置了才检查）
+            if ($hasVisiblePackages) {
+                $packageMatched = in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true);
+            }
+
+            // 只要满足其中一个已配置的条件即可通过
+            $shouldAllow = false;
+            if ($hasVisibleApplications && $hasVisiblePackages) {
+                // 两个都配置了，满足任意一个即可
+                $shouldAllow = $applicationMatched || $packageMatched;
+            } elseif ($hasVisibleApplications) {
+                // 只配置了应用可见性
+                $shouldAllow = $applicationMatched;
+            } elseif ($hasVisiblePackages) {
+                // 只配置了套餐可见性
+                $shouldAllow = $packageMatched;
+            }
+
+            if (! $shouldAllow) {
+                return null;
+            }
         }
 
         $chat = false;
@@ -496,6 +537,14 @@ class ModelGatewayMapper extends ModelMapper
             $tag = "{$tag}「{$alias}」";
         }
 
+        $fileDomainService = di(FileDomainService::class);
+        // 如果是官方组织的 icon，切换官方组织
+        if ($providerModelEntity->isOffice()) {
+            $iconUrl = $fileDomainService->getLink($providerDataIsolation->getOfficialOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+        } else {
+            $iconUrl = $fileDomainService->getLink($providerModelEntity->getOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+        }
+
         return new OdinModel(
             key: $key,
             model: $this->createModel($providerModelEntity->getModelVersion(), [
@@ -514,7 +563,7 @@ class ModelGatewayMapper extends ModelMapper
                 key: $key,
                 name: $providerModelEntity->getModelId(),
                 label: $providerModelEntity->getName(),
-                icon: $providerModelEntity->getIcon(),
+                icon: $iconUrl,
                 tags: [['type' => 1, 'value' => $tag]],
                 createdAt: $providerEntity->getCreatedAt(),
                 owner: 'MagicAI',
@@ -527,6 +576,11 @@ class ModelGatewayMapper extends ModelMapper
 
     private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?OdinModel
     {
+        if (! $filter) {
+            $filter = new ModelFilter();
+            $filter->setCurrentPackage(di(PackageFilterInterface::class)->getCurrentPackage($orgCode ?? ''));
+        }
+
         $checkModelEnabled = $filter?->isCheckModelEnabled() ?? true;
         $checkProviderEnabled = $filter?->isCheckProviderEnabled() ?? true;
 

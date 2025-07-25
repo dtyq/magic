@@ -227,6 +227,11 @@ class BaseDataIsolation implements DataIsolationInterface
         return $this->officialOrganizationCodes;
     }
 
+    public function getOfficialOrganizationCode(): string
+    {
+        return $this->officialOrganizationCodes[0] ?? '';
+    }
+
     public function setOfficialOrganizationCodes(array $officialOrganizationCodes): void
     {
         $this->officialOrganizationCodes = $officialOrganizationCodes;

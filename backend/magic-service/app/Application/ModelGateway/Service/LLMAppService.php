@@ -96,6 +96,7 @@ class LLMAppService extends AbstractLLMAppService
 
         $modelFilter = new ModelFilter();
         $modelFilter->setAppId($accessTokenEntity->getRelationId());
+        $modelFilter->setCurrentPackage($this->packageFilter->getCurrentPackage($accessTokenEntity->getOrganizationCode()));
 
         $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
         $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
@@ -441,6 +442,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelFilter->setAppId($accessToken->getRelationId());
             $modelFilter->setOriginModel($proxyModelRequest->getModel());
+            $modelFilter->setCurrentPackage($this->packageFilter->getCurrentPackage($orgCode ?? ''));
 
             try {
                 $model = match ($proxyModelRequest->getType()) {
@@ -456,8 +458,8 @@ class LLMAppService extends AbstractLLMAppService
                 if ($model instanceof MagicAILocalModel) {
                     $modelId = $model->getModelName();
                     $model = match ($proxyModelRequest->getType()) {
-                        'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode),
-                        'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode),
+                        'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode, $modelFilter),
+                        'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode, $modelFilter),
                         default => null
                     };
                     if ($model instanceof OdinModel) {

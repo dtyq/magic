@@ -13,11 +13,14 @@ class ModelFilter
 
     protected ?string $originModel = null;
 
+    protected ?string $currentPackage = null;
+
     public function __construct(
         protected bool $checkModelEnabled = true,
         protected bool $checkProviderEnabled = true,
         protected bool $checkVisibleOrganization = true,
         protected bool $checkVisibleApplication = true,
+        protected bool $checkVisiblePackage = true,
     ) {
     }
 
@@ -29,6 +32,16 @@ class ModelFilter
     public function setAppId(?string $appId): void
     {
         $this->appId = $appId;
+    }
+
+    public function getCurrentPackage(): ?string
+    {
+        return $this->currentPackage;
+    }
+
+    public function setCurrentPackage(?string $currentPackage): void
+    {
+        $this->currentPackage = $currentPackage;
     }
 
     public function isCheckModelEnabled(): bool
@@ -53,7 +66,8 @@ class ModelFilter
 
     public function isCheckVisibleOrganization(): bool
     {
-        return $this->checkVisibleOrganization;
+        // 新版使用套餐过滤器，组织可见性不需要检查了
+        return false;
     }
 
     public function setCheckVisibleOrganization(bool $checkVisibleOrganization): void
@@ -79,5 +93,18 @@ class ModelFilter
     public function setOriginModel(?string $originModel): void
     {
         $this->originModel = $originModel;
+    }
+
+    public function isCheckVisiblePackage(): bool
+    {
+        if (is_null($this->currentPackage)) {
+            return false;
+        }
+        return $this->checkVisiblePackage;
+    }
+
+    public function setCheckVisiblePackage(bool $checkVisiblePackage): void
+    {
+        $this->checkVisiblePackage = $checkVisiblePackage;
     }
 }
