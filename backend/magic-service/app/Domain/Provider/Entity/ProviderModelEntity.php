@@ -270,9 +270,9 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visibleOrganizations;
     }
 
-    public function setVisibleOrganizations(array $visibleOrganizations): self
+    public function setVisibleOrganizations(?array $visibleOrganizations): self
     {
-        $this->visibleOrganizations = $visibleOrganizations;
+        $this->visibleOrganizations = $visibleOrganizations ?? [];
         return $this;
     }
 
@@ -281,9 +281,9 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visibleApplications;
     }
 
-    public function setVisibleApplications(array $visibleApplications): self
+    public function setVisibleApplications(?array $visibleApplications): self
     {
-        $this->visibleApplications = $visibleApplications;
+        $this->visibleApplications = $visibleApplications ?? [];
         return $this;
     }
 
@@ -303,9 +303,9 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visiblePackages;
     }
 
-    public function setVisiblePackages(array $visiblePackages): self
+    public function setVisiblePackages(?array $visiblePackages): self
     {
-        $this->visiblePackages = $visiblePackages;
+        $this->visiblePackages = $visiblePackages ?? [];
         return $this;
     }
 
