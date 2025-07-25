@@ -185,7 +185,8 @@ class HandleUserMessageAppService extends AbstractAppService
             $taskEntity = $this->taskDomainService->initTopicTask(
                 dataIsolation: $dataIsolation,
                 topicEntity: $topicEntity,
-                taskEntity: $taskEntity
+                taskEntity: $taskEntity,
+                topicMode: $agentMode
             );
             $taskId = (string) $taskEntity->getId();
 

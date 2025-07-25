@@ -52,6 +52,8 @@ class TaskDomainService
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
+     * @param TaskEntity $taskEntity Task entity
+     * @param string $topicMode Topic mode
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
