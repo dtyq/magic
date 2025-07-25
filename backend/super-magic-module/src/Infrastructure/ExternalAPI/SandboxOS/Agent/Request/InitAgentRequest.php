@@ -25,7 +25,8 @@ class InitAgentRequest
         private array $metadata = [],
         private string $taskMode = 'plan',
         private string $agentMode = '',
-        private string $magicServiceHost = ''
+        private string $magicServiceHost = '',
+        private ?string $memory = null
     ) {
     }
 
@@ -44,7 +45,8 @@ class InitAgentRequest
             $data['metadata'] ?? [],
             $data['task_mode'] ?? 'plan',
             $data['agent_mode'] ?? '',
-            $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', '')
+            $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
+            $data['memory'] ?? null
         );
     }
 
@@ -69,9 +71,10 @@ class InitAgentRequest
         array $metadata = [],
         string $taskMode = 'plan',
         string $agentMode = '',
-        string $magicServiceHost = ''
+        string $magicServiceHost = '',
+        ?string $memory = null
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $memory);
     }
 
     /**
@@ -233,6 +236,23 @@ class InitAgentRequest
     }
 
     /**
+     * 获取记忆内容.
+     */
+    public function getMemory(): ?string
+    {
+        return $this->memory;
+    }
+
+    /**
+     * 设置记忆内容.
+     */
+    public function setMemory(?string $memory): self
+    {
+        $this->memory = $memory;
+        return $this;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
      */
@@ -250,6 +270,7 @@ class InitAgentRequest
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'memory' => $this->memory,
         ];
     }
 }

@@ -17,7 +17,7 @@ return new class extends Migration {
         // 为 magic_super_agent_project 表添加 project_mode 字段
         Schema::table('magic_super_agent_project', function (Blueprint $table) {
             if (! Schema::hasColumn('magic_super_agent_project', 'project_mode')) {
-                $table->string('project_mode', 50)->nullable()->default('')->comment('项目模式: general-通用模式, ppt-PPT模式, data_analysis-数据分析模式, report-研报模式')->after('current_topic_status');
+                $table->string('project_mode', 50)->nullable()->default('')->comment('项目模式: general-通用模式, ppt-PPT模式, data_analysis-数据分析模式, report-研报模式, meeting-会议模式, summary-总结模式, super_magic-超级麦吉模式')->after('current_topic_status');
             }
         });
 

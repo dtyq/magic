@@ -18,7 +18,8 @@ enum TopicMode: string
     case DATA_ANALYSIS = 'data_analysis'; // 数据分析模式
     case REPORT = 'report';             // 研报模式
     case MEETING = 'meeting';           // 会议模式
-    case SUPER_MAGIC = 'super-magic';   // 超级魔法模式
+    case SUMMARY = 'summary';           // 总结模式
+    case SUPER_MAGIC = 'super_magic';   // 超级麦吉模式
 
     /**
      * Get all available topic modes.
@@ -31,6 +32,7 @@ enum TopicMode: string
             self::DATA_ANALYSIS->value,
             self::REPORT->value,
             self::MEETING->value,
+            self::SUMMARY->value,
             self::SUPER_MAGIC->value,
         ];
     }
@@ -46,7 +48,8 @@ enum TopicMode: string
             self::DATA_ANALYSIS => '数据分析模式',
             self::REPORT => '研报模式',
             self::MEETING => '会议模式',
-            self::SUPER_MAGIC => '超级魔法模式',
+            self::SUMMARY => '总结模式',
+            self::SUPER_MAGIC => '超级麦吉模式',
         };
     }
 }

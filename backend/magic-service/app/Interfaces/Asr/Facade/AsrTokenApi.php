@@ -34,8 +34,8 @@ class AsrTokenApi extends AbstractApi
         // 获取请求参数
         $refresh = (bool) $request->input('refresh', false);
 
-        // 固定duration为7200秒，不接受外部传入
-        $duration = 7200;
+        // duration最大 12小时
+        $duration = 60 * 60 * 12; // 单位：秒
 
         // 获取用户的JWT token（带缓存和刷新功能）
         $tokenData = $this->stsService->getJwtTokenForUser($magicId, $duration, $refresh);
