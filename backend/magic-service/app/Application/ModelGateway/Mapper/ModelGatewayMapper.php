@@ -402,6 +402,7 @@ class ModelGatewayMapper extends ModelMapper
 
         if (! $filter) {
             $filter = new ModelFilter();
+            $filter->setCurrentPackage(di(PackageFilterInterface::class)->getCurrentPackage($organizationCode));
         }
 
         // 加载 provider 配置的所有模型
