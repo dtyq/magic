@@ -30,6 +30,10 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected int $sort = 1;
 
+    protected ?ModelConfig $config = null; // 配置
+
+    protected array $visiblePackages = [];
+
     public function getModelId(): string
     {
         return $this->modelId;
@@ -39,10 +43,6 @@ class UpdateConsumerModel extends AbstractEntity
     {
         $this->modelId = $modelId;
     }
-
-    protected ?ModelConfig $config = null; // 配置
-
-    protected array $visiblePackages = [];
 
     public function getName(): string
     {
