@@ -76,8 +76,6 @@ class FileSaveContentAppService
             $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuth->getOrganizationCode());
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
             $this->sandboxDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
-            $fullWorkdir = WorkDirectoryUtil::getFullPrefix($projectEntity->getUserOrganizationCode()) . '/' . trim($projectEntity->getWorkDir(), '/') . '/';
-            $this->sandboxDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
 
             // 4. 检查沙箱是否就绪
             $this->sandboxDomainService->waitForSandboxReady($sandboxId);
