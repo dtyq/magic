@@ -23,6 +23,8 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected string $modelId;
 
+    protected ?int $loadBalancingWeight;
+
     protected int $superMagicDisplayState;
 
     public function getModelId(): string
@@ -83,6 +85,16 @@ class UpdateConsumerModel extends AbstractEntity
     public function setVisibleApplications(array $visibleApplications): void
     {
         $this->visibleApplications = $visibleApplications;
+    }
+
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): void
+    {
+        $this->loadBalancingWeight = $loadBalancingWeight;
     }
 
     public function getSuperMagicDisplayState(): int

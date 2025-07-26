@@ -90,6 +90,7 @@ class EndpointAssembler
             $endpoint->setProvider((string) $providerModelEntity->getServiceProviderConfigId());
             $endpoint->setCircuitBreakerStatus(CircuitBreakerStatus::CLOSED);
             $endpoint->setEnabled(true);
+            $endpoint->setLoadBalancingWeight($providerModelEntity->getLoadBalancingWeight());
             $endpoints[] = $endpoint;
         }
 

@@ -20,4 +20,5 @@ return [
     'api_key_empty' => 'api_key为空',
     'init_organization_providers_failed' => '初始化服务商失败',
     'original_model_already_exists' => '模型已存在',
+    'load_balancing_weight_range_error' => '负载均衡权重必须在0-100之间',
 ];

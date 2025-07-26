@@ -57,6 +57,8 @@ class ProviderModelEntity extends AbstractEntity
 
     protected array $visibleApplications = [];
 
+    protected ?int $loadBalancingWeight = null;
+
     protected bool $isOffice = false;
 
     public function getId(): ?int
@@ -280,6 +282,17 @@ class ProviderModelEntity extends AbstractEntity
     public function setVisibleApplications(array $visibleApplications): self
     {
         $this->visibleApplications = $visibleApplications;
+        return $this;
+    }
+
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): self
+    {
+        $this->loadBalancingWeight = $loadBalancingWeight;
         return $this;
     }
 

@@ -23,4 +23,5 @@ return [
     'provider_no_model_list' => 'This service provider cannot get model list',
     'init_organization_providers_failed' => 'Init service provider failed',
     'original_model_already_exists' => 'Original model already exists',
+    'load_balancing_weight_range_error' => 'Load balancing weight must be between 0 and 100',
 ];
