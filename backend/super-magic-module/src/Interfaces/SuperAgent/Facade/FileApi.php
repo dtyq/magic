@@ -15,7 +15,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
@@ -42,6 +43,7 @@ class FileApi extends AbstractApi
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
+        private readonly SandboxFileNotificationAppService $sandboxFileNotificationAppService,
     ) {
     }
 
@@ -100,7 +102,6 @@ class FileApi extends AbstractApi
         if ($sandboxToken !== $token && $magicApiKey !== $token) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
         }
-
         // 创建DTO并从请求中解析数据
         $requestData = $this->request->all();
         $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
@@ -247,7 +248,7 @@ class FileApi extends AbstractApi
         // Get request data and create DTO
         $requestDTO = MoveFileRequestDTO::fromRequest($this->request);
 
-        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), $requestDTO->getPreFileId());
+        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), (int) $requestDTO->getPreFileId());
     }
 
     /**
@@ -369,5 +370,40 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         return $this->fileManagementAppService->saveFile($requestContext, $requestDTO);
+    }
+
+    /**
+     * Handle sandbox file notification.
+     * This endpoint doesn't require user authentication, uses token-based auth instead.
+     *
+     * @param RequestContext $requestContext Request context
+     * @return array Response data
+     */
+    public function handleSandboxNotification(RequestContext $requestContext): array
+    {
+        // Validate sandbox token instead of user authorization
+        $this->validateSandboxToken();
+
+        // Create DTO from request
+        $requestDTO = SandboxFileNotificationRequestDTO::fromRequest($this->request);
+
+        // Call application service without user context
+        return $this->sandboxFileNotificationAppService->handleNotificationWithoutAuth($requestDTO);
+    }
+
+    /**
+     * Validate sandbox token for unauthenticated requests.
+     */
+    private function validateSandboxToken(): void
+    {
+        $token = $this->request->header('token', '');
+
+        if (empty($token)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
+        }
+
+        if ($token !== config('super-magic.sandbox.token', '')) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
+        }
     }
 }
