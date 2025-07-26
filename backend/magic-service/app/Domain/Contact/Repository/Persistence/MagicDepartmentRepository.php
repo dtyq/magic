@@ -231,6 +231,20 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
         return $this->model->newQuery()->whereIn('department_id', $departmentIds)->update($data);
     }
 
+    /**
+     * 根据部门ID批量删除部门（逻辑删除，设置 deleted_at 字段）。
+     */
+    public function deleteDepartmentsByIds(array $departmentIds, string $organizationCode): int
+    {
+        if (empty($departmentIds)) {
+            return 0;
+        }
+        return $this->model->newQuery()
+            ->where('organization_code', $organizationCode)
+            ->whereIn('department_id', $departmentIds)
+            ->delete();
+    }
+
     public function getDepartmentRootId(string $organizationCode): ?string
     {
         $department = $this->model->newQuery()

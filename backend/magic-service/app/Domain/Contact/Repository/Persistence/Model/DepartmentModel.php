@@ -7,10 +7,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Contact\Repository\Persistence\Model;
 
+use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\DbConnection\Model\Model;
 
 class DepartmentModel extends Model
 {
+    use SoftDeletes;
+
     /**
      * The table associated with the model.
      */
