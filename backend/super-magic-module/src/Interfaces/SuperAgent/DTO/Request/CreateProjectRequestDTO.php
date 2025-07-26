@@ -104,7 +104,7 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'workspace_id' => 'required|integer',
             'project_name' => 'present|string|max:100',
             'project_description' => 'nullable|string|max:500',
-            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,super-magic',
+            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,summary,super-magic',
             'workdir' => 'nullable|string|max:255',
         ];
     }
@@ -120,7 +120,7 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'project_name.present' => 'Project name field is required',
             'project_name.max' => 'Project name cannot exceed 100 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
-            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, super-magic',
+            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, summary, super-magic',
             'workdir.max' => 'Working directory cannot exceed 255 characters',
         ];
     }
