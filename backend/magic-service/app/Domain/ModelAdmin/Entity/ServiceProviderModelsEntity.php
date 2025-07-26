@@ -60,8 +60,6 @@ class ServiceProviderModelsEntity extends AbstractEntity
 
     protected int $superMagicDisplayState = 0;
 
-    protected ?int $loadBalancingWeight = null; // 负载均衡权重：0-100
-
     protected ?string $disabledBy = ''; // 禁用来源：official-官方禁用，user-用户禁用，NULL-未禁用
 
     protected string $createdAt;

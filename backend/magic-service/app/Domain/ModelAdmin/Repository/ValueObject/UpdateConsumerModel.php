@@ -28,8 +28,6 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected int $superMagicDisplayState;
 
-    protected ?int $loadBalancingWeight;
-
     protected int $sort = 1;
 
     protected ?ModelConfig $config = null; // 配置
