@@ -69,7 +69,6 @@ class SandboxFileNotificationAppService extends AbstractAppService
         }
     }
 
-
     /**
      * Get project entity from metadata without permission check.
      * Used for token-based authentication where user context is not available.
@@ -139,11 +138,11 @@ class SandboxFileNotificationAppService extends AbstractAppService
      * @return array Response data
      */
     private function handleCreateOrUpdateFile(
-        DataIsolation                          $dataIsolation,
-        MessageMetadata                        $metadata,
+        DataIsolation $dataIsolation,
+        MessageMetadata $metadata,
         SandboxFileNotificationDataValueObject $data,
-        ProjectEntity                          $projectEntity,
-        string                                 $fileKey
+        ProjectEntity $projectEntity,
+        string $fileKey
     ): array {
         // Delegate to domain service
         $taskFileEntity = $this->taskFileDomainService->handleSandboxFileNotification(

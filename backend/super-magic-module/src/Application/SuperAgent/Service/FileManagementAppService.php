@@ -306,9 +306,6 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
-            if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
-            }
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
             $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity, $projectEntity->getWorkDir());
             return ['file_id' => $fileId];

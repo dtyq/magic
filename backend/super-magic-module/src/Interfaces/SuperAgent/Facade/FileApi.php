@@ -17,7 +17,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\FileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
@@ -247,7 +246,7 @@ class FileApi extends AbstractApi
         // Get request data and create DTO
         $requestDTO = MoveFileRequestDTO::fromRequest($this->request);
 
-        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), $requestDTO->getPreFileId());
+        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), (int) $requestDTO->getPreFileId());
     }
 
     /**

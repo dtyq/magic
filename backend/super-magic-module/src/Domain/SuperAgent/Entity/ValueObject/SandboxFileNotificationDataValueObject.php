@@ -110,4 +110,4 @@ class SandboxFileNotificationDataValueObject
     {
         return $this->operation === 'DELETE';
     }
-} 
+}

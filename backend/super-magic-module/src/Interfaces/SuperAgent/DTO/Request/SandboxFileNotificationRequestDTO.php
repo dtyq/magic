@@ -27,6 +27,38 @@ class SandboxFileNotificationRequestDTO extends AbstractRequestDTO
     public array $data = [];
 
     /**
+     * Get metadata array.
+     */
+    public function getMetadata(): array
+    {
+        return $this->metadata;
+    }
+
+    /**
+     * Get data array.
+     */
+    public function getData(): array
+    {
+        return $this->data;
+    }
+
+    /**
+     * Convert metadata array to MessageMetadata value object.
+     */
+    public function getMetadataValueObject(): MessageMetadata
+    {
+        return MessageMetadata::fromArray($this->metadata);
+    }
+
+    /**
+     * Convert data array to SandboxFileNotificationDataValueObject.
+     */
+    public function getDataValueObject(): SandboxFileNotificationDataValueObject
+    {
+        return SandboxFileNotificationDataValueObject::fromArray($this->data);
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -71,36 +103,4 @@ class SandboxFileNotificationRequestDTO extends AbstractRequestDTO
             'data.file_size.min' => 'File size cannot be negative',
         ];
     }
-
-    /**
-     * Get metadata array.
-     */
-    public function getMetadata(): array
-    {
-        return $this->metadata;
-    }
-
-    /**
-     * Get data array.
-     */
-    public function getData(): array
-    {
-        return $this->data;
-    }
-
-    /**
-     * Convert metadata array to MessageMetadata value object.
-     */
-    public function getMetadataValueObject(): MessageMetadata
-    {
-        return MessageMetadata::fromArray($this->metadata);
-    }
-
-    /**
-     * Convert data array to SandboxFileNotificationDataValueObject.
-     */
-    public function getDataValueObject(): SandboxFileNotificationDataValueObject
-    {
-        return SandboxFileNotificationDataValueObject::fromArray($this->data);
-    }
-} 
+}
