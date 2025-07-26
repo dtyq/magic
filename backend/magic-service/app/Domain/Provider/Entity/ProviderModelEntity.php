@@ -309,6 +309,17 @@ class ProviderModelEntity extends AbstractEntity
         return $this;
     }
 
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): self
+    {
+        $this->loadBalancingWeight = $loadBalancingWeight;
+        return $this;
+    }
+
     public function getIsOffice(): bool
     {
         return $this->isOffice;

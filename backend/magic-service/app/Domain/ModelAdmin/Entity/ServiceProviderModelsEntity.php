@@ -56,6 +56,8 @@ class ServiceProviderModelsEntity extends AbstractEntity
 
     protected int $isOffice = 0; // 是否为官方模型：0-否，1-是
 
+    protected ?int $loadBalancingWeight = null; // 负载均衡权重：0-100
+
     protected int $superMagicDisplayState = 0;
 
     protected ?int $loadBalancingWeight = null; // 负载均衡权重：0-100

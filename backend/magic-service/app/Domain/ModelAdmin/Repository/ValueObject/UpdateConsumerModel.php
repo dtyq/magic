@@ -24,6 +24,8 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleApplications;
 
+    protected ?int $loadBalancingWeight;
+
     protected int $superMagicDisplayState;
 
     protected ?int $loadBalancingWeight;
