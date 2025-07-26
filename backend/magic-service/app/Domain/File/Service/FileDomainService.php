@@ -155,7 +155,11 @@ readonly class FileDomainService
 
     public function getFullWorkDir(string $organizationCode, string $userId, int $projectId, string $code = 'super-magic', string $lastPath = 'project'): string
     {
-        $prefix = ltrim('/', $this->getFullPrefix($organizationCode));
+        $prefix = $this->getFullPrefix($organizationCode);
+        # 判断最后一个字符是否是 /,如果是，去掉
+        if (substr($prefix, -1) === '/') {
+            $prefix = substr($prefix, 0, -1);
+        }
         $workDir = $this->generateWorkDir($userId, $projectId, $code, $lastPath);
         return $prefix . $workDir;
     }
