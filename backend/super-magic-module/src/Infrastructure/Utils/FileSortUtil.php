@@ -179,7 +179,24 @@ class FileSortUtil
             return $preSort + intval($gap / 2);
         }
 
-        // 空隙不够，返回标志值表示需要重排
-        return -1; // 特殊值，表示需要重排
+        // 空隙不够，触发重排然后重新计算
+        $updates = self::reorderSiblings($repository, $parentId, $projectId);
+        if (! empty($updates)) {
+            $repository->batchUpdateSort($updates);
+
+            // 重排后重新获取位置信息
+            $preSort = $repository->getSortByFileId($preFileId);
+            $nextSort = $repository->getNextSortAfter($parentId, $preSort, $projectId);
+
+            if ($nextSort === null) {
+                return $preSort + self::DEFAULT_SORT_STEP;
+            }
+
+            $newGap = $nextSort - $preSort;
+            return $preSort + intval($newGap / 2);
+        }
+
+        // 如果重排失败，回退到末尾插入
+        return self::calculateLastPositionSort($repository, $parentId, $projectId);
     }
 }

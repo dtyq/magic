@@ -397,8 +397,8 @@ class FileManagementAppService extends AbstractAppService
             }
 
             // 3. 构建目标删除路径
-            $fullPrefix = WorkDirectoryUtil::getFullPrefix($organizationCode);
-            $targetPath = $fullPrefix . trim($workDir, '/') . '/' . trim($path, '/');
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $targetPath = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $path);
 
             // 4. 调用领域服务执行批量删除
             $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath);
@@ -477,11 +477,21 @@ class FileManagementAppService extends AbstractAppService
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
 
-            // 通过领域服务处理排序逻辑
-            $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
+            // Check if this is a same-level move BEFORE modifying the entity
+            $isSameLevelMove = ($fileEntity->getParentId() === $targetParentId);
 
-            // 执行原有的移动逻辑
-            $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
+            if ($isSameLevelMove) {
+                // For same-level moves, only handle sorting logic
+                $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
+
+                // Update the entity in database (sort and updated_at)
+                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+                $this->taskFileDomainService->updateById($fileEntity);
+            } else {
+                // For cross-directory moves, handle both sorting and moving
+                $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
+                $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
+            }
 
             Db::commit();
             return [

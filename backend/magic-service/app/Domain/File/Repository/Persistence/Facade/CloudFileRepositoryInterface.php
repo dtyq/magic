@@ -207,4 +207,6 @@ interface CloudFileRepositoryInterface
         StorageBucketType $bucketType = StorageBucketType::Private,
         array $options = []
     ): void;
+
+    public function getFullPrefix(string $organizationCode): string;
 }

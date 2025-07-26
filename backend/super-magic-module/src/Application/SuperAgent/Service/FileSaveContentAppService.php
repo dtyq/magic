@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterf
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SuperMagicDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
@@ -34,6 +35,7 @@ class FileSaveContentAppService
         private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly SandboxDomainService $sandboxDomainService,
         private readonly SuperMagicDomainService $superMagicDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox-file-edit');
     }
@@ -71,7 +73,8 @@ class FileSaveContentAppService
             // 3. 根据项目创建一个沙箱
             $projectId = (string) $projectId;
             $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId);
-            $fullWorkdir = WorkDirectoryUtil::getFullPrefix($projectEntity->getUserOrganizationCode()) . '/' . trim($projectEntity->getWorkDir(), '/') . '/';
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuth->getOrganizationCode());
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
             $this->sandboxDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
 
             // 4. 检查沙箱是否就绪

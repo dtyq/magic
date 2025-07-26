@@ -837,9 +837,8 @@ class FileProcessAppService extends AbstractAppService
         try {
             // Construct complete file path
             $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-            $appId = config('kk_brd_service.app_id');
-            $md5Key = md5(StorageBucketType::Private->value);
-            $fullFileKey = "{$organizationCode}/{$appId}/{$md5Key}" . '/' . trim($workDir, '/') . '/' . ltrim($fileKey, '/');
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $fullFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $fileKey);
 
             // 1. Check if file already exists
             $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey, $topicId);
@@ -1041,8 +1040,7 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 2: Build UploadFile object
-            $appId = config('kk_brd_service.app_id');
-            $uploadKeyPrefix = "{$organizationCode}/{$appId}";
+            $uploadKeyPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
             $uploadFileKey = str_replace($uploadKeyPrefix, '', $fileKey);
             $uploadFileKey = ltrim($uploadFileKey, '/');
             $uploadFile = new UploadFile($tempFile, '', $uploadFileKey, false);

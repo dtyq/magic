@@ -338,6 +338,7 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
         }
 
+        $fullPrefix = $this->getFullPrefix($organizationCode);
         if (! empty($parentId)) {
             $parentFIleEntity = $this->taskFileRepository->getById($parentId);
             if ($parentFIleEntity === null || $parentFIleEntity->getProjectId() != $projectEntity->getId()) {
@@ -345,14 +346,15 @@ class TaskFileDomainService
             }
             $fileKey = rtrim($parentFIleEntity->getFileKey(), '/') . '/' . $fileName;
         } else {
-            $fileKey = WorkDirectoryUtil::getFullPrefix($organizationCode) . trim($workDir, '/') . '/' . $fileName;
+            $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $fileName);
         }
 
         if ($isDirectory) {
             $fileKey = rtrim($fileKey, '/') . '/';
         }
 
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($organizationCode, $dataIsolation->getCurrentUserId(), $projectEntity->getId(), $fileKey)) {
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileKey)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
@@ -412,7 +414,9 @@ class TaskFileDomainService
 
     public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir): bool
     {
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
+        $fullPrefix = $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
@@ -447,12 +451,14 @@ class TaskFileDomainService
                 return 0;
             }
             $deletedCount = 0;
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
 
             // 3. 批量删除云存储文件
             $fileKeys = [];
             foreach ($fileEntities as $fileEntity) {
-                if (WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
+                if (WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
                     $fileKeys[] = $fileEntity->getFileKey();
                 }
             }
@@ -485,8 +491,8 @@ class TaskFileDomainService
         try {
             // target file exist
             $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-            $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $fullTargetFileKey = WorkDirectoryUtil::getFullPrefix($organizationCode) . trim($workDir, '/') . '/' . trim($targetObject, '/');
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullTargetFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $targetObject);
 
             $targetFileEntity = $this->taskFileRepository->getByFileKey($fullTargetFileKey);
             if ($targetFileEntity !== null) {
@@ -494,7 +500,7 @@ class TaskFileDomainService
             }
 
             // call cloud file service
-            $this->cloudFileRepository->copyObjectByCredential($prefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey);
+            $this->cloudFileRepository->copyObjectByCredential($fullPrefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey);
         } catch (Throwable $e) {
             throw $e;
         }
@@ -509,7 +515,11 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
 
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fullTargetFileKey)) {
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
+            $workDir
+        );
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fullTargetFileKey)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
@@ -562,23 +572,29 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
         }
 
+        // This method now only handles cross-directory moves
         // Build full target file key
         $targetParentPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
-
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $targetParentPath)) {
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
+            $workDir
+        );
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetParentPath)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
         // Check if target file already exists
-        $targetParentEntity = $this->taskFileRepository->getByFileKey($targetParentPath);
-        if (! empty($targetParentEntity)) {
+        $existingTargetFile = $this->taskFileRepository->getByFileKey($targetParentPath);
+        if (! empty($existingTargetFile)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
 
-        // Prevent moving file to itself or its subdirectory (for directories)
+        // Prevent moving directory to its subdirectory (for directories)
         if ($fileEntity->getIsDirectory()) {
-            // todo need to update this
-            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, trans('file.cannot_move_to_subdirectory'));
+            // Check if target is a subdirectory of the file being moved
+            if ($this->isSubdirectory($fileEntity->getFileId(), $targetParentId)) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, trans('file.cannot_move_to_subdirectory'));
+            }
         }
 
         Db::beginTransaction();
@@ -587,9 +603,8 @@ class TaskFileDomainService
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetParentPath);
 
-            // Update file record
+            // Update file record (parentId and sort have already been set by handleFileSortOnMove)
             $fileEntity->setFileKey($targetParentPath);
-            $fileEntity->setParentId($targetParentId);
             $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $this->taskFileRepository->updateById($fileEntity);
 
@@ -623,15 +638,8 @@ class TaskFileDomainService
      */
     public function calculateSortForNewFile(?int $parentId, int $preFileId, int $projectId): int
     {
-        if ($preFileId === 0) {
-            return $this->calculateFirstPositionSort($parentId, $projectId);
-        }
-
-        if ($preFileId === -1) {
-            return $this->calculateLastPositionSort($parentId, $projectId);
-        }
-
-        return $this->calculateAfterPositionSort($parentId, $preFileId, $projectId);
+        // Use FileSortUtil for consistent sorting logic
+        return FileSortUtil::calculateSortValue($this->taskFileRepository, $parentId, $preFileId, $projectId);
     }
 
     /**
@@ -654,19 +662,6 @@ class TaskFileDomainService
         // 更新实体
         $fileEntity->setSort($newSort);
         $fileEntity->setParentId($newParentId);
-
-        // 如果需要重排，委托给基础设施层
-        if ($this->needsReorder($newParentId, $fileEntity->getProjectId())) {
-            $updates = FileSortUtil::reorderSiblings(
-                $this->taskFileRepository,
-                $newParentId,
-                $fileEntity->getProjectId()
-            );
-
-            if (! empty($updates)) {
-                $this->taskFileRepository->batchUpdateSort($updates);
-            }
-        }
     }
 
     /**
@@ -800,8 +795,8 @@ class TaskFileDomainService
         if ($rootDir !== null) {
             return $rootDir->getFileId();
         }
-
-        $fullWorkDir = WorkDirectoryUtil::getFullPrefix($organizationCode) . ltrim($workDir, '/');
+        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
 
         // Create root directory if not exists
         $rootDirEntity = new TaskFileEntity();
@@ -829,106 +824,9 @@ class TaskFileDomainService
         return $rootDirEntity->getFileId();
     }
 
-    /**
-     * 计算插入第一位的排序值
-     */
-    private function calculateFirstPositionSort(?int $parentId, int $projectId): int
+    public function getFullPrefix(string $organizationCode): string
     {
-        $minSort = $this->taskFileRepository->getMinSortByParentId($parentId, $projectId);
-
-        if ($minSort === null) {
-            // 没有文件，使用默认值
-            return FileSortUtil::DEFAULT_SORT_STEP;
-        }
-
-        if ($minSort > FileSortUtil::DEFAULT_SORT_STEP) {
-            // 最小值很大，可以使用默认值插入到前面
-            return FileSortUtil::DEFAULT_SORT_STEP;
-        }
-
-        // 尝试计算一个更小的值，使用一半的步长
-        $halfStep = intval(FileSortUtil::DEFAULT_SORT_STEP / 2);
-        if ($minSort > $halfStep) {
-            return $minSort - $halfStep;
-        }
-
-        // 如果最小值太小，无法插入合理的值，需要重排
-        // 这里应该触发重排逻辑，暂时返回默认值
-        return FileSortUtil::DEFAULT_SORT_STEP;
-    }
-
-    /**
-     * 计算插入末尾的排序值
-     */
-    private function calculateLastPositionSort(?int $parentId, int $projectId): int
-    {
-        $maxSort = $this->taskFileRepository->getMaxSortByParentId($parentId, $projectId);
-
-        if ($maxSort === null) {
-            return FileSortUtil::DEFAULT_SORT_STEP;
-        }
-
-        return $maxSort + FileSortUtil::DEFAULT_SORT_STEP;
-    }
-
-    /**
-     * 计算插入到指定文件后的排序值
-     */
-    private function calculateAfterPositionSort(?int $parentId, int $preFileId, int $projectId): int
-    {
-        $preSort = $this->taskFileRepository->getSortByFileId($preFileId);
-        if ($preSort === null) {
-            // 前置文件不存在，插入到末尾
-            return $this->calculateLastPositionSort($parentId, $projectId);
-        }
-
-        $nextSort = $this->taskFileRepository->getNextSortAfter($parentId, $preSort, $projectId);
-
-        if ($nextSort === null) {
-            // 插入到末尾
-            return $preSort + FileSortUtil::DEFAULT_SORT_STEP;
-        }
-
-        $gap = $nextSort - $preSort;
-        if ($gap >= FileSortUtil::MIN_SORT_GAP) {
-            return $preSort + intval($gap / 2);
-        }
-
-        // 空隙不够，需要重排，先触发重排再计算
-        return $this->calculateAfterReorder($parentId, $preFileId, $projectId);
-    }
-
-    /**
-     * 检查是否需要重排.
-     */
-    private function needsReorder(?int $parentId, int $projectId): bool
-    {
-        // 检查是否有连续的排序值过于密集
-        $siblings = $this->taskFileRepository->getSiblingsByParentId($parentId, $projectId, 'sort', 'ASC');
-
-        for ($i = 0; $i < count($siblings) - 1; ++$i) {
-            $gap = $siblings[$i + 1]['sort'] - $siblings[$i]['sort'];
-            if ($gap < FileSortUtil::MIN_SORT_GAP) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * 重排后计算排序值
-     */
-    private function calculateAfterReorder(?int $parentId, int $preFileId, int $projectId): int
-    {
-        // 触发重排
-        $updates = FileSortUtil::reorderSiblings($this->taskFileRepository, $parentId, $projectId);
-        if (! empty($updates)) {
-            $this->taskFileRepository->batchUpdateSort($updates);
-        }
-
-        // 重新计算
-        return $this->calculateAfterPositionSort($parentId, $preFileId, $projectId);
+        return $this->cloudFileRepository->getFullPrefix($organizationCode);
     }
 
     /**
@@ -1032,7 +930,8 @@ class TaskFileDomainService
         $dirEntity->setFileName($dirName);
 
         // Build complete file_key: workDir + relativePath + trailing slash
-        $fileKey = WorkDirectoryUtil::getFullPrefix($organizationCode) . trim($workDir, '/') . '/' . trim($relativePath, '/') . '/';
+        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
         $dirEntity->setFileKey($fileKey);
         $dirEntity->setFileSize(0);
         $dirEntity->setFileType(FileType::DIRECTORY->value);
@@ -1163,5 +1062,40 @@ class TaskFileDomainService
             'size' => $info['fileSize'],
             'last_modified' => $info['lastModified'],
         ];
+    }
+
+    /**
+     * Check if a target directory is a subdirectory of the file being moved.
+     * This prevents circular directory moves (e.g., moving a parent directory into its own child).
+     *
+     * @param int $fileId The ID of the file being moved (should be a directory)
+     * @param int $targetParentId The ID of the target parent directory
+     * @return bool True if the target is a subdirectory of the file being moved, false otherwise
+     */
+    private function isSubdirectory(int $fileId, int $targetParentId): bool
+    {
+        // Use parent-child relationship traversal instead of string comparison
+        // Start from target parent and traverse up to see if we reach the file being moved
+        $currentParentId = $targetParentId;
+        $visitedIds = []; // Prevent infinite loops
+
+        while ($currentParentId !== null && ! in_array($currentParentId, $visitedIds, true)) {
+            $visitedIds[] = $currentParentId;
+
+            // If we reach the file being moved, it means target is a subdirectory
+            if ($currentParentId === $fileId) {
+                return true;
+            }
+
+            // Get the parent of current directory
+            $currentEntity = $this->taskFileRepository->getById($currentParentId);
+            if ($currentEntity === null) {
+                break;
+            }
+
+            $currentParentId = $currentEntity->getParentId();
+        }
+
+        return false;
     }
 }
