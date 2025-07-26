@@ -131,6 +131,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
 
     // 文件相关
     Router::addGroup('/file', static function () {
+        // 沙盒文件变更通知
+        Router::post('/sandbox/notifications', [FileApi::class, 'handleSandboxNotification']);
         // 刷新 STS Token (提供 super - magic 使用， 通过 metadata 换取目录信息)
         Router::post('/refresh-sts-token', [FileApi::class, 'refreshStsToken']);
         // 批量处理附件

@@ -15,20 +15,25 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Hyperf\DbConnection\Db;
 use Throwable;
+use function Hyperf\Translation\trans;
 
 class TaskFileDomainService
 {
     public function __construct(
+        protected TaskRepositoryInterface $taskRepository,
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
         protected TopicRepositoryInterface $topicRepository,
@@ -884,5 +889,206 @@ class TaskFileDomainService
         $this->insert($dirEntity);
 
         return $dirEntity->getFileId();
+    }
+
+    /**
+     * Handle sandbox file notification (CREATE/UPDATE operations).
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param ProjectEntity $projectEntity Project entity
+     * @param string $fileKey Complete file key
+     * @param SandboxFileNotificationDataValueObject $data File data
+     * @return TaskFileEntity Created or updated file entity
+     */
+    public function handleSandboxFileNotification(
+        DataIsolation $dataIsolation,
+        ProjectEntity $projectEntity,
+        string $fileKey,
+        SandboxFileNotificationDataValueObject $data,
+        MessageMetadata $metadata
+    ): TaskFileEntity {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $userId = $dataIsolation->getCurrentUserId();
+        $projectId = $projectEntity->getId();
+        $workDir = $projectEntity->getWorkDir();
+
+        // 1. Get parent directory ID (create directories if needed)
+        $parentId = $this->findOrCreateDirectoryAndGetParentId(
+            $projectId,
+            $userId,
+            $organizationCode,
+            $fileKey,
+            $workDir
+        );
+
+        // 2. Check if file already exists
+        $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
+
+        Db::beginTransaction();
+        try {
+            if ($existingFile !== null) {
+                // Update existing file
+                $taskFileEntity = $this->updateSandboxFile($existingFile, $data, $organizationCode);
+            } else {
+                // Create new file
+                $taskFileEntity = $this->createSandboxFile(
+                    $dataIsolation,
+                    $projectEntity,
+                    $fileKey,
+                    $parentId,
+                    (int) $metadata->getSuperMagicTaskId(),
+                    $data
+                );
+            }
+
+            Db::commit();
+            return $taskFileEntity;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle sandbox file delete operation.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $fileKey Complete file key
+     * @return bool Whether file was deleted
+     */
+    public function handleSandboxFileDelete(DataIsolation $dataIsolation, string $fileKey): bool
+    {
+        $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
+        
+        if ($existingFile === null) {
+            // File doesn't exist, consider it as successfully deleted
+            return true;
+        }
+
+        // Check permission
+        if ($existingFile->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'File permission denied');
+        }
+
+        try {
+            $this->taskFileRepository->deleteById($existingFile->getFileId());
+            return true;
+        } catch (Throwable $e) {
+            // Log error if needed
+            return false;
+        }
+    }
+
+    /**
+     * Update existing sandbox file.
+     *
+     * @param TaskFileEntity $existingFile Existing file entity
+     * @param SandboxFileNotificationDataValueObject $data File data
+     * @param string $organizationCode Organization code
+     * @return TaskFileEntity Updated file entity
+     */
+    private function updateSandboxFile(
+        TaskFileEntity $existingFile,
+        SandboxFileNotificationDataValueObject $data,
+        string $organizationCode
+    ): TaskFileEntity {
+        // Get file information from cloud storage
+        $fileInfo = $this->getFileInfoFromCloudStorage($existingFile->getFileKey(), $organizationCode);
+
+        // Update file entity
+        $existingFile->setFileSize($fileInfo['size'] ?? $data->getFileSize());
+        $existingFile->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        // Update file extension if changed
+        $fileName = basename($existingFile->getFileKey());
+        $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
+        $existingFile->setFileExtension($fileExtension);
+
+        $this->taskFileRepository->updateById($existingFile);
+
+        return $existingFile;
+    }
+
+    /**
+     * Create new sandbox file.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param ProjectEntity $projectEntity Project entity
+     * @param string $fileKey Complete file key
+     * @param int $parentId Parent directory ID
+     * @param SandboxFileNotificationDataValueObject $data File data
+     * @return TaskFileEntity Created file entity
+     */
+    private function createSandboxFile(
+        DataIsolation $dataIsolation,
+        ProjectEntity $projectEntity,
+        string $fileKey,
+        int $parentId,
+        int $taskId,
+        SandboxFileNotificationDataValueObject $data,
+    ): TaskFileEntity {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        
+        // Get file information from cloud storage
+        $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
+
+        // Create file entity
+        $taskFileEntity = new TaskFileEntity();
+        $taskFileEntity->setFileId(IdGenerator::getSnowId());
+        $taskFileEntity->setProjectId($projectEntity->getId());
+        $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
+        $taskFileEntity->setOrganizationCode($organizationCode);
+        $taskFileEntity->setFileKey($fileKey);
+
+        $taskEntity = $this->taskRepository->getTaskById($taskId);
+        if (!empty($taskEntity)) {
+            $taskFileEntity->setTaskId($taskId);
+            $taskFileEntity->setTopicId($taskEntity->getTopicId());
+        }
+        
+        $fileName = basename($fileKey);
+        $taskFileEntity->setFileName($fileName);
+        $taskFileEntity->setFileSize($fileInfo['size'] ?? $data->getFileSize());
+        $taskFileEntity->setFileType(FileType::AUTO_SYNC->value);
+        $taskFileEntity->setIsDirectory(false);
+        $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
+        $taskFileEntity->setSource(TaskFileSource::AGENT);
+        $taskFileEntity->setStorageType(StorageType::WORKSPACE);
+        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setSort(0);
+
+        // Extract file extension
+        $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
+        $taskFileEntity->setFileExtension($fileExtension);
+
+        // Set timestamps
+        $now = date('Y-m-d H:i:s');
+        $taskFileEntity->setCreatedAt($now);
+        $taskFileEntity->setUpdatedAt($now);
+
+        $this->insert($taskFileEntity);
+
+        return $taskFileEntity;
+    }
+
+    /**
+     * Get file information from cloud storage.
+     *
+     * @param string $fileKey File key
+     * @param string $organizationCode Organization code
+     * @return array File information
+     */
+    private function getFileInfoFromCloudStorage(string $fileKey, string $organizationCode): array
+    {
+        $headObjectResult = $this->cloudFileRepository->getMetas([$fileKey], $organizationCode);
+        $meta = $headObjectResult[$fileKey] ?? null;
+        if ($meta === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+        $info = $meta->getFileAttributes();
+        return [
+            'size' => $info['fileSize'],
+            'last_modified' => $info['lastModified'],
+        ];
     }
 }
