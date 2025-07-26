@@ -381,29 +381,10 @@ class FileApi extends AbstractApi
      */
     public function handleSandboxNotification(RequestContext $requestContext): array
     {
-        // Validate sandbox token instead of user authorization
-        $this->validateSandboxToken();
-
         // Create DTO from request
         $requestDTO = SandboxFileNotificationRequestDTO::fromRequest($this->request);
 
         // Call application service without user context
         return $this->sandboxFileNotificationAppService->handleNotificationWithoutAuth($requestDTO);
-    }
-
-    /**
-     * Validate sandbox token for unauthenticated requests.
-     */
-    private function validateSandboxToken(): void
-    {
-        $token = $this->request->header('token', '');
-
-        if (empty($token)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
-        }
-
-        if ($token !== config('super-magic.sandbox.token', '')) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
-        }
     }
 }
