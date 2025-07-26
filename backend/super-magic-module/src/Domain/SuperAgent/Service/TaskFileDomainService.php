@@ -182,6 +182,76 @@ class TaskFileDomainService
         return substr($fileKey, $pos + strlen($workDir));
     }
 
+    /**
+     * Bind files to project with proper parent directory setup.
+     *
+     * Note: This method assumes all files are in the same directory level.
+     * It uses the first file's path to determine the parent directory for all files.
+     * If files are from different directories, they will all be placed in the same parent directory.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context for permission check
+     * @param int $projectId Project ID to bind files to
+     * @param array $fileIds Array of file IDs to bind
+     * @param string $workDir Project work directory
+     * @return bool Whether binding was successful
+     */
+    public function bindProjectFiles(
+        DataIsolation $dataIsolation,
+        int $projectId,
+        array $fileIds,
+        string $workDir
+    ): bool {
+        if (empty($fileIds)) {
+            return true;
+        }
+
+        // 1. Permission check: only query files belonging to current user
+        $fileEntities = $this->taskFileRepository->findUserFilesByIds(
+            $fileIds,
+            $dataIsolation->getCurrentUserId()
+        );
+
+        if (empty($fileEntities)) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_NOT_FOUND,
+                trans('file.files_not_found_or_no_permission')
+            );
+        }
+
+        // 2. Find or create project root directory as parent directory
+        $parentId = $this->findOrCreateDirectoryAndGetParentId(
+            projectId: $projectId,
+            userId: $dataIsolation->getCurrentUserId(),
+            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+            fullFileKey: $fileEntities[0]->getFileKey(),
+            workDir: $workDir,
+        );
+
+        // 3. Filter unbound files and prepare for batch update
+        $unboundFileIds = [];
+        foreach ($fileEntities as $fileEntity) {
+            if ($fileEntity->getProjectId() <= 0) {
+                $unboundFileIds[] = $fileEntity->getFileId();
+            }
+        }
+
+        if (empty($unboundFileIds)) {
+            return true; // All files already bound, no operation needed
+        }
+
+        // 4. Batch update: set both project_id and parent_id atomically
+        $this->taskFileRepository->batchBindToProject(
+            $unboundFileIds,
+            $projectId,
+            $parentId
+        );
+
+        return true;
+    }
+
+    /**
+     * @deprecated Use bindProjectFiles instead
+     */
     public function bindProject(int $projectId, array $fileIds): bool
     {
         $fileEntities = $this->taskFileRepository->getFilesByIds($fileIds);
@@ -265,13 +335,13 @@ class TaskFileDomainService
         $workDir = $projectEntity->getWorkDir();
 
         if (empty($workDir)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'project.work_dir.not_found');
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
         }
 
         if (! empty($parentId)) {
             $parentFIleEntity = $this->taskFileRepository->getById($parentId);
             if ($parentFIleEntity === null || $parentFIleEntity->getProjectId() != $projectEntity->getId()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
             }
             $fileKey = rtrim($parentFIleEntity->getFileKey(), '/') . '/' . $fileName;
         } else {
@@ -283,13 +353,13 @@ class TaskFileDomainService
         }
 
         if (! WorkDirectoryUtil::checkEffectiveFileKey($organizationCode, $dataIsolation->getCurrentUserId(), $projectEntity->getId(), $fileKey)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
         // Check if file already exists
         $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
         if ($existingFile !== null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
 
         Db::beginTransaction();
@@ -343,7 +413,7 @@ class TaskFileDomainService
     public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir): bool
     {
         if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fileEntity->getFileKey())) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
         Db::beginTransaction();
@@ -420,7 +490,7 @@ class TaskFileDomainService
 
             $targetFileEntity = $this->taskFileRepository->getByFileKey($fullTargetFileKey);
             if ($targetFileEntity !== null) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
             }
 
             // call cloud file service
@@ -436,11 +506,11 @@ class TaskFileDomainService
         $fullTargetFileKey = $dir . DIRECTORY_SEPARATOR . $targetName;
         $targetFileEntity = $this->taskFileRepository->getByFileKey($fullTargetFileKey);
         if ($targetFileEntity !== null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
 
         if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $fullTargetFileKey)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
         Db::beginTransaction();
@@ -469,46 +539,46 @@ class TaskFileDomainService
     public function moveProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, int $targetParentId): void
     {
         if ($targetParentId <= 0) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
         }
 
         $targetParentEntity = $this->taskFileRepository->getById($targetParentId);
         if ($targetParentEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
         }
 
         // Validate target parent is a directory
         if (! $targetParentEntity->getIsDirectory()) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'file.target_parent_not_directory');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, trans('file.target_parent_not_directory'));
         }
 
         // Validate target parent belongs to same project
         if ($targetParentEntity->getProjectId() !== $fileEntity->getProjectId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
         }
 
         // Validate target parent belongs to same user
         if ($targetParentEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
         }
 
         // Build full target file key
         $targetParentPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
 
         if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getProjectId(), $targetParentPath)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
         // Check if target file already exists
         $targetParentEntity = $this->taskFileRepository->getByFileKey($targetParentPath);
         if (! empty($targetParentEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, 'file.file_exist');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
 
         // Prevent moving file to itself or its subdirectory (for directories)
         if ($fileEntity->getIsDirectory()) {
             // todo need to update this
-            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'file.cannot_move_to_subdirectory');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, trans('file.cannot_move_to_subdirectory'));
         }
 
         Db::beginTransaction();
@@ -534,15 +604,15 @@ class TaskFileDomainService
     {
         $fileEntity = $this->taskFileRepository->getById($fileId);
         if ($fileEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
         }
 
         if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
         }
 
         if ($fileEntity->getProjectId() <= 0) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
         }
 
         return $fileEntity;
@@ -701,7 +771,7 @@ class TaskFileDomainService
 
         // Check permission
         if ($existingFile->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'File permission denied');
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
         }
 
         try {
@@ -711,6 +781,52 @@ class TaskFileDomainService
             // Log error if needed
             return false;
         }
+    }
+
+    /**
+     * Find or create project root directory.
+     *
+     * @param int $projectId Project ID
+     * @param string $workDir Project work directory
+     * @param string $userId User ID
+     * @param string $organizationCode Organization code
+     * @return int Root directory file_id
+     */
+    public function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode): int
+    {
+        // Look for existing root directory (parent_id IS NULL and is_directory = true)
+        $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
+
+        if ($rootDir !== null) {
+            return $rootDir->getFileId();
+        }
+
+        $fullWorkDir = WorkDirectoryUtil::getFullPrefix($organizationCode) . ltrim($workDir, '/');
+
+        // Create root directory if not exists
+        $rootDirEntity = new TaskFileEntity();
+        $rootDirEntity->setFileId(IdGenerator::getSnowId());
+        $rootDirEntity->setUserId($userId);
+        $rootDirEntity->setOrganizationCode($organizationCode);
+        $rootDirEntity->setProjectId($projectId);
+        $rootDirEntity->setFileName('/');
+        $rootDirEntity->setFileKey(rtrim($fullWorkDir, '/') . '/');
+        $rootDirEntity->setFileSize(0);
+        $rootDirEntity->setFileType(FileType::DIRECTORY->value);
+        $rootDirEntity->setIsDirectory(true);
+        $rootDirEntity->setParentId(null);
+        $rootDirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
+        $rootDirEntity->setStorageType(StorageType::WORKSPACE);
+        $rootDirEntity->setIsHidden(true);
+        $rootDirEntity->setSort(0);
+
+        $now = date('Y-m-d H:i:s');
+        $rootDirEntity->setCreatedAt($now);
+        $rootDirEntity->setUpdatedAt($now);
+
+        $this->insert($rootDirEntity);
+
+        return $rootDirEntity->getFileId();
     }
 
     /**
@@ -813,50 +929,6 @@ class TaskFileDomainService
 
         // 重新计算
         return $this->calculateAfterPositionSort($parentId, $preFileId, $projectId);
-    }
-
-    /**
-     * Find or create project root directory.
-     *
-     * @param int $projectId Project ID
-     * @param string $workDir Project work directory
-     * @return int Root directory file_id
-     */
-    private function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode): int
-    {
-        // Look for existing root directory (parent_id IS NULL and is_directory = true)
-        $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
-
-        if ($rootDir !== null) {
-            return $rootDir->getFileId();
-        }
-
-        $fullWorkDir = WorkDirectoryUtil::getFullPrefix($organizationCode) . ltrim($workDir, '/');
-
-        // Create root directory if not exists
-        $rootDirEntity = new TaskFileEntity();
-        $rootDirEntity->setFileId(IdGenerator::getSnowId());
-        $rootDirEntity->setUserId($userId);
-        $rootDirEntity->setOrganizationCode($organizationCode);
-        $rootDirEntity->setProjectId($projectId);
-        $rootDirEntity->setFileName('/');
-        $rootDirEntity->setFileKey(rtrim($fullWorkDir, '/') . '/');
-        $rootDirEntity->setFileSize(0);
-        $rootDirEntity->setFileType(FileType::DIRECTORY->value);
-        $rootDirEntity->setIsDirectory(true);
-        $rootDirEntity->setParentId(null);
-        $rootDirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
-        $rootDirEntity->setStorageType(StorageType::WORKSPACE);
-        $rootDirEntity->setIsHidden(true);
-        $rootDirEntity->setSort(0);
-
-        $now = date('Y-m-d H:i:s');
-        $rootDirEntity->setCreatedAt($now);
-        $rootDirEntity->setUpdatedAt($now);
-
-        $this->insert($rootDirEntity);
-
-        return $rootDirEntity->getFileId();
     }
 
     /**

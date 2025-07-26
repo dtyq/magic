@@ -12,4 +12,7 @@ return [
     'create_project_failed' => 'Failed to create project',
     'update_project_failed' => 'Failed to update project',
     'delete_project_failed' => 'Failed to delete project',
+    'work_dir' => [
+        'not_found' => 'Project work directory not found',
+    ],
 ];

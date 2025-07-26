@@ -12,4 +12,7 @@ return [
     'create_project_failed' => '创建项目失败',
     'update_project_failed' => '更新项目失败',
     'delete_project_failed' => '删除项目失败',
+    'work_dir' => [
+        'not_found' => '项目工作目录未找到',
+    ],
 ];

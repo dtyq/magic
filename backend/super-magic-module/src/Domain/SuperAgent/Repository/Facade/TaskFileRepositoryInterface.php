@@ -173,4 +173,15 @@ interface TaskFileRepositoryInterface
      * @param array $fileIds 文件ID数组
      */
     public function deleteByIds(array $fileIds): void;
+
+    /**
+     * Batch bind files to project with parent directory.
+     * Updates both project_id and parent_id atomically.
+     *
+     * @param array $fileIds Array of file IDs to bind
+     * @param int $projectId Project ID to bind to
+     * @param int $parentId Parent directory ID
+     * @return int Number of affected rows
+     */
+    public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
 }

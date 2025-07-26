@@ -133,9 +133,22 @@ class ProjectAppService extends AbstractAppService
             $this->projectDomainService->saveProjectEntity($projectEntity);
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $projectEntity->getId(), $topicEntity->getId()));
 
-            // 如果附件不为空，且附件是未绑定的状态，则保存附件
+            // 如果附件不为空，且附件是未绑定的状态，则保存附件， 并初始化目录
             if ($requestDTO->getFiles()) {
-                $this->taskFileDomainService->bindProject($projectEntity->getId(), $requestDTO->getFiles());
+                $this->taskFileDomainService->bindProjectFiles(
+                    $dataIsolation,
+                    $projectEntity->getId(),
+                    $requestDTO->getFiles(),
+                    $projectEntity->getWorkDir()
+                );
+            } else {
+                // 如果没有附件，就只初始化项目根目录文件
+                $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $projectEntity->getId(),
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                );
             }
 
             Db::commit();
