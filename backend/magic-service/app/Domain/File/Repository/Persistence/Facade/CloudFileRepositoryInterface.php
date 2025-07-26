@@ -73,6 +73,10 @@ interface CloudFileRepositoryInterface
      */
     public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool;
 
+    public function getFullPrefix(string $organizationCode): string;
+
+    public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;
+
     /**
      * List objects by credential.
      *
@@ -207,6 +211,4 @@ interface CloudFileRepositoryInterface
         StorageBucketType $bucketType = StorageBucketType::Private,
         array $options = []
     ): void;
-
-    public function getFullPrefix(string $organizationCode): string;
 }

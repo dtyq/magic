@@ -14,6 +14,7 @@ use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainServi
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -23,6 +24,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -71,7 +73,8 @@ class WorkspaceAppService extends AbstractAppService
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
         protected Producer $producer,
-        LoggerFactory $loggerFactory
+        LoggerFactory $loggerFactory,
+        protected FileDomainService $fileDomainService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -672,7 +675,15 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode());
+        $fullWorkDir = $this->fileDomainService->getFullWorkDir(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+            (int) $topicEntity->getProjectId(),
+            AgentConstant::SUPER_MAGIC_CODE,
+            AgentConstant::DEFAULT_PROJECT_DIR
+        );
+
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $fullWorkDir);
 
         // 处理文件 URL
         $list = [];

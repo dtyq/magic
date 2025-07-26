@@ -142,4 +142,21 @@ readonly class FileDomainService
     {
         return $this->cloudFileRepository->deleteFile($organizationCode, $filePath, $bucketType);
     }
+
+    public function getFullPrefix(string $organizationCode): string
+    {
+        return $this->cloudFileRepository->getFullPrefix($organizationCode);
+    }
+
+    public function generateWorkDir(string $userId, int $projectId, string $code = 'super-magic', string $lastPath = 'project'): string
+    {
+        return $this->cloudFileRepository->generateWorkDir($userId, $projectId, $code, $lastPath);
+    }
+
+    public function getFullWorkDir(string $organizationCode, string $userId, int $projectId, string $code = 'super-magic', string $lastPath = 'project'): string
+    {
+        $prefix = ltrim('/', $this->getFullPrefix($organizationCode));
+        $workDir = $this->generateWorkDir($userId, $projectId, $code, $lastPath);
+        return $prefix . $workDir;
+    }
 }
