@@ -15,6 +15,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
@@ -27,6 +28,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionReposito
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Hyperf\DbConnection\Db;
 use Throwable;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;

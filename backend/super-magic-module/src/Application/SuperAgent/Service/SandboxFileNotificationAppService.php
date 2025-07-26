@@ -69,6 +69,7 @@ class SandboxFileNotificationAppService extends AbstractAppService
         }
     }
 
+
     /**
      * Get project entity from metadata without permission check.
      * Used for token-based authentication where user context is not available.
