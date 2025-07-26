@@ -72,4 +72,8 @@ interface CloudFileRepositoryInterface
      * @return bool True if deleted successfully, false otherwise
      */
     public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool;
+
+    public function getFullPrefix(string $organizationCode): string;
+
+    public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;
 }
