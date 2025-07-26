@@ -79,6 +79,11 @@ interface MagicDepartmentRepositoryInterface
     public function updateDepartmentsOptionByIds(array $departmentIds, ?DepartmentOption $departmentOption = null): int;
 
     /**
+     * 根据部门ID批量删除部门（逻辑删除，设置 deleted_at 字段）。
+     */
+    public function deleteDepartmentsByIds(array $departmentIds, string $organizationCode): int;
+
+    /**
      * 获取组织的根部门ID.
      */
     public function getDepartmentRootId(string $organizationCode): ?string;

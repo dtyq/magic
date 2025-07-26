@@ -9,6 +9,7 @@ namespace App\Domain\Chat\Repository\Facade;
 
 use App\Domain\Contact\Entity\MagicThirdPlatformIdMappingEntity;
 use App\Domain\Contact\Entity\ValueObject\PlatformType;
+use App\Domain\Contact\Entity\ValueObject\ThirdPlatformIdMappingType;
 use App\Domain\OrganizationEnvironment\Entity\MagicEnvironmentEntity;
 
 interface MagicContactIdMappingRepositoryInterface
@@ -77,4 +78,16 @@ interface MagicContactIdMappingRepositoryInterface
     ): array;
 
     public function updateMappingEnvId(int $envId): int;
+
+    /**
+     * 根据 origin_id 批量软删除第三方平台映射记录。
+     *
+     * @param string[] $originIds 第三方平台的原始ID列表
+     */
+    public function deleteThirdPlatformIdsMapping(
+        array $originIds,
+        string $magicOrganizationCode,
+        PlatformType $thirdPlatformType,
+        ThirdPlatformIdMappingType $mappingType
+    ): int;
 }
