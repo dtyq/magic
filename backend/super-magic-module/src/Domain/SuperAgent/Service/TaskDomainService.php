@@ -50,20 +50,21 @@ class TaskDomainService
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
+     * @param TaskEntity $taskEntity Task entity
+     * @param string $topicMode Topic mode
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
-    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity, string $topicMode = ''): TaskEntity
     {
         // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
         $topicId = $topicEntity->getId();
 
         // Get task mode from DTO, fallback to topic's task mode if empty
-        // $taskMode = $userMessageDTO->getTaskMode();
-        // if ($taskMode === '') {
-        //     $taskMode = $topicEntity->getTaskMode();
-        // }
+        if ($topicMode === '') {
+            $topicMode = $topicEntity->getTopicMode();
+        }
 
         // Create new task entity
         // $taskEntity = new TaskEntity([
@@ -92,7 +93,9 @@ class TaskDomainService
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
         $topicEntity->setTaskMode($taskEntity->getTaskMode());
-        $topicEntity->setTopicMode($topicEntity->getTopicMode());
+        if (empty($topicEntity->getTopicMode())) {
+            $topicEntity->setTopicMode($topicMode);
+        }
         $this->topicRepository->updateTopic($topicEntity);
 
         return $taskEntity;
