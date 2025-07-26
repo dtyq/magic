@@ -16,7 +16,8 @@ return new class extends Migration {
     {
         Schema::table('service_provider_models', function (Blueprint $table) {
             $table->tinyInteger('load_balancing_weight')
-                ->default(50)
+                ->nullable()
+                ->default(null)
                 ->comment('负载均衡权重(0-100)');
         });
     }
