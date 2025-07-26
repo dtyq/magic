@@ -21,7 +21,7 @@ class UpdateConsumerModel extends AbstractEntity
 
     protected array $visibleApplications;
 
-    protected int $loadBalancingWeight;
+    protected ?int $loadBalancingWeight;
 
     public function getName(): string
     {
@@ -73,12 +73,12 @@ class UpdateConsumerModel extends AbstractEntity
         $this->visibleApplications = $visibleApplications;
     }
 
-    public function getLoadBalancingWeight(): int
+    public function getLoadBalancingWeight(): ?int
     {
         return $this->loadBalancingWeight;
     }
 
-    public function setLoadBalancingWeight(int $loadBalancingWeight): void
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): void
     {
         $this->loadBalancingWeight = $loadBalancingWeight;
     }

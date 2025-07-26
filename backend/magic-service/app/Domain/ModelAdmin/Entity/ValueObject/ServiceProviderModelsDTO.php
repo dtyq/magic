@@ -45,7 +45,7 @@ class ServiceProviderModelsDTO extends AbstractEntity
 
     protected array $visibleApplications = [];
 
-    protected int $loadBalancingWeight = 50;
+    protected ?int $loadBalancingWeight = null;
 
     public function getDisabledBy(): ?string
     {
@@ -226,12 +226,12 @@ class ServiceProviderModelsDTO extends AbstractEntity
         $this->visibleApplications = $visibleApplications;
     }
 
-    public function getLoadBalancingWeight(): int
+    public function getLoadBalancingWeight(): ?int
     {
         return $this->loadBalancingWeight;
     }
 
-    public function setLoadBalancingWeight(int $loadBalancingWeight): void
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): void
     {
         $this->loadBalancingWeight = $loadBalancingWeight;
     }
