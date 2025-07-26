@@ -804,7 +804,7 @@ class WorkspaceDomainService
         $gitVersionResult = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
-                // strpos 韩式检查字符串是否包含某个关键词： 如果两个文件的file_key 包含相同的字符串，则会认为两个文件是同一个文件,因此会存在误判
+                // strpos函数的作用是检查字符串是否包含某个关键词： 如果A文件 包含 B文件 包含全部相同的字符串，则会认为两个文件是同一个文件,因此会存在误判
                 // if (strpos($item['file_key'], $dirItem) !== false) {
                 //     $gitVersionResult[] = $item;
                 // }
