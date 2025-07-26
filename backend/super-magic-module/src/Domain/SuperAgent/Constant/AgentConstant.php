@@ -22,4 +22,6 @@ class AgentConstant
     public const string DEFAULT_WORKSPACE_NAME = '新工作区';
 
     public const string DEFAULT_PROJECT_NAME = '默认项目';
+
+    public const string DEFAULT_PROJECT_DIR = 'project';
 }

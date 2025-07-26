@@ -784,7 +784,7 @@ class WorkspaceDomainService
     /**
      * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
      */
-    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode): array
+    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode, string $workDir = ''): array
     {
         $dir = '.workspace';
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
@@ -796,39 +796,43 @@ class WorkspaceDomainService
             return $result;
         }
 
-        // Keep items with updated_at >= workspaceVersion updated_at in a temporary array
-        $tempResult1 = [];
+        # 遍历result的updatedAt ，如果updatedAt 小于workspaceVersion 的updated_at ，则保持在一个临时数组
+        $fileResult = [];
         foreach ($result['list'] as $item) {
             if ($item['updated_at'] >= $workspaceVersion->getUpdatedAt()) {
-                $tempResult1[] = $item;
+                $fileResult[] = $item;
             }
         }
         $dir = json_decode($workspaceVersion->getDir(), true);
-        // Remove the directory filtering logic - directories should be included in results
-        // Original problematic code:
-        // $dir = array_filter($dir, function ($item) {
-        //     if (strpos($item, '.') === false) {
-        //         return false;
-        //     }
-        //     return true;
-        // });
+        # dir 是一个二维数组，遍历$dir, 判断是否是一个文件，如果没有文件后缀说明是一个目录，过滤掉目录
+        # dir =["generated_images","generated_images\/cute-cartoon-cat.jpg","generated_images\/handdrawn-cute-cat.jpg","generated_images\/abstract-modern-generic.jpg","generated_images\/minimalist-cat-icon.jpg","generated_images\/realistic-elegant-cat.jpg","generated_images\/oilpainting-elegant-cat.jpg","generated_images\/anime-cute-cat.jpg","generated_images\/cute-cartoon-dog.jpg","generated_images\/universal-minimal-logo-3.jpg","generated_images\/universal-minimal-logo.jpg","generated_images\/universal-minimal-logo-2.jpg","generated_images\/realistic-cat-photo.jpg","generated_images\/minimal-tech-logo.jpg","logs","logs\/agentlang.log"]
+        $dir = array_filter($dir, function ($item) {
+            if (strpos($item, '.') === false) {
+                return false;
+            }
+            return true;
+        });
 
-        // Now $dir contains both files and directories from the workspace version
-
-        // Iterate through $result, if file_key in $result matches any item in $dir (partial string match),
-        // keep it in a temporary array. This includes both files and directories.
-        $tempResult2 = [];
+        $gitVersionResult = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
-                if (strpos($item['file_key'], $dirItem) !== false) {
-                    $tempResult2[] = $item;
+                // strpos 韩式检查字符串是否包含某个关键词： 如果两个文件的file_key 包含相同的字符串，则会认为两个文件是同一个文件,因此会存在误判
+                // if (strpos($item['file_key'], $dirItem) !== false) {
+                //     $gitVersionResult[] = $item;
+                // }
+
+                // 调整为完全匹配
+                $fullFilePath = $workDir . '/' . $dirItem;
+                if ($fullFilePath == $item['file_key']) {
+                    $gitVersionResult[] = $item;
                 }
             }
         }
-        $tempResult = array_merge($tempResult1, $tempResult2);
 
-        // Remove duplicates from the merged result
-        $result['list'] = array_unique($tempResult, SORT_REGULAR);
+        $newResult = array_merge($fileResult, $gitVersionResult);
+
+        # 对tempResult进行去重
+        $result['list'] = array_unique($newResult, SORT_REGULAR);
         $result['total'] = count($result['list']);
         return $result;
     }
