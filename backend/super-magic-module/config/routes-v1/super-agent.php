@@ -112,9 +112,6 @@ Router::addGroup(
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
         });
-
-        // 获取项目文件列表
-        Router::get('/projects/{id}/files', [FileApi::class, 'getProjectFileList']);
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
 );

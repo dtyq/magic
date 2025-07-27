@@ -65,7 +65,7 @@ class AgentDomainService
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID, 'project_oss_path' => $workDir]);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->info('[Sandbox][App] Gateway result analysis', [
