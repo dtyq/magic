@@ -249,10 +249,27 @@ class TaskDomainService
     }
 
     /**
+     * 批量获取任务文件.
+     * @return TaskFileEntity[]
+     */
+    public function getTaskFiles(array $fileIds): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+        return $this->taskFileRepository->getTaskFilesByIds($fileIds);
+    }
+
+    /**
      * Update task file.
      */
     public function updateTaskFile(TaskFileEntity $taskFileEntity): TaskFileEntity
     {
+        // 验证TaskFileEntity是否存在
+        $existingTaskFile = $this->taskFileRepository->getById($taskFileEntity->getFileId());
+        if (! $existingTaskFile) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'Task file not found');
+        }
         return $this->taskFileRepository->updateById($taskFileEntity);
     }
 

@@ -14,22 +14,31 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileConverterAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\AuthManager;
+use Throwable;
 
 #[ApiResponse('low_code')]
 class TaskApi extends AbstractApi
 {
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
@@ -41,7 +50,10 @@ class TaskApi extends AbstractApi
         protected UserDomainService $userDomainService,
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
+        protected FileConverterAppService $fileConverterAppService,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     /**
@@ -160,5 +172,90 @@ class TaskApi extends AbstractApi
             $dto->getDownloadMode(),
             $options
         );
+    }
+
+    /**
+     * 批量转换文件.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 转换结果
+     */
+    public function convertFiles(RequestContext $requestContext): array
+    {
+        // 获取请求DTO
+        $dto = ConvertFilesRequestDTO::fromRequest($this->request);
+
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        try {
+            // 调用应用服务
+            return $this->fileConverterAppService->convertFiles($userAuthorization, $dto);
+        } catch (Throwable $e) {
+            $this->logger->error('Convert files API failed', [
+                'user_id' => $userAuthorization->getId(),
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'project_id' => $dto->project_id,
+                'file_ids_count' => count($dto->file_ids),
+                'convert_type' => $dto->convert_type,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * 检查文件转换状态.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 状态检查结果
+     */
+    public function checkFileConvertStatus(RequestContext $requestContext): array
+    {
+        $taskKey = $this->request->input('task_key');
+
+        if (empty($taskKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED, 'validation.required');
+        }
+
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        try {
+            $result = $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
+
+            // 如果状态是 ready 但是没有下载地址，说明任务发生了错误
+            if ($result->getStatus() === ConvertStatusEnum::COMPLETED->value && empty($result->getDownloadUrl())) {
+                $this->logger->error('File conversion completed but no download URL available', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userAuthorization->getId(),
+                    'organization_code' => $userAuthorization->getOrganizationCode(),
+                    'status' => $result->getStatus(),
+                    'total_files' => $result->getTotalFiles(),
+                    'success_count' => $result->getSuccessCount(),
+                    'batch_id' => $result->getBatchId(),
+                    'convert_type' => $result->getConvertType(),
+                ]);
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONVERT_FAILED, 'file.convert_failed');
+            }
+
+            return $result->toArray();
+        } catch (Throwable $e) {
+            $this->logger->error('Check file convert status failed', [
+                'task_key' => $taskKey,
+                'user_id' => $userAuthorization->getId(),
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 }

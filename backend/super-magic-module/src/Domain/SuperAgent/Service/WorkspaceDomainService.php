@@ -391,6 +391,18 @@ class WorkspaceDomainService
     }
 
     /**
+     * 批量获取话题.
+     * @return TopicEntity[]
+     */
+    public function getTopicsByIds(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+        return $this->topicRepository->getTopicsByIds($topicIds);
+    }
+
+    /**
      * Update topic project association.
      *
      * @param int $topicId Topic ID

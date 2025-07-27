@@ -118,6 +118,14 @@ Router::addGroup('/api/v1/super-agent', static function () {
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
+    // 文件转换相关
+    Router::addGroup('/file-convert', static function () {
+        // 创建文件转换任务
+        Router::post('/create', [TaskApi::class, 'convertFiles']);
+        // 检查文件转换状态
+        Router::get('/check', [TaskApi::class, 'checkFileConvertStatus']);
+    });
+
     // 文件相关
     Router::addGroup('/file', static function () {
         // 刷新 STS Token (提供 super - magic 使用， 通过 metadata 换取目录信息)
