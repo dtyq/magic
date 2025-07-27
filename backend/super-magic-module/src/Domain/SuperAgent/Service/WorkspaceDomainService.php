@@ -811,7 +811,9 @@ class WorkspaceDomainService
 
                 // 调整为完全匹配
                 $fullFilePath = $workDir . '/' . $dirItem;
-                if ($fullFilePath == $item['file_key']) {
+                $fullFileAndWorkSpacePath = $workDir . '/workspace/' . $dirItem;
+
+                if ($fullFilePath == $item['file_key'] || $fullFileAndWorkSpacePath == $item['file_key']) {
                     $gitVersionResult[] = $item;
                 }
             }
