@@ -605,8 +605,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $query = $this->serviceProviderModelsModel::query()
             ->where('super_magic_display_state', 1)
             ->where('organization_code', $organizationCode)
-            ->where('status', Status::ACTIVE->value)
-            ->where('is_office', true);
+            ->where('status', Status::ACTIVE->value);
 
         return $this->executeQueryAndToEntities($query);
     }
