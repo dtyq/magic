@@ -35,7 +35,7 @@ class TaskFileEntity extends AbstractEntity
 
     protected int $fileSize = 0;
 
-    protected string $externalUrl = '';
+    protected ?string $externalUrl = '';
 
     protected StorageType $storageType;
 
@@ -167,12 +167,12 @@ class TaskFileEntity extends AbstractEntity
         $this->fileSize = $fileSize;
     }
 
-    public function getExternalUrl(): string
+    public function getExternalUrl(): ?string
     {
         return $this->externalUrl;
     }
 
-    public function setExternalUrl(string $externalUrl): void
+    public function setExternalUrl(?string $externalUrl): void
     {
         $this->externalUrl = $externalUrl;
     }

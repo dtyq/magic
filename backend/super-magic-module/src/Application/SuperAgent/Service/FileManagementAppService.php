@@ -16,20 +16,16 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\FileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -46,7 +42,6 @@ class FileManagementAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -311,13 +306,6 @@ class FileManagementAppService extends AbstractAppService
                 $projectId
             );
 
-            // 通过领域服务计算排序值
-            $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
-                $parentId === 0 ? null : $parentId,
-                $requestDTO->getPreFileId(),
-                $projectId
-            );
-
             // 调用领域服务创建文件或文件夹
             $taskFileEntity = $this->taskFileDomainService->createProjectFile(
                 $dataIsolation,
@@ -534,107 +522,6 @@ class FileManagementAppService extends AbstractAppService
             ));
             // 转换为统一的系统错误
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.file_move_failed'));
-        }
-    }
-
-    /**
-     * 获取项目文件列表（新增方法）
-     */
-    public function getProjectFileList(RequestContext $requestContext, int $projectId): array
-    {
-        try {
-            // 1. 获取用户授权和数据隔离
-            $userAuthorization = $requestContext->getUserAuthorization();
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-            // 2. 调用项目领域服务获取项目实体
-            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
-
-            // 3. 调用文件领域服务执行同步逻辑
-            $syncResult = $this->fileDomainService->syncProjectFiles(
-                $dataIsolation,
-                $projectEntity
-            );
-
-            // 4. 组装返回数据
-            return $this->assembleResponseData($syncResult, $projectEntity->getWorkDir());
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'Failed to get project file list: %s, Project ID: %s',
-                $e->getMessage(),
-                $projectId
-            ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
-        }
-    }
-
-    /**
-     * 组装返回数据
-     */
-    private function assembleResponseData(array $syncResult, string $workDir): array
-    {
-        $list = [];
-
-        foreach ($syncResult['files'] as $fileData) {
-            $dto = new TaskFileItemDTO();
-            $dto->fileId = (string) ($fileData['file_id'] ?? crc32($fileData['file_key']));
-            $dto->fileName = $fileData['file_name'];
-            $dto->fileExtension = $fileData['file_extension'];
-            $dto->fileKey = $fileData['file_key'];
-            $dto->fileSize = $fileData['file_size'];
-            $dto->fileUrl = $fileData['file_url'] ?? '';
-            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($fileData['file_key'], $workDir);
-            $dto->syncStatus = $fileData['sync_status'] ?? 'synced';
-
-            $list[] = $dto->toArray();
-        }
-
-        // 构建文件树（如果FileTreeUtil存在的话）
-        $tree = [];
-        if (class_exists(FileTreeUtil::class)) {
-            $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
-        }
-
-        return [
-            'list' => $list,
-            'tree' => $tree,
-            'total' => count($list),
-            'sync_stats' => $syncResult['stats'],
-            'cache_time' => date('Y-m-d H:i:s'),
-        ];
-    }
-
-    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, int $preFileId = -1): array
-    {
-        $userAuthorization = $requestContext->getUserAuthorization();
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-        Db::beginTransaction();
-        try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
-            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
-
-            // 通过领域服务处理排序逻辑
-            $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
-
-            // 执行原有的移动逻辑
-            $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
-
-            Db::commit();
-            return [
-                'file_id' => $fileId,
-                'target_parent_id' => $targetParentId,
-                'pre_file_id' => $preFileId,
-            ];
-        } catch (Throwable $e) {
-            Db::rollBack();
-            $this->logger->error(sprintf(
-                'Failed to move project file: %s, File ID: %s, Target Parent ID: %s',
-                $e->getMessage(),
-                $fileId,
-                $targetParentId
-            ));
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, 'file.file_move_failed');
         }
     }
 }

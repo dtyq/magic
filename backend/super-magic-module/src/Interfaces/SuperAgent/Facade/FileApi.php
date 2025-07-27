@@ -44,7 +44,6 @@ class FileApi extends AbstractApi
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
         private readonly SandboxFileNotificationAppService $sandboxFileNotificationAppService,
-        private readonly CacheInterface $cache,
     ) {
     }
 

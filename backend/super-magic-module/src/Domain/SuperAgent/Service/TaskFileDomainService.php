@@ -19,19 +19,9 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
-use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
-use Hyperf\DbConnection\Db;
-use Throwable;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
@@ -561,10 +551,6 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $fileEntity->getFileId(), $fullTargetFileKey)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, 'file.illegal_file_key');
-        }
-
         Db::beginTransaction();
         try {
             $organizationCode = $dataIsolation->getCurrentOrganizationCode();
@@ -662,10 +648,6 @@ class TaskFileDomainService
         $fileEntity = $this->taskFileRepository->getById($fileId);
         if ($fileEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
-        }
-
-        if ($isDirectory) {
-            $fileKey = rtrim($fileKey, '/') . '/';
         }
 
         if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
@@ -769,144 +751,6 @@ class TaskFileDomainService
         // 2. Check if file already exists
         $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
 
-        Db::beginTransaction();
-        try {
-            if ($existingFile !== null) {
-                // Update existing file
-                $taskFileEntity = $this->updateSandboxFile($existingFile, $data, $organizationCode);
-            } else {
-                // Create new file
-                $taskFileEntity = $this->createSandboxFile(
-                    $dataIsolation,
-                    $projectEntity,
-                    $fileKey,
-                    $parentId,
-                    (int) $metadata->getSuperMagicTaskId(),
-                    $data
-                );
-            }
-
-            Db::commit();
-            return $taskFileEntity;
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
-     * Handle sandbox file delete operation.
-     *
-     * @param DataIsolation $dataIsolation Data isolation context
-     * @param string $fileKey Complete file key
-     * @return bool Whether file was deleted
-     */
-    public function handleSandboxFileDelete(DataIsolation $dataIsolation, string $fileKey): bool
-    {
-        $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
-
-        if ($existingFile === null) {
-            // File doesn't exist, consider it as successfully deleted
-            return true;
-        }
-
-        // Check permission
-        if ($existingFile->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'File permission denied');
-        }
-
-        try {
-            $this->taskFileRepository->deleteById($existingFile->getFileId());
-            return true;
-        } catch (Throwable $e) {
-            // Log error if needed
-            return false;
-        }
-    }
-
-    /**
-     * Handle sandbox file notification (CREATE/UPDATE operations).
-     *
-     * @param DataIsolation $dataIsolation Data isolation context
-     * @param ProjectEntity $projectEntity Project entity
-     * @param string $fileKey Complete file key
-     * @param SandboxFileNotificationDataValueObject $data File data
-     * @return TaskFileEntity Created or updated file entity
-     */
-    public function handleSandboxFileNotification(
-        DataIsolation $dataIsolation,
-        ProjectEntity $projectEntity,
-        string $fileKey,
-        SandboxFileNotificationDataValueObject $data,
-        MessageMetadata $metadata
-    ): TaskFileEntity {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $userId = $dataIsolation->getCurrentUserId();
-        $projectId = $projectEntity->getId();
-        $workDir = $projectEntity->getWorkDir();
-
-        // 1. Get parent directory ID (create directories if needed)
-        $parentId = $this->findOrCreateDirectoryAndGetParentId(
-            $projectId,
-            $userId,
-            $organizationCode,
-            $fileKey,
-            $workDir
-        );
-
-        // 2. Check if file already exists
-        $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
-
-        Db::beginTransaction();
-        try {
-            // Create object in cloud storage
-            if ($isDirectory) {
-                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey);
-            } else {
-                $this->cloudFileRepository->createFileByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey);
-            }
-
-            // Create file entity
-            $taskFileEntity = new TaskFileEntity();
-            $taskFileEntity->setFileId(IdGenerator::getSnowId());
-            $taskFileEntity->setProjectId($projectEntity->getId());
-            $taskFileEntity->setFileKey($fileKey);
-            $taskFileEntity->setFileName($fileName);
-            $taskFileEntity->setFileSize(0); // Empty file/folder initially
-            $taskFileEntity->setFileType('user_upload');
-            $taskFileEntity->setIsDirectory($isDirectory);
-            $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
-            $taskFileEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
-            $taskFileEntity->setStorageType(StorageType::WORKSPACE);
-            $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
-            $taskFileEntity->setOrganizationCode($organizationCode);
-            $taskFileEntity->setIsHidden(false);
-            $taskFileEntity->setSort(0);
-
-            // Extract file extension for files
-            if (! $isDirectory && ! empty($fileName)) {
-                $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
-                $taskFileEntity->setFileExtension($fileExtension);
-            }
-
-            // Set timestamps
-            $now = date('Y-m-d H:i:s');
-            $taskFileEntity->setCreatedAt($now);
-            $taskFileEntity->setUpdatedAt($now);
-
-            // Save to database
-            $this->insert($taskFileEntity);
-
-            Db::commit();
-            return $taskFileEntity;
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
-    }
-
-    public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity): bool
-    {
         Db::beginTransaction();
         try {
             if ($existingFile !== null) {

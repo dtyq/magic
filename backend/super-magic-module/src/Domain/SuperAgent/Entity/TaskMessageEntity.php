@@ -333,6 +333,7 @@ class TaskMessageEntity extends AbstractEntity
             'topic_id' => $taskMessageDTO->getTopicId(),
             'event' => $taskMessageDTO->getEvent(),
             'show_in_ui' => $taskMessageDTO->isShowInUi(),
+            'raw_content' => $taskMessageDTO->getRawContent(),
         ];
 
         // Add message_id if provided
