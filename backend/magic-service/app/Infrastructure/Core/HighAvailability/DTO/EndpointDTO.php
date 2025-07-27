@@ -64,6 +64,11 @@ class EndpointDTO extends AbstractDTO
     protected CircuitBreakerStatus $circuitBreakerStatus;
 
     /**
+     * 负载均衡权重(0-100).
+     */
+    protected ?int $loadBalancingWeight = null;
+
+    /**
      * 创建时间.
      */
     protected string $createdAt;
@@ -239,5 +244,22 @@ class EndpointDTO extends AbstractDTO
     public function hasEndpointId(): bool
     {
         return $this->endpointId !== null && $this->endpointId !== '';
+    }
+
+    /**
+     * 获取负载均衡权重.
+     */
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    /**
+     * 设置负载均衡权重.
+     */
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): static
+    {
+        $this->loadBalancingWeight = $loadBalancingWeight;
+        return $this;
     }
 }

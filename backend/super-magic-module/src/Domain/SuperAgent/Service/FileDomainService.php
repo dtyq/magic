@@ -62,7 +62,7 @@ class FileDomainService
     /**
      * 获取对象存储文件列表.
      */
-    private function getObjectStorageFiles(string $organizationCode, string $workDir): array
+    public function getObjectStorageFiles(string $organizationCode, string $workDir): array
     {
         try {
             $md5Key = md5(StorageBucketType::Private->value);
@@ -100,6 +100,29 @@ class FileDomainService
         }
 
         return $files;
+    }
+
+    /**
+     * 构建最终文件列表（包含URL）.
+     */
+    public function buildFinalFileList(array $objectStorageFiles, string $organizationCode): array
+    {
+        if (empty($objectStorageFiles)) {
+            return [];
+        }
+
+        $fileKeys = array_keys($objectStorageFiles);
+
+        // 批量获取文件URL
+        $fileUrls = $this->fileAppService->getBatchLinks($organizationCode, $fileKeys, StorageBucketType::Private);
+
+        $finalList = [];
+        foreach ($objectStorageFiles as $fileKey => $fileData) {
+            $fileData['file_url'] = $fileUrls[$fileKey] ?? '';
+            $finalList[] = $fileData;
+        }
+
+        return $finalList;
     }
 
     /**
@@ -154,28 +177,5 @@ class FileDomainService
         if (! empty($diffResult['updated_files'])) {
             $this->taskFileRepository->batchUpdateFiles($diffResult['updated_files']);
         }
-    }
-
-    /**
-     * 构建最终文件列表（包含URL）.
-     */
-    private function buildFinalFileList(array $objectStorageFiles, string $organizationCode): array
-    {
-        if (empty($objectStorageFiles)) {
-            return [];
-        }
-
-        $fileKeys = array_keys($objectStorageFiles);
-
-        // 批量获取文件URL
-        $fileUrls = $this->fileAppService->getBatchLinks($organizationCode, $fileKeys, StorageBucketType::Private);
-
-        $finalList = [];
-        foreach ($objectStorageFiles as $fileKey => $fileData) {
-            $fileData['file_url'] = $fileUrls[$fileKey] ?? '';
-            $finalList[] = $fileData;
-        }
-
-        return $finalList;
     }
 }

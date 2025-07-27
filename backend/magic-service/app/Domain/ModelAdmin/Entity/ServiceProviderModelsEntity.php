@@ -56,9 +56,9 @@ class ServiceProviderModelsEntity extends AbstractEntity
 
     protected int $isOffice = 0; // 是否为官方模型：0-否，1-是
 
-    protected int $superMagicDisplayState = 0;
+    protected ?int $loadBalancingWeight = null; // 负载均衡权重：0-100
 
-    protected int $loadBalancingWeight = 50; // 负载均衡权重：0-100
+    protected int $superMagicDisplayState = 0;
 
     protected ?string $disabledBy = ''; // 禁用来源：official-官方禁用，user-用户禁用，NULL-未禁用
 
@@ -99,7 +99,7 @@ class ServiceProviderModelsEntity extends AbstractEntity
 
         // 验证负载均衡权重范围
         $loadBalancingWeight = $this->getLoadBalancingWeight();
-        if ($loadBalancingWeight < 0 || $loadBalancingWeight > 100) {
+        if ($loadBalancingWeight !== null && ($loadBalancingWeight < 0 || $loadBalancingWeight > 100)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.load_balancing_weight_range_error'));
         }
     }
@@ -155,12 +155,12 @@ class ServiceProviderModelsEntity extends AbstractEntity
         $this->isOffice = (int) $isOffice;
     }
 
-    public function getLoadBalancingWeight(): int
+    public function getLoadBalancingWeight(): ?int
     {
         return $this->loadBalancingWeight;
     }
 
-    public function setLoadBalancingWeight(int $loadBalancingWeight): void
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): void
     {
         $this->loadBalancingWeight = $loadBalancingWeight;
     }

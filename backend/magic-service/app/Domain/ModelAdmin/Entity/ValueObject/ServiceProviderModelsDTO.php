@@ -47,7 +47,7 @@ class ServiceProviderModelsDTO extends AbstractDTO
 
     protected array $visibleApplications = [];
 
-    protected int $loadBalancingWeight = 50;
+    protected ?int $loadBalancingWeight = null;
 
     protected array $visiblePackages = [];
 
@@ -230,12 +230,12 @@ class ServiceProviderModelsDTO extends AbstractDTO
         $this->visibleApplications = $visibleApplications;
     }
 
-    public function getLoadBalancingWeight(): int
+    public function getLoadBalancingWeight(): ?int
     {
         return $this->loadBalancingWeight;
     }
 
-    public function setLoadBalancingWeight(int $loadBalancingWeight): void
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): void
     {
         $this->loadBalancingWeight = $loadBalancingWeight;
     }
