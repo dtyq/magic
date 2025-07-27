@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SuperMagicDomainService;
@@ -33,7 +34,7 @@ class FileSaveContentAppService
         LoggerFactory $loggerFactory,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
-        private readonly SandboxDomainService $sandboxDomainService,
+        private readonly AgentDomainService $agentDomainService,
         private readonly SuperMagicDomainService $superMagicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
     ) {
@@ -75,10 +76,10 @@ class FileSaveContentAppService
             $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId);
             $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuth->getOrganizationCode());
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
-            $this->sandboxDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
+            $this->agentDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
 
             // 4. 检查沙箱是否就绪
-            $this->sandboxDomainService->waitForSandboxReady($sandboxId);
+            $this->agentDomainService->waitForSandboxReady($sandboxId);
 
             // 5, 调用文件接口
             $result = $this->superMagicDomainService->saveFileData($sandboxId, $fileDataList, $projectEntity->getWorkDir());

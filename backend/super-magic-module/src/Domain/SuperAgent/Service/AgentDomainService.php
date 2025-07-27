@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentRes
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -308,6 +309,62 @@ class AgentDomainService
         ]);
 
         return $result;
+    }
+
+    /**
+     * 等待工作区就绪.
+     * 轮询工作区状态，直到初始化完成、失败或超时.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param int $timeoutSeconds 超时时间（秒），默认2分钟
+     * @param int $intervalSeconds 轮询间隔（秒），默认2秒
+     * @throws SandboxOperationException 当初始化失败或超时时抛出异常
+     */
+    public function waitForSandboxReady(string $sandboxId, int $timeoutSeconds = 120, int $intervalSeconds = 2): void
+    {
+        $this->logger->info('[Sandbox][App] Waiting for Sandbox to be ready', [
+            'sandbox_id' => $sandboxId,
+            'timeout_seconds' => $timeoutSeconds,
+            'interval_seconds' => $intervalSeconds,
+        ]);
+
+        $startTime = time();
+        $endTime = $startTime + $timeoutSeconds;
+
+        while (time() < $endTime) {
+            try {
+                $response = $this->getSandboxStatus($sandboxId);
+                $status = $response->getStatus();
+
+                $this->logger->debug('[Sandbox][App] Sandbox status check', [
+                    'sandbox_id' => $sandboxId,
+                    'status' => $status,
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+
+                // 状态为就绪时退出
+                if ($status === SandboxStatus::RUNNING) {
+                    $this->logger->info('[Sandbox][App] Sandbox is ready', [
+                        'sandbox_id' => $sandboxId,
+                        'elapsed_seconds' => time() - $startTime,
+                    ]);
+                    return;
+                }
+
+                // 等待下一次轮询
+                sleep($intervalSeconds);
+            } catch (SandboxOperationException $e) {
+                // 重新抛出沙箱操作异常
+                throw $e;
+            } catch (Throwable $e) {
+                $this->logger->error('[Sandbox][App] Error while checking sandbox status', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+                throw new SandboxOperationException('Wait for sandbox ready', 'Error checking sandbox status: ' . $e->getMessage(), 3002);
+            }
+        }
     }
 
     /**
