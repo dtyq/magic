@@ -1148,10 +1148,12 @@ class ServiceProviderDomainService
             return $models;
         }
 
+        $isOfficeOrganization = $organizationCode === config('office_organization');
+
         $superMagicModels = [];
         foreach ($models as $model) {
             $modelConfig = $model->getConfig();
-            if ($modelConfig->isSupportFunction() && in_array($currentPackage, $model->getVisiblePackages()) && $model->getSuperMagicDisplayState()) {
+            if ($modelConfig->isSupportFunction() && ($isOfficeOrganization || in_array($currentPackage, $model->getVisiblePackages()) && $model->getSuperMagicDisplayState())) {
                 $superMagicModels[] = $model;
             }
         }
