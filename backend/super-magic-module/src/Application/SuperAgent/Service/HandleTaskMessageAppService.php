@@ -476,7 +476,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         // Create sandbox container
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId(), $fullWorkdir);
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), (string)$taskContext->getTopicId(), $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // user long term memory
@@ -507,7 +507,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         // Create sandbox container
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId(), $fullWorkdir);
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), (string)$taskContext->getTopicId(), $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // user long term memory

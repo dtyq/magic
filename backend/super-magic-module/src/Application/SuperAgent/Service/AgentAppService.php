@@ -30,53 +30,9 @@ class AgentAppService
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private SandboxGatewayInterface $gateway,
         private readonly AgentDomainService $agentDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
-    }
-
-    /**
-     * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
-     */
-    public function createSandbox(string $projectId, string $sandboxID, string $workDir): string
-    {
-        $this->logger->info('[Sandbox][App] Creating sandbox', [
-            'project_id' => $projectId,
-            'sandbox_id' => $sandboxID,
-        ]);
-
-        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID, 'project_oss_path' => $workDir]);
-
-        // 添加详细的调试日志，检查 result 对象 的结构
-        $this->logger->info('[Sandbox][App] Gateway result analysis', [
-            'result_class' => get_class($result),
-            'result_is_success' => $result->isSuccess(),
-            'result_code' => $result->getCode(),
-            'result_message' => $result->getMessage(),
-            'result_data_raw' => $result->getData(),
-            'result_data_type' => gettype($result->getData()),
-            'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
-            'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
-        ]);
-
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Failed to create sandbox', [
-                'project_id' => $projectId,
-                'sandbox_id' => $sandboxID,
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Create sandbox', $result->getMessage(), $result->getCode());
-        }
-
-        $this->logger->info('[Sandbox][App] Create sandbox success', [
-            'project_id' => $projectId,
-            'input_sandbox_id' => $sandboxID,
-            'returned_sandbox_id' => $result->getDataValue('sandbox_id'),
-        ]);
-
-        return $result->getDataValue('sandbox_id');
     }
 
     /**

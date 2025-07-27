@@ -68,7 +68,7 @@ class WorkDirectoryUtil
 
     public static function getFullWorkdir(string $prefix, string $workDir): string
     {
-        return $prefix . '/' . trim($workDir, '/') . '/';
+        return $prefix . trim($workDir, '/') . '/';
     }
 
     public static function getRelativeFilePath(string $fileKey, string $workDir): string
