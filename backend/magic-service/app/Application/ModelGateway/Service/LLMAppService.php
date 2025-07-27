@@ -184,6 +184,15 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
         $imageGenerateRequest->setGenerateNum($data['generate_num'] ?? 4);
+
+        // 只有火山模型才处理水印配置
+        if ($imageGenerateType === ImageGenerateModelType::Volcengine || $imageGenerateType === ImageGenerateModelType::VolcengineImageGenerateV3) {
+            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($authorization->getOrganizationCode());
+            if ($watermarkConfig !== null) {
+                $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
+            }
+        }
+
         $serviceProviderConfig = $serviceProviderResponse->getServiceProviderConfig();
         if ($serviceProviderConfig === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -243,8 +252,10 @@ class LLMAppService extends AbstractLLMAppService
 
     public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): array
     {
-        $this->validateAccessToken($textGenerateImageDTO);
+        $accessTokenEntity = $this->validateAccessToken($textGenerateImageDTO);
 
+        $organizationCode = $accessTokenEntity->getOrganizationCode();
+        $creator = $accessTokenEntity->getCreator();
         $modelVersion = $textGenerateImageDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -268,13 +279,25 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
 
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+
+        if ($imageGenerateType === ImageGenerateModelType::Volcengine || $imageGenerateType === ImageGenerateModelType::VolcengineImageGenerateV3) {
+            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($organizationCode);
+            if ($watermarkConfig !== null) {
+                $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
+            }
+        }
 
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
                 $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
+                    $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+
                     return $generateImageRaw;
                 }
             } catch (Exception $e) {
