@@ -1137,7 +1137,16 @@ class ServiceProviderDomainService
         $superMagicModels = [];
         foreach ($models as $model) {
             $modelConfig = $model->getConfig();
-            if ($modelConfig->isSupportFunction() && ($isOfficeOrganization || in_array($currentPackage, $model->getVisiblePackages()) && $model->getSuperMagicDisplayState())) {
+            if (! $modelConfig->isSupportFunction()) {
+                continue;
+            }
+            // 如果是官方组织，直接添加所有模型
+            if ($isOfficeOrganization) {
+                $superMagicModels[] = $model;
+                continue;
+            }
+            // 如果有套餐可见性，那么要检查套餐可见性
+            if (empty($model->getVisiblePackages()) || in_array($currentPackage, $model->getVisiblePackages())) {
                 $superMagicModels[] = $model;
             }
         }
