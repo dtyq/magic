@@ -123,8 +123,9 @@ class SandboxFileNotificationAppService extends AbstractAppService
     ): string {
         $organizationCode = $metadata->getOrganizationCode();
         $filePath = $data->getFilePath();
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
 
-        return WorkDirectoryUtil::getFullPrefix($organizationCode) . trim($workDir, '/') . '/' . trim($filePath, '/');
+        return WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $filePath);
     }
 
     /**

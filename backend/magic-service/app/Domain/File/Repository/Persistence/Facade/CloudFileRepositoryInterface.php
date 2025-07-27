@@ -211,4 +211,8 @@ interface CloudFileRepositoryInterface
         StorageBucketType $bucketType = StorageBucketType::Private,
         array $options = []
     ): void;
+
+    public function getFullPrefix(string $organizationCode): string;
+
+    public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;
 }

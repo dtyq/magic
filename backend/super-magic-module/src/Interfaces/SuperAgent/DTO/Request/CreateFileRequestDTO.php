@@ -87,7 +87,7 @@ class CreateFileRequestDTO extends AbstractRequestDTO
     {
         return [
             'project_id' => 'required|string',
-            'parent_id' => 'required|string',
+            'parent_id' => 'required|string|min:1', // Parent ID cannot be empty and must have at least 1 character
             'file_name' => [
                 'required',
                 'string',
@@ -109,6 +109,7 @@ class CreateFileRequestDTO extends AbstractRequestDTO
             'project_id.string' => 'Project ID must be a string',
             'parent_id.required' => 'Parent ID cannot be empty',
             'parent_id.string' => 'Parent ID must be a string',
+            'parent_id.min' => 'Parent ID cannot be empty',
             'file_name.required' => 'File name cannot be empty',
             'file_name.string' => 'File name must be a string',
             'file_name.max' => 'File name cannot exceed 255 characters',

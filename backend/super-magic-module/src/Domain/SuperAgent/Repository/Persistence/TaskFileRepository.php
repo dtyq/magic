@@ -614,4 +614,42 @@ class TaskFileRepository implements TaskFileRepositoryInterface
                 ->update(['sort' => $update['sort'], 'updated_at' => date('Y-m-d H:i:s')]);
         }
     }
+
+    /**
+     * Batch bind files to project with parent directory.
+     * Updates both project_id and parent_id atomically.
+     */
+    public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int
+    {
+        if (empty($fileIds)) {
+            return 0;
+        }
+
+        return $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->where(function ($query) {
+                $query->whereNull('project_id')
+                    ->orWhere('project_id', 0);
+            })
+            ->update([
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->withTrashed()
+            ->where('project_id', $projectId)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
+    }
 }

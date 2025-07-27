@@ -46,7 +46,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
         protected MagicFlowDomainService $magicFlowDomainService,
         LoggerFactory $loggerFactory,
     ) {
-        $this->logger = $loggerFactory->get('SupperMagicAgentMCP', 'debug');
+        $this->logger = $loggerFactory->get('SupperMagicAgentMCP');
     }
 
     public function createChatMessageRequestMcpConfig(MCPDataIsolation $dataIsolation, TaskContext $taskContext, array $agentIds = [], array $mcpIds = [], array $toolIds = []): ?array
@@ -100,6 +100,9 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
             if ($builtinSuperMagicServer) {
                 $serverOptions[$builtinSuperMagicServer->getCode()] = $this->createBuiltinSuperMagicServerOptions($dataIsolation, $agentIds, $toolIds);
             }
+
+            $globalMcpIds = $this->getGlobalMcpServerIds($dataIsolation);
+            $mcpIds = array_merge($mcpIds, $globalMcpIds);
 
             $projectId = $taskContext->getTask()->getProjectId();
             if ($projectId) {
@@ -189,6 +192,21 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
             $servers[$mcpServer->getName()] = $config;
         }
         return $servers;
+    }
+
+    /**
+     * 获取全局的 MCP 服务器 ID 列表.
+     */
+    private function getGlobalMcpServerIds(MCPDataIsolation $mcpDataIsolation): array
+    {
+        $dataIsolation = DataIsolation::create($mcpDataIsolation->getCurrentOrganizationCode(), $mcpDataIsolation->getCurrentUserId());
+        $mcpServerIds = [];
+
+        $mcpSettings = $this->magicUserSettingDomainService->get($dataIsolation, UserSettingKey::SuperMagicMCPServers->value);
+        if ($mcpSettings) {
+            $mcpServerIds = array_filter(array_column($mcpSettings->getValue()['servers'], 'id'));
+        }
+        return $mcpServerIds;
     }
 
     /**

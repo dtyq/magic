@@ -109,14 +109,7 @@ class AgentAppService
      */
     public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
-        // user long term memory
-        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-        );
-
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
     }
 
     /**
