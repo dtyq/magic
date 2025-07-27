@@ -24,6 +24,8 @@ class ImageGenerateRequest
 
     protected string $model;
 
+    protected ?array $watermarkConfig = null;
+
     public function __construct(
         string $width = '',
         string $height = '',
@@ -101,5 +103,15 @@ class ImageGenerateRequest
     public function setModel(string $model): void
     {
         $this->model = $model;
+    }
+
+    public function getWatermarkConfig(): ?array
+    {
+        return $this->watermarkConfig;
+    }
+
+    public function setWatermarkConfig(?array $watermarkConfig): void
+    {
+        $this->watermarkConfig = $watermarkConfig;
     }
 }

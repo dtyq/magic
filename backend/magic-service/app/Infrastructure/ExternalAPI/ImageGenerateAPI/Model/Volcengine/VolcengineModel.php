@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine;
 
-use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -41,9 +40,6 @@ class VolcengineModel implements ImageGenerate
 
     #[Inject]
     protected LoggerInterface $logger;
-
-    #[Inject]
-    protected WatermarkConfigInterface $watermarkConfig;
 
     private VolcengineAPI $api;
 
@@ -131,7 +127,7 @@ class VolcengineModel implements ImageGenerate
                     // 提交任务（带重试）
                     $taskId = $this->submitAsyncTask($imageGenerateRequest, $isImageToImage);
                     // 轮询结果（带重试）
-                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel(), $imageGenerateRequest->getOrganizationCode());
+                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest);
 
                     return [
                         'success' => true,
@@ -288,19 +284,22 @@ class VolcengineModel implements ImageGenerate
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
     )]
-    private function pollTaskResult(string $taskId, string $model, string $organizationCode): array
+    private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
-        $reqKey = $model;
+        $organizationCode = $imageGenerateRequest->getOrganizationCode();
+        $reqKey = $imageGenerateRequest->getModel();
         $retryCount = 0;
 
-        $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($organizationCode);
         $reqJson = ['return_url' => true];
+
+        // 从请求对象中获取水印配置
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
+
         if ($watermarkConfig !== null) {
-            $volcengineArray = $watermarkConfig->toArray();
-            $reqJson['logo_info'] = $volcengineArray;
+            $reqJson['logo_info'] = $watermarkConfig;
             $this->logger->info('火山文生图：添加水印配置', [
                 'orgCode' => $organizationCode,
-                'logo_info' => $volcengineArray,
+                'logo_info' => $watermarkConfig,
             ]);
         }
 
