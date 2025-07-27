@@ -62,7 +62,7 @@ class AgentDomainService
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
-            'project_oss_path' => $fullWorkdir,
+            'project_oss_path' => $workDir,
         ]);
 
         $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID, 'project_oss_path' => $workDir]);

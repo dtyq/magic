@@ -192,6 +192,4 @@ interface TaskFileRepositoryInterface
      * @return int Number of affected rows
      */
     public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
-
-    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
 }

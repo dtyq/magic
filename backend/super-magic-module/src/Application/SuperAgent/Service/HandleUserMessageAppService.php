@@ -50,6 +50,7 @@ class HandleUserMessageAppService extends AbstractAppService
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,

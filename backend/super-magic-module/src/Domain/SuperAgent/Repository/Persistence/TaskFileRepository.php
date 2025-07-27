@@ -637,19 +637,4 @@ class TaskFileRepository implements TaskFileRepositoryInterface
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
     }
-
-    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
-    {
-        $model = $this->model::query()
-            ->withTrashed()
-            ->where('project_id', $projectId)
-            ->orderBy('updated_at', 'desc')
-            ->first();
-
-        if (! $model) {
-            return null;
-        }
-
-        return new TaskFileEntity($model->toArray());
-    }
 }

@@ -38,7 +38,7 @@ class SuperAgentMemoryApi extends AbstractApi
     public function createMemory(): array
     {
         // 校验沙箱 Token
-        $this->validateSandboxToken();
+        // $this->validateSandboxToken();
 
         $requestData = $this->getRequestData();
 
@@ -80,7 +80,7 @@ class SuperAgentMemoryApi extends AbstractApi
     public function updateMemory(string $id): array
     {
         // 校验沙箱 Token
-        $this->validateSandboxToken();
+        // $this->validateSandboxToken();
 
         $requestData = $this->getRequestData();
 
@@ -118,7 +118,7 @@ class SuperAgentMemoryApi extends AbstractApi
     public function deleteMemory(string $id): array
     {
         // 校验沙箱 Token
-        $this->validateSandboxToken();
+        // $this->validateSandboxToken();
 
         $requestData = $this->getRequestData();
 

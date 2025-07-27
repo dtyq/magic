@@ -59,7 +59,6 @@ class ProjectAppService extends AbstractAppService
         private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
-        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -438,12 +437,12 @@ class ProjectAppService extends AbstractAppService
         //        );
 
         // $workDir = $this->fileDomainService->getFullWorkDir(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId(),
-            (int) $requestDTO->getProjectId(),
-            AgentConstant::SUPER_MAGIC_CODE,
-            AgentConstant::DEFAULT_PROJECT_DIR
-        );
+        //            $dataIsolation->getCurrentOrganizationCode(),
+        //            $dataIsolation->getCurrentUserId(),
+        //            (int) $requestDTO->getProjectId(),
+        //            AgentConstant::SUPER_MAGIC_CODE,
+        //            AgentConstant::DEFAULT_PROJECT_DIR
+        //        );
 
         $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
 

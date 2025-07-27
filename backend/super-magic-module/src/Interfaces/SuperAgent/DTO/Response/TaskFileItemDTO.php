@@ -83,11 +83,6 @@ class TaskFileItemDTO extends AbstractDTO
     public bool $isDirectory = false;
 
     /**
-     * 更新时间.
-     */
-    public string $updatedAt = '';
-
-    /**
      * 文件元数据，解析后的数组.
      */
     public ?array $metadata = null;
@@ -144,7 +139,6 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
         $dto->isHidden = $data['is_hidden'] ?? false;
         $dto->topicId = (string) ($data['topic_id'] ?? '');
-        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->updatedAt = (string) ($data['updated_at'] ?? '');
 
@@ -185,7 +179,6 @@ class TaskFileItemDTO extends AbstractDTO
             'file_url' => $this->fileUrl,
             'is_hidden' => $this->isHidden,
             'topic_id' => $this->topicId,
-            'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
             'updated_at' => $this->updatedAt,
             'metadata' => $this->metadata,
