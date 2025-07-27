@@ -323,7 +323,7 @@ class HandleUserMessageAppService extends AbstractAppService
         // Create sandbox container
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), (string)$taskContext->getTopicId(), $fullWorkdir);
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), (string) $taskContext->getTopicId(), $fullWorkdir);
         // update topic sandbox id
         $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
