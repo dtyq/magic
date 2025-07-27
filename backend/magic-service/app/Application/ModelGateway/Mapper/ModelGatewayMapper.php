@@ -463,19 +463,30 @@ class ModelGatewayMapper extends ModelMapper
         ProviderEntity $providerEntity,
         ModelFilter $filter
     ): ?OdinModel {
-        $checkVisibleOrganization = $filter->isCheckVisibleOrganization() ?? true;
         $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
         $checkVisiblePackage = $filter->isCheckVisiblePackage() ?? true;
 
-        if ($checkVisibleOrganization && $providerModelEntity->getVisibleOrganizations() && ! in_array($providerDataIsolation->getCurrentOrganizationCode(), $providerModelEntity->getVisibleOrganizations(), true)) {
-            return null;
+        // 如果是官方组织的数据隔离，则不需要检查可见性
+        if ($providerDataIsolation->isOfficialOrganization()) {
+            $checkVisibleApplication = false;
+            $checkVisiblePackage = false;
         }
-        if ($checkVisibleApplication && $providerModelEntity->getVisibleApplications() && ! in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true)) {
-            return null;
+
+        // 套餐、应用，采用或的关系
+        $hasVisibleApplications = $checkVisibleApplication && $providerModelEntity->getVisibleApplications();
+        $hasVisiblePackages = $checkVisiblePackage && $providerModelEntity->getVisiblePackages();
+
+        // 如果配置了可见性检查，使用或的关系判断
+        if ($hasVisibleApplications || $hasVisiblePackages) {
+            $applicationVisible = ! $hasVisibleApplications || in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true);
+            $packageVisible = ! $hasVisiblePackages || in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true);
+
+            // 只要满足其中一个条件即可通过
+            if (! ($applicationVisible || $packageVisible)) {
+                return null;
+            }
         }
-        if ($checkVisiblePackage && $providerModelEntity->getVisiblePackages() && ! in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true)) {
-            return null;
-        }
+
         $chat = false;
         $functionCall = false;
         $multiModal = false;
