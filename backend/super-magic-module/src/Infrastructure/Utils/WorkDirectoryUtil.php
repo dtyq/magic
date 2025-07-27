@@ -58,7 +58,8 @@ class WorkDirectoryUtil
 
     public static function getProjectFilePackDir(string $userId, int $projectId): string
     {
-        return self::getRootDir($userId, $projectId) . '/.runtime/pack';
+        $currentDate = date('Ymd');
+        return self::getRootDir($userId, $projectId) . '/.runtime/pack/' . $currentDate . '/';
     }
 
     public static function getFullFileKey(string $prefix, string $workDir, string $path): string

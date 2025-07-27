@@ -825,6 +825,10 @@ class TaskFileDomainService
         }
         $fullPrefix = $this->getFullPrefix($organizationCode);
         $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+        $fileKey = rtrim($fullWorkDir, '/') . '/';
+
+        // Call remote file system
+        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey);
 
         // Create root directory if not exists
         $rootDirEntity = new TaskFileEntity();
@@ -833,7 +837,7 @@ class TaskFileDomainService
         $rootDirEntity->setOrganizationCode($organizationCode);
         $rootDirEntity->setProjectId($projectId);
         $rootDirEntity->setFileName('/');
-        $rootDirEntity->setFileKey(rtrim($fullWorkDir, '/') . '/');
+        $rootDirEntity->setFileKey($fileKey);
         $rootDirEntity->setFileSize(0);
         $rootDirEntity->setFileType(FileType::DIRECTORY->value);
         $rootDirEntity->setIsDirectory(true);
