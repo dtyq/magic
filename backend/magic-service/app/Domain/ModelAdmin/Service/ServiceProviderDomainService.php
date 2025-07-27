@@ -29,6 +29,7 @@ use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderModelsRepository
 use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderOriginalModelsRepository;
 use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderRepository;
 use App\Domain\ModelAdmin\Repository\ValueObject\UpdateConsumerModel;
+use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\Provider\ServiceProviderFactory;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -52,6 +53,7 @@ class ServiceProviderDomainService
         protected TranslatorInterface $translator,
         protected LoggerInterface $logger,
         protected RedisLocker $redisLocker,
+        protected PackageFilterInterface $packageFilter,
     ) {
     }
 
@@ -1151,7 +1153,7 @@ class ServiceProviderDomainService
             return $b->getSort() <=> $a->getSort();
         });
 
-        return array_values($uniqueModels);
+        return $uniqueModels;
     }
 
     /**
@@ -1326,13 +1328,31 @@ class ServiceProviderDomainService
             $models = $this->filterModelsByVisibleApplications($models, $applicationCode);
         }
 
-        // 修改过滤逻辑
+        // 非官方组织下的 magic 服务商
         $isOfficial = ServiceProviderType::from($serviceProviderEntity->getProviderType()) === ServiceProviderType::OFFICIAL;
 
         if ($isOfficial) {
-            $filteredModels = array_filter($models, function ($model) {
-                return $model->getStatus() === Status::ACTIVE->value
+            // 获取当前套餐
+            $currentPackage = $this->packageFilter->getCurrentPackage($serviceProviderConfigEntity->getOrganizationCode());
+
+            $filteredModels = array_filter($models, function ($model) use ($currentPackage) {
+                // 状态过滤
+                $statusValid = $model->getStatus() === Status::ACTIVE->value
                     || ($model->getStatus() === Status::DISABLE->value && $model->getDisabledBy() === DisabledByType::USER->value);
+
+                if (! $statusValid) {
+                    return false;
+                }
+
+                // 套餐可见性过滤
+                if ($currentPackage) {
+                    $visiblePackages = $model->getVisiblePackages();
+                    if (! empty($visiblePackages) && ! in_array($currentPackage, $visiblePackages)) {
+                        return false;
+                    }
+                }
+
+                return true;
             });
             $serviceProviderConfigDTO->setModels(array_values($filteredModels));
         } else {
