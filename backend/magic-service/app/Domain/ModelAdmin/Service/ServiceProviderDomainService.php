@@ -1123,16 +1123,16 @@ class ServiceProviderDomainService
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode, string $currentPackage): array
     {
+        $isOfficeOrganization = $organizationCode === config('office_organization');
+
         // 1. Get models with super magic display state enabled
-        $models = $this->serviceProviderModelsRepository->getSuperMagicDisplayModelsForOrganization($organizationCode);
+        $models = $this->serviceProviderModelsRepository->getSuperMagicDisplayModelsForOrganization($organizationCode, $isOfficeOrganization);
 
         // 2. Get all models under Magic service provider for current organization
         $magicServiceProvider = $this->serviceProviderRepository->getOfficial(ServiceProviderCategory::LLM);
         if (! $magicServiceProvider) {
             return $models;
         }
-
-        $isOfficeOrganization = $organizationCode === config('office_organization');
 
         $superMagicModels = [];
         foreach ($models as $model) {

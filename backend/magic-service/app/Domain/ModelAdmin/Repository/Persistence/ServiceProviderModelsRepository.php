@@ -600,12 +600,16 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
      * @param string $organizationCode Organization code
      * @return ServiceProviderModelsEntity[]
      */
-    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode, bool $isOfficeOrganization = false): array
     {
         $query = $this->serviceProviderModelsModel::query()
             ->where('super_magic_display_state', 1)
             ->where('organization_code', $organizationCode)
             ->where('status', Status::ACTIVE->value);
+
+        if (! $isOfficeOrganization) {
+            $query->where('is_office', true);
+        }
 
         return $this->executeQueryAndToEntities($query);
     }
