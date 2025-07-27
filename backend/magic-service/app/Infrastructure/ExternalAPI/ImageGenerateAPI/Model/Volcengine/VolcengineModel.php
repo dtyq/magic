@@ -127,7 +127,7 @@ class VolcengineModel implements ImageGenerate
                     // 提交任务（带重试）
                     $taskId = $this->submitAsyncTask($imageGenerateRequest, $isImageToImage);
                     // 轮询结果（带重试）
-                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel(), $imageGenerateRequest->getOrganizationCode(), $imageGenerateRequest);
+                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest);
 
                     return [
                         'success' => true,
@@ -284,8 +284,10 @@ class VolcengineModel implements ImageGenerate
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
     )]
-    private function pollTaskResult(string $taskId, string $model, string $organizationCode, VolcengineModelRequest $imageGenerateRequest): array
+    private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
+        $model = $imageGenerateRequest->getModel();
+        $organizationCode = $imageGenerateRequest->getOrganizationCode();
         $reqKey = $model;
         $retryCount = 0;
 

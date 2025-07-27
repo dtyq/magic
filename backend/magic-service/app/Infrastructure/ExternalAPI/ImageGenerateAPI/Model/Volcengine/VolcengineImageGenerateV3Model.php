@@ -115,7 +115,7 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
                 // 提交任务（带重试）
                 $taskId = $this->submitAsyncTask($imageGenerateRequest);
                 // 轮询结果（带重试）
-                $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel(), $imageGenerateRequest->getOrganizationCode(), $imageGenerateRequest);
+                $result = $this->pollTaskResult($taskId, $imageGenerateRequest);
 
                 $rawResults[] = [
                     'success' => true,
@@ -222,9 +222,10 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         }
     }
 
-    private function pollTaskResult(string $taskId, string $model, string $organizationCode, VolcengineModelRequest $imageGenerateRequest): array
+    private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
-        $reqKey = $model;
+        $organizationCode = $imageGenerateRequest->getOrganizationCode();
+        $reqKey = $imageGenerateRequest->getModel();
         $retryCount = 0;
 
         $reqJson = ['return_url' => true];
