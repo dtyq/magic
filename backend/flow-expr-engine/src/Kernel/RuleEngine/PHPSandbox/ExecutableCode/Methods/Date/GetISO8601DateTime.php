@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\FlowExprEngine\Kernel\RuleEngine\PHPSandbox\ExecutableCode\Methods\Date;
 
+use DateTime;
+use DateTimeZone;
 use Dtyq\FlowExprEngine\Kernel\RuleEngine\PHPSandbox\ExecutableCode\Methods\AbstractMethod;
 
 class GetISO8601DateTime extends AbstractMethod
@@ -19,7 +21,7 @@ class GetISO8601DateTime extends AbstractMethod
 
     protected string $group = '日期/时间';
 
-    protected string $desc = '获取ISO 8601格式的日期和时间;如：2021-01-01T00:00:00';
+    protected string $desc = '获取ISO 8601格式的日期和时间（UTC时间）;如：2021-01-01T00:00:00Z';
 
     protected array $args = [
         [
@@ -36,7 +38,13 @@ class GetISO8601DateTime extends AbstractMethod
             if (is_string($time)) {
                 $time = strtotime($time) ?: time();
             }
-            return date('Y-m-d\TH:i:s', $time);
+
+            // Create DateTime object from timestamp and convert to UTC
+            $datetime = new DateTime('@' . $time);
+            $datetime->setTimezone(new DateTimeZone('UTC'));
+
+            // Format as ISO 8601 with UTC timezone (Z suffix)
+            return $datetime->format('Y-m-d\TH:i:s\Z');
         };
     }
 }

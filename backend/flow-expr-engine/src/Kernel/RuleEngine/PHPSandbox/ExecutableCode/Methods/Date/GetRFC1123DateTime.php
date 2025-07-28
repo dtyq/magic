@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\FlowExprEngine\Kernel\RuleEngine\PHPSandbox\ExecutableCode\Methods\Date;
 
+use DateTime;
+use DateTimeZone;
 use Dtyq\FlowExprEngine\Kernel\RuleEngine\PHPSandbox\ExecutableCode\Methods\AbstractMethod;
 
 class GetRFC1123DateTime extends AbstractMethod
@@ -36,7 +38,13 @@ class GetRFC1123DateTime extends AbstractMethod
             if (is_string($time)) {
                 $time = strtotime($time) ?: time();
             }
-            return date('D, d M Y H:i:s \G\M\T', $time);
+
+            // Create DateTime object from timestamp and set to UTC
+            $datetime = new DateTime('@' . $time);
+            $datetime->setTimezone(new DateTimeZone('UTC'));
+
+            // Format as RFC 1123 with proper GMT suffix
+            return $datetime->format('D, d M Y H:i:s') . ' GMT';
         };
     }
 }
