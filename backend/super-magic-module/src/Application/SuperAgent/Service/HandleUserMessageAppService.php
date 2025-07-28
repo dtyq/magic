@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -59,6 +61,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
@@ -361,8 +364,15 @@ class HandleUserMessageAppService extends AbstractAppService
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
+        // user long term memory
+        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
+            $dataIsolation->getCurrentOrganizationCode(),
+            AppCodeEnum::SUPER_MAGIC->value,
+            $dataIsolation->getCurrentUserId(),
+        );
+
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
