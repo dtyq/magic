@@ -43,6 +43,8 @@ class FilesystemProxy extends Filesystem
 
     private string $publicDomain = '';
 
+    private array $options = [];
+
     private array $simpleUploadsMap = [
         AdapterName::ALIYUN => AliyunSimpleUpload::class,
         AdapterName::TOS => TosSimpleUpload::class,
@@ -147,6 +149,7 @@ class FilesystemProxy extends Filesystem
     public function listObjectsByCredential(CredentialPolicy $credentialPolicy, string $prefix = '', array $options = []): array
     {
         $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('list_objects');
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         return $this->getSimpleUploadInstance($this->adapterName)->listObjectsByCredential($credential, $prefix, $options);
     }
@@ -161,6 +164,7 @@ class FilesystemProxy extends Filesystem
     public function deleteObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): void
     {
         $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('del_objects');
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         $object = $this->getSimpleUploadInstance($this->adapterName);
         $object->deleteObjectByCredential($credential, $objectKey, $options);
@@ -302,6 +306,7 @@ class FilesystemProxy extends Filesystem
      * @param string $objectKey 对象键
      * @param array $options 额外选项
      * @return array 对象元数据
+     * @throws CloudFileException
      */
     public function getHeadObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): array
     {
@@ -352,6 +357,16 @@ class FilesystemProxy extends Filesystem
     public function setIsPublicRead(bool $isPublicRead): void
     {
         $this->isPublicRead = $isPublicRead;
+    }
+
+    public function setOptions(array $options): void
+    {
+        $this->options = $options;
+    }
+
+    public function getOptions(): array
+    {
+        return $this->options;
     }
 
     protected function initSimpleUpload(): void

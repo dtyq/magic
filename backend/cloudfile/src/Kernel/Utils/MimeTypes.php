@@ -3681,4 +3681,9 @@ final class MimeTypes
     {
         return self::REVERSE_MAP[$ext] ?? self::REVERSE_MAP[strtolower($ext)] ?? [];
     }
+
+    public static function getMimeType(string $ext): string
+    {
+        return self::getMimeTypes($ext)[0] ?? 'application/octet-streams';
+    }
 }

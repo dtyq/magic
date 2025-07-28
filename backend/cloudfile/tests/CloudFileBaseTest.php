@@ -9,14 +9,16 @@ namespace Dtyq\CloudFile\Tests;
 
 use Dtyq\CloudFile\CloudFile;
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
+use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\SdkBase\SdkBase;
+use Exception;
 use PHPUnit\Framework\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class CloudFileBaseTest extends TestCase
+abstract class CloudFileBaseTest extends TestCase
 {
     public function setUp(): void
     {
@@ -43,5 +45,35 @@ class CloudFileBaseTest extends TestCase
         ]);
 
         return new CloudFile($container);
+    }
+
+    /**
+     * Get filesystem instance for testing.
+     * Subclasses should implement getStorageName() to define which storage config to use.
+     */
+    protected function getFilesystem(): FilesystemProxy
+    {
+        try {
+            $easyFile = $this->createCloudFile();
+            return $easyFile->get($this->getStorageName());
+        } catch (Exception $e) {
+            $this->skipTestDueToMissingConfig($this->getStorageName() . ' configuration not available: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get the storage configuration name for this test class.
+     * Must be implemented by subclasses.
+     */
+    abstract protected function getStorageName(): string;
+
+    /**
+     * Skip test due to missing configuration.
+     *
+     * @return never
+     */
+    protected function skipTestDueToMissingConfig(string $message): void
+    {
+        $this->markTestSkipped($message);
     }
 }

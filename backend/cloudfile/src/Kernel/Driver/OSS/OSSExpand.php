@@ -68,9 +68,6 @@ class OSSExpand implements ExpandInterface
         return $list;
     }
 
-    /**
-     * @phpstan-ignore-next-line (FileAttributes is compatible with expected return type)
-     */
     public function getMetas(array $paths, array $options = []): array
     {
         $list = [];
@@ -420,7 +417,8 @@ class OSSExpand implements ExpandInterface
     private function signUrl(string $path, int $timeout = 60, string $downloadName = '', array $options = []): string
     {
         if (! empty($downloadName)) {
-            $options['response-content-disposition'] = 'attachment;filename="' . $downloadName . '"';
+            $downloadName = rawurlencode($downloadName);
+            $options['response-content-disposition'] = 'attachment;filename="' . $downloadName . '";filename*=utf-8\'\'' . $downloadName;
         }
         // 如果是图片，做图片处理
         if (EasyFileTools::isImage($path) && ! empty($options['image']['process'])) {
@@ -499,29 +497,70 @@ class OSSExpand implements ExpandInterface
         AlibabaCloud::accessKeyClient($this->config['accessId'], $this->config['accessSecret'])->regionId(ltrim($region, 'oss-'))->asDefaultClient();
 
         // 目录限制
+        $dir = $credentialPolicy->getDir();
         $resource = "{$this->config['bucket']}/";
         if (! empty($credentialPolicy->getDir())) {
             $resource = $resource . $credentialPolicy->getDir();
         }
 
-        // 限制上传策略
-        $stsPolicy = [
-            'Statement' => [
-                [
-                    'Action' => [
-                        'oss:PutObject',
-                        'oss:AbortMultipartUpload',
-                        'oss:GetObject',
-                        'oss:ListParts',
-                        'oss:GetObjectMeta',
+        // https://help.aliyun.com/zh/oss/user-guide/ram-policy-overview/?spm=a2c4g.11186623.0.0.746d67e8gIGwZH#concept-y5r-5rm-2gb
+        $stsPolicy = match ($credentialPolicy->getStsType()) {
+            'list_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'oss:ListObjects',
+                            'oss:ListObjectVersions',
+                        ],
+                        'Resource' => [
+                            "acs:oss:*:*:{$this->bucket}",
+                        ],
+                        'Condition' => [
+                            'StringLike' => [
+                                'oss:Prefix' => [
+                                    "{$dir}",
+                                    "{$dir}*",
+                                ],
+                            ],
+                        ],
+                        'Effect' => 'Allow',
                     ],
-                    'Resource' => [
-                        "acs:oss:*:*:{$resource}*",
-                    ],
-                    'Effect' => 'Allow',
                 ],
             ],
-        ];
+            'del_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'oss:DeleteObject',
+                            'oss:DeleteObjectVersion',
+                            'oss:DeleteObjectTagging',
+                            'oss:DeleteObjectVersionTagging',
+                        ],
+                        'Resource' => [
+                            "acs:oss:*:*:{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+            default => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'oss:PutObject',
+                            'oss:AbortMultipartUpload',
+                            'oss:GetObject',
+                            'oss:ListParts',
+                            'oss:GetObjectMeta',
+                        ],
+                        'Resource' => [
+                            "acs:oss:*:*:{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+        };
 
         $sts = Sts::v20150401()->assumeRole([
             'query' => [

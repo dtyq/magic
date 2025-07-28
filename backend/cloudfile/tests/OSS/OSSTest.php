@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\CloudFile\Tests\OSS;
 
-use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\CloudFile\Tests\CloudFileBaseTest;
@@ -27,16 +26,20 @@ class OSSTest extends CloudFileBaseTest
             'roleSessionName' => 'test',
         ]);
         $res = $filesystem->getUploadTemporaryCredential($credentialPolicy);
-        $this->assertArrayHasKey('signature', $res);
-        $this->assertArrayHasKey('expires', $res);
+        $this->assertArrayHasKey('temporary_credential', $res);
+
+        $credential = $res['temporary_credential'];
+        $this->assertArrayHasKey('signature', $credential);
+        $this->assertArrayHasKey('expires', $credential);
 
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,
             'roleSessionName' => 'test',
         ]);
         $res = $filesystem->getUploadTemporaryCredential($credentialPolicy);
-        $this->assertArrayHasKey('sts_token', $res);
-        $this->assertArrayHasKey('expires', $res);
+        $credential = $res['temporary_credential'];
+        $this->assertArrayHasKey('sts_token', $credential);
+        $this->assertArrayHasKey('expires', $credential);
     }
 
     public function testUpload()
@@ -45,7 +48,7 @@ class OSSTest extends CloudFileBaseTest
 
         $realPath = __DIR__ . '/../test.txt';
 
-        $uploadFile = new UploadFile($realPath, 'easy-file');
+        $uploadFile = new UploadFile($realPath, 'easy-file', '', false);
         $filesystem->upload($uploadFile);
         $this->assertTrue(true);
     }
@@ -136,9 +139,8 @@ class OSSTest extends CloudFileBaseTest
         $this->assertIsString($path);
     }
 
-    private function getFilesystem(): FilesystemProxy
+    protected function getStorageName(): string
     {
-        $easyFile = $this->createCloudFile();
-        return $easyFile->get('aliyun_test');
+        return 'aliyun_test';
     }
 }

@@ -13,6 +13,7 @@ use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\CloudFile\Kernel\Utils\CurlHelper;
+use Dtyq\CloudFile\Kernel\Utils\MimeTypes;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
 use Throwable;
 use Tos\Exception\TosClientException;
@@ -365,7 +366,9 @@ class TosSimpleUpload extends SimpleUpload
             // Prepare list objects input
             $listInput = new ListObjectsInput($sdkConfig['bucket']);
             $listInput->setPrefix($prefix);
-            $listInput->setDelimiter($options['delimiter']);
+            if (isset($options['delimiter'])) {
+                $listInput->setDelimiter($options['delimiter']);
+            }
 
             // Set marker for pagination
             if (isset($options['marker'])) {
@@ -759,7 +762,7 @@ class TosSimpleUpload extends SimpleUpload
             } else {
                 // For files, try to determine content type from extension
                 $extension = pathinfo($objectKey, PATHINFO_EXTENSION);
-                $contentType = $this->getContentTypeByExtension($extension);
+                $contentType = MimeTypes::getMimeType($extension);
                 $putInput->setContentType($contentType);
             }
 
