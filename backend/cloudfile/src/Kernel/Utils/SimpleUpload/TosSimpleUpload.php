@@ -357,7 +357,9 @@ class TosSimpleUpload extends SimpleUpload
             // Prepare list objects input
             $listInput = new ListObjectsInput($sdkConfig['bucket']);
             $listInput->setPrefix($prefix);
-            $listInput->setDelimiter($options['delimiter']);
+            if (isset($options['delimiter'])) {
+                $listInput->setDelimiter($options['delimiter']);
+            }
 
             // Set marker for pagination
             if (isset($options['marker'])) {

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\CloudFile\Tests\TOS;
 
+use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -27,17 +28,20 @@ class TOSTest extends CloudFileBaseTest
             'roleSessionName' => 'test',
         ]);
         $res = $filesystem->getUploadTemporaryCredential($credentialPolicy);
-        $this->assertArrayHasKey('x-tos-signature', $res);
-        $this->assertArrayHasKey('expires', $res);
-        var_dump($res);
+        $this->assertArrayHasKey('temporary_credential', $res);
+
+        $credential = $res['temporary_credential'];
+        $this->assertArrayHasKey('x-tos-signature', $credential);
+        $this->assertArrayHasKey('expires', $credential);
 
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,
             'roleSessionName' => 'test',
         ]);
         $res = $filesystem->getUploadTemporaryCredential($credentialPolicy);
-        $this->assertArrayHasKey('credentials', $res);
-        $this->assertArrayHasKey('expires', $res);
+        $credential = $res['temporary_credential'];
+        $this->assertArrayHasKey('credentials', $credential);
+        $this->assertArrayHasKey('expires', $credential);
     }
 
     public function testUpload()

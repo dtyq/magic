@@ -147,6 +147,7 @@ class FilesystemProxy extends Filesystem
     public function listObjectsByCredential(CredentialPolicy $credentialPolicy, string $prefix = '', array $options = []): array
     {
         $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('list_objects');
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         return $this->getSimpleUploadInstance($this->adapterName)->listObjectsByCredential($credential, $prefix, $options);
     }
@@ -161,6 +162,7 @@ class FilesystemProxy extends Filesystem
     public function deleteObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): void
     {
         $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('del_objects');
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         $object = $this->getSimpleUploadInstance($this->adapterName);
         $object->deleteObjectByCredential($credential, $objectKey, $options);
