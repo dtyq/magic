@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a2ebfad4ac044f2ac0eb8b459d0eb0ac",
+    "content-hash": "f2dce0a44d98bb91ca2d5a560dd74a07",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1982,16 +1982,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "dev-enterprise-master",
+            "version": "dev-master",
             "source": {
                 "type": "git",
-                "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "bcc383e1b972275ad3bbfc84681c5f49f1cd3fa2"
+                "url": "https://github.com/dtyq/cloudfile.git",
+                "reference": "d2c5e8d70f99df976c14f611e51a9ebc3583a726"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=bcc383e1b972275ad3bbfc84681c5f49f1cd3fa2",
-                "reference": "bcc383e1b972275ad3bbfc84681c5f49f1cd3fa2",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/d2c5e8d70f99df976c14f611e51a9ebc3583a726",
+                "reference": "d2c5e8d70f99df976c14f611e51a9ebc3583a726",
                 "shasum": ""
             },
             "require": {
@@ -2025,6 +2025,7 @@
                 "volcengine/volc-sdk-php": "^1.0",
                 "xxtime/flysystem-aliyun-oss": "^1.6"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -2066,9 +2067,10 @@
             ],
             "description": "Package description here.",
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
+                "source": "https://github.com/dtyq/cloudfile/tree/master",
+                "issues": "https://github.com/dtyq/cloudfile/issues"
             },
-            "time": "2025-07-27T13:09:33+08:00"
+            "time": "2025-07-28T13:51:16+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2211,12 +2213,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "c4b2ba2e05159401fe316e4cda0dfcb22ad47c99"
+                "reference": "32d1b274cd70359e2df18d78b50086aa7b6b4669"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c4b2ba2e05159401fe316e4cda0dfcb22ad47c99",
-                "reference": "c4b2ba2e05159401fe316e4cda0dfcb22ad47c99",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=32d1b274cd70359e2df18d78b50086aa7b6b4669",
+                "reference": "32d1b274cd70359e2df18d78b50086aa7b6b4669",
                 "shasum": ""
             },
             "require": {
@@ -2319,7 +2321,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-28T14:46:54+08:00"
+            "time": "2025-07-28T18:13:11+08:00"
         },
         {
             "name": "dtyq/php-mcp",
