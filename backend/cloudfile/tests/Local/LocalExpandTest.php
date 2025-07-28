@@ -112,10 +112,11 @@ class LocalExpandTest extends TestCase
         $links = $this->localExpand->getFileLinks(['test.txt'], ['custom_name.txt']);
 
         $this->assertCount(1, $links);
-        $this->assertInstanceOf(FileLink::class, $links[0]);
-        $this->assertEquals('test.txt', $links[0]->getPath());
-        $this->assertEquals('http://read.example.com/test.txt', $links[0]->getUrl());
-        $this->assertEquals('custom_name.txt', $links[0]->getDownloadName());
+        $firstLink = current($links);
+        $this->assertInstanceOf(FileLink::class, $firstLink);
+        $this->assertEquals('test.txt', $firstLink->getPath());
+        $this->assertEquals('http://read.example.com/test.txt', $firstLink->getUrl());
+        $this->assertEquals('custom_name.txt', $firstLink->getDownloadName());
     }
 
     public function testDestroy(): void

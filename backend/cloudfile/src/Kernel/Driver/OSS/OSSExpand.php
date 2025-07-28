@@ -417,7 +417,8 @@ class OSSExpand implements ExpandInterface
     private function signUrl(string $path, int $timeout = 60, string $downloadName = '', array $options = []): string
     {
         if (! empty($downloadName)) {
-            $options['response-content-disposition'] = 'attachment;filename="' . $downloadName . '"';
+            $downloadName = rawurlencode($downloadName);
+            $options['response-content-disposition'] = 'attachment;filename="' . $downloadName . '";filename*=utf-8\'\'' . $downloadName;
         }
         // 如果是图片，做图片处理
         if (EasyFileTools::isImage($path) && ! empty($options['image']['process'])) {

@@ -180,7 +180,12 @@ class AliyunSimpleUpload extends SimpleUpload
      */
     public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
     {
-        $object = $credential['dir'] . $appendUploadFile->getKeyPath();
+        // Handle FileService credential structure (temporary_credential wrapper)
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
+        $object = ($credential['dir'] ?? '') . $appendUploadFile->getKeyPath();
 
         // Check required parameters
         if (! isset($credential['host']) || ! isset($credential['dir']) || ! isset($credential['access_key_id']) || ! isset($credential['access_key_secret'])) {
