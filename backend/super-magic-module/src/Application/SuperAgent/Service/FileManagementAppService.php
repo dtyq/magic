@@ -299,6 +299,16 @@ class FileManagementAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
             }
 
+            // 如果 parent_id 为空，则设置为根目录
+            if (empty($parentId)) {
+                $parentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    $projectId,
+                    $projectEntity->getWorkDir(),
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+            }
+
             // 通过领域服务计算排序值
             $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
                 $parentId === 0 ? null : $parentId,

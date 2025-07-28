@@ -321,42 +321,26 @@ class ProjectAppService extends AbstractAppService
 
     public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array
     {
-        $userAuthorization = $requestContext->getUserAuthorization();
+        //        $userAuthorization = $requestContext->getUserAuthorization();
 
-        $projectEntity = $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
+        //        $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
         // 通过领域服务获取话题附件列表
-        $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
-            (int) $projectEntity->getCurrentTopicId(),
-            $dataIsolation,
-            1,
-            2000
-        );
+        //        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
+        //            (int) $projectId,
+        //            $dataIsolation,
+        //            1,
+        //            2000
+        //        );
 
         $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
-        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
-        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
-        # #检测git version 跟database 的files表是否匹配
-        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, $dataIsolation->getCurrentOrganizationCode(), (string) $taskEntity->getId(), $topicEntity->getSandboxId());
-        if ($result) {
-            $lastUpdatedAt = date('Y-m-d H:i:s');
-        }
-        // 通过领域服务获取话题附件列表
-        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
-            (int) $projectId,
-            $dataIsolation,
-            1,
-            2000
-        );
-
-        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
-        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
-        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
-        # #检测git version 跟database 的files表是否匹配
-        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, (string) $taskEntity->getId(), $topicEntity->getSandboxId(), $dataIsolation->getCurrentOrganizationCode());
-        if ($result) {
-            $lastUpdatedAt = date('Y-m-d H:i:s');
-        }
+        //        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
+        //        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
+        //        # #检测git version 跟database 的files表是否匹配
+        //        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, (string) $taskEntity->getId(), $topicEntity->getSandboxId(), $dataIsolation->getCurrentOrganizationCode());
+        //        if ($result) {
+        //            $lastUpdatedAt = date('Y-m-d H:i:s');
+        //        }
         return [
             'last_updated_at' => $lastUpdatedAt,
         ];
@@ -426,15 +410,7 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getFileType()
         );
 
-        //        $fullWorkDir = $this->fileDomainService->getFullWorkDir(
-        //            $dataIsolation->getCurrentOrganizationCode(),
-        //            $dataIsolation->getCurrentUserId(),
-        //            (int) $requestDTO->getProjectId(),
-        //            AgentConstant::SUPER_MAGIC_CODE,
-        //            AgentConstant::DEFAULT_PROJECT_DIR
-        //        );
-
-        // $workDir = $this->fileDomainService->getFullWorkDir(
+        //        $workDir = $this->fileDomainService->getFullWorkDir(
         //            $dataIsolation->getCurrentOrganizationCode(),
         //            $dataIsolation->getCurrentUserId(),
         //            (int) $requestDTO->getProjectId(),
