@@ -284,4 +284,16 @@ class FileApi extends AbstractApi
         // 调用应用服务
         return $this->fileProcessAppService->saveProjectFile($requestContext, $requestDTO);
     }
+
+    /**
+     * Get file name by file ID.
+     *
+     * @param int $id File ID
+     * @return array File name response
+     */
+    public function getFileByName(int $id): array
+    {
+        // Call app service to get file name
+        return $this->fileProcessAppService->getFileNameById($id);
+    }
 }

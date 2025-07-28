@@ -19,6 +19,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -35,6 +37,7 @@ use RuntimeException;
 class TaskDomainService
 {
     public function __construct(
+        protected ProjectRepositoryInterface $projectRepository,
         protected TopicRepositoryInterface $topicRepository,
         protected TaskRepositoryInterface $taskRepository,
         protected TaskMessageRepositoryInterface $messageRepository,
@@ -50,49 +53,40 @@ class TaskDomainService
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
+     * @param TaskEntity $taskEntity Task entity
+     * @param string $topicMode Topic mode
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
-    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity, string $topicMode = ''): TaskEntity
     {
         // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
-        $topicId = $topicEntity->getId();
 
         // Get task mode from DTO, fallback to topic's task mode if empty
-        // $taskMode = $userMessageDTO->getTaskMode();
-        // if ($taskMode === '') {
-        //     $taskMode = $topicEntity->getTaskMode();
-        // }
-
-        // Create new task entity
-        // $taskEntity = new TaskEntity([
-        //     'user_id' => $userId,
-        //     'workspace_id' => $topicEntity->getWorkspaceId(),
-        //     'project_id' => $topicEntity->getProjectId(),
-        //     'topic_id' => $topicId,
-        //     'task_id' => '', // Initially empty, this is agent's task id
-        //     'task_mode' => $taskMode,
-        //     'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
-        //     'prompt' => $userMessageDTO->getPrompt(),
-        //     'attachments' => $userMessageDTO->getAttachments(),
-        //     'mentions' => $userMessageDTO->getMentions(),
-        //     'task_status' => TaskStatus::WAITING->value,
-        //     'work_dir' => $topicEntity->getWorkDir() ?? '',
-        //     'created_at' => date('Y-m-d H:i:s'),
-        //     'updated_at' => date('Y-m-d H:i:s'),
-        // ]);
+        if ($topicMode === '') {
+            $topicMode = $topicEntity->getTopicMode();
+        }
+        // if project mode is empty and topic mode is data analysis, set project mode to data analysis
+        $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
+        if (empty($projectEntity->getProjectMode())) {
+            $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => $topicMode, 'updated_at' => date('Y-m-d H:i:s')]);
+        } elseif ($projectEntity->getProjectMode() === TopicMode::DATA_ANALYSIS->value) {
+            // fixed the topic mode
+            $topicMode = TopicMode::DATA_ANALYSIS->value;
+        }
 
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
-
         // Update topic's current task ID and status
         $topicEntity->setCurrentTaskId($taskEntity->getId());
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
         $topicEntity->setTaskMode($taskEntity->getTaskMode());
-        $topicEntity->setTopicMode($topicEntity->getTopicMode());
+        if (empty($topicEntity->getTopicMode())) {
+            $topicEntity->setTopicMode($topicMode);
+        }
         $this->topicRepository->updateTopic($topicEntity);
 
         return $taskEntity;

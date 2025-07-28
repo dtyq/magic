@@ -131,6 +131,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/versions', [FileApi::class, 'getFileVersions']);
         // 获取文件版本内容
         Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
+        // 根据文件id获取文件名称
+        Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
     });
 });
 
