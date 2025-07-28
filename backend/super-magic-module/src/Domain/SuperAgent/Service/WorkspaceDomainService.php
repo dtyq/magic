@@ -784,7 +784,7 @@ class WorkspaceDomainService
     /**
      * 通过commit hash 和话题id 获取版本后，根据dir 文件列表，过滤result.
      */
-    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode = ''): array
+    public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode, string $workDir = ''): array
     {
         $dir = '.workspace';
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
@@ -813,11 +813,19 @@ class WorkspaceDomainService
             return true;
         });
 
-        # 遍历$result ，如果$result 的file_key 在$dir 中， dir中保存的是file_key 中一部分，需要使用字符串匹配，如果存在则保持在一个临时数组
         $gitVersionResult = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
-                if (strpos($item['file_key'], $dirItem) !== false) {
+                // strpos函数的作用是检查字符串是否包含某个关键词： 如果A文件 包含 B文件 包含全部相同的字符串，则会认为两个文件是同一个文件,因此会存在误判
+                // if (strpos($item['file_key'], $dirItem) !== false) {
+                //     $gitVersionResult[] = $item;
+                // }
+
+                // 调整为完全匹配
+                $fullFilePath = $workDir . '/' . $dirItem;
+                $fullFileAndWorkSpacePath = $workDir . '/workspace/' . $dirItem;
+
+                if ($fullFilePath == $item['file_key'] || $fullFileAndWorkSpacePath == $item['file_key']) {
                     $gitVersionResult[] = $item;
                 }
             }

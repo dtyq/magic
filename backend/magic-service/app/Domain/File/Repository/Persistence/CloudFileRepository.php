@@ -308,6 +308,19 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         }
     }
 
+    public function getFullPrefix(string $organizationCode): string
+    {
+        $md5Key = md5(StorageBucketType::Private->value);
+        $appId = 'open';
+
+        return "{$organizationCode}/{$appId}/{$md5Key}" . '/';
+    }
+
+    public function generateWorkDir(string $userId, int $projectId, string $code = 'magic', string $lastPath = 'project'): string
+    {
+        return sprintf('/%s/%s/%s_%d', $code, $userId, $lastPath, $projectId);
+    }
+
     protected function getOptions(string $organizationCode, array $options = []): array
     {
         $defaultOptions = [
