@@ -28,7 +28,7 @@ class UserMessageDTO
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
-        private readonly array $mcpConfig = [],
+        private array $mcpConfig = [],
     ) {
     }
 

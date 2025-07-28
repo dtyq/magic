@@ -10,6 +10,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SuperAgentMemoryApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
@@ -117,7 +118,12 @@ Router::addGroup('/api/v1/super-agent', static function () {
     Router::post('/tasks/get-file-url', [TaskApi::class, 'getFileUrls']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
-
+    // 长期记忆管理（沙箱token验证已移到API层内部）
+    Router::addGroup('/memories', static function () {
+        Router::post('', [SuperAgentMemoryApi::class, 'createMemory']);
+        Router::put('/{id}', [SuperAgentMemoryApi::class, 'updateMemory']);
+        Router::delete('/{id}', [SuperAgentMemoryApi::class, 'deleteMemory']);
+    });
     // 文件相关
     Router::addGroup('/file', static function () {
         // 刷新 STS Token (提供 super - magic 使用， 通过 metadata 换取目录信息)
