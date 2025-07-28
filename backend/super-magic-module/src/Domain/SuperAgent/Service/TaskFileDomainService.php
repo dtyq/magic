@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -828,7 +829,8 @@ class TaskFileDomainService
         $fileKey = rtrim($fullWorkDir, '/') . '/';
 
         // Call remote file system
-        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey);
+        $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
+        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, StorageBucketType::Private, ['metadata' => $metadata]);
 
         // Create root directory if not exists
         $rootDirEntity = new TaskFileEntity();
