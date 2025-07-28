@@ -23,6 +23,9 @@ class LongTermMemoryAssembler
         if ($dto->content !== null) {
             $entity->setContent($dto->content);
         }
+        if ($dto->pendingContent !== null) {
+            $entity->setPendingContent($dto->pendingContent);
+        }
         if ($dto->explanation !== null) {
             $entity->setExplanation($dto->explanation);
         }
@@ -43,6 +46,10 @@ class LongTermMemoryAssembler
         }
         if ($dto->metadata !== null) {
             $entity->setMetadata($dto->metadata);
+        }
+        // enabled 放在最后设置，确保 status 已经正确设置
+        if ($dto->enabled !== null) {
+            $entity->setEnabled($dto->enabled);
         }
         if ($dto->expiresAt !== null) {
             $entity->setExpiresAt($dto->expiresAt);

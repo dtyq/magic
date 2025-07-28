@@ -9,10 +9,12 @@ namespace App\Interfaces\LongTermMemory\Facade;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\LongTermMemory\DTO\EvaluateConversationRequestDTO;
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\LongTermMemory\Service\LongTermMemoryAppService;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
 use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
+use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Infrastructure\Core\AbstractApi;
@@ -26,11 +28,13 @@ use Hyperf\Validation\Rule;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
+use function Hyperf\Translation\trans;
+
 /**
- * 长期记忆 HTTP API.
+ * 长期记忆后台管理 API.
  */
 #[ApiResponse('low_code')]
-class LongTermMemoryHttpApi extends AbstractApi
+class LongTermMemoryAdminApi extends AbstractApi
 {
     use MagicUserAuthorizationTrait;
 
@@ -104,58 +108,24 @@ class LongTermMemoryHttpApi extends AbstractApi
      */
     public function updateMemory(string $memoryId, RequestInterface $request): array
     {
-        $params = $request->all();
-        $rules = [
-            'content' => 'string|max:65535',
-            'status' => ['string', Rule::enum(MemoryStatus::class)],
-        ];
-
-        $validatedParams = $this->checkParams($params, $rules);
+        // 1. 参数验证
+        $validatedParams = $this->validateUpdateMemoryParams($request);
         $authorization = $this->getAuthorization();
 
-        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
-            $memoryId,
-            $authorization->getOrganizationCode(),
-            $authorization->getApplicationCode(),
-            $authorization->getId()
-        )) {
-            return [
-                'success' => false,
-                'message' => '记忆不存在或无权限访问',
-            ];
+        // 2. 权限检查
+        $ownershipValidation = $this->validateMemoryOwnership($memoryId, $authorization);
+        if (! $ownershipValidation['success']) {
+            return $ownershipValidation;
         }
 
-        $originContent = $content = $validatedParams['content'] ?? null;
+        // 3. 处理内容更新
+        $processResult = $this->processContentUpdate(
+            $validatedParams['content'] ?? null,
+            $authorization
+        );
 
-        $shouldRemember = null;
-
-        // 如果传入了content，则调用shouldRememberContent处理
-        if ($content !== null) {
-            $dto = new EvaluateConversationRequestDTO([
-                'conversationContent' => '用户要求一定要记住：' . $content,
-                'appId' => $authorization->getApplicationCode(),
-            ]);
-
-            $shouldRemember = $this->longTermMemoryAppService->shouldRememberContent(
-                $this->longTermMemoryAppService->getChatModel($authorization),
-                $dto
-            );
-
-            // 如果判断应该记忆，则使用处理后的内容，否则使用原内容
-            if ($shouldRemember->remember) {
-                $content = $shouldRemember->memory;
-            }
-        }
-
-        // 构建DTO，只包含需要更新的字段，传入null的字段不会被更新
-        $dto = new UpdateMemoryDTO([
-            'content' => $content,
-            'explanation' => $shouldRemember->explanation ?? null,
-            'originText' => mb_strlen($originContent ?? '') > 100 ? $originContent : null,
-            'status' => $validatedParams['status'] ?? null,
-            'tags' => $shouldRemember->tags ?? null,
-        ]);
-
+        // 4. 构建更新DTO并执行更新
+        $dto = $this->buildUpdateMemoryDTO($processResult);
         $this->longTermMemoryAppService->updateMemory($memoryId, $dto);
 
         return [
@@ -172,15 +142,15 @@ class LongTermMemoryHttpApi extends AbstractApi
         $authorization = $this->getAuthorization();
 
         // 检查权限
-        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
-            $memoryId,
+        if (! $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            [$memoryId],
             $authorization->getOrganizationCode(),
             $authorization->getApplicationCode(),
             $authorization->getId()
         )) {
             return [
                 'success' => false,
-                'message' => '记忆不存在或无权限访问',
+                'message' => trans('long_term_memory.api.memory_not_belong_to_user'),
             ];
         }
 
@@ -200,15 +170,15 @@ class LongTermMemoryHttpApi extends AbstractApi
         $authorization = $this->getAuthorization();
 
         // 检查权限
-        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
-            $memoryId,
+        if (! $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            [$memoryId],
             $authorization->getOrganizationCode(),
             $authorization->getApplicationCode(),
             $authorization->getId()
         )) {
             return [
                 'success' => false,
-                'message' => '记忆不存在或无权限访问',
+                'message' => trans('long_term_memory.api.memory_not_belong_to_user'),
             ];
         }
 
@@ -219,6 +189,7 @@ class LongTermMemoryHttpApi extends AbstractApi
             'data' => [
                 'id' => $memory->getId(),
                 'content' => $memory->getContent(),
+                'pending_content' => $memory->getPendingContent(),
                 'origin_text' => $memory->getOriginText(),
                 'memory_type' => $memory->getMemoryType()->value,
                 'status' => $memory->getStatus()->value,
@@ -239,6 +210,40 @@ class LongTermMemoryHttpApi extends AbstractApi
                 'effective_score' => $memory->getEffectiveScore(),
             ],
         ];
+    }
+
+    /**
+     * 获取记忆列表.
+     */
+    public function getMemoryList(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'status' => 'array',
+            'status.*' => ['string', Rule::enum(MemoryStatus::class)],
+            'enabled' => 'boolean',
+            'page_token' => 'string',
+            'page_size' => 'integer|min:1|max:100',
+        ];
+
+        $validatedParams = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $pageSize = empty($validatedParams['page_size']) ? 20 : $validatedParams['page_size'];
+        $status = empty($validatedParams['status']) ? null : $validatedParams['status'];
+        $enabled = array_key_exists('enabled', $validatedParams) ? $validatedParams['enabled'] : null;
+        $dto = new MemoryQueryDTO([
+            'orgId' => $authorization->getOrganizationCode(),
+            'appId' => AppCodeEnum::SUPER_MAGIC->value,
+            'userId' => $authorization->getId(),
+            'status' => $status,
+            'enabled' => $enabled,
+            'pageToken' => $validatedParams['page_token'] ?? null,
+            'limit' => (int) $pageSize + 1, // 多查询一条记录，用于判断是否还有下一页
+        ]);
+        // 解析 pageToken
+        $dto->parsePageToken();
+
+        return $this->longTermMemoryAppService->findMemories($dto);
     }
 
     /**
@@ -265,6 +270,7 @@ class LongTermMemoryHttpApi extends AbstractApi
             return [
                 'id' => $memory->getId(),
                 'content' => $memory->getContent(),
+                'pending_content' => $memory->getPendingContent(),
                 'origin_text' => $memory->getOriginText(),
                 'memory_type' => $memory->getMemoryType()->value,
                 'status' => $memory->getStatus()->value,
@@ -289,20 +295,23 @@ class LongTermMemoryHttpApi extends AbstractApi
     {
         $authorization = $this->getAuthorization();
 
-        // 检查权限
-        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
-            $memoryId,
+        // 批量验证记忆是否属于当前用户
+        $allMemoriesBelongToUser = $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            [$memoryId],
             $authorization->getOrganizationCode(),
             $authorization->getApplicationCode(),
             $authorization->getId()
-        )) {
+        );
+
+        // 检查是否有不属于用户的记忆
+        if (! $allMemoriesBelongToUser) {
             return [
                 'success' => false,
-                'message' => '记忆不存在或无权限访问',
+                'message' => trans('long_term_memory.api.memory_not_belong_to_user'),
             ];
         }
 
-        $this->longTermMemoryAppService->reinforceMemory($memoryId);
+        $this->longTermMemoryAppService->reinforceMemories([$memoryId]);
 
         return [
             'success' => true,
@@ -324,18 +333,20 @@ class LongTermMemoryHttpApi extends AbstractApi
         $validatedParams = $this->checkParams($params, $rules);
         $authorization = $this->getAuthorization();
 
-        foreach ($validatedParams['memory_ids'] as $memoryId) {
-            if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
-                $memoryId,
-                $authorization->getOrganizationCode(),
-                $authorization->getApplicationCode(),
-                $authorization->getId()
-            )) {
-                return [
-                    'success' => false,
-                    'message' => "记忆 {$memoryId} 不存在或无权限访问",
-                ];
-            }
+        // 批量验证所有记忆都属于当前用户
+        $allMemoriesBelongToUser = $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            $validatedParams['memory_ids'],
+            $authorization->getOrganizationCode(),
+            $authorization->getApplicationCode(),
+            $authorization->getId()
+        );
+
+        // 检查是否有不属于用户的记忆
+        if (! $allMemoriesBelongToUser) {
+            return [
+                'success' => false,
+                'message' => '部分记忆不存在或无权限访问',
+            ];
         }
 
         $this->longTermMemoryAppService->reinforceMemories($validatedParams['memory_ids']);
@@ -347,64 +358,91 @@ class LongTermMemoryHttpApi extends AbstractApi
     }
 
     /**
-     * 批量接受记忆建议.
+     * 批量处理记忆建议（接受/拒绝）.
      */
-    public function acceptMemorySuggestions(RequestInterface $request): array
+    public function batchProcessMemorySuggestions(RequestInterface $request): array
     {
         $params = $request->all();
         $rules = [
             'memory_ids' => 'required|array|min:1',
             'memory_ids.*' => 'required|string',
+            'action' => 'required|string|in:accept,reject',
         ];
 
         $validatedParams = $this->checkParams($params, $rules);
         $authorization = $this->getAuthorization();
 
-        // 验证所有记忆都属于当前用户
-        foreach ($validatedParams['memory_ids'] as $memoryId) {
-            if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
-                $memoryId,
-                $authorization->getOrganizationCode(),
-                $authorization->getApplicationCode(),
-                $authorization->getId()
-            )) {
-                return [
-                    'success' => false,
-                    'message' => "记忆 {$memoryId} 不存在或无权限访问",
-                ];
-            }
+        // 批量验证所有记忆都属于当前用户
+        $allMemoriesBelongToUser = $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            $validatedParams['memory_ids'],
+            $authorization->getOrganizationCode(),
+            $authorization->getApplicationCode(),
+            $authorization->getId()
+        );
+
+        // 检查是否有不属于用户的记忆
+        if (! $allMemoriesBelongToUser) {
+            return [
+                'success' => false,
+                'message' => '部分记忆不存在或无权限访问',
+            ];
         }
 
         try {
-            // 批量更新记忆状态为已接受
-            $this->longTermMemoryAppService->acceptMemorySuggestions($validatedParams['memory_ids']);
+            $action = $validatedParams['action'];
+            $memoryIds = $validatedParams['memory_ids'];
+
+            if ($action === 'accept') {
+                // 批量接受记忆建议：status 改为 accept，enabled 为 true
+                $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, 'accept');
+
+                return [
+                    'success' => true,
+                    'message' => '成功接受 ' . count($memoryIds) . ' 条记忆建议',
+                    'processed_count' => count($memoryIds),
+                    'action' => 'accept',
+                ];
+            }
+            // 批量拒绝记忆建议：删除记忆
+            $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, 'reject');
 
             return [
                 'success' => true,
-                'message' => '成功接受 ' . count($validatedParams['memory_ids']) . ' 条记忆建议',
-                'accepted_count' => count($validatedParams['memory_ids']),
+                'message' => '成功拒绝并删除 ' . count($memoryIds) . ' 条记忆建议',
+                'processed_count' => count($memoryIds),
+                'action' => 'reject',
             ];
         } catch (Exception $e) {
-            $this->logger->error('批量接受记忆建议失败', [
+            $actionText = $validatedParams['action'] === 'accept' ? '接受' : '拒绝';
+            $this->logger->error('批量处理记忆建议失败', [
                 'memory_ids' => $validatedParams['memory_ids'],
+                'action' => $validatedParams['action'],
                 'user_id' => $authorization->getId(),
                 'error' => $e->getMessage(),
             ]);
 
             return [
                 'success' => false,
-                'message' => '批量接受记忆建议失败：' . $e->getMessage(),
+                'message' => '批量' . $actionText . '记忆建议失败：' . $e->getMessage(),
             ];
         }
     }
 
     /**
-     * 执行记忆维护.
+     * 批量更新记忆启用状态.
      */
-    public function maintainMemories(): array
+    public function batchUpdateMemoryStatus(RequestInterface $request): array
     {
+        $params = $this->checkParams($request->all(), [
+            'memory_ids' => 'required|array|min:1',
+            'memory_ids.*' => 'required|string|max:36',
+            'enabled' => 'required|boolean',
+        ]);
+
         $authorization = $this->getAuthorization();
-        $result = $this->longTermMemoryAppService->maintainMemories(
+        $result = $this->longTermMemoryAppService->batchUpdateMemoryStatus(
+            $params['memory_ids'],
+            $params['enabled'],
             $authorization->getOrganizationCode(),
             $authorization->getApplicationCode(),
             $authorization->getId()
@@ -497,9 +535,142 @@ class LongTermMemoryHttpApi extends AbstractApi
         $validator = $this->validator->make($params, $rules);
 
         if ($validator->fails()) {
-            throw new InvalidArgumentException('参数验证失败: ' . implode(', ', $validator->errors()->all()));
+            throw new InvalidArgumentException(trans('long_term_memory.api.validation_failed', ['errors' => implode(', ', $validator->errors()->all())]));
         }
 
         return $validator->validated();
+    }
+
+    /**
+     * 验证更新记忆的请求参数.
+     */
+    private function validateUpdateMemoryParams(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'content' => 'string|max:65535',
+        ];
+
+        return $this->checkParams($params, $rules);
+    }
+
+    /**
+     * 验证记忆所有权.
+     *
+     * @param mixed $authorization
+     * @return array{success: bool, message?: string}
+     */
+    private function validateMemoryOwnership(string $memoryId, $authorization): array
+    {
+        if (! $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            [$memoryId],
+            $authorization->getOrganizationCode(),
+            $authorization->getApplicationCode(),
+            $authorization->getId()
+        )) {
+            return [
+                'success' => false,
+                'message' => trans('long_term_memory.api.memory_not_belong_to_user'),
+            ];
+        }
+
+        return ['success' => true];
+    }
+
+    /**
+     * 处理内容更新逻辑.
+     *
+     * @param mixed $authorization
+     * @return array{content: null|string, explanation: null|string, originText: null|string, tags: null|array}
+     */
+    private function processContentUpdate(?string $inputContent, $authorization): array
+    {
+        // 如果没有传入内容，直接返回空值
+        if ($inputContent === null) {
+            return [
+                'content' => null,
+                'explanation' => null,
+                'originText' => null,
+                'tags' => null,
+            ];
+        }
+
+        $contentLength = mb_strlen($inputContent);
+
+        // 短内容：直接入库
+        if ($contentLength < 100) {
+            return $this->processShortContent($inputContent);
+        }
+
+        // 长内容：使用LLM处理
+        return $this->processLongContent($inputContent, $authorization);
+    }
+
+    /**
+     * 处理短内容（长度 < 100）.
+     *
+     * @return array{content: string, explanation: string, originText: null, tags: null}
+     */
+    private function processShortContent(string $content): array
+    {
+        return [
+            'content' => $content,
+            'explanation' => '用户手动修改记忆内容',
+            'originText' => null,
+            'tags' => null,
+        ];
+    }
+
+    /**
+     * 处理长内容（长度 >= 100）.
+     *
+     * @param mixed $authorization
+     * @return array{content: string, explanation: string, originText: string, tags: null|array}
+     */
+    private function processLongContent(string $content, $authorization): array
+    {
+        // 调用LLM处理内容
+        $evaluationDTO = new EvaluateConversationRequestDTO([
+            'conversationContent' => '用户要求一定要记住：' . $content,
+            'appId' => $authorization->getApplicationCode(),
+        ]);
+
+        $shouldRemember = $this->longTermMemoryAppService->shouldRememberContent(
+            $this->longTermMemoryAppService->getChatModel($authorization),
+            $evaluationDTO
+        );
+
+        // LLM建议记忆：使用LLM处理结果
+        if ($shouldRemember->memory) {
+            return [
+                'content' => $shouldRemember->memory,
+                'explanation' => $shouldRemember->explanation,
+                'originText' => $content,
+                'tags' => $shouldRemember->tags,
+            ];
+        }
+
+        // LLM不建议记忆：自动压缩
+        return [
+            'content' => mb_substr($content, 0, 100) . '...[已压缩]',
+            'explanation' => '内容过长，已自动压缩',
+            'originText' => $content,
+            'tags' => null,
+        ];
+    }
+
+    /**
+     * 构建更新记忆的DTO.
+     */
+    private function buildUpdateMemoryDTO(array $processResult): UpdateMemoryDTO
+    {
+        return new UpdateMemoryDTO([
+            'content' => $processResult['content'],
+            'pendingContent' => null, // 清空pending_content
+            'status' => $processResult['content'] !== null ? MemoryStatus::ACTIVE->value : null,
+            'explanation' => $processResult['explanation'],
+            'originText' => $processResult['originText'],
+            'tags' => $processResult['tags'],
+        ]);
     }
 }

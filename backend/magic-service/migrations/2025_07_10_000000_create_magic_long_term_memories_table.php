@@ -17,10 +17,12 @@ return new class extends Migration {
         Schema::create('magic_long_term_memories', function (Blueprint $table) {
             $table->string('id', 36)->primary()->comment('记忆唯一ID');
             $table->text('content')->comment('记忆内容');
+            $table->text('pending_content')->nullable()->comment('待变更的记忆内容，等待用户接受变更');
             $table->text('explanation')->nullable()->comment('记忆解释，说明这条记忆为什么值得记录');
             $table->text('origin_text')->nullable()->comment('原始文本内容');
             $table->string('memory_type', 50)->default('manual_input')->comment('记忆类型');
-            $table->string('status', 20)->default('pending')->comment('记忆状态：pending-待接受, accepted-已接受');
+            $table->string('status', 20)->default('pending')->comment('记忆状态：pending-待接受, active-已生效, pending_revision-待修订');
+            $table->tinyInteger('enabled')->default(0)->comment('是否启用：0-禁用，1-启用（仅 active 状态的记忆可以设置）');
             $table->decimal('confidence', 3, 2)->unsigned()->default(0.8)->comment('置信度(0-1)');
             $table->decimal('importance', 3, 2)->unsigned()->default(0.5)->comment('重要性(0-1)');
             $table->unsignedInteger('access_count')->default(0)->comment('访问次数');

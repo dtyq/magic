@@ -21,15 +21,18 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use InvalidArgumentException;
+use function Hyperf\Coroutine\parallel;
 
 #[ApiResponse('low_code')]
 class SuperAgentMemoryApi extends AbstractApi
 {
     public function __construct(
-        protected RequestInterface $request,
+        protected RequestInterface          $request,
         protected ValidatorFactoryInterface $validator,
-        protected LongTermMemoryAppService $longTermMemoryAppService,
-    ) {
+        protected LongTermMemoryAppService  $longTermMemoryAppService,
+    )
+    {
+        parent::__construct($request);
     }
 
     /**
@@ -38,7 +41,7 @@ class SuperAgentMemoryApi extends AbstractApi
     public function createMemory(): array
     {
         // 校验沙箱 Token
-        // $this->validateSandboxToken();
+        $this->validateSandboxToken();
 
         $requestData = $this->getRequestData();
 
@@ -53,7 +56,8 @@ class SuperAgentMemoryApi extends AbstractApi
         $metadata = $this->parseMetadata($validatedParams['metadata']);
 
         $dto = new CreateMemoryDTO([
-            'content' => $validatedParams['memory'],
+            'content' => '',
+            'pendingContent' => $validatedParams['memory'],
             'explanation' => $validatedParams['explanation'],
             'memoryType' => MemoryType::MANUAL_INPUT->value,
             'status' => MemoryStatus::PENDING->value,
@@ -67,11 +71,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         $memoryId = $this->longTermMemoryAppService->createMemory($dto);
 
-        return [
-            'memory_id' => $memoryId,
-            'message' => '记忆创建成功',
-            'memory' => $validatedParams['memory'],
-        ];
+        return ['memory_id' => $memoryId, 'success' => true];
     }
 
     /**
@@ -80,7 +80,7 @@ class SuperAgentMemoryApi extends AbstractApi
     public function updateMemory(string $id): array
     {
         // 校验沙箱 Token
-        // $this->validateSandboxToken();
+        $this->validateSandboxToken();
 
         $requestData = $this->getRequestData();
 
@@ -97,8 +97,20 @@ class SuperAgentMemoryApi extends AbstractApi
         // 检查权限
         $this->checkMemoryPermission($id, $metadata);
 
+        // 如果有pendingContent，需要根据当前记忆状态设置新状态
+        $newStatus = null;
+        if (isset($validatedParams['memory']) && $validatedParams['memory'] !== null) {
+            // 获取当前记忆状态
+            $currentMemory = $this->longTermMemoryAppService->getMemory($id);
+            if ($currentMemory && $currentMemory->getStatus()->value === 'active') {
+                $newStatus = 'pending_revision'; // 已生效的记忆有新内容时，改为待修订
+            }
+            // 如果当前是pending状态，保持不变（不设置newStatus）
+        }
+
         $dto = new UpdateMemoryDTO([
-            'content' => $validatedParams['memory'] ?? null,
+            'pendingContent' => $validatedParams['memory'] ?? null,
+            'status' => $newStatus,
             'explanation' => $validatedParams['explanation'] ?? null,
             'tags' => $validatedParams['tags'] ?? null,
             'metadata' => $validatedParams['metadata'] ?? null,
@@ -106,10 +118,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         $this->longTermMemoryAppService->updateMemory($id, $dto);
 
-        return [
-            'success' => true,
-            'message' => '记忆更新成功',
-        ];
+        return ['success' => true];
     }
 
     /**
@@ -118,7 +127,7 @@ class SuperAgentMemoryApi extends AbstractApi
     public function deleteMemory(string $id): array
     {
         // 校验沙箱 Token
-        // $this->validateSandboxToken();
+        $this->validateSandboxToken();
 
         $requestData = $this->getRequestData();
 
@@ -185,7 +194,7 @@ class SuperAgentMemoryApi extends AbstractApi
      */
     private function checkMemoryPermission(string $memoryId, MessageMetadata $metadata): void
     {
-        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
+        if (!$this->longTermMemoryAppService->isMemoryBelongToUser(
             $memoryId,
             $metadata->getOrganizationCode(),
             AgentConstant::SUPER_MAGIC_CODE,
