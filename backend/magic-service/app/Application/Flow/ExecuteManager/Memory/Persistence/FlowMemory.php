@@ -32,6 +32,9 @@ class FlowMemory implements MemoryPersistenceInterface
         $query->setTopicId($memoryQuery->getTopicId());
         $query->setType(MemoryType::Chat->value);
         $query->setOrder(['id' => 'desc']);
+        if ($memoryQuery->getStartTime()) {
+            $query->setStartTime($memoryQuery->getStartTime());
+        }
 
         $page = new Page(1, $memoryQuery->getLimit());
         $flowDataIsolation = FlowDataIsolation::create()->disabled();

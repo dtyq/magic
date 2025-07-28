@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Flow\Entity\ValueObject\Query;
 
+use DateTime;
+
 class MagicFlowMemoryHistoryQuery extends Query
 {
     private int $type = 0;
@@ -20,6 +22,18 @@ class MagicFlowMemoryHistoryQuery extends Query
     private array $mountIds = [];
 
     private array $ignoreRequestIds = [];
+
+    private ?DateTime $startTime = null;
+
+    public function getStartTime(): ?DateTime
+    {
+        return $this->startTime;
+    }
+
+    public function setStartTime(?DateTime $startTime): void
+    {
+        $this->startTime = $startTime;
+    }
 
     public function getType(): int
     {

@@ -53,6 +53,10 @@ class MagicFlowMemoryHistoryRepository extends MagicFlowAbstractRepository imple
             $builder->whereNotIn('request_id', $query->getIgnoreRequestIds());
         }
 
+        if ($query->getStartTime()) {
+            $builder->where('created_at', '>=', $query->getStartTime()->format('Y-m-d H:i:s'));
+        }
+
         $data = $this->getByPage($builder, $page, $query);
         if (! empty($data['list'])) {
             $list = [];
