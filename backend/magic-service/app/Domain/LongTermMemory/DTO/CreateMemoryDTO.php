@@ -19,6 +19,8 @@ class CreateMemoryDTO extends AbstractDTO
 {
     public string $content = '';
 
+    public ?string $pendingContent = null;
+
     public ?string $explanation = null;
 
     public ?string $originText = null;
@@ -26,6 +28,8 @@ class CreateMemoryDTO extends AbstractDTO
     public MemoryType $memoryType = MemoryType::MANUAL_INPUT;
 
     public MemoryStatus $status = MemoryStatus::PENDING;
+
+    public bool $enabled = false;
 
     public float $confidence = 0.8;
 
