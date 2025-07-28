@@ -12,7 +12,6 @@ use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Infrastructure\Core\AbstractEntity;
 use DateTime;
 use Hyperf\Codec\Json;
-use InvalidArgumentException;
 
 /**
  * 长期记忆实体.
@@ -32,6 +31,8 @@ final class LongTermMemoryEntity extends AbstractEntity
     protected MemoryType $memoryType;
 
     protected MemoryStatus $status;
+
+    protected bool $enabled = false;
 
     protected float $confidence = 0.8;
 
@@ -101,9 +102,6 @@ final class LongTermMemoryEntity extends AbstractEntity
 
     public function setContent(string $content): void
     {
-        if (mb_strlen($content) > 65535) {
-            throw new InvalidArgumentException('记忆内容长度不能超过65535个字符');
-        }
         $this->content = $content;
     }
 
@@ -114,9 +112,6 @@ final class LongTermMemoryEntity extends AbstractEntity
 
     public function setPendingContent(?string $pendingContent): void
     {
-        if ($pendingContent !== null && mb_strlen($pendingContent) > 65535) {
-            throw new InvalidArgumentException('待变更记忆内容长度不能超过65535个字符');
-        }
         $this->pendingContent = $pendingContent;
     }
 
@@ -293,6 +288,25 @@ final class LongTermMemoryEntity extends AbstractEntity
         $this->sourceMessageId = $sourceMessageId;
     }
 
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
+    }
+
+    /**
+     * 内部设置启用状态（不进行业务规则检查）.
+     * 用于数据初始化和内部操作，跳过业务规则限制.
+     */
+    public function setEnabledInternal(bool $enabled): void
+    {
+        $this->enabled = $enabled;
+    }
+
     public function getLastAccessedAt(): ?DateTime
     {
         return $this->lastAccessedAt;
@@ -393,53 +407,6 @@ final class LongTermMemoryEntity extends AbstractEntity
     }
 
     /**
-     * 判断记忆是否应该被淘汰.
-     */
-    public function shouldBeEvicted(): bool
-    {
-        // 过期时间检查
-        if ($this->expiresAt && $this->expiresAt < new DateTime()) {
-            return true;
-        }
-
-        // 有效分数过低
-        if ($this->getEffectiveScore() < 0.1) {
-            return true;
-        }
-
-        // 长时间未访问且重要性很低
-        if ($this->lastAccessedAt && $this->importance < 0.2) {
-            $daysSinceLastAccess = (new DateTime())->diff($this->lastAccessedAt)->days;
-            if ($daysSinceLastAccess > 30) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * 判断记忆是否需要压缩.
-     */
-    public function shouldBeCompressed(): bool
-    {
-        // 内容过长但重要性不高
-        if (strlen($this->content) > 1000 && $this->importance < 0.6) {
-            return true;
-        }
-
-        // 长时间未访问但不应该被淘汰
-        if ($this->lastAccessedAt && ! $this->shouldBeEvicted()) {
-            $daysSinceLastAccess = (new DateTime())->diff($this->lastAccessedAt)->days;
-            if ($daysSinceLastAccess > 7) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * 添加标签.
      */
     public function addTag(string $tag): void
@@ -471,6 +438,20 @@ final class LongTermMemoryEntity extends AbstractEntity
     public function getMetadataValue(string $key): mixed
     {
         return $this->metadata[$key] ?? null;
+    }
+
+    /**
+     * 重写 set 方法，对 enabled 字段进行特殊处理.
+     */
+    protected function set(string $key, mixed $value): void
+    {
+        // enabled 字段在初始化时使用内部方法，跳过业务规则检查
+        if (strtolower($key) === 'enabled' && is_bool($value)) {
+            $this->setEnabledInternal($value);
+            return;
+        }
+
+        parent::set($key, $value);
     }
 
     /**

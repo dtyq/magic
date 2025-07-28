@@ -31,6 +31,7 @@ use Hyperf\Database\Model\Model;
  * @property string $app_id
  * @property ?string $project_id
  * @property string $user_id
+ * @property bool $enabled
  * @property ?Carbon $last_accessed_at
  * @property ?Carbon $last_reinforced_at
  * @property ?Carbon $expires_at
@@ -47,7 +48,7 @@ class LongTermMemoryModel extends Model
     protected string $keyType = 'string';
 
     protected array $fillable = [
-        'id', 'content', 'pending_content', 'explanation', 'origin_text', 'memory_type', 'status', 'confidence', 'importance',
+        'id', 'content', 'pending_content', 'explanation', 'origin_text', 'memory_type', 'status', 'enabled', 'confidence', 'importance',
         'access_count', 'reinforcement_count', 'decay_factor', 'tags',
         'metadata', 'org_id', 'app_id', 'project_id', 'user_id',
         'last_accessed_at', 'last_reinforced_at', 'expires_at',
@@ -59,6 +60,7 @@ class LongTermMemoryModel extends Model
         'access_count' => 'integer',
         'reinforcement_count' => 'integer',
         'decay_factor' => 'float',
+        'enabled' => 'boolean',
         'tags' => 'json',
         'metadata' => 'json',
         'last_accessed_at' => 'datetime',

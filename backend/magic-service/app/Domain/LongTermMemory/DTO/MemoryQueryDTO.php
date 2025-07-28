@@ -9,7 +9,6 @@ namespace App\Domain\LongTermMemory\DTO;
 
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Infrastructure\Core\AbstractDTO;
-use Throwable;
 
 /**
  * 记忆查询 DTO.
@@ -23,6 +22,8 @@ class MemoryQueryDTO extends AbstractDTO
     public string $userId = '';
 
     public ?string $status = null;
+
+    public ?bool $enabled = null;
 
     public ?MemoryType $type = null;
 
@@ -38,12 +39,10 @@ class MemoryQueryDTO extends AbstractDTO
 
     public string $orderDirection = 'desc';
 
-    // 分页游标相关
+    // 分页相关
     public ?string $pageToken = null;
 
-    public ?string $lastOrderValue = null; // 最后一条记录的排序字段值
-
-    public ?string $lastId = null; // 最后一条记录的ID
+    public int $offset = 0; // 偏移量
 
     public function __construct(?array $data = [])
     {
@@ -68,37 +67,18 @@ class MemoryQueryDTO extends AbstractDTO
     public function parsePageToken(): void
     {
         if ($this->pageToken === null || $this->pageToken === '') {
+            $this->offset = 0;
             return;
         }
 
-        try {
-            $decoded = base64_decode($this->pageToken, true);
-            if ($decoded === false) {
-                return;
-            }
-
-            $data = json_decode($decoded, true);
-            if (! is_array($data)) {
-                return;
-            }
-
-            $this->lastOrderValue = $data['lastOrderValue'] ?? null;
-            $this->lastId = $data['lastId'] ?? null;
-        } catch (Throwable $e) {
-            // 忽略解析错误，继续执行
-        }
+        $this->offset = (int) $this->pageToken;
     }
 
     /**
      * 生成 pageToken.
      */
-    public static function generatePageToken(string $lastOrderValue, string $lastId): string
+    public static function generatePageToken(int $offset): string
     {
-        $data = [
-            'lastOrderValue' => $lastOrderValue,
-            'lastId' => $lastId,
-        ];
-
-        return base64_encode(json_encode($data));
+        return (string) $offset;
     }
 }

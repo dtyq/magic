@@ -29,6 +29,8 @@ class CreateMemoryDTO extends AbstractDTO
 
     public MemoryStatus $status = MemoryStatus::PENDING;
 
+    public bool $enabled = false;
+
     public float $confidence = 0.8;
 
     public float $importance = 0.5;
