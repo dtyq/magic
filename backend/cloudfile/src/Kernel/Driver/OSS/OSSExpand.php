@@ -68,9 +68,6 @@ class OSSExpand implements ExpandInterface
         return $list;
     }
 
-    /**
-     * @phpstan-ignore-next-line (FileAttributes is compatible with expected return type)
-     */
     public function getMetas(array $paths, array $options = []): array
     {
         $list = [];

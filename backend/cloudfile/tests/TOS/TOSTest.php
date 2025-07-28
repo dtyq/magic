@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\CloudFile\Tests\TOS;
 
-use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;

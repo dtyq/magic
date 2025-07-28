@@ -13,6 +13,7 @@ use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\CloudFile\Kernel\Utils\CurlHelper;
+use Dtyq\CloudFile\Kernel\Utils\MimeTypes;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
 use OSS\Core\OssException;
 use OSS\Credentials\StaticCredentialsProvider;
@@ -233,43 +234,391 @@ class AliyunSimpleUpload extends SimpleUpload
     }
 
     /**
-     * List objects by credential (not implemented yet).
+     * List objects by credential using OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $prefix Object prefix to filter
+     * @param array $options Additional options (marker, max-keys, etc.)
+     * @return array List of objects
      */
     public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array
     {
-        throw new CloudFileException('listObjectsByCredential not implemented for AliyunSimpleUpload');
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            // Prepare list options
+            $listOptions = [
+                OssClient::OSS_PREFIX => $prefix,
+                OssClient::OSS_MAX_KEYS => min($options['max-keys'] ?? 1000, 1000),
+            ];
+
+            // Set marker for pagination
+            if (isset($options['marker'])) {
+                $listOptions[OssClient::OSS_MARKER] = $options['marker'];
+            }
+
+            // Set delimiter
+            if (isset($options['delimiter'])) {
+                $listOptions[OssClient::OSS_DELIMITER] = $options['delimiter'];
+            }
+
+            // Execute list objects
+            $listInfo = $ossClient->listObjects($sdkConfig['bucket'], $listOptions);
+
+            // Format response
+            $objects = [];
+            foreach ($listInfo->getObjectList() as $objectInfo) {
+                $objects[] = [
+                    'key' => $objectInfo->getKey(),
+                    'size' => $objectInfo->getSize(),
+                    'last_modified' => $objectInfo->getLastModified(),
+                    'etag' => $objectInfo->getETag(),
+                    'storage_class' => $objectInfo->getStorageClass(),
+                ];
+            }
+
+            $result = [
+                'name' => $sdkConfig['bucket'],
+                'prefix' => $listInfo->getPrefix(),
+                'marker' => $listInfo->getMarker(),
+                'max_keys' => $listInfo->getMaxKeys(),
+                'next_marker' => $listInfo->getNextMarker(),
+                'objects' => $objects,
+                'common_prefixes' => [],
+            ];
+
+            // Add common prefixes if available
+            if ($listInfo->getPrefixList()) {
+                foreach ($listInfo->getPrefixList() as $prefixInfo) {
+                    $result['common_prefixes'][] = [
+                        'prefix' => $prefixInfo->getPrefix(),
+                    ];
+                }
+            }
+
+            $this->sdkContainer->getLogger()->info('list_objects_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'prefix' => $prefix,
+                'object_count' => count($objects),
+            ]);
+
+            return $result;
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('list_objects_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'prefix' => $prefix,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('list_objects_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'prefix' => $prefix,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('List objects failed: ' . $exception->getMessage(), 0, $exception);
+        }
     }
 
     /**
-     * Delete object by credential (not implemented yet).
+     * Delete object by credential using OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to delete
+     * @param array $options Additional options
      */
     public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void
     {
-        throw new CloudFileException('deleteObjectByCredential not implemented for AliyunSimpleUpload');
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            // Execute delete object
+            $ossClient->deleteObject($sdkConfig['bucket'], $objectKey);
+
+            $this->sdkContainer->getLogger()->info('delete_object_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+            ]);
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('delete_object_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('delete_object_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Delete object failed: ' . $exception->getMessage(), 0, $exception);
+        }
     }
 
     /**
-     * Copy object by credential (not implemented yet).
+     * Copy object by credential using OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param array $options Additional options
      */
     public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void
     {
-        throw new CloudFileException('copyObjectByCredential not implemented for AliyunSimpleUpload');
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            // Set source bucket and key
+            $sourceBucket = $options['source_bucket'] ?? $sdkConfig['bucket'];
+
+            // Prepare copy options
+            $copyOptions = [];
+
+            // For OSS, when we need to change metadata, we use REPLACE directive
+            $needsReplace = isset($options['content_type'])
+                          || isset($options['download_name'])
+                          || isset($options['metadata'])
+                          || isset($options['storage_class']);
+
+            if ($needsReplace) {
+                $copyOptions[OssClient::OSS_HEADERS]['x-oss-metadata-directive'] = 'REPLACE';
+
+                // Set content type if provided
+                if (isset($options['content_type'])) {
+                    $copyOptions[OssClient::OSS_CONTENT_TYPE] = $options['content_type'];
+                }
+
+                // Set Content-Disposition for download filename
+                if (isset($options['download_name'])) {
+                    $downloadName = $options['download_name'];
+                    $contentDisposition = 'attachment; filename="' . addslashes($downloadName) . '"';
+                    $copyOptions[OssClient::OSS_HEADERS]['Content-Disposition'] = $contentDisposition;
+                }
+
+                // Set custom metadata if provided
+                if (isset($options['metadata']) && is_array($options['metadata'])) {
+                    foreach ($options['metadata'] as $key => $value) {
+                        $copyOptions[OssClient::OSS_HEADERS]['x-oss-meta-' . $key] = $value;
+                    }
+                }
+
+                // Set storage class if provided
+                if (isset($options['storage_class'])) {
+                    $copyOptions[OssClient::OSS_HEADERS]['x-oss-storage-class'] = $options['storage_class'];
+                }
+            }
+
+            // Execute copy object
+            $ossClient->copyObject($sourceBucket, $sourceKey, $sdkConfig['bucket'], $destinationKey, $copyOptions);
+
+            $this->sdkContainer->getLogger()->info('copy_object_success', [
+                'source_bucket' => $sourceBucket,
+                'source_key' => $sourceKey,
+                'destination_bucket' => $sdkConfig['bucket'],
+                'destination_key' => $destinationKey,
+            ]);
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('copy_object_error', [
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('copy_object_failed', [
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Copy object failed: ' . $exception->getMessage(), 0, $exception);
+        }
     }
 
     /**
-     * Get object metadata by credential (not implemented yet).
+     * Get object metadata by credential using OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to get metadata
+     * @param array $options Additional options
+     * @return array Object metadata
+     * @throws CloudFileException
      */
     public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
     {
-        throw new CloudFileException('getHeadObjectByCredential not implemented for AliyunSimpleUpload');
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            // Execute get object meta
+            $objectMeta = $ossClient->getObjectMeta($sdkConfig['bucket'], $objectKey);
+
+            // Format response
+            $metadata = [
+                'content_length' => (int) ($objectMeta['content-length'] ?? 0),
+                'content_type' => $objectMeta['content-type'] ?? '',
+                'etag' => $objectMeta['etag'] ?? '',
+                'last_modified' => isset($objectMeta['last-modified']) ? strtotime($objectMeta['last-modified']) : null,
+                'version_id' => $objectMeta['x-oss-version-id'] ?? null,
+                'storage_class' => $objectMeta['x-oss-storage-class'] ?? null,
+                'content_disposition' => $objectMeta['content-disposition'] ?? null,
+                'content_encoding' => $objectMeta['content-encoding'] ?? null,
+                'expires' => $objectMeta['expires'] ?? null,
+                'meta' => [],
+            ];
+
+            // Extract custom metadata
+            foreach ($objectMeta as $key => $value) {
+                if (strpos($key, 'x-oss-meta-') === 0) {
+                    $metaKey = substr($key, 11); // Remove 'x-oss-meta-' prefix
+                    $metadata['meta'][$metaKey] = $value;
+                }
+            }
+
+            $this->sdkContainer->getLogger()->info('head_object_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'content_length' => $metadata['content_length'],
+                'last_modified' => $metadata['last_modified'],
+            ]);
+
+            return $metadata;
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('head_object_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+                'http_status' => $exception->getHTTPStatus(),
+            ]);
+
+            // If object not found, throw specific exception
+            // OSS returns 404 status code for missing objects
+            if ($exception->getHTTPStatus() == 404 || $exception->getHTTPStatus() === '404') {
+                throw new CloudFileException('Object not found: ' . $objectKey, 404, $exception);
+            }
+
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('head_object_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Head object failed: ' . $exception->getMessage(), 0, $exception);
+        }
     }
 
     /**
-     * Create object by credential (not implemented yet).
+     * Create object by credential using OSS SDK (file or folder).
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to create
+     * @param array $options Additional options
      */
     public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
     {
-        throw new CloudFileException('createObjectByCredential not implemented for AliyunSimpleUpload');
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            // Determine content based on object type
+            $content = '';
+            $isFolder = str_ends_with($objectKey, '/');
+
+            if (isset($options['content'])) {
+                $content = $options['content'];
+            } elseif ($isFolder) {
+                // For folders, always use empty content
+                $content = '';
+            }
+
+            // Prepare put options
+            $putOptions = [];
+
+            // Set content type
+            if (isset($options['content_type'])) {
+                $putOptions[OssClient::OSS_CONTENT_TYPE] = $options['content_type'];
+            } elseif ($isFolder) {
+                // For folders, use a specific content type
+                $putOptions[OssClient::OSS_CONTENT_TYPE] = 'application/x-directory';
+            } else {
+                // For files, try to determine content type from extension
+                $extension = pathinfo($objectKey, PATHINFO_EXTENSION);
+                $contentType = MimeTypes::getMimeType($extension);
+                $putOptions[OssClient::OSS_CONTENT_TYPE] = $contentType;
+            }
+
+            // Set storage class if provided
+            if (isset($options['storage_class'])) {
+                $putOptions[OssClient::OSS_HEADERS]['x-oss-storage-class'] = $options['storage_class'];
+            }
+
+            // Set custom metadata if provided
+            if (isset($options['metadata']) && is_array($options['metadata'])) {
+                foreach ($options['metadata'] as $key => $value) {
+                    $putOptions[OssClient::OSS_HEADERS]['x-oss-meta-' . $key] = $value;
+                }
+            }
+
+            // Set Content-Disposition if provided
+            if (isset($options['content_disposition'])) {
+                $putOptions[OssClient::OSS_HEADERS]['Content-Disposition'] = $options['content_disposition'];
+            }
+
+            // Execute put object
+            $ossClient->putObject($sdkConfig['bucket'], $objectKey, $content, $putOptions);
+
+            $this->sdkContainer->getLogger()->info('create_object_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'object_type' => $isFolder ? 'folder' : 'file',
+                'content_length' => strlen($content),
+            ]);
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('create_object_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('create_object_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Create object failed: ' . $exception->getMessage(), 0, $exception);
+        }
     }
 
     /**

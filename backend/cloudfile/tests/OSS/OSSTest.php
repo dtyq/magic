@@ -27,16 +27,20 @@ class OSSTest extends CloudFileBaseTest
             'roleSessionName' => 'test',
         ]);
         $res = $filesystem->getUploadTemporaryCredential($credentialPolicy);
-        $this->assertArrayHasKey('signature', $res);
-        $this->assertArrayHasKey('expires', $res);
+        $this->assertArrayHasKey('temporary_credential', $res);
+
+        $credential = $res['temporary_credential'];
+        $this->assertArrayHasKey('signature', $credential);
+        $this->assertArrayHasKey('expires', $credential);
 
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,
             'roleSessionName' => 'test',
         ]);
         $res = $filesystem->getUploadTemporaryCredential($credentialPolicy);
-        $this->assertArrayHasKey('sts_token', $res);
-        $this->assertArrayHasKey('expires', $res);
+        $credential = $res['temporary_credential'];
+        $this->assertArrayHasKey('sts_token', $credential);
+        $this->assertArrayHasKey('expires', $credential);
     }
 
     public function testUpload()
@@ -45,7 +49,7 @@ class OSSTest extends CloudFileBaseTest
 
         $realPath = __DIR__ . '/../test.txt';
 
-        $uploadFile = new UploadFile($realPath, 'easy-file');
+        $uploadFile = new UploadFile($realPath, 'easy-file', '', false);
         $filesystem->upload($uploadFile);
         $this->assertTrue(true);
     }

@@ -73,7 +73,6 @@ class CloudFile
                 $fileServiceApi = new FileServiceApi($this->container, $config);
                 return new Kernel\Driver\FileService\FileServiceDriver($fileServiceApi);
             case AdapterName::ALIYUN:
-                /* @phpstan-ignore-next-line */
                 return new OssAdapter($config);
             case AdapterName::TOS:
                 return new Kernel\Driver\TOS\TOSDriver($config);
