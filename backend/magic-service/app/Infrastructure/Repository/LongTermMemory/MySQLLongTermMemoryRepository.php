@@ -70,8 +70,12 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->whereNull('deleted_at');
 
         // 状态筛选
-        if ($dto->status !== null) {
-            $query->where('status', $dto->status);
+        if ($dto->status !== null && ! empty($dto->status)) {
+            if (is_array($dto->status)) {
+                $query->whereIn('status', $dto->status);
+            } else {
+                $query->where('status', $dto->status);
+            }
         }
 
         // 类型筛选
@@ -127,6 +131,59 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
     }
 
     /**
+     * 根据查询条件统计记忆数量.
+     */
+    public function countMemories(MemoryQueryDTO $dto): int
+    {
+        $query = $this->query()
+            ->where('org_id', $dto->orgId)
+            ->where('app_id', $dto->appId)
+            ->where('user_id', $dto->userId)
+            ->whereNull('deleted_at');
+
+        // 状态筛选
+        if ($dto->status !== null && ! empty($dto->status)) {
+            if (is_array($dto->status)) {
+                $query->whereIn('status', $dto->status);
+            } else {
+                $query->where('status', $dto->status);
+            }
+        }
+
+        // 类型筛选
+        if ($dto->type !== null) {
+            $query->where('memory_type', $dto->type->value);
+        }
+
+        // 项目ID筛选
+        if ($dto->projectId !== null) {
+            $query->where('project_id', $dto->projectId);
+        }
+
+        // 启用状态筛选
+        if ($dto->enabled !== null) {
+            $query->where('enabled', $dto->enabled ? 1 : 0);
+        }
+
+        // 标签筛选
+        if (! empty($dto->tags)) {
+            foreach ($dto->tags as $tag) {
+                $query->whereRaw('JSON_CONTAINS(tags, ?)', [Json::encode($tag)]);
+            }
+        }
+
+        // 关键词搜索
+        if ($dto->keyword !== null) {
+            $query->where(function (Builder $subQuery) use ($dto) {
+                $subQuery->where('content', 'like', "%{$dto->keyword}%")
+                    ->orWhere('explanation', 'like', "%{$dto->keyword}%");
+            });
+        }
+
+        return $query->count();
+    }
+
+    /**
      * 根据组织、应用、用户查找所有记忆.
      */
     public function findByUser(string $orgId, string $appId, string $userId, ?string $status = null): array
@@ -155,7 +212,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('status', MemoryStatus::ACTIVE->value)
             ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->where(function (Builder $query) {
@@ -507,7 +564,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('status', MemoryStatus::ACTIVE->value)
             ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->whereNotNull('last_accessed_at')
@@ -527,7 +584,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('status', MemoryStatus::ACTIVE->value)
             ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->whereNotNull('last_reinforced_at')
@@ -547,7 +604,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('status', MemoryStatus::ACTIVE->value)
             ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->orderBy('importance', 'desc')
@@ -566,7 +623,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('status', MemoryStatus::ACTIVE->value)
             ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->orderBy('access_count', 'desc')
@@ -604,13 +661,13 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             return 0;
         }
 
-        // 只能更新 accepted 状态的记忆
+        // 只能更新 active 状态的记忆
         return LongTermMemoryModel::query()
             ->whereIn('id', $memoryIds)
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', 'accepted') // 只有已接受的记忆可以启用/禁用
+            ->where('status', 'active') // 只有已生效的记忆可以启用/禁用
             ->whereNull('deleted_at')
             ->update([
                 'enabled' => $enabled ? 1 : 0,
