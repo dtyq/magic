@@ -115,6 +115,7 @@ use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseBaseRepository;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseDocumentRepository;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseFragmentRepository;
+use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPServerRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPServerToolRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
@@ -188,6 +189,7 @@ use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
+use App\Infrastructure\Repository\LongTermMemory\MySQLLongTermMemoryRepository;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
@@ -371,6 +373,9 @@ $dependencies = [
 
     // high-availability
     EndpointProviderInterface::class => ModelGatewayEndpointProvider::class,
+
+    // long-term-memory
+    LongTermMemoryRepositoryInterface::class => MySQLLongTermMemoryRepository::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并
