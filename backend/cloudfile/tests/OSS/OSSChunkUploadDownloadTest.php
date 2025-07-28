@@ -139,6 +139,11 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
         }
     }
 
+    protected function getStorageName(): string
+    {
+        return 'oss_chunk_test';
+    }
+
     /**
      * Perform chunk upload.
      */
