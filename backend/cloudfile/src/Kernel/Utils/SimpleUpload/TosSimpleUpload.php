@@ -13,13 +13,18 @@ use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\CloudFile\Kernel\Utils\CurlHelper;
+use Dtyq\CloudFile\Kernel\Utils\MimeTypes;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
 use Throwable;
 use Tos\Exception\TosClientException;
 use Tos\Exception\TosServerException;
 use Tos\Model\AbortMultipartUploadInput;
 use Tos\Model\CompleteMultipartUploadInput;
+use Tos\Model\CopyObjectInput;
 use Tos\Model\CreateMultipartUploadInput;
+use Tos\Model\DeleteObjectInput;
+use Tos\Model\HeadObjectInput;
+use Tos\Model\ListObjectsInput;
 use Tos\Model\PutObjectInput;
 use Tos\Model\UploadedPart;
 use Tos\Model\UploadPartInput;
@@ -329,6 +334,484 @@ class TosSimpleUpload extends SimpleUpload
                 $uploadId,
                 $exception
             );
+        }
+    }
+
+    /**
+     * List objects by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $prefix Object prefix to filter
+     * @param array $options Additional options (marker, max-keys, etc.)
+     * @return array List of objects
+     */
+    public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            // Prepare list objects input
+            $listInput = new ListObjectsInput($sdkConfig['bucket']);
+            $listInput->setPrefix($prefix);
+            $listInput->setDelimiter($options['delimiter']);
+
+            // Set marker for pagination
+            if (isset($options['marker'])) {
+                $listInput->setMarker($options['marker']);
+            }
+            // Set max keys (default 1000, max 1000)
+            $maxKeys = $options['max-keys'] ?? 1000;
+            $listInput->setMaxKeys(min($maxKeys, 1000));
+
+            // Execute list objects
+            $listOutput = $tosClient->listObjects($listInput);
+
+            // Format response
+            $objects = [];
+            foreach ($listOutput->getContents() as $object) {
+                $objects[] = [
+                    'key' => $object->getKey(),
+                    'size' => $object->getSize(),
+                    'last_modified' => $object->getLastModified(),
+                    'etag' => $object->getETag(),
+                    'storage_class' => $object->getStorageClass(),
+                ];
+            }
+
+            $result = [
+                'name' => $listOutput->getName(),
+                'prefix' => $listOutput->getPrefix(),
+                'marker' => $listOutput->getMarker(),
+                'max_keys' => $listOutput->getMaxKeys(),
+                'next_marker' => $listOutput->getNextMarker(),
+                'objects' => $objects,
+                'common_prefixes' => [],
+            ];
+
+            // Add common prefixes if available
+            if ($listOutput->getCommonPrefixes()) {
+                foreach ($listOutput->getCommonPrefixes() as $commonPrefix) {
+                    $result['common_prefixes'][] = [
+                        'prefix' => $commonPrefix->getPrefix(),
+                    ];
+                }
+            }
+
+            $this->sdkContainer->getLogger()->info('list_objects_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'prefix' => $prefix,
+                'object_count' => count($objects),
+            ]);
+
+            return $result;
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('list_objects_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'prefix' => $prefix,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('list_objects_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'prefix' => $prefix,
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('list_objects_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'prefix' => $prefix,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('List objects failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Delete object by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to delete
+     * @param array $options Additional options
+     */
+    public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            // Create delete object input
+            $deleteInput = new DeleteObjectInput($sdkConfig['bucket'], $objectKey);
+
+            // Set version ID if provided (for versioned buckets)
+            if (isset($options['version_id'])) {
+                $deleteInput->setVersionID($options['version_id']);
+            }
+
+            // Execute delete object
+            $deleteOutput = $tosClient->deleteObject($deleteInput);
+
+            $this->sdkContainer->getLogger()->info('delete_object_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'version_id' => $deleteOutput->getVersionID(),
+            ]);
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('delete_object_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('delete_object_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('delete_object_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Delete object failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Copy object by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param array $options Additional options
+     */
+    public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            // Set source bucket and key
+            $sourceBucket = $options['source_bucket'] ?? $sdkConfig['bucket'];
+
+            // Create copy object input with all required parameters
+            $copyInput = new CopyObjectInput($sdkConfig['bucket'], $destinationKey, $sourceBucket, $sourceKey);
+
+            // Set source version ID if provided
+            if (isset($options['source_version_id'])) {
+                $copyInput->setSrcVersionID($options['source_version_id']);
+            }
+
+            // Set metadata directive (COPY or REPLACE)
+            $metadataDirective = $options['metadata_directive'] ?? 'COPY';
+            $copyInput->setMetadataDirective($metadataDirective);
+
+            // Set content type if provided
+            if (isset($options['content_type'])) {
+                $copyInput->setContentType($options['content_type']);
+            }
+
+            // Set Content-Disposition for download filename
+            if (isset($options['download_name'])) {
+                $downloadName = $options['download_name'];
+                $contentDisposition = 'attachment; filename="' . addslashes($downloadName) . '"';
+                $copyInput->setContentDisposition($contentDisposition);
+
+                // When setting Content-Disposition, we should use REPLACE mode
+                if ($metadataDirective === 'COPY') {
+                    $metadataDirective = 'REPLACE';
+                    $copyInput->setMetadataDirective($metadataDirective);
+                }
+            }
+
+            // Set custom metadata if provided
+            if (isset($options['metadata']) && is_array($options['metadata'])) {
+                $copyInput->setMeta($options['metadata']);
+            }
+
+            // Set storage class if provided
+            if (isset($options['storage_class'])) {
+                $copyInput->setStorageClass($options['storage_class']);
+            }
+
+            // Execute copy object
+            $copyOutput = $tosClient->copyObject($copyInput);
+
+            $this->sdkContainer->getLogger()->info('copy_object_success', [
+                'source_bucket' => $sourceBucket,
+                'source_key' => $sourceKey,
+                'destination_bucket' => $sdkConfig['bucket'],
+                'destination_key' => $destinationKey,
+                'etag' => $copyOutput->getETag(),
+                'last_modified' => $copyOutput->getLastModified(),
+            ]);
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('copy_object_client_error', [
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('copy_object_server_error', [
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('copy_object_failed', [
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Copy object failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Get object metadata by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to get metadata
+     * @param array $options Additional options
+     * @return array Object metadata
+     */
+    public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            // Create head object input
+            $headInput = new HeadObjectInput($sdkConfig['bucket'], $objectKey);
+
+            // Set version ID if provided (for versioned buckets)
+            if (isset($options['version_id'])) {
+                $headInput->setVersionID($options['version_id']);
+            }
+
+            // Execute head object
+            $headOutput = $tosClient->headObject($headInput);
+
+            // Format response
+            $metadata = [
+                'content_length' => $headOutput->getContentLength(),
+                'content_type' => $headOutput->getContentType(),
+                'etag' => $headOutput->getETag(),
+                'last_modified' => $headOutput->getLastModified(),
+                'version_id' => $headOutput->getVersionID(),
+                'storage_class' => $headOutput->getStorageClass(),
+                'content_disposition' => $headOutput->getContentDisposition(),
+                'content_encoding' => $headOutput->getContentEncoding(),
+                'expires' => $headOutput->getExpires(),
+                'meta' => $headOutput->getMeta(),
+            ];
+
+            $this->sdkContainer->getLogger()->info('head_object_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'content_length' => $metadata['content_length'],
+                'last_modified' => $metadata['last_modified'],
+            ]);
+
+            return $metadata;
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('head_object_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('head_object_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+
+            // 如果对象不存在，抛出特定的异常
+            if ($exception->getStatusCode() === 404) {
+                throw new CloudFileException('Object not found: ' . $objectKey, 404, $exception);
+            }
+
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('head_object_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Head object failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Create object by credential using TOS SDK (file or folder).
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to create
+     * @param array $options Additional options
+     */
+    public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            // Determine content based on object type
+            $content = '';
+            $isFolder = str_ends_with($objectKey, '/');
+
+            if (isset($options['content'])) {
+                $content = $options['content'];
+            } elseif ($isFolder) {
+                // For folders, always use empty content
+                $content = '';
+            }
+
+            // Create put object input
+            $putInput = new PutObjectInput($sdkConfig['bucket'], $objectKey);
+            $putInput->setContent($content);
+            $putInput->setContentLength(strlen($content));
+
+            // Set content type
+            if (isset($options['content_type'])) {
+                $putInput->setContentType($options['content_type']);
+            } elseif ($isFolder) {
+                // For folders, use a specific content type
+                $putInput->setContentType('application/x-directory');
+            } else {
+                // For files, try to determine content type from extension
+                $extension = pathinfo($objectKey, PATHINFO_EXTENSION);
+                $contentType = MimeTypes::getMimeType($extension);
+                $putInput->setContentType($contentType);
+            }
+
+            // Set storage class if provided
+            if (isset($options['storage_class'])) {
+                $putInput->setStorageClass($options['storage_class']);
+            }
+
+            // Set custom metadata if provided
+            if (isset($options['metadata']) && is_array($options['metadata'])) {
+                $putInput->setMeta($options['metadata']);
+            }
+
+            // Set Content-Disposition if provided
+            if (isset($options['content_disposition'])) {
+                $putInput->setContentDisposition($options['content_disposition']);
+            }
+
+            // Execute put object
+            $putOutput = $tosClient->putObject($putInput);
+
+            $this->sdkContainer->getLogger()->info('create_object_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'object_type' => $isFolder ? 'folder' : 'file',
+                'content_length' => strlen($content),
+                'etag' => $putOutput->getETag(),
+            ]);
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('create_object_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('create_object_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('create_object_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Create object failed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 

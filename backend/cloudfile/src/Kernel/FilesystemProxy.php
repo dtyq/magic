@@ -137,6 +137,51 @@ class FilesystemProxy extends Filesystem
     }
 
     /**
+     * 列举对象 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $prefix 对象前缀过滤
+     * @param array $options 额外选项 (marker, max-keys等)
+     * @return array 对象列表
+     */
+    public function listObjectsByCredential(CredentialPolicy $credentialPolicy, string $prefix = '', array $options = []): array
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        return $this->getSimpleUploadInstance($this->adapterName)->listObjectsByCredential($credential, $prefix, $options);
+    }
+
+    /**
+     * 删除对象 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 要删除的对象键
+     * @param array $options 额外选项
+     */
+    public function deleteObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): void
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $object = $this->getSimpleUploadInstance($this->adapterName);
+        $object->deleteObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * 拷贝对象 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $sourceKey 源对象键
+     * @param string $destinationKey 目标对象键
+     * @param array $options 额外选项
+     */
+    public function copyObjectByCredential(CredentialPolicy $credentialPolicy, string $sourceKey, string $destinationKey, array $options = []): void
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->copyObjectByCredential($credential, $sourceKey, $destinationKey, $options);
+    }
+
+    /**
      * 获取上传临时凭证
      */
     public function getUploadTemporaryCredential(CredentialPolicy $credentialPolicy, array $options = []): array
@@ -248,6 +293,36 @@ class FilesystemProxy extends Filesystem
     public function duplicate(string $source, string $destination, array $options = []): string
     {
         return $this->expand->duplicate($source, $destination, $options);
+    }
+
+    /**
+     * 获取对象元数据 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @return array 对象元数据
+     * @throws CloudFileException
+     */
+    public function getHeadObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): array
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        return $this->getSimpleUploadInstance($this->adapterName)->getHeadObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * 创建对象 - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项 (content, content_type等)
+     */
+    public function createObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): void
+    {
+        $credentialPolicy->setSts(true);
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->createObjectByCredential($credential, $objectKey, $options);
     }
 
     /**

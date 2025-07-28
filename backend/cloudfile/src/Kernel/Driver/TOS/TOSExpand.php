@@ -56,9 +56,6 @@ class TOSExpand implements ExpandInterface
         return [];
     }
 
-    /**
-     * @phpstan-ignore-next-line
-     */
     public function getMetas(array $paths, array $options = []): array
     {
         $list = [];
@@ -108,7 +105,7 @@ class TOSExpand implements ExpandInterface
             // Create chunk download file object
             $downloadFile = new ChunkDownloadFile($filePath, $localPath, $fileSize, $config);
 
-            // Check if should use chunk download
+            // Check if you should use chunk download
             if (! $downloadFile->shouldUseChunkDownload()) {
                 $this->downloadFileDirectly($filePath, $localPath);
                 return;
@@ -473,29 +470,68 @@ class TOSExpand implements ExpandInterface
         $expires = $credentialPolicy->getExpires();
 
         // 目录限制
+        $dir = $credentialPolicy->getDir();
         $resource = "{$this->getBucket()}/";
         if (! empty($credentialPolicy->getDir())) {
             $resource = $resource . $credentialPolicy->getDir();
         }
 
-        // 限制上传策略
-        $stsPolicy = [
-            'Statement' => [
-                [
-                    'Action' => [
-                        'tos:PutObject',
-                        'tos:GetObject',
-                        'tos:AbortMultipartUpload',
-                        'tos:ListMultipartUploadParts',
-                        'tos:GetObjectVersion',
+        // https://www.volcengine.com/docs/6349/102131
+        $stsPolicy = match ($credentialPolicy->getStsType()) {
+            'list_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'tos:ListBucket',
+                            'tos:ListBucketVersions',
+                        ],
+                        'Resource' => [
+                            "trn:tos:::{$this->getBucket()}",
+                        ],
+                        'Condition' => [
+                            'StringLike' => [
+                                'tos:prefix' => [
+                                    "{$dir}",
+                                    "{$dir}*",
+                                ],
+                            ],
+                        ],
+                        'Effect' => 'Allow',
                     ],
-                    'Resource' => [
-                        "trn:tos:::{$resource}*",
-                    ],
-                    'Effect' => 'Allow',
                 ],
             ],
-        ];
+            'del_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'tos:DeleteObject',
+                            'tos:DeleteObjectTagging',
+                        ],
+                        'Resource' => [
+                            "trn:tos:::{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+            default => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'tos:PutObject',
+                            'tos:GetObject',
+                            'tos:AbortMultipartUpload',
+                            'tos:ListMultipartUploadParts',
+                            'tos:GetObjectVersion',
+                        ],
+                        'Resource' => [
+                            "trn:tos:::{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+        };
 
         $query = [
             'query' => [

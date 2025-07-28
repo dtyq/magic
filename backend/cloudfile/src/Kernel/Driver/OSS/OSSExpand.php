@@ -499,29 +499,70 @@ class OSSExpand implements ExpandInterface
         AlibabaCloud::accessKeyClient($this->config['accessId'], $this->config['accessSecret'])->regionId(ltrim($region, 'oss-'))->asDefaultClient();
 
         // 目录限制
+        $dir = $credentialPolicy->getDir();
         $resource = "{$this->config['bucket']}/";
         if (! empty($credentialPolicy->getDir())) {
             $resource = $resource . $credentialPolicy->getDir();
         }
 
-        // 限制上传策略
-        $stsPolicy = [
-            'Statement' => [
-                [
-                    'Action' => [
-                        'oss:PutObject',
-                        'oss:AbortMultipartUpload',
-                        'oss:GetObject',
-                        'oss:ListParts',
-                        'oss:GetObjectMeta',
+        // https://help.aliyun.com/zh/oss/user-guide/ram-policy-overview/?spm=a2c4g.11186623.0.0.746d67e8gIGwZH#concept-y5r-5rm-2gb
+        $stsPolicy = match ($credentialPolicy->getStsType()) {
+            'list_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'oss:ListObjects',
+                            'oss:ListObjectVersions',
+                        ],
+                        'Resource' => [
+                            "acs:oss:*:*:{$this->bucket}",
+                        ],
+                        'Condition' => [
+                            'StringLike' => [
+                                'oss:Prefix' => [
+                                    "{$dir}",
+                                    "{$dir}*",
+                                ],
+                            ],
+                        ],
+                        'Effect' => 'Allow',
                     ],
-                    'Resource' => [
-                        "acs:oss:*:*:{$resource}*",
-                    ],
-                    'Effect' => 'Allow',
                 ],
             ],
-        ];
+            'del_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'oss:DeleteObject',
+                            'oss:DeleteObjectVersion',
+                            'oss:DeleteObjectTagging',
+                            'oss:DeleteObjectVersionTagging',
+                        ],
+                        'Resource' => [
+                            "acs:oss:*:*:{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+            default => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'oss:PutObject',
+                            'oss:AbortMultipartUpload',
+                            'oss:GetObject',
+                            'oss:ListParts',
+                            'oss:GetObjectMeta',
+                        ],
+                        'Resource' => [
+                            "acs:oss:*:*:{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+        };
 
         $sts = Sts::v20150401()->assumeRole([
             'query' => [

@@ -50,6 +50,9 @@ class FileServiceApi
         if (! empty($credentialPolicy->getDir())) {
             $policy['dir'] = $credentialPolicy->getDir();
         }
+        if (! empty($credentialPolicy->getStsType())) {
+            $policy['sts_type'] = $credentialPolicy->getStsType();
+        }
         $policy['sts'] = $credentialPolicy->isSts();
 
         return $this->post($route, [
