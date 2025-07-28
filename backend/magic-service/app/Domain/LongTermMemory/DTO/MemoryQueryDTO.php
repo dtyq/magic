@@ -21,7 +21,7 @@ class MemoryQueryDTO extends AbstractDTO
 
     public string $userId = '';
 
-    public ?string $status = null;
+    public ?array $status = null;
 
     public ?bool $enabled = null;
 

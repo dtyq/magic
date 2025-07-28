@@ -110,10 +110,16 @@ class LongTermMemoryAppService
 
     /**
      * 通用查询方法 (使用 MemoryQueryDTO).
-     * @return array{success: bool, data: array, has_more: bool, next_page_token: null|string}
+     * @return array{success: bool, data: array, has_more: bool, next_page_token: null|string, total: int}
      */
     public function findMemories(MemoryQueryDTO $dto): array
     {
+        // 获取总数（不包含limit和offset限制）
+        $countDto = clone $dto;
+        $countDto->limit = 0; // 不限制条数
+        $countDto->offset = 0; // 不设置偏移
+        $total = $this->longTermMemoryDomainService->countMemories($countDto);
+
         $memories = $this->longTermMemoryDomainService->findMemories($dto);
         $pageSize = $dto->limit;
         // 处理分页结果
@@ -145,6 +151,7 @@ class LongTermMemoryAppService
             'data' => $data,
             'has_more' => $result['hasMore'],
             'next_page_token' => $result['nextPageToken'],
+            'total' => $total,
         ];
     }
 
@@ -529,7 +536,7 @@ class LongTermMemoryAppService
      */
     private function validateEnabledStatusChange(LongTermMemoryEntity $memory, bool $enabled): void
     {
-        if ($memory->getStatus() !== MemoryStatus::ACCEPTED) {
+        if ($memory->getStatus() !== MemoryStatus::ACTIVE) {
             throw new InvalidArgumentException(trans('long_term_memory.entity.enabled_status_restriction'));
         }
     }

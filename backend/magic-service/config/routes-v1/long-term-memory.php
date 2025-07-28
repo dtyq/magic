@@ -11,7 +11,7 @@ use Hyperf\HttpServer\Router\Router;
 // 长期记忆集合操作API路由
 Router::addGroup('/api/v1/memories', static function () {
     // 基础操作
-    Router::get('', [LongTermMemoryAdminApi::class, 'getMemoryList']);
+    Router::post('/queries', [LongTermMemoryAdminApi::class, 'getMemoryList']);
 
     // 批量处理记忆建议（接受/拒绝）
     Router::put('/status', [LongTermMemoryAdminApi::class, 'batchProcessMemorySuggestions']);

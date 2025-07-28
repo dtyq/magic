@@ -35,6 +35,11 @@ interface LongTermMemoryRepositoryInterface
     public function findMemories(MemoryQueryDTO $dto): array;
 
     /**
+     * 根据查询条件统计记忆数量.
+     */
+    public function countMemories(MemoryQueryDTO $dto): int;
+
+    /**
      * 根据组织、应用、用户查找所有记忆.
      */
     public function findByUser(string $orgId, string $appId, string $userId, ?string $status = null): array;

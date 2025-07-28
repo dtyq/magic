@@ -12,8 +12,9 @@ namespace App\Domain\LongTermMemory\Entity\ValueObject;
  */
 enum MemoryStatus: string
 {
-    case PENDING = 'pending';   // 待接受
-    case ACCEPTED = 'accepted'; // 已接受
+    case PENDING = 'pending';                   // 待接受（第一次生成记忆时）
+    case ACTIVE = 'active';                     // 已生效（记忆已被接受，pending_content为空）
+    case PENDING_REVISION = 'pending_revision'; // 待修订（记忆已被接受，但pending_content不为空）
 
     /**
      * 获取状态描述.
@@ -22,7 +23,8 @@ enum MemoryStatus: string
     {
         return match ($this) {
             self::PENDING => '待接受',
-            self::ACCEPTED => '已接受',
+            self::ACTIVE => '已生效',
+            self::PENDING_REVISION => '待修订',
         };
     }
 

@@ -19,7 +19,7 @@ return [
     'entity' => [
         'content_too_long' => '记忆内容长度不能超过65535个字符',
         'pending_content_too_long' => '待变更记忆内容长度不能超过65535个字符',
-        'enabled_status_restriction' => '只有已接受状态的记忆才能启用或禁用',
+        'enabled_status_restriction' => '只有已生效状态的记忆才能启用或禁用',
         'user_memory_limit_exceeded' => '用户记忆数量已达到上限（20条）',
     ],
     'api' => [
