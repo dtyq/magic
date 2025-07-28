@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\CloudFile\Tests\OSS;
 
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
-use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Tests\CloudFileBaseTest;
 
@@ -294,6 +293,11 @@ class OSSCredentialTest extends CloudFileBaseTest
         );
     }
 
+    protected function getStorageName(): string
+    {
+        return 'aliyun_test';
+    }
+
     /**
      * Create test credential policy.
      */
@@ -303,11 +307,5 @@ class OSSCredentialTest extends CloudFileBaseTest
             'sts' => true,
             'roleSessionName' => 'credential-test',
         ]);
-    }
-
-    private function getFilesystem(): FilesystemProxy
-    {
-        $easyFile = $this->createCloudFile();
-        return $easyFile->get('aliyun_test');
     }
 }

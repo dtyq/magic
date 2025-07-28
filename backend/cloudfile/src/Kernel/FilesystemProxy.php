@@ -43,6 +43,8 @@ class FilesystemProxy extends Filesystem
 
     private string $publicDomain = '';
 
+    private array $options = [];
+
     private array $simpleUploadsMap = [
         AdapterName::ALIYUN => AliyunSimpleUpload::class,
         AdapterName::TOS => TosSimpleUpload::class,
@@ -355,6 +357,16 @@ class FilesystemProxy extends Filesystem
     public function setIsPublicRead(bool $isPublicRead): void
     {
         $this->isPublicRead = $isPublicRead;
+    }
+
+    public function setOptions(array $options): void
+    {
+        $this->options = $options;
+    }
+
+    public function getOptions(): array
+    {
+        return $this->options;
     }
 
     protected function initSimpleUpload(): void

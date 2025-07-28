@@ -56,6 +56,7 @@ class CloudFile
         }
 
         $proxy = new FilesystemProxy($this->container, $adapterName, $adapter, $config);
+        $proxy->setOptions($storageConfig['options'] ?? []);
         $proxy->setIsPublicRead((bool) ($storageConfig['public_read'] ?? false));
         $this->resolvers[$storage] = $proxy;
         return $proxy;

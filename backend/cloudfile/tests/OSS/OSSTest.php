@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\CloudFile\Tests\OSS;
 
-use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\CloudFile\Tests\CloudFileBaseTest;
@@ -140,9 +139,8 @@ class OSSTest extends CloudFileBaseTest
         $this->assertIsString($path);
     }
 
-    private function getFilesystem(): FilesystemProxy
+    protected function getStorageName(): string
     {
-        $easyFile = $this->createCloudFile();
-        return $easyFile->get('aliyun_test');
+        return 'aliyun_test';
     }
 }

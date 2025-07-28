@@ -5,16 +5,17 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace Dtyq\CloudFile\Tests\TOS;
+namespace Dtyq\CloudFile\Tests\FileService;
 
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Tests\CloudFileBaseTest;
+use Exception;
 
 /**
- * TOS Credential-based Object Management Test.
+ * FileService TOS Credential-based Object Management Test.
  *
- * This test covers the new credential-based methods:
+ * This test covers the new credential-based methods via FileService TOS platform:
  * - listObjectsByCredential
  * - deleteObjectByCredential
  * - copyObjectByCredential
@@ -24,18 +25,42 @@ use Dtyq\CloudFile\Tests\CloudFileBaseTest;
  * @internal
  * @coversNothing
  */
-class TOSCredentialTest extends CloudFileBaseTest
+class FileServiceTOSCredentialTest extends CloudFileBaseTest
 {
-    private const TEST_PREFIX = 'test-credential/';
+    private string $allowedDir = '';
 
-    private const TEST_FILE_KEY = 'test-credential/test-file.txt';
+    private string $testPrefix = '';
 
-    private const TEST_FOLDER_KEY = 'test-credential/test-folder/';
+    private string $testFileKey = '';
 
-    private const TEST_COPY_KEY = 'test-credential/test-file-copy.txt';
+    private string $testFolderKey = '';
+
+    private string $testCopyKey = '';
+
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        try {
+            $filesystem = $this->getFilesystem();
+            $credentialPolicy = $this->createTestCredentialPolicy();
+
+            // Get credential to determine allowed dir
+            $credential = $filesystem->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($filesystem->getOptions()));
+            $this->allowedDir = $credential['temporary_credential']['dir'] ?? '';
+
+            // Set up test keys with allowed dir prefix
+            $this->testPrefix = $this->allowedDir . 'fileservice-tos-credential/';
+            $this->testFileKey = $this->testPrefix . 'test-file.txt';
+            $this->testFolderKey = $this->testPrefix . 'test-folder/';
+            $this->testCopyKey = $this->testPrefix . 'test-file-copy.txt';
+        } catch (Exception $e) {
+            // Will be handled by getFilesystem() in individual tests
+        }
+    }
 
     /**
-     * Test creating an object by credential.
+     * Test creating an object by credential via FileService TOS.
      */
     public function testCreateObjectByCredential(): void
     {
@@ -45,35 +70,35 @@ class TOSCredentialTest extends CloudFileBaseTest
         // Test creating a file object
         $filesystem->createObjectByCredential(
             $credentialPolicy,
-            self::TEST_FILE_KEY,
-            [
-                'content' => 'Test file content for credential test',
+            $this->testFileKey,
+            array_merge([
+                'content' => 'Test file content for FileService TOS credential test',
                 'content_type' => 'text/plain',
                 'metadata' => [
-                    'test-key' => 'test-value',
+                    'test-key' => 'fileservice-tos-test',
                     'created-by' => 'unit-test',
                 ],
-            ]
+            ], $this->getOptions($filesystem->getOptions()))
         );
 
-        $this->assertTrue(true, 'File object should be created successfully');
+        $this->assertTrue(true, 'File object should be created successfully via FileService TOS');
 
         // Test creating a folder object
         $filesystem->createObjectByCredential(
             $credentialPolicy,
-            self::TEST_FOLDER_KEY,
-            [
+            $this->testFolderKey,
+            array_merge([
                 'metadata' => [
-                    'folder-type' => 'test-folder',
+                    'folder-type' => 'fileservice-test-folder',
                 ],
-            ]
+            ], $this->getOptions($filesystem->getOptions()))
         );
 
-        $this->assertTrue(true, 'Folder object should be created successfully');
+        $this->assertTrue(true, 'Folder object should be created successfully via FileService TOS');
     }
 
     /**
-     * Test getting object metadata by credential.
+     * Test getting object metadata by credential via FileService TOS.
      *
      * @depends testCreateObjectByCredential
      */
@@ -84,7 +109,8 @@ class TOSCredentialTest extends CloudFileBaseTest
 
         $metadata = $filesystem->getHeadObjectByCredential(
             $credentialPolicy,
-            self::TEST_FILE_KEY
+            $this->testFileKey,
+            $this->getOptions($filesystem->getOptions())
         );
 
         $this->assertIsArray($metadata, 'Metadata should be an array');
@@ -95,7 +121,7 @@ class TOSCredentialTest extends CloudFileBaseTest
         $this->assertArrayHasKey('meta', $metadata);
 
         // Verify content length
-        $expectedLength = strlen('Test file content for credential test');
+        $expectedLength = strlen('Test file content for FileService TOS credential test');
         $this->assertEquals($expectedLength, $metadata['content_length']);
 
         // Verify content type
@@ -103,7 +129,7 @@ class TOSCredentialTest extends CloudFileBaseTest
     }
 
     /**
-     * Test getting metadata for non-existent object.
+     * Test getting metadata for non-existent object via FileService TOS.
      */
     public function testGetHeadObjectByCredentialNotFound(): void
     {
@@ -114,14 +140,17 @@ class TOSCredentialTest extends CloudFileBaseTest
         $this->expectExceptionMessage('Object not found');
         $this->expectExceptionCode(404);
 
+        $nonExistentKey = $this->allowedDir . 'fileservice-tos-non-existent-object.txt';
+
         $filesystem->getHeadObjectByCredential(
             $credentialPolicy,
-            'non-existent-object.txt'
+            $nonExistentKey,
+            $this->getOptions($filesystem->getOptions())
         );
     }
 
     /**
-     * Test listing objects by credential.
+     * Test listing objects by credential via FileService TOS.
      *
      * @depends testCreateObjectByCredential
      */
@@ -132,7 +161,8 @@ class TOSCredentialTest extends CloudFileBaseTest
 
         $result = $filesystem->listObjectsByCredential(
             $credentialPolicy,
-            self::TEST_PREFIX
+            $this->testPrefix,
+            $this->getOptions($filesystem->getOptions())
         );
 
         $this->assertIsArray($result, 'Result should be an array');
@@ -143,24 +173,24 @@ class TOSCredentialTest extends CloudFileBaseTest
 
         // Verify we have at least the test objects
         $objectKeys = array_column($result['objects'], 'key');
-        $this->assertContains(self::TEST_FILE_KEY, $objectKeys);
-        $this->assertContains(self::TEST_FOLDER_KEY, $objectKeys);
+        $this->assertContains($this->testFileKey, $objectKeys);
+        $this->assertContains($this->testFolderKey, $objectKeys);
 
         // Test with pagination options
         $resultWithOptions = $filesystem->listObjectsByCredential(
             $credentialPolicy,
-            self::TEST_PREFIX,
-            [
+            $this->testPrefix,
+            array_merge([
                 'max-keys' => 10,
                 'delimiter' => '/',
-            ]
+            ], $this->getOptions($filesystem->getOptions()))
         );
 
         $this->assertLessThanOrEqual(10, count($resultWithOptions['objects']));
     }
 
     /**
-     * Test copying object by credential.
+     * Test copying object by credential via FileService TOS.
      *
      * @depends testCreateObjectByCredential
      */
@@ -172,56 +202,61 @@ class TOSCredentialTest extends CloudFileBaseTest
         // Basic copy operation
         $filesystem->copyObjectByCredential(
             $credentialPolicy,
-            self::TEST_FILE_KEY,
-            self::TEST_COPY_KEY
+            $this->testFileKey,
+            $this->testCopyKey,
+            $this->getOptions($filesystem->getOptions())
         );
 
-        $this->assertTrue(true, 'Object should be copied successfully');
+        $this->assertTrue(true, 'Object should be copied successfully via FileService TOS');
 
         // Verify the copied object exists
         $metadata = $filesystem->getHeadObjectByCredential(
             $credentialPolicy,
-            self::TEST_COPY_KEY
+            $this->testCopyKey,
+            $this->getOptions($filesystem->getOptions())
         );
 
         $this->assertIsArray($metadata);
         $this->assertEquals('text/plain', $metadata['content_type']);
 
         // Test copy with options
-        $copyKeyWithOptions = 'test-credential/test-file-copy-with-options.txt';
+        $copyKeyWithOptions = $this->testPrefix . 'test-file-copy-with-options.txt';
         $filesystem->copyObjectByCredential(
             $credentialPolicy,
-            self::TEST_FILE_KEY,
+            $this->testFileKey,
             $copyKeyWithOptions,
-            [
+            array_merge([
                 'metadata_directive' => 'REPLACE',
                 'content_type' => 'application/octet-stream',
-                'download_name' => 'downloaded-file.txt',
+                'download_name' => 'fileservice-downloaded-file.txt',
                 'metadata' => [
                     'copied-at' => date('Y-m-d H:i:s'),
-                    'source' => self::TEST_FILE_KEY,
+                    'source' => $this->testFileKey,
+                    'platform' => 'fileservice-tos',
                 ],
-            ]
+            ], $this->getOptions($filesystem->getOptions()))
         );
 
         // Verify the copied object with new metadata
         $newMetadata = $filesystem->getHeadObjectByCredential(
             $credentialPolicy,
-            $copyKeyWithOptions
+            $copyKeyWithOptions,
+            $this->getOptions($filesystem->getOptions())
         );
 
         $this->assertEquals('application/octet-stream', $newMetadata['content_type']);
-        $this->assertStringContainsString('downloaded-file.txt', $newMetadata['content_disposition']);
+        $this->assertStringContainsString('fileservice-downloaded-file.txt', $newMetadata['content_disposition']);
 
         // Clean up the additional copy
         $filesystem->deleteObjectByCredential(
             $credentialPolicy,
-            $copyKeyWithOptions
+            $copyKeyWithOptions,
+            $this->getOptions($filesystem->getOptions())
         );
     }
 
     /**
-     * Test deleting object by credential.
+     * Test deleting object by credential via FileService TOS.
      *
      * @depends testCreateObjectByCredential
      * @depends testCopyObjectByCredential
@@ -234,22 +269,24 @@ class TOSCredentialTest extends CloudFileBaseTest
         // Delete the copied object
         $filesystem->deleteObjectByCredential(
             $credentialPolicy,
-            self::TEST_COPY_KEY
+            $this->testCopyKey,
+            $this->getOptions($filesystem->getOptions())
         );
 
-        $this->assertTrue(true, 'Object should be deleted successfully');
+        $this->assertTrue(true, 'Object should be deleted successfully via FileService TOS');
 
         // Verify the object no longer exists
         $this->expectException(CloudFileException::class);
 
         $filesystem->getHeadObjectByCredential(
             $credentialPolicy,
-            self::TEST_COPY_KEY
+            $this->testCopyKey,
+            $this->getOptions($filesystem->getOptions())
         );
     }
 
     /**
-     * Test various edge cases and error conditions.
+     * Test various edge cases and error conditions via FileService TOS.
      */
     public function testEdgeCases(): void
     {
@@ -257,24 +294,26 @@ class TOSCredentialTest extends CloudFileBaseTest
         $credentialPolicy = $this->createTestCredentialPolicy();
 
         // Test creating object with empty content
-        $emptyFileKey = 'test-credential/empty-file.txt';
+        $emptyFileKey = $this->testPrefix . 'empty-file.txt';
         $filesystem->createObjectByCredential(
             $credentialPolicy,
             $emptyFileKey,
-            ['content' => '']
+            array_merge(['content' => ''], $this->getOptions($filesystem->getOptions()))
         );
 
         $metadata = $filesystem->getHeadObjectByCredential(
             $credentialPolicy,
-            $emptyFileKey
+            $emptyFileKey,
+            $this->getOptions($filesystem->getOptions())
         );
 
         $this->assertEquals(0, $metadata['content_length']);
 
-        // Test listing with empty prefix
+        // Test listing with allowed dir as prefix
         $result = $filesystem->listObjectsByCredential(
             $credentialPolicy,
-            '/'
+            $this->allowedDir,
+            $this->getOptions($filesystem->getOptions())
         );
 
         $this->assertIsArray($result);
@@ -283,23 +322,31 @@ class TOSCredentialTest extends CloudFileBaseTest
         // Clean up
         $filesystem->deleteObjectByCredential(
             $credentialPolicy,
-            $emptyFileKey
+            $emptyFileKey,
+            $this->getOptions($filesystem->getOptions())
         );
     }
 
     protected function getStorageName(): string
     {
-        return 'tos_test';
+        return 'file_service_tos_test';
     }
 
     /**
-     * Create test credential policy.
+     * Create test credential policy for FileService TOS.
      */
     private function createTestCredentialPolicy(): CredentialPolicy
     {
         return new CredentialPolicy([
             'sts' => true,
-            'roleSessionName' => 'credential-test',
+            'roleSessionName' => 'fileservice-tos-credential-test',
+        ]);
+    }
+
+    private function getOptions(array $options = []): array
+    {
+        return array_merge($options, [
+            'cache' => false,
         ]);
     }
 }
