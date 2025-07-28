@@ -9,6 +9,7 @@ namespace App\Infrastructure\Repository\LongTermMemory;
 
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
+use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\Infrastructure\Repository\LongTermMemory\Model\LongTermMemoryModel;
@@ -83,6 +84,11 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             $query->where('project_id', $dto->projectId);
         }
 
+        // 启用状态筛选
+        if ($dto->enabled !== null) {
+            $query->where('enabled', $dto->enabled ? 1 : 0);
+        }
+
         // 标签筛选
         if (! empty($dto->tags)) {
             foreach ($dto->tags as $tag) {
@@ -98,19 +104,9 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             });
         }
 
-        // 游标分页
-        if ($dto->lastOrderValue !== null && $dto->lastId !== null) {
-            $orderColumn = $dto->orderBy;
-            $operator = $dto->orderDirection === 'desc' ? '<' : '>';
-            $equalOperator = $dto->orderDirection === 'desc' ? '<' : '>';
-
-            $query->where(function (Builder $subQuery) use ($orderColumn, $operator, $equalOperator, $dto) {
-                $subQuery->where($orderColumn, $operator, $dto->lastOrderValue)
-                    ->orWhere(function (Builder $nestedQuery) use ($orderColumn, $equalOperator, $dto) {
-                        $nestedQuery->where($orderColumn, $dto->lastOrderValue)
-                            ->where('id', $equalOperator, $dto->lastId);
-                    });
-            });
+        // 简单分页：使用 offset
+        if ($dto->offset > 0) {
+            $query->offset($dto->offset);
         }
 
         // 排序
@@ -159,7 +155,8 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', 'accepted')
+            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->where(function (Builder $query) {
                 $query->whereNull('expires_at')
@@ -495,7 +492,9 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->whereNull('deleted_at')
             ->selectRaw('SUM(CHAR_LENGTH(content)) as total_size')
             ->first();
-
+        if (! $result) {
+            return 0;
+        }
         return $result['total_size'] ?? 0;
     }
 
@@ -508,6 +507,8 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
+            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->whereNotNull('last_accessed_at')
             ->orderBy('last_accessed_at', 'desc')
@@ -526,6 +527,8 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
+            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->whereNotNull('last_reinforced_at')
             ->orderBy('last_reinforced_at', 'desc')
@@ -544,6 +547,8 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
+            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->orderBy('importance', 'desc')
             ->limit($limit)
@@ -561,6 +566,8 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
+            ->where('status', MemoryStatus::ACCEPTED->value)
+            ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->orderBy('access_count', 'desc')
             ->limit($limit)
@@ -570,11 +577,52 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
     }
 
     /**
+     * 批量检查记忆是否属于用户.
+     */
+    public function filterMemoriesByUser(array $memoryIds, string $orgId, string $appId, string $userId): array
+    {
+        if (empty($memoryIds)) {
+            return [];
+        }
+
+        return $this->query()
+            ->whereIn('id', $memoryIds)
+            ->where('org_id', $orgId)
+            ->where('app_id', $appId)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->toArray();
+    }
+
+    /**
+     * 批量更新记忆的启用状态.
+     */
+    public function batchUpdateEnabled(array $memoryIds, bool $enabled, string $orgId, string $appId, string $userId): int
+    {
+        if (empty($memoryIds)) {
+            return 0;
+        }
+
+        // 只能更新 accepted 状态的记忆
+        return LongTermMemoryModel::query()
+            ->whereIn('id', $memoryIds)
+            ->where('org_id', $orgId)
+            ->where('app_id', $appId)
+            ->where('user_id', $userId)
+            ->where('status', 'accepted') // 只有已接受的记忆可以启用/禁用
+            ->whereNull('deleted_at')
+            ->update([
+                'enabled' => $enabled ? 1 : 0,
+            ]);
+    }
+
+    /**
      * 获取查询构建器.
      */
     private function query(): Builder
     {
-        return $this->model->query();
+        return $this->model::query();
     }
 
     /**
@@ -620,6 +668,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
 
     /**
      * 将数组集合转换为实体集合.
+     * @return LongTermMemoryEntity[]
      */
     private function entitiesFromArray(array $dataArray): array
     {
