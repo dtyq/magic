@@ -27,10 +27,11 @@ use function Hyperf\Coroutine\parallel;
 class SuperAgentMemoryApi extends AbstractApi
 {
     public function __construct(
-        protected RequestInterface $request,
+        protected RequestInterface          $request,
         protected ValidatorFactoryInterface $validator,
-        protected LongTermMemoryAppService $longTermMemoryAppService,
-    ) {
+        protected LongTermMemoryAppService  $longTermMemoryAppService,
+    )
+    {
         parent::__construct($request);
     }
 
@@ -55,7 +56,8 @@ class SuperAgentMemoryApi extends AbstractApi
         $metadata = $this->parseMetadata($validatedParams['metadata']);
 
         $dto = new CreateMemoryDTO([
-            'content' => $validatedParams['memory'],
+            'content' => '',
+            'pendingContent' => $validatedParams['memory'],
             'explanation' => $validatedParams['explanation'],
             'memoryType' => MemoryType::MANUAL_INPUT->value,
             'status' => MemoryStatus::PENDING->value,
@@ -69,11 +71,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         $memoryId = $this->longTermMemoryAppService->createMemory($dto);
 
-        return [
-            'memory_id' => $memoryId,
-            'message' => '记忆创建成功',
-            'memory' => $validatedParams['memory'],
-        ];
+        return ['memory_id' => $memoryId, 'success' => true];
     }
 
     /**
@@ -108,10 +106,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         $this->longTermMemoryAppService->updateMemory($id, $dto);
 
-        return [
-            'success' => true,
-            'message' => '记忆变更已提交，等待用户确认',
-        ];
+        return ['success' => true];
     }
 
     /**
@@ -187,7 +182,7 @@ class SuperAgentMemoryApi extends AbstractApi
      */
     private function checkMemoryPermission(string $memoryId, MessageMetadata $metadata): void
     {
-        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
+        if (!$this->longTermMemoryAppService->isMemoryBelongToUser(
             $memoryId,
             $metadata->getOrganizationCode(),
             AgentConstant::SUPER_MAGIC_CODE,

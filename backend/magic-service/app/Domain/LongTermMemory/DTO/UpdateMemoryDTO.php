@@ -25,6 +25,8 @@ class UpdateMemoryDTO extends AbstractDTO
 
     public ?string $status = null;
 
+    public ?bool $enabled = null;
+
     public ?float $confidence = null;
 
     public ?float $importance = null;

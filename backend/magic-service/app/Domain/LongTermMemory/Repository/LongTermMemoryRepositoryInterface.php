@@ -30,6 +30,7 @@ interface LongTermMemoryRepositoryInterface
 
     /**
      * 通用查询方法 (使用 DTO).
+     * @return LongTermMemoryEntity[]
      */
     public function findMemories(MemoryQueryDTO $dto): array;
 
@@ -144,4 +145,25 @@ interface LongTermMemoryRepositoryInterface
      * 获取访问次数最多的记忆.
      */
     public function getMostAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array;
+
+    /**
+     * 批量检查记忆是否属于用户.
+     * @param array $memoryIds 记忆ID列表
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @return array 返回属于用户的记忆ID列表
+     */
+    public function filterMemoriesByUser(array $memoryIds, string $orgId, string $appId, string $userId): array;
+
+    /**
+     * 批量更新记忆的启用状态.
+     * @param array $memoryIds 记忆ID列表
+     * @param bool $enabled 启用状态
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @return int 更新的记录数量
+     */
+    public function batchUpdateEnabled(array $memoryIds, bool $enabled, string $orgId, string $appId, string $userId): int;
 }
