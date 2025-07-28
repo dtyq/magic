@@ -9,12 +9,10 @@ namespace App\Interfaces\LongTermMemory\Facade;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\LongTermMemory\DTO\EvaluateConversationRequestDTO;
-use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\LongTermMemory\Service\LongTermMemoryAppService;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
 use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
-use App\Domain\LongTermMemory\DTO\MemoryListDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Infrastructure\Core\AbstractApi;
@@ -240,64 +238,6 @@ class LongTermMemoryHttpApi extends AbstractApi
                 'updated_at' => $memory->getUpdatedAt()?->format('Y-m-d H:i:s'),
                 'effective_score' => $memory->getEffectiveScore(),
             ],
-        ];
-    }
-
-    /**
-     * 获取记忆列表.
-     */
-    public function getMemoryList(RequestInterface $request): array
-    {
-        $params = $request->all();
-        $rules = [
-            'filter_type' => 'string|in:all,type,tags,search',
-            'filter_value' => 'string',
-            'page' => 'integer|min:1',
-            'page_size' => 'integer|min:1|max:100',
-            'order_by' => 'string|in:created_at,importance,access_count,reinforcement_count',
-            'order_direction' => 'string|in:asc,desc',
-        ];
-
-        $validatedParams = $this->checkParams($params, $rules);
-        $authorization = $this->getAuthorization();
-
-        $dto = new MemoryListDTO([
-            'orgId' => $authorization->getOrganizationCode(),
-            'appId' => AppCodeEnum::SUPER_MAGIC->value,
-            'userId' => $authorization->getId(),
-            'filterType' => $validatedParams['filter_type'] ?? 'all',
-            'filterValue' => $validatedParams['filter_value'] ?? '',
-            'page' => (int) ($validatedParams['page'] ?? 1),
-            'pageSize' => (int) ($validatedParams['page_size'] ?? 20),
-            'orderBy' => $validatedParams['order_by'] ?? 'created_at',
-            'orderDirection' => $validatedParams['order_direction'] ?? 'desc',
-        ]);
-
-        $memories = $this->longTermMemoryAppService->getMemoryList($dto);
-
-        $data = array_map(function ($memory) {
-            return [
-                'id' => $memory->getId(),
-                'content' => substr($memory->getContent(), 0, 200) . (strlen($memory->getContent()) > 200 ? '...' : ''),
-                'origin_text' => $memory->getOriginText(),
-                'memory_type' => $memory->getMemoryType()->value,
-                'status' => $memory->getStatus()->value,
-                'status_description' => $memory->getStatus()->getDescription(),
-                'project_id' => $memory->getProjectId(),
-                'confidence' => $memory->getConfidence(),
-                'importance' => $memory->getImportance(),
-                'access_count' => $memory->getAccessCount(),
-                'reinforcement_count' => $memory->getReinforcementCount(),
-                'tags' => $memory->getTags(),
-                'last_accessed_at' => $memory->getLastAccessedAt()?->format('Y-m-d H:i:s'),
-                'created_at' => $memory->getCreatedAt()?->format('Y-m-d H:i:s'),
-                'effective_score' => $memory->getEffectiveScore(),
-            ];
-        }, $memories);
-
-        return [
-            'success' => true,
-            'data' => $data,
         ];
     }
 
