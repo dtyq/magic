@@ -2030,6 +2030,50 @@ JSON, true);
         $this->assertTrue($value->expressionIsOnlyMethod());
     }
 
+    public function testGetRFC1123DateTimeWithCorrectTimezone()
+    {
+        $valueBuilder = new ValueBuilder();
+
+        // 创建一个使用get_rfc1123_date_time方法的表达式
+        $methodExpressionData = json_decode(<<<'JSON'
+{
+    "type": "expression",
+    "const_value": null,
+    "expression_value": [
+        {
+            "type": "methods",
+            "value": "get_rfc1123_date_time",
+            "name": "get_rfc1123_date_time",
+            "args": [
+                {
+                    "type": "const",
+                    "const_value": [
+                        {
+                            "type": "input",
+                            "value": "1634799280",
+                            "name": ""
+                        }
+                    ],
+                    "expression_value": null
+                }
+            ]
+        }
+    ]
+}
+JSON, true);
+
+        $value = $valueBuilder->build($methodExpressionData);
+        $result = $value->getResult();
+
+        // 验证结果格式符合RFC 1123标准
+        $this->assertIsString($result);
+        // 验证格式: Thu, 21 Oct 2021 07:28:00 GMT
+        $this->assertMatchesRegularExpression('/^[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/', $result);
+
+        // 验证时间戳1634799280对应的UTC时间: Thu, 21 Oct 2021 06:54:40 GMT
+        $this->assertStringContainsString('21 Oct 2021 06:54:40 GMT', $result);
+    }
+
     private function getFormJsonArray(): array
     {
         $formJson = <<<'JSON'

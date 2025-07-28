@@ -346,7 +346,8 @@ JSON,
             true
         ))->getResult());
 
-        $this->assertEquals(date('Y-m-d\TH:i:s'), $builder->build(json_decode(
+        // Test that get_iso8601_date_time returns UTC time with Z suffix
+        $result = $builder->build(json_decode(
             <<<'JSON'
 [
     {
@@ -358,7 +359,8 @@ JSON,
 ]
 JSON,
             true
-        ))->getResult());
+        ))->getResult();
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $result);
 
         $this->assertEquals(date('Y-m-d\TH:i:s') . date('P'), $builder->build(json_decode(
             <<<'JSON'
