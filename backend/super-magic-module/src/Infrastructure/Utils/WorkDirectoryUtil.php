@@ -28,6 +28,19 @@ class WorkDirectoryUtil
         return self::getRootDir($userId, $projectId) . '/workspace';
     }
 
+    public static function generateDefaultWorkDirMetadata(): array
+    {
+        // x-amz-meta-
+        return [
+            'uid' => '0',
+            'gid' => '0',
+            'mode' => (string) 0755,
+            'atime' => (string) microtime(true),
+            'ctime' => (string) microtime(true),
+            'mtime' => (string) microtime(true),
+        ];
+    }
+
     public static function getAgentChatHistoryDir(string $userId, int $projectId): string
     {
         return self::getRootDir($userId, $projectId) . '/.chat-history';

@@ -85,11 +85,9 @@ class TaskDomainService
         $this->topicRepository->updateTopic($topicEntity);
 
         // if project mode is empty and topic mode is data analysis, set project mode to data analysis
-        if ($topicMode === TopicMode::DATA_ANALYSIS->value) {
-            $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
-            if (empty($projectEntity->getProjectMode())) {
-                $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => TopicMode::DATA_ANALYSIS->value, 'updated_at' => date('Y-m-d H:i:s')]);
-            }
+        $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
+        if (empty($projectEntity->getProjectMode())) {
+            $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => TopicMode::DATA_ANALYSIS->value, 'updated_at' => date('Y-m-d H:i:s')]);
         }
 
         return $taskEntity;
