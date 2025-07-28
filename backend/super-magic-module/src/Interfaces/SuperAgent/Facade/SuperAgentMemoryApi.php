@@ -97,7 +97,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         // 如果有pendingContent，需要根据当前记忆状态设置新状态
         $newStatus = null;
-        if (isset($validatedParams['memory']) && $validatedParams['memory'] !== null) {
+        if (isset($validatedParams['memory'])) {
             // 获取当前记忆状态
             $currentMemory = $this->longTermMemoryAppService->getMemory($id);
             if ($currentMemory->getStatus()->value === 'active') {
