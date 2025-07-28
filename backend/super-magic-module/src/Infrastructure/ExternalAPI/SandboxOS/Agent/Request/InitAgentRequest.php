@@ -26,6 +26,7 @@ class InitAgentRequest
         private string $taskMode = 'plan',
         private string $agentMode = '',
         private string $magicServiceHost = '',
+        private string $chatHistoryDir = '',
         private ?string $memory = null
     ) {
     }
@@ -46,6 +47,7 @@ class InitAgentRequest
             $data['task_mode'] ?? 'plan',
             $data['agent_mode'] ?? '',
             $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
+            $data['chat_history_dir'] ?? '',
             $data['memory'] ?? null
         );
     }
@@ -72,9 +74,10 @@ class InitAgentRequest
         string $taskMode = 'plan',
         string $agentMode = '',
         string $magicServiceHost = '',
+        string $chatHistoryDir = '',
         ?string $memory = null
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $memory);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $chatHistoryDir, $memory);
     }
 
     /**
@@ -236,6 +239,23 @@ class InitAgentRequest
     }
 
     /**
+     * Set chat history directory.
+     */
+    public function setChatHistoryDir(string $chatHistoryDir): self
+    {
+        $this->chatHistoryDir = $chatHistoryDir;
+        return $this;
+    }
+
+    /**
+     * Get chat history directory.
+     */
+    public function getChatHistoryDir(): string
+    {
+        return $this->chatHistoryDir;
+    }
+
+    /**
      * 获取记忆内容.
      */
     public function getMemory(): ?string
@@ -269,7 +289,8 @@ class InitAgentRequest
             'metadata' => $this->metadata,
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
-            'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'magic_service_host' => $this->magicServiceHost,
+            'chat_history_dir' => $this->chatHistoryDir,
             'memory' => $this->memory,
         ];
     }
