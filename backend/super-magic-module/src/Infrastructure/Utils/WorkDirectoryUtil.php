@@ -30,7 +30,7 @@ class WorkDirectoryUtil
 
     public static function getAgentChatHistoryDir(string $userId, int $projectId): string
     {
-        return self::getRootDir($userId, $projectId) . '/chat-history';
+        return self::getRootDir($userId, $projectId) . '/.chat-history';
     }
 
     /**
