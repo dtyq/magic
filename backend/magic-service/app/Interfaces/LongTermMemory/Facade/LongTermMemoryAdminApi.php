@@ -108,56 +108,24 @@ class LongTermMemoryAdminApi extends AbstractApi
      */
     public function updateMemory(string $memoryId, RequestInterface $request): array
     {
-        $params = $request->all();
-        $rules = [
-            'content' => 'string|max:65535',
-        ];
-
-        $validatedParams = $this->checkParams($params, $rules);
+        // 1. 参数验证
+        $validatedParams = $this->validateUpdateMemoryParams($request);
         $authorization = $this->getAuthorization();
 
-        if (! $this->longTermMemoryAppService->areMemoriesBelongToUser(
-            [$memoryId],
-            $authorization->getOrganizationCode(),
-            $authorization->getApplicationCode(),
-            $authorization->getId()
-        )) {
-            return [
-                'success' => false,
-                'message' => trans('long_term_memory.api.memory_not_belong_to_user'),
-            ];
+        // 2. 权限检查
+        $ownershipValidation = $this->validateMemoryOwnership($memoryId, $authorization);
+        if (! $ownershipValidation['success']) {
+            return $ownershipValidation;
         }
 
-        $originContent = $content = $validatedParams['content'] ?? null;
+        // 3. 处理内容更新
+        $processResult = $this->processContentUpdate(
+            $validatedParams['content'] ?? null,
+            $authorization
+        );
 
-        $shouldRemember = null;
-
-        // 如果传入了content，则调用shouldRememberContent处理
-        if ($content !== null) {
-            $dto = new EvaluateConversationRequestDTO([
-                'conversationContent' => '用户要求一定要记住：' . $content,
-                'appId' => $authorization->getApplicationCode(),
-            ]);
-
-            $shouldRemember = $this->longTermMemoryAppService->shouldRememberContent(
-                $this->longTermMemoryAppService->getChatModel($authorization),
-                $dto
-            );
-
-            // 如果判断应该记忆，则使用处理后的内容，否则使用原内容
-            if ($shouldRemember->remember) {
-                $content = $shouldRemember->memory;
-            }
-        }
-
-        // 构建DTO，只包含需要更新的字段，传入null的字段不会被更新
-        $dto = new UpdateMemoryDTO([
-            'content' => $content,
-            'explanation' => $shouldRemember->explanation ?? null,
-            'originText' => mb_strlen($originContent ?? '') > 100 ? $originContent : null,
-            'tags' => $shouldRemember->tags ?? null,
-        ]);
-
+        // 4. 构建更新DTO并执行更新
+        $dto = $this->buildUpdateMemoryDTO($processResult);
         $this->longTermMemoryAppService->updateMemory($memoryId, $dto);
 
         return [
@@ -251,7 +219,8 @@ class LongTermMemoryAdminApi extends AbstractApi
     {
         $params = $request->all();
         $rules = [
-            'status' => ['string', Rule::enum(MemoryStatus::class)],
+            'status' => 'array',
+            'status.*' => ['string', Rule::enum(MemoryStatus::class)],
             'enabled' => 'boolean',
             'page_token' => 'string',
             'page_size' => 'integer|min:1|max:100',
@@ -570,5 +539,138 @@ class LongTermMemoryAdminApi extends AbstractApi
         }
 
         return $validator->validated();
+    }
+
+    /**
+     * 验证更新记忆的请求参数.
+     */
+    private function validateUpdateMemoryParams(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'content' => 'string|max:65535',
+        ];
+
+        return $this->checkParams($params, $rules);
+    }
+
+    /**
+     * 验证记忆所有权.
+     *
+     * @param mixed $authorization
+     * @return array{success: bool, message?: string}
+     */
+    private function validateMemoryOwnership(string $memoryId, $authorization): array
+    {
+        if (! $this->longTermMemoryAppService->areMemoriesBelongToUser(
+            [$memoryId],
+            $authorization->getOrganizationCode(),
+            $authorization->getApplicationCode(),
+            $authorization->getId()
+        )) {
+            return [
+                'success' => false,
+                'message' => trans('long_term_memory.api.memory_not_belong_to_user'),
+            ];
+        }
+
+        return ['success' => true];
+    }
+
+    /**
+     * 处理内容更新逻辑.
+     *
+     * @param mixed $authorization
+     * @return array{content: null|string, explanation: null|string, originText: null|string, tags: null|array}
+     */
+    private function processContentUpdate(?string $inputContent, $authorization): array
+    {
+        // 如果没有传入内容，直接返回空值
+        if ($inputContent === null) {
+            return [
+                'content' => null,
+                'explanation' => null,
+                'originText' => null,
+                'tags' => null,
+            ];
+        }
+
+        $contentLength = mb_strlen($inputContent);
+
+        // 短内容：直接入库
+        if ($contentLength < 100) {
+            return $this->processShortContent($inputContent);
+        }
+
+        // 长内容：使用LLM处理
+        return $this->processLongContent($inputContent, $authorization);
+    }
+
+    /**
+     * 处理短内容（长度 < 100）.
+     *
+     * @return array{content: string, explanation: string, originText: null, tags: null}
+     */
+    private function processShortContent(string $content): array
+    {
+        return [
+            'content' => $content,
+            'explanation' => '用户手动修改记忆内容',
+            'originText' => null,
+            'tags' => null,
+        ];
+    }
+
+    /**
+     * 处理长内容（长度 >= 100）.
+     *
+     * @param mixed $authorization
+     * @return array{content: string, explanation: string, originText: string, tags: null|array}
+     */
+    private function processLongContent(string $content, $authorization): array
+    {
+        // 调用LLM处理内容
+        $evaluationDTO = new EvaluateConversationRequestDTO([
+            'conversationContent' => '用户要求一定要记住：' . $content,
+            'appId' => $authorization->getApplicationCode(),
+        ]);
+
+        $shouldRemember = $this->longTermMemoryAppService->shouldRememberContent(
+            $this->longTermMemoryAppService->getChatModel($authorization),
+            $evaluationDTO
+        );
+
+        // LLM建议记忆：使用LLM处理结果
+        if ($shouldRemember->memory) {
+            return [
+                'content' => $shouldRemember->memory,
+                'explanation' => $shouldRemember->explanation,
+                'originText' => $content,
+                'tags' => $shouldRemember->tags,
+            ];
+        }
+
+        // LLM不建议记忆：自动压缩
+        return [
+            'content' => mb_substr($content, 0, 100) . '...[已压缩]',
+            'explanation' => '内容过长，已自动压缩',
+            'originText' => $content,
+            'tags' => null,
+        ];
+    }
+
+    /**
+     * 构建更新记忆的DTO.
+     */
+    private function buildUpdateMemoryDTO(array $processResult): UpdateMemoryDTO
+    {
+        return new UpdateMemoryDTO([
+            'content' => $processResult['content'],
+            'pendingContent' => null, // 清空pending_content
+            'status' => $processResult['content'] !== null ? MemoryStatus::ACTIVE->value : null,
+            'explanation' => $processResult['explanation'],
+            'originText' => $processResult['originText'],
+            'tags' => $processResult['tags'],
+        ]);
     }
 }

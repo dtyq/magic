@@ -19,7 +19,7 @@ return [
     'entity' => [
         'content_too_long' => 'Memory content length cannot exceed 65535 characters',
         'pending_content_too_long' => 'Pending memory content length cannot exceed 65535 characters',
-        'enabled_status_restriction' => 'Only accepted memories can be enabled or disabled',
+        'enabled_status_restriction' => 'Only active memories can be enabled or disabled',
         'user_memory_limit_exceeded' => 'User memory limit reached (20 memories)',
     ],
     'api' => [
