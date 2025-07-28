@@ -18,6 +18,7 @@ use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\ErrorCode\LongTermMemoryErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use DateTime;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -29,7 +30,8 @@ class LongTermMemoryDomainService
 {
     public function __construct(
         private readonly LongTermMemoryRepositoryInterface $repository,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly LockerInterface $locker
     ) {
     }
 
@@ -50,26 +52,45 @@ class LongTermMemoryDomainService
             return;
         }
 
-        // 批量查询记忆
-        $memories = $this->repository->findByIds($memoryIds);
+        // 生成锁名称和所有者（基于记忆ID排序后生成唯一锁名）
+        sort($memoryIds);
+        $lockName = 'memory:batch:reinforce:' . md5(implode(',', $memoryIds));
+        $lockOwner = getmypid() . '_' . microtime(true);
 
-        if (empty($memories)) {
-            $this->logger->debug('No memories found for reinforcement', ['memory_ids' => $memoryIds]);
-            return;
+        // 获取互斥锁
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 60)) {
+            $this->logger->error('Failed to acquire lock for batch memory reinforcement', [
+                'lock_name' => $lockName,
+                'memory_ids' => $memoryIds,
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取批量强化记忆锁失败');
         }
 
-        // 批量强化
-        foreach ($memories as $memory) {
-            $memory->reinforce();
-        }
+        try {
+            // 批量查询记忆
+            $memories = $this->repository->findByIds($memoryIds);
 
-        // 批量保存更新
-        if (! $this->repository->updateBatch($memories)) {
-            $this->logger->error('Failed to batch reinforce memories', ['memory_ids' => $memoryIds]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-        }
+            if (empty($memories)) {
+                $this->logger->debug('No memories found for reinforcement', ['memory_ids' => $memoryIds]);
+                return;
+            }
 
-        $this->logger->info('Batch reinforced memories successfully', ['count' => count($memories)]);
+            // 批量强化
+            foreach ($memories as $memory) {
+                $memory->reinforce();
+            }
+
+            // 批量保存更新
+            if (! $this->repository->updateBatch($memories)) {
+                $this->logger->error('Failed to batch reinforce memories', ['memory_ids' => $memoryIds]);
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
+            }
+
+            $this->logger->info('Batch reinforced memories successfully', ['count' => count($memories)]);
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
+        }
     }
 
     /**
@@ -92,8 +113,8 @@ class LongTermMemoryDomainService
                 $memory->setPendingContent(null); // 清空pending_content
             }
 
-            // 设置状态为已接受
-            $memory->setStatus(MemoryStatus::ACCEPTED);
+            // 设置状态为已生效
+            $memory->setStatus(MemoryStatus::ACTIVE);
         }
 
         // 批量保存更新
@@ -114,40 +135,60 @@ class LongTermMemoryDomainService
             return;
         }
 
-        if ($action === 'accept') {
-            // 批量查询记忆
-            $memories = $this->repository->findByIds($memoryIds);
+        // 生成锁名称和所有者（基于记忆ID排序后生成唯一锁名）
+        sort($memoryIds);
+        $lockName = "memory:batch:{$action}:" . md5(implode(',', $memoryIds));
+        $lockOwner = getmypid() . '_' . microtime(true);
 
-            // 批量接受记忆建议：将pending_content移动到content，设置状态为已接受，启用记忆
-            foreach ($memories as $memory) {
-                // 如果有pending_content，则将其移动到content
-                if ($memory->getPendingContent() !== null) {
-                    $memory->setContent($memory->getPendingContent());
-                    $memory->setPendingContent(null); // 清空pending_content
+        // 获取互斥锁
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 60)) {
+            $this->logger->error('Failed to acquire lock for batch memory suggestions processing', [
+                'lock_name' => $lockName,
+                'action' => $action,
+                'memory_ids' => $memoryIds,
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取批量处理记忆建议锁失败');
+        }
+
+        try {
+            if ($action === 'accept') {
+                // 批量查询记忆
+                $memories = $this->repository->findByIds($memoryIds);
+
+                // 批量接受记忆建议：将pending_content移动到content，设置状态为已接受，启用记忆
+                foreach ($memories as $memory) {
+                    // 如果有pending_content，则将其移动到content
+                    if ($memory->getPendingContent() !== null) {
+                        $memory->setContent($memory->getPendingContent());
+                        $memory->setPendingContent(null); // 清空pending_content
+                    }
+
+                    // 设置状态为已生效
+                    $memory->setStatus(MemoryStatus::ACTIVE);
+
+                    // 启用记忆
+                    $memory->setEnabledInternal(true);
                 }
 
-                // 设置状态为已接受
-                $memory->setStatus(MemoryStatus::ACCEPTED);
+                // 批量保存更新
+                if (! $this->repository->updateBatch($memories)) {
+                    $this->logger->error('Failed to batch accept memory suggestions', ['memory_ids' => $memoryIds]);
+                    ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
+                }
 
-                // 启用记忆
-                $memory->setEnabledInternal(true);
+                $this->logger->info('Batch accepted memory suggestions successfully', ['count' => count($memories)]);
+            } elseif ($action === 'reject') {
+                // 批量拒绝记忆建议：直接删除记忆
+                if (! $this->repository->deleteBatch($memoryIds)) {
+                    $this->logger->error('Failed to batch reject memory suggestions', ['memory_ids' => $memoryIds]);
+                    ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
+                }
+
+                $this->logger->info('Batch rejected and deleted memory suggestions successfully', ['count' => count($memoryIds)]);
             }
-
-            // 批量保存更新
-            if (! $this->repository->updateBatch($memories)) {
-                $this->logger->error('Failed to batch accept memory suggestions', ['memory_ids' => $memoryIds]);
-                ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-            }
-
-            $this->logger->info('Batch accepted memory suggestions successfully', ['count' => count($memories)]);
-        } elseif ($action === 'reject') {
-            // 批量拒绝记忆建议：直接删除记忆
-            if (! $this->repository->deleteBatch($memoryIds)) {
-                $this->logger->error('Failed to batch reject memory suggestions', ['memory_ids' => $memoryIds]);
-                ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
-            }
-
-            $this->logger->info('Batch rejected and deleted memory suggestions successfully', ['count' => count($memoryIds)]);
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
         }
     }
 
@@ -275,32 +316,50 @@ class LongTermMemoryDomainService
 
     public function create(CreateMemoryDTO $dto): string
     {
-        $memory = new LongTermMemoryEntity();
-        $memory->setId((string) IdGenerator::getSnowId());
-        $memory->setOrgId($dto->orgId);
-        $memory->setAppId($dto->appId);
-        $memory->setProjectId($dto->projectId);
-        $memory->setUserId($dto->userId);
-        $memory->setMemoryType($dto->memoryType);
-        $memory->setStatus($dto->status);
-        $memory->setContent($dto->content);
-        $memory->setPendingContent($dto->pendingContent);
-        $memory->setExplanation($dto->explanation);
-        $memory->setOriginText($dto->originText);
-        $memory->setTags($dto->tags);
-        $memory->setMetadata($dto->metadata);
-        $memory->setImportance($dto->importance);
-        $memory->setConfidence($dto->confidence);
-        if ($dto->expiresAt) {
-            $memory->setExpiresAt($dto->expiresAt);
+        // 生成锁名称和所有者
+        $lockName = "memory:create:{$dto->orgId}:{$dto->appId}:{$dto->userId}";
+        $lockOwner = getmypid() . '_' . microtime(true);
+
+        // 获取互斥锁
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 30)) {
+            $this->logger->error('Failed to acquire lock for memory creation', [
+                'lock_name' => $lockName,
+                'user_id' => $dto->userId,
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::CREATION_FAILED, '获取记忆创建锁失败');
         }
 
-        if (! $this->repository->save($memory)) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::CREATION_FAILED);
-        }
+        try {
+            $memory = new LongTermMemoryEntity();
+            $memory->setId((string) IdGenerator::getSnowId());
+            $memory->setOrgId($dto->orgId);
+            $memory->setAppId($dto->appId);
+            $memory->setProjectId($dto->projectId);
+            $memory->setUserId($dto->userId);
+            $memory->setMemoryType($dto->memoryType);
+            $memory->setStatus($dto->status);
+            $memory->setContent($dto->content);
+            $memory->setPendingContent($dto->pendingContent);
+            $memory->setExplanation($dto->explanation);
+            $memory->setOriginText($dto->originText);
+            $memory->setTags($dto->tags);
+            $memory->setMetadata($dto->metadata);
+            $memory->setImportance($dto->importance);
+            $memory->setConfidence($dto->confidence);
+            if ($dto->expiresAt) {
+                $memory->setExpiresAt($dto->expiresAt);
+            }
 
-        $this->logger->info('Memory created successfully: {id}', ['id' => $memory->getId()]);
-        return $memory->getId();
+            if (! $this->repository->save($memory)) {
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::CREATION_FAILED);
+            }
+
+            $this->logger->info('Memory created successfully: {id}', ['id' => $memory->getId()]);
+            return $memory->getId();
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
+        }
     }
 
     public function createBatch(array $dtos): array
@@ -323,32 +382,68 @@ class LongTermMemoryDomainService
 
     public function updateMemory(string $memoryId, UpdateMemoryDTO $dto): void
     {
-        $memory = $this->repository->findById($memoryId);
-        if (! $memory) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
+        // 生成锁名称和所有者
+        $lockName = "memory:update:{$memoryId}";
+        $lockOwner = getmypid() . '_' . microtime(true);
+
+        // 获取互斥锁
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 30)) {
+            $this->logger->error('Failed to acquire lock for memory update', [
+                'lock_name' => $lockName,
+                'memory_id' => $memoryId,
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取记忆更新锁失败');
         }
 
-        LongTermMemoryAssembler::updateEntityFromDTO($memory, $dto);
+        try {
+            $memory = $this->repository->findById($memoryId);
+            if (! $memory) {
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
+            }
 
-        if (! $this->repository->update($memory)) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
+            LongTermMemoryAssembler::updateEntityFromDTO($memory, $dto);
+
+            if (! $this->repository->update($memory)) {
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
+            }
+
+            $this->logger->info('Memory updated successfully: {id}', ['id' => $memoryId]);
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
         }
-
-        $this->logger->info('Memory updated successfully: {id}', ['id' => $memoryId]);
     }
 
     public function deleteMemory(string $memoryId): void
     {
-        $memory = $this->repository->findById($memoryId);
-        if (! $memory) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
+        // 生成锁名称和所有者
+        $lockName = "memory:delete:{$memoryId}";
+        $lockOwner = getmypid() . '_' . microtime(true);
+
+        // 获取互斥锁
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 30)) {
+            $this->logger->error('Failed to acquire lock for memory deletion', [
+                'lock_name' => $lockName,
+                'memory_id' => $memoryId,
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED, '获取记忆删除锁失败');
         }
 
-        if (! $this->repository->delete($memoryId)) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
-        }
+        try {
+            $memory = $this->repository->findById($memoryId);
+            if (! $memory) {
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
+            }
 
-        $this->logger->info('Memory deleted successfully: {id}', ['id' => $memoryId]);
+            if (! $this->repository->delete($memoryId)) {
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
+            }
+
+            $this->logger->info('Memory deleted successfully: {id}', ['id' => $memoryId]);
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
+        }
     }
 
     /**
@@ -465,6 +560,14 @@ class LongTermMemoryDomainService
     }
 
     /**
+     * 根据查询条件统计记忆数量.
+     */
+    public function countMemories(MemoryQueryDTO $dto): int
+    {
+        return $this->repository->countMemories($dto);
+    }
+
+    /**
      * 查找用户记忆.
      */
     public function findByUser(string $orgId, string $appId, string $userId, ?string $status = null): array
@@ -560,32 +663,53 @@ class LongTermMemoryDomainService
             return 0;
         }
 
-        // 验证记忆ID的有效性和所属权
-        $validMemoryIds = $this->repository->filterMemoriesByUser($memoryIds, $orgId, $appId, $userId);
-        if (empty($validMemoryIds)) {
-            $this->logger->warning('No valid memory IDs found for user', [
+        // 生成锁名称和所有者（基于记忆ID排序后生成唯一锁名）
+        sort($memoryIds);
+        $enabledStatus = $enabled ? 'enable' : 'disable';
+        $lockName = "memory:batch:{$enabledStatus}:" . md5(implode(',', $memoryIds));
+        $lockOwner = getmypid() . '_' . microtime(true);
+
+        // 获取互斥锁
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 60)) {
+            $this->logger->error('Failed to acquire lock for batch memory enable/disable', [
+                'lock_name' => $lockName,
+                'enabled' => $enabled,
+                'memory_ids' => $memoryIds,
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取批量启用/禁用记忆锁失败');
+        }
+
+        try {
+            // 验证记忆ID的有效性和所属权
+            $validMemoryIds = $this->repository->filterMemoriesByUser($memoryIds, $orgId, $appId, $userId);
+            if (empty($validMemoryIds)) {
+                $this->logger->warning('No valid memory IDs found for user', [
+                    'org_id' => $orgId,
+                    'app_id' => $appId,
+                    'user_id' => $userId,
+                    'provided_ids' => $memoryIds,
+                ]);
+                return 0;
+            }
+
+            // 执行批量更新
+            $updatedCount = $this->repository->batchUpdateEnabled($validMemoryIds, $enabled, $orgId, $appId, $userId);
+
+            $this->logger->info('Batch updated memory enabled status', [
                 'org_id' => $orgId,
                 'app_id' => $appId,
                 'user_id' => $userId,
-                'provided_ids' => $memoryIds,
+                'enabled' => $enabled,
+                'requested_count' => count($memoryIds),
+                'valid_count' => count($validMemoryIds),
+                'updated_count' => $updatedCount,
             ]);
-            return 0;
+
+            return $updatedCount;
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
         }
-
-        // 执行批量更新
-        $updatedCount = $this->repository->batchUpdateEnabled($validMemoryIds, $enabled, $orgId, $appId, $userId);
-
-        $this->logger->info('Batch updated memory enabled status', [
-            'org_id' => $orgId,
-            'app_id' => $appId,
-            'user_id' => $userId,
-            'enabled' => $enabled,
-            'requested_count' => count($memoryIds),
-            'valid_count' => count($validMemoryIds),
-            'updated_count' => $updatedCount,
-        ]);
-
-        return $updatedCount;
     }
 
     /**
