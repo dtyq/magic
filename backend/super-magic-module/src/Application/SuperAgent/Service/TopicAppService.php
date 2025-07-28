@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -212,5 +213,10 @@ class TopicAppService extends AbstractAppService
     public function getTopicsExceedingUpdateTime(string $timeThreshold, int $limit = 100): array
     {
         return $this->topicDomainService->getTopicsExceedingUpdateTime($timeThreshold, $limit);
+    }
+
+    public function getTopicByChatTopicId(DataIsolation $dataIsolation, string $chatTopicId): ?TopicEntity
+    {
+        return $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $chatTopicId);
     }
 }

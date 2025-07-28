@@ -56,7 +56,7 @@ class WorkDirectoryUtil
      */
     public static function getTopicRootDir(string $userId, int $projectId, int $topicId): string
     {
-        return self::getRootDir($userId, $projectId) . sprintf('/.runtime/topic_%s', $topicId);
+        return self::getRootDir($userId, $projectId) . sprintf('/runtime/topic_%s', $topicId);
     }
 
     public static function getTopicUploadDir(string $userId, int $projectId, int $topicId): string
@@ -72,7 +72,7 @@ class WorkDirectoryUtil
     public static function getProjectFilePackDir(string $userId, int $projectId): string
     {
         $currentDate = date('Ymd');
-        return self::getRootDir($userId, $projectId) . '/.runtime/pack/' . $currentDate . '/';
+        return self::getRootDir($userId, $projectId) . '/runtime/pack/' . $currentDate . '/';
     }
 
     public static function getFullFileKey(string $prefix, string $workDir, string $path): string

@@ -25,7 +25,8 @@ class InitAgentRequest
         private array $metadata = [],
         private string $taskMode = 'plan',
         private string $agentMode = '',
-        private string $magicServiceHost = ''
+        private string $magicServiceHost = '',
+        private string $chatHistoryDir = ''
     ) {
     }
 
@@ -44,7 +45,8 @@ class InitAgentRequest
             $data['metadata'] ?? [],
             $data['task_mode'] ?? 'plan',
             $data['agent_mode'] ?? '',
-            $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', '')
+            $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
+            $data['chat_history_dir'] ?? ''
         );
     }
 
@@ -69,9 +71,10 @@ class InitAgentRequest
         array $metadata = [],
         string $taskMode = 'plan',
         string $agentMode = '',
-        string $magicServiceHost = ''
+        string $magicServiceHost = '',
+        string $chatHistoryDir = ''
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $chatHistoryDir);
     }
 
     /**
@@ -233,6 +236,23 @@ class InitAgentRequest
     }
 
     /**
+     * Set chat history directory.
+     */
+    public function setChatHistoryDir(string $chatHistoryDir): self
+    {
+        $this->chatHistoryDir = $chatHistoryDir;
+        return $this;
+    }
+
+    /**
+     * Get chat history directory.
+     */
+    public function getChatHistoryDir(): string
+    {
+        return $this->chatHistoryDir;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
      */
@@ -250,6 +270,7 @@ class InitAgentRequest
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
             'magic_service_host' => $this->magicServiceHost,
+            'chat_history_dir' => $this->chatHistoryDir,
         ];
     }
 }
