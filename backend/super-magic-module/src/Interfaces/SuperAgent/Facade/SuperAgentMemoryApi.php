@@ -21,17 +21,15 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use InvalidArgumentException;
-use function Hyperf\Coroutine\parallel;
 
 #[ApiResponse('low_code')]
 class SuperAgentMemoryApi extends AbstractApi
 {
     public function __construct(
-        protected RequestInterface          $request,
+        protected RequestInterface $request,
         protected ValidatorFactoryInterface $validator,
-        protected LongTermMemoryAppService  $longTermMemoryAppService,
-    )
-    {
+        protected LongTermMemoryAppService $longTermMemoryAppService,
+    ) {
         parent::__construct($request);
     }
 
@@ -102,7 +100,7 @@ class SuperAgentMemoryApi extends AbstractApi
         if (isset($validatedParams['memory']) && $validatedParams['memory'] !== null) {
             // 获取当前记忆状态
             $currentMemory = $this->longTermMemoryAppService->getMemory($id);
-            if ($currentMemory && $currentMemory->getStatus()->value === 'active') {
+            if ($currentMemory->getStatus()->value === 'active') {
                 $newStatus = 'pending_revision'; // 已生效的记忆有新内容时，改为待修订
             }
             // 如果当前是pending状态，保持不变（不设置newStatus）
@@ -194,7 +192,7 @@ class SuperAgentMemoryApi extends AbstractApi
      */
     private function checkMemoryPermission(string $memoryId, MessageMetadata $metadata): void
     {
-        if (!$this->longTermMemoryAppService->isMemoryBelongToUser(
+        if (! $this->longTermMemoryAppService->isMemoryBelongToUser(
             $memoryId,
             $metadata->getOrganizationCode(),
             AgentConstant::SUPER_MAGIC_CODE,
