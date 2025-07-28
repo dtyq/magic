@@ -18,6 +18,7 @@ use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Util\Odin\Agent;
 use App\Infrastructure\Util\Odin\AgentFactory;
+use DateTime;
 use Dtyq\FlowExprEngine\Component;
 use Hyperf\Odin\Contract\Model\ModelInterface;
 use Hyperf\Odin\Mcp\McpServerManager;
@@ -119,6 +120,10 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
                 topicId: $executionData->getTopicId(),
                 limit: $modelConfig->getMaxRecord(),
             );
+            // 如果来源的是第三方聊天工具，仅获取最近 3 小时的记忆
+            if ($executionData->isThirdPlatformChat()) {
+                $memoryQuery->setStartTime(new DateTime('-3 hours'));
+            }
             $memoryManager = $this->flowMemoryManager->createMemoryManagerByAuto($memoryQuery, $ignoreMessageIds);
         } else {
             // 手动记忆

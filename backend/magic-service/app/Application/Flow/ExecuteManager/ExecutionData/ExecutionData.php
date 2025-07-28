@@ -10,6 +10,7 @@ namespace App\Application\Flow\ExecuteManager\ExecutionData;
 use App\Application\Flow\ExecuteManager\Attachment\AbstractAttachment;
 use App\Application\Flow\ExecuteManager\Attachment\Attachment;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\Message;
+use App\Domain\Agent\Entity\ValueObject\ThirdPlatformChat\ThirdPlatformChatType;
 use App\Domain\Chat\DTO\Message\ChatMessage\Item\InstructionConfig;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
@@ -581,6 +582,11 @@ class ExecutionData
     public function setMagicFlowEntity(?MagicFlowEntity $magicFlowEntity): void
     {
         $this->magicFlowEntity = $magicFlowEntity;
+    }
+
+    public function isThirdPlatformChat(): bool
+    {
+        return (bool) ThirdPlatformChatType::tryFrom($this->operator->getSourceId());
     }
 
     private function initGlobalVariable(): void
