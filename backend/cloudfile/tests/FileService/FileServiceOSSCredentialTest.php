@@ -253,12 +253,13 @@ class FileServiceOSSCredentialTest extends CloudFileBaseTest
             $this->assertStringContainsString('fileservice-downloaded-file.txt', $newMetadata['content_disposition']);
         }
 
-        // Clean up the additional copy
-        $filesystem->deleteObjectByCredential(
-            $credentialPolicy,
-            $copyKeyWithOptions,
-            $this->getOptions($filesystem->getOptions())
-        );
+        // Clean up the additional copy - DISABLED: Keep files for inspection
+        // $filesystem->deleteObjectByCredential(
+        //     $credentialPolicy,
+        //     $copyKeyWithOptions,
+        //     $this->getOptions($filesystem->getOptions())
+        // );
+        echo "🔍 FileService OSS file kept for inspection: {$copyKeyWithOptions}\n";
     }
 
     /**
@@ -325,12 +326,13 @@ class FileServiceOSSCredentialTest extends CloudFileBaseTest
         $this->assertIsArray($result);
         $this->assertArrayHasKey('objects', $result);
 
-        // Clean up
-        $filesystem->deleteObjectByCredential(
-            $credentialPolicy,
-            $emptyFileKey,
-            $this->getOptions($filesystem->getOptions())
-        );
+        // Clean up - DISABLED: Keep files for inspection
+        // $filesystem->deleteObjectByCredential(
+        //     $credentialPolicy,
+        //     $emptyFileKey,
+        //     $this->getOptions($filesystem->getOptions())
+        // );
+        echo "🔍 FileService OSS empty file kept for inspection: {$emptyFileKey}\n";
     }
 
     protected function getStorageName(): string
