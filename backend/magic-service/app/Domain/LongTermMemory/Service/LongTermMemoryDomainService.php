@@ -18,6 +18,7 @@ use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\ErrorCode\LongTermMemoryErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use DateTime;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -37,18 +38,7 @@ class LongTermMemoryDomainService
      */
     public function reinforceMemory(string $memoryId): void
     {
-        $memory = $this->repository->findById($memoryId);
-        if (! $memory) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
-        }
-
-        $memory->reinforce();
-
-        if (! $this->repository->update($memory)) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-        }
-
-        $this->logger->info("Memory reinforced successfully: {$memoryId}");
+        $this->reinforceMemories([$memoryId]);
     }
 
     /**
@@ -83,26 +73,6 @@ class LongTermMemoryDomainService
     }
 
     /**
-     * 接受单个记忆建议.
-     */
-    public function acceptMemorySuggestion(string $memoryId): void
-    {
-        $memory = $this->repository->findById($memoryId);
-        if (! $memory) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
-        }
-
-        // 更新记忆状态为已接受
-        $memory->setStatus(MemoryStatus::ACCEPTED);
-
-        if (! $this->repository->update($memory)) {
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-        }
-
-        $this->logger->info("Memory suggestion accepted successfully: {$memoryId}");
-    }
-
-    /**
      * 批量接受记忆建议.
      */
     public function acceptMemorySuggestions(array $memoryIds): void
@@ -114,13 +84,15 @@ class LongTermMemoryDomainService
         // 批量查询记忆
         $memories = $this->repository->findByIds($memoryIds);
 
-        if (empty($memories)) {
-            $this->logger->debug('No memories found for accepting suggestions', ['memory_ids' => $memoryIds]);
-            return;
-        }
-
-        // 批量更新状态为已接受
+        // 批量接受记忆建议：将pending_content移动到content，并设置状态为已接受
         foreach ($memories as $memory) {
+            // 如果有pending_content，则将其移动到content
+            if ($memory->getPendingContent() !== null) {
+                $memory->setContent($memory->getPendingContent());
+                $memory->setPendingContent(null); // 清空pending_content
+            }
+
+            // 设置状态为已接受
             $memory->setStatus(MemoryStatus::ACCEPTED);
         }
 
@@ -131,6 +103,52 @@ class LongTermMemoryDomainService
         }
 
         $this->logger->info('Batch accepted memory suggestions successfully', ['count' => count($memories)]);
+    }
+
+    /**
+     * 批量处理记忆建议（接受/拒绝）.
+     */
+    public function batchProcessMemorySuggestions(array $memoryIds, string $action): void
+    {
+        if (empty($memoryIds)) {
+            return;
+        }
+
+        if ($action === 'accept') {
+            // 批量查询记忆
+            $memories = $this->repository->findByIds($memoryIds);
+
+            // 批量接受记忆建议：将pending_content移动到content，设置状态为已接受，启用记忆
+            foreach ($memories as $memory) {
+                // 如果有pending_content，则将其移动到content
+                if ($memory->getPendingContent() !== null) {
+                    $memory->setContent($memory->getPendingContent());
+                    $memory->setPendingContent(null); // 清空pending_content
+                }
+
+                // 设置状态为已接受
+                $memory->setStatus(MemoryStatus::ACCEPTED);
+
+                // 启用记忆
+                $memory->setEnabledInternal(true);
+            }
+
+            // 批量保存更新
+            if (! $this->repository->updateBatch($memories)) {
+                $this->logger->error('Failed to batch accept memory suggestions', ['memory_ids' => $memoryIds]);
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
+            }
+
+            $this->logger->info('Batch accepted memory suggestions successfully', ['count' => count($memories)]);
+        } elseif ($action === 'reject') {
+            // 批量拒绝记忆建议：直接删除记忆
+            if (! $this->repository->deleteBatch($memoryIds)) {
+                $this->logger->error('Failed to batch reject memory suggestions', ['memory_ids' => $memoryIds]);
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
+            }
+
+            $this->logger->info('Batch rejected and deleted memory suggestions successfully', ['count' => count($memoryIds)]);
+        }
     }
 
     /**
@@ -190,7 +208,7 @@ class LongTermMemoryDomainService
         $this->logger->info('Found {count} memories to evict for user {userId}', ['count' => count($memoriesToEvict), 'userId' => $userId]);
 
         foreach ($memoriesToEvict as $memory) {
-            if ($memory->shouldBeEvicted()) {
+            if ($this->shouldMemoryBeEvicted($memory)) {
                 if ($this->repository->softDelete($memory->getId())) {
                     $evictedMemories[] = $memory;
                     $this->logger->info('Evicted memory: {id}', ['id' => $memory->getId()]);
@@ -217,7 +235,7 @@ class LongTermMemoryDomainService
         $this->logger->info('Found {count} memories to compress for user {userId}', ['count' => count($memoriesToCompress), 'userId' => $userId]);
 
         foreach ($memoriesToCompress as $memory) {
-            if ($memory->shouldBeCompressed()) {
+            if ($this->shouldMemoryBeCompressed($memory)) {
                 $compressedContent = $this->compressContent($memory->getContent());
 
                 if ($compressedContent !== $memory->getContent()) {
@@ -343,7 +361,7 @@ class LongTermMemoryDomainService
 
         // 过滤掉应该被淘汰的记忆
         $validMemories = array_filter($memories, function ($memory) {
-            return ! $memory->shouldBeEvicted();
+            return ! $this->shouldMemoryBeEvicted($memory);
         });
 
         // 按有效分数排序
@@ -439,6 +457,7 @@ class LongTermMemoryDomainService
 
     /**
      * 通用查询方法 (使用 DTO).
+     * @return LongTermMemoryEntity[]
      */
     public function findMemories(MemoryQueryDTO $dto): array
     {
@@ -515,6 +534,105 @@ class LongTermMemoryDomainService
     public function getMostAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
     {
         return $this->repository->getMostAccessed($orgId, $appId, $userId, $limit);
+    }
+
+    /**
+     * 批量检查记忆是否属于用户.
+     */
+    public function filterMemoriesByUser(array $memoryIds, string $orgId, string $appId, string $userId): array
+    {
+        return $this->repository->filterMemoriesByUser($memoryIds, $orgId, $appId, $userId);
+    }
+
+    /**
+     * 批量启用或禁用记忆.
+     * @param array $memoryIds 记忆ID列表
+     * @param bool $enabled 启用状态
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @return int 成功更新的记录数量
+     */
+    public function batchUpdateEnabled(array $memoryIds, bool $enabled, string $orgId, string $appId, string $userId): int
+    {
+        if (empty($memoryIds)) {
+            $this->logger->warning('Empty memory IDs list provided for batch enable/disable');
+            return 0;
+        }
+
+        // 验证记忆ID的有效性和所属权
+        $validMemoryIds = $this->repository->filterMemoriesByUser($memoryIds, $orgId, $appId, $userId);
+        if (empty($validMemoryIds)) {
+            $this->logger->warning('No valid memory IDs found for user', [
+                'org_id' => $orgId,
+                'app_id' => $appId,
+                'user_id' => $userId,
+                'provided_ids' => $memoryIds,
+            ]);
+            return 0;
+        }
+
+        // 执行批量更新
+        $updatedCount = $this->repository->batchUpdateEnabled($validMemoryIds, $enabled, $orgId, $appId, $userId);
+
+        $this->logger->info('Batch updated memory enabled status', [
+            'org_id' => $orgId,
+            'app_id' => $appId,
+            'user_id' => $userId,
+            'enabled' => $enabled,
+            'requested_count' => count($memoryIds),
+            'valid_count' => count($validMemoryIds),
+            'updated_count' => $updatedCount,
+        ]);
+
+        return $updatedCount;
+    }
+
+    /**
+     * 判断记忆是否应该被淘汰.
+     */
+    public function shouldMemoryBeEvicted(LongTermMemoryEntity $memory): bool
+    {
+        // 过期时间检查
+        if ($memory->getExpiresAt() && $memory->getExpiresAt() < new DateTime()) {
+            return true;
+        }
+
+        // 有效分数过低
+        if ($memory->getEffectiveScore() < 0.1) {
+            return true;
+        }
+
+        // 长时间未访问且重要性很低
+        if ($memory->getLastAccessedAt() && $memory->getImportance() < 0.2) {
+            $daysSinceLastAccess = (new DateTime())->diff($memory->getLastAccessedAt())->days;
+            if ($daysSinceLastAccess > 30) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 判断记忆是否需要压缩.
+     */
+    public function shouldMemoryBeCompressed(LongTermMemoryEntity $memory): bool
+    {
+        // 内容过长但重要性不高
+        if (strlen($memory->getContent()) > 1000 && $memory->getImportance() < 0.6) {
+            return true;
+        }
+
+        // 长时间未访问但不应该被淘汰
+        if ($memory->getLastAccessedAt() && ! $this->shouldMemoryBeEvicted($memory)) {
+            $daysSinceLastAccess = (new DateTime())->diff($memory->getLastAccessedAt())->days;
+            if ($daysSinceLastAccess > 7) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
