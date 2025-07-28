@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Authorization\Web;
 
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Authentication\DTO\LoginCheckDTO;
 use App\Domain\Authentication\DTO\LoginResponseDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
@@ -216,7 +217,7 @@ class MagicUserAuthorization extends AbstractAuthorization
 
     public function getApplicationCode(): string
     {
-        return $this->applicationCode;
+        return $this->applicationCode ?: AppCodeEnum::SUPER_MAGIC->value;
     }
 
     public function setApplicationCode(string $applicationCode): MagicUserAuthorization

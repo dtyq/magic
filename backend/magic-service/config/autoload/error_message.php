@@ -13,6 +13,7 @@ use App\ErrorCode\FlowErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\HttpErrorCode;
 use App\ErrorCode\ImageGenerateErrorCode;
+use App\ErrorCode\LongTermMemoryErrorCode;
 use App\ErrorCode\MagicAccountErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\MCPErrorCode;
@@ -42,6 +43,7 @@ return [
         AsrErrorCode::class => [43000, 43999],
         UserTaskErrorCode::class => [8000, 8999],
         ServiceProviderErrorCode::class => [44000, 44999],
+        LongTermMemoryErrorCode::class => [45000, 45999],
         MCPErrorCode::class => [51500, 51599],
     ],
 ];

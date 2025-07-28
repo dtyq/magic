@@ -167,14 +167,16 @@ class AgentDomainService
         return $result;
     }
 
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
+    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): void
     {
         $this->logger->info('[Sandbox][App] Initializing agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
+            'memory_provided' => $memory !== null,
+            'memory_length' => $memory ? strlen($memory) : 0,
         ]);
 
         // 1. 构建初始化信息
-        $config = $this->generateInitializationInfo($dataIsolation, $taskContext);
+        $config = $this->generateInitializationInfo($dataIsolation, $taskContext, $memory);
 
         // 2. 调用初始化接口
         $result = $this->agent->initAgent($taskContext->getSandboxId(), InitAgentRequest::fromArray($config));
@@ -453,7 +455,7 @@ class AgentDomainService
     /**
      * 构建初始化消息.
      */
-    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
+    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): array
     {
         // 1. 获取上传配置信息
         $storageType = StorageBucketType::SandBox->value;
@@ -515,6 +517,7 @@ class AgentDomainService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'memory' => $memory,
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
         ];
