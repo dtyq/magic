@@ -1176,7 +1176,7 @@ class ServiceProviderDomainService
             return $b->getSort() <=> $a->getSort();
         });
 
-        return $uniqueModels;
+        return array_values($uniqueModels);
     }
 
     /**
