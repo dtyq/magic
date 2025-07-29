@@ -9,12 +9,10 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -57,7 +55,6 @@ class ProjectAppService extends AbstractAppService
         private readonly ChatAppService $chatAppService,
         private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
-        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -385,15 +382,7 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getFileType()
         );
 
-        $fullWorkDir = $this->fileDomainService->getFullWorkDir(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId(),
-            (int) $requestDTO->getProjectId(),
-            AgentConstant::SUPER_MAGIC_CODE,
-            AgentConstant::DEFAULT_PROJECT_DIR
-        );
-
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $fullWorkDir);
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
 
         // 处理文件 URL
         $list = [];
