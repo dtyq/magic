@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -25,6 +26,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationReq
 class SandboxFileNotificationAppService extends AbstractAppService
 {
     public function __construct(
+        protected TaskDomainService $taskDomainService,
         protected TaskFileDomainService $taskFileDomainService,
         protected ProjectDomainService $projectDomainService
     ) {
@@ -78,7 +80,12 @@ class SandboxFileNotificationAppService extends AbstractAppService
      */
     private function getProjectEntity(MessageMetadata $metadata)
     {
-        $projectId = $metadata->getProjectId();
+        $taskEntity = $this->taskDomainService->getTaskById((int) $metadata->getSuperMagicTaskId());
+        if (! $taskEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'Task not found');
+        }
+
+        $projectId = $taskEntity->getProjectId();
         if (empty($projectId)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'Project ID not found in metadata');
         }
@@ -123,6 +130,9 @@ class SandboxFileNotificationAppService extends AbstractAppService
     ): string {
         $organizationCode = $metadata->getOrganizationCode();
         $filePath = $data->getFilePath();
+        if (WorkDirectoryUtil::isValidDirectoryName($filePath)) {
+            $filePath = rtrim($filePath, '/') . '/';
+        }
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
 
         return WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $filePath);

@@ -199,10 +199,24 @@ class FileManagementAppService extends AbstractAppService
             }
 
             // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            if (! empty($projectId)) {
-                $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
-                if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                    ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            }
+
+            if (empty($requestDTO->getParentId())) {
+                $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
+                    projectId: (int) $projectId,
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    fullFileKey: $requestDTO->getFileKey(),
+                    workDir: $projectEntity->getWorkDir()
+                );
+                $requestDTO->setParentId($parentId);
+            } else {
+                $parentFileEntity = $this->taskFileDomainService->getById((int) $requestDTO->getParentId());
+                if (empty($parentFileEntity) || $parentFileEntity->getProjectId() != (int) $projectId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.not_found'));
                 }
             }
 
@@ -391,11 +405,10 @@ class FileManagementAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $userId = $dataIsolation->getCurrentUserId();
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
 
         try {
             $projectId = (int) $requestDTO->getProjectId();
-            $path = $requestDTO->getPath();
+            $fileId = $requestDTO->getFileId();
 
             // 1. 验证项目是否属于当前用户
             $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
@@ -406,9 +419,13 @@ class FileManagementAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
             }
 
+            $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
+            if (empty($fileEntity) || $fileEntity->getProjectId() != $projectId) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+            }
+
             // 3. 构建目标删除路径
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
-            $targetPath = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $path);
+            $targetPath = $fileEntity->getFileKey();
 
             // 4. 调用领域服务执行批量删除
             $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath);
@@ -416,32 +433,31 @@ class FileManagementAppService extends AbstractAppService
             $this->logger->info(sprintf(
                 'Successfully deleted directory: Project ID: %s, Path: %s, Deleted files: %d',
                 $projectId,
-                $path,
+                $targetPath,
                 $deletedCount
             ));
 
             return [
                 'project_id' => $projectId,
-                'path' => $path,
                 'deleted_count' => $deletedCount,
             ];
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             $this->logger->warning(sprintf(
-                'Business logic error in delete directory: %s, Project ID: %s, Path: %s, Error Code: %d',
+                'Business logic error in delete directory: %s, Project ID: %s, File ID: %s, Error Code: %d',
                 $e->getMessage(),
                 $requestDTO->getProjectId(),
-                $requestDTO->getPath(),
+                $requestDTO->getFileId(),
                 $e->getCode()
             ));
             // 直接重新抛出业务异常，让上层处理
             throw $e;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'System error in delete directory: %s, Project ID: %s, Path: %s',
+                'System error in delete directory: %s, Project ID: %s, File ID: %s',
                 $e->getMessage(),
                 $requestDTO->getProjectId(),
-                $requestDTO->getPath()
+                $requestDTO->getFileId()
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.directory_delete_failed'));
         }

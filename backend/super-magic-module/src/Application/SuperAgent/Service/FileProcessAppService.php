@@ -884,6 +884,7 @@ class FileProcessAppService extends AbstractAppService
                 fileType: 'tool_message_content',
                 isUpdate: false,
                 storageType: StorageType::TOPIC->value,
+                source: TaskFileSource::AGENT->value,
             );
 
             // 5. Set as hidden file
@@ -1051,7 +1052,7 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 3: Upload using FileDomainService uploadByCredential method
-            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Private, false);
+            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile);
 
             $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::Private);
 

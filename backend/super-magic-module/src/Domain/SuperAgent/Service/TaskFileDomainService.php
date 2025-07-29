@@ -279,25 +279,6 @@ class TaskFileDomainService
     }
 
     /**
-     * @deprecated Use bindProjectFiles instead
-     */
-    public function bindProject(int $projectId, array $fileIds): bool
-    {
-        $fileEntities = $this->taskFileRepository->getFilesByIds($fileIds);
-        if (empty($fileEntities)) {
-            return false;
-        }
-        foreach ($fileEntities as $fileEntity) {
-            if ($fileEntity->getProjectId() > 0) {
-                continue;
-            }
-            $fileEntity->setProjectId($projectId);
-            $this->taskFileRepository->updateById($fileEntity);
-        }
-        return true;
-    }
-
-    /**
      * Save project file.
      *
      * @param DataIsolation $dataIsolation Data isolation context
@@ -1052,21 +1033,26 @@ class TaskFileDomainService
             $taskFileEntity->setTopicId($taskEntity->getTopicId());
         }
 
+        $isDirectory = WorkDirectoryUtil::isValidDirectoryName($fileKey);
+
         $fileName = basename($fileKey);
         $taskFileEntity->setFileName($fileName);
         $taskFileEntity->setFileSize($fileInfo['size'] ?? $data->getFileSize());
-        $taskFileEntity->setFileType(FileType::AUTO_SYNC->value);
-        $taskFileEntity->setIsDirectory(false);
+        if ($isDirectory) {
+            $taskFileEntity->setFileType(FileType::DIRECTORY->value);
+            $taskFileEntity->setFileExtension('');
+        } else {
+            $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
+            // Extract file extension
+            $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
+            $taskFileEntity->setFileExtension($fileExtension);
+        }
+        $taskFileEntity->setIsDirectory($isDirectory);
         $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
         $taskFileEntity->setSource(TaskFileSource::AGENT);
         $taskFileEntity->setStorageType(StorageType::WORKSPACE);
         $taskFileEntity->setIsHidden(false);
         $taskFileEntity->setSort(0);
-
-        // Extract file extension
-        $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
-        $taskFileEntity->setFileExtension($fileExtension);
-
         // Set timestamps
         $now = date('Y-m-d H:i:s');
         $taskFileEntity->setCreatedAt($now);
@@ -1086,6 +1072,12 @@ class TaskFileDomainService
      */
     private function getFileInfoFromCloudStorage(string $fileKey, string $organizationCode): array
     {
+        if (WorkDirectoryUtil::isValidDirectoryName($fileKey)) {
+            return [
+                'size' => 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
+        }
         $headObjectResult = $this->cloudFileRepository->getMetas([$fileKey], $organizationCode);
         $meta = $headObjectResult[$fileKey] ?? null;
         if ($meta === null) {
@@ -1094,7 +1086,7 @@ class TaskFileDomainService
         $info = $meta->getFileAttributes();
         return [
             'size' => $info['fileSize'],
-            'last_modified' => $info['lastModified'],
+            'last_modified' => date('Y-m-d H:i:s'),
         ];
     }
 
