@@ -199,10 +199,24 @@ class FileManagementAppService extends AbstractAppService
             }
 
             // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            if (! empty($projectId)) {
-                $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
-                if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                    ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            }
+
+            if (empty($requestDTO->getParentId())) {
+                $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
+                    projectId: (int) $projectId,
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    fullFileKey: $requestDTO->getFileKey(),
+                    workDir: $projectEntity->getWorkDir()
+                );
+                $requestDTO->setParentId($parentId);
+            } else {
+                $parentFileEntity = $this->taskFileDomainService->getById((int) $requestDTO->getParentId());
+                if (empty($parentFileEntity) || $parentFileEntity->getProjectId() != (int) $projectId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.not_found'));
                 }
             }
 
