@@ -51,7 +51,8 @@ interface CloudFileRepositoryInterface
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
+        int $expires = 3600,
+        bool $autoBucket = true,
     ): array;
 
     /**

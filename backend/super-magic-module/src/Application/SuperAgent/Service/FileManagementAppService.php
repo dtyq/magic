@@ -89,7 +89,8 @@ class FileManagementAppService extends AbstractAppService
                 $userAuthorization,
                 $storageType,
                 $workDir,
-                $expires
+                $expires,
+                false
             );
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）

@@ -245,9 +245,21 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
+        int $expires = 7200,
+        bool $autoBucket = true,
     ): array {
-        $dir = $dir ? sprintf('%s/%s', md5($bucketType->value), ltrim($dir, '/')) : md5($bucketType->value);
+        if ($dir) {
+            if ($autoBucket) {
+                // If directory is provided, append bucket type to the directory
+                $dir = sprintf('%s/%s', md5($bucketType->value), ltrim($dir, '/'));
+            } else {
+                // If no bucket type, just use the directory as is
+                $dir = ltrim($dir, '/');
+            }
+        } else {
+            $dir = '';
+        }
+
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,
             'role_session_name' => 'magic',

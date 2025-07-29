@@ -182,7 +182,7 @@ class FileAppService extends AbstractAppService
         return $this->defaultFileDomainService->deleteByKey($fileKey, $organizationCode);
     }
 
-    public function getStsTemporaryCredential(Authenticatable $authorization, string $storage, string $dir = '', int $expires = 7200): array
+    public function getStsTemporaryCredential(Authenticatable $authorization, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true): array
     {
         $organizationCode = $this->getOrganizationCode($authorization);
         // 调用文件服务获取STS Token
@@ -190,7 +190,8 @@ class FileAppService extends AbstractAppService
             $organizationCode,
             StorageBucketType::from($storage),
             $dir,
-            $expires
+            $expires,
+            $autoBucket,
         );
 
         // 如果是本地驱动，那么增加一个临时 key
