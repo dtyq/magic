@@ -28,6 +28,7 @@ class FileBatchCompressPublisher extends ProducerMessage
             'workdir' => $event->getWorkdir(),
             'target_name' => $event->getTargetName(),
             'target_path' => $event->getTargetPath(),
+            'bucket_type' => $event->getBucketType(),
         ];
     }
 }

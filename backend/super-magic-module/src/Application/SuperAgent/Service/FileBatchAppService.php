@@ -248,7 +248,8 @@ class FileBatchAppService extends AbstractAppService
             $fileData,
             $workDir,
             $targetName,
-            WorkDirectoryUtil::getProjectFilePackDir($userId, $projectId)
+            WorkDirectoryUtil::getProjectFilePackDir($userId, $projectId),
+            StorageBucketType::SandBox
         );
 
         $publisher = new FileBatchCompressPublisher($event);

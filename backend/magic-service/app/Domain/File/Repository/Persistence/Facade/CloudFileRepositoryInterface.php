@@ -60,7 +60,7 @@ interface CloudFileRepositoryInterface
      */
     public function getPreSignedUrls(string $organizationCode, array $fileNames, int $expires = 3600, StorageBucketType $bucketType = StorageBucketType::Private): array;
 
-    public function getMetas(array $paths, string $organizationCode): array;
+    public function getMetas(array $paths, string $organizationCode, StorageBucketType $bucketType = StorageBucketType::Private): array;
 
     public function getDefaultIconPaths(string $appId = 'open'): array;
 

@@ -378,9 +378,9 @@ class TaskFileDomainService
         try {
             // Create object in cloud storage
             if ($isDirectory) {
-                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey);
+                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, StorageBucketType::SandBox);
             } else {
-                $this->cloudFileRepository->createFileByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey);
+                $this->cloudFileRepository->createFileByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, '', StorageBucketType::SandBox);
             }
 
             // Create file entity
@@ -434,7 +434,7 @@ class TaskFileDomainService
         try {
             // Delete cloud file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey());
+            $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
 
             // Delete file record
             $this->taskFileRepository->deleteById($fileEntity->getFileId());
@@ -476,7 +476,7 @@ class TaskFileDomainService
             // 删除云存储文件（批量操作）
             foreach ($fileKeys as $fileKey) {
                 try {
-                    $this->cloudFileRepository->deleteObjectByCredential($prefix, $organizationCode, $fileKey);
+                    $this->cloudFileRepository->deleteObjectByCredential($prefix, $organizationCode, $fileKey, StorageBucketType::SandBox);
                     ++$deletedCount;
                 } catch (Throwable $e) {
                     // 记录单个文件删除失败，但继续处理其他文件
@@ -510,7 +510,7 @@ class TaskFileDomainService
             }
 
             // call cloud file service
-            $this->cloudFileRepository->copyObjectByCredential($fullPrefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey);
+            $this->cloudFileRepository->copyObjectByCredential($fullPrefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey, StorageBucketType::SandBox);
         } catch (Throwable $e) {
             throw $e;
         }
@@ -538,7 +538,7 @@ class TaskFileDomainService
             $organizationCode = $dataIsolation->getCurrentOrganizationCode();
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             // call cloud file service
-            $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey, StorageBucketType::SandBox);
 
             // rename file record
             $fileEntity->setFileKey($fullTargetFileKey);
@@ -611,7 +611,7 @@ class TaskFileDomainService
         try {
             // Call cloud file service to move the file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetParentPath);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetParentPath, StorageBucketType::SandBox);
 
             // Update file record (parentId and sort have already been set by handleFileSortOnMove)
             $fileEntity->setFileKey($targetParentPath);
@@ -1078,7 +1078,7 @@ class TaskFileDomainService
                 'last_modified' => date('Y-m-d H:i:s'),
             ];
         }
-        $headObjectResult = $this->cloudFileRepository->getMetas([$fileKey], $organizationCode);
+        $headObjectResult = $this->cloudFileRepository->getMetas([$fileKey], $organizationCode, StorageBucketType::SandBox);
         $meta = $headObjectResult[$fileKey] ?? null;
         if ($meta === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));

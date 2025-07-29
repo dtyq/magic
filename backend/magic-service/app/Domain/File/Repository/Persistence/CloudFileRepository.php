@@ -277,9 +277,9 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         return $this->getFilesystem($bucketType->value)->getPreSignedUrls($fileNames, $expires, $this->getOptions($organizationCode));
     }
 
-    public function getMetas(array $paths, string $organizationCode): array
+    public function getMetas(array $paths, string $organizationCode, StorageBucketType $bucketType = StorageBucketType::Private): array
     {
-        return $this->getFilesystem(StorageBucketType::Private->value)->getMetas($paths, $this->getOptions($organizationCode));
+        return $this->getFilesystem($bucketType->value)->getMetas($paths, $this->getOptions($organizationCode));
     }
 
     public function getDefaultIconPaths(string $appId = 'open'): array

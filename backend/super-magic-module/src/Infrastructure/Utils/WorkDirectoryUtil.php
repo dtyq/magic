@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 
 class WorkDirectoryUtil
