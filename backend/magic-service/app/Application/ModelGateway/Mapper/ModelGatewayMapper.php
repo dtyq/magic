@@ -478,11 +478,33 @@ class ModelGatewayMapper extends ModelMapper
 
         // 如果配置了可见性检查，使用或的关系判断
         if ($hasVisibleApplications || $hasVisiblePackages) {
-            $applicationVisible = ! $hasVisibleApplications || in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true);
-            $packageVisible = ! $hasVisiblePackages || in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true);
+            $applicationMatched = false;
+            $packageMatched = false;
 
-            // 只要满足其中一个条件即可通过
-            if (! ($applicationVisible || $packageVisible)) {
+            // 检查应用可见性（只有配置了才检查）
+            if ($hasVisibleApplications) {
+                $applicationMatched = in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true);
+            }
+
+            // 检查套餐可见性（只有配置了才检查）
+            if ($hasVisiblePackages) {
+                $packageMatched = in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true);
+            }
+
+            // 只要满足其中一个已配置的条件即可通过
+            $shouldAllow = false;
+            if ($hasVisibleApplications && $hasVisiblePackages) {
+                // 两个都配置了，满足任意一个即可
+                $shouldAllow = $applicationMatched || $packageMatched;
+            } elseif ($hasVisibleApplications) {
+                // 只配置了应用可见性
+                $shouldAllow = $applicationMatched;
+            } elseif ($hasVisiblePackages) {
+                // 只配置了套餐可见性
+                $shouldAllow = $packageMatched;
+            }
+
+            if (! $shouldAllow) {
                 return null;
             }
         }
