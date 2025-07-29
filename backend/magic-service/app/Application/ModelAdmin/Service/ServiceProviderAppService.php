@@ -263,17 +263,18 @@ class ServiceProviderAppService
     {
         $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
 
-        $icons = array_column($models, 'icon');
-
-        $iconUrlMap = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
-
         $modelDTOs = [];
+
         foreach ($models as $model) {
             $modelConfig = $model->getConfig();
             if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
+                $icon = $model->getIcon();
+                $organizationCode = substr($icon, 0, strpos($icon, '/'));
+                $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
+
                 $modelDTO = new SuperMagicModelsDTO($model->toArray());
-                if (isset($iconUrlMap[$modelDTO->getIcon()])) {
-                    $modelDTO->setIcon($iconUrlMap[$modelDTO->getIcon()]->getUrl());
+                if ($fileLink) {
+                    $modelDTO->setIcon($fileLink->getUrl());
                 }
                 $modelDTOs[] = $modelDTO;
             }
