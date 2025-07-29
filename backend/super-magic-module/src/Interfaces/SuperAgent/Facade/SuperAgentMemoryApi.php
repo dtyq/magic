@@ -73,9 +73,9 @@ class SuperAgentMemoryApi extends AbstractApi
     }
 
     /**
-     * 更新记忆.
+     * Agent更新记忆的核心逻辑.
      */
-    public function updateMemory(string $id): array
+    public function agentUpdateMemory(string $id): array
     {
         // 校验沙箱 Token
         $this->validateSandboxToken();
@@ -95,20 +95,9 @@ class SuperAgentMemoryApi extends AbstractApi
         // 检查权限
         $this->checkMemoryPermission($id, $metadata);
 
-        // 如果有pendingContent，需要根据当前记忆状态设置新状态
-        $newStatus = null;
-        if (isset($validatedParams['memory'])) {
-            // 获取当前记忆状态
-            $currentMemory = $this->longTermMemoryAppService->getMemory($id);
-            if ($currentMemory->getStatus()->value === 'active') {
-                $newStatus = 'pending_revision'; // 已生效的记忆有新内容时，改为待修订
-            }
-            // 如果当前是pending状态，保持不变（不设置newStatus）
-        }
-
+        // 构建更新DTO，状态转换由领域服务自动处理
         $dto = new UpdateMemoryDTO([
             'pendingContent' => $validatedParams['memory'] ?? null,
-            'status' => $newStatus,
             'explanation' => $validatedParams['explanation'] ?? null,
             'tags' => $validatedParams['tags'] ?? null,
             'metadata' => $validatedParams['metadata'] ?? null,

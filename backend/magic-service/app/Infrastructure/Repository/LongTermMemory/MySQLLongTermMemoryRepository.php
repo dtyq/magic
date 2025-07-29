@@ -212,7 +212,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACTIVE->value)
+            ->whereIn('status', [MemoryStatus::ACTIVE->value, MemoryStatus::PENDING_REVISION->value])
             ->where('enabled', 1) // 只获取启用的记忆
             ->whereNull('deleted_at')
             ->where(function (Builder $query) {
@@ -350,22 +350,6 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
     }
 
     /**
-     * 查找过期的记忆.
-     */
-    public function findExpiredMemories(string $orgId, string $appId, string $userId): array
-    {
-        $data = $this->query()
-            ->where('org_id', $orgId)
-            ->where('app_id', $appId)
-            ->where('user_id', $userId)
-            ->whereNull('deleted_at')
-            ->where('expires_at', '<', date('Y-m-d H:i:s'))
-            ->get();
-
-        return $this->entitiesFromArray($data->toArray());
-    }
-
-    /**
      * 保存记忆.
      */
     public function save(LongTermMemoryEntity $memory): bool
@@ -417,6 +401,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
 
     /**
      * 批量更新记忆.
+     * @param array<LongTermMemoryEntity> $memories 记忆实体列表
      */
     public function updateBatch(array $memories): bool
     {
@@ -426,46 +411,38 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
 
         return Db::transaction(function () use ($memories) {
             $table = $this->model->getTable();
-            $ids = array_map(fn ($memory) => $memory->getId(), $memories);
 
-            // 构建批量更新的数据映射
-            $memoryData = [];
+            // 转换实体为数组数据
+            $dataArray = [];
             foreach ($memories as $memory) {
-                $data = $this->entityToArray($memory);
-                $memoryData[$memory->getId()] = $data;
+                $dataArray[] = $this->entityToArray($memory);
             }
 
-            // 使用CASE WHEN的方式构建批量更新SQL，使用参数绑定避免SQL注入
-            $updateFields = [
-                'access_count', 'reinforcement_count', 'importance', 'confidence',
-                'decay_factor', 'status', 'last_accessed_at', 'last_reinforced_at', 'updated_at',
-            ];
+            // 从第一个数据项自动获取字段列表
+            $fields = array_keys($dataArray[0]);
 
-            $setClauses = [];
+            // 构建 VALUES 部分
+            $valueRows = [];
             $bindings = [];
 
-            foreach ($updateFields as $field) {
-                $caseWhen = 'CASE id';
-                foreach ($ids as $id) {
-                    $value = $memoryData[$id][$field] ?? null;
-                    $caseWhen .= ' WHEN ? THEN ?';
-                    $bindings[] = $id;
-                    $bindings[] = $value;
+            foreach ($dataArray as $data) {
+                $placeholders = [];
+                foreach ($fields as $field) {
+                    $placeholders[] = '?';
+                    $bindings[] = $data[$field] ?? null;
                 }
-                $caseWhen .= " ELSE {$field} END";
-                $setClauses[] = "{$field} = {$caseWhen}";
+                $valueRows[] = '(' . implode(', ', $placeholders) . ')';
             }
 
-            // 添加WHERE IN的绑定参数
-            $wherePlaceholders = str_repeat('?,', count($ids) - 1) . '?';
-            $bindings = array_merge($bindings, $ids);
+            // 构建 REPLACE INTO SQL
+            $fieldsStr = implode(', ', $fields);
+            $valuesStr = implode(', ', $valueRows);
+            $sql = "REPLACE INTO {$table} ({$fieldsStr}) VALUES {$valuesStr}";
 
-            $sql = "UPDATE {$table} SET " . implode(', ', $setClauses) . " WHERE id IN ({$wherePlaceholders})";
+            $result = Db::statement($sql, $bindings);
 
-            $result = Db::update($sql, $bindings);
-
-            if ($result <= 0) {
-                throw new Exception('Failed to batch update memories');
+            if (! $result) {
+                throw new Exception('Failed to batch replace memories');
             }
 
             return true;
@@ -556,84 +533,6 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
     }
 
     /**
-     * 获取最近访问的记忆.
-     */
-    public function getRecentlyAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        $data = $this->query()
-            ->where('org_id', $orgId)
-            ->where('app_id', $appId)
-            ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACTIVE->value)
-            ->where('enabled', 1) // 只获取启用的记忆
-            ->whereNull('deleted_at')
-            ->whereNotNull('last_accessed_at')
-            ->orderBy('last_accessed_at', 'desc')
-            ->limit($limit)
-            ->get();
-
-        return $this->entitiesFromArray($data->toArray());
-    }
-
-    /**
-     * 获取最近强化的记忆.
-     */
-    public function getRecentlyReinforced(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        $data = $this->query()
-            ->where('org_id', $orgId)
-            ->where('app_id', $appId)
-            ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACTIVE->value)
-            ->where('enabled', 1) // 只获取启用的记忆
-            ->whereNull('deleted_at')
-            ->whereNotNull('last_reinforced_at')
-            ->orderBy('last_reinforced_at', 'desc')
-            ->limit($limit)
-            ->get();
-
-        return $this->entitiesFromArray($data->toArray());
-    }
-
-    /**
-     * 获取最重要的记忆.
-     */
-    public function getMostImportant(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        $data = $this->query()
-            ->where('org_id', $orgId)
-            ->where('app_id', $appId)
-            ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACTIVE->value)
-            ->where('enabled', 1) // 只获取启用的记忆
-            ->whereNull('deleted_at')
-            ->orderBy('importance', 'desc')
-            ->limit($limit)
-            ->get();
-
-        return $this->entitiesFromArray($data->toArray());
-    }
-
-    /**
-     * 获取访问次数最多的记忆.
-     */
-    public function getMostAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        $data = $this->query()
-            ->where('org_id', $orgId)
-            ->where('app_id', $appId)
-            ->where('user_id', $userId)
-            ->where('status', MemoryStatus::ACTIVE->value)
-            ->where('enabled', 1) // 只获取启用的记忆
-            ->whereNull('deleted_at')
-            ->orderBy('access_count', 'desc')
-            ->limit($limit)
-            ->get();
-
-        return $this->entitiesFromArray($data->toArray());
-    }
-
-    /**
      * 批量检查记忆是否属于用户.
      */
     public function filterMemoriesByUser(array $memoryIds, string $orgId, string $appId, string $userId): array
@@ -695,6 +594,7 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             'origin_text' => $memory->getOriginText(),
             'memory_type' => $memory->getMemoryType()->value,
             'status' => $memory->getStatus()->value,
+            'enabled' => $memory->isEnabled() ? 1 : 0, // 将布尔值转换为数据库可接受的值
             'confidence' => $memory->getConfidence(),
             'importance' => $memory->getImportance(),
             'access_count' => $memory->getAccessCount(),
