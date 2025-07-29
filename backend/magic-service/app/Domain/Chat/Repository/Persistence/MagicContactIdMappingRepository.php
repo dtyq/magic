@@ -49,8 +49,11 @@ class MagicContactIdMappingRepository implements MagicContactIdMappingRepository
             $data->whereIn('magic_environment_id', $relationEnvIds);
         }
 
-        $data->whereIn('origin_id', $thirdDepartmentIds)
-            ->where('mapping_type', ThirdPlatformIdMappingType::Department->value)
+        if (count($thirdDepartmentIds) > 0) {
+            $data->whereIn('origin_id', $thirdDepartmentIds);
+        }
+
+        $data->where('mapping_type', ThirdPlatformIdMappingType::Department->value)
             ->where('third_platform_type', $thirdPlatformType->value)
             ->where('magic_organization_code', $magicOrganizationCode);
 
@@ -208,6 +211,23 @@ class MagicContactIdMappingRepository implements MagicContactIdMappingRepository
         return $this->magicContactIdMappingModel::query()
             ->where('magic_environment_id', 0)
             ->update(['magic_environment_id' => $envId]);
+    }
+
+    public function deleteThirdPlatformIdsMapping(
+        array $originIds,
+        string $magicOrganizationCode,
+        PlatformType $thirdPlatformType,
+        ThirdPlatformIdMappingType $mappingType
+    ): int {
+        if (empty($originIds)) {
+            return 0;
+        }
+        return (int) $this->magicContactIdMappingModel::query()
+            ->whereIn('origin_id', $originIds)
+            ->where('magic_organization_code', $magicOrganizationCode)
+            ->where('third_platform_type', $thirdPlatformType->value)
+            ->where('mapping_type', $mappingType->value)
+            ->delete();
     }
 
     /**
