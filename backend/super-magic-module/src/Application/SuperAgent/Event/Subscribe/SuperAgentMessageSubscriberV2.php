@@ -43,7 +43,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
         protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
-        protected SupperMagicAgentMCPInterface $supperMagicAgentMCP,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
         if (container()->has(SupperMagicAgentMCPInterface::class)) {
