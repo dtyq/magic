@@ -403,30 +403,13 @@ class ServiceProviderAppService
             return;
         }
 
-        // 收集所有需要处理的图标
-        $providerIcons = [];
-        $modelIcons = [];
-        foreach ($serviceProviderConfigs as $configDTO) {
-            $providerIcons[] = $configDTO->getIcon();
-
-            // 检查是否有模型属性
-            if (method_exists($configDTO, 'getModels') && is_array($configDTO->getModels())) {
-                $modelDTOs = $configDTO->getModels();
-                foreach ($modelDTOs as $modelDTO) {
-                    $modelIcons[] = $modelDTO->getIcon();
-                }
-            }
-        }
-
-        // 批量获取所有图标的链接
-        $allIcons = array_merge($providerIcons, $modelIcons);
-        $iconUrlMap = $this->fileDomainService->getLinks($organizationCode, array_unique($allIcons));
-
         // 设置图标URL
         foreach ($serviceProviderConfigs as $configDTO) {
             $icon = $configDTO->getIcon();
-            if (isset($iconUrlMap[$icon])) {
-                $configDTO->setIcon($iconUrlMap[$icon]->getUrl());
+            $organizationCode = substr($icon, 0, strpos($icon, '/'));
+            $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
+            if ($fileLink) {
+                $configDTO->setIcon($fileLink->getUrl());
             }
 
             // 检查是否有模型属性
@@ -434,8 +417,10 @@ class ServiceProviderAppService
                 $modelDTOs = $configDTO->getModels();
                 foreach ($modelDTOs as $modelDTO) {
                     $icon = $modelDTO->getIcon();
-                    if (isset($iconUrlMap[$icon])) {
-                        $modelDTO->setIcon($iconUrlMap[$icon]->getUrl());
+                    $organizationCode = substr($icon, 0, strpos($icon, '/'));
+                    $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
+                    if ($fileLink) {
+                        $modelDTO->setIcon($fileLink->getUrl());
                     }
                 }
             }
