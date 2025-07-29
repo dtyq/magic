@@ -97,6 +97,9 @@ class ModelFilter
 
     public function isCheckVisiblePackage(): bool
     {
+        if (is_null($this->currentPackage)) {
+            return false;
+        }
         return $this->checkVisiblePackage;
     }
 
