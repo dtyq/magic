@@ -1982,16 +1982,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.7",
+            "version": "v0.1.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "e49a47715389919ad8c8a9ebc079da4d35c04f22"
+                "reference": "fe3292af35717112a3fe12302c1d1a4f9b9488ad"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/e49a47715389919ad8c8a9ebc079da4d35c04f22",
-                "reference": "e49a47715389919ad8c8a9ebc079da4d35c04f22",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/fe3292af35717112a3fe12302c1d1a4f9b9488ad",
+                "reference": "fe3292af35717112a3fe12302c1d1a4f9b9488ad",
                 "shasum": ""
             },
             "require": {
@@ -2052,9 +2052,9 @@
             "description": "Package description here.",
             "support": {
                 "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.7"
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.8"
             },
-            "time": "2025-07-29T07:11:37+00:00"
+            "time": "2025-07-29T16:27:21+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2575,12 +2575,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "8b364dcb2b5d34f258f5e0cc03fcaf804fd7bd2f"
+                "reference": "7dc759ff4727e0eaa6ee44f9e1115f5ee50eaccf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=8b364dcb2b5d34f258f5e0cc03fcaf804fd7bd2f",
-                "reference": "8b364dcb2b5d34f258f5e0cc03fcaf804fd7bd2f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=7dc759ff4727e0eaa6ee44f9e1115f5ee50eaccf",
+                "reference": "7dc759ff4727e0eaa6ee44f9e1115f5ee50eaccf",
                 "shasum": ""
             },
             "require": {
@@ -2674,7 +2674,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-29T21:53:24+08:00"
+            "time": "2025-07-30T01:59:24+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -17189,12 +17189,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "b18274f015885855abf3a5d7baa5f7a0fa803020"
+                "reference": "2613e5f3641beecc045b6c01b02ed1c469a15601"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/b18274f015885855abf3a5d7baa5f7a0fa803020",
-                "reference": "b18274f015885855abf3a5d7baa5f7a0fa803020",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/2613e5f3641beecc045b6c01b02ed1c469a15601",
+                "reference": "2613e5f3641beecc045b6c01b02ed1c469a15601",
                 "shasum": ""
             },
             "conflict": {
@@ -17304,7 +17304,7 @@
                 "cockpit-hq/cockpit": "<2.11.4",
                 "codeception/codeception": "<3.1.3|>=4,<4.1.22",
                 "codeigniter/framework": "<3.1.10",
-                "codeigniter4/framework": "<=4.6.2",
+                "codeigniter4/framework": "<4.6.2",
                 "codeigniter4/shield": "<1.0.0.0-beta8",
                 "codiad/codiad": "<=2.8.4",
                 "codingms/additional-tca": ">=1.7,<1.15.17|>=1.16,<1.16.9",
@@ -18141,7 +18141,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-28T17:07:49+00:00"
+            "time": "2025-07-29T15:07:46+00:00"
         },
         {
             "name": "sebastian/cli-parser",
