@@ -137,14 +137,4 @@ class UpdateConsumerModel extends AbstractEntity
 
         $this->config = $config;
     }
-
-    public function getSort(): int
-    {
-        return $this->sort;
-    }
-
-    public function setSort(int $sort): void
-    {
-        $this->sort = $sort;
-    }
 }

@@ -1178,7 +1178,7 @@ class ServiceProviderDomainService
             return $b->getSort() <=> $a->getSort();
         });
 
-        return $uniqueModels;
+        return array_values($uniqueModels);
     }
 
     /**
@@ -1712,7 +1712,6 @@ class ServiceProviderDomainService
             $this->serviceProviderModelsRepository->updateOfficeModel($serviceProviderModelsEntity->getId(), $modelArray);
             // 修改客户的模型信息
             $updateConsumerModel = new UpdateConsumerModel($serviceProviderModelsEntity->toArray());
-            $updateConsumerModel->setSuperMagicDisplayState($serviceProviderModelsEntity->getSuperMagicDisplayState());
             $modelParentId = $serviceProviderModelsEntity->getId();
             $this->serviceProviderModelsRepository->updateConsumerModel($modelParentId, $updateConsumerModel);
         }
