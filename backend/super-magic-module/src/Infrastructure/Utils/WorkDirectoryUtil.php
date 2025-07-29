@@ -7,20 +7,18 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 
 class WorkDirectoryUtil
 {
     public static function getPrefix(string $workDir): string
     {
-        $md5Key = md5(StorageBucketType::Private->value);
-        return "{$md5Key}/" . trim($workDir, '/') . '/';
+        return trim($workDir, '/') . '/';
     }
 
     public static function getRootDir(string $userId, int $projectId): string
     {
-        return sprintf('/%s/%s/project_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $projectId);
+        return sprintf('/project_%d', $projectId);
     }
 
     public static function getWorkDir(string $userId, int $projectId): string

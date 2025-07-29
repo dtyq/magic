@@ -186,7 +186,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     public function downloadByChunks(string $organizationCode, string $filePath, string $localPath, ?StorageBucketType $bucketType = null, array $options = []): void
     {
         $bucketType = $bucketType ?? StorageBucketType::Private;
-        $filesystem = $this->cloudFile->get($bucketType->value);
+        $filesystem = $this->getFilesystem($bucketType->value);
 
         // Create chunk download config with options
         $config = ChunkDownloadConfig::fromArray([
@@ -245,9 +245,21 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
+        int $expires = 7200,
+        bool $autoBucket = true,
     ): array {
-        $dir = $dir ? sprintf('%s/%s', md5($bucketType->value), ltrim($dir, '/')) : md5($bucketType->value);
+        if ($dir) {
+            if ($autoBucket) {
+                // If directory is provided, append bucket type to the directory
+                $dir = sprintf('%s/%s', md5($bucketType->value), ltrim($dir, '/'));
+            } else {
+                // If no bucket type, just use the directory as is
+                $dir = ltrim($dir, '/');
+            }
+        } else {
+            $dir = '';
+        }
+
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,
             'role_session_name' => 'magic',
@@ -265,9 +277,9 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         return $this->getFilesystem($bucketType->value)->getPreSignedUrls($fileNames, $expires, $this->getOptions($organizationCode));
     }
 
-    public function getMetas(array $paths, string $organizationCode): array
+    public function getMetas(array $paths, string $organizationCode, StorageBucketType $bucketType = StorageBucketType::Private): array
     {
-        return $this->getFilesystem(StorageBucketType::Private->value)->getMetas($paths, $this->getOptions($organizationCode));
+        return $this->getFilesystem($bucketType->value)->getMetas($paths, $this->getOptions($organizationCode));
     }
 
     public function getDefaultIconPaths(string $appId = 'open'): array
@@ -340,7 +352,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         array $options = []
     ): array {
         try {
-            $filesystem = $this->cloudFile->get($bucketType->value);
+            $filesystem = $this->getFilesystem($bucketType->value);
             $credentialPolicy = new CredentialPolicy([
                 'sts' => true,
                 'sts_type' => 'list_objects',
@@ -399,7 +411,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 throw new InvalidArgumentException('Object key does not belong to specified organization');
             }
 
-            $filesystem = $this->cloudFile->get($bucketType->value);
+            $filesystem = $this->getFilesystem($bucketType->value);
             $credentialPolicy = new CredentialPolicy([
                 'sts' => true,
                 'sts_type' => 'del_objects',
@@ -464,7 +476,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 throw new InvalidArgumentException('Destination key does not belong to specified organization');
             }
 
-            $filesystem = $this->cloudFile->get($bucketType->value);
+            $filesystem = $this->getFilesystem($bucketType->value);
             $credentialPolicy = new CredentialPolicy([
                 'sts' => true,
                 'role_session_name' => 'magic',
@@ -521,7 +533,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 throw new InvalidArgumentException('Object key does not belong to specified organization');
             }
 
-            $filesystem = $this->cloudFile->get($bucketType->value);
+            $filesystem = $this->getFilesystem($bucketType->value);
             $credentialPolicy = new CredentialPolicy([
                 'sts' => true,
                 'role_session_name' => 'magic',
@@ -588,7 +600,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 $isFolder = true;
             }
 
-            $filesystem = $this->cloudFile->get($bucketType->value);
+            $filesystem = $this->getFilesystem($bucketType->value);
             $credentialPolicy = new CredentialPolicy([
                 'sts' => true,
                 'role_session_name' => 'magic',

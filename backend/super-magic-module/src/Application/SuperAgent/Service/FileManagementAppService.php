@@ -83,13 +83,14 @@ class FileManagementAppService extends AbstractAppService
             // 获取STS Token
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
                 $storageType,
                 $workDir,
-                $expires
+                $expires,
+                false
             );
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
@@ -142,7 +143,7 @@ class FileManagementAppService extends AbstractAppService
             // 获取STS Token
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,

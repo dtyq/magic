@@ -100,17 +100,14 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.multiple_projects_not_allowed')]
     case MULTIPLE_PROJECTS_NOT_ALLOWED = 51165;
 
-    #[ErrorMessage('file.convert_failed')]
-    case FILE_CONVERT_FAILED = 51166;
-
     #[ErrorMessage('file.file_not_found')]
-    case FILE_NOT_FOUND = 51167;
+    case FILE_NOT_FOUND = 51166;
 
     #[ErrorMessage('file.delete_failed')]
-    case FILE_DELETE_FAILED = 51168;
+    case FILE_DELETE_FAILED = 51167;
 
     #[ErrorMessage('file.file_exist')]
-    case FILE_EXIST = 51169;
+    case FILE_EXIST = 51168;
 
     #[ErrorMessage('file.file_rename_failed')]
     case FILE_RENAME_FAILED = 51170;

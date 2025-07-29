@@ -119,9 +119,10 @@ readonly class FileDomainService
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
-    ) {
-        return $this->cloudFileRepository->getStsTemporaryCredential($organizationCode, $bucketType, $dir, $expires);
+        int $expires = 3600,
+        bool $autoBucket = true,
+    ): array {
+        return $this->cloudFileRepository->getStsTemporaryCredential($organizationCode, $bucketType, $dir, $expires, $autoBucket);
     }
 
     public function exist(array $metas, string $key): bool

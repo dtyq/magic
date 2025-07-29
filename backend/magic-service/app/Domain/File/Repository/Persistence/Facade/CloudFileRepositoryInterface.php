@@ -51,7 +51,8 @@ interface CloudFileRepositoryInterface
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
+        int $expires = 3600,
+        bool $autoBucket = true,
     ): array;
 
     /**
@@ -59,7 +60,7 @@ interface CloudFileRepositoryInterface
      */
     public function getPreSignedUrls(string $organizationCode, array $fileNames, int $expires = 3600, StorageBucketType $bucketType = StorageBucketType::Private): array;
 
-    public function getMetas(array $paths, string $organizationCode): array;
+    public function getMetas(array $paths, string $organizationCode, StorageBucketType $bucketType = StorageBucketType::Private): array;
 
     public function getDefaultIconPaths(string $appId = 'open'): array;
 
@@ -72,6 +73,141 @@ interface CloudFileRepositoryInterface
      * @return bool True if deleted successfully, false otherwise
      */
     public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool;
+
+    /**
+     * List objects by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $prefix Object prefix to filter
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (marker, max-keys, delimiter, etc.)
+     * @return array List of objects
+     */
+    public function listObjectsByCredential(
+        string $organizationCode,
+        string $prefix = '',
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array;
+
+    /**
+     * Delete object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (version_id, etc.)
+     */
+    public function deleteObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
+     * Copy object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (source_bucket, source_version_id, metadata_directive, etc.)
+     */
+    public function copyObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $sourceKey,
+        string $destinationKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
+     * Get object metadata by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to get metadata
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Object metadata
+     */
+    public function getHeadObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array;
+
+    /**
+     * Create object by credential (file or folder).
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to create
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (content, content_type, etc.)
+     */
+    public function createObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
+     * Create folder by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $folderPath Folder path (will automatically add '/' if missing)
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     */
+    public function createFolderByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $folderPath,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
+     * Create file by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath File path
+     * @param string $content File content (default empty)
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     */
+    public function createFileByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $filePath,
+        string $content = '',
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
+     * Rename object by credential.
+     *
+     * @param string $prefix Prefix for the operation
+     * @param string $organizationCode Organization code
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     */
+    public function renameObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $sourceKey,
+        string $destinationKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
 
     public function getFullPrefix(string $organizationCode): string;
 

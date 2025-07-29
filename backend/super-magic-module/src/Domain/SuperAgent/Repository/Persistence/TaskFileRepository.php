@@ -242,6 +242,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     {
         $date = date('Y-m-d H:i:s');
         $entity->setCreatedAt($date);
+        $entity->setUpdatedAt($date);
 
         $entityArray = $entity->toArray();
         $model = $this->model::query()->create($entityArray);
@@ -286,6 +287,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     public function updateById(TaskFileEntity $entity): TaskFileEntity
     {
+        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $entity->toArray();
 
         $this->model::query()
@@ -375,6 +377,252 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $entities;
+    }
+
+    /**
+     * 根据项目ID获取所有文件的file_key列表（高性能查询）.
+     */
+    public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array
+    {
+        $query = $this->model::query()
+            ->select(['file_key'])
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at')
+            ->limit($limit);
+
+        return $query->pluck('file_key')->toArray();
+    }
+
+    /**
+     * 批量插入新文件记录.
+     */
+    public function batchInsertFiles(DataIsolation $dataIsolation, int $projectId, array $newFileKeys, array $objectStorageFiles = []): void
+    {
+        if (empty($newFileKeys)) {
+            return;
+        }
+
+        $insertData = [];
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($newFileKeys as $fileKey) {
+            // 从对象存储文件信息中获取详细信息
+            $fileInfo = $objectStorageFiles[$fileKey] ?? [];
+
+            $insertData[] = [
+                'file_id' => IdGenerator::getSnowId(),
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                'project_id' => $projectId,
+                'topic_id' => 0,
+                'task_id' => 0,
+                'file_key' => $fileKey,
+                'file_name' => $fileInfo['file_name'] ?? basename($fileKey),
+                'file_extension' => $fileInfo['file_extension'] ?? pathinfo($fileKey, PATHINFO_EXTENSION),
+                'file_type' => 'auto_sync',
+                'file_size' => $fileInfo['file_size'] ?? 0,
+                'storage_type' => 'workspace',
+                'is_hidden' => false,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        // 使用批量插入提升性能
+        $this->model::query()->insert($insertData);
+    }
+
+    /**
+     * 批量标记文件为已删除.
+     */
+    public function batchMarkAsDeleted(array $deletedFileKeys): void
+    {
+        if (empty($deletedFileKeys)) {
+            return;
+        }
+
+        $this->model::query()
+            ->whereIn('file_key', $deletedFileKeys)
+            ->whereNull('deleted_at')
+            ->update([
+                'deleted_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
+     * 批量更新文件信息.
+     */
+    public function batchUpdateFiles(array $updatedFileKeys): void
+    {
+        if (empty($updatedFileKeys)) {
+            return;
+        }
+
+        // 简化实现：只更新修改时间
+        $this->model::query()
+            ->whereIn('file_key', $updatedFileKeys)
+            ->whereNull('deleted_at')
+            ->update([
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
+     * 根据目录路径查找文件列表.
+     */
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('file_key', 'like', $directoryPath . '%')
+            ->whereNull('deleted_at')
+            ->limit($limit)
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
+    /**
+     * 批量删除文件.
+     */
+    public function deleteByIds(array $fileIds): void
+    {
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->delete();
+    }
+
+    /**
+     * 获取指定父目录下的最小排序值.
+     */
+    public function getMinSortByParentId(?int $parentId, int $projectId): ?int
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->min('sort');
+    }
+
+    /**
+     * 获取指定父目录下的最大排序值.
+     */
+    public function getMaxSortByParentId(?int $parentId, int $projectId): ?int
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->max('sort');
+    }
+
+    /**
+     * 获取指定文件的排序值.
+     */
+    public function getSortByFileId(int $fileId): ?int
+    {
+        return $this->model::query()
+            ->where('file_id', $fileId)
+            ->whereNull('deleted_at')
+            ->value('sort');
+    }
+
+    /**
+     * 获取指定排序值之后的下一个排序值.
+     */
+    public function getNextSortAfter(?int $parentId, int $currentSort, int $projectId): ?int
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('sort', '>', $currentSort)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->min('sort');
+    }
+
+    /**
+     * 获取同一父目录下的所有兄弟节点.
+     */
+    public function getSiblingsByParentId(?int $parentId, int $projectId, string $orderBy = 'sort', string $direction = 'ASC'): array
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('deleted_at');
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        return $query->orderBy($orderBy, $direction)->get()->toArray();
+    }
+
+    /**
+     * 批量更新排序值.
+     */
+    public function batchUpdateSort(array $updates): void
+    {
+        if (empty($updates)) {
+            return;
+        }
+
+        foreach ($updates as $update) {
+            $this->model::query()
+                ->where('file_id', $update['file_id'])
+                ->update(['sort' => $update['sort'], 'updated_at' => date('Y-m-d H:i:s')]);
+        }
+    }
+
+    /**
+     * Batch bind files to project with parent directory.
+     * Updates both project_id and parent_id atomically.
+     */
+    public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int
+    {
+        if (empty($fileIds)) {
+            return 0;
+        }
+
+        return $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->where(function ($query) {
+                $query->whereNull('project_id')
+                    ->orWhere('project_id', 0);
+            })
+            ->update([
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
     }
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
