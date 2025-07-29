@@ -62,6 +62,11 @@ class CloudFile
         return $proxy;
     }
 
+    public function exist(string $storage): bool
+    {
+        return isset($this->resolvers[$storage]) || ! empty($this->configs['storages'][$storage]);
+    }
+
     private function getStorageConfig(string $storage): array
     {
         return $this->configs['storages'][$storage] ?? [];
