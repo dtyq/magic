@@ -51,7 +51,7 @@ class AliyunSimpleUpload extends SimpleUpload
     /**
      * @see https://help.aliyun.com/document_detail/31926.html
      */
-    public function uploadObject(array $credential, UploadFile $uploadFile): void
+    public function uploadObject(array $credential, UploadFile $uploadFile, array $options = []): void
     {
         if (isset($credential['temporary_credential'])) {
             $credential = $credential['temporary_credential'];
@@ -90,17 +90,17 @@ class AliyunSimpleUpload extends SimpleUpload
      * OSS chunk upload implementation - using official SDK's multiuploadFile method.
      * @see https://help.aliyun.com/zh/oss/developer-reference/multipart-upload
      */
-    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile): void
+    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile, array $options = []): void
     {
         // Check if chunk upload is needed
         if (! $chunkUploadFile->shouldUseChunkUpload()) {
             // File is small, use simple upload
-            $this->uploadObjectWithSts($credential, $chunkUploadFile);
+            $this->uploadObjectWithSts($credential, $chunkUploadFile, $options);
             return;
         }
 
         // Convert credential format to SDK configuration
-        $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+        $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
         // Create OSS official SDK client
         $ossClient = $this->createOssClient($sdkConfig);
@@ -178,7 +178,7 @@ class AliyunSimpleUpload extends SimpleUpload
     /**
      * @see https://help.aliyun.com/zh/oss/developer-reference/appendobject
      */
-    public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
+    public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile, array $options = []): void
     {
         // Handle FileService credential structure (temporary_credential wrapper)
         if (isset($credential['temporary_credential'])) {
@@ -250,7 +250,7 @@ class AliyunSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create OSS SDK client
             $ossClient = $this->createOssClient($sdkConfig);
@@ -343,7 +343,7 @@ class AliyunSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create OSS SDK client
             $ossClient = $this->createOssClient($sdkConfig);
@@ -386,7 +386,7 @@ class AliyunSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create OSS SDK client
             $ossClient = $this->createOssClient($sdkConfig);
@@ -474,7 +474,7 @@ class AliyunSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create OSS SDK client
             $ossClient = $this->createOssClient($sdkConfig);
@@ -550,7 +550,7 @@ class AliyunSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create OSS SDK client
             $ossClient = $this->createOssClient($sdkConfig);
@@ -631,12 +631,12 @@ class AliyunSimpleUpload extends SimpleUpload
      * Upload single object using STS credential via OSS SDK.
      * @see https://help.aliyun.com/zh/oss/developer-reference/simple-upload
      */
-    private function uploadObjectWithSts(array $credential, UploadFile $uploadFile): void
+    private function uploadObjectWithSts(array $credential, UploadFile $uploadFile, array $options = []): void
     {
         $key = '';
         try {
             // Convert credential format to SDK configuration
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create OSS client with STS credential
             $ossClient = $this->createOssClient($sdkConfig);
@@ -698,7 +698,7 @@ class AliyunSimpleUpload extends SimpleUpload
     /**
      * Convert credential to OSS SDK configuration format.
      */
-    private function convertCredentialToSdkConfig(array $credential): array
+    private function convertCredentialToSdkConfig(array $credential, array $options = []): array
     {
         if (! isset($credential['temporary_credential'])) {
             throw new CloudFileException('Missing temporary_credential in credential');
@@ -706,9 +706,9 @@ class AliyunSimpleUpload extends SimpleUpload
 
         $tempCredential = $credential['temporary_credential'];
 
-        // Build endpoint from region
+        // Use endpoint from credential if available, otherwise build from region
         $region = $tempCredential['region'];
-        $endpoint = "https://{$region}.aliyuncs.com";
+        $endpoint = $tempCredential['endpoint'] ?? "https://{$region}.aliyuncs.com";
 
         return [
             'endpoint' => $endpoint,

@@ -32,7 +32,7 @@ use Tos\TosClient;
 
 class TosSimpleUpload extends SimpleUpload
 {
-    public function uploadObject(array $credential, UploadFile $uploadFile): void
+    public function uploadObject(array $credential, UploadFile $uploadFile, array $options = []): void
     {
         if (isset($credential['temporary_credential'])) {
             $credential = $credential['temporary_credential'];
@@ -71,7 +71,7 @@ class TosSimpleUpload extends SimpleUpload
         $uploadFile->setKey($key);
     }
 
-    public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
+    public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile, array $options = []): void
     {
         $object = $credential['dir'] . $appendUploadFile->getKeyPath();
 
@@ -147,11 +147,11 @@ class TosSimpleUpload extends SimpleUpload
      * @param UploadFile $uploadFile 上传文件对象
      * @throws CloudFileException
      */
-    public function uploadBySts(array $credential, UploadFile $uploadFile): void
+    public function uploadBySts(array $credential, UploadFile $uploadFile, array $options = []): void
     {
         try {
             // 转换credential格式为SDK配置
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // 创建TOS官方SDK客户端
             $tosClient = new TosClient($sdkConfig);
@@ -231,7 +231,7 @@ class TosSimpleUpload extends SimpleUpload
      * @param ChunkUploadFile $chunkUploadFile 分片上传文件对象
      * @throws ChunkUploadException
      */
-    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile): void
+    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile, array $options = []): void
     {
         // 检查是否需要分片上传
         if (! $chunkUploadFile->shouldUseChunkUpload()) {
@@ -241,7 +241,7 @@ class TosSimpleUpload extends SimpleUpload
         }
 
         // 转换credential格式为SDK配置
-        $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+        $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
         // 创建TOS官方SDK客户端
         $tosClient = new TosClient($sdkConfig);
@@ -349,7 +349,7 @@ class TosSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create TOS SDK client
             $tosClient = new TosClient($sdkConfig);
@@ -457,7 +457,7 @@ class TosSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create TOS SDK client
             $tosClient = new TosClient($sdkConfig);
@@ -525,7 +525,7 @@ class TosSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create TOS SDK client
             $tosClient = new TosClient($sdkConfig);
@@ -634,7 +634,7 @@ class TosSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create TOS SDK client
             $tosClient = new TosClient($sdkConfig);
@@ -724,7 +724,7 @@ class TosSimpleUpload extends SimpleUpload
     {
         try {
             // Convert credential to SDK config
-            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential, $options);
 
             // Create TOS SDK client
             $tosClient = new TosClient($sdkConfig);
@@ -821,7 +821,7 @@ class TosSimpleUpload extends SimpleUpload
     /**
      * 转换credential为TOS SDK配置格式.
      */
-    private function convertCredentialToSdkConfig(array $credential): array
+    private function convertCredentialToSdkConfig(array $credential, array $options = []): array
     {
         // 处理temporary_credential格式
         if (isset($credential['temporary_credential'])) {

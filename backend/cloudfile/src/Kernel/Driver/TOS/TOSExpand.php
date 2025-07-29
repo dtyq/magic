@@ -17,6 +17,7 @@ use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadInfo;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
+use Dtyq\CloudFile\Kernel\Utils\EasyFileTools;
 use Exception;
 use GuzzleHttp\Psr7\Utils;
 use League\Flysystem\FileAttributes;
@@ -47,7 +48,7 @@ class TOSExpand implements ExpandInterface
 
     public function getUploadCredential(CredentialPolicy $credentialPolicy, array $options = []): array
     {
-        return $credentialPolicy->isSts() ? $this->getUploadCredentialBySts($credentialPolicy) : $this->getUploadCredentialBySimple($credentialPolicy);
+        return $credentialPolicy->isSts() ? $this->getUploadCredentialBySts($credentialPolicy, $options) : $this->getUploadCredentialBySimple($credentialPolicy);
     }
 
     public function getPreSignedUrls(array $fileNames, int $expires = 3600, array $options = []): array
@@ -386,6 +387,18 @@ class TOSExpand implements ExpandInterface
      */
     private function getPreSignedUrl(string $path, int $expires = 3600, array $options = [], string $downloadName = ''): string
     {
+        // Check if internal endpoint should be used for download URL
+        $useInternal = $options['use_internal_endpoint'] ?? false;
+        $client = $this->client;
+
+        // Create temporary client with internal endpoint if needed
+        if ($useInternal) {
+            $internalConfig = $this->config;
+            $internalConfig['endpoint'] = EasyFileTools::convertToInternalEndpoint($this->config['endpoint'], 'tos', true);
+            $internalConfigParser = new ConfigParser($internalConfig);
+            $client = new TosClient($internalConfigParser);
+        }
+
         $input = new PreSignedURLInput(Enum::HttpMethodGet, $this->getBucket(), $path);
         $input->setExpires($expires);
         $query = [];
@@ -401,7 +414,7 @@ class TOSExpand implements ExpandInterface
         if (! empty($query)) {
             $input->setQuery($query);
         }
-        return $this->client->preSignedURL($input)->getSignedUrl();
+        return $client->preSignedURL($input)->getSignedUrl();
     }
 
     private function getUploadCredentialBySimple(CredentialPolicy $credentialPolicy): array
@@ -466,7 +479,7 @@ class TOSExpand implements ExpandInterface
     /**
      * @see https://www.volcengine.com/docs/6349/127695
      */
-    private function getUploadCredentialBySts(CredentialPolicy $credentialPolicy): array
+    private function getUploadCredentialBySts(CredentialPolicy $credentialPolicy, array $options = []): array
     {
         if (empty($this->getTrn())) {
             throw new CloudFileException('未配置 trn');
@@ -559,10 +572,19 @@ class TOSExpand implements ExpandInterface
             throw new CloudFileException('获取 STS 失败');
         }
 
+        // Check if should use internal endpoint for STS credentials
+        $endpoint = $this->configParser->getEndpoint();
+        $bucketEndpoint = $this->configParser->getEndpoint($this->getBucket());
+        $useInternal = $options['use_internal_endpoint'] ?? false;
+        if ($useInternal) {
+            $endpoint = EasyFileTools::convertToInternalEndpoint($endpoint, 'tos', true);
+            $bucketEndpoint = EasyFileTools::convertToInternalEndpoint($bucketEndpoint, 'tos', true);
+        }
+
         return [
-            'host' => $this->configParser->getEndpoint($this->getBucket()),
+            'host' => $bucketEndpoint,
             'region' => $this->configParser->getRegion(),
-            'endpoint' => $this->configParser->getEndpoint(),
+            'endpoint' => $endpoint,
             'credentials' => $data['Result']['Credentials'],
             'bucket' => $this->getBucket(),
             'dir' => $credentialPolicy->getDir() ?? '',
