@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Mapper;
 
+use App\Domain\File\Service\FileDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\Query\MagicFlowAIModelQuery;
 use App\Domain\Flow\Service\MagicFlowAIModelDomainService;
@@ -536,6 +537,14 @@ class ModelGatewayMapper extends ModelMapper
             $tag = "{$tag}「{$alias}」";
         }
 
+        $fileDomainService = di(FileDomainService::class);
+        // 如果是官方组织的 icon，切换官方组织
+        if ($providerModelEntity->isOffice()) {
+            $iconUrl = $fileDomainService->getLink($providerDataIsolation->getOfficialOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+        } else {
+            $iconUrl = $fileDomainService->getLink($providerModelEntity->getOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+        }
+
         return new OdinModel(
             key: $key,
             model: $this->createModel($providerModelEntity->getModelVersion(), [
@@ -554,7 +563,7 @@ class ModelGatewayMapper extends ModelMapper
                 key: $key,
                 name: $providerModelEntity->getModelId(),
                 label: $providerModelEntity->getName(),
-                icon: $providerModelEntity->getIcon(),
+                icon: $iconUrl,
                 tags: [['type' => 1, 'value' => $tag]],
                 createdAt: $providerEntity->getCreatedAt(),
                 owner: 'MagicAI',
