@@ -51,7 +51,7 @@ class LongTermMemoryModel extends Model
         'id', 'content', 'pending_content', 'explanation', 'origin_text', 'memory_type', 'status', 'enabled', 'confidence', 'importance',
         'access_count', 'reinforcement_count', 'decay_factor', 'tags',
         'metadata', 'org_id', 'app_id', 'project_id', 'user_id',
-        'last_accessed_at', 'last_reinforced_at', 'expires_at',
+        'last_accessed_at', 'last_reinforced_at', 'expires_at', 'created_at', 'updated_at', 'deleted_at',
     ];
 
     protected array $casts = [

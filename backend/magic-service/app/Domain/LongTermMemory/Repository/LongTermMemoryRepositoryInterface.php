@@ -75,11 +75,6 @@ interface LongTermMemoryRepositoryInterface
     public function findMemoriesToCompress(string $orgId, string $appId, string $userId): array;
 
     /**
-     * 查找过期的记忆.
-     */
-    public function findExpiredMemories(string $orgId, string $appId, string $userId): array;
-
-    /**
      * 保存记忆.
      */
     public function save(LongTermMemoryEntity $memory): bool;
@@ -130,26 +125,6 @@ interface LongTermMemoryRepositoryInterface
      * 获取用户记忆的总大小（字符数）.
      */
     public function getTotalSizeByUser(string $orgId, string $appId, string $userId): int;
-
-    /**
-     * 获取最近访问的记忆.
-     */
-    public function getRecentlyAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array;
-
-    /**
-     * 获取最近强化的记忆.
-     */
-    public function getRecentlyReinforced(string $orgId, string $appId, string $userId, int $limit = 10): array;
-
-    /**
-     * 获取最重要的记忆.
-     */
-    public function getMostImportant(string $orgId, string $appId, string $userId, int $limit = 10): array;
-
-    /**
-     * 获取访问次数最多的记忆.
-     */
-    public function getMostAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array;
 
     /**
      * 批量检查记忆是否属于用户.
