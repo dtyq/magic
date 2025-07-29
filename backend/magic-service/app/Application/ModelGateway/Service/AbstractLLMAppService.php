@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
@@ -39,6 +40,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ServiceProviderDomainService $serviceProviderDomainService,
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
+        protected PointComponentInterface $pointComponent,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
