@@ -43,7 +43,7 @@ class WorkDirectoryUtil
 
     public static function getAgentChatHistoryDir(string $userId, int $projectId): string
     {
-        return self::getRootDir($userId, $projectId) . '/.chat-history';
+        return self::getRootDir($userId, $projectId) . '/.chat-history/';
     }
 
     /**
@@ -77,7 +77,7 @@ class WorkDirectoryUtil
 
     public static function getFullFileKey(string $prefix, string $workDir, string $path): string
     {
-        return $prefix . trim($workDir, '/') . '/' . trim($path, '/');
+        return $prefix . trim($workDir, '/') . '/' . $path;
     }
 
     public static function getFullWorkdir(string $prefix, string $workDir): string
@@ -347,6 +347,110 @@ class WorkDirectoryUtil
 
         // Check if target path starts with base path (is under base directory)
         return strpos($targetPathWithSlash, $basePathWithSlash) === 0;
+    }
+
+    /**
+     * Validate if a given string represents a valid directory name.
+     *
+     * @param string $directoryName Directory name to validate
+     * @return bool True if the string represents a valid directory, false otherwise
+     *
+     * Examples of VALID directory names:
+     * - 'a'            // Simple directory name
+     * - 'a/b'          // Nested directory path
+     * - '/a'           // Absolute directory path
+     * - '/'            // Root directory
+     *
+     * Examples of INVALID directory names:
+     * - ''             // Empty string
+     * - 'file.txt'     // File with extension (assumed to be a file)
+     * - 'dir/file.txt' // Path ending with a file
+     * - '../dir'       // Path traversal
+     * - 'dir\\'        // Windows path separator
+     * - 'dir?'         // Invalid characters
+     */
+    public static function isValidDirectoryName(string $directoryName): bool
+    {
+        // Check if directory name is empty
+        if (empty(trim($directoryName))) {
+            return false;
+        }
+
+        // Check for leading/trailing spaces in the original string (before trimming)
+        if ($directoryName !== trim($directoryName)) {
+            return false;
+        }
+
+        // Trim the directory name
+        $directoryName = trim($directoryName);
+
+        // Root directory is always valid
+        if ($directoryName === '/') {
+            return true;
+        }
+
+        // Check for null bytes (security risk)
+        if (strpos($directoryName, "\0") !== false) {
+            return false;
+        }
+
+        // Check for dangerous characters that could cause file system issues
+        // Windows forbidden characters: < > : " | ? *
+        // Also check for control characters (ASCII 0-31)
+        if (preg_match('/[<>:"|?*\x00-\x1f]/', $directoryName)) {
+            return false;
+        }
+
+        // Check for Windows path separators (we only allow forward slashes)
+        if (strpos($directoryName, '\\') !== false) {
+            return false;
+        }
+
+        // Prevent path traversal patterns
+        if (strpos($directoryName, '..') !== false) {
+            return false;
+        }
+
+        // Split into path components and validate each part
+        $components = array_filter(explode('/', $directoryName), fn (string $part): bool => strlen($part) > 0);
+
+        foreach ($components as $component) {
+            // Each component should not be empty after filtering
+            if (empty(trim($component))) {
+                continue;
+            }
+
+            // Check component length (typical filesystem limit is 255 bytes per component)
+            if (strlen($component) > 255) {
+                return false;
+            }
+
+            // Check for Windows reserved names (case-insensitive)
+            $reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+            if (in_array(strtoupper($component), $reservedNames)) {
+                return false;
+            }
+
+            // Check for components that are just dots
+            if ($component === '.' || $component === '..') {
+                return false;
+            }
+
+            // Check for components starting or ending with spaces or dots (problematic on Windows)
+            if (preg_match('/^[\s.]+|[\s.]+$/', $component)) {
+                return false;
+            }
+
+            // Check if component looks like a file (has an extension)
+            // Only check the last component to determine if it's a file
+            $pathParts = explode('/', $directoryName);
+            $lastComponent = end($pathParts);
+            if ($component === $lastComponent && preg_match('/\.[a-zA-Z0-9]+$/', $component)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

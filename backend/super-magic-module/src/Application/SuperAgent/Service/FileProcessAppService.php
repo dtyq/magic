@@ -884,6 +884,7 @@ class FileProcessAppService extends AbstractAppService
                 fileType: 'tool_message_content',
                 isUpdate: false,
                 storageType: StorageType::TOPIC->value,
+                source: TaskFileSource::AGENT->value,
             );
 
             // 5. Set as hidden file

@@ -65,7 +65,7 @@ class SandboxFileNotificationRequestDTO extends AbstractRequestDTO
     {
         return [
             'metadata' => 'required|array',
-            'metadata.project_id' => 'required|string',
+            'metadata.super_magic_task_id' => 'required|string',
             'metadata.user_id' => 'required|string',
             'metadata.organization_code' => 'required|string',
             'data' => 'required|array',
@@ -84,8 +84,8 @@ class SandboxFileNotificationRequestDTO extends AbstractRequestDTO
         return [
             'metadata.required' => 'Metadata cannot be empty',
             'metadata.array' => 'Metadata must be an array',
-            'metadata.project_id.required' => 'Project ID in metadata cannot be empty',
-            'metadata.project_id.string' => 'Project ID must be a string',
+            'metadata.super_magic_task_id.required' => 'Task ID in metadata cannot be empty',
+            'metadata.super_magic_task_id.string' => 'Task ID must be a string',
             'metadata.user_id.required' => 'User ID in metadata cannot be empty',
             'metadata.user_id.string' => 'User ID must be a string',
             'metadata.organization_code.required' => 'Organization code in metadata cannot be empty',

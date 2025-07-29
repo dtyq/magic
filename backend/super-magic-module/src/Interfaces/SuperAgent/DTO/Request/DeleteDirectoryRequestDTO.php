@@ -17,18 +17,18 @@ class DeleteDirectoryRequestDTO extends AbstractRequestDTO
     public string $projectId = '';
 
     /**
-     * Directory path to be deleted.
+     * File ID of the directory to be deleted.
      */
-    public string $path = '';
+    public string $fileId = '';
 
     public function getProjectId(): string
     {
         return $this->projectId;
     }
 
-    public function getPath(): string
+    public function getFileId(): string
     {
-        return $this->path;
+        return $this->fileId;
     }
 
     /**
@@ -38,7 +38,7 @@ class DeleteDirectoryRequestDTO extends AbstractRequestDTO
     {
         return [
             'project_id' => 'required|string|max:50',
-            'path' => 'required|string|max:500',
+            'file_id' => 'required|string|max:50',
         ];
     }
 
@@ -51,9 +51,9 @@ class DeleteDirectoryRequestDTO extends AbstractRequestDTO
             'project_id.required' => 'Project ID cannot be empty',
             'project_id.string' => 'Project ID must be a string',
             'project_id.max' => 'Project ID cannot exceed 50 characters',
-            'path.required' => 'Directory path cannot be empty',
-            'path.string' => 'Directory path must be a string',
-            'path.max' => 'Directory path cannot exceed 500 characters',
+            'file_id.required' => 'File ID cannot be empty',
+            'file_id.string' => 'File ID must be a string',
+            'file_id.max' => 'File ID cannot exceed 50 characters',
         ];
     }
 }
