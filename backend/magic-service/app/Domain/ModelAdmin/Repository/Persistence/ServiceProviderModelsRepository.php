@@ -424,6 +424,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray['translate'] = Json::encode($entityArray['translate'] ?: []);
         $entityArray['visible_organizations'] = Json::encode($entityArray['visible_organizations'] ?: []);
         $entityArray['visible_applications'] = Json::encode($entityArray['visible_applications'] ?: []);
+        $entityArray['visible_packages'] = Json::encode($entityArray['visible_packages'] ?: []);
         $this->serviceProviderModelsModel::query()->where('id', $id)->update($entityArray);
     }
 
@@ -434,6 +435,8 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $modelArray['visible_organizations'] = Json::encode($modelArray['visible_organizations'] ?: []);
         $modelArray['visible_applications'] = Json::encode($modelArray['visible_applications'] ?: []);
         $modelArray['super_magic_display_state'] = $modelArray['super_magic_display_state'] ?? 0;
+        $modelArray['visible_packages'] = Json::encode($modelArray['visible_packages'] ?: []);
+        $modelArray['config'] = Json::encode($modelArray['config'] ?: []);
         $this->removeImmutableFields($modelArray);
         $this->serviceProviderModelsModel::query()->where('model_parent_id', $modelParentId)
             ->update($modelArray);
@@ -597,12 +600,16 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
      * @param string $organizationCode Organization code
      * @return ServiceProviderModelsEntity[]
      */
-    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode, bool $isOfficeOrganization = false): array
     {
         $query = $this->serviceProviderModelsModel::query()
             ->where('super_magic_display_state', 1)
             ->where('organization_code', $organizationCode)
             ->where('status', Status::ACTIVE->value);
+
+        if (! $isOfficeOrganization) {
+            $query->where('is_office', true);
+        }
 
         return $this->executeQueryAndToEntities($query);
     }
@@ -680,6 +687,7 @@ class ServiceProviderModelsRepository extends AbstractModelRepository
         $entityArray['translate'] = Json::encode($entity->getTranslate() ?: []);
         $entityArray['visible_organizations'] = Json::encode($entity->getVisibleOrganizations());
         $entityArray['visible_applications'] = Json::encode($entity->getVisibleApplications());
+        $entityArray['visible_packages'] = Json::encode($entity->getVisiblePackages());
 
         return $entityArray;
     }
