@@ -43,7 +43,6 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected FileDomainService $fileDomainService,
         protected PackageFilterInterface $packageFilter,
         protected WatermarkConfigInterface $watermarkConfig,
-        protected PackageFilterInterface $packageFilter,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
