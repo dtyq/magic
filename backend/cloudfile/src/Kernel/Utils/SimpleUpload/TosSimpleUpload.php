@@ -390,6 +390,7 @@ class TosSimpleUpload extends SimpleUpload
                 'marker' => $listOutput->getMarker(),
                 'max_keys' => $listOutput->getMaxKeys(),
                 'next_marker' => $listOutput->getNextMarker(),
+                'is_truncated' => $listOutput->isTruncated(),
                 'objects' => $objects,
                 'common_prefixes' => [],
             ];

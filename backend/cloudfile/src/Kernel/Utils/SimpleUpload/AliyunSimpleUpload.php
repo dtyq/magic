@@ -292,6 +292,7 @@ class AliyunSimpleUpload extends SimpleUpload
                 'marker' => $listInfo->getMarker(),
                 'max_keys' => $listInfo->getMaxKeys(),
                 'next_marker' => $listInfo->getNextMarker(),
+                'is_truncated' => $listInfo->getIsTruncated(),
                 'objects' => $objects,
                 'common_prefixes' => [],
             ];
