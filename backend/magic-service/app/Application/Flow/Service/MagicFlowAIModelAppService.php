@@ -43,7 +43,7 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
         }
         return [
             'total' => count($list),
-            'list' => array_values($list),
+            'list' => $list,
         ];
     }
 }
