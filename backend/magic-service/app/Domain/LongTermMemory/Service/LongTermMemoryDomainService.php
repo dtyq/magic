@@ -20,8 +20,10 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use DateTime;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use Throwable;
+
+use function Hyperf\Translation\trans;
 
 /**
  * 长期记忆领域服务
@@ -94,39 +96,6 @@ class LongTermMemoryDomainService
     }
 
     /**
-     * 批量接受记忆建议.
-     */
-    public function acceptMemorySuggestions(array $memoryIds): void
-    {
-        if (empty($memoryIds)) {
-            return;
-        }
-
-        // 批量查询记忆
-        $memories = $this->repository->findByIds($memoryIds);
-
-        // 批量接受记忆建议：将pending_content移动到content，并设置状态为已接受
-        foreach ($memories as $memory) {
-            // 如果有pending_content，则将其移动到content
-            if ($memory->getPendingContent() !== null) {
-                $memory->setContent($memory->getPendingContent());
-                $memory->setPendingContent(null); // 清空pending_content
-            }
-
-            // 设置状态为已生效
-            $memory->setStatus(MemoryStatus::ACTIVE);
-        }
-
-        // 批量保存更新
-        if (! $this->repository->updateBatch($memories)) {
-            $this->logger->error('Failed to batch accept memory suggestions', ['memory_ids' => $memoryIds]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-        }
-
-        $this->logger->info('Batch accepted memory suggestions successfully', ['count' => count($memories)]);
-    }
-
-    /**
      * 批量处理记忆建议（接受/拒绝）.
      */
     public function batchProcessMemorySuggestions(array $memoryIds, string $action): void
@@ -159,8 +128,10 @@ class LongTermMemoryDomainService
                 foreach ($memories as $memory) {
                     // 如果有pending_content，则将其移动到content
                     if ($memory->getPendingContent() !== null) {
+                        // 将pending_content的值复制到content字段
                         $memory->setContent($memory->getPendingContent());
-                        $memory->setPendingContent(null); // 清空pending_content
+                        // 清空pending_content字段
+                        $memory->setPendingContent(null);
                     }
 
                     // 设置状态为已生效
@@ -238,82 +209,6 @@ class LongTermMemoryDomainService
         }
     }
 
-    /**
-     * 淘汰过期或无效的记忆.
-     */
-    public function evictMemories(string $orgId, string $appId, string $userId): array
-    {
-        $evictedMemories = [];
-        $memoriesToEvict = $this->repository->findMemoriesToEvict($orgId, $appId, $userId);
-
-        $this->logger->info('Found {count} memories to evict for user {userId}', ['count' => count($memoriesToEvict), 'userId' => $userId]);
-
-        foreach ($memoriesToEvict as $memory) {
-            if ($this->shouldMemoryBeEvicted($memory)) {
-                if ($this->repository->softDelete($memory->getId())) {
-                    $evictedMemories[] = $memory;
-                    $this->logger->info('Evicted memory: {id}', ['id' => $memory->getId()]);
-                } else {
-                    $this->logger->error('Failed to evict memory: {id}', ['id' => $memory->getId()]);
-                    ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
-                }
-            }
-        }
-
-        $this->logger->info('Evicted {count} memories for user {userId}', ['count' => count($evictedMemories), 'userId' => $userId]);
-
-        return $evictedMemories;
-    }
-
-    /**
-     * 压缩记忆内容.
-     */
-    public function compressMemories(string $orgId, string $appId, string $userId): array
-    {
-        $compressedMemories = [];
-        $memoriesToCompress = $this->repository->findMemoriesToCompress($orgId, $appId, $userId);
-
-        $this->logger->info('Found {count} memories to compress for user {userId}', ['count' => count($memoriesToCompress), 'userId' => $userId]);
-
-        foreach ($memoriesToCompress as $memory) {
-            if ($this->shouldMemoryBeCompressed($memory)) {
-                $compressedContent = $this->compressContent($memory->getContent());
-
-                if ($compressedContent !== $memory->getContent()) {
-                    $memory->setContent($compressedContent);
-                    $memory->addMetadata('compressed_at', date('Y-m-d H:i:s'));
-                    $memory->addMetadata('original_length', strlen($memory->getContent()));
-                    $memory->addMetadata('compressed_length', strlen($compressedContent));
-
-                    if ($this->repository->update($memory)) {
-                        $compressedMemories[] = $memory;
-                        $this->logger->info('Compressed memory: {id}', ['id' => $memory->getId()]);
-                    } else {
-                        $this->logger->error('Failed to compress memory: {id}', ['id' => $memory->getId()]);
-                        ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-                    }
-                }
-            }
-        }
-
-        $this->logger->info('Compressed {count} memories for user {userId}', ['count' => count($compressedMemories), 'userId' => $userId]);
-
-        return $compressedMemories;
-    }
-
-    public function maintainMemories(string $orgId, string $appId, string $userId): array
-    {
-        $evicted = $this->evictMemories($orgId, $appId, $userId);
-        $compressed = $this->compressMemories($orgId, $appId, $userId);
-
-        return [
-            'evicted_count' => count($evicted),
-            'compressed_count' => count($compressed),
-            'evicted_ids' => array_map(fn ($m) => $m->getId(), $evicted),
-            'compressed_ids' => array_map(fn ($m) => $m->getId(), $compressed),
-        ];
-    }
-
     public function create(CreateMemoryDTO $dto): string
     {
         // 生成锁名称和所有者
@@ -330,6 +225,12 @@ class LongTermMemoryDomainService
         }
 
         try {
+            // 验证用户记忆数量限制
+            $count = $this->countByUser($dto->orgId, $dto->appId, $dto->userId);
+            if ($count >= 20) {
+                throw new InvalidArgumentException(trans('long_term_memory.entity.user_memory_limit_exceeded'));
+            }
+
             $memory = new LongTermMemoryEntity();
             $memory->setId((string) IdGenerator::getSnowId());
             $memory->setOrgId($dto->orgId);
@@ -362,24 +263,6 @@ class LongTermMemoryDomainService
         }
     }
 
-    public function createBatch(array $dtos): array
-    {
-        $createdIds = [];
-        foreach ($dtos as $dto) {
-            if ($dto instanceof CreateMemoryDTO) {
-                try {
-                    $createdIds[] = $this->create($dto);
-                } catch (Throwable $e) {
-                    $this->logger->error('Failed to create memory in batch', [
-                        'error' => $e->getMessage(),
-                        'dto' => json_encode($dto),
-                    ]);
-                }
-            }
-        }
-        return $createdIds;
-    }
-
     public function updateMemory(string $memoryId, UpdateMemoryDTO $dto): void
     {
         // 生成锁名称和所有者
@@ -399,6 +282,11 @@ class LongTermMemoryDomainService
             $memory = $this->repository->findById($memoryId);
             if (! $memory) {
                 ExceptionBuilder::throw(LongTermMemoryErrorCode::MEMORY_NOT_FOUND);
+            }
+
+            // 如果更新了pending_content，需要根据业务规则调整状态
+            if ($dto->pendingContent !== null) {
+                $this->adjustMemoryStatusBasedOnPendingContent($memory, $dto->pendingContent);
             }
 
             LongTermMemoryAssembler::updateEntityFromDTO($memory, $dto);
@@ -507,20 +395,6 @@ class LongTermMemoryDomainService
     }
 
     /**
-     * 计算记忆的相关性分数.
-     */
-    public function calculateRelevanceScore(LongTermMemoryEntity $memory, string $context): float
-    {
-        $score = $memory->getEffectiveScore();
-
-        // 根据上下文计算相关性
-        $contextRelevance = $this->calculateContextRelevance($memory, $context);
-
-        // 结合基础分数和上下文相关性
-        return $score * 0.7 + $contextRelevance * 0.3;
-    }
-
-    /**
      * 获取记忆统计信息.
      */
     public function getMemoryStats(string $orgId, string $appId, string $userId): array
@@ -605,38 +479,6 @@ class LongTermMemoryDomainService
     public function searchByContent(string $orgId, string $appId, string $userId, string $keyword, ?string $status = null): array
     {
         return $this->repository->searchByContent($orgId, $appId, $userId, $keyword, $status);
-    }
-
-    /**
-     * 获取最近访问的记忆.
-     */
-    public function getRecentlyAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->repository->getRecentlyAccessed($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 获取最近强化的记忆.
-     */
-    public function getRecentlyReinforced(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->repository->getRecentlyReinforced($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 获取最重要的记忆.
-     */
-    public function getMostImportant(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->repository->getMostImportant($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 获取访问次数最多的记忆.
-     */
-    public function getMostAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->repository->getMostAccessed($orgId, $appId, $userId, $limit);
     }
 
     /**
@@ -760,47 +602,41 @@ class LongTermMemoryDomainService
     }
 
     /**
-     * 压缩内容（简单的压缩策略）.
+     * 根据pending_content的变化调整记忆状态.
      */
-    private function compressContent(string $content): string
+    private function adjustMemoryStatusBasedOnPendingContent(LongTermMemoryEntity $memory, ?string $pendingContent): void
     {
-        // 简单的压缩策略：
-        // 1. 去除多余空白
-        // 2. 简化重复的句子
-        // 3. 提取关键信息
+        $currentStatus = $memory->getStatus();
+        $hasPendingContent = ! empty($pendingContent);
 
-        $compressed = $content;
+        // 获取新状态
+        $newStatus = $this->determineNewMemoryStatus($currentStatus, $hasPendingContent);
 
-        // 去除多余空白
-        $compressed = preg_replace('/\s+/', ' ', $compressed);
-        $compressed = trim($compressed);
-
-        // 如果内容过长，截取前面部分并添加摘要标识
-        if (strlen($compressed) > 500) {
-            $compressed = substr($compressed, 0, 500) . '...[已压缩]';
+        // 只在状态需要改变时才更新
+        if ($newStatus !== $currentStatus) {
+            $memory->setStatus($newStatus);
         }
-
-        return $compressed;
     }
 
     /**
-     * 计算上下文相关性.
+     * 根据当前状态和pending_content的存在确定新状态.
      */
-    private function calculateContextRelevance(LongTermMemoryEntity $memory, string $context): float
+    private function determineNewMemoryStatus(MemoryStatus $currentStatus, bool $hasPendingContent): MemoryStatus
     {
-        // 简单的关键词匹配算法
-        $memoryWords = preg_split('/\s+/', strtolower($memory->getContent()));
-        $contextWords = preg_split('/\s+/', strtolower($context));
+        // 状态转换矩阵
+        return match ([$currentStatus, $hasPendingContent]) {
+            // pending_content为空时的状态转换
+            [MemoryStatus::PENDING_REVISION, false] => MemoryStatus::ACTIVE,        // 修订完成 → 生效
+            [MemoryStatus::PENDING, false] => MemoryStatus::PENDING,                 // 待接受状态保持不变
+            [MemoryStatus::ACTIVE, false] => MemoryStatus::ACTIVE,                   // 已生效状态保持不变
 
-        $matchCount = 0;
-        foreach ($memoryWords as $word) {
-            if (in_array($word, $contextWords)) {
-                ++$matchCount;
-            }
-        }
+            // pending_content不为空时的状态转换
+            [MemoryStatus::ACTIVE, true] => MemoryStatus::PENDING_REVISION,         // 生效记忆有修订 → 待修订
+            [MemoryStatus::PENDING, true] => MemoryStatus::PENDING,                 // 待接受记忆更新内容，状态不变
+            [MemoryStatus::PENDING_REVISION, true] => MemoryStatus::PENDING_REVISION, // 待修订记忆再次修订，状态不变
 
-        $totalWords = count($memoryWords);
-
-        return $totalWords > 0 ? $matchCount / $totalWords : 0.0;
+            // 默认情况（不应该到达这里）
+            default => $currentStatus,
+        };
     }
 }
