@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f2dce0a44d98bb91ca2d5a560dd74a07",
+    "content-hash": "efd3a89dc64b7f35a0f8dbb80b728f8b",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1982,16 +1982,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "dev-master",
+            "version": "v0.1.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "d2c5e8d70f99df976c14f611e51a9ebc3583a726"
+                "reference": "e49a47715389919ad8c8a9ebc079da4d35c04f22"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/d2c5e8d70f99df976c14f611e51a9ebc3583a726",
-                "reference": "d2c5e8d70f99df976c14f611e51a9ebc3583a726",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/e49a47715389919ad8c8a9ebc079da4d35c04f22",
+                "reference": "e49a47715389919ad8c8a9ebc079da4d35c04f22",
                 "shasum": ""
             },
             "require": {
@@ -2025,7 +2025,6 @@
                 "volcengine/volc-sdk-php": "^1.0",
                 "xxtime/flysystem-aliyun-oss": "^1.6"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -2040,22 +2039,7 @@
                     "Dtyq\\CloudFile\\": "src"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Dtyq\\CloudFile\\Tests\\": "tests"
-                }
-            },
-            "scripts": {
-                "cs-fix": [
-                    "php-cs-fixer fix $1"
-                ],
-                "test": [
-                    "./vendor/bin/phpunit"
-                ],
-                "analyse": [
-                    "phpstan analyse --memory-limit 1024M -c phpstan.neon"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "Apache License 2.0"
             ],
@@ -2067,10 +2051,10 @@
             ],
             "description": "Package description here.",
             "support": {
-                "source": "https://github.com/dtyq/cloudfile/tree/master",
-                "issues": "https://github.com/dtyq/cloudfile/issues"
+                "issues": "https://github.com/dtyq/cloudfile/issues",
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.7"
             },
-            "time": "2025-07-28T13:51:16+00:00"
+            "time": "2025-07-29T07:11:37+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -19520,7 +19504,6 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/cloudfile": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
