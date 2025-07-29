@@ -97,8 +97,8 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.sandbox_save_failed')]
     case SANDBOX_SAVE_FAILED = 51164;
 
-    #[ErrorMessage('file.multiple_projects_not_allowed')]
-    case MULTIPLE_PROJECTS_NOT_ALLOWED = 51165;
+    #[ErrorMessage('file.convert_failed')]
+    case FILE_CONVERT_FAILED = 51165;
 
     #[ErrorMessage('file.file_not_found')]
     case FILE_NOT_FOUND = 51166;
