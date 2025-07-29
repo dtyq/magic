@@ -11,7 +11,7 @@ use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\File\Repository\Persistence\CloudFileRepository;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -53,7 +53,7 @@ class AgentDomainService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
-        private readonly CloudFileRepository $cloudFileRepository,
+        private readonly CloudFileRepositoryInterface $cloudFileRepository,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
