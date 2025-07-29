@@ -100,6 +100,33 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.multiple_projects_not_allowed')]
     case MULTIPLE_PROJECTS_NOT_ALLOWED = 51165;
 
+    #[ErrorMessage('file.file_not_found')]
+    case FILE_NOT_FOUND = 51166;
+
+    #[ErrorMessage('file.delete_failed')]
+    case FILE_DELETE_FAILED = 51167;
+
+    #[ErrorMessage('file.file_exist')]
+    case FILE_EXIST = 51168;
+
+    #[ErrorMessage('file.file_rename_failed')]
+    case FILE_RENAME_FAILED = 51170;
+
+    #[ErrorMessage('file.file_move_failed')]
+    case FILE_MOVE_FAILED = 51171;
+
+    #[ErrorMessage('file.illegal_file_name')]
+    case FILE_ILLEGAL_NAME = 51172;
+
+    #[ErrorMessage('file.file_create_failed')]
+    case FILE_CREATE_FAILED = 51173;
+
+    #[ErrorMessage('file.file_save_failed')]
+    case FILE_SAVE_FAILED = 51174;
+
+    #[ErrorMessage('file.illegal_file_key')]
+    case FILE_ILLEGAL_KEY = 51175;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;

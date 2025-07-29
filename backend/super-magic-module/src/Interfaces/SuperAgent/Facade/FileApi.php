@@ -13,14 +13,22 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
@@ -31,10 +39,11 @@ class FileApi extends AbstractApi
     public function __construct(
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
-        private readonly FileSaveContentAppService $fileSaveContentAppService,
+        private readonly FileManagementAppService $fileManagementAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
+        private readonly SandboxFileNotificationAppService $sandboxFileNotificationAppService,
     ) {
     }
 
@@ -91,7 +100,6 @@ class FileApi extends AbstractApi
         if ($token !== config('super-magic.sandbox.token', '')) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
         }
-
         // 创建DTO并从请求中解析数据
         $requestData = $this->request->all();
         $refreshStsTokenDTO = RefreshStsTokenRequestDTO::fromRequest($requestData);
@@ -196,9 +204,49 @@ class FileApi extends AbstractApi
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
 
         // 并发执行沙箱保存和OSS保存
-        $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
+        // $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
 
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
+    }
+
+    public function deleteFile(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        return $this->fileManagementAppService->deleteFile($requestContext, (int) $id);
+    }
+
+    public function deleteDirectory(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestDTO = DeleteDirectoryRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->deleteDirectory($requestContext, $requestDTO);
+    }
+
+    public function renameFile(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $targetName = $this->request->input('target_name', '');
+
+        // Validate target_name parameter using WorkDirectoryUtil
+        if (! WorkDirectoryUtil::isValidFileName($targetName)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_NAME, 'file.illegal_file_name');
+        }
+        return $this->fileManagementAppService->renameFile($requestContext, (int) $id, $targetName);
+    }
+
+    public function moveFile(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request data and create DTO
+        $requestDTO = MoveFileRequestDTO::fromRequest($this->request);
+
+        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), (int) $requestDTO->getPreFileId());
     }
 
     /**
@@ -263,7 +311,44 @@ class FileApi extends AbstractApi
         $requestDTO = ProjectUploadTokenRequestDTO::fromRequest($requestData);
 
         // 调用应用服务
-        return $this->fileProcessAppService->getProjectUploadToken($requestContext, $requestDTO);
+        return $this->fileManagementAppService->getProjectUploadToken($requestContext, $requestDTO);
+    }
+
+    /**
+     * 获取话题文件上传STS Token.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 获取结果
+     */
+    public function getTopicUploadToken(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestData = $this->request->all();
+        $requestDTO = TopicUploadTokenRequestDTO::fromRequest($requestData);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->getTopicUploadToken($requestContext, $requestDTO);
+    }
+
+    /**
+     * 创建文件或文件夹.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 创建结果
+     */
+    public function createFile(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestDTO = CreateFileRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->createFile($requestContext, $requestDTO);
     }
 
     /**
@@ -282,6 +367,22 @@ class FileApi extends AbstractApi
         $requestDTO = SaveProjectFileRequestDTO::fromRequest($requestData);
 
         // 调用应用服务
-        return $this->fileProcessAppService->saveProjectFile($requestContext, $requestDTO);
+        return $this->fileManagementAppService->saveFile($requestContext, $requestDTO);
+    }
+
+    /**
+     * Handle sandbox file notification.
+     * This endpoint doesn't require user authentication, uses token-based auth instead.
+     *
+     * @param RequestContext $requestContext Request context
+     * @return array Response data
+     */
+    public function handleSandboxNotification(RequestContext $requestContext): array
+    {
+        // Create DTO from request
+        $requestDTO = SandboxFileNotificationRequestDTO::fromRequest($this->request);
+
+        // Call application service without user context
+        return $this->sandboxFileNotificationAppService->handleNotificationWithoutAuth($requestDTO);
     }
 }

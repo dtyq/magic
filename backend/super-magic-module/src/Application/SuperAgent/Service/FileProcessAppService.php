@@ -15,16 +15,17 @@ use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
-use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -34,10 +35,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
@@ -88,7 +87,10 @@ class FileProcessAppService extends AbstractAppService
         int $projectId,
         int $topicId,
         int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
+        string $fileType = FileType::PROCESS->value,
+        string $storageType = StorageType::WORKSPACE->value,
+        int $source = TaskFileSource::AGENT->value,
+        ?int $parentId = null,
     ): array {
         $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
             dataIsolation: $dataIsolation,
@@ -97,7 +99,11 @@ class FileProcessAppService extends AbstractAppService
             projectId: $projectId,
             topicId: $topicId,
             taskId: $taskId,
-            fileType: $fileType
+            fileType: $fileType,
+            isUpdate: true,
+            storageType: $storageType,
+            source: $source,
+            parentId: $parentId,
         );
         return [$taskFileEntity->getFileId(), $taskFileEntity];
     }
@@ -174,9 +180,9 @@ class FileProcessAppService extends AbstractAppService
                     'filename' => $fileInfo['file_name'],
                     'display_filename' => $fileInfo['file_name'],
                     'file_size' => $fileInfo['file_size'],
-                    'file_tag' => 'user_upload',
+                    'file_tag' => FileType::USER_UPLOAD->value,
                     'file_url' => $fileInfo['external_url'] ?? '',
-                    'storage_type' => $attachment['storage_type'] ?? 'workspace',
+                    'storage_type' => $attachment['storage_type'] ?? StorageType::WORKSPACE->value,
                 ];
 
                 // Process single attachment
@@ -188,7 +194,9 @@ class FileProcessAppService extends AbstractAppService
                         $task->getProjectId(),
                         $task->getTopicId(),
                         (int) $task->getId(),
-                        'user_upload'
+                        FileType::USER_UPLOAD->value,
+                        StorageType::WORKSPACE->value,
+                        TaskFileSource::AGENT->value,
                     );
                     ++$stats['success'];
                 } catch (Throwable $e) {
@@ -346,7 +354,7 @@ class FileProcessAppService extends AbstractAppService
                             projectId: $task->getProjectId(),
                             topicId: $topicId,
                             taskId: $task->getId(),
-                            fileType: $attachment['file_type'] ?? 'system_auto_upload'
+                            fileType: $attachment['file_type'] ?? FileType::SYSTEM_AUTO_UPLOAD->value
                         );
                         ++$stats['success'];
                         $stats['files'][] = [
@@ -829,9 +837,8 @@ class FileProcessAppService extends AbstractAppService
         try {
             // Construct complete file path
             $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-            $appId = config('kk_brd_service.app_id');
-            $md5Key = md5(StorageBucketType::Private->value);
-            $fullFileKey = "{$organizationCode}/{$appId}/{$md5Key}" . '/' . trim($workDir, '/') . '/' . ltrim($fileKey, '/');
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $fullFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $fileKey);
 
             // 1. Check if file already exists
             $existingFile = $this->taskDomainService->getTaskFileByFileKey($fullFileKey, $topicId);
@@ -861,9 +868,9 @@ class FileProcessAppService extends AbstractAppService
                 'filename' => $fileName,
                 'display_filename' => $fileName,
                 'file_size' => $uploadResult['size'],
-                'file_tag' => 'tool_message_content',
+                'file_tag' => FileType::TOOL_MESSAGE_CONTENT,
                 'file_url' => $uploadResult['url'] ?? '',
-                'storage_type' => 'object_storage',
+                'storage_type' => StorageType::TOPIC->value,
             ];
 
             // 4. Save file information to database
@@ -874,7 +881,10 @@ class FileProcessAppService extends AbstractAppService
                 projectId: $projectId,
                 topicId: $topicId,
                 taskId: $taskId,
-                fileType: 'tool_message_content'
+                fileType: 'tool_message_content',
+                isUpdate: false,
+                storageType: StorageType::TOPIC->value,
+                source: TaskFileSource::AGENT->value,
             );
 
             // 5. Set as hidden file
@@ -916,133 +926,6 @@ class FileProcessAppService extends AbstractAppService
     public function getGitDir(string $fileKey): string
     {
         return '.workspace';
-    }
-
-    /**
-     * 获取项目文件上传STS Token.
-     *
-     * @param ProjectUploadTokenRequestDTO $requestDTO Request DTO
-     * @return array 获取结果
-     */
-    public function getProjectUploadToken(RequestContext $requestContext, ProjectUploadTokenRequestDTO $requestDTO): array
-    {
-        try {
-            $projectId = $requestDTO->getProjectId();
-            $expires = $requestDTO->getExpires();
-
-            // 获取当前用户信息
-            $userAuthorization = $requestContext->getUserAuthorization();
-
-            // 创建数据隔离对象
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
-            $userId = $dataIsolation->getCurrentUserId();
-            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-            // 情况1：有项目ID，获取项目的work_dir
-            if (! empty($projectId)) {
-                $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-                $workDir = $projectEntity->getWorkDir();
-                if (empty($workDir)) {
-                    ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'project.work_dir.not_found');
-                }
-            } else {
-                // 情况2：无项目ID，使用雪花ID生成临时项目ID
-                $tempProjectId = IdGenerator::getSnowId();
-                $workDir = WorkDirectoryUtil::generateWorkDir($userId, $tempProjectId);
-            }
-
-            // 获取STS Token
-            $userAuthorization = new MagicUserAuthorization();
-            $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
-
-            return $this->fileAppService->getStsTemporaryCredential(
-                $userAuthorization,
-                $storageType,
-                $workDir,
-                $expires
-            );
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'Failed to get project upload token: %s, Project ID: %s',
-                $e->getMessage(),
-                $requestDTO->getProjectId()
-            ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
-        }
-    }
-
-    /**
-     * 保存项目文件.
-     *
-     * @param RequestContext $requestContext Request context
-     * @param SaveProjectFileRequestDTO $requestDTO Request DTO
-     * @return array 保存结果
-     */
-    public function saveProjectFile(RequestContext $requestContext, SaveProjectFileRequestDTO $requestDTO): array
-    {
-        try {
-            // 获取用户授权信息
-            $userAuthorization = $requestContext->getUserAuthorization();
-            $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-            // 参数验证
-            if (empty($requestDTO->getProjectId())) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id_required');
-            }
-
-            if (empty($requestDTO->getFileKey())) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_key_required');
-            }
-
-            if (empty($requestDTO->getFileName())) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_name_required');
-            }
-
-            if ($requestDTO->getFileSize() <= 0) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_size_required');
-            }
-
-            // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
-            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
-            }
-
-            // 调用领域服务保存文件
-            $taskFileEntity = $this->taskFileDomainService->saveProjectFile(
-                $dataIsolation,
-                $requestDTO->getProjectId(),
-                $requestDTO->getTopicId(),
-                $requestDTO->getTaskId(),
-                $requestDTO->getFileKey(),
-                $requestDTO->getFileName(),
-                $requestDTO->getFileSize(),
-                $requestDTO->getFileType()
-            );
-
-            // 返回保存结果
-            return [
-                'file_id' => (string) $taskFileEntity->getFileId(),
-                'file_key' => $taskFileEntity->getFileKey(),
-                'file_name' => $taskFileEntity->getFileName(),
-                'file_size' => $taskFileEntity->getFileSize(),
-                'file_type' => $taskFileEntity->getFileType(),
-                'project_id' => ! empty($taskFileEntity->getProjectId()) ? (string) $taskFileEntity->getProjectId() : '',
-                'topic_id' => ! empty($taskFileEntity->getTopicId()) ? (string) $taskFileEntity->getTopicId() : '',
-                'task_id' => ! empty($taskFileEntity->getTaskId()) ? (string) $taskFileEntity->getTaskId() : '',
-                'created_at' => $taskFileEntity->getCreatedAt(),
-                'relative_file_path' => WorkDirectoryUtil::getRelativeFilePath($taskFileEntity->getFileKey(), $projectEntity->getWorkDir()),
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'Failed to save project file: %s, Project ID: %s, File Key: %s',
-                $e->getMessage(),
-                $requestDTO->getProjectId(),
-                $requestDTO->getFileKey()
-            ));
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, $e->getMessage());
-        }
     }
 
     /**
@@ -1158,8 +1041,7 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 2: Build UploadFile object
-            $appId = config('kk_brd_service.app_id');
-            $uploadKeyPrefix = "{$organizationCode}/{$appId}";
+            $uploadKeyPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
             $uploadFileKey = str_replace($uploadKeyPrefix, '', $fileKey);
             $uploadFileKey = ltrim($uploadFileKey, '/');
             $uploadFile = new UploadFile($tempFile, '', $uploadFileKey, false);
@@ -1170,7 +1052,7 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 3: Upload using FileDomainService uploadByCredential method
-            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Private, false);
+            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile);
 
             $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::Private);
 

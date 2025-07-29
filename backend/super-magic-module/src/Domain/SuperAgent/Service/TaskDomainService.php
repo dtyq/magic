@@ -11,14 +11,18 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -35,6 +39,7 @@ use RuntimeException;
 class TaskDomainService
 {
     public function __construct(
+        protected ProjectRepositoryInterface $projectRepository,
         protected TopicRepositoryInterface $topicRepository,
         protected TaskRepositoryInterface $taskRepository,
         protected TaskMessageRepositoryInterface $messageRepository,
@@ -50,49 +55,40 @@ class TaskDomainService
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param TopicEntity $topicEntity Topic entity
+     * @param TaskEntity $taskEntity Task entity
+     * @param string $topicMode Topic mode
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
-    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity, string $topicMode = ''): TaskEntity
     {
         // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
-        $topicId = $topicEntity->getId();
 
         // Get task mode from DTO, fallback to topic's task mode if empty
-        // $taskMode = $userMessageDTO->getTaskMode();
-        // if ($taskMode === '') {
-        //     $taskMode = $topicEntity->getTaskMode();
-        // }
-
-        // Create new task entity
-        // $taskEntity = new TaskEntity([
-        //     'user_id' => $userId,
-        //     'workspace_id' => $topicEntity->getWorkspaceId(),
-        //     'project_id' => $topicEntity->getProjectId(),
-        //     'topic_id' => $topicId,
-        //     'task_id' => '', // Initially empty, this is agent's task id
-        //     'task_mode' => $taskMode,
-        //     'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
-        //     'prompt' => $userMessageDTO->getPrompt(),
-        //     'attachments' => $userMessageDTO->getAttachments(),
-        //     'mentions' => $userMessageDTO->getMentions(),
-        //     'task_status' => TaskStatus::WAITING->value,
-        //     'work_dir' => $topicEntity->getWorkDir() ?? '',
-        //     'created_at' => date('Y-m-d H:i:s'),
-        //     'updated_at' => date('Y-m-d H:i:s'),
-        // ]);
+        if ($topicMode === '') {
+            $topicMode = $topicEntity->getTopicMode();
+        }
+        // if project mode is empty and topic mode is data analysis, set project mode to data analysis
+        $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
+        if (empty($projectEntity->getProjectMode())) {
+            $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => $topicMode, 'updated_at' => date('Y-m-d H:i:s')]);
+        } elseif ($projectEntity->getProjectMode() === TopicMode::DATA_ANALYSIS->value) {
+            // fixed the topic mode
+            $topicMode = TopicMode::DATA_ANALYSIS->value;
+        }
 
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
-
         // Update topic's current task ID and status
         $topicEntity->setCurrentTaskId($taskEntity->getId());
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
         $topicEntity->setTaskMode($taskEntity->getTaskMode());
-        $topicEntity->setTopicMode($topicEntity->getTopicMode());
+        if (empty($topicEntity->getTopicMode())) {
+            $topicEntity->setTopicMode($topicMode);
+        }
         $this->topicRepository->updateTopic($topicEntity);
 
         return $taskEntity;
@@ -274,15 +270,42 @@ class TaskDomainService
         int $projectId,
         int $topicId,
         int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
+        string $fileType = FileType::PROCESS->value,
+        bool $isUpdate = false,
+        string $storageType = StorageType::WORKSPACE->value,
+        int $source = TaskFileSource::AGENT->value,
+        ?int $parentId = null,
     ): TaskFileEntity {
         // First, check if the file already exists
         $taskFileEntity = $this->getTaskFileByFileKey($fileKey, $topicId);
 
         // If exists and no need to update, return directly
-        if (! empty($taskFileEntity)) {
-            $taskFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        if ($taskFileEntity && ! $isUpdate) {
+            return $taskFileEntity;
+        }
+
+        // If exists, update and return
+        if ($taskFileEntity) {
+            $taskFileEntity->setFileKey($fileKey);
+            $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $taskFileEntity->setTopicId($topicId);
+            $taskFileEntity->setTaskId($taskId);
+            $taskFileEntity->setFileType($fileType);
+            $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
+            $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
+            $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
+            // Check and set whether it's a hidden file
+            $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+            // Update storage type if provided
+            if (isset($fileData['storage_type'])) {
+                $taskFileEntity->setStorageType($fileData['storage_type']);
+            }
+            if ($parentId !== null) {
+                $taskFileEntity->setParentId($parentId);
+            }
+
             return $this->taskFileRepository->updateById($taskFileEntity);
+            // return $taskFileEntity;
         }
 
         // If not exists, create new entity
@@ -312,7 +335,13 @@ class TaskDomainService
         // Check and set whether it's a hidden file
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         // Set storage type, default to workspace
-        $taskFileEntity->setStorageType($fileData['storage_type'] ?? 'workspace');
+        $taskFileEntity->setStorageType($storageType);
+        $taskFileEntity->setSource($source);
+
+        // Set parent_id if provided
+        if ($parentId !== null) {
+            $taskFileEntity->setParentId($parentId);
+        }
 
         // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity
         $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);

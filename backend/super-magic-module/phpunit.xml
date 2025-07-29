@@ -1,19 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit backupGlobals="false"
-         bootstrap="./test/bootstrap.php"
+         bootstrap="./tests/bootstrap.php"
          colors="true"
          processIsolation="false"
          stopOnFailure="false"
          cacheDirectory=".phpunit.cache"
          backupStaticProperties="false">
   <testsuites>
-    <testsuite name="Tests">
-      <directory suffix="Test.php">test</directory>
+    <testsuite name="Unit">
+      <directory suffix="Test.php">tests/Unit</directory>
+    </testsuite>
+    <testsuite name="Cases">
+      <directory suffix="Test.php">tests/Cases</directory>
     </testsuite>
   </testsuites>
   <source>
     <include>
-      <directory suffix=".php">app</directory>
+      <directory suffix=".php">src</directory>
     </include>
   </source>
 </phpunit>

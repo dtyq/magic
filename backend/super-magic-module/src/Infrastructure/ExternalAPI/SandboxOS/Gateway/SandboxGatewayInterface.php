@@ -20,10 +20,12 @@ interface SandboxGatewayInterface
     /**
      * 创建沙箱.
      *
-     * @param array $config 沙箱配置参数
+     * @param string $projectId Project ID
+     * @param string $sandboxId Sandbox ID
+     * @param string $workDir Sandbox working directory
      * @return GatewayResult 创建结果，成功时data包含sandbox_id
      */
-    public function createSandbox(array $config = []): GatewayResult;
+    public function createSandbox(string $projectId, string $sandboxId, string $workDir): GatewayResult;
 
     /**
      * Get single sandbox status.

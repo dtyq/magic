@@ -78,6 +78,16 @@ class TaskFileItemDTO extends AbstractDTO
     public string $updatedAt = '';
 
     /**
+     * 是否为文件夹：true-是，false-否.
+     */
+    public bool $isDirectory = false;
+
+    /**
+     * 文件元数据，解析后的数组.
+     */
+    public ?array $metadata = null;
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity): self
@@ -96,6 +106,16 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->isHidden = $entity->getIsHidden();
         $dto->topicId = (string) $entity->getTopicId();
         $dto->updatedAt = (string) $entity->getUpdatedAt();
+        $dto->isDirectory = $entity->getIsDirectory();
+
+        // Handle metadata JSON decoding
+        $metadata = $entity->getMetadata();
+        if ($metadata !== null) {
+            $decodedMetadata = json_decode($metadata, true);
+            $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+        } else {
+            $dto->metadata = null;
+        }
 
         return $dto;
     }
@@ -119,6 +139,23 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->isHidden = $data['is_hidden'] ?? false;
         $dto->topicId = (string) ($data['topic_id'] ?? '');
         $dto->updatedAt = (string) ($data['updated_at'] ?? '');
+        $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
+
+        // Handle metadata - could be string (JSON) or array
+        $metadata = $data['metadata'] ?? null;
+        if ($metadata !== null) {
+            if (is_string($metadata)) {
+                $decodedMetadata = json_decode($metadata, true);
+                $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+            } elseif (is_array($metadata)) {
+                $dto->metadata = $metadata;
+            } else {
+                $dto->metadata = null;
+            }
+        } else {
+            $dto->metadata = null;
+        }
+
         return $dto;
     }
 
@@ -142,6 +179,8 @@ class TaskFileItemDTO extends AbstractDTO
             'is_hidden' => $this->isHidden,
             'topic_id' => $this->topicId,
             'updated_at' => $this->updatedAt,
+            'is_directory' => $this->isDirectory,
+            'metadata' => $this->metadata,
         ];
     }
 }

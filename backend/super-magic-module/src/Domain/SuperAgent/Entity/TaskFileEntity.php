@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 
 class TaskFileEntity extends AbstractEntity
 {
@@ -33,11 +35,21 @@ class TaskFileEntity extends AbstractEntity
 
     protected int $fileSize = 0;
 
-    protected string $externalUrl = '';
+    protected ?string $externalUrl = '';
 
-    protected string $storageType = 'workspace';
+    protected StorageType $storageType;
 
     protected bool $isHidden = false;
+
+    protected bool $isDirectory = false;
+
+    protected int $sort = 0;
+
+    protected ?int $parentId = null;
+
+    protected ?string $metadata = null;
+
+    protected TaskFileSource $source;
 
     protected string $createdAt = '';
 
@@ -155,24 +167,31 @@ class TaskFileEntity extends AbstractEntity
         $this->fileSize = $fileSize;
     }
 
-    public function getExternalUrl(): string
+    public function getExternalUrl(): ?string
     {
         return $this->externalUrl;
     }
 
-    public function setExternalUrl(string $externalUrl): void
+    public function setExternalUrl(?string $externalUrl): void
     {
         $this->externalUrl = $externalUrl;
     }
 
-    public function getStorageType(): string
+    public function getStorageType(): StorageType
     {
+        if (! isset($this->storageType)) {
+            $this->storageType = StorageType::WORKSPACE;
+        }
         return $this->storageType;
     }
 
-    public function setStorageType(string $storageType): void
+    public function setStorageType(StorageType|string $storageType): void
     {
-        $this->storageType = $storageType;
+        if ($storageType instanceof StorageType) {
+            $this->storageType = $storageType;
+        } else {
+            $this->storageType = StorageType::fromValue($storageType);
+        }
     }
 
     public function getIsHidden(): bool
@@ -183,6 +202,60 @@ class TaskFileEntity extends AbstractEntity
     public function setIsHidden(bool $isHidden): void
     {
         $this->isHidden = $isHidden;
+    }
+
+    public function getIsDirectory(): bool
+    {
+        return $this->isDirectory;
+    }
+
+    public function setIsDirectory(bool $isDirectory): void
+    {
+        $this->isDirectory = $isDirectory;
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(int $sort): void
+    {
+        $this->sort = $sort;
+    }
+
+    public function getParentId(): ?int
+    {
+        return $this->parentId;
+    }
+
+    public function setParentId(?int $parentId): void
+    {
+        $this->parentId = $parentId;
+    }
+
+    public function getMetadata(): ?string
+    {
+        return $this->metadata;
+    }
+
+    public function setMetadata(?string $metadata): void
+    {
+        $this->metadata = $metadata;
+    }
+
+    public function getSource(): TaskFileSource
+    {
+        return $this->source;
+    }
+
+    public function setSource(int|string|TaskFileSource $source): void
+    {
+        if ($source instanceof TaskFileSource) {
+            $this->source = $source;
+        } else {
+            $this->source = TaskFileSource::fromValue($source);
+        }
     }
 
     public function getCreatedAt(): string
@@ -230,8 +303,13 @@ class TaskFileEntity extends AbstractEntity
             'file_key' => $this->fileKey,
             'file_size' => $this->fileSize,
             'external_url' => $this->externalUrl,
-            'storage_type' => $this->storageType,
+            'storage_type' => $this->storageType->value,
             'is_hidden' => $this->isHidden,
+            'is_directory' => $this->isDirectory,
+            'sort' => $this->sort,
+            'parent_id' => $this->parentId,
+            'metadata' => $this->metadata,
+            'source' => $this->source->value,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,

@@ -79,6 +79,21 @@ class TopicDomainService
         return $result['list'][0];
     }
 
+    public function getTopicMode(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $conditions = [
+            'id' => $topicId,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+        ];
+
+        $result = $this->topicRepository->getTopicsByConditions($conditions, false);
+        if (empty($result['list'])) {
+            return '';
+        }
+
+        return ! empty($result['list'][0]->getTopicMode()) ? $result['list'][0]->getTopicMode()->value : '';
+    }
+
     /**
      * @return array<TopicEntity>
      */

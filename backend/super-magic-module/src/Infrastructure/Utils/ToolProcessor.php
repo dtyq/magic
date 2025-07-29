@@ -51,6 +51,7 @@ class ToolProcessor
                     'file_name' => $file['filename'] ?? '',
                     'content' => '',
                     'file_id' => $file['file_id'] ?? '',
+                    'metadata' => $file['metadata'],
                 ],
             ],
             'remark' => '',

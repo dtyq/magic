@@ -30,14 +30,14 @@ class SandboxDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $projectId, string $sandboxID): string
+    public function createSandbox(string $projectId, string $sandboxID, string $workDir): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->info('[Sandbox][App] Gateway result analysis', [
