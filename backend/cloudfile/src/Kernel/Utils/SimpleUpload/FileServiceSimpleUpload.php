@@ -29,40 +29,13 @@ class FileServiceSimpleUpload extends SimpleUpload
 
     public function uploadObject(array $credential, UploadFile $uploadFile): void
     {
-        $platform = $credential['platform'] ?? '';
-        $credential = $credential['temporary_credential'] ?? [];
-        if (empty($platform) || empty($credential)) {
-            throw new CloudFileException('credential is empty');
-        }
-
-        if (! isset($this->simpleUploadsMap[$platform])) {
-            throw new CloudFileException('platform is invalid');
-        }
-
-        if (! isset($this->simpleUploadInstances[$platform])) {
-            $this->simpleUploadInstances[$platform] = new $this->simpleUploadsMap[$platform]($this->sdkContainer);
-        }
-        $simpleUpload = $this->simpleUploadInstances[$platform];
+        $simpleUpload = $this->getSimpleUpload($credential);
         $simpleUpload->uploadObject($credential, $uploadFile);
     }
 
     public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
     {
-        $platform = $credential['platform'] ?? '';
-        $credential = $credential['temporary_credential'] ?? [];
-        if (empty($platform) || empty($credential)) {
-            throw new CloudFileException('credential is empty');
-        }
-
-        if (! isset($this->simpleUploadsMap[$platform])) {
-            throw new CloudFileException('platform is invalid');
-        }
-
-        if (! isset($this->simpleUploadInstances[$platform])) {
-            $this->simpleUploadInstances[$platform] = new $this->simpleUploadsMap[$platform]($this->sdkContainer);
-        }
-
-        $simpleUpload = $this->simpleUploadInstances[$platform];
+        $simpleUpload = $this->getSimpleUpload($credential);
         $simpleUpload->appendUploadObject($credential, $appendUploadFile);
     }
 
@@ -75,6 +48,90 @@ class FileServiceSimpleUpload extends SimpleUpload
      * @throws CloudFileException
      */
     public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile): void
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        $simpleUpload->uploadObjectByChunks($credential, $chunkUploadFile);
+    }
+
+    /**
+     * List objects by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $prefix 对象前缀过滤
+     * @param array $options 额外选项
+     * @return array 对象列表
+     * @throws CloudFileException
+     */
+    public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        return $simpleUpload->listObjectsByCredential($credential, $prefix, $options);
+    }
+
+    /**
+     * Delete object by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $objectKey 要删除的对象键
+     * @param array $options 额外选项
+     * @throws CloudFileException
+     */
+    public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        $simpleUpload->deleteObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * Copy object by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $sourceKey 源对象键
+     * @param string $destinationKey 目标对象键
+     * @param array $options 额外选项
+     * @throws CloudFileException
+     */
+    public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        $simpleUpload->copyObjectByCredential($credential, $sourceKey, $destinationKey, $options);
+    }
+
+    /**
+     * Get object metadata by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @return array 对象元数据
+     * @throws CloudFileException
+     */
+    public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        return $simpleUpload->getHeadObjectByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * Create object by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @throws CloudFileException
+     */
+    public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        $simpleUpload->createObjectByCredential($credential, $objectKey, $options);
+    }
+
+    private function getSimpleUpload(array $credential): SimpleUpload
     {
         $platform = $credential['platform'] ?? '';
         $platformCredential = $credential['temporary_credential'] ?? [];
@@ -90,7 +147,6 @@ class FileServiceSimpleUpload extends SimpleUpload
             $this->simpleUploadInstances[$platform] = new $this->simpleUploadsMap[$platform]($this->sdkContainer);
         }
 
-        $simpleUpload = $this->simpleUploadInstances[$platform];
-        $simpleUpload->uploadObjectByChunks($credential, $chunkUploadFile);
+        return $this->simpleUploadInstances[$platform];
     }
 }

@@ -42,6 +42,12 @@ class CredentialPolicy
      */
     private string $roleSessionName = '';
 
+    /**
+     * STS类型.
+     * sts模式下使用.
+     */
+    private string $stsType = '';
+
     private string $contentType = '';
 
     public function __construct(array $config = [])
@@ -63,6 +69,9 @@ class CredentialPolicy
         }
         if (isset($config['role_session_name'])) {
             $this->roleSessionName = (string) $config['role_session_name'];
+        }
+        if (isset($config['sts_type'])) {
+            $this->stsType = (string) $config['sts_type'];
         }
         if (isset($config['content_type'])) {
             $this->contentType = (string) $config['content_type'];
@@ -99,9 +108,19 @@ class CredentialPolicy
         return $this->roleSessionName;
     }
 
+    public function getStsType(): string
+    {
+        return $this->stsType;
+    }
+
     public function setSts(bool $sts): void
     {
         $this->sts = $sts;
+    }
+
+    public function setStsType(string $stsType): void
+    {
+        $this->stsType = $stsType;
     }
 
     public function getContentType(): string

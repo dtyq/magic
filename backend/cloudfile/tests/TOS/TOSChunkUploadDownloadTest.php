@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace Dtyq\CloudFile\Tests\OSS;
+namespace Dtyq\CloudFile\Tests\TOS;
 
 use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadConfig;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadConfig;
@@ -15,7 +15,7 @@ use Dtyq\CloudFile\Tests\CloudFileBaseTest;
 use Exception;
 
 /**
- * OSS Chunk Upload and Download Test.
+ * TOS Chunk Upload and Download Test.
  *
  * This test covers:
  * - Chunk upload using FilesystemProxy::uploadByChunks()
@@ -26,13 +26,13 @@ use Exception;
  * @internal
  * @coversNothing
  */
-class OSSChunkUploadDownloadTest extends CloudFileBaseTest
+class TOSChunkUploadDownloadTest extends CloudFileBaseTest
 {
     private const TEST_PREFIX = 'test-credential/';
 
     private const TEST_FILE_SIZE = 15 * 1024 * 1024; // 15MB test file
 
-    private const CHUNK_SIZE = 6 * 1024 * 1024;      // 6MB chunk size (minimum 5MB for OSS)
+    private const CHUNK_SIZE = 5 * 1024 * 1024;      // 5MB chunk size (minimum for TOS)
 
     private string $testFilePath;
 
@@ -43,8 +43,8 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
         parent::setUp();
 
         // Create test file paths
-        $this->testFilePath = sys_get_temp_dir() . '/oss_chunk_test_' . uniqid() . '.dat';
-        $this->downloadFilePath = sys_get_temp_dir() . '/oss_chunk_download_' . uniqid() . '.dat';
+        $this->testFilePath = sys_get_temp_dir() . '/tos_chunk_test_' . uniqid() . '.dat';
+        $this->downloadFilePath = sys_get_temp_dir() . '/tos_chunk_download_' . uniqid() . '.dat';
 
         // Create test file
         $this->createTestFile($this->testFilePath, self::TEST_FILE_SIZE);
@@ -90,7 +90,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
             $chunkConfig
         );
 
-        echo "\n🚀 Starting chunk upload: " . round(filesize($this->testFilePath) / 1024 / 1024, 2) . "MB\n";
+        echo "\n🚀 Starting TOS chunk upload: " . round(filesize($this->testFilePath) / 1024 / 1024, 2) . "MB\n";
 
         // Perform chunk upload
         $startTime = microtime(true);
@@ -100,63 +100,18 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
         $duration = round($endTime - $startTime, 2);
         $speed = round((filesize($this->testFilePath) / 1024 / 1024) / $duration, 2);
 
-        echo "✅ Chunk upload completed in {$duration}s at {$speed}MB/s\n";
+        echo "✅ TOS chunk upload completed in {$duration}s at {$speed}MB/s\n";
 
         // Verify the file was uploaded successfully
         $this->assertNotEmpty($chunkUploadFile->getKey(), 'Upload should return a valid key');
 
-        // Wait and retry to get correct metadata (OSS may need time to sync after chunk upload)
+        // Get file metadata to verify upload
         $originalSize = filesize($this->testFilePath);
-        $uploadedSize = 0;
-        $maxRetries = 5;
+        $metadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $chunkUploadFile->getKey());
+        $uploadedSize = (int) $metadata['content_length'];
 
-        for ($i = 0; $i < $maxRetries; ++$i) {
-            if ($i > 0) {
-                echo "🔄 Retry #{$i} getting metadata...\n";
-                sleep(2); // Wait longer for subsequent retries
-            } else {
-                sleep(1); // Initial wait
-            }
-
-            $metadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $chunkUploadFile->getKey());
-            $uploadedSize = (int) $metadata['content_length'];
-
-            echo '📊 Attempt #' . ($i + 1) . ": Original size: {$originalSize} bytes, Uploaded size: {$uploadedSize} bytes\n";
-
-            if ($uploadedSize > 0) {
-                echo '✅ Got correct file size on attempt #' . ($i + 1) . "\n";
-                break;
-            }
-        }
-
-        // If still 0, try to verify via list
-        if ($uploadedSize === 0) {
-            echo "⚠️  Content length still 0 after {$maxRetries} retries, checking via list...\n";
-            $listResult = $filesystem->listObjectsByCredential($credentialPolicy, self::TEST_PREFIX);
-            $foundFile = false;
-
-            if (isset($listResult['objects'])) {
-                foreach ($listResult['objects'] as $object) {
-                    if ($object['key'] === $chunkUploadFile->getKey()) {
-                        echo '✅ File found in list with size: ' . $object['size'] . " bytes\n";
-                        echo '📋 List metadata: ' . json_encode($object, JSON_PRETTY_PRINT) . "\n";
-                        $foundFile = true;
-
-                        // Use the size from list as verification
-                        $uploadedSize = (int) $object['size'];
-                        break;
-                    }
-                }
-            }
-
-            if (! $foundFile) {
-                echo "❌ File not found in object list\n";
-            }
-        }
-
-        // Verify the upload was successful
-        $this->assertNotEmpty($chunkUploadFile->getKey(), 'Upload should return a valid key');
-        $this->assertEquals($originalSize, $uploadedSize, 'Uploaded file size should match original file size (from head or list)');
+        echo "📊 Original size: {$originalSize} bytes, Uploaded size: {$uploadedSize} bytes\n";
+        $this->assertEquals($originalSize, $uploadedSize, 'Uploaded file size should match original file size');
 
         // Clean up
         $this->cleanupUploadedFile($filesystem, $credentialPolicy, $chunkUploadFile->getKey());
@@ -192,29 +147,16 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
                 $chunkConfig
             );
 
-            echo "\n📤 Uploading small file via chunks: " . round(filesize($smallFilePath) / 1024, 2) . "KB\n";
+            echo "\n📤 Uploading small file via TOS chunks: " . round(filesize($smallFilePath) / 1024, 2) . "KB\n";
 
             $filesystem->uploadByChunks($chunkUploadFile, $credentialPolicy);
 
             $this->assertNotEmpty($chunkUploadFile->getKey(), 'Small file chunk upload should succeed');
 
-            // Verify file metadata (with fallback for chunk upload files)
+            // Verify file metadata
             $metadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $chunkUploadFile->getKey());
             $uploadedSize = (int) $metadata['content_length'];
             $originalSize = filesize($smallFilePath);
-
-            // If getHeadObjectByCredential returns 0, try list (known issue with multipart uploads)
-            if ($uploadedSize === 0) {
-                $listResult = $filesystem->listObjectsByCredential($credentialPolicy, self::TEST_PREFIX);
-                if (isset($listResult['objects'])) {
-                    foreach ($listResult['objects'] as $object) {
-                        if ($object['key'] === $chunkUploadFile->getKey()) {
-                            $uploadedSize = (int) $object['size'];
-                            break;
-                        }
-                    }
-                }
-            }
 
             $this->assertEquals($originalSize, $uploadedSize);
 
@@ -237,8 +179,8 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
 
         // Test with different chunk configuration
         $chunkConfig = new ChunkUploadConfig(
-            self::CHUNK_SIZE,      // chunkSize (6MB)
-            5 * 1024 * 1024,       // threshold (5MB)
+            self::CHUNK_SIZE,      // chunkSize (5MB)
+            4 * 1024 * 1024,       // threshold (4MB)
             3,                     // maxConcurrency
             2,                     // maxRetries
             500                    // retryDelay
@@ -253,29 +195,16 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
             $chunkConfig
         );
 
-        echo "\n⚙️  Testing custom chunk configuration\n";
+        echo "\n⚙️  Testing TOS custom chunk configuration\n";
 
         $filesystem->uploadByChunks($chunkUploadFile, $credentialPolicy);
 
         $this->assertNotEmpty($chunkUploadFile->getKey());
 
-        // Verify upload (with fallback for chunk upload files)
+        // Verify upload
         $metadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $chunkUploadFile->getKey());
         $uploadedSize = (int) $metadata['content_length'];
         $originalSize = filesize($this->testFilePath);
-
-        // If getHeadObjectByCredential returns 0, try list (known issue with multipart uploads)
-        if ($uploadedSize === 0) {
-            $listResult = $filesystem->listObjectsByCredential($credentialPolicy, self::TEST_PREFIX);
-            if (isset($listResult['objects'])) {
-                foreach ($listResult['objects'] as $object) {
-                    if ($object['key'] === $chunkUploadFile->getKey()) {
-                        $uploadedSize = (int) $object['size'];
-                        break;
-                    }
-                }
-            }
-        }
 
         $this->assertEquals($originalSize, $uploadedSize);
 
@@ -293,9 +222,9 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
 
         // First, upload a file using createObjectByCredential for testing download
         $testKey = self::TEST_PREFIX . 'download-test-' . uniqid() . '.dat';
-        $testContent = str_repeat('TEST DATA CHUNK DOWNLOAD ', 100000); // ~2.5MB
+        $testContent = str_repeat('TOS TEST DATA CHUNK DOWNLOAD ', 100000); // ~3MB
 
-        echo "\n📤 Creating test file for download: " . round(strlen($testContent) / 1024 / 1024, 2) . "MB\n";
+        echo "\n📤 Creating test file for TOS download: " . round(strlen($testContent) / 1024 / 1024, 2) . "MB\n";
 
         $filesystem->createObjectByCredential(
             $credentialPolicy,
@@ -308,12 +237,12 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
 
         // Create chunk download configuration
         $downloadConfig = new ChunkDownloadConfig();
-        $downloadConfig->setChunkSize(1024 * 1024); // 1MB chunks (minimum for OSS chunk download)
+        $downloadConfig->setChunkSize(1024 * 1024); // 1MB chunks
         $downloadConfig->setMaxConcurrency(3);
         $downloadConfig->setMaxRetries(3);
         $downloadConfig->setRetryDelay(1000);
 
-        echo "📥 Starting chunk download\n";
+        echo "📥 Starting TOS chunk download\n";
 
         // Perform chunk download
         $startTime = microtime(true);
@@ -324,7 +253,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
         $downloadedSize = filesize($this->downloadFilePath);
         $speed = round(($downloadedSize / 1024 / 1024) / $duration, 2);
 
-        echo "✅ Chunk download completed in {$duration}s at {$speed}MB/s\n";
+        echo "✅ TOS chunk download completed in {$duration}s at {$speed}MB/s\n";
 
         // Verify downloaded file
         $this->assertFileExists($this->downloadFilePath, 'Downloaded file should exist');
@@ -333,7 +262,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
         $this->assertEquals(strlen($testContent), strlen($downloadedContent), 'Downloaded file size should match');
         $this->assertEquals($testContent, $downloadedContent, 'Downloaded content should match original');
 
-        echo '📊 Download verification: ' . round($downloadedSize / 1024 / 1024, 2) . "MB downloaded successfully\n";
+        echo '📊 TOS download verification: ' . round($downloadedSize / 1024 / 1024, 2) . "MB downloaded successfully\n";
 
         // Clean up
         $this->cleanupUploadedFile($filesystem, $credentialPolicy, $testKey);
@@ -356,7 +285,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
             $simpleKey = self::TEST_PREFIX . 'simple-upload-' . uniqid() . '.dat';
             $fileContent = file_get_contents($mediumFilePath);
 
-            echo "\n🔄 Comparing upload methods for " . round(strlen($fileContent) / 1024 / 1024, 2) . "MB file\n";
+            echo "\n🔄 Comparing TOS upload methods for " . round(strlen($fileContent) / 1024 / 1024, 2) . "MB file\n";
 
             $filesystem->createObjectByCredential(
                 $credentialPolicy,
@@ -368,7 +297,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
             );
 
             $simpleMetadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $simpleKey);
-            echo '✅ Simple upload - content_length: ' . $simpleMetadata['content_length'] . " bytes\n";
+            echo '✅ TOS simple upload - content_length: ' . $simpleMetadata['content_length'] . " bytes\n";
 
             // Test 2: Chunk upload
             $chunkKey = self::TEST_PREFIX . 'chunk-upload-' . uniqid() . '.dat';
@@ -380,26 +309,13 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
             $chunkMetadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $chunkUploadFile->getKey());
             $chunkSize = (int) $chunkMetadata['content_length'];
 
-            // If getHeadObjectByCredential returns 0, try list (known issue with multipart uploads)
-            if ($chunkSize === 0) {
-                $listResult = $filesystem->listObjectsByCredential($credentialPolicy, self::TEST_PREFIX);
-                if (isset($listResult['objects'])) {
-                    foreach ($listResult['objects'] as $object) {
-                        if ($object['key'] === $chunkUploadFile->getKey()) {
-                            $chunkSize = (int) $object['size'];
-                            break;
-                        }
-                    }
-                }
-            }
-
-            echo '✅ Chunk upload - content_length: ' . $chunkSize . " bytes\n";
+            echo '✅ TOS chunk upload - content_length: ' . $chunkSize . " bytes\n";
 
             // Compare results
             $this->assertEquals(
                 $simpleMetadata['content_length'],
                 $chunkSize,
-                'Both upload methods should result in same file size'
+                'Both TOS upload methods should result in same file size'
             );
 
             // Clean up
@@ -413,7 +329,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
     }
 
     /**
-     * Debug test to check getHeadObjectByCredential response.
+     * Debug test to check getHeadObjectByCredential response for TOS.
      */
     public function testDebugGetHeadObject(): void
     {
@@ -422,9 +338,9 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
 
         // First create a test file using createObjectByCredential
         $testKey = self::TEST_PREFIX . 'debug-head-test-' . uniqid() . '.txt';
-        $testContent = 'This is a test file for debugging head object response. Content length should be ' . strlen('This is a test file for debugging head object response. Content length should be ') . ' characters.';
+        $testContent = 'This is a TOS test file for debugging head object response. Content length should be ' . strlen('This is a TOS test file for debugging head object response. Content length should be ') . ' characters.';
 
-        echo "\n🔍 Debug: Creating test file for head object test\n";
+        echo "\n🔍 Debug: Creating TOS test file for head object test\n";
         echo '📄 Test content length: ' . strlen($testContent) . " bytes\n";
 
         // Create the file
@@ -437,32 +353,32 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
             ]
         );
 
-        echo "✅ Test file created: {$testKey}\n";
+        echo "✅ TOS test file created: {$testKey}\n";
 
         // Wait for consistency
         sleep(2);
 
         // Now try to get head object
-        echo "🔍 Debug: Getting head object metadata...\n";
+        echo "🔍 Debug: Getting TOS head object metadata...\n";
         $metadata = $filesystem->getHeadObjectByCredential($credentialPolicy, $testKey);
 
-        echo "📋 Raw metadata response:\n";
+        echo "📋 TOS raw metadata response:\n";
         var_dump($metadata);
 
-        echo "\n📊 Parsed metadata:\n";
+        echo "\n📊 TOS parsed metadata:\n";
         echo '- content_length: ' . ($metadata['content_length'] ?? 'NOT SET') . "\n";
         echo '- content_type: ' . ($metadata['content_type'] ?? 'NOT SET') . "\n";
         echo '- etag: ' . ($metadata['etag'] ?? 'NOT SET') . "\n";
         echo '- last_modified: ' . ($metadata['last_modified'] ?? 'NOT SET') . "\n";
 
         // Also try to list the object to compare
-        echo "\n🔍 Debug: Listing objects to compare...\n";
+        echo "\n🔍 Debug: Listing TOS objects to compare...\n";
         $listResult = $filesystem->listObjectsByCredential($credentialPolicy, self::TEST_PREFIX);
 
         if (isset($listResult['objects'])) {
             foreach ($listResult['objects'] as $object) {
                 if ($object['key'] === $testKey) {
-                    echo "📁 Found in list:\n";
+                    echo "📁 Found in TOS list:\n";
                     echo '- key: ' . $object['key'] . "\n";
                     echo '- size: ' . ($object['size'] ?? 'NOT SET') . "\n";
                     echo '- last_modified: ' . ($object['last_modified'] ?? 'NOT SET') . "\n";
@@ -482,7 +398,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
 
     protected function getStorageName(): string
     {
-        return 'aliyun_test';
+        return 'tos_test';
     }
 
     /**
@@ -501,7 +417,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
         while ($written < $size) {
             $remaining = $size - $written;
             $writeSize = min($chunkSize, $remaining);
-            $data = str_repeat('A', $writeSize);
+            $data = str_repeat('T', $writeSize); // Use 'T' for TOS
             fwrite($handle, $data);
             $written += $writeSize;
         }
@@ -516,7 +432,7 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
     {
         return new CredentialPolicy([
             'sts' => true,
-            'roleSessionName' => 'chunk-test',
+            'roleSessionName' => 'tos-chunk-test',
         ]);
     }
 
@@ -526,11 +442,14 @@ class OSSChunkUploadDownloadTest extends CloudFileBaseTest
      */
     private function cleanupUploadedFile($filesystem, CredentialPolicy $credentialPolicy, string $key): void
     {
+        // DISABLED: Keep files for inspection - files will remain in TOS bucket
+        echo "🔍 TOS file kept for inspection: {$key}\n";
+        return;
         try {
             $filesystem->deleteObjectByCredential($credentialPolicy, $key);
-            echo "🗑️  Cleaned up uploaded file: {$key}\n";
+            echo "🗑️  Cleaned up TOS uploaded file: {$key}\n";
         } catch (Exception $e) {
-            echo "⚠️  Failed to clean up uploaded file {$key}: " . $e->getMessage() . "\n";
+            echo "⚠️  Failed to clean up TOS uploaded file {$key}: " . $e->getMessage() . "\n";
         }
     }
 }

@@ -17,7 +17,6 @@ use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadInfo;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
-use Dtyq\CloudFile\Kernel\Utils\EasyFileTools;
 use Exception;
 use GuzzleHttp\Psr7\Utils;
 use League\Flysystem\FileAttributes;
@@ -56,9 +55,6 @@ class TOSExpand implements ExpandInterface
         return [];
     }
 
-    /**
-     * @phpstan-ignore-next-line
-     */
     public function getMetas(array $paths, array $options = []): array
     {
         $list = [];
@@ -72,8 +68,9 @@ class TOSExpand implements ExpandInterface
     {
         $list = [];
         foreach ($paths as $path) {
-            $url = $this->getPreSignedUrl($path, $expires, $options);
-            $list[$path] = new FileLink($path, $url, $expires, '');
+            $downloadName = $downloadNames[$path] ?? '';
+            $url = $this->getPreSignedUrl($path, $expires, $options, $downloadName);
+            $list[$path] = new FileLink($path, $url, $expires, $downloadName);
         }
         return $list;
     }
@@ -108,7 +105,7 @@ class TOSExpand implements ExpandInterface
             // Create chunk download file object
             $downloadFile = new ChunkDownloadFile($filePath, $localPath, $fileSize, $config);
 
-            // Check if should use chunk download
+            // Check if you should use chunk download
             if (! $downloadFile->shouldUseChunkDownload()) {
                 $this->downloadFileDirectly($filePath, $localPath);
                 return;
@@ -387,15 +384,21 @@ class TOSExpand implements ExpandInterface
      * @see https://www.volcengine.com/docs/6349/156107
      * 最大7天
      */
-    private function getPreSignedUrl(string $path, int $expires = 3600, array $options = []): string
+    private function getPreSignedUrl(string $path, int $expires = 3600, array $options = [], string $downloadName = ''): string
     {
         $input = new PreSignedURLInput(Enum::HttpMethodGet, $this->getBucket(), $path);
         $input->setExpires($expires);
+        $query = [];
         // 图片处理
-        if (EasyFileTools::isImage($path) && ! empty($options['image']['process'])) {
-            $query = [
-                'x-tos-process' => $options['image']['process'],
-            ];
+        if (! empty($options['image']['process'])) {
+            $query['x-tos-process'] = $options['image']['process'];
+        }
+        // 自定义下载文件名
+        if ($downloadName) {
+            $downloadName = rawurlencode($downloadName);
+            $query['response-content-disposition'] = 'attachment;filename="' . $downloadName . '";filename*=utf-8\'\'' . $downloadName;
+        }
+        if (! empty($query)) {
             $input->setQuery($query);
         }
         return $this->client->preSignedURL($input)->getSignedUrl();
@@ -473,29 +476,68 @@ class TOSExpand implements ExpandInterface
         $expires = $credentialPolicy->getExpires();
 
         // 目录限制
+        $dir = $credentialPolicy->getDir();
         $resource = "{$this->getBucket()}/";
         if (! empty($credentialPolicy->getDir())) {
             $resource = $resource . $credentialPolicy->getDir();
         }
 
-        // 限制上传策略
-        $stsPolicy = [
-            'Statement' => [
-                [
-                    'Action' => [
-                        'tos:PutObject',
-                        'tos:GetObject',
-                        'tos:AbortMultipartUpload',
-                        'tos:ListMultipartUploadParts',
-                        'tos:GetObjectVersion',
+        // https://www.volcengine.com/docs/6349/102131
+        $stsPolicy = match ($credentialPolicy->getStsType()) {
+            'list_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'tos:ListBucket',
+                            'tos:ListBucketVersions',
+                        ],
+                        'Resource' => [
+                            "trn:tos:::{$this->getBucket()}",
+                        ],
+                        'Condition' => [
+                            'StringLike' => [
+                                'tos:prefix' => [
+                                    "{$dir}",
+                                    "{$dir}*",
+                                ],
+                            ],
+                        ],
+                        'Effect' => 'Allow',
                     ],
-                    'Resource' => [
-                        "trn:tos:::{$resource}*",
-                    ],
-                    'Effect' => 'Allow',
                 ],
             ],
-        ];
+            'del_objects' => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'tos:DeleteObject',
+                            'tos:DeleteObjectTagging',
+                        ],
+                        'Resource' => [
+                            "trn:tos:::{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+            default => [
+                'Statement' => [
+                    [
+                        'Action' => [
+                            'tos:PutObject',
+                            'tos:GetObject',
+                            'tos:AbortMultipartUpload',
+                            'tos:ListMultipartUploadParts',
+                            'tos:GetObjectVersion',
+                        ],
+                        'Resource' => [
+                            "trn:tos:::{$resource}*",
+                        ],
+                        'Effect' => 'Allow',
+                    ],
+                ],
+            ],
+        };
 
         $query = [
             'query' => [
