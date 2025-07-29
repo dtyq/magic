@@ -39,7 +39,7 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
             $modelEntity->setTags($odinModel->getAttributes()->getTags());
             $modelEntity->setDefaultConfigs(['temperature' => 0.5]);
             $modelEntity->setSupportMultiModal($model->getModelOptions()->isMultiModal());
-            $list[$model->getModelName()] = $modelEntity;
+            $list[] = $modelEntity;
         }
         return [
             'total' => count($list),
