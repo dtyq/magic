@@ -111,10 +111,17 @@ class LongTermMemoryAppService
         $countDto->offset = 0; // 不设置偏移
         $total = $this->longTermMemoryDomainService->countMemories($countDto);
 
-        $memories = $this->longTermMemoryDomainService->findMemories($dto);
-        $pageSize = $dto->limit;
+        // 保存原始页面大小
+        $originalPageSize = $dto->limit;
+
+        // 为了判断是否有下一页，多查询一条记录
+        $queryDto = clone $dto;
+        $queryDto->limit = $originalPageSize + 1;
+
+        $memories = $this->longTermMemoryDomainService->findMemories($queryDto);
+
         // 处理分页结果
-        $hasMore = count($memories) > $pageSize;
+        $hasMore = count($memories) > $originalPageSize;
         if ($hasMore) {
             // 移除多查询的那一条记录
             array_pop($memories);
@@ -122,8 +129,8 @@ class LongTermMemoryAppService
 
         $nextPageToken = null;
         if ($hasMore) {
-            // 生成下一页的 pageToken，offset 增加当前页大小
-            $nextOffset = $dto->offset + $pageSize;
+            // 生成下一页的 pageToken，offset 增加原始页面大小
+            $nextOffset = $dto->offset + $originalPageSize;
             $nextPageToken = MemoryQueryDTO::generatePageToken($nextOffset);
         }
 
