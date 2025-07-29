@@ -775,7 +775,9 @@ class WorkspaceDomainService
     public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode, string $workDir = ''): array
     {
         $dir = '.workspace';
+        #
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
+        $this->logger->info('[Workspace][Domain] filterResultByGitVersion', ['workspaceVersion' => json_encode($workspaceVersion)]);
         if (empty($workspaceVersion)) {
             return $result;
         }
@@ -809,11 +811,16 @@ class WorkspaceDomainService
                 //     $gitVersionResult[] = $item;
                 // }
 
+                // 需要去掉特殊字符再匹配
+                $fileKey = str_replace('/', '\\', $item['file_key']);
+                $dirItem = str_replace('/', '\\', $dirItem);
+
                 // 调整为完全匹配
                 $fullFilePath = $workDir . '/' . $dirItem;
                 $fullFileAndWorkSpacePath = $workDir . '/workspace/' . $dirItem;
+                $this->logger->info('[Workspace][Domain] filterResultByGitVersion', ['fullFilePath' => $fullFilePath, 'fullFileAndWorkSpacePath' => $fullFileAndWorkSpacePath, 'item' => $item['file_key']]);
 
-                if ($fullFilePath == $item['file_key'] || $fullFileAndWorkSpacePath == $item['file_key']) {
+                if ($fullFilePath == $fileKey || $fullFileAndWorkSpacePath == $fileKey) {
                     $gitVersionResult[] = $item;
                 }
             }
