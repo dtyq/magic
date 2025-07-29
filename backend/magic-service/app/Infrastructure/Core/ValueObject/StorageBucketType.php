@@ -11,4 +11,5 @@ enum StorageBucketType: string
 {
     case Public = 'public';
     case Private = 'private';
+    case SandBox = 'sandbox';
 }

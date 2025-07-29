@@ -11,6 +11,7 @@ use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\CloudFile\CloudFile;
 use Dtyq\CloudFile\Hyperf\CloudFileFactory;
+use Dtyq\CloudFile\Kernel\FilesystemProxy;
 use Dtyq\CloudFile\Kernel\Struct\ChunkDownloadConfig;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
@@ -99,14 +100,14 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         // Temporarily increase download link validity period
         $expires = 60 * 60 * 24;
         if (! empty($defaultIconPaths)) {
-            $defaultIconLinks = $this->cloudFile->get(StorageBucketType::Public->value)->getLinks($defaultIconPaths, [], $expires, $this->getOptions(self::DEFAULT_ICON_ORGANIZATION_CODE, $options));
+            $defaultIconLinks = $this->getFilesystem(StorageBucketType::Public->value)->getLinks($defaultIconPaths, [], $expires, $this->getOptions(self::DEFAULT_ICON_ORGANIZATION_CODE, $options));
             $links = array_merge($links, $defaultIconLinks);
         }
         if (empty($paths)) {
             return $links;
         }
         try {
-            $otherLinks = $this->cloudFile->get($bucketType->value)->getLinks($paths, $downloadNames, $expires, $this->getOptions($organizationCode, $options));
+            $otherLinks = $this->getFilesystem($bucketType->value)->getLinks($paths, $downloadNames, $expires, $this->getOptions($organizationCode, $options));
             $links = array_merge($links, $otherLinks);
         } catch (Throwable $throwable) {
             $this->logger->warning('GetLinksError', [
@@ -119,7 +120,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
     public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
-        $filesystem = $this->cloudFile->get($storage->value);
+        $filesystem = $this->getFilesystem($storage->value);
         $credentialPolicy = new CredentialPolicy([
             'sts' => false,
             'role_session_name' => 'magic',
@@ -141,7 +142,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
      */
     public function uploadByChunks(string $organizationCode, ChunkUploadFile $chunkUploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
     {
-        $filesystem = $this->cloudFile->get($storage->value);
+        $filesystem = $this->getFilesystem($storage->value);
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,  // Use STS mode for chunk upload
             'role_session_name' => 'magic',
@@ -223,13 +224,13 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
     public function upload(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void
     {
-        $filesystem = $this->cloudFile->get($storage->value);
+        $filesystem = $this->getFilesystem($storage->value);
         $filesystem->upload($uploadFile, $this->getOptions($organizationCode));
     }
 
     public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, bool $sts = false): array
     {
-        $filesystem = $this->cloudFile->get($storage->value);
+        $filesystem = $this->getFilesystem($storage->value);
         $credentialPolicy = new CredentialPolicy([
             'sts' => $sts,
             'role_session_name' => 'magic',
@@ -253,7 +254,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'dir' => $dir,
             'expires' => $expires,
         ]);
-        return $this->cloudFile->get($bucketType->value)->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($organizationCode));
+        return $this->getFilesystem($bucketType->value)->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($organizationCode));
     }
 
     /**
@@ -261,12 +262,12 @@ class CloudFileRepository implements CloudFileRepositoryInterface
      */
     public function getPreSignedUrls(string $organizationCode, array $fileNames, int $expires = 3600, StorageBucketType $bucketType = StorageBucketType::Private): array
     {
-        return $this->cloudFile->get($bucketType->value)->getPreSignedUrls($fileNames, $expires, $this->getOptions($organizationCode));
+        return $this->getFilesystem($bucketType->value)->getPreSignedUrls($fileNames, $expires, $this->getOptions($organizationCode));
     }
 
     public function getMetas(array $paths, string $organizationCode): array
     {
-        return $this->cloudFile->get(StorageBucketType::Private->value)->getMetas($paths, $this->getOptions($organizationCode));
+        return $this->getFilesystem(StorageBucketType::Private->value)->getMetas($paths, $this->getOptions($organizationCode));
     }
 
     public function getDefaultIconPaths(string $appId = 'open'): array
@@ -295,7 +296,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             }
 
             // Call cloudfile's destroy method to delete file
-            $this->cloudFile->get($bucketType->value)->destroy([$filePath], $this->getOptions($organizationCode));
+            $this->getFilesystem($bucketType->value)->destroy([$filePath], $this->getOptions($organizationCode));
 
             return true;
         } catch (Throwable $e) {
@@ -799,5 +800,13 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     {
         $prefix = self::DEFAULT_ICON_ORGANIZATION_CODE . '/' . $appId . '/default';
         return Str::startsWith($path, $prefix);
+    }
+
+    protected function getFilesystem(string $storage): FilesystemProxy
+    {
+        if (! $this->cloudFile->exist($storage)) {
+            $storage = StorageBucketType::Private->value;
+        }
+        return $this->cloudFile->get($storage);
     }
 }
