@@ -13,7 +13,7 @@ use App\Interfaces\KnowledgeBase\DTO\ServiceProviderModelDTO;
 
 class KnowledgeBaseProviderAssembler
 {
-    public static function odinModelToProviderDTO(array $models, array $iconUrls = []): array
+    public static function odinModelToProviderDTO(array $models): array
     {
         $dtoList = [];
         /** @var array<string, array<OdinModel>> $providerAliasModelsMap */
@@ -33,7 +33,7 @@ class KnowledgeBaseProviderAssembler
                 $modelDTO->setId($providerModel->getAttributes()->getKey());
                 $modelDTO->setName($providerModel->getAttributes()->getLabel());
                 $modelDTO->setModelId($providerModel->getAttributes()->getName());
-                $modelDTO->setIcon(($iconUrls[$providerModel->getAttributes()->getIcon()] ?? null)?->getUrl() ?? '');
+                $modelDTO->setIcon($providerModel->getAttributes()->getIcon());
                 $modelsForProvider[] = $modelDTO;
             }
             $dto->setModels($modelsForProvider);
