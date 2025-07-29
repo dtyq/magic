@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\Di\Annotation\Inject;
 use Psr\Log\LoggerInterface;
 
@@ -114,7 +115,7 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
                 // 提交任务（带重试）
                 $taskId = $this->submitAsyncTask($imageGenerateRequest);
                 // 轮询结果（带重试）
-                $result = $this->pollTaskResult($taskId, $imageGenerateRequest->getModel());
+                $result = $this->pollTaskResult($taskId, $imageGenerateRequest);
 
                 $rawResults[] = [
                     'success' => true,
@@ -221,17 +222,33 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         }
     }
 
-    private function pollTaskResult(string $taskId, string $model): array
+    private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
-        $reqKey = $model;
+        $organizationCode = $imageGenerateRequest->getOrganizationCode();
+        $reqKey = $imageGenerateRequest->getModel();
         $retryCount = 0;
+
+        $reqJson = ['return_url' => true];
+
+        // 从请求对象中获取水印配置
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
+
+        if ($watermarkConfig !== null) {
+            $reqJson['logo_info'] = $watermarkConfig;
+            $this->logger->info('火山文生图：添加水印配置', [
+                'orgCode' => $organizationCode,
+                'logo_info' => $watermarkConfig,
+            ]);
+        }
+
+        $reqJsonString = Json::encode($reqJson);
 
         while ($retryCount < self::MAX_RETRY_COUNT) {
             try {
                 $params = [
                     'task_id' => $taskId,
                     'req_key' => $reqKey,
-                    'req_json' => '{"return_url":true}',
+                    'req_json' => $reqJsonString,
                 ];
 
                 $response = $this->api->getTaskResult($params);
