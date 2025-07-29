@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3a80f7c553854dcf41ec278c3951cd8b",
+    "content-hash": "c4f5678685c1d15d18df335171ca11b0",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1981,16 +1981,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "dev-master",
+            "version": "v0.1.7",
             "source": {
                 "type": "git",
-                "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "4547525188b9b51f93239d1fa8ec1eb32c44c0e0"
+                "url": "https://github.com/dtyq/cloudfile.git",
+                "reference": "e49a47715389919ad8c8a9ebc079da4d35c04f22"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=4547525188b9b51f93239d1fa8ec1eb32c44c0e0",
-                "reference": "4547525188b9b51f93239d1fa8ec1eb32c44c0e0",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/e49a47715389919ad8c8a9ebc079da4d35c04f22",
+                "reference": "e49a47715389919ad8c8a9ebc079da4d35c04f22",
                 "shasum": ""
             },
             "require": {
@@ -2038,22 +2038,7 @@
                     "Dtyq\\CloudFile\\": "src"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Dtyq\\CloudFile\\Tests\\": "tests"
-                }
-            },
-            "scripts": {
-                "cs-fix": [
-                    "php-cs-fixer fix $1"
-                ],
-                "test": [
-                    "./vendor/bin/phpunit"
-                ],
-                "analyse": [
-                    "phpstan analyse --memory-limit 1024M -c phpstan.neon"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "Apache License 2.0"
             ],
@@ -2065,9 +2050,10 @@
             ],
             "description": "Package description here.",
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/master"
+                "issues": "https://github.com/dtyq/cloudfile/issues",
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.7"
             },
-            "time": "2025-06-23T13:27:34+00:00"
+            "time": "2025-07-29T07:11:37+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2206,16 +2192,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.71",
+            "version": "0.0.72",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "c01fa256a635cb77a52b5198c14f28f5a8b37d3f"
+                "reference": "3f6abb66d4cf8966748e423e8c24329620fa127a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c01fa256a635cb77a52b5198c14f28f5a8b37d3f",
-                "reference": "c01fa256a635cb77a52b5198c14f28f5a8b37d3f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=3f6abb66d4cf8966748e423e8c24329620fa127a",
+                "reference": "3f6abb66d4cf8966748e423e8c24329620fa127a",
                 "shasum": ""
             },
             "require": {
@@ -2316,9 +2302,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.71"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.72"
             },
-            "time": "2025-07-29T06:16:02+00:00"
+            "time": "2025-07-29T16:25:05+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -19533,6 +19519,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }
