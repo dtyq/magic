@@ -39,6 +39,10 @@ Router::addGroup('/api/v1/contact', static function () {
             Router::post('', [MagicUserSettingApi::class, 'save']);
             Router::get('/{key}', [MagicUserSettingApi::class, 'get']);
             Router::post('/queries', [MagicUserSettingApi::class, 'queries']);
+
+            // 超级麦吉话题模型配置
+            Router::put('/super-magic/topic-model/{topicId}', [MagicUserSettingApi::class, 'saveProjectTopicModelConfig']);
+            Router::get('/super-magic/topic-model/{topicId}', [MagicUserSettingApi::class, 'getProjectTopicModelConfig']);
         });
     });
 

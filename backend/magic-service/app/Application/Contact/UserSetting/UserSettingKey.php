@@ -17,15 +17,24 @@ enum UserSettingKey: string
     // 项目 mcp 用户配置
     case SuperMagicProjectMCPServers = 'SuperMagicProjectMCPServers';
 
+    // 项目话题模型配置
+    case SuperMagicProjectTopicModel = 'SuperMagicProjectTopicModel';
+
     public static function genSuperMagicProjectMCPServers(string $projectId): string
     {
         return self::SuperMagicProjectMCPServers->value . '_' . $projectId;
+    }
+
+    public static function genSuperMagicProjectTopicModel(string $topicId): string
+    {
+        return self::SuperMagicProjectTopicModel->value . '_' . $topicId;
     }
 
     public function getValueHandler(): ?UserSettingHandlerInterface
     {
         return match ($this) {
             self::SuperMagicMCPServers,self::SuperMagicProjectMCPServers => di(SuperMagicMCPServerHandler::class),
+            self::SuperMagicProjectTopicModel => di(SuperMagicModelConfigHandler::class),
             default => null,
         };
     }
@@ -39,6 +48,10 @@ enum UserSettingKey: string
 
         if (str_starts_with($key, self::SuperMagicProjectMCPServers->value)) {
             return self::SuperMagicProjectMCPServers;
+        }
+
+        if (str_starts_with($key, self::SuperMagicProjectTopicModel->value)) {
+            return self::SuperMagicProjectTopicModel;
         }
 
         return self::None;

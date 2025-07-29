@@ -29,6 +29,7 @@ class UserMessageDTO
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
         private array $mcpConfig = [],
+        private readonly string $modelId = '',
     ) {
     }
 
@@ -97,6 +98,11 @@ class UserMessageDTO
         $this->mcpConfig = $mcpConfig;
     }
 
+    public function getModelId(): string
+    {
+        return $this->modelId;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -119,6 +125,7 @@ class UserMessageDTO
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
             rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
             mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
+            modelId: $data['model_id'] ?? $data['modelId'] ?? '',
         );
     }
 
@@ -140,6 +147,7 @@ class UserMessageDTO
             'task_mode' => $this->taskMode,
             'raw_content' => $this->rawContent,
             'mcp_config' => $this->mcpConfig,
+            'model_id' => $this->modelId,
         ];
     }
 }
