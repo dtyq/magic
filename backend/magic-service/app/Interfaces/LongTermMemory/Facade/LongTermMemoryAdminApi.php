@@ -238,7 +238,7 @@ class LongTermMemoryAdminApi extends AbstractApi
             'status' => $status,
             'enabled' => $enabled,
             'pageToken' => $validatedParams['page_token'] ?? null,
-            'limit' => (int) $pageSize + 1, // 多查询一条记录，用于判断是否还有下一页
+            'limit' => (int) $pageSize, // 传递原始页面大小，让应用服务层处理分页逻辑
         ]);
         // 解析 pageToken
         $dto->parsePageToken();
