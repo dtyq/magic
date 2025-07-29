@@ -288,7 +288,7 @@ class FileBatchAppService extends AbstractAppService
      */
     private function generateDownloadUrl(string $filePath, string $organizationCode): string
     {
-        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::Private, []);
+        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::SandBox, []);
         if (empty($fileLink)) {
             return '';
         }

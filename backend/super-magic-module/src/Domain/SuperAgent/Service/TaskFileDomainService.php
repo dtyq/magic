@@ -811,7 +811,7 @@ class TaskFileDomainService
 
         // Call remote file system
         $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
-        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, StorageBucketType::Private, ['metadata' => $metadata]);
+        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, StorageBucketType::SandBox, ['metadata' => $metadata]);
 
         // Create root directory if not exists
         $rootDirEntity = new TaskFileEntity();

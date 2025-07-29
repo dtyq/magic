@@ -452,7 +452,7 @@ class AgentDomainService
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
     {
         // 1. 获取上传配置信息
-        $storageType = StorageBucketType::Private->value;
+        $storageType = StorageBucketType::SandBox->value;
         $expires = 3600; // Credential valid for 1 hour
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();

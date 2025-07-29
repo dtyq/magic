@@ -83,7 +83,7 @@ class FileManagementAppService extends AbstractAppService
             // 获取STS Token
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
@@ -143,7 +143,7 @@ class FileManagementAppService extends AbstractAppService
             // 获取STS Token
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
