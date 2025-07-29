@@ -19,7 +19,6 @@ use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\DTO\MemoryStatsDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
-use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\ErrorCode\LongTermMemoryErrorCode;
@@ -56,7 +55,6 @@ class LongTermMemoryAppService
         // 业务逻辑验证
         $this->validateMemoryContent($dto->content);
         $this->validateMemoryPendingContent($dto->pendingContent);
-        $this->validateUserMemoryLimit($dto->orgId, $dto->appId, $dto->userId);
 
         return $this->longTermMemoryDomainService->create($dto);
     }
@@ -73,13 +71,6 @@ class LongTermMemoryAppService
         if ($dto->pendingContent !== null) {
             $this->validateMemoryPendingContent($dto->pendingContent);
         }
-        if ($dto->enabled !== null) {
-            $memory = $this->longTermMemoryDomainService->findById($memoryId);
-            if ($memory) {
-                $this->validateEnabledStatusChange($memory, $dto->enabled);
-            }
-        }
-
         $this->longTermMemoryDomainService->updateMemory($memoryId, $dto);
     }
 
@@ -180,27 +171,11 @@ class LongTermMemoryAppService
     }
 
     /**
-     * 批量接受记忆建议.
-     */
-    public function acceptMemorySuggestions(array $memoryIds): void
-    {
-        $this->longTermMemoryDomainService->acceptMemorySuggestions($memoryIds);
-    }
-
-    /**
      * 批量处理记忆建议（接受/拒绝）.
      */
     public function batchProcessMemorySuggestions(array $memoryIds, string $action): void
     {
         $this->longTermMemoryDomainService->batchProcessMemorySuggestions($memoryIds, $action);
-    }
-
-    /**
-     * 执行记忆维护（淘汰 + 压缩）.
-     */
-    public function maintainMemories(string $orgId, string $appId, string $userId): array
-    {
-        return $this->longTermMemoryDomainService->maintainMemories($orgId, $appId, $userId);
     }
 
     /**
@@ -235,46 +210,6 @@ class LongTermMemoryAppService
     }
 
     /**
-     * 获取最近访问的记忆.
-     */
-    public function getRecentlyAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->longTermMemoryDomainService->getRecentlyAccessed($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 获取最近强化的记忆.
-     */
-    public function getRecentlyReinforced(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->longTermMemoryDomainService->getRecentlyReinforced($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 获取最重要的记忆.
-     */
-    public function getMostImportant(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->longTermMemoryDomainService->getMostImportant($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 获取访问次数最多的记忆.
-     */
-    public function getMostAccessed(string $orgId, string $appId, string $userId, int $limit = 10): array
-    {
-        return $this->longTermMemoryDomainService->getMostAccessed($orgId, $appId, $userId, $limit);
-    }
-
-    /**
-     * 批量创建记忆.
-     */
-    public function createMemories(array $dtos): array
-    {
-        return $this->longTermMemoryDomainService->createBatch($dtos);
-    }
-
-    /**
      * 构建记忆提示词内容.
      */
     public function buildMemoryPrompt(string $orgId, string $appId, string $userId, int $maxLength = 4000): string
@@ -300,20 +235,6 @@ class LongTermMemoryAppService
 
         // 检查所有记忆是否都属于用户
         return count($validMemoryIds) === count($memoryIds);
-    }
-
-    /**
-     * 计算记忆的相关性分数.
-     */
-    public function calculateRelevanceScore(string $memoryId, string $context): float
-    {
-        $memory = $this->longTermMemoryDomainService->findById($memoryId);
-
-        if (! $memory) {
-            return 0.0;
-        }
-
-        return $this->longTermMemoryDomainService->calculateRelevanceScore($memory, $context);
     }
 
     /**
@@ -472,24 +393,6 @@ class LongTermMemoryAppService
     }
 
     /**
-     * 批量启用记忆.
-     * @deprecated 使用 batchUpdateMemoryStatus 替代
-     */
-    public function batchEnableMemories(array $memoryIds, string $orgId, string $appId, string $userId): array
-    {
-        return $this->batchUpdateMemoryStatus($memoryIds, true, $orgId, $appId, $userId);
-    }
-
-    /**
-     * 批量禁用记忆.
-     * @deprecated 使用 batchUpdateMemoryStatus 替代
-     */
-    public function batchDisableMemories(array $memoryIds, string $orgId, string $appId, string $userId): array
-    {
-        return $this->batchUpdateMemoryStatus($memoryIds, false, $orgId, $appId, $userId);
-    }
-
-    /**
      * 加载提示词文件.
      */
     private function loadPromptFile(string $filePath): string
@@ -517,27 +420,6 @@ class LongTermMemoryAppService
     {
         if ($pendingContent !== null && mb_strlen($pendingContent) > 65535) {
             throw new InvalidArgumentException(trans('long_term_memory.entity.pending_content_too_long'));
-        }
-    }
-
-    /**
-     * 验证用户记忆数量限制.
-     */
-    private function validateUserMemoryLimit(string $orgId, string $appId, string $userId): void
-    {
-        $count = $this->longTermMemoryDomainService->countByUser($orgId, $appId, $userId);
-        if ($count >= 20) {
-            throw new InvalidArgumentException(trans('long_term_memory.entity.user_memory_limit_exceeded'));
-        }
-    }
-
-    /**
-     * 验证记忆启用状态设置权限.
-     */
-    private function validateEnabledStatusChange(LongTermMemoryEntity $memory, bool $enabled): void
-    {
-        if ($memory->getStatus() !== MemoryStatus::ACTIVE) {
-            throw new InvalidArgumentException(trans('long_term_memory.entity.enabled_status_restriction'));
         }
     }
 }
