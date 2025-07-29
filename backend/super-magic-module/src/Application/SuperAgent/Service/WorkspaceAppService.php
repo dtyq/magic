@@ -675,15 +675,15 @@ class WorkspaceAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        $fullWorkDir = $this->fileDomainService->getFullWorkDir(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId(),
-            (int) $topicEntity->getProjectId(),
-            AgentConstant::SUPER_MAGIC_CODE,
-            AgentConstant::DEFAULT_PROJECT_DIR
-        );
+        // $fullWorkDir = $this->fileDomainService->getFullWorkDir(
+        //     $dataIsolation->getCurrentOrganizationCode(),
+        //     $dataIsolation->getCurrentUserId(),
+        //     (int) $topicEntity->getProjectId(),
+        //     AgentConstant::SUPER_MAGIC_CODE,
+        //     AgentConstant::DEFAULT_PROJECT_DIR
+        // );
 
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $fullWorkDir);
+        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
 
         // 处理文件 URL
         $list = [];

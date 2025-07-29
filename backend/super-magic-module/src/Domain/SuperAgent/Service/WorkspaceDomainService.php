@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInter
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Exception;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -775,9 +776,7 @@ class WorkspaceDomainService
     public function filterResultByGitVersion(array $result, int $projectId, string $organizationCode, string $workDir = ''): array
     {
         $dir = '.workspace';
-        #
         $workspaceVersion = $this->getWorkspaceVersionByProjectId($projectId, $dir);
-        $this->logger->info('[Workspace][Domain] filterResultByGitVersion', ['workspaceVersion' => json_encode($workspaceVersion)]);
         if (empty($workspaceVersion)) {
             return $result;
         }
@@ -806,21 +805,14 @@ class WorkspaceDomainService
         $gitVersionResult = [];
         foreach ($result['list'] as $item) {
             foreach ($dir as $dirItem) {
-                // strpos函数的作用是检查字符串是否包含某个关键词： 如果A文件 包含 B文件 包含全部相同的字符串，则会认为两个文件是同一个文件,因此会存在误判
-                // if (strpos($item['file_key'], $dirItem) !== false) {
-                //     $gitVersionResult[] = $item;
-                // }
+                $fileKey = WorkDirectoryUtil::getRelativeFilePath($item['file_key'], $workDir);
 
-                // 需要去掉特殊字符再匹配
-                $fileKey = str_replace('/', '\\', $item['file_key']);
-                $dirItem = str_replace('/', '\\', $dirItem);
-
+                // 统一路径分隔符，将所有路径分隔符标准化为系统默认分隔符
+                $fileKey = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $fileKey);
+                $dirItem = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $dirItem);
+                $dirItem = '/' . $dirItem;
                 // 调整为完全匹配
-                $fullFilePath = $workDir . '/' . $dirItem;
-                $fullFileAndWorkSpacePath = $workDir . '/workspace/' . $dirItem;
-                $this->logger->info('[Workspace][Domain] filterResultByGitVersion', ['fullFilePath' => $fullFilePath, 'fullFileAndWorkSpacePath' => $fullFileAndWorkSpacePath, 'item' => $item['file_key']]);
-
-                if ($fullFilePath == $fileKey || $fullFileAndWorkSpacePath == $fileKey) {
+                if ($dirItem == $fileKey) {
                     $gitVersionResult[] = $item;
                 }
             }
