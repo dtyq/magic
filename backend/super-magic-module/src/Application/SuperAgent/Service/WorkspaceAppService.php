@@ -466,6 +466,8 @@ class WorkspaceAppService extends AbstractAppService
         $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
         if ($topicEntity != null) {
             $data['project_id'] = (string) $topicEntity->getProjectId();
+            $projectEntity = $this->projectDomainService->getProject($topicEntity->getProjectId(), $topicEntity->getUserId());
+            $data['project_name'] = $projectEntity->getProjectName();
         }
         return $data;
     }

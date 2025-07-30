@@ -37,7 +37,7 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'target_parent_id' => 'required|string',
+            'target_parent_id' => 'nullable|string',
             'pre_file_id' => 'string', // -1表示末尾，0表示第一位，>0表示指定位置
         ];
     }
@@ -48,7 +48,6 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'target_parent_id.required' => 'Target parent ID cannot be empty',
             'target_parent_id.string' => 'Target parent ID must be a string',
             'pre_file_id.string' => 'Pre file ID must be a string',
         ];

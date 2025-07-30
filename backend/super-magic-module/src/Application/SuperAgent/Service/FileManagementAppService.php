@@ -504,6 +504,15 @@ class FileManagementAppService extends AbstractAppService
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
 
+            if (empty($targetParentId)) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $projectEntity->getId(),
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                );
+            }
+
             // Check if this is a same-level move BEFORE modifying the entity
             $isSameLevelMove = ($fileEntity->getParentId() === $targetParentId);
 
