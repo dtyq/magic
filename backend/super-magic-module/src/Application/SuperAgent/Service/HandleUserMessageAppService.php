@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
@@ -48,8 +47,6 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
@@ -63,9 +60,6 @@ class HandleUserMessageAppService extends AbstractAppService
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
     }
 
     public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto): void
@@ -215,9 +209,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
-                mcpConfig: [],
-                modelId: $userMessageDTO->getModelId(),
-                mcpConfig: $userMessageDTO->getMcpConfig()
+                mcpConfig: $userMessageDTO->getMcpConfig(),
+                modelId: $userMessageDTO->getModelId()
             );
 
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);

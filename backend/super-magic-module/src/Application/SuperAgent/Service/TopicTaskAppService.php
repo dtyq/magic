@@ -23,10 +23,10 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Assembler\TopicTaskMessageAssembler;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Producer;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use Hyperf\Contract\TranslatorInterface;
 
 class TopicTaskAppService extends AbstractAppService
 {
