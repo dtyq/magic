@@ -28,6 +28,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Coroutine;
 use RuntimeException;
@@ -343,6 +344,10 @@ class MagicSeqDomainService extends AbstractDomainService
             $senderAccountEntity = $this->magicAccountRepository->getAccountInfoByMagicId($senderUserEntity->getMagicId());
             // 开协程了，复制 requestId
             $requestId = CoContext::getRequestId();
+            // 协程透传语言
+            $language = di(TranslatorInterface::class)->getLocale();
+
+            $this->logger->info('userCallFlow language: ' . $language);
             // 调用flow可能很耗时,不能让客户端一直等待
             Coroutine::create(function () use (
                 $agentAccountEntity,
@@ -351,10 +356,13 @@ class MagicSeqDomainService extends AbstractDomainService
                 $senderUserEntity,
                 $seqEntity,
                 $messageEntity,
-                $requestId
+                $requestId,
+                $language
             ) {
                 $requestId = empty($requestId) ? $seqEntity->getAppMessageId() : $requestId;
                 CoContext::setRequestId($requestId);
+                di(TranslatorInterface::class)->setLocale($language);
+                $this->logger->info('Coroutine  create userCallFlow language: ' . di(TranslatorInterface::class)->getLocale());
                 try {
                     // 触发事件
                     event_dispatch(new UserCallAgentEvent(
