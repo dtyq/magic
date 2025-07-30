@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublishe
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -400,7 +401,8 @@ class ProjectAppService extends AbstractAppService
             $dataIsolation,
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
-            $requestDTO->getFileType()
+            $requestDTO->getFileType(),
+            StorageType::WORKSPACE->value
         );
 
         //        $workDir = $this->fileDomainService->getFullWorkDir(
