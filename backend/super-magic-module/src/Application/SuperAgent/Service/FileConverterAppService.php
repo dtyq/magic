@@ -49,7 +49,6 @@ class FileConverterAppService
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,
         private readonly FileAppService $fileAppService,
-        private readonly WorkspaceAppService $workspaceAppService,
         private readonly SandboxGatewayInterface $sandboxGateway,
         private readonly FileCleanupAppService $fileCleanupAppService,
     ) {
@@ -64,6 +63,7 @@ class FileConverterAppService
      * 3. Create a sandbox and initialize the Agent.
      * 4. Call the file conversion interface.
      * 5. Return a response in a unified format.
+     * @throws Throwable
      */
     public function convertFiles(MagicUserAuthorization $userAuthorization, ConvertFilesRequestDTO $requestDTO): array
     {
@@ -90,7 +90,6 @@ class FileConverterAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
             }
 
-            /** @var TaskFileEntity[] $validFiles */
             $validFiles = $this->getValidFiles($fileIds, $userId);
             // Check for duplicate requests
             $taskKey = $this->handleDuplicateRequest($userAuthorization, $fileIds, $convertType, $userId);
@@ -211,7 +210,6 @@ class FileConverterAppService
         $totalFiles = count($validFiles);
         $userId = $userAuthorization->getId();
         $convertType = $requestDTO->convert_type;
-        $organizationCode = $userAuthorization->getOrganizationCode();
         $projectId = (string) $projectEntity->getId();
 
         try {
@@ -219,18 +217,20 @@ class FileConverterAppService
 
             // Generate a sandbox ID and store task information
             $sandboxId = $this->generateFileConverterSandboxId($projectEntity->getId());
-            $this->fileConvertStatusManager->setSandboxId($taskKey, $sandboxId);
-            $this->fileConvertStatusManager->setProjectId($taskKey, $projectId);
+            $this->fileConvertStatusManager->setTaskMetadata($taskKey, [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+            ]);
 
-            // Build file URLs and get temporary credentials
-            $fileUrls = $this->buildFileUrls($validFiles, $organizationCode, $userId);
+            // Build file keys and get temporary credentials
+            $fileKeys = $this->buildFileKeys($validFiles);
             $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
             // Synchronously ensure sandbox is available and execute conversion in a coroutine
             $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId);
             // Create file conversion request
-            $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileUrls, $stsTemporaryCredential, $requestDTO->options, $taskKey);
+            $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileKeys, $stsTemporaryCredential, $requestDTO->options, $taskKey);
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
             go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId) {
@@ -277,7 +277,7 @@ class FileConverterAppService
                 'user_id' => $userId,
                 'project_id' => $projectEntity->getId(),
                 'sandbox_id' => $sandboxId,
-                'file_count' => count($fileUrls),
+                'file_count' => count($fileKeys),
                 'convert_type' => $convertType,
             ]);
         } catch (Throwable $e) {
@@ -307,8 +307,8 @@ class FileConverterAppService
     /**
      * Generates a temporary directory path based on the working directory.
      *
-     * @param string $workDir The working directory path, e.g., /SUPER_MAGIC/usi_7839078ce6af2d3249b82e7aaed643b8/project_803277391451111425
-     * @return string The temporary directory path, e.g., /SUPER_MAGIC/usi_7839078ce6af2d3249b82e7aaed643b8/temp
+     * @param string $workDir The working directory path, e.g., /SUPER_MAGIC/usi_xxx/project_803277391451111425
+     * @return string The temporary directory path, e.g., /SUPER_MAGIC/usi_xxx/temp
      */
     private function generateTempDir(string $workDir): string
     {
@@ -388,12 +388,12 @@ class FileConverterAppService
     /**
      * Creates a response for the processing state.
      */
-    private function createProcessingResponse(string $message, int $progress = 0): FileConvertStatusResponseDTO
+    private function createProcessingResponse(string $message): FileConvertStatusResponseDTO
     {
         return new FileConvertStatusResponseDTO(
             ConvertStatusEnum::PROCESSING->value,
             null,
-            $progress,
+            0,
             $message
         );
     }
@@ -405,15 +405,11 @@ class FileConverterAppService
     {
         $status = $response->getDataDTO()->status;
 
-        switch ($status) {
-            case ConvertStatusEnum::COMPLETED->value:
-                return $this->buildCompletedResponse($response, $taskKey, $userAuthorization);
-            case ConvertStatusEnum::FAILED->value:
-                return $this->buildFailedResponse($response);
-            case ConvertStatusEnum::PROCESSING->value:
-            default:
-                return $this->buildProcessingResponseFromResult($response, $taskKey);
-        }
+        return match ($status) {
+            ConvertStatusEnum::COMPLETED->value => $this->buildCompletedResponse($response, $taskKey, $userAuthorization),
+            ConvertStatusEnum::FAILED->value => $this->buildFailedResponse($response),
+            default => $this->buildProcessingResponseFromResult($response, $taskKey),
+        };
     }
 
     /**
@@ -433,7 +429,7 @@ class FileConverterAppService
         if ($zipOssKey) {
             try {
                 $fileLinks = $this->fileAppService->getLinks($userAuthorization->getOrganizationCode(), [$zipOssKey]);
-                $downloadUrl = $fileLinks[$zipOssKey]->getUrl() ?? null;
+                $downloadUrl = $fileLinks[$zipOssKey]->getUrl();
             } catch (Throwable $e) {
                 $this->logger->error('Failed to generate download URL for converted file', [
                     'task_key' => $taskKey,
@@ -446,7 +442,6 @@ class FileConverterAppService
                     'line' => $e->getLine(),
                     'trace' => $e->getTraceAsString(),
                 ]);
-                $downloadUrl = null;
             }
         }
 
@@ -521,15 +516,11 @@ class FileConverterAppService
         $error = $taskStatus['error'] ?? '';
         $conversionRate = $result['conversion_rate'] ?? null;
 
-        switch ($status) {
-            case ConvertStatusEnum::COMPLETED->value:
-                return $this->buildLocalCompletedResponse($result, $taskStatus['convert_type'] ?? 'unknown', $conversionRate);
-            case ConvertStatusEnum::FAILED->value:
-                return $this->buildLocalFailedResponse($error, $conversionRate);
-            case ConvertStatusEnum::PROCESSING->value:
-            default:
-                return $this->buildLocalProcessingResponse($progress, $conversionRate);
-        }
+        return match ($status) {
+            ConvertStatusEnum::COMPLETED->value => $this->buildLocalCompletedResponse($result, $taskStatus['convert_type'] ?? 'unknown', $conversionRate),
+            ConvertStatusEnum::FAILED->value => $this->buildLocalFailedResponse($error, $conversionRate),
+            default => $this->buildLocalProcessingResponse($progress, $conversionRate),
+        };
     }
 
     /**
@@ -616,7 +607,6 @@ class FileConverterAppService
      */
     private function getValidFiles(array $fileIds, string $userId): array
     {
-        /** @var TaskFileEntity[] $userFiles */
         $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
 
         // Check if there are valid files
@@ -663,7 +653,7 @@ class FileConverterAppService
         }
 
         // Sort files by filename using natural sorting (slide01, slide02, etc.)
-        usort($filteredFiles, function (TaskFileEntity $a, TaskFileEntity $b) {
+        usort($filteredFiles, static function (TaskFileEntity $a, TaskFileEntity $b) {
             return strnatcasecmp($a->getFileName(), $b->getFileName());
         });
 
@@ -675,11 +665,11 @@ class FileConverterAppService
      *
      * @return array|string returns the taskKey for a new request, or the status of an existing task for a duplicate request
      */
-    private function handleDuplicateRequest(MagicUserAuthorization $userAuthorization, array $fileIds, string $convertType, string $userId)
+    private function handleDuplicateRequest(MagicUserAuthorization $userAuthorization, array $fileIds, string $convertType, string $userId): array|string
     {
         $sortedFileIds = $fileIds;
         sort($sortedFileIds);
-        $requestKey = md5((string) $userId . ':' . $convertType . ':' . implode(',', $sortedFileIds));
+        $requestKey = md5($userId . ':' . $convertType . ':' . implode(',', $sortedFileIds));
 
         $existingTaskKey = $this->fileConvertStatusManager->getDuplicateTaskKey($requestKey);
         if ($existingTaskKey) {
@@ -710,47 +700,19 @@ class FileConverterAppService
     }
 
     /**
-     * Builds an array of file URLs.
+     * Builds an array of file keys.
      *
      * @param TaskFileEntity[] $validFiles list of valid files
-     * @param string $organizationCode the organization code
-     * @param string $userId the user ID
-     * @return array an array of file URLs
+     * @return array an array of file keys
      */
-    private function buildFileUrls(array $validFiles, string $organizationCode, string $userId): array
+    private function buildFileKeys(array $validFiles): array
     {
         $fileKeys = [];
-        $downloadNames = [];
         foreach ($validFiles as $fileEntity) {
-            $fileKey = $fileEntity->getFileKey();
-            $fileKeys[] = $fileKey;
-            $downloadNames[$fileKey] = $fileEntity->getFileName();
+            $fileKeys[] = $fileEntity->getFileKey();
         }
 
-        $fileLinks = $this->fileAppService->getLinks($organizationCode, $fileKeys, null, $downloadNames);
-        $fileUrls = [];
-        foreach ($validFiles as $fileEntity) {
-            $fileKey = $fileEntity->getFileKey();
-            $fileLink = $fileLinks[$fileKey] ?? null;
-
-            if ($fileLink) {
-                $fileUrls[] = [
-                    'file_key' => $fileKey,
-                    'file_url' => $fileLink->getUrl(),
-                ];
-            } else {
-                $this->logger->warning('Failed to get download link for file', [
-                    'file_key' => $fileKey,
-                    'user_id' => $userId,
-                ]);
-            }
-        }
-
-        if (empty($fileUrls)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
-        }
-
-        return $fileUrls;
+        return $fileKeys;
     }
 
     /**
@@ -762,8 +724,7 @@ class FileConverterAppService
         return $this->fileAppService->getStsTemporaryCredential(
             $userAuthorization,
             'private',
-            $tempDir,
-            7200 // Expires in 2 hours
+            $tempDir // Expires in 2 hours
         );
     }
 

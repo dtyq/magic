@@ -96,37 +96,6 @@ class FileConvertStatusManager
     }
 
     /**
-     * Mark task as completed.
-     */
-    public function setTaskCompleted(string $taskKey, array $result): bool
-    {
-        $taskData = $this->getTaskData($taskKey);
-        if (! $taskData) {
-            return false;
-        }
-
-        $taskData['status'] = ConvertStatusEnum::COMPLETED->value;
-        $taskData['message'] = FileConvertConstant::MSG_TASK_COMPLETED;
-        $taskData['result'] = $result;
-        $taskData['error'] = null;
-        $taskData['updated_at'] = time();
-
-        // Set progress to 100%
-        if (isset($taskData['progress'])) {
-            $taskData['progress']['current'] = $taskData['progress']['total'];
-            $taskData['progress']['percentage'] = 100.0;
-            $taskData['progress']['message'] = 'Completed';
-        }
-
-        $success = $this->setTaskData($taskKey, $taskData);
-        if ($success) {
-            $this->releaseLock($taskKey);
-        }
-
-        return $success;
-    }
-
-    /**
      * Mark task as failed.
      */
     public function setTaskFailed(string $taskKey, string $error): bool
@@ -167,30 +136,6 @@ class FileConvertStatusManager
     public function getTaskStatus(string $taskKey): ?array
     {
         return $this->getTaskData($taskKey);
-    }
-
-    /**
-     * Check if task is completed.
-     */
-    public function isTaskCompleted(string $taskKey): bool
-    {
-        return $this->hasTaskStatus($taskKey, ConvertStatusEnum::COMPLETED->value);
-    }
-
-    /**
-     * Check if task is failed.
-     */
-    public function isTaskFailed(string $taskKey): bool
-    {
-        return $this->hasTaskStatus($taskKey, ConvertStatusEnum::FAILED->value);
-    }
-
-    /**
-     * Check if task is processing.
-     */
-    public function isTaskProcessing(string $taskKey): bool
-    {
-        return $this->hasTaskStatus($taskKey, ConvertStatusEnum::PROCESSING->value);
     }
 
     /**
@@ -243,7 +188,8 @@ class FileConvertStatusManager
     {
         return $this->executeRedisOperation(function () use ($requestKey) {
             $cacheKey = FileConvertConstant::CACHE_PREFIX . 'duplicate:' . $requestKey;
-            return $this->redis->del($cacheKey) > 0;
+            $result = $this->redis->del($cacheKey);
+            return is_int($result) ? $result > 0 : (bool) $result;
         }, 'clear duplicate task key', ['request_key' => $requestKey]);
     }
 
@@ -344,15 +290,6 @@ class FileConvertStatusManager
                 Json::encode($taskData)
             );
         }, 'set task data', ['task_key' => $taskKey]);
-    }
-
-    /**
-     * Check if task has specific status.
-     */
-    private function hasTaskStatus(string $taskKey, string $status): bool
-    {
-        $taskData = $this->getTaskData($taskKey);
-        return $taskData && $taskData['status'] === $status;
     }
 
     /**

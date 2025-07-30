@@ -15,7 +15,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Contract\RequestInterfa
  */
 class FileConverterRequest implements RequestInterface
 {
-    private array $fileUrls = [];
+    private array $fileKeys = [];
 
     private array $options = [];
 
@@ -31,11 +31,11 @@ class FileConverterRequest implements RequestInterface
 
     private array $stsTemporaryCredential = [];
 
-    public function __construct(string $sandboxId, string $convertType, array $fileUrls, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '')
+    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '')
     {
         $this->sandboxId = $sandboxId;
         $this->convertType = $convertType;
-        $this->fileUrls = $fileUrls;
+        $this->fileKeys = $fileKeys;
         $this->stsTemporaryCredential = $stsTemporaryCredential;
         $this->taskKey = $taskKey;
 
@@ -81,7 +81,7 @@ class FileConverterRequest implements RequestInterface
 
     public function getFileKeys(): array
     {
-        return array_column($this->fileUrls, 'file_key');
+        return $this->fileKeys;
     }
 
     public function getStsTemporaryCredential(): array
@@ -92,7 +92,7 @@ class FileConverterRequest implements RequestInterface
     public function toArray(): array
     {
         $result = [
-            'file_urls' => $this->fileUrls,
+            'file_keys' => $this->fileKeys,
             'output_format' => $this->outputFormat,
             'is_debug' => $this->isDebug,
             'convert_type' => $this->convertType,
