@@ -7,8 +7,12 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
+use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -16,6 +20,7 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -25,17 +30,13 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use App\Domain\ModelGateway\Service\AccessTokenDomainService;
-use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
-use App\Domain\Contact\Entity\MagicUserEntity;
+
 use function Hyperf\Translation\trans;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 
 /**
  * Handle User Message Application Service
@@ -118,7 +119,7 @@ class HandleApiMessageAppService extends AbstractAppService
             if ($taskMode === '') {
                 $taskMode = $topicEntity->getTaskMode();
             }
-            $data=[
+            $data = [
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -204,8 +205,7 @@ class HandleApiMessageAppService extends AbstractAppService
         }
     }
 
-
-    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO):array
+    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): array
     {
         $topicId = 0;
         $taskId = '';
@@ -226,10 +226,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 $taskMode = $topicEntity->getTaskMode();
             }
 
-
-
-
-            $data=[
+            $data = [
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -245,7 +242,6 @@ class HandleApiMessageAppService extends AbstractAppService
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
-
 
             $taskEntity = TaskEntity::fromArray($data);
             // Initialize task
@@ -282,8 +278,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 status: TaskStatus::RUNNING
             );
 
-            return ['sandbox_id'=>$sandboxID,'task_id'=>$taskId];
-
+            return ['sandbox_id' => $sandboxID, 'task_id' => $taskId];
         } catch (EventException $e) {
             $this->logger->error(sprintf(
                 'Initialize task, event processing failed: %s',
@@ -317,6 +312,24 @@ class HandleApiMessageAppService extends AbstractAppService
             // );
             throw new BusinessException('Initialize task failed', 500);
         }
+    }
+
+    public function getUserAuthorization(string $apiKey, string $uid = ''): MagicUserEntity
+    {
+        $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
+        if (empty($accessToken)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::ACCESS_TOKEN_NOT_FOUND, 'Access token not found');
+        }
+
+        if (empty($uid)) {
+            if ($accessToken->getType() === AccessTokenType::Application->value) {
+                $uid = $accessToken->getCreator();
+            } else {
+                $uid = $accessToken->getRelationId();
+            }
+        }
+
+        return $this->userDomainService->getByUserId($uid);
     }
 
     /**
@@ -387,13 +400,11 @@ class HandleApiMessageAppService extends AbstractAppService
         $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-      //  $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
+        //  $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;
     }
-
-
 
     /**
      * Save user information and corresponding attachments.
@@ -432,24 +443,5 @@ class HandleApiMessageAppService extends AbstractAppService
         // Process user uploaded attachments
         $attachmentsStr = $userMessageDTO->getAttachments();
         $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
-    }
-
-    public function getUserAuthorization(string $apiKey,string $uid=""):MagicUserEntity
-    {
-        $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
-        if (empty($accessToken)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::ACCESS_TOKEN_NOT_FOUND, 'Access token not found');
-        }
-
-        if(empty($uid)){
-            if ($accessToken->getType() === AccessTokenType::Application->value) {
-                $uid=$accessToken->getCreator();
-            }else{
-                $uid=$accessToken->getRelationId();
-            }
-        }
-
-        $userEntity = $this->userDomainService->getByUserId($uid);
-        return $userEntity;
     }
 }
