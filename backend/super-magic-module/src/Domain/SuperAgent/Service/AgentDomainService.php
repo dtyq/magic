@@ -403,7 +403,6 @@ class AgentDomainService
             userInfo: $userInfo,
         );
 
-
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $dataIsolation->getCurrentUserId(),
