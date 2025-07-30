@@ -298,10 +298,10 @@ class ServiceProviderAppService
             $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
 
             $icon = $model->getIcon();
-                $organizationCode = substr($icon, 0, strpos($icon, '/'));
-                $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
+            $organizationCode = substr($icon, 0, strpos($icon, '/'));
+            $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
 
-                $modelDTO = new SuperMagicModelsDTO($model->toArray());
+            $modelDTO = new SuperMagicModelsDTO($model->toArray());
             if ($fileLink) {
                 $modelDTO->setIcon($fileLink->getUrl());
             }
