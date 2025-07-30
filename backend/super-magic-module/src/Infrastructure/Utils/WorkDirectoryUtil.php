@@ -7,20 +7,18 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 
 class WorkDirectoryUtil
 {
     public static function getPrefix(string $workDir): string
     {
-        $md5Key = md5(StorageBucketType::Private->value);
-        return "{$md5Key}/" . trim($workDir, '/') . '/';
+        return trim($workDir, '/') . '/';
     }
 
     public static function getRootDir(string $userId, int $projectId): string
     {
-        return sprintf('/%s/%s/project_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $projectId);
+        return sprintf('/project_%d', $projectId);
     }
 
     public static function getWorkDir(string $userId, int $projectId): string
@@ -109,11 +107,37 @@ class WorkDirectoryUtil
     /**
      * Validate if the given work directory path is valid.
      *
-     * @param string $workDir Work directory path to validate (can be relative or absolute)
-     * @param string $userId User ID to validate against
+     * @param string $workDirPrefix Work directory prefix (e.g., "DT001/588417216353927169")
+     * @param string $workDir Work directory path to validate
      * @return bool True if valid, false otherwise
      */
-    public static function isValidWorkDirectory(string $workDir, string $userId): bool
+    public static function isValidWorkDirectory(string $workDirPrefix, string $workDir): bool
+    {
+        if (empty($workDirPrefix) || empty($workDir)) {
+            return false;
+        }
+
+        // Remove trailing slash from workDir if exists
+        $workDir = rtrim($workDir, '/');
+        // Ensure prefix doesn't have trailing slash for consistency
+        $workDirPrefix = rtrim($workDirPrefix, '/');
+
+        // Check if the workDir starts with the given prefix followed by /project_
+        // The workDir should match pattern: {prefix}/project_{projectId}[/workspace]
+        $pattern = sprintf(
+            '/^%s\/project_\d+(\/workspace)?$/',
+            preg_quote($workDirPrefix, '/')
+        );
+
+        return preg_match($pattern, $workDir) === 1;
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     *
+     * @deprecated Use isValidWorkDirectory($workDirPrefix, $workDir) instead
+     */
+    public static function isValidWorkDirectoryLegacy(string $workDir, string $userId): bool
     {
         if (empty($workDir) || empty($userId)) {
             return false;
@@ -138,11 +162,35 @@ class WorkDirectoryUtil
     /**
      * Extract project ID from work directory path.
      *
-     * @param string $workDir Work directory path (can be relative or absolute)
-     * @param string $userId User ID to match against
+     * @param string $workDir Work directory path
      * @return null|string Project ID if found, null if not found or invalid format
      */
-    public static function extractProjectIdFromAbsolutePath(string $workDir, string $userId): ?string
+    public static function extractProjectIdFromAbsolutePath(string $workDir): ?string
+    {
+        if (empty($workDir)) {
+            return null;
+        }
+
+        // Simple pattern matching: find project_ followed by digits and ending with /
+        // This matches patterns like: "project_809080575792672768/" or "project_123/"
+        if (preg_match('/project_(\d+)\//', $workDir, $matches)) {
+            return $matches[1];
+        }
+
+        // Also handle cases without trailing slash: "project_809080575792672768"
+        if (preg_match('/project_(\d+)$/', $workDir, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     *
+     * @deprecated Use extractProjectIdFromAbsolutePath($workDir) instead
+     */
+    public static function extractProjectIdFromAbsolutePathLegacy(string $workDir, string $userId): ?string
     {
         if (empty($workDir) || empty($userId)) {
             return null;

@@ -51,7 +51,8 @@ interface CloudFileRepositoryInterface
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
+        int $expires = 3600,
+        bool $autoBucket = true,
     ): array;
 
     /**
@@ -59,7 +60,7 @@ interface CloudFileRepositoryInterface
      */
     public function getPreSignedUrls(string $organizationCode, array $fileNames, int $expires = 3600, StorageBucketType $bucketType = StorageBucketType::Private): array;
 
-    public function getMetas(array $paths, string $organizationCode): array;
+    public function getMetas(array $paths, string $organizationCode, StorageBucketType $bucketType = StorageBucketType::Private): array;
 
     public function getDefaultIconPaths(string $appId = 'open'): array;
 
@@ -72,10 +73,6 @@ interface CloudFileRepositoryInterface
      * @return bool True if deleted successfully, false otherwise
      */
     public function deleteFile(string $organizationCode, string $filePath, StorageBucketType $bucketType = StorageBucketType::Private): bool;
-
-    public function getFullPrefix(string $organizationCode): string;
-
-    public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;
 
     /**
      * List objects by credential.
@@ -211,4 +208,8 @@ interface CloudFileRepositoryInterface
         StorageBucketType $bucketType = StorageBucketType::Private,
         array $options = []
     ): void;
+
+    public function getFullPrefix(string $organizationCode): string;
+
+    public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;
 }

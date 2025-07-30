@@ -10,12 +10,14 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -82,8 +84,9 @@ class ProjectAppService extends AbstractAppService
 
         // 如果指定了工作目录，需要从工作目录里提取项目id
         $projectId = '';
-        if (! empty($requestDTO->getWorkDir()) && WorkDirectoryUtil::isValidWorkDirectory($requestDTO->getWorkDir(), $dataIsolation->getCurrentUserId())) {
-            $projectId = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($requestDTO->getWorkDir(), $dataIsolation->getCurrentUserId());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        if (! empty($requestDTO->getWorkDir()) && WorkDirectoryUtil::isValidWorkDirectory($fullPrefix, $requestDTO->getWorkDir())) {
+            $projectId = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($requestDTO->getWorkDir());
         }
 
         Db::beginTransaction();
@@ -407,7 +410,8 @@ class ProjectAppService extends AbstractAppService
             $dataIsolation,
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
-            $requestDTO->getFileType()
+            $requestDTO->getFileType(),
+            StorageType::WORKSPACE->value
         );
 
         //        $workDir = $this->fileDomainService->getFullWorkDir(
@@ -418,7 +422,7 @@ class ProjectAppService extends AbstractAppService
         //            AgentConstant::DEFAULT_PROJECT_DIR
         //        );
 
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
+        // $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
 
         // 处理文件 URL
         $list = [];
@@ -446,11 +450,13 @@ class ProjectAppService extends AbstractAppService
             $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
+            // 设置排序字段
+            $dto->sort = $entity->getSort();
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey);
+                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
                 if ($fileLink) {
                     $dto->fileUrl = $fileLink->getUrl();
                 } else {

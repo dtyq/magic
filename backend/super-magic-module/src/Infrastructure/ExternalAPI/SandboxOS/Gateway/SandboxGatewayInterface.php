@@ -83,9 +83,10 @@ interface SandboxGatewayInterface
      *
      * @param string $sandboxId Sandbox ID
      * @param string $projectId Project ID
+     * @param string $workDir Working directory
      * @return string 实际使用的沙箱ID
      */
-    public function ensureSandboxAvailable(string $sandboxId, string $projectId): string;
+    public function ensureSandboxAvailable(string $sandboxId, string $projectId, string $workDir): string;
 
     public function getFileVersions(string $sandboxId, string $fileKey, string $gitDir): GatewayResult;
 

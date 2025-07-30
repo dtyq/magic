@@ -248,7 +248,8 @@ class FileBatchAppService extends AbstractAppService
             $fileData,
             $workDir,
             $targetName,
-            WorkDirectoryUtil::getProjectFilePackDir($userId, $projectId)
+            WorkDirectoryUtil::getProjectFilePackDir($userId, $projectId),
+            StorageBucketType::SandBox
         );
 
         $publisher = new FileBatchCompressPublisher($event);
@@ -288,7 +289,7 @@ class FileBatchAppService extends AbstractAppService
      */
     private function generateDownloadUrl(string $filePath, string $organizationCode): string
     {
-        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::Private, []);
+        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::SandBox, []);
         if (empty($fileLink)) {
             return '';
         }

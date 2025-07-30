@@ -148,9 +148,10 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      * @param int $page 页码
      * @param int $pageSize 每页数量
      * @param array $fileType 文件类型过滤
+     * @param string $storageType 存储类型过滤
      * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
      */
-    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = []): array
+    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = ''): array
     {
         $offset = ($page - 1) * $pageSize;
 
@@ -160,6 +161,11 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 如果指定了文件类型数组且不为空，添加文件类型过滤条件
         if (! empty($fileType)) {
             $query->whereIn('file_type', $fileType);
+        }
+
+        // 如果指定了存储类型，添加存储类型过滤条件
+        if (! empty($storageType)) {
+            $query->where('storage_type', $storageType);
         }
 
         // 过滤已经被删除的， deleted_at 不为空
@@ -242,6 +248,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     {
         $date = date('Y-m-d H:i:s');
         $entity->setCreatedAt($date);
+        $entity->setUpdatedAt($date);
 
         $entityArray = $entity->toArray();
         $model = $this->model::query()->create($entityArray);
@@ -286,6 +293,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     public function updateById(TaskFileEntity $entity): TaskFileEntity
     {
+        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $entity->toArray();
 
         $this->model::query()
@@ -375,21 +383,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $entities;
-    }
-
-    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
-    {
-        $model = $this->model::query()
-            ->withTrashed()
-            ->where('project_id', $projectId)
-            ->orderBy('updated_at', 'desc')
-            ->first();
-
-        if (! $model) {
-            return null;
-        }
-
-        return new TaskFileEntity($model->toArray());
     }
 
     /**
@@ -636,5 +629,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
                 'parent_id' => $parentId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
+    }
+
+    public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->withTrashed()
+            ->where('project_id', $projectId)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
     }
 }

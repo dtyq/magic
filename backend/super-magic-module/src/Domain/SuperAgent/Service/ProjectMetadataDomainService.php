@@ -151,7 +151,7 @@ class ProjectMetadataDomainService
     {
         $organizationCode = $fileEntity->getOrganizationCode();
         $filePath = $fileEntity->getFileKey();
-        $fileLink = $this->cloudFileRepository->getLinks($organizationCode, [$filePath], StorageBucketType::Private)[$filePath] ?? null;
+        $fileLink = $this->cloudFileRepository->getLinks($organizationCode, [$filePath], StorageBucketType::SandBox)[$filePath] ?? null;
         return $fileLink?->getUrl();
     }
 }

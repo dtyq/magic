@@ -58,6 +58,8 @@ class FileBatchCompressAppService extends AbstractAppService
      */
     private string $currentCacheKey = '';
 
+    private StorageBucketType $storageBucketType = StorageBucketType::Private;
+
     public function __construct(
         private readonly FileDomainService $fileDomainService,
         private readonly FileCleanupDomainService $fileCleanupDomainService,
@@ -73,13 +75,14 @@ class FileBatchCompressAppService extends AbstractAppService
      */
     public function processBatchCompressFromEvent(FileBatchCompressEvent $event): array
     {
+        $this->storageBucketType = $event->getBucketType();
         return $this->processBatchCompress(
             $event->getCacheKey(),
             $event->getOrganizationCode(),
             $event->getFiles(),
             $event->getWorkdir(),
             $event->getTargetName(),
-            $event->getTargetPath()
+            $event->getTargetPath(),
         );
     }
 
@@ -341,7 +344,7 @@ class FileBatchCompressAppService extends AbstractAppService
 
         try {
             // Use FileDomainService to get download links
-            $links = $this->fileDomainService->getLinks($organizationCode, $fileKeys, StorageBucketType::Private);
+            $links = $this->fileDomainService->getLinks($organizationCode, $fileKeys, $this->storageBucketType);
 
             // Map the results back to file_id => link_data format
             foreach ($files as $fileId => $fileData) {
@@ -720,7 +723,7 @@ class FileBatchCompressAppService extends AbstractAppService
                 $organizationCode,
                 $filePath,
                 $tempPath,
-                StorageBucketType::Private,
+                $this->storageBucketType,
                 [
                     'chunk_size' => 2 * 1024 * 1024,  // 2MB chunks
                     'max_concurrency' => 3,           // 3 concurrent downloads
@@ -878,7 +881,7 @@ class FileBatchCompressAppService extends AbstractAppService
             ]);
 
             // Execute upload (internally determines whether to use chunked or regular upload)
-            $this->fileDomainService->uploadByChunks($organizationCode, $chunkUploadFile, StorageBucketType::Private, false);
+            $this->fileDomainService->uploadByChunks($organizationCode, $chunkUploadFile, $this->storageBucketType, false);
 
             $this->logger->info('Compressed file upload successful', [
                 'file_key' => $chunkUploadFile->getKey(),
@@ -925,7 +928,7 @@ class FileBatchCompressAppService extends AbstractAppService
     private function generateDownloadLink(string $organizationCode, string $fileKey): ?FileLink
     {
         try {
-            return $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::Private);
+            return $this->fileDomainService->getLink($organizationCode, $fileKey, $this->storageBucketType);
         } catch (Throwable $e) {
             $this->logger->error('Failed to generate download link', [
                 'file_key' => $fileKey,

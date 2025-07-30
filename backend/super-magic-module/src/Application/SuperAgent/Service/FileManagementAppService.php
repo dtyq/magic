@@ -83,13 +83,14 @@ class FileManagementAppService extends AbstractAppService
             // 获取STS Token
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
                 $storageType,
                 $workDir,
-                $expires
+                $expires,
+                false
             );
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
@@ -142,7 +143,7 @@ class FileManagementAppService extends AbstractAppService
             // 获取STS Token
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredential(
                 $userAuthorization,
@@ -502,6 +503,15 @@ class FileManagementAppService extends AbstractAppService
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+
+            if (empty($targetParentId)) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $projectEntity->getId(),
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                );
+            }
 
             // Check if this is a same-level move BEFORE modifying the entity
             $isSameLevelMove = ($fileEntity->getParentId() === $targetParentId);

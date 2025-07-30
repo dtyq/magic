@@ -11,7 +11,7 @@ use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\File\Repository\Persistence\CloudFileRepository;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -54,7 +54,7 @@ class AgentDomainService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
-        private readonly CloudFileRepository $cloudFileRepository,
+        private readonly CloudFileRepositoryInterface $cloudFileRepository,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -458,7 +458,7 @@ class AgentDomainService
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): array
     {
         // 1. 获取上传配置信息
-        $storageType = StorageBucketType::Private->value;
+        $storageType = StorageBucketType::SandBox->value;
         $expires = 3600; // Credential valid for 1 hour
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();

@@ -454,7 +454,7 @@ class FileProcessAppService extends AbstractAppService
             }
 
             // Get STS temporary credentials
-            $storageType = StorageBucketType::Private->value;
+            $storageType = StorageBucketType::SandBox->value;
             $expires = 3600; // Credential valid for 1 hour
 
             // Create user authorization object
@@ -617,7 +617,7 @@ class FileProcessAppService extends AbstractAppService
         $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
         foreach ($taskFiles as $taskFile) {
-            $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey());
+            $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey(), StorageBucketType::SandBox);
             if (empty($fileLink)) {
                 // If URL retrieval fails, skip
                 continue;
@@ -1052,9 +1052,9 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 3: Upload using FileDomainService uploadByCredential method
-            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile);
+            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
 
-            $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::Private);
+            $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
 
             $this->logger->info(sprintf(
                 'Successfully uploaded file using uploadByCredential with key: %s, file_link: %s',
