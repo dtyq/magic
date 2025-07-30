@@ -462,7 +462,7 @@ class FileProcessAppService extends AbstractAppService
             $userAuthorization->setOrganizationCode($organizationCode);
 
             // Use unified FileAppService to get STS Token
-            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $workDir, $expires);
+            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $workDir, $expires, false);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to refresh STS Token: %s, Organization code: %s, Sandbox ID: %s',

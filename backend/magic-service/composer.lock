@@ -2575,12 +2575,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "79eb851b7f270519b6829ad20e189278a1381b02"
+                "reference": "dc9a2dc47bb4f60df0275da1fb198e5847af1ca2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=79eb851b7f270519b6829ad20e189278a1381b02",
-                "reference": "79eb851b7f270519b6829ad20e189278a1381b02",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=dc9a2dc47bb4f60df0275da1fb198e5847af1ca2",
+                "reference": "dc9a2dc47bb4f60df0275da1fb198e5847af1ca2",
                 "shasum": ""
             },
             "require": {

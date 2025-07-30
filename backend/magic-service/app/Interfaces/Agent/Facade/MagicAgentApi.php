@@ -361,4 +361,16 @@ class MagicAgentApi extends AbstractApi
         $agentId = $agentId ?? $request->input('bot_id');
         return $this->magicAgentAppService->saveInstruct($authenticatable, $agentId, $instructs);
     }
+
+    // 获取聊天模式可用助理列表
+    public function getChatModeAvailableAgents(RequestInterface $request)
+    {
+        /** @var MagicUserAuthorization $authenticatable */
+        $authenticatable = $this->getAuthorization();
+        $page = (int) $request->input('page', 1);
+        $pageSize = (int) $request->input('page_size', 20);
+        $agentName = $request->input('agent_name') ?? $request->input('robot_name') ?? '';
+
+        return $this->magicAgentAppService->getChatModeAvailableAgents($authenticatable, $page, $pageSize, $agentName);
+    }
 }

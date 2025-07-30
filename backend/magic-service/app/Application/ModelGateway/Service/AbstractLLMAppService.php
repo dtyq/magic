@@ -41,6 +41,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ServiceProviderDomainService $serviceProviderDomainService,
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
+        protected PackageFilterInterface $packageFilter,
         protected WatermarkConfigInterface $watermarkConfig,
         protected PackageFilterInterface $packageFilter,
     ) {
