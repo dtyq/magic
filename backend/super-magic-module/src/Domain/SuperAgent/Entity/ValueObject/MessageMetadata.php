@@ -160,6 +160,12 @@ class MessageMetadata
         return $this->language;
     }
 
+    public function setLanguage(string $language): self
+    {
+        $this->language = $language;
+        return $this;
+    }
+
     /**
      * 获取用户信息.
      *
