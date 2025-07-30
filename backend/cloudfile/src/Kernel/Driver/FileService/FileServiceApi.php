@@ -102,6 +102,8 @@ class FileServiceApi
             // 目前仅用于图片处理
             'options' => [
                 'image' => $options['image'] ?? [],
+                'internal_endpoint' => (bool) ($options['internal_endpoint'] ?? false),
+                'use_cdn' => (bool) ($options['use_cdn'] ?? false),
             ],
         ], $options);
     }
