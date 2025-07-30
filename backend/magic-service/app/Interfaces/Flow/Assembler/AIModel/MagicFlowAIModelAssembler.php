@@ -14,7 +14,6 @@ use App\Interfaces\Flow\DTO\MagicFlowEnabledAIModelDTO;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use App\Interfaces\Kernel\DTO\PageDTO;
-use Dtyq\CloudFile\Kernel\Struct\FileLink;
 
 class MagicFlowAIModelAssembler
 {
@@ -72,25 +71,19 @@ class MagicFlowAIModelAssembler
         return new PageDTO($page->getPage(), $total, $list);
     }
 
-    /**
-     * @param array<string,FileLink> $icons
-     */
-    public static function createEnabledDTO(MagicFlowAIModelEntity $magicFlowAIModelEntity, array $icons): MagicFlowEnabledAIModelDTO
+    public static function createEnabledDTO(MagicFlowAIModelEntity $magicFlowAIModelEntity): MagicFlowEnabledAIModelDTO
     {
         $dto = new MagicFlowEnabledAIModelDTO($magicFlowAIModelEntity->toArray());
         $dto->setValue($magicFlowAIModelEntity->getName());
-        $dto->setIcon(FileAssembler::getUrl($icons[$magicFlowAIModelEntity->getIcon()] ?? null));
+        $dto->setIcon($magicFlowAIModelEntity->getIcon());
         $dto->setVision($magicFlowAIModelEntity->isSupportMultiModal());
         $dto->setConfigs($magicFlowAIModelEntity->getDefaultConfigs());
         return $dto;
     }
 
-    /**
-     * @param array<string,FileLink> $icons
-     */
-    public static function createEnabledListDTO(array $list, array $icons): array
+    public static function createEnabledListDTO(array $list): array
     {
-        $list = array_map(fn (MagicFlowAIModelEntity $entity) => self::createEnabledDTO($entity, $icons), $list);
+        $list = array_map(fn (MagicFlowAIModelEntity $entity) => self::createEnabledDTO($entity), $list);
         return [
             'models' => $list,
         ];

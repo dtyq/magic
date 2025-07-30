@@ -293,18 +293,19 @@ class ServiceProviderAppService
         $modelDTOs = [];
 
         foreach ($models as $model) {
-            $modelConfig = $model->getConfig();
-            if ($modelConfig->isSupportFunction() && $modelConfig->isSupportMultiModal()) {
-                $icon = $model->getIcon();
+            $icon = $model->getIcon();
+            $organizationCode = substr($icon, 0, strpos($icon, '/'));
+            $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
+
+            $icon = $model->getIcon();
                 $organizationCode = substr($icon, 0, strpos($icon, '/'));
                 $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
 
                 $modelDTO = new SuperMagicModelsDTO($model->toArray());
-                if ($fileLink) {
-                    $modelDTO->setIcon($fileLink->getUrl());
-                }
-                $modelDTOs[] = $modelDTO;
+            if ($fileLink) {
+                $modelDTO->setIcon($fileLink->getUrl());
             }
+            $modelDTOs[] = $modelDTO;
         }
 
         return $modelDTOs;
