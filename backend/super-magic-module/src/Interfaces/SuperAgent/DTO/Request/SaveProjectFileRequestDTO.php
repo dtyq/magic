@@ -71,7 +71,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     /**
      * 存储类型（可选，默认为空字符串）.
      */
-    private string $storageType = '';
+    private string $storageType = StorageType::WORKSPACE->value;
 
     /**
      * 前置文件ID，用于指定插入位置，0=第一位，-1=末尾（默认）.
@@ -101,7 +101,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->isDirectory = (bool) ($data['is_directory'] ?? false);
         $instance->sort = (int) ($data['sort'] ?? 0);
         $instance->parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
-        $instance->storageType = $data['storage_type'] ?? '';
+        $instance->storageType = $data['storage_type'] ?? StorageType::WORKSPACE;
         $instance->preFileId = (int) ($data['pre_file_id'] ?? -1);
 
         return $instance;
