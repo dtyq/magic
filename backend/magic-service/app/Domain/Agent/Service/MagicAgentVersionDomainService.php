@@ -44,6 +44,23 @@ class MagicAgentVersionDomainService
         return $this->agentVersionRepository->getAgentsByOrganizationCount($organizationCode, $agentIds, $agentName);
     }
 
+    /**
+     * 优化版本：直接获取启用的助理版本，避免传入大量ID.
+     * @return MagicAgentVersionEntity[]
+     */
+    public function getEnabledAgentsByOrganization(string $organizationCode, int $page, int $pageSize, string $agentName): array
+    {
+        return $this->agentVersionRepository->getEnabledAgentsByOrganization($organizationCode, $page, $pageSize, $agentName);
+    }
+
+    /**
+     * 优化版本：获取启用助理的总数.
+     */
+    public function getEnabledAgentsByOrganizationCount(string $organizationCode, string $agentName): int
+    {
+        return $this->agentVersionRepository->getEnabledAgentsByOrganizationCount($organizationCode, $agentName);
+    }
+
     public function getAgentsFromMarketplace(array $agentIds, int $page, int $pageSize): array
     {
         return $this->agentVersionRepository->getAgentsFromMarketplace($agentIds, $page, $pageSize);
