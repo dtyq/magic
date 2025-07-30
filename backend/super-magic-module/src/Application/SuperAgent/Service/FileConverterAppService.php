@@ -228,18 +228,20 @@ class FileConverterAppService
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
             // Synchronously ensure sandbox is available and execute conversion in a coroutine
-            $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId);
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuthorization->getOrganizationCode());
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+            $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId, $fullWorkdir);
             // Create file conversion request
             $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileKeys, $stsTemporaryCredential, $requestDTO->options, $taskKey);
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
-            go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId) {
+            go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId,$fullWorkdir) {
                 $fileKeys = $fileRequest->getFileKeys();
                 $actualSandboxId = $fileRequest->getSandboxId();
                 CoContext::setRequestId($requestId);
                 $convertType = $fileRequest->getConvertType();
                 try {
-                    $response = $this->fileConverterService->convert($actualSandboxId, $projectId, $fileRequest);
+                    $response = $this->fileConverterService->convert($actualSandboxId, $projectId, $fileRequest, $fullWorkdir);
 
                     if (! $response->isSuccess()) {
                         $this->fileConvertStatusManager->setTaskFailed($taskKey, 'File conversion failed,reason: ' . $response->getMessage());
