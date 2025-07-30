@@ -235,7 +235,7 @@ class FileConverterAppService
             $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileKeys, $stsTemporaryCredential, $requestDTO->options, $taskKey);
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
-            go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId,$fullWorkdir) {
+            go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId, $fullWorkdir) {
                 $fileKeys = $fileRequest->getFileKeys();
                 $actualSandboxId = $fileRequest->getSandboxId();
                 CoContext::setRequestId($requestId);
