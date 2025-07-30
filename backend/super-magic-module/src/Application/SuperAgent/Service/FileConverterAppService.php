@@ -222,14 +222,16 @@ class FileConverterAppService
                 'project_id' => $projectId,
             ]);
 
+            // Get full workdir first
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuthorization->getOrganizationCode());
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+
             // Build file keys and get temporary credentials
-            $fileKeys = $this->buildFileKeys($validFiles);
+            $fileKeys = $this->buildFileKeys($validFiles, $fullWorkdir);
             $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
             // Synchronously ensure sandbox is available and execute conversion in a coroutine
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuthorization->getOrganizationCode());
-            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
             $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId, $fullWorkdir);
             // Create file conversion request
             $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileKeys, $stsTemporaryCredential, $requestDTO->options, $taskKey);
@@ -703,15 +705,26 @@ class FileConverterAppService
 
     /**
      * Builds an array of file keys.
+     * Only returns the relative path after $fullWorkdir.
      *
      * @param TaskFileEntity[] $validFiles list of valid files
-     * @return array an array of file keys
+     * @param string $fullWorkdir full work directory path
+     * @return array an array of relative file keys
      */
-    private function buildFileKeys(array $validFiles): array
+    private function buildFileKeys(array $validFiles, string $fullWorkdir): array
     {
         $fileKeys = [];
+        $fullWorkdir = rtrim($fullWorkdir, '/');
+
         foreach ($validFiles as $fileEntity) {
-            $fileKeys[] = $fileEntity->getFileKey();
+            $fullFileKey = $fileEntity->getFileKey();
+            // Remove the $fullWorkdir prefix to get relative path
+            if (str_starts_with($fullFileKey, $fullWorkdir . '/')) {
+                $fileKeys[] = substr($fullFileKey, strlen($fullWorkdir) + 1);
+            } else {
+                // Fallback: use original key if prefix doesn't match
+                $fileKeys[] = $fullFileKey;
+            }
         }
 
         return $fileKeys;
