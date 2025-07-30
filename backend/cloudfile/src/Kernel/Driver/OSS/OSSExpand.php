@@ -49,7 +49,7 @@ class OSSExpand implements ExpandInterface
 
     public function getUploadCredential(CredentialPolicy $credentialPolicy, array $options = []): array
     {
-        return $credentialPolicy->isSts() ? $this->getUploadCredentialBySts($credentialPolicy, $options) : $this->getUploadCredentialBySimple($credentialPolicy);
+        return $credentialPolicy->isSts() ? $this->getUploadCredentialBySts($credentialPolicy) : $this->getUploadCredentialBySimple($credentialPolicy);
     }
 
     public function getPreSignedUrls(array $fileNames, int $expires = 3600, array $options = []): array
@@ -424,20 +424,8 @@ class OSSExpand implements ExpandInterface
         if (EasyFileTools::isImage($path) && ! empty($options['image']['process'])) {
             $options['x-oss-process'] = $options['image']['process'];
         }
-
-        // Check if internal endpoint should be used for download URL
-        $useInternal = $options['use_internal_endpoint'] ?? false;
-        $client = $this->client;
-
-        // Create temporary client with internal endpoint if needed
-        if ($useInternal) {
-            $internalConfig = $this->config;
-            $internalConfig['endpoint'] = EasyFileTools::convertToInternalEndpoint($this->config['endpoint'], 'aliyun', true);
-            $client = $this->createClient($internalConfig);
-        }
-
         $path = ltrim($path, '/');
-        $url = $client->signUrl($this->bucket, $path, $timeout, OssClient::OSS_HTTP_GET, $options);
+        $url = $this->client->signUrl($this->bucket, $path, $timeout, OssClient::OSS_HTTP_GET, $options);
 
         if (! empty($this->config['cdn'])) {
             $urlParse = parse_url($url);
@@ -492,7 +480,7 @@ class OSSExpand implements ExpandInterface
     /**
      * @see https://help.aliyun.com/zh/oss/developer-reference/use-temporary-access-credentials-provided-by-sts-to-access-oss?spm=a2c4g.11186623.0.i4#concept-xzh-nzk-2gb
      */
-    private function getUploadCredentialBySts(CredentialPolicy $credentialPolicy, array $options = []): array
+    private function getUploadCredentialBySts(CredentialPolicy $credentialPolicy): array
     {
         $roleSessionName = $credentialPolicy->getRoleSessionName() ?: uniqid('easy_file_');
         $roleArn = $this->config['role_arn'] ?? '';
@@ -584,20 +572,12 @@ class OSSExpand implements ExpandInterface
             ],
         ])->request()->toArray();
 
-        // Check if should use internal endpoint for STS credentials
-        $endpoint = $this->config['endpoint'];
-        $useInternal = $options['use_internal_endpoint'] ?? false;
-        if ($useInternal) {
-            $endpoint = EasyFileTools::convertToInternalEndpoint($endpoint, 'aliyun', true);
-        }
-
         return [
             'region' => $region,
             'access_key_id' => $sts['Credentials']['AccessKeyId'],
             'access_key_secret' => $sts['Credentials']['AccessKeySecret'],
             'sts_token' => $sts['Credentials']['SecurityToken'],
             'bucket' => $this->config['bucket'],
-            'endpoint' => $endpoint,
             'dir' => $credentialPolicy->getDir(),
             'expires' => $expires,
             'callback' => '',

@@ -14,7 +14,6 @@ use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
-use Dtyq\CloudFile\Kernel\Utils\EasyFileTools;
 use League\Flysystem\FileAttributes;
 
 class FileServiceExpand implements ExpandInterface
@@ -38,23 +37,13 @@ class FileServiceExpand implements ExpandInterface
     {
         $data = $this->fileServiceApi->getPreSignedUrls($fileNames, $expires, $options);
         $list = [];
-        $useInternal = $options['use_internal_endpoint'] ?? false;
-
         foreach ($data['list'] ?? [] as $item) {
             if (empty($item['path']) || empty($item['url']) || empty($item['expires']) || empty($item['file_name'])) {
                 continue;
             }
-
-            $url = $item['url'];
-            // Convert to internal endpoint if requested
-            if ($useInternal) {
-                $platform = $this->detectPlatformFromUrl($url);
-                $url = EasyFileTools::convertToInternalEndpoint($url, $platform, true);
-            }
-
             $list[$item['file_name']] = new FilePreSignedUrl(
                 $item['file_name'],
-                $url,
+                $item['url'],
                 $item['headers'] ?? [],
                 $item['expires'],
                 $item['path']
@@ -91,21 +80,11 @@ class FileServiceExpand implements ExpandInterface
     {
         $list = $this->fileServiceApi->getUrls($paths, $downloadNames, $expires, $options);
         $links = [];
-        $useInternal = $options['use_internal_endpoint'] ?? false;
-
         foreach ($list as $item) {
             if (empty($item['file_path']) || empty($item['url']) || empty($item['expires'])) {
                 continue;
             }
-
-            $url = $item['url'];
-            // Convert to internal endpoint if requested
-            if ($useInternal) {
-                $platform = $this->detectPlatformFromUrl($url);
-                $url = EasyFileTools::convertToInternalEndpoint($url, $platform, true);
-            }
-
-            $links[$item['file_path']] = new FileLink($item['file_path'], $url, $item['expires'], $item['download_name'] ?? '');
+            $links[$item['file_path']] = new FileLink($item['file_path'], $item['url'], $item['expires'], $item['download_name'] ?? '');
         }
         return $links;
     }
@@ -123,36 +102,5 @@ class FileServiceExpand implements ExpandInterface
     public function downloadByChunks(string $filePath, string $localPath, ChunkDownloadConfig $config, array $options = []): void
     {
         throw new CloudFileException('暂不支持');
-    }
-
-    /**
-     * Detect cloud platform from URL to determine correct endpoint conversion.
-     *
-     * @param string $url The URL to analyze
-     * @return string Platform identifier (aliyun, tos, obs, etc.)
-     */
-    private function detectPlatformFromUrl(string $url): string
-    {
-        $host = parse_url($url, PHP_URL_HOST);
-        if (! $host) {
-            return 'unknown';
-        }
-
-        // Alibaba Cloud OSS patterns
-        if (strpos($host, '.aliyuncs.com') !== false) {
-            return 'aliyun';
-        }
-
-        // ByteDance TOS patterns
-        if (strpos($host, '.volces.com') !== false || strpos($host, '.ivolces.com') !== false) {
-            return 'tos';
-        }
-
-        // Huawei Cloud OBS patterns
-        if (strpos($host, '.myhuaweicloud.com') !== false) {
-            return 'obs';
-        }
-
-        return 'unknown';
     }
 }

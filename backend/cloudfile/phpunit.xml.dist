@@ -11,7 +11,6 @@
     <testsuites>
         <testsuite name="Application Test Suite">
             <directory>./tests/</directory>
-            <exclude>./tests/InternalNetwork/</exclude>
         </testsuite>
     </testsuites>
     <filter>

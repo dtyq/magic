@@ -27,16 +27,16 @@ class FileServiceSimpleUpload extends SimpleUpload
      */
     protected array $simpleUploadInstances = [];
 
-    public function uploadObject(array $credential, UploadFile $uploadFile, array $options = []): void
+    public function uploadObject(array $credential, UploadFile $uploadFile): void
     {
         $simpleUpload = $this->getSimpleUpload($credential);
-        $simpleUpload->uploadObject($credential, $uploadFile, $options);
+        $simpleUpload->uploadObject($credential, $uploadFile);
     }
 
-    public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile, array $options = []): void
+    public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
     {
         $simpleUpload = $this->getSimpleUpload($credential);
-        $simpleUpload->appendUploadObject($credential, $appendUploadFile, $options);
+        $simpleUpload->appendUploadObject($credential, $appendUploadFile);
     }
 
     /**
@@ -47,10 +47,10 @@ class FileServiceSimpleUpload extends SimpleUpload
      * @param ChunkUploadFile $chunkUploadFile 分片上传文件对象
      * @throws CloudFileException
      */
-    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile, array $options = []): void
+    public function uploadObjectByChunks(array $credential, ChunkUploadFile $chunkUploadFile): void
     {
         $simpleUpload = $this->getSimpleUpload($credential);
-        $simpleUpload->uploadObjectByChunks($credential, $chunkUploadFile, $options);
+        $simpleUpload->uploadObjectByChunks($credential, $chunkUploadFile);
     }
 
     /**

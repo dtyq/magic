@@ -98,7 +98,7 @@ class FilesystemProxy extends Filesystem
         $credentialPolicy->setSts(false);
         $credentialPolicy->setContentType($uploadFile->getMimeType());
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
-        $this->getSimpleUploadInstance($this->adapterName)->uploadObject($credential, $uploadFile, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->uploadObject($credential, $uploadFile);
         $uploadFile->release();
     }
 
@@ -120,7 +120,7 @@ class FilesystemProxy extends Filesystem
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
 
         // Call platform-specific chunk upload implementation
-        $this->getSimpleUploadInstance($this->adapterName)->uploadObjectByChunks($credential, $chunkUploadFile, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->uploadObjectByChunks($credential, $chunkUploadFile);
 
         // Release file resources
         $chunkUploadFile->release();
@@ -134,7 +134,7 @@ class FilesystemProxy extends Filesystem
         $credentialPolicy->setSts(true);
         $credentialPolicy->setContentType($appendUploadFile->getMimeType());
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
-        $this->getSimpleUploadInstance($this->adapterName)->appendUploadObject($credential, $appendUploadFile, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->appendUploadObject($credential, $appendUploadFile);
         $appendUploadFile->release();
     }
 
