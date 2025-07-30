@@ -84,8 +84,9 @@ class ProjectAppService extends AbstractAppService
 
         // 如果指定了工作目录，需要从工作目录里提取项目id
         $projectId = '';
-        if (! empty($requestDTO->getWorkDir()) && WorkDirectoryUtil::isValidWorkDirectory($requestDTO->getWorkDir(), $dataIsolation->getCurrentUserId())) {
-            $projectId = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($requestDTO->getWorkDir(), $dataIsolation->getCurrentUserId());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        if (! empty($requestDTO->getWorkDir()) && WorkDirectoryUtil::isValidWorkDirectory($fullPrefix, $requestDTO->getWorkDir())) {
+            $projectId = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($requestDTO->getWorkDir());
         }
 
         Db::beginTransaction();
@@ -449,6 +450,8 @@ class ProjectAppService extends AbstractAppService
             $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
+            // 设置排序字段
+            $dto->sort = $entity->getSort();
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
