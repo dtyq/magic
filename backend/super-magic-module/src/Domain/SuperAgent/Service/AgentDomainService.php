@@ -471,6 +471,9 @@ class AgentDomainService
         $userInfo = UserInfoValueObject::fromArray($userInfoArray);
         $translator = di(TranslatorInterface::class);
         $language = $translator->getLocale();
+        $this->logger->info('[Sandbox][App] Language generateInitializationInfo', [
+            'language' => $language,
+        ]);
         $messageMetadata = new MessageMetadata(
             agentUserId: $taskContext->getAgentUserId(),
             userId: $dataIsolation->getCurrentUserId(),

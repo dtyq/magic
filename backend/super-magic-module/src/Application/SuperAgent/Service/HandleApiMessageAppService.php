@@ -7,12 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -21,7 +19,6 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
@@ -29,15 +26,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -49,28 +42,26 @@ use function Hyperf\Translation\trans;
  * Handle User Message Application Service
  * Responsible for handling the complete business process of users sending messages to agents.
  */
-class HandleTaskMessageAppService extends AbstractAppService
+class HandleApiMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
-        private readonly AgentDomainService $agentDomainService,
+        private readonly ClientMessageAppService $clientMessageAppService,
+        private readonly AgentAppService $agentAppService,
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
-        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
 
-    /*
-    public function handleInternalMessage(DataIsolation $dataIsolation, CreateAgentTaskRequestDTO $dto)
+    public function handleInternalMessage(DataIsolation $dataIsolation, CreateTaskApiRequestDTO $dto)
     {
         // Get topic information
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getTopicId());
@@ -90,9 +81,9 @@ class HandleTaskMessageAppService extends AbstractAppService
             errMsg: 'User manually terminated task',
         );
         // Get sandbox status, if sandbox is running, send interrupt command
-        $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
+        $result = $this->agentAppService->getSandboxStatus($topicEntity->getSandboxId());
         if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            $this->agentAppService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
         } else {
             // Send interrupt message directly to client
             $this->clientMessageAppService->sendInterruptMessageToClient(
@@ -103,13 +94,12 @@ class HandleTaskMessageAppService extends AbstractAppService
                 interruptReason: $dto->getPrompt() ?: trans('agent.agent_stopped')
             );
         }
-    }*/
-
+    }
     /*
     * user send message to agent
     */
 
-    public function handleApiMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): array
+    public function handleApiMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
     {
         $topicId = 0;
         $taskId = '';
@@ -129,6 +119,113 @@ class HandleTaskMessageAppService extends AbstractAppService
             if ($taskMode === '') {
                 $taskMode = $topicEntity->getTaskMode();
             }
+            $data = [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'workspace_id' => $topicEntity->getWorkspaceId(),
+                'project_id' => $topicEntity->getProjectId(),
+                'topic_id' => $topicId,
+                'task_id' => '', // Initially empty, this is agent's task id
+                'task_mode' => $taskMode,
+                'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
+                'prompt' => $userMessageDTO->getPrompt(),
+                'attachments' => $userMessageDTO->getAttachments(),
+                'mentions' => $userMessageDTO->getMentions(),
+                'task_status' => TaskStatus::WAITING->value,
+                'work_dir' => $topicEntity->getWorkDir() ?? '',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+            $taskEntity = TaskEntity::fromArray($data);
+            // Initialize task
+            $taskEntity = $this->taskDomainService->initTopicTask(
+                dataIsolation: $dataIsolation,
+                topicEntity: $topicEntity,
+                taskEntity: $taskEntity
+            );
+
+            $taskId = (string) $taskEntity->getId();
+
+            // Save user information
+            $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
+
+            // Send message to agent
+            $taskContext = new TaskContext(
+                task: $taskEntity,
+                dataIsolation: $dataIsolation,
+                chatConversationId: $userMessageDTO->getChatConversationId(),
+                chatTopicId: $userMessageDTO->getChatTopicId(),
+                agentUserId: $userMessageDTO->getAgentUserId(),
+                sandboxId: $topicEntity->getSandboxId(),
+                taskId: (string) $taskEntity->getId(),
+                instruction: ChatInstruction::FollowUp,
+                agentMode: $userMessageDTO->getTopicMode()->value,
+            );
+            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
+            $taskEntity->setSandboxId($sandboxID);
+
+            // Update task status
+            $this->topicTaskAppService->updateTaskStatus(
+                dataIsolation: $dataIsolation,
+                task: $taskEntity,
+                status: TaskStatus::RUNNING
+            );
+        } catch (EventException $e) {
+            $this->logger->error(sprintf(
+                'Initialize task, event processing failed: %s',
+                $e->getMessage()
+            ));
+            // Send error message directly to client
+            // $this->clientMessageAppService->sendErrorMessageToClient(
+            //     topicId: $topicId,
+            //     taskId: $taskId,
+            //     chatTopicId: $userMessageDTO->getChatTopicId(),
+            //     chatConversationId: $userMessageDTO->getChatConversationId(),
+            //     errorMessage: $e->getMessage()
+            // );
+            throw new BusinessException('Initialize task, event processing failed', 500);
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
+                $e->getMessage(),
+                $dataIsolation->getCurrentUserId(),
+                $e->getFile(),
+                $e->getLine(),
+                $e->getTraceAsString()
+            ));
+            // Send error message directly to client
+            // $this->clientMessageAppService->sendErrorMessageToClient(
+            //     topicId: $topicId,
+            //     taskId: $taskId,
+            //     chatTopicId: $userMessageDTO->getChatTopicId(),
+            //     chatConversationId: $userMessageDTO->getChatConversationId(),
+            //     errorMessage: trans('agent.initialize_error')
+            // );
+            throw new BusinessException('Initialize task failed', 500);
+        }
+    }
+
+    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): array
+    {
+        $topicId = 0;
+        $taskId = '';
+        try {
+            // Get topic information
+            $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
+            if (is_null($topicEntity)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+            }
+            $topicId = $topicEntity->getId();
+
+            // Check message before task starts
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
+
+            // Get task mode from DTO, fallback to topic's task mode if empty
+            $taskMode = $userMessageDTO->getTaskMode();
+            if ($taskMode === '') {
+                $taskMode = $topicEntity->getTaskMode();
+            }
+
             $data = [
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
@@ -217,167 +314,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         }
     }
 
-    public function initSandbox(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): array
-    {
-        $topicId = 0;
-        $taskId = '';
-        try {
-            // Get topic information
-            $topicEntity = $this->topicDomainService->getTopicById($userMessageDTO->getTopicId());
-            if (is_null($topicEntity)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
-            }
-            $topicId = $topicEntity->getId();
-
-            // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
-
-            // Get task mode from DTO, fallback to topic's task mode if empty
-            $taskMode = $userMessageDTO->getTaskMode();
-            if ($taskMode === '') {
-                $taskMode = $topicEntity->getTaskMode();
-            }
-
-            $data = [
-                'user_id' => $dataIsolation->getCurrentUserId(),
-                'workspace_id' => $topicEntity->getWorkspaceId(),
-                'project_id' => $topicEntity->getProjectId(),
-                'topic_id' => $topicId,
-                'task_id' => '', // Initially empty, this is agent's task id
-                'task_mode' => $taskMode,
-                'topic_mode' => $userMessageDTO->getTopicMode()->value,
-                'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
-                'prompt' => $userMessageDTO->getPrompt(),
-                'attachments' => $userMessageDTO->getAttachments(),
-                'mentions' => $userMessageDTO->getMentions(),
-                'task_status' => TaskStatus::WAITING->value,
-                'work_dir' => $topicEntity->getWorkDir() ?? '',
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ];
-
-            $taskEntity = TaskEntity::fromArray($data);
-            // Initialize task
-            $taskEntity = $this->taskDomainService->initTopicTask(
-                dataIsolation: $dataIsolation,
-                topicEntity: $topicEntity,
-                taskEntity: $taskEntity
-            );
-
-            $taskId = (string) $taskEntity->getId();
-
-            // Save user information
-            $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
-
-            // Send message to agent
-            $taskContext = new TaskContext(
-                task: $taskEntity,
-                dataIsolation: $dataIsolation,
-                chatConversationId: $userMessageDTO->getChatConversationId(),
-                chatTopicId: $userMessageDTO->getChatTopicId(),
-                agentUserId: $userMessageDTO->getAgentUserId(),
-                sandboxId: $topicEntity->getSandboxId(),
-                taskId: (string) $taskEntity->getId(),
-                instruction: ChatInstruction::FollowUp,
-                agentMode: $userMessageDTO->getTopicMode()->value,
-            );
-            $sandboxID = $this->createAgent($dataIsolation, $taskContext);
-            $taskEntity->setSandboxId($sandboxID);
-
-            // Update task status
-            $this->topicTaskAppService->updateTaskStatus(
-                dataIsolation: $dataIsolation,
-                task: $taskEntity,
-                status: TaskStatus::RUNNING
-            );
-
-            return ['sandbox_id' => $sandboxID, 'task_id' => $taskId];
-        } catch (EventException $e) {
-            $this->logger->error(sprintf(
-                'Initialize task, event processing failed: %s',
-                $e->getMessage()
-            ));
-            // Send error message directly to client
-            // $this->clientMessageAppService->sendErrorMessageToClient(
-            //     topicId: $topicId,
-            //     taskId: $taskId,
-            //     chatTopicId: $userMessageDTO->getChatTopicId(),
-            //     chatConversationId: $userMessageDTO->getChatConversationId(),
-            //     errorMessage: $e->getMessage()
-            // );
-            throw new BusinessException('Initialize task, event processing failed:' . $e->getMessage(), 500);
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s trace: %s',
-                $e->getMessage(),
-                $dataIsolation->getCurrentUserId(),
-                $e->getFile(),
-                $e->getLine(),
-                $e->getTraceAsString()
-            ));
-            // Send error message directly to client
-            // $this->clientMessageAppService->sendErrorMessageToClient(
-            //     topicId: $topicId,
-            //     taskId: $taskId,
-            //     chatTopicId: $userMessageDTO->getChatTopicId(),
-            //     chatConversationId: $userMessageDTO->getChatConversationId(),
-            //     errorMessage: trans('agent.initialize_error')
-            // );
-            throw new BusinessException('Initialize task failed:' . $e->getMessage(), 500);
-        }
-    }
-
-    public function sendChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
-    {
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
-        if (is_null($topicEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
-        }
-
-        $data = [
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'workspace_id' => $topicEntity->getWorkspaceId(),
-            'project_id' => $topicEntity->getProjectId(),
-            'topic_id' => $topicEntity->getId(),
-            'task_id' => '', // Initially empty, this is agent's task id
-            'task_mode' => $topicEntity->getTaskMode(),
-            'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
-            'prompt' => $userMessageDTO->getPrompt(),
-            'attachments' => $userMessageDTO->getAttachments(),
-            'mentions' => $userMessageDTO->getMentions(),
-            'task_status' => TaskStatus::WAITING->value,
-            'work_dir' => $topicEntity->getWorkDir() ?? '',
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $taskEntity = TaskEntity::fromArray($data);
-        // Initialize task
-        $taskEntity = $this->taskDomainService->initTopicTask(
-            dataIsolation: $dataIsolation,
-            topicEntity: $topicEntity,
-            taskEntity: $taskEntity
-        );
-
-        // Send message to agent
-        $taskContext = new TaskContext(
-            task: $taskEntity,
-            dataIsolation: $dataIsolation,
-            chatConversationId: $userMessageDTO->getChatConversationId(),
-            chatTopicId: $userMessageDTO->getChatTopicId(),
-            agentUserId: $userMessageDTO->getAgentUserId(),
-            sandboxId: $topicEntity->getSandboxId(),
-            taskId: (string) $taskEntity->getId(),
-            instruction: ChatInstruction::FollowUp,
-            agentMode: $userMessageDTO->getTopicMode()->value,
-        );
-        $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
-    }
-
-    /**
-     * Summary of getUserAuthorization.
-     */
-    public function getUserAuthorization(string $apiKey, string $uid = ''): ?MagicUserEntity
+    public function getUserAuthorization(string $apiKey, string $uid = ''): MagicUserEntity
     {
         $accessToken = $this->accessTokenDomainService->getByAccessToken($apiKey);
         if (empty($accessToken)) {
@@ -393,28 +330,6 @@ class HandleTaskMessageAppService extends AbstractAppService
         }
 
         return $this->userDomainService->getByUserId($uid);
-    }
-
-    public function getTask(int $taskId): TaskEntity
-    {
-        $taskEntity = $this->taskDomainService->getTaskById($taskId);
-
-        var_dump($taskEntity, '=====taskEntity');
-        if (empty($taskEntity)) {
-            // 抛异常，任务不存在
-            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
-        }
-        return $taskEntity;
-    }
-
-    public function executeScriptTask(CreateScriptTaskRequestDTO $requestDTO): void
-    {
-        $scriptTaskEntity = new ScriptTaskEntity();
-        $scriptTaskEntity->setSandboxId($requestDTO->getSandboxId());
-        $scriptTaskEntity->setTaskId($requestDTO->getTaskId());
-        $scriptTaskEntity->setScriptName($requestDTO->getScriptName());
-        $scriptTaskEntity->setArguments($requestDTO->getArguments());
-        $this->taskDomainService->executeScriptTask($scriptTaskEntity);
     }
 
     /**
@@ -453,7 +368,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         }
         // Batch query status
         $updateSandboxIds = [];
-        $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
+        $result = $this->agentAppService->getBatchSandboxStatus($sandboxIds);
         foreach ($result->getSandboxStatuses() as $sandboxStatus) {
             if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
                 $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
@@ -475,57 +390,17 @@ class HandleTaskMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), (string) $taskContext->getTopicId(), $fullWorkdir);
+        $sandboxId = $this->agentAppService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
         $taskContext->setSandboxId($sandboxId);
 
-        // user long term memory
-        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-        );
-
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
+        $this->agentAppService->initializeAgent($dataIsolation, $taskContext);
 
         // Wait for workspace to be ready
-        $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
+        $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-        //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
-
-        // Send message to agent
-        return $sandboxId;
-    }
-
-    /**
-     * Initialize agent environment.
-     */
-    private function createAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
-    {
-        // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), (string) $taskContext->getTopicId(), $fullWorkdir);
-        $taskContext->setSandboxId($sandboxId);
-
-        // user long term memory
-        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-        );
-
-        // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
-
-        // Wait for workspace to be ready
-        $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
-
-        // Send message to agent
-        //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
+        //  $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;
