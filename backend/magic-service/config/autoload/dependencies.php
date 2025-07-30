@@ -30,6 +30,8 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutorInterface;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
+use App\Application\ModelGateway\Component\Points\PointComponent;
+use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
@@ -380,6 +382,9 @@ $dependencies = [
 
     // package filter
     PackageFilterInterface::class => DefaultPackageFilter::class,
+
+    // point-component
+    PointComponentInterface::class => PointComponent::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并
