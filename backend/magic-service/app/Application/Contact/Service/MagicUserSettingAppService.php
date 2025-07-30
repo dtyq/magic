@@ -65,25 +65,6 @@ class MagicUserSettingAppService extends AbstractContactAppService
         return $this->get($authorization, $key);
     }
 
-    public function saveProjectTopicModelConfig(Authenticatable $authorization, string $topicId, array $model): MagicUserSettingEntity
-    {
-        /* @phpstan-ignore-next-line */
-        $dataIsolation = $this->createDataIsolation($authorization);
-        $entity = new MagicUserSettingEntity();
-        $entity->setKey(UserSettingKey::genSuperMagicProjectTopicModel($topicId));
-        $entity->setValue([
-            'model' => $model,
-        ]);
-        return $this->magicUserSettingDomainService->save($dataIsolation, $entity);
-    }
-
-    public function getProjectTopicModelConfig(Authenticatable $authorization, string $topicId): ?MagicUserSettingEntity
-    {
-        $key = UserSettingKey::genSuperMagicProjectTopicModel($topicId);
-        /* @phpstan-ignore-next-line */
-        return $this->get($authorization, $key);
-    }
-
     /**
      * @param MagicUserAuthorization $authorization
      */
