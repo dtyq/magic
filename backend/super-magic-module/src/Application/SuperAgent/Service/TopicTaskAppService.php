@@ -26,6 +26,7 @@ use Hyperf\Amqp\Producer;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use Hyperf\Contract\TranslatorInterface;
 
 class TopicTaskAppService extends AbstractAppService
 {
@@ -37,6 +38,7 @@ class TopicTaskAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         protected LockerInterface $locker,
         protected LoggerFactory $loggerFactory,
+        protected TranslatorInterface $translator,
     ) {
         $this->logger = $this->loggerFactory->get(get_class($this));
     }
@@ -50,6 +52,11 @@ class TopicTaskAppService extends AbstractAppService
     {
         // If there's no valid topicId, cannot acquire lock, process directly or report error
         $sandboxId = $messageDTO->getMetadata()->getSandboxId();
+        $metadata = $messageDTO->getMetadata();
+        $language = $this->translator->getLocale();
+        $metadata->setLanguage($language);
+        $messageDTO->setMetadata($metadata);
+        $this->logger->info('deliverTopicTaskMessage', ['messageData' => $messageDTO->toArray()]);
         if (empty($sandboxId)) {
             $this->logger->warning('Cannot acquire lock without a valid sandboxId in deliverTopicTaskMessage.', ['messageData' => $messageDTO->toArray()]);
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'message_missing_topic_id_for_locking');
