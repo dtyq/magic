@@ -82,6 +82,49 @@ class MagicAgentVersionRepository implements MagicAgentVersionRepositoryInterfac
     }
 
     /**
+     * 优化版本：直接通过JOIN查询获取启用的助理版本，避免传入大量ID.
+     * @return MagicAgentVersionEntity[]
+     */
+    public function getEnabledAgentsByOrganization(string $organizationCode, int $page, int $pageSize, string $agentName): array
+    {
+        $offset = ($page - 1) * $pageSize;
+
+        $query = $this->agentVersionModel::query()
+            ->select('magic_bot_versions.*')
+            ->join('magic_bots', 'magic_bots.bot_version_id', '=', 'magic_bot_versions.id')
+            ->where('magic_bot_versions.organization_code', $organizationCode)
+            ->where('magic_bot_versions.enterprise_release_status', MagicAgentVersionStatus::ENTERPRISE_PUBLISHED->value)
+            ->where('magic_bots.organization_code', $organizationCode)
+            ->where('magic_bots.status', MagicAgentVersionStatus::ENTERPRISE_ENABLED->value)
+            ->when(! empty($agentName), function ($query) use ($agentName) {
+                $query->where('magic_bot_versions.robot_name', 'like', "%{$agentName}%");
+            })
+            ->orderByDesc('magic_bot_versions.id')
+            ->skip($offset)
+            ->take($pageSize);
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+        return MagicAgentVersionFactory::toEntities($result);
+    }
+
+    /**
+     * 优化版本：获取启用助理的总数.
+     */
+    public function getEnabledAgentsByOrganizationCount(string $organizationCode, string $agentName): int
+    {
+        return $this->agentVersionModel::query()
+            ->join('magic_bots', 'magic_bots.bot_version_id', '=', 'magic_bot_versions.id')
+            ->where('magic_bot_versions.organization_code', $organizationCode)
+            ->where('magic_bot_versions.enterprise_release_status', MagicAgentVersionStatus::ENTERPRISE_PUBLISHED->value)
+            ->where('magic_bots.organization_code', $organizationCode)
+            ->where('magic_bots.status', MagicAgentVersionStatus::ENTERPRISE_ENABLED->value)
+            ->when(! empty($agentName), function ($query) use ($agentName) {
+                $query->where('magic_bot_versions.robot_name', 'like', "%{$agentName}%");
+            })
+            ->count();
+    }
+
+    /**
      * @return MagicAgentVersionEntity[]
      */
     public function getAgentsFromMarketplace(array $agentIds, int $page, int $pageSize): array

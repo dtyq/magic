@@ -86,45 +86,6 @@ class MagicAgentAppService extends AbstractAppService
         return $data;
     }
 
-    /**
-     * @param MagicUserAuthorization $authorization
-     * @return array{total: int, list: array<MagicAgentEntity>, avatars: array<FileLink>}
-     */
-    public function queriesAvailable(Authenticatable $authorization, MagicAgentQuery $query, Page $page): array
-    {
-        // 个人具有权限的
-        $permissionDataIsolation = new PermissionDataIsolation($authorization->getOrganizationCode(), $authorization->getId());
-        $agentResources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-            $permissionDataIsolation,
-            ResourceType::AgentCode,
-            [$authorization->getId()]
-        )[$authorization->getId()] ?? [];
-        $selfAgentIds = array_keys($agentResources);
-
-        // 企业内部发布的
-        $orgAgentIds = $this->magicAgentDomainService->getEnterpriseAvailableAgentIds($authorization->getOrganizationCode());
-
-        $contactDataIsolation = ContactDataIsolation::create($permissionDataIsolation->getCurrentOrganizationCode(), $permissionDataIsolation->getCurrentUserId());
-
-        // 过滤可见性
-        $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactDataIsolation, $permissionDataIsolation->getCurrentUserId(), true);
-
-        $agentIds = array_values(array_unique(array_merge($selfAgentIds, $orgAgentIds)));
-
-        $query->setIds($agentIds);
-        $query->setWithLastVersionInfo(true);
-
-        $data = $this->magicAgentDomainService->queries($query, $page);
-        $avatars = [];
-        foreach ($data['list'] as $agent) {
-            $avatars[] = $agent->getAgentAvatar();
-            // 仅可读即可
-            $agent->setUserOperation(Operation::Read->value);
-        }
-        $data['avatars'] = $this->fileDomainService->getLinks($authorization->getOrganizationCode(), $avatars);
-        return $data;
-    }
-
     // 创建/修改助理
     #[Transactional]
     /**
@@ -200,7 +161,7 @@ class MagicAgentAppService extends AbstractAppService
             ];
         }
 
-        $agentVersionIds = array_filter(array_map(function ($agent) {
+        $agentVersionIds = array_filter(array_map(static function ($agent) {
             return $agent->getAgentVersionId();
         }, $data['list']));
 
@@ -349,6 +310,87 @@ class MagicAgentAppService extends AbstractAppService
         ];
     }
 
+    /**
+     * 获取聊天模式可用助理列表
+     * 包含：1.官方组织的助理（在最前面） 2.本组织可见的助理.
+     */
+    public function getChatModeAvailableAgents(Authenticatable $authorization, int $page, int $pageSize, string $agentName): array
+    {
+        if (! $authorization instanceof MagicUserAuthorization) {
+            return $this->getEmptyPageResult($page, $pageSize);
+        }
+
+        $organizationCode = $authorization->getOrganizationCode();
+        $officialOrganizationCode = config('service_provider.office_organization', '');
+
+        // 判断是否是官方组织，如果是官方组织，直接返回组织内助理
+        if ($organizationCode === $officialOrganizationCode) {
+            return $this->getAgentsByOrganizationPage($authorization, $page, $pageSize, $agentName);
+        }
+
+        // 非官方组织：需要合并官方助理和组织助理
+        // 1. 获取官方助理（全部）
+        $officialAgents = $this->getOfficialAgents($authorization, $agentName);
+        $officialAgentCount = count($officialAgents);
+
+        // 2. 计算当前页面的偏移量
+        $offset = ($page - 1) * $pageSize;
+
+        // 3. 初始化结果数组
+        $resultAgents = [];
+        // 4. 处理分页逻辑
+        if ($offset < $officialAgentCount) {
+            // 当前页面需要包含官方助理
+            $officialPageAgents = array_slice($officialAgents, $offset, $pageSize);
+            $resultAgents = array_merge($resultAgents, $officialPageAgents);
+            $remainingPageSize = $pageSize - count($officialPageAgents);
+
+            // 如果还有剩余空间，获取组织助理；否则只获取总数用于分页计算
+            $organizationPageSize = $remainingPageSize > 0 ? $remainingPageSize : 1;
+            $organizationAgents = $this->getAgentsByOrganizationPage($authorization, 1, $organizationPageSize, $agentName);
+
+            if ($remainingPageSize > 0) {
+                $resultAgents = array_merge($resultAgents, $organizationAgents['list']);
+            }
+            $organizationTotal = $organizationAgents['total'];
+        } else {
+            // 当前页面只需要组织助理
+            $organizationOffset = $offset - $officialAgentCount;
+            $organizationPage = (int) ($organizationOffset / $pageSize) + 1;
+            $organizationSkip = $organizationOffset % $pageSize;
+
+            // 整页组织助理的情况
+            if ($organizationSkip === 0) {
+                $organizationAgents = $this->getAgentsByOrganizationPage($authorization, $organizationPage, $pageSize, $agentName);
+                $resultAgents = $organizationAgents['list'];
+                $organizationTotal = $organizationAgents['total'];
+            } else {
+                // 跨页获取组织助理
+                $firstPageAgents = $this->getAgentsByOrganizationPage($authorization, $organizationPage, $pageSize, $agentName);
+                $firstPageData = array_slice($firstPageAgents['list'], $organizationSkip);
+                $resultAgents = array_merge($resultAgents, $firstPageData);
+                $organizationTotal = $firstPageAgents['total'];
+
+                // 如果第一页数据不够，继续从下一页获取
+                $remainingSize = $pageSize - count($firstPageData);
+                if ($remainingSize > 0) {
+                    $secondPageAgents = $this->getAgentsByOrganizationPage($authorization, $organizationPage + 1, $remainingSize, $agentName);
+                    $resultAgents = array_merge($resultAgents, array_slice($secondPageAgents['list'], 0, $remainingSize));
+                }
+            }
+        }
+
+        // 5. 计算总数（非官方组织的助理不会和官方助理重复）
+        $totalCount = $officialAgentCount + $organizationTotal;
+
+        return [
+            'page' => $page,
+            'page_size' => $pageSize,
+            'total' => $totalCount,
+            'list' => $resultAgents,
+        ];
+    }
+
     // 获取应用市场助理
     public function getAgentsFromMarketplacePage(int $page, int $pageSize): array
     {
@@ -394,7 +436,7 @@ class MagicAgentAppService extends AbstractAppService
             if (! in_array($currentUserId, array_column($visibilityConfig->getUsers(), 'id'))) {
                 $user = new User();
                 $user->setId($currentUserId);
-                $agentVersionDTO->getVisibilityConfig()->addUser($user);
+                $agentVersionDTO->getVisibilityConfig()?->addUser($user);
             }
         }
         $agent = $this->magicAgentDomainService->getAgentById($agentVersionDTO->getAgentId());
@@ -490,6 +532,7 @@ class MagicAgentAppService extends AbstractAppService
     }
 
     // 获取助理最新版本号
+
     /**
      * @param MagicUserAuthorization $authorization
      */
@@ -932,7 +975,7 @@ class MagicAgentAppService extends AbstractAppService
         // 创建Flow
         $magicFLowDTO = new MagicFlowDTO($config['flow']);
         $magicFlowAssembler = new MagicFlowAssembler();
-        $magicFlowDO = $magicFlowAssembler->createMagicFlowDO($magicFLowDTO);
+        $magicFlowDO = $magicFlowAssembler::createMagicFlowDO($magicFLowDTO);
 
         // 创建版本
         $agentVersionDTO = new MagicAgentVersionDTO();
@@ -981,13 +1024,39 @@ class MagicAgentAppService extends AbstractAppService
     }
 
     /**
+     * 获取官方助理列表.
+     */
+    private function getOfficialAgents(MagicUserAuthorization $authorization, string $agentName): array
+    {
+        $officialOrganizationCode = config('service_provider.office_organization', '');
+        if (empty($officialOrganizationCode)) {
+            return [];
+        }
+
+        // 复制当前授权对象并修改组织代码
+        $officialAuthorization = clone $authorization;
+        $officialAuthorization->setOrganizationCode($officialOrganizationCode);
+
+        // 直接使用 getAgentsByOrganizationPage 获取官方组织的助理
+        $officialAgentsResult = $this->getAgentsByOrganizationPage($officialAuthorization, 1, 100, $agentName);
+        $officialAgents = $officialAgentsResult['list'];
+
+        // 标记为官方助理
+        foreach ($officialAgents as &$agent) {
+            $agent['is_official'] = true;
+        }
+
+        return $officialAgents;
+    }
+
+    /**
      * 获取启用的助理版本列表.
+     * 优化：直接在领域服务层进行JOIN查询，避免传入过多ID.
      */
     private function getEnabledAgentVersions(string $organizationCode, int $page, int $pageSize, string $agentName): array
     {
-        $enabledAgents = $this->magicAgentDomainService->getEnabledAgents();
-        $agentVersionIds = array_column($enabledAgents, 'agent_version_id');
-        return $this->magicAgentVersionDomainService->getAgentsByOrganization($organizationCode, $agentVersionIds, $page, $pageSize, $agentName);
+        // 直接调用领域服务获取该组织下启用的助理版本，避免先获取所有ID再查询
+        return $this->magicAgentVersionDomainService->getEnabledAgentsByOrganization($organizationCode, $page, $pageSize, $agentName);
     }
 
     /**
@@ -1026,14 +1095,13 @@ class MagicAgentAppService extends AbstractAppService
                     $department = $departmentsMap[$departmentId];
                     $pathStr = $department->getPath();
                     // 路径格式为 "-1/parent_id/department_id"，去除前导的-1
-                    $pathIds = array_filter(explode('/', trim($pathStr, '/')), function ($id) {
+                    $allDepartmentIds[] = array_filter(explode('/', trim($pathStr, '/')), function ($id) {
                         return $id !== '-1';
                     });
-                    $allDepartmentIds = array_merge($allDepartmentIds, $pathIds);
                 }
-                $allDepartmentIds[] = $departmentId;
+                $allDepartmentIds[] = [$departmentId];
             }
-
+            $allDepartmentIds = array_merge(...$allDepartmentIds);
             // 去重，确保所有部门ID唯一
             $userDepartmentIds = array_unique($allDepartmentIds);
         }
@@ -1081,12 +1149,11 @@ class MagicAgentAppService extends AbstractAppService
 
     /**
      * 获取助理总数.
+     * 优化：使用JOIN查询避免传入大量ID.
      */
     private function getTotalAgentsCount(string $organizationCode, string $agentName): int
     {
-        $enabledAgents = $this->magicAgentDomainService->getEnabledAgents();
-        $agentVersionIds = array_column($enabledAgents, 'agent_version_id');
-        return $this->magicAgentVersionDomainService->getAgentsByOrganizationCount($organizationCode, $agentVersionIds, $agentName);
+        return $this->magicAgentVersionDomainService->getEnabledAgentsByOrganizationCount($organizationCode, $agentName);
     }
 
     /**
@@ -1109,14 +1176,32 @@ class MagicAgentAppService extends AbstractAppService
      */
     private function enrichAgentAvatarAndFriendStatus(array &$agentVersions, MagicUserAuthorization $authorization): void
     {
+        // 批量收集需要获取链接的文件路径和flow_code
+        $avatarPaths = [];
         $flowCodes = [];
-        foreach ($agentVersions as &$agent) {
-            $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $agent['agent_avatar']);
-            $agent['agent_avatar'] = $fileLink?->getUrl() ?? '';
-            $agent['robot_avatar'] = $fileLink?->getUrl() ?? '';
+        foreach ($agentVersions as $agent) {
+            if (! empty($agent['agent_avatar'])) {
+                $avatarPaths[] = $agent['agent_avatar'];
+            }
             $flowCodes[] = $agent['flow_code'];
         }
 
+        // 批量获取头像链接，避免循环调用getLink
+        $fileLinks = [];
+        if (! empty($avatarPaths)) {
+            $fileLinks = $this->fileDomainService->getLinks($authorization->getOrganizationCode(), array_unique($avatarPaths));
+        }
+
+        // 设置头像URL
+        foreach ($agentVersions as &$agent) {
+            $avatarUrl = '';
+            if (! empty($agent['agent_avatar']) && isset($fileLinks[$agent['agent_avatar']])) {
+                $avatarUrl = $fileLinks[$agent['agent_avatar']]?->getUrl() ?? '';
+            }
+            $agent['agent_avatar'] = $avatarUrl;
+            $agent['robot_avatar'] = $avatarUrl;
+        }
+        unset($agent);
         $friendQueryDTO = new FriendQueryDTO();
         $friendQueryDTO->setAiCodes($flowCodes);
 
@@ -1149,7 +1234,7 @@ class MagicAgentAppService extends AbstractAppService
 
     /**
      * 处理指令中的图片路径.
-     * @param array $instructs 指令数组
+     * @param null|array $instructs 指令数组
      * @param string $organizationCode 组织代码
      * @return array 处理后的指令数组
      */
