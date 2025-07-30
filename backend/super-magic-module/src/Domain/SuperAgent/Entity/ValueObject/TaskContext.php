@@ -27,7 +27,7 @@ class TaskContext
      * @param string $taskId 任务ID
      * @param ChatInstruction $instruction 聊天指令
      * @param string $agentMode Agent模式
-     * @param mixed $mcpConfig MCP配置
+     * @param array $mcpConfig MCP配置
      * @param string $workspaceId 工作区ID
      */
     public function __construct(
