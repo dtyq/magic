@@ -20,7 +20,9 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Flow\Entity\MagicFlowEntity;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Start\Structure\TriggerType;
+use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Dag\VertexResult;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use JetBrains\PhpStorm\ArrayShape;
 
@@ -521,7 +523,11 @@ class ExecutionData
         if (! empty($this->parentFlowCode)) {
             $flowCode = $this->parentFlowCode;
         }
-        $contactDataIsolation = ContactDataIsolation::create($this->dataIsolation->getCurrentOrganizationCode(), $this->dataIsolation->getCurrentUserId());
+        $flowOrganizationCode = $this->getMagicFlowEntity()?->getOrganizationCode();
+        if (empty($flowOrganizationCode)) {
+            ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'common.not_found', ['label' => 'flow']);
+        }
+        $contactDataIsolation = ContactDataIsolation::create($flowOrganizationCode, $this->dataIsolation->getCurrentUserId());
         $user = di(MagicUserDomainService::class)->getByAiCode($contactDataIsolation, $flowCode);
         return $user?->getUserId() ?? '';
     }
