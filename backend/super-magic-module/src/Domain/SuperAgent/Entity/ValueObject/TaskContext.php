@@ -33,7 +33,7 @@ class TaskContext
      * @param string $workspaceId 工作区ID
      */
     public function __construct(
-        private TaskEntity $task,
+        private readonly TaskEntity $task,
         private readonly DataIsolation $dataIsolation,
         private readonly string $chatConversationId,
         private readonly string $chatTopicId,
