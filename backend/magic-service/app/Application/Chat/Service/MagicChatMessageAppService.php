@@ -650,7 +650,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         $prompt = str_replace('{language}', $language, $prompt);
         $prompt = str_replace('{textContent}', $textContent, $prompt);
 
-        var_dump($prompt, 'prompt==========');
         $conversationId = uniqid('', true);
         $messageHistory = new MessageHistory();
         $messageHistory->addMessages(new SystemMessage($prompt), $conversationId);
