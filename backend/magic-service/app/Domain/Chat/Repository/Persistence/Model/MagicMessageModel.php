@@ -40,6 +40,7 @@ class MagicMessageModel extends Model
         'message_type',
         'content',
         'send_time',
+        'language',
         'created_at',
         'updated_at',
         'deleted_at',
