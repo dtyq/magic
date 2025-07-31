@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdR
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
 use Exception;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Qbhy\HyperfAuth\AuthManager;
 use Throwable;
@@ -29,6 +30,7 @@ class TopicApi extends AbstractApi
         protected RequestInterface $request,
         protected WorkspaceAppService $workspaceAppService,
         protected TopicAppService $topicAppService,
+        protected TranslatorInterface $translator,
     ) {
         parent::__construct($request);
     }
@@ -121,8 +123,10 @@ class TopicApi extends AbstractApi
 
         $topicId = $this->request->input('id', 0);
         $userQuestion = $this->request->input('user_question', '');
+        $language = $this->translator->getLocale();
 
-        return $this->topicAppService->renameTopic($authorization, (int) $topicId, $userQuestion);
+        var_dump($language, 'language==========');
+        return $this->topicAppService->renameTopic($authorization, (int) $topicId, $userQuestion, $language);
     }
 
     /**

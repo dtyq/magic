@@ -114,6 +114,13 @@ Router::addGroup(
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
         });
+
+        Router::addGroup('/sandbox', static function () {
+            // 初始化沙盒
+            Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
+            // 获取沙盒状态
+            Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+        });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
 );

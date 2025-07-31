@@ -236,6 +236,14 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
+     * 获取项目详情.
+     */
+    public function getProjectNotUserId(int $projectId): ProjectEntity
+    {
+        return $this->projectDomainService->getProjectNotUserId($projectId);
+    }
+
+    /**
      * 获取项目列表（带分页）.
      */
     public function getProjectList(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
@@ -321,21 +329,24 @@ class ProjectAppService extends AbstractAppService
         //        $projectEntity = $this->projectDomainService->getProject($projectId, $userAuthorization->getId());
 
         // 通过领域服务获取话题附件列表
-        //        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
-        //            (int) $projectId,
+        //        $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
+        //            (int) $projectEntity->getCurrentTopicId(),
         //            $dataIsolation,
         //            1,
         //            2000
         //        );
 
-        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
+        //        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
         //        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
         //        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
         //        # #检测git version 跟database 的files表是否匹配
-        //        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, (string) $taskEntity->getId(), $topicEntity->getSandboxId(), $dataIsolation->getCurrentOrganizationCode());
+        //        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, $dataIsolation->getCurrentOrganizationCode(), (string) $taskEntity->getId(), $topicEntity->getSandboxId());
         //        if ($result) {
         //            $lastUpdatedAt = date('Y-m-d H:i:s');
         //        }
+
+        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
+
         return [
             'last_updated_at' => $lastUpdatedAt,
         ];

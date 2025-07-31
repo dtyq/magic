@@ -61,6 +61,7 @@ use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
@@ -607,41 +608,49 @@ class MagicChatMessageAppService extends MagicSeqAppService
     /**
      * 使用大模型对文本进行总结.
      */
-    public function summarizeText(MagicUserAuthorization $authorization, string $textContent): string
+    public function summarizeText(MagicUserAuthorization $authorization, string $textContent, string $language = 'zh_CN'): string
     {
         if (empty($textContent)) {
             return '';
         }
         $prompt = <<<'PROMPT'
         你是一个专业的内容标题生成助手。请严格按照以下要求为对话内容生成标题：
-        
+
         ## 任务目标
         根据对话内容，生成一个简洁、准确的标题，能够概括对话的核心主题。
-        
+
         ## 主题优先级原则
         当对话涉及多个不同主题时：
         1. 优先关注对话中最后讨论的主题（最新的话题）
         2. 以最近的对话内容为主要参考依据
         3. 如果最后的主题讨论较为充分，则以此作为标题的核心
         4. 忽略早期已经结束的话题，除非它们与最新话题密切相关
-        
+
         ## 严格要求
         1. 标题长度：不超过 15 个字符。英文一个字母算一个字符，汉字一个字算一个字符，其他语种采用类似计数方案。
         2. 内容相关：标题必须直接反映对话的核心主题
         3. 语言风格：使用陈述性语句，避免疑问句
         4. 输出格式：只输出标题内容，不要添加任何解释、标点或其他文字
         5. 禁止行为：不要回答对话中的问题，不要进行额外解释
-        
+
         ## 对话内容
         <CONVERSATION_START>
         {textContent}
         <CONVERSATION_END>
-        
+
+        ## 输出语言
+        <LANGUAGE_START>
+        请使用{language}语言输出内容
+        <LANGUAGE_END>
+
         ## 输出
         请直接输出标题：
         PROMPT;
 
+        $prompt = str_replace('{language}', $language, $prompt);
         $prompt = str_replace('{textContent}', $textContent, $prompt);
+
+        var_dump($prompt, 'prompt==========');
         $conversationId = uniqid('', true);
         $messageHistory = new MessageHistory();
         $messageHistory->addMessages(new SystemMessage($prompt), $conversationId);
@@ -716,8 +725,10 @@ class MagicChatMessageAppService extends MagicSeqAppService
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR);
         }
 
+        $language = di(TranslatorInterface::class)->getLocale();
         // 审计需求：如果是编辑消息，写入消息版本表，并更新原消息的version_id
         $extra = $senderSeqDTO->getExtra();
+        // 设置语言信息
         $editMessageOptions = $extra?->getEditMessageOptions();
         if ($extra !== null && $editMessageOptions !== null && ! empty($editMessageOptions->getMagicMessageId())) {
             $senderMessageDTO->setMagicMessageId($editMessageOptions->getMagicMessageId());
@@ -726,10 +737,13 @@ class MagicChatMessageAppService extends MagicSeqAppService
             $senderSeqDTO->setExtra($extra->setEditMessageOptions($editMessageOptions));
             // 再查一次 $messageEntity ，避免重复创建
             $messageEntity = $this->magicChatDomainService->getMessageByMagicMessageId($senderMessageDTO->getMagicMessageId());
+            $messageEntity->setLanguage($language);
         }
 
         // 如果引用的消息被编辑过，那么修改 referMessageId 为原始的消息 id
         $this->checkAndUpdateReferMessageId($senderSeqDTO);
+
+        $senderMessageDTO->setLanguage($language);
 
         $messageStruct = $senderMessageDTO->getContent();
         if ($messageStruct instanceof StreamMessageInterface && $messageStruct->isStream()) {

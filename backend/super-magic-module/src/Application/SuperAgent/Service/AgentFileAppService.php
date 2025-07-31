@@ -80,7 +80,9 @@ class AgentFileAppService
 
         $topicEntity = $this->topicDomainService->getTopicById($topicId);
         $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
-
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.not_found');
+        }
         $fileKey = $taskFileEntity->getFileKey();
         $workDir = $topicEntity->getWorkDir() . '/';
         // $fileKey="DT001/588417216353927169/2c17c6393771ee3048ae34d6b380c5ec/SUPER_MAGIC/usi_3715ce50bc02d7e72ba7891649b7f1da/topic_796071554826489856/index.html";

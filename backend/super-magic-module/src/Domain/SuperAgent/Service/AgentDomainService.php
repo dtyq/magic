@@ -121,7 +121,7 @@ class AgentDomainService
                 'error' => $result->getMessage(),
                 'code' => $result->getCode(),
             ]);
-            throw new SandboxOperationException('Get sandbox status', $result->getMessage(), $result->getCode());
+            // throw new SandboxOperationException('Get sandbox status', $result->getMessage(), $result->getCode());
         }
 
         $this->logger->info('[Sandbox][App] Sandbox status retrieved', [
@@ -465,6 +465,9 @@ class AgentDomainService
         // 2. 构建元数据
         $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
         $userInfo = UserInfoValueObject::fromArray($userInfoArray);
+        $this->logger->info('[Sandbox][App] Language generateInitializationInfo', [
+            'language' => $dataIsolation->getLanguage(),
+        ]);
         $messageMetadata = new MessageMetadata(
             agentUserId: $taskContext->getAgentUserId(),
             userId: $dataIsolation->getCurrentUserId(),
@@ -474,7 +477,10 @@ class AgentDomainService
             instruction: $taskContext->getInstruction()->value,
             sandboxId: $taskContext->getSandboxId(),
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            userInfo: $userInfo
+            workspaceId: $taskContext->getWorkspaceId(),
+            projectId: (string) $taskContext->getTask()->getProjectId(),
+            language: $dataIsolation->getLanguage(),
+            userInfo: $userInfo,
         );
 
         // chat history

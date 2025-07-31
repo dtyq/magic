@@ -49,6 +49,8 @@ class DataIsolation extends AbstractObject
 
     protected ?UserType $userType = null;
 
+    protected ?string $language = null;
+
     public function __construct(?array $data = null)
     {
         if (isset($data['user_type']) && is_numeric($data['user_type'])) {
@@ -156,5 +158,15 @@ class DataIsolation extends AbstractObject
     public function isEnable(): bool
     {
         return true;
+    }
+
+    public function getLanguage(): ?string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(?string $language): void
+    {
+        $this->language = $language;
     }
 }

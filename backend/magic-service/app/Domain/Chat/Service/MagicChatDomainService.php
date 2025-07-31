@@ -46,6 +46,7 @@ use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Hyperf\Codec\Json;
 use Hyperf\Collection\Arr;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\SocketIOServer\Socket;
 use Throwable;
@@ -346,6 +347,7 @@ class MagicChatDomainService extends AbstractDomainService
             'updated_at' => $time,
             'extra' => (array) $seqDTO->getExtra()?->toArray(),
             'app_message_id' => $seqDTO->getAppMessageId() ?: $messageEntity->getAppMessageId(),
+            'language' => $messageEntity->getLanguage(),
         ];
         return $this->magicSeqRepository->createSequence($seqData);
     }
@@ -868,6 +870,7 @@ class MagicChatDomainService extends AbstractDomainService
             'message_type' => $messageDTO->getMessageType()->getName(),
             'content' => Json::encode($messageDTO->getContent()->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'send_time' => $messageDTO->getSendTime() ?: $time,
+            'language' => $messageDTO->getLanguage(),
             'created_at' => $time,
             'updated_at' => $time,
         ];
@@ -898,6 +901,7 @@ class MagicChatDomainService extends AbstractDomainService
             $streamOptions = $messageStruct->getStreamOptions();
             $streamOptions->setStreamAppMessageId($createStreamSeqDTO->getAppMessageId());
             $time = date('Y-m-d H:i:s');
+            $language = di(TranslatorInterface::class)->getLocale();
             // 一条消息会出现在两个人的会话窗口里(群聊时出现在几千人的会话窗口id里),所以直接不存了,需要会话窗口id时再根据收件人/发件人id去 magic_user_conversation 取
             $messageData = [
                 'id' => (string) IdGenerator::getSnowId(),
@@ -911,6 +915,7 @@ class MagicChatDomainService extends AbstractDomainService
                 'magic_message_id' => IdGenerator::getUniqueId32(),
                 'message_type' => $messageStruct->getMessageTypeEnum()->getName(),
                 'content' => Json::encode($messageStruct->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'language' => $language,
                 'send_time' => $time,
                 'created_at' => $time,
                 'updated_at' => $time,
