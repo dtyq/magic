@@ -27,6 +27,7 @@ use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use Hyperf\Contract\TranslatorInterface;
 
 class TopicTaskAppService extends AbstractAppService
 {

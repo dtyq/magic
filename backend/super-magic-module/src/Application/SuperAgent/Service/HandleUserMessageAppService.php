@@ -96,6 +96,9 @@ class HandleUserMessageAppService extends AbstractAppService
             );
         }
     }
+    /*
+    * user send message to agent
+    */
 
     public function getTaskContext(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): TaskContext
     {

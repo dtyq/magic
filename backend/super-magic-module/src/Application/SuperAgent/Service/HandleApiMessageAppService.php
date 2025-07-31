@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskApiRequestDTO;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -53,6 +54,8 @@ class HandleApiMessageAppService extends AbstractAppService
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly ClientMessageAppService $clientMessageAppService,
+        private readonly AgentAppService $agentAppService,
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
         LoggerFactory $loggerFactory
