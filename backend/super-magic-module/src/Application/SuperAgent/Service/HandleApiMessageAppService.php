@@ -54,7 +54,6 @@ class HandleApiMessageAppService extends AbstractAppService
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
-        private readonly AgentAppService $agentAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
