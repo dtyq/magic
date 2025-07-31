@@ -212,7 +212,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
-                mcpConfig: $userMessageDTO->getMcpConfig(),
+                mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
             );
             // Add MCP config to task context
