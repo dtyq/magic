@@ -70,6 +70,7 @@ class ProviderModelModel extends AbstractModel
         'model_parent_id' => 'integer',
         'visible_organizations' => 'array',
         'visible_applications' => 'array',
+        'load_balancing_weight' => 'integer',
         'visible_packages' => 'array',
         'load_balancing_weight' => 'integer',
         'is_office' => 'integer',
