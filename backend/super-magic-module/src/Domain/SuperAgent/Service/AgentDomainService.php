@@ -35,7 +35,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxS
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Contract\TranslatorInterface;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;

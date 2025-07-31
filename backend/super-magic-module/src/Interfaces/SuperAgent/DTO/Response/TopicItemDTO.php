@@ -52,7 +52,6 @@ class TopicItemDTO extends AbstractDTO
      */
     protected string $topicMode = '';
 
-
     /**
      * @var string 沙箱ID
      */
@@ -77,7 +76,6 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
         $dto->setTopicMode($entity->getTopicMode()->value ?? '');
-        $dto->setTopicMode($entity->getTopicMode()?->value ?? '');
         $dto->setSandboxId($entity->getSandboxId());
         $dto->setUpdatedAt($entity->getUpdatedAt());
         return $dto;

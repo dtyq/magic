@@ -217,8 +217,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         }
     }
 
-
-    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO):array
+    public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): array
     {
         $topicId = 0;
         $taskId = '';
@@ -239,10 +238,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 $taskMode = $topicEntity->getTaskMode();
             }
 
-
-
-
-            $data=[
+            $data = [
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -258,7 +254,6 @@ class HandleTaskMessageAppService extends AbstractAppService
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
-
 
             $taskEntity = TaskEntity::fromArray($data);
             // Initialize task
@@ -295,8 +290,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 status: TaskStatus::RUNNING
             );
 
-            return ['sandbox_id'=>$sandboxID,'task_id'=>$taskId];
-
+            return ['sandbox_id' => $sandboxID, 'task_id' => $taskId];
         } catch (EventException $e) {
             $this->logger->error(sprintf(
                 'Initialize task, event processing failed: %s',
@@ -645,8 +639,6 @@ class HandleTaskMessageAppService extends AbstractAppService
         // Send message to agent
         return $sandboxId;
     }
-
-
 
     /**
      * Save user information and corresponding attachments.
