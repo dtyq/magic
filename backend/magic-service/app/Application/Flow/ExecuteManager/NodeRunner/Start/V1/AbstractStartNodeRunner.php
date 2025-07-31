@@ -256,7 +256,7 @@ abstract class AbstractStartNodeRunner extends NodeRunner
         }
         // 兜底，如果没有 agent 的流程指令，尝试实时获取
         if (empty($executionData->getInstructionConfigs())) {
-            $instructs = di(MagicAgentDomainService::class)->getAgentById($magicFlowEntity->getAgentId())->getInstructs();
+            $instructs = di(MagicAgentDomainService::class)->getAgentById($executionData->getAgentId())->getInstructs();
             $executionData->setInstructionConfigs($instructs);
         }
 
