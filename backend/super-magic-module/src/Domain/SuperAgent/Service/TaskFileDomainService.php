@@ -525,7 +525,7 @@ class TaskFileDomainService
         }
     }
 
-    public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetName): void
+    public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetName): TaskFileEntity
     {
         $dir = dirname($fileEntity->getFileKey());
         $fullTargetFileKey = $dir . DIRECTORY_SEPARATOR . $targetName;
@@ -558,7 +558,7 @@ class TaskFileDomainService
             $this->taskFileRepository->updateById($fileEntity);
 
             Db::commit();
-            return;
+            return $fileEntity;
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
