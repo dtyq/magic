@@ -335,7 +335,7 @@ class ProjectAppService extends AbstractAppService
         //            1,
         //            2000
         //        );
-        //
+
         //        $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
         //        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
         //        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
@@ -344,22 +344,9 @@ class ProjectAppService extends AbstractAppService
         //        if ($result) {
         //            $lastUpdatedAt = date('Y-m-d H:i:s');
         //        }
-        // 通过领域服务获取话题附件列表
-        //        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
-        //            (int) $projectId,
-        //            $dataIsolation,
-        //            1,
-        //            2000
-        //        );
 
         $lastUpdatedAt = $this->taskFileDomainService->getLatestUpdatedByProjectId($projectId);
-        //        $topicEntity = $this->topicDomainService->getTopicById($projectEntity->getCurrentTopicId());
-        //        $taskEntity = $this->taskDomainService->getTaskBySandboxId($topicEntity->getSandboxId());
-        //        # #检测git version 跟database 的files表是否匹配
-        //        $result = $this->workspaceDomainService->diffFileListAndVersionFile($result, $projectId, (string) $taskEntity->getId(), $topicEntity->getSandboxId(), $dataIsolation->getCurrentOrganizationCode());
-        //        if ($result) {
-        //            $lastUpdatedAt = date('Y-m-d H:i:s');
-        //        }
+
         return [
             'last_updated_at' => $lastUpdatedAt,
         ];

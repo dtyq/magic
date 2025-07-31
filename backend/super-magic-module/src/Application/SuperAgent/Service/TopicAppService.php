@@ -147,7 +147,7 @@ class TopicAppService extends AbstractAppService
         return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
     }
 
-    public function renameTopic(MagicUserAuthorization $authorization, int $topicId, string $userQuestion): array
+    public function renameTopic(MagicUserAuthorization $authorization, int $topicId, string $userQuestion, string $language = 'zh_CN'): array
     {
         // 获取话题内容
         $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
@@ -157,7 +157,7 @@ class TopicAppService extends AbstractAppService
 
         // 调用领域服务执行重命名（这一步与magic-service进行绑定）
         try {
-            $text = $this->magicChatMessageAppService->summarizeText($authorization, $userQuestion);
+            $text = $this->magicChatMessageAppService->summarizeText($authorization, $userQuestion, $language);
             // 更新话题名称
             $dataIsolation = $this->createDataIsolation($authorization);
             $this->topicDomainService->updateTopicName($dataIsolation, $topicId, $text);

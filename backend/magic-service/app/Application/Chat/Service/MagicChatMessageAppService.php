@@ -608,7 +608,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     /**
      * 使用大模型对文本进行总结.
      */
-    public function summarizeText(MagicUserAuthorization $authorization, string $textContent): string
+    public function summarizeText(MagicUserAuthorization $authorization, string $textContent, string $language = 'zh_CN'): string
     {
         if (empty($textContent)) {
             return '';
@@ -638,11 +638,19 @@ class MagicChatMessageAppService extends MagicSeqAppService
         {textContent}
         <CONVERSATION_END>
 
+        ## 输出语言
+        <LANGUAGE_START>
+        请使用{language}语言输出内容
+        <LANGUAGE_END>
+
         ## 输出
         请直接输出标题：
         PROMPT;
 
+        $prompt = str_replace('{language}', $language, $prompt);
         $prompt = str_replace('{textContent}', $textContent, $prompt);
+
+        var_dump($prompt, 'prompt==========');
         $conversationId = uniqid('', true);
         $messageHistory = new MessageHistory();
         $messageHistory->addMessages(new SystemMessage($prompt), $conversationId);

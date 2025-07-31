@@ -28,9 +28,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -52,9 +54,11 @@ class HandleApiMessageAppService extends AbstractAppService
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
+        private readonly AgentAppService $agentAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -354,10 +358,16 @@ class HandleApiMessageAppService extends AbstractAppService
      */
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
-        $workDir = $taskContext->getTask()->getWorkDir();
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId(), $workDir);
-        $taskContext->setSandboxId($sandboxId);
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
+
+        if (empty($taskContext->getSandboxId())) {
+            $sandboxId = (string) $taskContext->getTopicId();
+        } else {
+            $sandboxId = $taskContext->getSandboxId();
+        }
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
 
         // Initialize agent
         $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
