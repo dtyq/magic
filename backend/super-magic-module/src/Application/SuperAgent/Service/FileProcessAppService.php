@@ -930,6 +930,26 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
+     * Get file name by file ID.
+     *
+     * @param int $fileId File ID
+     * @return array File name response
+     */
+    public function getFileNameById(int $fileId): array
+    {
+        // Get file entity by ID
+        $taskFileEntity = $this->taskFileDomainService->getById($fileId);
+
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        // Create response DTO and return
+        $responseDTO = new FileNameResponseDTO($taskFileEntity->getFileName());
+        return $responseDTO->toArray();
+    }
+
+    /**
      * Perform actual file save logic.
      *
      * @param SaveFileContentRequestDTO $requestDTO Request DTO
