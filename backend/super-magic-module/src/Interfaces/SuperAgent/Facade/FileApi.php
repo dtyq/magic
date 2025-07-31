@@ -45,6 +45,7 @@ class FileApi extends AbstractApi
         protected AgentFileAppService $agentFileAppService,
         private readonly SandboxFileNotificationAppService $sandboxFileNotificationAppService,
     ) {
+        parent::__construct($request);
     }
 
     /**

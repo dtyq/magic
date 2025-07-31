@@ -19,6 +19,7 @@ use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Exception;
@@ -79,11 +80,10 @@ class ServiceProviderApi extends AbstractApi
     // 获取当前组织是否是官方组织
     public function isCurrentOrganizationOfficial(): array
     {
-        $officialOrganization = config('service_provider.office_organization');
         $organizationCode = $this->getAuthorization()->getOrganizationCode();
         return [
-            'is_official' => $officialOrganization === $organizationCode,
-            'official_organization' => $officialOrganization,
+            'is_official' => OfficialOrganizationUtil::isOfficialOrganization($organizationCode),
+            'official_organization' => OfficialOrganizationUtil::getOfficialOrganizationCode(),
         ];
     }
 

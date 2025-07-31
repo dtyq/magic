@@ -78,7 +78,6 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             ->setMagicEnvId($envId);
 
         $dataIsolation = $this->createFlowDataIsolation($authorization);
-        //        $dataIsolation->setCurrentOrganizationCode('TGosRaFhvb');
         $dataIsolation->setContainOfficialOrganization(true);
         $flowData = $this->getFlow($dataIsolation, $flowId, [Type::Main]);
         $magicFlow = $flowData['flow'];
@@ -429,6 +428,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             $agent = di(MagicAgentDomainService::class)->getByFlowCode($magicFlow->getCode());
             if ($agent) {
                 $executionData->setAgentId($agent->getId());
+                $magicFlow->setAgentId($agent->getId());
             }
         }
         ExecutionDataUtil::appendTriggerTopInfo(['flow' => $magicFlow], $executionData);

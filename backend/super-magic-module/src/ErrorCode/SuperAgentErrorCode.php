@@ -127,6 +127,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.illegal_file_key')]
     case FILE_ILLEGAL_KEY = 51175;
 
+    #[ErrorMessage('file.convert_failed')]
+    case FILE_CONVERT_FAILED = 51176;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;

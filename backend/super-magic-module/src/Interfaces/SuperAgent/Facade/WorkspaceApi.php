@@ -27,6 +27,7 @@ class WorkspaceApi extends AbstractApi
         protected WorkspaceAppService $workspaceAppService,
         protected TopicAppService $topicAppService,
     ) {
+        parent::__construct($request);
     }
 
     /**

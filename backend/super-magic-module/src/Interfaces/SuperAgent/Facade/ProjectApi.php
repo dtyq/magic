@@ -29,6 +29,7 @@ class ProjectApi extends AbstractApi
         protected RequestInterface $request,
         private readonly ProjectAppService $projectAppService
     ) {
+        parent::__construct($request);
     }
 
     /**

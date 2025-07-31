@@ -32,6 +32,7 @@ class TopicApi extends AbstractApi
         protected TopicAppService $topicAppService,
         protected TranslatorInterface $translator,
     ) {
+        parent::__construct($request);
     }
 
     /**

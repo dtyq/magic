@@ -528,7 +528,7 @@ class ExecutionData
         }
         $flowOrganizationCode = $this->getMagicFlowEntity()?->getOrganizationCode();
         if (empty($flowOrganizationCode)) {
-            ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'common.not_found', ['label' => 'flow']);
+            $flowOrganizationCode = $this->dataIsolation->getCurrentOrganizationCode();
         }
         $contactDataIsolation = ContactDataIsolation::create($flowOrganizationCode, $this->dataIsolation->getCurrentUserId());
         $user = di(MagicUserDomainService::class)->getByAiCode($contactDataIsolation, $flowCode);

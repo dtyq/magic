@@ -44,6 +44,7 @@ class SandboxApi extends AbstractApi
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
     ) {
+        parent::__construct($request);
     }
 
     #[ApiResponse('low_code')]

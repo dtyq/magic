@@ -13,6 +13,7 @@ use App\Domain\Agent\Service\AgentDomainService;
 use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Agent\Service\MagicAgentVersionDomainService;
 use App\Domain\Agent\Service\MagicBotThirdPlatformChatDomainService;
+use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicAccountDomainService;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
@@ -48,6 +49,7 @@ abstract class AbstractAppService extends AbstractKernelAppService
         protected readonly MagicDepartmentDomainService $magicDepartmentDomainService,
         protected readonly MagicDepartmentUserDomainService $magicDepartmentUserDomainService,
         protected readonly AgentDomainService $agentDomainService,
+        protected readonly MagicConversationDomainService $magicConversationDomainService,
         public readonly LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
