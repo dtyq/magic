@@ -61,7 +61,6 @@ use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
@@ -720,8 +719,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         // 审计需求：如果是编辑消息，写入消息版本表，并更新原消息的version_id
         $extra = $senderSeqDTO->getExtra();
         // 设置语言信息
-        $language = di(TranslatorInterface::class)->getLocale();
-        $extra->setLanguage($language);
         $editMessageOptions = $extra?->getEditMessageOptions();
         if ($extra !== null && $editMessageOptions !== null && ! empty($editMessageOptions->getMagicMessageId())) {
             $senderMessageDTO->setMagicMessageId($editMessageOptions->getMagicMessageId());

@@ -64,6 +64,7 @@ class MagicMessageEntity extends AbstractEntity
 
     protected ?string $deletedAt = null;
 
+    protected string $language = '';
     protected MessageInterface $content;
 
     protected ?string $currentVersionId;
@@ -84,6 +85,9 @@ class MagicMessageEntity extends AbstractEntity
             $emptyMessage = new EmptyMessage();
             $data['content'] = $emptyMessage;
             $data['message_type'] = $emptyMessage->getMessageTypeEnum();
+        }
+        if (! empty($data['language'])) {
+            $this->language = $data['language'];
         }
         parent::__construct($data);
     }
@@ -313,6 +317,17 @@ class MagicMessageEntity extends AbstractEntity
     public function setMagicMessageId(string $id): static
     {
         $this->magicMessageId = $id;
+        return $this;
+    }
+
+    public function getLanguage(): string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(string $language): static
+    {
+        $this->language = $language;
         return $this;
     }
 
