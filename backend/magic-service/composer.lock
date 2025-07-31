@@ -2197,12 +2197,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "6271375c1e1986965f1aa40fedb9c87af0fdcac0"
+                "reference": "9090bc7a92b77e587319d32575a4be2c10777e57"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=6271375c1e1986965f1aa40fedb9c87af0fdcac0",
-                "reference": "6271375c1e1986965f1aa40fedb9c87af0fdcac0",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=9090bc7a92b77e587319d32575a4be2c10777e57",
+                "reference": "9090bc7a92b77e587319d32575a4be2c10777e57",
                 "shasum": ""
             },
             "require": {
@@ -2305,7 +2305,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-07-31T17:03:31+08:00"
+            "time": "2025-07-31T17:26:22+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -12842,16 +12842,16 @@
         },
         {
             "name": "symfony/http-foundation",
-            "version": "v6.4.23",
+            "version": "v6.4.24",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/http-foundation.git",
-                "reference": "452d19f945ee41345fd8a50c18b60783546b7bd3"
+                "reference": "0341e41d8d8830c31a1dff5cbc5bdb3ec872a073"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/452d19f945ee41345fd8a50c18b60783546b7bd3",
-                "reference": "452d19f945ee41345fd8a50c18b60783546b7bd3",
+                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/0341e41d8d8830c31a1dff5cbc5bdb3ec872a073",
+                "reference": "0341e41d8d8830c31a1dff5cbc5bdb3ec872a073",
                 "shasum": ""
             },
             "require": {
@@ -12899,7 +12899,7 @@
             "description": "Defines an object-oriented layer for the HTTP specification",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/http-foundation/tree/v6.4.23"
+                "source": "https://github.com/symfony/http-foundation/tree/v6.4.24"
             },
             "funding": [
                 {
@@ -12911,11 +12911,15 @@
                     "type": "github"
                 },
                 {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
                     "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-05-26T09:17:58+00:00"
+            "time": "2025-07-10T08:14:14+00:00"
         },
         {
             "name": "symfony/mime",
@@ -13951,16 +13955,16 @@
         },
         {
             "name": "symfony/translation",
-            "version": "v6.4.23",
+            "version": "v6.4.24",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/translation.git",
-                "reference": "de8afa521e04a5220e9e58a1dc99971ab7cac643"
+                "reference": "300b72643e89de0734d99a9e3f8494a3ef6936e1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/translation/zipball/de8afa521e04a5220e9e58a1dc99971ab7cac643",
-                "reference": "de8afa521e04a5220e9e58a1dc99971ab7cac643",
+                "url": "https://api.github.com/repos/symfony/translation/zipball/300b72643e89de0734d99a9e3f8494a3ef6936e1",
+                "reference": "300b72643e89de0734d99a9e3f8494a3ef6936e1",
                 "shasum": ""
             },
             "require": {
@@ -14026,7 +14030,7 @@
             "description": "Provides tools to internationalize your application",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/translation/tree/v6.4.23"
+                "source": "https://github.com/symfony/translation/tree/v6.4.24"
             },
             "funding": [
                 {
@@ -14038,11 +14042,15 @@
                     "type": "github"
                 },
                 {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
                     "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-26T21:24:02+00:00"
+            "time": "2025-07-30T17:30:48+00:00"
         },
         {
             "name": "symfony/translation-contracts",
