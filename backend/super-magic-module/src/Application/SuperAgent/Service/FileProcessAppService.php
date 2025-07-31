@@ -449,11 +449,7 @@ class FileProcessAppService extends AbstractAppService
             if (empty($taskEntity)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.not_found');
             }
-            $workDir = $taskEntity->getWorkDir();
-            if (empty($workDir)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, 'task.work_dir.not_found');
-            }
-
+            $projectDir = WorkDirectoryUtil::getRootDir($taskEntity->getUserId(), $taskEntity->getProjectId());
             // Get STS temporary credentials
             $storageType = StorageBucketType::SandBox->value;
             $expires = 3600; // Credential valid for 1 hour
@@ -463,7 +459,7 @@ class FileProcessAppService extends AbstractAppService
             $userAuthorization->setOrganizationCode($organizationCode);
 
             // Use unified FileAppService to get STS Token
-            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $workDir, $expires, false);
+            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $projectDir, $expires, false);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to refresh STS Token: %s, Organization code: %s, Sandbox ID: %s',

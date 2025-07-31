@@ -460,8 +460,8 @@ class AgentDomainService
         $userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         // Use unified FileAppService to get STS Token
-        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires, false);
-
+        $projectDir = WorkDirectoryUtil::getRootDir($dataIsolation->getCurrentUserId(), $taskContext->getTask()->getProjectId());
+        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $projectDir, $expires, false);
         // 2. 构建元数据
         $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
         $userInfo = UserInfoValueObject::fromArray($userInfoArray);
@@ -487,6 +487,7 @@ class AgentDomainService
         $fullPrefix = $this->cloudFileRepository->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $chatWorkDir = WorkDirectoryUtil::getAgentChatHistoryDir($dataIsolation->getCurrentUserId(), $taskContext->getProjectId());
         $fullChatWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $chatWorkDir);
+        $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
 
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
@@ -513,6 +514,7 @@ class AgentDomainService
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
             'chat_history_dir' => $fullChatWorkDir,
+            'work_dir' => $fullWorkDir,
         ];
     }
 
