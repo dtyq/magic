@@ -18,7 +18,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Logger\LoggerFactory;
-use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Throwable;
@@ -227,14 +226,17 @@ class BackfillFileParentIdCommand extends HyperfCommand
 
         do {
             $result = $this->projectRepository->getProjectsByConditions(
-                conditions: [],
+                conditions: ['id' => '780450066156666881'],
                 page: $page,
                 pageSize: $pageSize,
                 orderBy: 'id',
                 orderDirection: 'asc'
             );
+            if (empty($result['list'])) {
+                break;
+            }
 
-            $projects = $result['data'] ?? [];
+            $projects = $result['list'] ?? [];
             $allProjects = array_merge($allProjects, $projects);
 
             $this->line(sprintf('📄 Loaded page %d with %d projects', $page, count($projects)));
