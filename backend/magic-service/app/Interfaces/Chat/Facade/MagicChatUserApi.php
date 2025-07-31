@@ -7,13 +7,9 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Chat\Facade;
 
-use App\Application\Chat\Service\MagicAccountAppService;
 use App\Application\Chat\Service\MagicUserContactAppService;
 use App\Domain\Contact\DTO\FriendQueryDTO;
 use App\Domain\Contact\DTO\UserUpdateDTO;
-use App\Domain\Contact\Entity\AccountEntity;
-use App\Domain\Contact\Entity\MagicUserEntity;
-use App\Domain\Contact\Entity\ValueObject\AccountStatus;
 use App\Domain\Contact\Entity\ValueObject\AddFriendType;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
@@ -28,7 +24,6 @@ class MagicChatUserApi extends AbstractApi
 {
     public function __construct(
         private readonly MagicUserContactAppService $userAppService,
-        private readonly MagicAccountAppService $accountAppService,
     ) {
     }
 
@@ -43,29 +38,11 @@ class MagicChatUserApi extends AbstractApi
     }
 
     /**
-     * @throws Throwable
+     * @deprecated
      */
-    public function aiRegister(RequestInterface $request): array
+    public function aiRegister(): array
     {
-        $authorization = $this->getAuthorization();
-        $avatarUrl = (string) $request->input('avatar', '');
-        $nickName = (string) $request->input('nickname', '');
-        $description = (string) $request->input('description', '');
-        $aiCode = (string) $request->input('ai_code', '');
-        // 账号启用/禁用
-        $accountStatus = (int) $request->input('account_status', 0);
-        $accountDTO = new AccountEntity();
-        $accountDTO->setStatus(AccountStatus::from($accountStatus));
-        $accountDTO->setAiCode($aiCode);
-
-        $userDTO = new MagicUserEntity();
-        $userDTO->setAvatarUrl($avatarUrl);
-        $userDTO->setNickName($nickName);
-        $userDTO->setDescription($description);
-        $userEntity = $this->accountAppService->aiRegister($userDTO, $authorization, $aiCode, $accountDTO);
-        $data = $userEntity->toArray();
-        $data['ai_code'] = $aiCode;
-        return $data;
+        return [];
     }
 
     public function searchFriend(RequestInterface $request): array

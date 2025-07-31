@@ -153,6 +153,38 @@ class MagicUserDomainService extends AbstractContactDomainService
     }
 
     /**
+     * 根据用户ID和多个组织编码查询用户详情，过滤掉官方组织的非AI用户.
+     * @param array $userIds 用户ID数组
+     * @param array $orgCodes 组织编码数组
+     * @param string $officialOrganizationCode 官方组织编码
+     * @return array<UserDetailDTO>
+     */
+    public function getUserDetailByUserIdsWithOrgCodes(array $userIds, array $orgCodes, string $officialOrganizationCode): array
+    {
+        // 从 user表拿基本信息，支持多组织查询
+        $users = $this->userRepository->getUserByIdsAndOrganizations($userIds, $orgCodes);
+        // 过滤掉官方组织的非AI用户
+        $users = array_filter($users, static function (MagicUserEntity $user) use ($officialOrganizationCode) {
+            // 如果不是官方组织，直接保留
+            if ($user->getOrganizationCode() !== $officialOrganizationCode) {
+                return true;
+            }
+            // 如果是官方组织，只保留AI用户
+            return $user->getUserType() === UserType::Ai;
+        });
+
+        if (empty($users)) {
+            return [];
+        }
+
+        // 解析头像等信息
+        $magicIds = array_column($users, 'magic_id');
+        // 从 account 表拿手机号真名等信息
+        $accounts = $this->accountRepository->getAccountInfoByMagicIds($magicIds);
+        return UserAssembler::getUsersDetail($users, $accounts);
+    }
+
+    /**
      * 按昵称搜索用户.
      */
     public function searchUserByNickName(string $query, DataIsolation $dataIsolation): array

@@ -38,6 +38,7 @@ use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\ErrorCode\AgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Flow\Assembler\Flow\MagicFlowAssembler;
 use App\Interfaces\Flow\DTO\Flow\MagicFlowDTO;
@@ -321,10 +322,9 @@ class MagicAgentAppService extends AbstractAppService
         }
 
         $organizationCode = $authorization->getOrganizationCode();
-        $officialOrganizationCode = config('service_provider.office_organization', '');
 
         // 判断是否是官方组织，如果是官方组织，直接返回组织内助理
-        if ($organizationCode === $officialOrganizationCode) {
+        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
             return $this->getAgentsByOrganizationPage($authorization, $page, $pageSize, $agentName);
         }
 
@@ -380,7 +380,10 @@ class MagicAgentAppService extends AbstractAppService
             }
         }
 
-        // 5. 计算总数（非官方组织的助理不会和官方助理重复）
+        // 5. 移除官方组织助理的敏感字段并添加会话ID
+        $this->processOfficialAgentsFields($resultAgents, $authorization);
+
+        // 6. 计算总数（非官方组织的助理不会和官方助理重复）
         $totalCount = $officialAgentCount + $organizationTotal;
 
         return [
@@ -1028,10 +1031,11 @@ class MagicAgentAppService extends AbstractAppService
      */
     private function getOfficialAgents(MagicUserAuthorization $authorization, string $agentName): array
     {
-        $officialOrganizationCode = config('service_provider.office_organization', '');
-        if (empty($officialOrganizationCode)) {
+        if (! OfficialOrganizationUtil::hasOfficialOrganization()) {
             return [];
         }
+
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
 
         // 复制当前授权对象并修改组织代码
         $officialAuthorization = clone $authorization;
@@ -1047,6 +1051,44 @@ class MagicAgentAppService extends AbstractAppService
         }
 
         return $officialAgents;
+    }
+
+    /**
+     * 处理助理字段：给所有助理添加会话ID，给官方组织助理移除敏感字段.
+     */
+    private function processOfficialAgentsFields(array &$agents, MagicUserAuthorization $authorization): void
+    {
+        $currentUserId = $authorization->getId();
+
+        // 收集所有助理的用户ID
+        $allAgentUserIds = [];
+        foreach ($agents as $agent) {
+            if (! empty($agent['user_id'])) {
+                $allAgentUserIds[] = $agent['user_id'];
+            }
+        }
+
+        // 查询用户与所有助理的会话ID映射
+        $conversationMap = [];
+        if (! empty($allAgentUserIds)) {
+            $conversationMap = $this->magicConversationDomainService->getConversationIdMappingByReceiveIds(
+                $currentUserId,
+                $allAgentUserIds
+            );
+        }
+
+        // 处理每个助理
+        foreach ($agents as &$agent) {
+            // 给所有助理添加会话ID（如果存在）
+            if (! empty($agent['user_id']) && isset($conversationMap[$agent['user_id']])) {
+                $agent['conversation_id'] = $conversationMap[$agent['user_id']];
+            }
+
+            // 只对官方助理移除敏感字段
+            if (isset($agent['is_official']) && $agent['is_official']) {
+                unset($agent['created_uid'], $agent['visibility_config'], $agent['created_info']);
+            }
+        }
     }
 
     /**

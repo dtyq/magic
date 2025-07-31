@@ -15,6 +15,7 @@ use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Aes\AesUtil;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 
@@ -97,7 +98,7 @@ class ServiceProviderConfigRepository extends AbstractModelRepository
     public function getsByServiceProviderIdsAndOffice(array $serviceProviderIds): array
     {
         $query = $this->configModel::query()->whereIn('service_provider_id', $serviceProviderIds)
-            ->where('organization_code', config('service_provider.office_organization'));
+            ->where('organization_code', OfficialOrganizationUtil::getOfficialOrganizationCode());
         $result = Db::select($query->toSql(), $query->getBindings());
         return ServiceProviderConfigEntityFactory::toEntities($result);
     }

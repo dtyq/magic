@@ -214,7 +214,7 @@ class MagicAccountDomainService extends AbstractContactDomainService
             $accountDTO->setEmail('');
             $accountDTO->setGender(GenderType::Unknown);
             $accountDTO->setPhone($accountDTO->getAiCode());
-            $accountDTO->setType($userDTO->getUserType());
+            $accountDTO->setType(UserType::Ai);
             # 账号不存在(用户肯定也不存在),生成账号和用户信息
             $magicId = (string) IdGenerator::getSnowId();
             $accountDTO->setMagicId($magicId);

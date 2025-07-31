@@ -435,4 +435,29 @@ class MagicConversationDomainService extends AbstractDomainService
     {
         $this->magicConversationRepository->batchUpdateInstructs($updateData);
     }
+
+    /**
+     * 获取用户与多个接收者的会话ID映射.
+     * @param string $userId 用户ID
+     * @param array $receiveIds 接收者ID数组
+     * @return array 接收者ID => 会话ID的映射数组
+     */
+    public function getConversationIdMappingByReceiveIds(string $userId, array $receiveIds): array
+    {
+        if (empty($receiveIds)) {
+            return [];
+        }
+
+        $conversations = $this->magicConversationRepository->getConversationsByReceiveIds(
+            $userId,
+            $receiveIds
+        );
+
+        $conversationMap = [];
+        foreach ($conversations as $conversation) {
+            $conversationMap[$conversation->getReceiveId()] = $conversation->getId();
+        }
+
+        return $conversationMap;
+    }
 }

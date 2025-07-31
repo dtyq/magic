@@ -33,6 +33,7 @@ use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Locker\Excpetion\LockException;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Exception;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
@@ -71,8 +72,7 @@ class ServiceProviderAppService
         // 处理图标
         $this->processServiceProviderConfigIcons($serviceProviderConfigDTOS, $organizationCode);
 
-        $officeOrganization = config('service_provider.office_organization');
-        if ($authenticatable->getOrganizationCode() === $officeOrganization) {
+        if (OfficialOrganizationUtil::isOfficialOrganization($authenticatable->getOrganizationCode())) {
             $serviceProviderConfigDTOS = array_filter($serviceProviderConfigDTOS, function ($serviceProviderConfigDTO) {
                 return ServiceProviderCode::from($serviceProviderConfigDTO->getProviderCode()) !== ServiceProviderCode::Magic;
             });
@@ -150,8 +150,7 @@ class ServiceProviderAppService
     // 保存模型
     public function saveModelToServiceProvider(ServiceProviderModelsEntity $serviceProviderModelsEntity): ServiceProviderModelsDTO
     {
-        $officialOrganization = config('service_provider.office_organization');
-        if ($serviceProviderModelsEntity->getOrganizationCode() !== $officialOrganization) {
+        if (! OfficialOrganizationUtil::isOfficialOrganization($serviceProviderModelsEntity->getOrganizationCode())) {
             $serviceProviderModelsEntity->setSuperMagicDisplayState(0);
         }
 

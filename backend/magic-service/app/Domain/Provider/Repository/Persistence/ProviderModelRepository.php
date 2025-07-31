@@ -16,6 +16,7 @@ use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 
 class ProviderModelRepository extends AbstractRepository implements ProviderModelRepositoryInterface
 {
@@ -42,7 +43,7 @@ class ProviderModelRepository extends AbstractRepository implements ProviderMode
 
     public function getOfficeModelById(int $id, bool $checkModelEnabled = true): ?ProviderModelEntity
     {
-        $officeOrganization = config('service_provider.office_organization');
+        $officeOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
 
         $query = ProviderModelModel::query();
 

@@ -34,6 +34,7 @@ use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Locker\Excpetion\LockException;
 use App\Infrastructure\Util\Locker\RedisLocker;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
 use Exception;
 use Hyperf\Contract\TranslatorInterface;
@@ -1498,7 +1499,7 @@ class ServiceProviderDomainService
      */
     private function getOfficialVLMProviderConfig(ServiceProviderModelsEntity $model): ServiceProviderConfig
     {
-        $officeOrganization = config('service_provider.office_organization');
+        $officeOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
         $officeModels = $this->serviceProviderModelsRepository->getModelsByVersionAndOrganization(
             $model->getModelVersion(),
             $officeOrganization
@@ -1698,7 +1699,7 @@ class ServiceProviderDomainService
 
     private function isOfficial(string $organizationCode): bool
     {
-        $officeOrganization = config('service_provider.office_organization');
+        $officeOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
         return $organizationCode === $officeOrganization;
     }
 
@@ -1740,7 +1741,7 @@ class ServiceProviderDomainService
         }
 
         // 3. Get all LLM type service provider configurations in official organization (exclude Magic itself)
-        $officeOrganization = config('service_provider.office_organization');
+        $officeOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
         $officeLLMProviders = $this->serviceProviderRepository->getAllByCategory(1, 1000, ServiceProviderCategory::LLM);
 
         $officeLLMProviderIds = [];
@@ -1824,7 +1825,7 @@ class ServiceProviderDomainService
         }
 
         // 1. Get all VLM type service providers from official organization
-        $officeOrganization = config('service_provider.office_organization');
+        $officeOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
         $allVLMProviders = $this->serviceProviderRepository->getAllByCategory(1, 1000, ServiceProviderCategory::VLM);
 
         $officeVLMProviderIds = [];
