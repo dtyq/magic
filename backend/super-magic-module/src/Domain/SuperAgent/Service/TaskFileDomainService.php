@@ -43,6 +43,15 @@ class TaskFileDomainService
     ) {
     }
 
+    public function getProjectFilesFromCloudStorage(string $organizationCode, string $workDir): array
+    {
+        return $this->cloudFileRepository->listObjectsByCredential(
+            $organizationCode,
+            $workDir,
+            StorageBucketType::SandBox,
+        );
+    }
+
     /**
      * Get file by ID.
      */

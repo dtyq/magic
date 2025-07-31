@@ -399,6 +399,16 @@ class ProjectAppService extends AbstractAppService
         return $this->getProjectAttachmentList($dataIsolation, $requestDto, $topicEntity->getWorkDir());
     }
 
+    public function getCloudFiles(RequestContext $requestContext, int $projectId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+        return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
+    }
+
     /**
      * 获取项目附件列表的核心逻辑.
      */

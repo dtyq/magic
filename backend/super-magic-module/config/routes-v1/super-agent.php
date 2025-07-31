@@ -53,6 +53,8 @@ Router::addGroup(
             Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
             // 检查是否需要更新项目文件列表
             Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
+            // 获取附件列表
+            Router::get('/{id}/cloud-files', [ProjectApi::class, 'getCloudFiles']);
         });
 
         // 话题相关
