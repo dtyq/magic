@@ -9,7 +9,7 @@ return [
     'task_number_limit' => 3,
     'user_task_limits' => [],
     'sandbox' => [
-        'gateway' => 'http://magic-sandbox.infrastructure',
+        'gateway' => \Hyperf\Support\env('SANDBOX_GATEWAY', ''),
         'token' => \Hyperf\Support\env('SANDBOX_TOKEN', ''),
         'enabled' => \Hyperf\Support\env('SANDBOX_ENABLE', true),
         'message_mode' => \Hyperf\Support\env('SANDBOX_MESSAGE_MODE', 'consume'),
