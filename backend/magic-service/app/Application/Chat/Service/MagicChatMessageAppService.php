@@ -716,6 +716,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR);
         }
 
+        $language = di(TranslatorInterface::class)->getLocale();
         // 审计需求：如果是编辑消息，写入消息版本表，并更新原消息的version_id
         $extra = $senderSeqDTO->getExtra();
         // 设置语言信息
@@ -727,10 +728,13 @@ class MagicChatMessageAppService extends MagicSeqAppService
             $senderSeqDTO->setExtra($extra->setEditMessageOptions($editMessageOptions));
             // 再查一次 $messageEntity ，避免重复创建
             $messageEntity = $this->magicChatDomainService->getMessageByMagicMessageId($senderMessageDTO->getMagicMessageId());
+            $messageEntity->setLanguage($language);
         }
 
         // 如果引用的消息被编辑过，那么修改 referMessageId 为原始的消息 id
         $this->checkAndUpdateReferMessageId($senderSeqDTO);
+
+        $senderMessageDTO->setLanguage($language);
 
         $messageStruct = $senderMessageDTO->getContent();
         if ($messageStruct instanceof StreamMessageInterface && $messageStruct->isStream()) {

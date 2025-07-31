@@ -870,6 +870,7 @@ class MagicChatDomainService extends AbstractDomainService
             'message_type' => $messageDTO->getMessageType()->getName(),
             'content' => Json::encode($messageDTO->getContent()->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'send_time' => $messageDTO->getSendTime() ?: $time,
+            'language' => $messageDTO->getLanguage(),
             'created_at' => $time,
             'updated_at' => $time,
         ];
