@@ -61,6 +61,7 @@ use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
