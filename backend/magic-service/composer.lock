@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.351.10",
+            "version": "3.351.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "e179e6351fca44ca7fae58dad4c76ccb00a179ce"
+                "reference": "c56f4131e066857474c19a10acbddccb171e864f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/e179e6351fca44ca7fae58dad4c76ccb00a179ce",
-                "reference": "e179e6351fca44ca7fae58dad4c76ccb00a179ce",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/c56f4131e066857474c19a10acbddccb171e864f",
+                "reference": "c56f4131e066857474c19a10acbddccb171e864f",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.10"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.11"
             },
-            "time": "2025-07-30T18:09:54+00:00"
+            "time": "2025-07-31T15:36:20+00:00"
         },
         {
             "name": "brick/math",
@@ -1893,12 +1893,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "0a8e7625f22c010d799bc9d6b2860baceb99dedb"
+                "reference": "5b8f0e548d893d3b575e09fc687d52761923c4c0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=0a8e7625f22c010d799bc9d6b2860baceb99dedb",
-                "reference": "0a8e7625f22c010d799bc9d6b2860baceb99dedb",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=5b8f0e548d893d3b575e09fc687d52761923c4c0",
+                "reference": "5b8f0e548d893d3b575e09fc687d52761923c4c0",
                 "shasum": ""
             },
             "require": {
@@ -1978,7 +1978,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-07-31T14:59:27+00:00"
+            "time": "2025-07-31T15:58:21+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2575,12 +2575,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "bdf7384a42c3bed0ec86073d2542477bc07e7db3"
+                "reference": "a65ad4712f2818c87066684ac7f8afeeea94457b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=bdf7384a42c3bed0ec86073d2542477bc07e7db3",
-                "reference": "bdf7384a42c3bed0ec86073d2542477bc07e7db3",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=a65ad4712f2818c87066684ac7f8afeeea94457b",
+                "reference": "a65ad4712f2818c87066684ac7f8afeeea94457b",
                 "shasum": ""
             },
             "require": {
@@ -2674,7 +2674,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-07-31T16:51:08+08:00"
+            "time": "2025-07-31T23:46:20+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
