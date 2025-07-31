@@ -609,55 +609,10 @@ class FileConverterAppService
     {
         $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
 
-        // Check if there are valid files
         if (empty($userFiles)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
-
-        // Filter out index.html files (case-insensitive), but not if it's the only file.
-        $filteredFiles = [];
-        $totalFiles = count($userFiles);
-        foreach ($userFiles as $fileEntity) {
-            $fileName = $fileEntity->getFileName();
-            // Check if the filename or file key's basename is index.html (case-insensitive)
-            $isIndexHtml = strcasecmp($fileName, 'index.html') === 0;
-
-            // If it's an index.html file and there's more than one file, filter it out.
-            if ($isIndexHtml && $totalFiles > 1) {
-                $this->logger->info('Filtered out index.html file from conversion (multiple files case)', [
-                    'user_id' => $userId,
-                    'file_id' => $fileEntity->getFileId(),
-                    'file_name' => $fileName,
-                    'file_key' => $fileEntity->getFileKey(),
-                    'total_files' => $totalFiles,
-                ]);
-                continue; // Skip index.html file
-            }
-
-            // If it's a single index.html file, keep it and log it.
-            if ($isIndexHtml && $totalFiles === 1) {
-                $this->logger->info('Keeping single index.html file for conversion', [
-                    'user_id' => $userId,
-                    'file_id' => $fileEntity->getFileId(),
-                    'file_name' => $fileName,
-                    'file_key' => $fileEntity->getFileKey(),
-                ]);
-            }
-
-            $filteredFiles[] = $fileEntity;
-        }
-
-        // Check if there are still valid files after filtering.
-        if (empty($filteredFiles)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
-        }
-
-        // Sort files by filename using natural sorting (slide01, slide02, etc.)
-        usort($filteredFiles, static function (TaskFileEntity $a, TaskFileEntity $b) {
-            return strnatcasecmp($a->getFileName(), $b->getFileName());
-        });
-
-        return $filteredFiles;
+        return $userFiles;
     }
 
     /**
