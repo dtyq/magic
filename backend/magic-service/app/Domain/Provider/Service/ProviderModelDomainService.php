@@ -25,11 +25,6 @@ readonly class ProviderModelDomainService
         return $this->providerModelRepository->getById($dataIsolation, $id, $checkModelEnabled);
     }
 
-    public function getOfficeModelById(int $id, bool $checkModelEnabled = true): ?ProviderModelEntity
-    {
-        return $this->providerModelRepository->getOfficeModelById($id, $checkModelEnabled);
-    }
-
     /**
      * @param array<int> $ids
      * @return array<ProviderModelEntity>
@@ -45,7 +40,21 @@ readonly class ProviderModelDomainService
      */
     public function getByIdOrModelId(ProviderDataIsolation $dataIsolation, string $id, bool $checkModelEnabled = true): ?ProviderModelEntity
     {
-        return $this->providerModelRepository->getByIdOrModelId($dataIsolation, $id, $checkModelEnabled);
+        $providerModel = $this->providerModelRepository->getByIdOrModelId($dataIsolation, $id, $checkModelEnabled);
+
+        if (! $providerModel) {
+            return null;
+        }
+        if (! in_array($providerModel->getOrganizationCode(), $dataIsolation->getOfficialOrganizationCodes())) {
+            if ($providerModel->getModelParentId() && $providerModel->getId() !== $providerModel->getModelParentId()) {
+                $providerModel = $this->providerModelRepository->getOfficeModelById($providerModel->getModelParentId(), $checkModelEnabled);
+                if (! $providerModel) {
+                    return null;
+                }
+            }
+        }
+
+        return $providerModel;
     }
 
     /**

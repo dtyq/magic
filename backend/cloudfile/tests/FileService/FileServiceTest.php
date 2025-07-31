@@ -124,6 +124,21 @@ class FileServiceTest extends CloudFileBaseTest
         $this->assertArrayHasKey('easy-file/test.txt', $list);
     }
 
+    public function testGetInternalLinks()
+    {
+        $filesystem = $this->getFilesystem();
+
+        $options = $this->getOptions($filesystem->getOptions());
+        $options['internal_endpoint'] = true;
+
+        $list = $filesystem->getLinks([
+            'easy-file/file-service.txt',
+            'easy-file/test.txt',
+        ], [], 7200, $options);
+        $this->assertArrayHasKey('easy-file/file-service.txt', $list);
+        $this->assertArrayHasKey('easy-file/test.txt', $list);
+    }
+
     public function testGetLinksImage()
     {
         $filesystem = $this->getFilesystem();

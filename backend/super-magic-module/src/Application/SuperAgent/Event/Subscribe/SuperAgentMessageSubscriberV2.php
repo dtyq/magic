@@ -36,12 +36,13 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 {
     protected LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         protected readonly TaskAppService $SuperAgentAppService,
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
         protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
-        protected SupperMagicAgentMCPInterface $supperMagicAgentMCP,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
         if (container()->has(SupperMagicAgentMCPInterface::class)) {
@@ -141,7 +142,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 topicMode: $topicMode,
                 taskMode: $taskMode,
                 rawContent: $rawContent,
-                mcpConfig: []
+                mcpConfig: [],
+                modelId: $superAgentExtra?->getModelId() ?? '',
             );
 
             $taskContext = $this->handleUserMessageAppService->getTaskContext($dataIsolation, $userMessageDTO);

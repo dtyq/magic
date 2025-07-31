@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\ModelAdmin\Repository\ValueObject;
 
 use App\Domain\ModelAdmin\Entity\AbstractEntity;
+use App\Domain\ModelAdmin\Entity\ValueObject\ModelConfig;
 
 class UpdateConsumerModel extends AbstractEntity
 {
@@ -26,6 +27,10 @@ class UpdateConsumerModel extends AbstractEntity
     protected ?int $loadBalancingWeight;
 
     protected int $superMagicDisplayState;
+
+    protected ?ModelConfig $config = null; // 配置
+
+    protected array $visiblePackages = [];
 
     public function getModelId(): string
     {
@@ -105,5 +110,29 @@ class UpdateConsumerModel extends AbstractEntity
     public function setSuperMagicDisplayState(int $superMagicDisplayState): void
     {
         $this->superMagicDisplayState = $superMagicDisplayState;
+    }
+
+    public function getVisiblePackages(): array
+    {
+        return $this->visiblePackages;
+    }
+
+    public function setVisiblePackages(array $visiblePackages): void
+    {
+        $this->visiblePackages = $visiblePackages;
+    }
+
+    public function getConfig(): ?ModelConfig
+    {
+        return $this->config;
+    }
+
+    public function setConfig(null|array|ModelConfig $config): void
+    {
+        if (is_array($config)) {
+            $config = new ModelConfig($config);
+        }
+
+        $this->config = $config;
     }
 }

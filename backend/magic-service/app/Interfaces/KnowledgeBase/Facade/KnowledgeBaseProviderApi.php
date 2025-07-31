@@ -62,8 +62,6 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
     {
         $userAuthorization = $this->getAuthorization();
         $models = $this->modelGatewayMapper->getEmbeddingModels($userAuthorization->getOrganizationCode());
-        $modelIcons = array_map(fn ($model) => $model->getAttributes()->getIcon(), $models);
-        $iconUrls = $this->fileAppService->getIcons($userAuthorization->getOrganizationCode(), $modelIcons);
-        return KnowledgeBaseProviderAssembler::odinModelToProviderDTO($models, $iconUrls);
+        return KnowledgeBaseProviderAssembler::odinModelToProviderDTO($models);
     }
 }

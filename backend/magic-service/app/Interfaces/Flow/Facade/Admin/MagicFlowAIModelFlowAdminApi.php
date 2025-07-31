@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Interfaces\Flow\Facade\Admin;
 
 use App\Application\Flow\Service\MagicFlowAIModelAppService;
-use App\Domain\Flow\Entity\MagicFlowAIModelEntity;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Flow\Assembler\AIModel\MagicFlowAIModelAssembler;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -25,8 +24,6 @@ class MagicFlowAIModelFlowAdminApi extends AbstractFlowAdminApi
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
         $data = $this->magicFlowAIModelAppService->getEnabled($authorization);
-        $iconPaths = array_map(fn (MagicFlowAIModelEntity $item) => $item->getIcon(), $data['list']);
-        $icons = $this->magicFlowAIModelAppService->getIcons($authorization->getOrganizationCode(), $iconPaths);
-        return MagicFlowAIModelAssembler::createEnabledListDTO($data['list'], $icons);
+        return MagicFlowAIModelAssembler::createEnabledListDTO($data['list']);
     }
 }

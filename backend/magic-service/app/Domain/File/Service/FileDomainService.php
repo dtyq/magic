@@ -35,10 +35,14 @@ readonly class FileDomainService
         return $list;
     }
 
-    public function getLink(string $organizationCode, string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
+    public function getLink(string $organizationCode, ?string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
     {
         if (empty($filePath)) {
             return null;
+        }
+        if (is_url($filePath)) {
+            // 只需要路径
+            $filePath = ltrim(parse_url($filePath, PHP_URL_PATH), '/');
         }
         return $this->cloudFileRepository->getLinks($organizationCode, [$filePath], $bucketType, $downloadNames, $options)[$filePath] ?? null;
     }
