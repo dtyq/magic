@@ -74,6 +74,33 @@ class SandboxApi extends AbstractApi
         return $result->toArray();
     }
 
+    #[ApiResponse('low_code')]
+    public function getSandboxStatus(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $topicId = $this->request->input('topic_id', '');
+
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // var_dump($this->getAuthorization(),"requestContext=====");
+
+        $topic = $this->topicAppService->getTopicById((int) $topicId);
+
+        $sandboxId = $topic->getSandboxId();
+
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
+        }
+
+        $result = $this->agentAppService->getSandboxStatus($sandboxId);
+        if (! $result->isSuccess()) {
+            ExceptionBuilder::throw(AgentErrorCode::SANDBOX_NOT_FOUND, $result->getMessage());
+        }
+        return $result->toArray();
+    }
+
     // 创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
     #[ApiResponse('low_code')]
     public function initSandboxByApiKey(RequestContext $requestContext, InitSandboxRequestDTO $requestDTO): array
