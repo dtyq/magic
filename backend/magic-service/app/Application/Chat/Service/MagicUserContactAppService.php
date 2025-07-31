@@ -166,7 +166,6 @@ class MagicUserContactAppService extends AbstractAppService
 
         // 基本用户信息查询 - 同时查询官方组织和当前组织，但只返回AI用户
         $usersDetailDTOList = $this->userDomainService->getUserDetailByUserIdsWithOrgCodes($userIds, $orgCodes, OfficialOrganizationUtil::getOfficialOrganizationCode());
-        var_dump($usersDetailDTOList);
         // 处理用户头像
         $usersDetail = $this->getUsersAvatarCoordinator($usersDetailDTOList, $dataIsolation);
 

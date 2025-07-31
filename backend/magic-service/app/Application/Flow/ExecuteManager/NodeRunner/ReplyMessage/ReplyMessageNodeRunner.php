@@ -284,7 +284,6 @@ class ReplyMessageNodeRunner extends NodeRunner
 
     private function sendMessageForStreamIMChat(ExecutionData $executionData, Generator $chatCompletionChoiceGenerator, StreamResponse $streamResponse): void
     {
-        var_dump(111);
         $chatAppService = di(MagicChatMessageAppService::class);
 
         $appMessageId = IdGenerator::getUniqueId32();
