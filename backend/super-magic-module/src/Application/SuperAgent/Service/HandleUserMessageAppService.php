@@ -326,7 +326,6 @@ class HandleUserMessageAppService extends AbstractAppService
         // Create sandbox container
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-
         if (empty($taskContext->getSandboxId())) {
             $sandboxId = (string) $taskContext->getTopicId();
         } else {
