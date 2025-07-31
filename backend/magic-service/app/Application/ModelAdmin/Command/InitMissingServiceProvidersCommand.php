@@ -26,20 +26,20 @@ use Symfony\Component\Console\Input\InputOption;
 class InitMissingServiceProvidersCommand extends HyperfCommand
 {
     /**
-     * 命令描述
+     * 命令描述.
      */
     protected string $description = '检测并初始化缺少 Magic 服务商（LLM 或 VLM 类型）的组织';
 
     protected ServiceProviderDomainService $serviceProviderDomainService;
-    
+
     protected OrganizationsEnvironmentRepositoryInterface $organizationsEnvironmentRepository;
-    
+
     protected LoggerInterface $logger;
-    
+
     protected ContainerInterface $container;
 
     /**
-     * 构造函数，注入依赖
+     * 构造函数，注入依赖.
      */
     public function __construct(ContainerInterface $container)
     {
@@ -52,38 +52,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
     }
 
     /**
-     * 配置命令选项
-     */
-    protected function configure()
-    {
-        parent::configure();
-        
-        $this->addOption(
-            'dry-run',
-            null,
-            InputOption::VALUE_NONE,
-            '仅检测，不执行初始化'
-        );
-        
-        $this->addOption(
-            'category',
-            'c',
-            InputOption::VALUE_REQUIRED,
-            '指定服务商类型（llm/vlm），默认检查两种类型',
-            null
-        );
-        
-        $this->addOption(
-            'organization',
-            'o',
-            InputOption::VALUE_REQUIRED,
-            '指定特定组织编码',
-            null
-        );
-    }
-
-    /**
-     * 命令处理方法
+     * 命令处理方法.
      */
     public function handle()
     {
@@ -94,7 +63,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
 
         $this->line('=== 组织服务商初始化检测工具 ===', 'info');
         $this->line('开始检测组织服务商配置...', 'info');
-        
+
         if ($isDryRun) {
             $this->line('【DRY RUN 模式】- 仅检测，不执行初始化', 'comment');
         }
@@ -106,7 +75,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
 
             // 确定要检查的服务商类型
             $categoriesToCheck = $this->getCategoriesToCheck($categoryOption);
-            $this->line(sprintf('检查服务商类型: %s', implode(', ', array_map(fn($cat) => $cat->value, $categoriesToCheck))), 'info');
+            $this->line(sprintf('检查服务商类型: %s', implode(', ', array_map(fn ($cat) => $cat->value, $categoriesToCheck))), 'info');
 
             // 统计信息
             $stats = [
@@ -114,7 +83,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
                 'missing_organizations' => [],
                 'initialized_count' => 0,
                 'error_count' => 0,
-                'errors' => []
+                'errors' => [],
             ];
 
             // 检测和初始化
@@ -124,12 +93,11 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
 
             // 输出统计结果
             $this->outputStatistics($stats, microtime(true) - $startTime);
-
         } catch (Exception $e) {
             $this->line('执行过程中发生错误: ' . $e->getMessage(), 'error');
             $this->logger->error('InitMissingServiceProvidersCommand 执行失败', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return 1;
         }
@@ -138,7 +106,38 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
     }
 
     /**
-     * 获取组织编码列表
+     * 配置命令选项.
+     */
+    protected function configure()
+    {
+        parent::configure();
+
+        $this->addOption(
+            'dry-run',
+            null,
+            InputOption::VALUE_NONE,
+            '仅检测，不执行初始化'
+        );
+
+        $this->addOption(
+            'category',
+            'c',
+            InputOption::VALUE_REQUIRED,
+            '指定服务商类型（llm/vlm），默认检查两种类型',
+            null
+        );
+
+        $this->addOption(
+            'organization',
+            'o',
+            InputOption::VALUE_REQUIRED,
+            '指定特定组织编码',
+            null
+        );
+    }
+
+    /**
+     * 获取组织编码列表.
      */
     private function getOrganizationCodes(?string $organizationOption): array
     {
@@ -153,10 +152,10 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
         }
 
         $allOrganizations = $this->organizationsEnvironmentRepository->getAllOrganizationCodes();
-        
+
         // 过滤掉官方组织
-        $filteredOrganizations = array_filter($allOrganizations, function($orgCode) {
-            return !$this->isOfficialOrganization($orgCode);
+        $filteredOrganizations = array_filter($allOrganizations, function ($orgCode) {
+            return ! $this->isOfficialOrganization($orgCode);
         });
 
         $officialOrgCount = count($allOrganizations) - count($filteredOrganizations);
@@ -168,13 +167,13 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
     }
 
     /**
-     * 获取要检查的服务商类型
+     * 获取要检查的服务商类型.
      */
     private function getCategoriesToCheck(?string $categoryOption): array
     {
         if ($categoryOption) {
             $category = ServiceProviderCategory::tryFrom(strtolower($categoryOption));
-            if (!$category) {
+            if (! $category) {
                 throw new Exception('无效的服务商类型，支持: llm, vlm');
             }
             return [$category];
@@ -184,12 +183,12 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
     }
 
     /**
-     * 处理单个组织
+     * 处理单个组织.
      */
     private function processOrganization(
-        string $organizationCode, 
-        array $categoriesToCheck, 
-        bool $isDryRun, 
+        string $organizationCode,
+        array $categoriesToCheck,
+        bool $isDryRun,
         array &$stats
     ): void {
         $this->line(sprintf('检查组织: %s', $organizationCode), 'info');
@@ -200,57 +199,57 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
                 if ($this->isServiceProviderMissing($organizationCode, $category)) {
                     $categoryName = $category->label();
                     $this->line(sprintf('  组织 %s 缺少 %s Magic服务商', $organizationCode, $categoryName), 'comment');
-                    
+
                     // 记录缺失的组织和类型
-                    if (!isset($stats['missing_organizations'][$organizationCode])) {
+                    if (! isset($stats['missing_organizations'][$organizationCode])) {
                         $stats['missing_organizations'][$organizationCode] = [];
                     }
                     $stats['missing_organizations'][$organizationCode][] = $category->value;
 
                     // 如果不是 dry-run 模式，执行初始化
-                    if (!$isDryRun) {
+                    if (! $isDryRun) {
                         $this->initializeServiceProvider($organizationCode, $category);
-                        $stats['initialized_count']++;
+                        ++$stats['initialized_count'];
                         $this->line(sprintf('  ✓ 已初始化组织 %s 的 %s 服务商', $organizationCode, $categoryName), 'info');
                     }
                 } else {
                     $this->line(sprintf('  组织 %s 已有 %s Magic服务商', $organizationCode, $category->label()), 'comment');
                 }
             } catch (Exception $e) {
-                $stats['error_count']++;
+                ++$stats['error_count'];
                 $stats['errors'][] = sprintf('组织 %s (%s类型): %s', $organizationCode, $category->value, $e->getMessage());
                 $this->line(sprintf('  ✗ 处理组织 %s 时出错: %s', $organizationCode, $e->getMessage()), 'error');
                 $this->logger->error('处理组织时出错', [
                     'organization' => $organizationCode,
                     'category' => $category->value,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
     }
 
     /**
-     * 检查组织是否缺少指定类型的 Magic 服务商
+     * 检查组织是否缺少指定类型的 Magic 服务商.
      */
     private function isServiceProviderMissing(string $organizationCode, ServiceProviderCategory $category): bool
     {
         try {
             // 获取组织的服务商配置
             $serviceProviderConfigs = $this->serviceProviderDomainService->getServiceProviderConfigs($organizationCode, $category);
-            
+
             // 检查是否有 Magic 服务商
             foreach ($serviceProviderConfigs as $config) {
                 if (ServiceProviderCode::from($config->getProviderCode()) === ServiceProviderCode::Magic) {
                     return false; // 找到了 Magic 服务商，不缺少
                 }
             }
-            
+
             return true; // 没有找到 Magic 服务商，缺少
         } catch (Exception $e) {
             $this->logger->warning('检查服务商时出错', [
                 'organization' => $organizationCode,
                 'category' => $category->value,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             // 出错时认为缺少，以便尝试初始化
             return true;
@@ -258,7 +257,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
     }
 
     /**
-     * 初始化组织的服务商
+     * 初始化组织的服务商.
      */
     private function initializeServiceProvider(string $organizationCode, ServiceProviderCategory $category): void
     {
@@ -266,10 +265,10 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
         try {
             $this->serviceProviderDomainService->initOrganizationServiceProviders($organizationCode, $category);
             Db::commit();
-            
+
             $this->logger->info('成功初始化组织服务商', [
                 'organization' => $organizationCode,
-                'category' => $category->value
+                'category' => $category->value,
             ]);
         } catch (Exception $e) {
             Db::rollBack();
@@ -278,16 +277,16 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
     }
 
     /**
-     * 判断是否为官方组织
+     * 判断是否为官方组织.
      */
     private function isOfficialOrganization(string $organizationCode): bool
     {
         $officialOrganization = config('service_provider.office_organization');
-        return !empty($officialOrganization) && $organizationCode === $officialOrganization;
+        return ! empty($officialOrganization) && $organizationCode === $officialOrganization;
     }
 
     /**
-     * 输出统计结果
+     * 输出统计结果.
      */
     private function outputStatistics(array $stats, float $executionTime): void
     {
@@ -300,7 +299,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
         $this->line(sprintf('执行时间: %.2f 秒', $executionTime), 'info');
 
         // 显示缺少服务商的组织详情
-        if (!empty($stats['missing_organizations'])) {
+        if (! empty($stats['missing_organizations'])) {
             $this->line('', 'info');
             $this->line('缺少服务商的组织详情:', 'comment');
             foreach ($stats['missing_organizations'] as $orgCode => $categories) {
@@ -309,7 +308,7 @@ class InitMissingServiceProvidersCommand extends HyperfCommand
         }
 
         // 显示错误详情
-        if (!empty($stats['errors'])) {
+        if (! empty($stats['errors'])) {
             $this->line('', 'info');
             $this->line('错误详情:', 'error');
             foreach ($stats['errors'] as $error) {
