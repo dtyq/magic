@@ -89,6 +89,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $agentUserId = $userCallAgentEvent->agentUserEntity->getUserId() ?? '';
             $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
+            $language = $userCallAgentEvent->messageEntity?->getLanguage() ?? '';
 
             // Parameter validation
             if (empty($conversationId) || empty($chatTopicId) || empty($organizationCode)
@@ -106,6 +107,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 
             // Create data isolation object
             $dataIsolation = DataIsolation::create($organizationCode, $userId);
+            $dataIsolation->setLanguage($language);
 
             // Convert attachments array to JSON
             $attachmentsJson = ! empty($attachments) ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '';
@@ -147,6 +149,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 rawContent: $rawContent,
                 mcpConfig: [],
                 modelId: $superAgentExtra?->getModelId() ?? '',
+                language: $language,
             );
 
             $taskContext = $this->handleUserMessageAppService->getTaskContext($dataIsolation, $userMessageDTO);

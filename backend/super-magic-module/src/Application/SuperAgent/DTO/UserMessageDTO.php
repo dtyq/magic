@@ -30,6 +30,7 @@ class UserMessageDTO
         private readonly ?string $rawContent = null,
         private array $mcpConfig = [],
         private readonly string $modelId = '',
+        private readonly string $language = '',
     ) {
     }
 
@@ -103,6 +104,16 @@ class UserMessageDTO
         return $this->modelId;
     }
 
+    public function getLanguage(): string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(string $language): void
+    {
+        $this->language = $language;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -126,6 +137,7 @@ class UserMessageDTO
             rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
             mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
             modelId: $data['model_id'] ?? $data['modelId'] ?? '',
+            language: $data['language'] ?? 'zh_CN',
         );
     }
 
@@ -148,6 +160,7 @@ class UserMessageDTO
             'raw_content' => $this->rawContent,
             'mcp_config' => $this->mcpConfig,
             'model_id' => $this->modelId,
+            'language' => $this->language,
         ];
     }
 }

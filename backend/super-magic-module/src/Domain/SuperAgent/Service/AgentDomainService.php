@@ -469,10 +469,8 @@ class AgentDomainService
         // 2. 构建元数据
         $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
         $userInfo = UserInfoValueObject::fromArray($userInfoArray);
-        $translator = di(TranslatorInterface::class);
-        $language = $translator->getLocale();
         $this->logger->info('[Sandbox][App] Language generateInitializationInfo', [
-            'language' => $language,
+            'language' => $dataIsolation->getLanguage(),
         ]);
         $messageMetadata = new MessageMetadata(
             agentUserId: $taskContext->getAgentUserId(),
@@ -485,7 +483,7 @@ class AgentDomainService
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
             workspaceId: $taskContext->getWorkspaceId(),
             projectId: (string) $taskContext->getTask()->getProjectId(),
-            language: $language,
+            language: $dataIsolation->getLanguage(),
             userInfo: $userInfo,
         );
 
