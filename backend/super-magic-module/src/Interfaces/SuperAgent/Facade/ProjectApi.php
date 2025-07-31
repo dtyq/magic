@@ -144,4 +144,12 @@ class ProjectApi extends AbstractApi
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         return $this->projectAppService->getProjectAttachments($requestContext, $dto);
     }
+
+    public function getCloudFiles(RequestContext $requestContext, string $id)
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->projectAppService->getCloudFiles($requestContext, (int) $id);
+    }
 }
