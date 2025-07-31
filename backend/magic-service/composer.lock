@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.351.10",
+            "version": "3.351.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "e179e6351fca44ca7fae58dad4c76ccb00a179ce"
+                "reference": "c56f4131e066857474c19a10acbddccb171e864f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/e179e6351fca44ca7fae58dad4c76ccb00a179ce",
-                "reference": "e179e6351fca44ca7fae58dad4c76ccb00a179ce",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/c56f4131e066857474c19a10acbddccb171e864f",
+                "reference": "c56f4131e066857474c19a10acbddccb171e864f",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.10"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.351.11"
             },
-            "time": "2025-07-30T18:09:54+00:00"
+            "time": "2025-07-31T15:36:20+00:00"
         },
         {
             "name": "brick/math",
@@ -2570,16 +2570,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.57",
+            "version": "v0.0.58",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "3b446e6b62ca9d4ddeb077f506334ff6e82220ad"
+                "reference": "d51baec352a167e9229b74ef9ea07d40c5693cf3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=3b446e6b62ca9d4ddeb077f506334ff6e82220ad",
-                "reference": "3b446e6b62ca9d4ddeb077f506334ff6e82220ad",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=d51baec352a167e9229b74ef9ea07d40c5693cf3",
+                "reference": "d51baec352a167e9229b74ef9ea07d40c5693cf3",
                 "shasum": ""
             },
             "require": {
@@ -2671,9 +2671,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.57"
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.58"
             },
-            "time": "2025-07-31T23:01:57+08:00"
+            "time": "2025-07-31T23:49:35+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
