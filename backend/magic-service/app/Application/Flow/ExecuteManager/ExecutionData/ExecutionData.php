@@ -521,7 +521,11 @@ class ExecutionData
         if (! empty($this->parentFlowCode)) {
             $flowCode = $this->parentFlowCode;
         }
-        $contactDataIsolation = ContactDataIsolation::create($this->dataIsolation->getCurrentOrganizationCode(), $this->dataIsolation->getCurrentUserId());
+        $flowOrganizationCode = $this->getMagicFlowEntity()?->getOrganizationCode();
+        if (empty($flowOrganizationCode)) {
+            $flowOrganizationCode = $this->dataIsolation->getCurrentOrganizationCode();
+        }
+        $contactDataIsolation = ContactDataIsolation::create($flowOrganizationCode, $this->dataIsolation->getCurrentUserId());
         $user = di(MagicUserDomainService::class)->getByAiCode($contactDataIsolation, $flowCode);
         return $user?->getUserId() ?? '';
     }

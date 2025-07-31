@@ -18,6 +18,8 @@ Router::addGroup('/api/v1', static function () {
         Router::post('/queries', [MagicAgentApi::class, 'queries']);
         // 获取可用助理
         Router::get('/available', [MagicAgentApi::class, 'queriesAvailable']);
+        // 获取聊天模式可用助理列表
+        Router::get('/chat-mode/available', [MagicAgentApi::class, 'getChatModeAvailableAgents']);
         // 保存助理
         Router::post('', [MagicAgentApi::class, 'saveAgent']);
         // 获取单个助理

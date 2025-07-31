@@ -77,7 +77,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             ->setMagicEnvId($envId);
 
         $dataIsolation = $this->createFlowDataIsolation($authorization);
-
+        $dataIsolation->setContainOfficialOrganization(true);
         $flowData = $this->getFlow($dataIsolation, $flowId, [Type::Main]);
         $magicFlow = $flowData['flow'];
 

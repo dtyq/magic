@@ -13,6 +13,10 @@ use App\Domain\Contact\Entity\ValueObject\AccountStatus;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicAccountDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
+use App\Domain\Flow\Service\MagicFlowDomainService;
+use App\ErrorCode\UserErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
@@ -26,6 +30,7 @@ class MagicAccountAppService extends AbstractAppService
         protected readonly MagicUserDomainService $userDomainService,
         protected readonly MagicAccountDomainService $accountDomainService,
         protected readonly LockerInterface $locker,
+        protected readonly MagicFlowDomainService $magicFlowDomainService,
     ) {
     }
 
@@ -67,9 +72,16 @@ class MagicAccountAppService extends AbstractAppService
             $userDTO->setUserType(UserType::Ai);
             if (empty($authorization->getMagicId()) && ! empty($authorization->getId())) {
                 $magicInfo = $this->userDomainService->getUserById($authorization->getId());
-                $authorization->setMagicId($magicInfo->getMagicId());
-                $authorization->setOrganizationCode($magicInfo->getOrganizationCode());
+                $authorization->setMagicId($magicInfo?->getMagicId());
             }
+
+            // 通过aiCode查询magic_flows表获取所属组织
+            $disabledDataIsolation = FlowDataIsolation::create()->disabled();
+            $magicFlowEntity = $this->magicFlowDomainService->getByCode($disabledDataIsolation, $aiCode);
+            if (! $magicFlowEntity) {
+                ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
+            }
+            $authorization->setOrganizationCode($magicFlowEntity->getOrganizationCode());
             $dataIsolation = $this->createDataIsolation($authorization);
             // 智能体账号信息
             if (! isset($accountDTO)) {

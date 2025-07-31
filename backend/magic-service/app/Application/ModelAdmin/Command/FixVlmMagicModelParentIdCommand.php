@@ -13,6 +13,7 @@ use App\Domain\ModelAdmin\Constant\Status;
 use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderConfigRepository;
 use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderModelsRepository;
 use App\Domain\ModelAdmin\Repository\Persistence\ServiceProviderRepository;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Exception;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
@@ -54,7 +55,7 @@ class FixVlmMagicModelParentIdCommand extends HyperfCommand
         $this->serviceProviderConfigRepository = $container->get(ServiceProviderConfigRepository::class);
         $this->serviceProviderModelsRepository = $container->get(ServiceProviderModelsRepository::class);
         $this->logger = $container->get(LoggerInterface::class);
-        $this->officeOrganization = config('service_provider.office_organization');
+        $this->officeOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
 
         parent::__construct('fix:vlm-magic-model-parent-id');
     }
