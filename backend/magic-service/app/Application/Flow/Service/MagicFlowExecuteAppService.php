@@ -422,6 +422,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             $agent = di(MagicAgentDomainService::class)->getByFlowCode($magicFlow->getCode());
             if ($agent) {
                 $executionData->setAgentId($agent->getId());
+                $magicFlow->setAgentId($agent->getId());
             }
         }
         $executor = new MagicFlowExecutor($magicFlow, $executionData);

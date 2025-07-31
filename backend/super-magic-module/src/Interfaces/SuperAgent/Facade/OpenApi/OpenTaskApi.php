@@ -47,6 +47,7 @@ class OpenTaskApi extends AbstractApi
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
     ) {
+        parent::__construct($request);
     }
 
     /**

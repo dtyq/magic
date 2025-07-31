@@ -54,6 +54,7 @@ class TaskApi extends AbstractApi
         protected AgentAppService $agentAppService,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
+        parent::__construct($request);
     }
 
     /**

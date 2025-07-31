@@ -24,6 +24,7 @@ class AccountApi extends AbstractApi
         protected RequestInterface $request,
         private readonly FileAppService $fileAppService,
     ) {
+        parent::__construct($request);
     }
 
     public function initAccount(RequestContext $requestContext): array

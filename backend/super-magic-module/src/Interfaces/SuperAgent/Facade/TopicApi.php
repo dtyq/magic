@@ -30,6 +30,7 @@ class TopicApi extends AbstractApi
         protected WorkspaceAppService $workspaceAppService,
         protected TopicAppService $topicAppService,
     ) {
+        parent::__construct($request);
     }
 
     /**

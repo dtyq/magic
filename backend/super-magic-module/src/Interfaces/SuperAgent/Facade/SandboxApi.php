@@ -43,6 +43,7 @@ class SandboxApi extends AbstractApi
         protected UserDomainService $userDomainService,
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
     ) {
+        parent::__construct($request);
     }
 
     // 创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
