@@ -44,6 +44,7 @@ class BackfillFileParentIdCommand extends HyperfCommand
         parent::configure();
         $this->setDescription('Backfill parent_id for existing files in magic_super_agent_task_files table');
         $this->addArgument('project_id', InputArgument::OPTIONAL, 'Optional project ID to process only one project');
+        $this->addArgument('organization_code', InputArgument::OPTIONAL, 'Optional organization code to process projects by organization');
     }
 
     public function handle()
@@ -52,6 +53,7 @@ class BackfillFileParentIdCommand extends HyperfCommand
         $this->logger->info('Starting backfill process for file parent_id.');
 
         $projectId = $this->input->getArgument('project_id');
+        $organizationCode = $this->input->getArgument('organization_code');
 
         // Initialize result tracking
         $startTime = date('Y-m-d H:i:s');
@@ -66,7 +68,7 @@ class BackfillFileParentIdCommand extends HyperfCommand
 
         try {
             // Get projects based on input parameter
-            $projects = $this->getProjectsToProcess($projectId);
+            $projects = $this->getProjectsToProcess($projectId, $organizationCode);
 
             if (empty($projects)) {
                 $this->error('❌ No projects found to process.');
@@ -106,6 +108,7 @@ class BackfillFileParentIdCommand extends HyperfCommand
             $this->logger->error(sprintf('Backfill process failed: %s', $e->getMessage()), [
                 'exception' => $e,
                 'project_id' => $projectId,
+                'organization_code' => $organizationCode,
             ]);
         }
     }
@@ -201,11 +204,13 @@ class BackfillFileParentIdCommand extends HyperfCommand
      * Get projects to process based on input parameter.
      *
      * @param null|string $projectId Optional project ID
+     * @param null|string $organizationCode Optional organization code
      * @return ProjectEntity[] Array of project entities
      */
-    private function getProjectsToProcess(?string $projectId): array
+    private function getProjectsToProcess(?string $projectId, ?string $organizationCode): array
     {
-        if ($projectId !== null) {
+        // Check if project_id is provided and not empty
+        if ($projectId !== null && trim($projectId) !== '' && $projectId !== '-') {
             // Process single project
             $this->line(sprintf('🎯 Processing single project with ID: %s', $projectId));
             $project = $this->projectRepository->findById((int) $projectId);
@@ -218,20 +223,29 @@ class BackfillFileParentIdCommand extends HyperfCommand
             return [$project];
         }
 
-        // Process all projects using pagination to avoid memory issues
-        $this->line('🌐 Processing all projects...');
+        // Prepare conditions for project filtering
+        $conditions = [];
+        if ($organizationCode !== null) {
+            $conditions['user_organization_code'] = $organizationCode;
+            $this->line(sprintf('🏢 Processing projects for organization: %s', $organizationCode));
+        } else {
+            $this->line('🌐 Processing all projects...');
+        }
+
+        // Process projects using pagination to avoid memory issues
         $allProjects = [];
         $page = 1;
         $pageSize = 100;
 
         do {
             $result = $this->projectRepository->getProjectsByConditions(
-                conditions: ['id' => '780450066156666881'],
+                conditions: $conditions,
                 page: $page,
                 pageSize: $pageSize,
                 orderBy: 'id',
                 orderDirection: 'asc'
             );
+
             if (empty($result['list'])) {
                 break;
             }
