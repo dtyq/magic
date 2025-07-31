@@ -72,7 +72,6 @@ class ProviderModelModel extends AbstractModel
         'visible_applications' => 'array',
         'load_balancing_weight' => 'integer',
         'visible_packages' => 'array',
-        'load_balancing_weight' => 'integer',
         'is_office' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
