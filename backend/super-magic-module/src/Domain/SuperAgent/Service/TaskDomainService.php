@@ -11,13 +11,15 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
@@ -285,15 +287,42 @@ class TaskDomainService
         int $projectId,
         int $topicId,
         int $taskId,
-        string $fileType = TaskFileType::PROCESS->value
+        string $fileType = FileType::PROCESS->value,
+        bool $isUpdate = false,
+        string $storageType = StorageType::WORKSPACE->value,
+        int $source = TaskFileSource::AGENT->value,
+        ?int $parentId = null,
     ): TaskFileEntity {
         // First, check if the file already exists
         $taskFileEntity = $this->getTaskFileByFileKey($fileKey, $topicId);
 
         // If exists and no need to update, return directly
-        if (! empty($taskFileEntity)) {
-            $taskFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        if ($taskFileEntity && ! $isUpdate) {
+            return $taskFileEntity;
+        }
+
+        // If exists, update and return
+        if ($taskFileEntity) {
+            $taskFileEntity->setFileKey($fileKey);
+            $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $taskFileEntity->setTopicId($topicId);
+            $taskFileEntity->setTaskId($taskId);
+            $taskFileEntity->setFileType($fileType);
+            $taskFileEntity->setFileName($fileData['display_filename'] ?? $fileData['filename'] ?? '');
+            $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
+            $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
+            // Check and set whether it's a hidden file
+            $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+            // Update storage type if provided
+            if (isset($fileData['storage_type'])) {
+                $taskFileEntity->setStorageType($fileData['storage_type']);
+            }
+            if ($parentId !== null) {
+                $taskFileEntity->setParentId($parentId);
+            }
+
             return $this->taskFileRepository->updateById($taskFileEntity);
+            // return $taskFileEntity;
         }
 
         // If not exists, create new entity
@@ -323,7 +352,13 @@ class TaskDomainService
         // Check and set whether it's a hidden file
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         // Set storage type, default to workspace
-        $taskFileEntity->setStorageType($fileData['storage_type'] ?? 'workspace');
+        $taskFileEntity->setStorageType($storageType);
+        $taskFileEntity->setSource($source);
+
+        // Set parent_id if provided
+        if ($parentId !== null) {
+            $taskFileEntity->setParentId($parentId);
+        }
 
         // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity
         $result = $this->taskFileRepository->insertOrIgnore($taskFileEntity);
@@ -372,11 +407,12 @@ class TaskDomainService
      * @param int $page Page number
      * @param int $pageSize Page size
      * @param array $fileType File type filter
+     * @param string $storageType Storage type filter
      * @return array Attachment list and total
      */
-    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = []): array
+    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = ''): array
     {
-        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType);
+        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType, $storageType);
     }
 
     public function getTaskBySandboxId(string $sandboxId): ?TaskEntity

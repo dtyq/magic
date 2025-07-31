@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\File\Event;
 
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
+
 /**
  * File batch compression event.
  */
@@ -23,6 +25,7 @@ class FileBatchCompressEvent
      * @param string $workdir Working directory for compression
      * @param string $targetName Target file name for the compressed file
      * @param string $targetPath Target path for the compressed file
+     * @param StorageBucketType $bucketType Storage bucket type for the compression
      */
     public function __construct(
         private readonly string $source,
@@ -33,6 +36,7 @@ class FileBatchCompressEvent
         private readonly string $workdir,
         private readonly string $targetName,
         private readonly string $targetPath,
+        private readonly StorageBucketType $bucketType,
     ) {
     }
 
@@ -52,6 +56,7 @@ class FileBatchCompressEvent
             workdir: $data['workdir'] ?? '',
             targetName: $data['target_name'] ?? '',
             targetPath: $data['target_path'] ?? '',
+            bucketType: isset($data['bucket_type']) ? StorageBucketType::from($data['bucket_type']) : StorageBucketType::Private,
         );
     }
 
@@ -71,6 +76,7 @@ class FileBatchCompressEvent
             'workdir' => $this->workdir,
             'target_name' => $this->targetName,
             'target_path' => $this->targetPath,
+            'bucket_type' => $this->bucketType->value,
         ];
     }
 
@@ -138,5 +144,13 @@ class FileBatchCompressEvent
     public function getTargetPath(): string
     {
         return $this->targetPath;
+    }
+
+    /**
+     * Get bucket type.
+     */
+    public function getBucketType(): StorageBucketType
+    {
+        return $this->bucketType;
     }
 }

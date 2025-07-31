@@ -29,9 +29,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateAgentTaskRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
 use Hyperf\Logger\LoggerFactory;
@@ -52,6 +54,7 @@ class HandleTaskMessageAppService extends AbstractAppService
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
@@ -468,7 +471,14 @@ class HandleTaskMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
+        if (empty($taskContext->getSandboxId())) {
+            $sandboxId = (string) $taskContext->getTopicId();
+        } else {
+            $sandboxId = $taskContext->getSandboxId();
+        }
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent
@@ -490,7 +500,14 @@ class HandleTaskMessageAppService extends AbstractAppService
     private function createAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
+        if (empty($taskContext->getSandboxId())) {
+            $sandboxId = (string) $taskContext->getTopicId();
+        } else {
+            $sandboxId = $taskContext->getSandboxId();
+        }
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent

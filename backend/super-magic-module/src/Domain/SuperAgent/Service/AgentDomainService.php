@@ -11,6 +11,7 @@ use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -28,9 +29,11 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentRes
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -50,6 +53,7 @@ class AgentDomainService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
+        private readonly CloudFileRepositoryInterface $cloudFileRepository,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -57,14 +61,26 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $projectId, string $sandboxID): string
+    public function createSandbox(string $projectId, string $sandboxID, string $workDir): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
         ]);
 
-        $result = $this->gateway->createSandbox(['project_id' => $projectId, 'sandbox_id' => $sandboxID]);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir);
+
+        // 添加详细的调试日志，检查 result 对象
+        $this->logger->info('[Sandbox][App] Gateway result analysis', [
+            'result_class' => get_class($result),
+            'result_is_success' => $result->isSuccess(),
+            'result_code' => $result->getCode(),
+            'result_message' => $result->getMessage(),
+            'result_data_raw' => $result->getData(),
+            'result_data_type' => gettype($result->getData()),
+            'sandbox_id_via_getDataValue' => $result->getDataValue('sandbox_id'),
+            'sandbox_id_via_getData_direct' => $result->getData()['sandbox_id'] ?? 'KEY_NOT_FOUND',
+        ]);
 
         if (! $result->isSuccess()) {
             $this->logger->error('[Sandbox][App] Failed to create sandbox', [
@@ -76,7 +92,13 @@ class AgentDomainService
             throw new SandboxOperationException('Create sandbox', $result->getMessage(), $result->getCode());
         }
 
-        return $result->getData()['sandbox_id'];
+        $this->logger->info('[Sandbox][App] Create sandbox success', [
+            'project_id' => $projectId,
+            'input_sandbox_id' => $sandboxID,
+            'returned_sandbox_id' => $result->getDataValue('sandbox_id'),
+        ]);
+
+        return $result->getDataValue('sandbox_id');
     }
 
     /**
@@ -299,6 +321,62 @@ class AgentDomainService
      * 轮询工作区状态，直到初始化完成、失败或超时.
      *
      * @param string $sandboxId 沙箱ID
+     * @param int $timeoutSeconds 超时时间（秒），默认2分钟
+     * @param int $intervalSeconds 轮询间隔（秒），默认2秒
+     * @throws SandboxOperationException 当初始化失败或超时时抛出异常
+     */
+    public function waitForSandboxReady(string $sandboxId, int $timeoutSeconds = 120, int $intervalSeconds = 2): void
+    {
+        $this->logger->info('[Sandbox][App] Waiting for Sandbox to be ready', [
+            'sandbox_id' => $sandboxId,
+            'timeout_seconds' => $timeoutSeconds,
+            'interval_seconds' => $intervalSeconds,
+        ]);
+
+        $startTime = time();
+        $endTime = $startTime + $timeoutSeconds;
+
+        while (time() < $endTime) {
+            try {
+                $response = $this->getSandboxStatus($sandboxId);
+                $status = $response->getStatus();
+
+                $this->logger->debug('[Sandbox][App] Sandbox status check', [
+                    'sandbox_id' => $sandboxId,
+                    'status' => $status,
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+
+                // 状态为就绪时退出
+                if ($status === SandboxStatus::RUNNING) {
+                    $this->logger->info('[Sandbox][App] Sandbox is ready', [
+                        'sandbox_id' => $sandboxId,
+                        'elapsed_seconds' => time() - $startTime,
+                    ]);
+                    return;
+                }
+
+                // 等待下一次轮询
+                sleep($intervalSeconds);
+            } catch (SandboxOperationException $e) {
+                // 重新抛出沙箱操作异常
+                throw $e;
+            } catch (Throwable $e) {
+                $this->logger->error('[Sandbox][App] Error while checking sandbox status', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+                throw new SandboxOperationException('Wait for sandbox ready', 'Error checking sandbox status: ' . $e->getMessage(), 3002);
+            }
+        }
+    }
+
+    /**
+     * 等待工作区就绪.
+     * 轮询工作区状态，直到初始化完成、失败或超时.
+     *
+     * @param string $sandboxId 沙箱ID
      * @param int $timeoutSeconds 超时时间（秒），默认10分钟
      * @param int $intervalSeconds 轮询间隔（秒），默认2秒
      * @throws SandboxOperationException 当初始化失败或超时时抛出异常
@@ -376,13 +454,13 @@ class AgentDomainService
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
     {
         // 1. 获取上传配置信息
-        $storageType = StorageBucketType::Private->value;
+        $storageType = StorageBucketType::SandBox->value;
         $expires = 3600; // Credential valid for 1 hour
         // Create user authorization object
         $userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         // Use unified FileAppService to get STS Token
-        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires);
+        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $taskContext->getTask()->getWorkDir(), $expires, false);
 
         // 2. 构建元数据
         $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
@@ -398,6 +476,11 @@ class AgentDomainService
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
             userInfo: $userInfo
         );
+
+        // chat history
+        $fullPrefix = $this->cloudFileRepository->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $chatWorkDir = WorkDirectoryUtil::getAgentChatHistoryDir($dataIsolation->getCurrentUserId(), $taskContext->getProjectId());
+        $fullChatWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $chatWorkDir);
 
         return [
             'message_id' => (string) IdGenerator::getSnowId(),
@@ -423,6 +506,7 @@ class AgentDomainService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'chat_history_dir' => $fullChatWorkDir,
         ];
     }
 

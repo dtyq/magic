@@ -61,8 +61,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     /**
      * 创建沙箱.
      */
-    public function createSandbox(array $config = []): GatewayResult
+    public function createSandbox(string $projectId, string $sandboxId, string $workDir): GatewayResult
     {
+        $config = ['project_id' => $projectId, 'sandbox_id' => $sandboxId, 'project_oss_path' => $workDir];
+
         $this->logger->info('[Sandbox][Gateway] Creating sandbox', ['config' => $config]);
 
         try {
@@ -490,7 +492,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     /**
      * 确保沙箱存在并且可用.
      */
-    public function ensureSandboxAvailable(string $sandboxId, string $projectId): string
+    public function ensureSandboxAvailable(string $sandboxId, string $projectId, string $workDir = ''): string
     {
         try {
             // 检查沙箱是否可用
@@ -543,7 +545,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             }
 
             // 创建新沙箱
-            $createResult = $this->createSandbox(['sandbox_id' => $sandboxId, 'project_id' => $projectId]);
+            $createResult = $this->createSandbox($projectId, $sandboxId, $workDir);
 
             if (! $createResult->isSuccess()) {
                 $this->logger->error('ensureSandboxAvailable Failed to create sandbox', [

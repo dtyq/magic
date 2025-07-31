@@ -20,7 +20,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\TempDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckBatchDownloadResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateBatchDownloadResponseDTO;
@@ -110,7 +110,7 @@ class FileBatchAppService extends AbstractAppService
         $this->statusManager->initializeTask($batchKey, $userId, count($userFiles));
 
         // Publish message queue task
-        $this->publishBatchJob($batchKey, $userFiles, $userId, $userAuthorization->getOrganizationCode(), $targetName, $workdir);
+        $this->publishBatchJob($batchKey, $userFiles, $projectEntity->getId(), $userId, $userAuthorization->getOrganizationCode(), $targetName, $workdir);
 
         return new CreateBatchDownloadResponseDTO(
             'processing',
@@ -216,12 +216,13 @@ class FileBatchAppService extends AbstractAppService
      *
      * @param string $batchKey Batch key
      * @param array $files File array
+     * @param int $projectId Project ID
      * @param string $userId User ID
      * @param string $organizationCode Organization code
      * @param string $targetName Target name
      * @param string $workDir Work directory
      */
-    private function publishBatchJob(string $batchKey, array $files, string $userId, string $organizationCode, string $targetName = '', string $workDir = ''): void
+    private function publishBatchJob(string $batchKey, array $files, int $projectId, string $userId, string $organizationCode, string $targetName = '', string $workDir = ''): void
     {
         // Prevent duplicate processing
         if (! $this->statusManager->acquireLock($batchKey)) {
@@ -247,7 +248,8 @@ class FileBatchAppService extends AbstractAppService
             $fileData,
             $workDir,
             $targetName,
-            TempDirectoryUtil::getCompressTempDir()
+            WorkDirectoryUtil::getProjectFilePackDir($userId, $projectId),
+            StorageBucketType::SandBox
         );
 
         $publisher = new FileBatchCompressPublisher($event);
@@ -287,7 +289,7 @@ class FileBatchAppService extends AbstractAppService
      */
     private function generateDownloadUrl(string $filePath, string $organizationCode): string
     {
-        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::Private, []);
+        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::SandBox, []);
         if (empty($fileLink)) {
             return '';
         }

@@ -41,6 +41,11 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     public string $workdir = '';
 
     /**
+     * Project files.
+     */
+    public array $files = [];
+
+    /**
      * Get workspace ID.
      */
     public function getWorkspaceId(): int
@@ -96,6 +101,14 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get project files.
+     */
+    public function getFiles(): array
+    {
+        return $this->files;
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -106,6 +119,8 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'project_description' => 'nullable|string|max:500',
             'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,summary,super-magic',
             'workdir' => 'nullable|string|max:255',
+            'files' => 'nullable|array|max:50',
+            'files.*' => 'string',
         ];
     }
 
@@ -122,6 +137,9 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'project_description.max' => 'Project description cannot exceed 500 characters',
             'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, summary, super-magic',
             'workdir.max' => 'Working directory cannot exceed 255 characters',
+            'files.array' => 'Files must be an array',
+            'files.max' => 'Files array cannot contain more than 50 items',
+            'files.*.string' => 'Each file must be a string',
         ];
     }
 }

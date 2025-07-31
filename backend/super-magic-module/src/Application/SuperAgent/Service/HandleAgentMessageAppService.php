@@ -11,21 +11,27 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TaskFileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
@@ -46,6 +52,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
@@ -301,15 +308,21 @@ class HandleAgentMessageAppService extends AbstractAppService
     private function processAllAttachments(array &$messageData, TaskContext $taskContext): void
     {
         try {
+            /** @var TaskFileEntity[] $processedEntities */
+            $processedEntities = [];
             // Process tool attachments
             if (! empty($messageData['tool']['attachments'])) {
-                $this->processToolAttachments($messageData['tool'], $taskContext);
+                $toolProcessedEntities = $this->processToolAttachments($messageData['tool'], $taskContext);
+                $processedEntities = array_merge($processedEntities, $toolProcessedEntities);
                 // Use tool processor to handle file ID matching
                 ToolProcessor::processToolAttachments($messageData['tool']);
             }
 
-            // Process message attachments
-            $this->processMessageAttachments($messageData['attachments'], $taskContext);
+            // Process message attachments and collect processed entities
+            if (! empty($messageData['attachments'])) {
+                $messageProcessedEntities = $this->processMessageAttachments($messageData['attachments'], $taskContext);
+                $processedEntities = array_merge($processedEntities, $messageProcessedEntities);
+            }
 
             // Process tool content storage
             $this->processToolContentStorage($messageData['tool'], $taskContext);
@@ -320,6 +333,16 @@ class HandleAgentMessageAppService extends AbstractAppService
                 if ($outputTool !== null) {
                     $messageData['tool'] = $outputTool;
                 }
+            }
+
+            // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
+            if (! empty($processedEntities)) {
+                AsyncEventUtil::dispatch(new AttachmentsProcessedEvent($processedEntities, $taskContext));
+                $this->logger->info(sprintf(
+                    'Dispatched AttachmentsProcessedEvent for %d processed attachments, task_id: %s',
+                    count($processedEntities),
+                    $taskContext->getTask()->getTaskId()
+                ));
             }
         } catch (Exception $e) {
             $this->logger->error(sprintf('Exception occurred while processing attachments: %s', $e->getMessage()));
@@ -384,48 +407,72 @@ class HandleAgentMessageAppService extends AbstractAppService
 
     /**
      * Process tool attachments, save them to task file table and chat file table.
+     * @return TaskFileEntity[] Array of successfully processed file entities
      */
-    private function processToolAttachments(?array &$tool, TaskContext $taskContext): void
+    private function processToolAttachments(?array &$tool, TaskContext $taskContext): array
     {
         if (empty($tool['attachments'])) {
-            return;
+            return [];
         }
 
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
+        $processedEntities = [];
 
         foreach ($tool['attachments'] as $i => $iValue) {
-            $tool['attachments'][$i] = $this->processSingleAttachment(
+            $result = $this->processSingleAttachment(
                 $iValue,
                 $task,
                 $dataIsolation
             );
+
+            $tool['attachments'][$i] = $result['attachment'];
+
+            // Collect successfully processed entities
+            if ($result['taskFileEntity'] !== null) {
+                $processedEntities[] = $result['taskFileEntity'];
+            }
         }
+
+        return $processedEntities;
     }
 
     /**
      * Process message attachments.
+     * @return TaskFileEntity[] Array of successfully processed file entities
      */
-    private function processMessageAttachments(?array &$attachments, TaskContext $taskContext): void
+    private function processMessageAttachments(?array &$attachments, TaskContext $taskContext): array
     {
         if (empty($attachments)) {
-            return;
+            return [];
         }
 
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
+        $processedEntities = [];
 
         foreach ($attachments as $i => $iValue) {
-            $attachments[$i] = $this->processSingleAttachment(
+            $result = $this->processSingleAttachment(
                 $iValue,
                 $task,
                 $dataIsolation
             );
+
+            // Update the attachment array with processed attachment
+            $attachments[$i] = $result['attachment'];
+
+            // Collect successfully processed entities
+            if ($result['taskFileEntity'] !== null) {
+                $processedEntities[] = $result['taskFileEntity'];
+            }
         }
+
+        return $processedEntities;
     }
 
     /**
      * Process single attachment, save to task file table and chat file table.
+     * @return array{attachment: array, taskFileEntity: null|TaskFileEntity}
      */
     private function processSingleAttachment(array $attachment, TaskEntity $task, DataIsolation $dataIsolation): array
     {
@@ -436,14 +483,25 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $task->getTaskId(),
                 json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ));
-            return [];
+            return ['attachment' => [], 'taskFileEntity' => null];
         }
 
         try {
-            /**
-             * @var TaskFileEntity $taskFileEntity
-             */
-            // Call FileProcessAppService directly to process attachment
+            // 1. Get context information for directory creation
+            $projectId = $task->getProjectId();
+            $workDir = $task->getWorkDir();
+
+            // 2. Call domain service to get correct parent_id
+            $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
+                $projectId,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $attachment['file_key'],
+                $workDir
+            );
+
+            // 3. Call FileProcessAppService with parentId
+            /** @var TaskFileEntity $taskFileEntity */
             [$fileId, $taskFileEntity] = $this->fileProcessAppService->processFileByFileKey(
                 $attachment['file_key'],
                 $dataIsolation,
@@ -451,12 +509,16 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $task->getProjectId(),
                 $task->getTopicId(),
                 (int) $task->getId(),
-                $attachment['file_tag'] ?? TaskFileType::PROCESS->value
+                $attachment['file_tag'] ?? FileType::PROCESS->value,
+                StorageType::WORKSPACE->value, // Default storage type
+                TaskFileSource::AGENT->value,  // Default source
+                $parentId // Pass the parent_id
             );
 
             // Save file ID to attachment information
             $attachment['file_id'] = (string) $fileId;
             $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
+            $attachment['metadata'] = FileMetadataUtil::getMetadataObject($taskFileEntity->getMetadata());
 
             $this->logger->info(sprintf(
                 'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
@@ -464,6 +526,8 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $task->getTaskId(),
                 $attachment['filename']
             ));
+
+            return ['attachment' => $attachment, 'taskFileEntity' => $taskFileEntity];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Exception processing attachment: %s, filename: %s, task_id: %s',
@@ -471,9 +535,9 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $attachment['filename'] ?? 'unknown',
                 $task->getTaskId()
             ));
-        }
 
-        return $attachment;
+            return ['attachment' => $attachment, 'taskFileEntity' => null];
+        }
     }
 
     /**
@@ -511,7 +575,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
             $task = $taskContext->getTask();
-            $workDir = rtrim($task->getWorkdir(), '/') . '/task_' . $task->getId() . '/.chat/';
+            $workDir = WorkDirectoryUtil::getTopicMessageDir($task->getUserId(), $task->getProjectId(), $task->getTopicId());
 
             // Call FileProcessAppService to save content
             $fileId = $this->fileProcessAppService->saveToolMessageContent(

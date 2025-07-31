@@ -11,9 +11,76 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 
 class WorkDirectoryUtil
 {
-    public static function generateWorkDir(string $userId, int $projectId): string
+    public static function getPrefix(string $workDir): string
     {
-        return sprintf('/%s/%s/project_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $projectId);
+        return trim($workDir, '/') . '/';
+    }
+
+    public static function getRootDir(string $userId, int $projectId): string
+    {
+        return sprintf('/project_%d', $projectId);
+    }
+
+    public static function getWorkDir(string $userId, int $projectId): string
+    {
+        return self::getRootDir($userId, $projectId) . '/workspace';
+    }
+
+    public static function generateDefaultWorkDirMetadata(): array
+    {
+        // x-amz-meta-
+        return [
+            'uid' => '0',
+            'gid' => '0',
+            'mode' => (string) 0755,
+            'atime' => (string) microtime(true),
+            'ctime' => (string) microtime(true),
+            'mtime' => (string) microtime(true),
+        ];
+    }
+
+    public static function getAgentChatHistoryDir(string $userId, int $projectId): string
+    {
+        return self::getRootDir($userId, $projectId) . '/chat-history/';
+    }
+
+    /**
+     * Get topic root directory path.
+     *
+     * @param string $userId User ID
+     * @param int $projectId Project ID
+     * @param int $topicId Topic ID
+     * @return string Topic root directory path
+     */
+    public static function getTopicRootDir(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getRootDir($userId, $projectId) . sprintf('/runtime/topic_%s', $topicId);
+    }
+
+    public static function getTopicUploadDir(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getTopicRootDir($userId, $projectId, $topicId) . '/uploads';
+    }
+
+    public static function getTopicMessageDir(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getTopicRootDir($userId, $projectId, $topicId) . '/message';
+    }
+
+    public static function getProjectFilePackDir(string $userId, int $projectId): string
+    {
+        $currentDate = date('Ymd');
+        return self::getRootDir($userId, $projectId) . '/runtime/pack/' . $currentDate . '/';
+    }
+
+    public static function getFullFileKey(string $prefix, string $workDir, string $path): string
+    {
+        return $prefix . trim($workDir, '/') . '/' . $path;
+    }
+
+    public static function getFullWorkdir(string $prefix, string $workDir): string
+    {
+        return $prefix . trim($workDir, '/') . '/';
     }
 
     public static function getRelativeFilePath(string $fileKey, string $workDir): string
@@ -28,14 +95,49 @@ class WorkDirectoryUtil
         return $fileKey;
     }
 
+    public static function checkEffectiveFileKey(string $fullWorkdir, string $fileKey): bool
+    {
+        if (empty($fullWorkdir) || empty($fileKey)) {
+            return false;
+        }
+
+        return self::isPathUnderDirectory($fullWorkdir, $fileKey);
+    }
+
     /**
      * Validate if the given work directory path is valid.
      *
-     * @param string $workDir Work directory path to validate (can be relative or absolute)
-     * @param string $userId User ID to validate against
+     * @param string $workDirPrefix Work directory prefix (e.g., "DT001/588417216353927169")
+     * @param string $workDir Work directory path to validate
      * @return bool True if valid, false otherwise
      */
-    public static function isValidWorkDirectory(string $workDir, string $userId): bool
+    public static function isValidWorkDirectory(string $workDirPrefix, string $workDir): bool
+    {
+        if (empty($workDirPrefix) || empty($workDir)) {
+            return false;
+        }
+
+        // Remove trailing slash from workDir if exists
+        $workDir = rtrim($workDir, '/');
+        // Ensure prefix doesn't have trailing slash for consistency
+        $workDirPrefix = rtrim($workDirPrefix, '/');
+
+        // Check if the workDir starts with the given prefix followed by /project_
+        // The workDir should match pattern: {prefix}/project_{projectId}[/workspace]
+        $pattern = sprintf(
+            '/^%s\/project_\d+(\/workspace)?$/',
+            preg_quote($workDirPrefix, '/')
+        );
+
+        return preg_match($pattern, $workDir) === 1;
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     *
+     * @deprecated Use isValidWorkDirectory($workDirPrefix, $workDir) instead
+     */
+    public static function isValidWorkDirectoryLegacy(string $workDir, string $userId): bool
     {
         if (empty($workDir) || empty($userId)) {
             return false;
@@ -44,10 +146,12 @@ class WorkDirectoryUtil
         // Remove trailing slash if exists
         $workDir = rtrim($workDir, '/');
 
-        // Check if it contains the expected pattern: SUPER_MAGIC/{userId}/project_{projectId}
+        // Check if it contains the expected pattern: SUPER_MAGIC/{userId}/project_{projectId}[/workspace]
+        // Supports both legacy format (project_id only) and new format (with /workspace suffix)
         // The pattern should work for both relative and absolute paths
         $pattern = sprintf(
-            '/.*\/%s\/%s\/project_\d+$/',
+            '/(?:.*\/%s|^%s)\/%s\/project_\d+(\/workspace)?$/',
+            preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote($userId, '/')
         );
@@ -58,11 +162,35 @@ class WorkDirectoryUtil
     /**
      * Extract project ID from work directory path.
      *
-     * @param string $workDir Work directory path (can be relative or absolute)
-     * @param string $userId User ID to match against
+     * @param string $workDir Work directory path
      * @return null|string Project ID if found, null if not found or invalid format
      */
-    public static function extractProjectIdFromAbsolutePath(string $workDir, string $userId): ?string
+    public static function extractProjectIdFromAbsolutePath(string $workDir): ?string
+    {
+        if (empty($workDir)) {
+            return null;
+        }
+
+        // Simple pattern matching: find project_ followed by digits and ending with /
+        // This matches patterns like: "project_809080575792672768/" or "project_123/"
+        if (preg_match('/project_(\d+)\//', $workDir, $matches)) {
+            return $matches[1];
+        }
+
+        // Also handle cases without trailing slash: "project_809080575792672768"
+        if (preg_match('/project_(\d+)$/', $workDir, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     *
+     * @deprecated Use extractProjectIdFromAbsolutePath($workDir) instead
+     */
+    public static function extractProjectIdFromAbsolutePathLegacy(string $workDir, string $userId): ?string
     {
         if (empty($workDir) || empty($userId)) {
             return null;
@@ -71,11 +199,13 @@ class WorkDirectoryUtil
         // Remove trailing slash if exists
         $workDir = rtrim($workDir, '/');
 
-        // Expected format: path/to/SUPER_MAGIC/{userId}/project_{projectId}
+        // Expected format: path/to/SUPER_MAGIC/{userId}/project_{projectId}[/workspace]
+        // Supports both legacy format (project_id only) and new format (with /workspace suffix)
         // We need to find the pattern: SUPER_MAGIC/{specificUserId}/project_{projectId}
         // The pattern should work for both relative and absolute paths
         $pattern = sprintf(
-            '/.*\/%s\/%s\/project_(\d+)$/',
+            '/(?:.*\/%s|^%s)\/%s\/project_(\d+)(?:\/workspace)?$/',
+            preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote(AgentConstant::SUPER_MAGIC_CODE, '/'),
             preg_quote($userId, '/')
         );
@@ -128,5 +258,300 @@ class WorkDirectoryUtil
         }
 
         return $result;
+    }
+
+    /**
+     * Validate if a filename (without path) is valid for file operations.
+     *
+     * @param string $fileName Filename to validate (should not contain path separators)
+     * @return bool True if the filename is valid, false otherwise
+     *
+     * Examples of INVALID inputs (will return false):
+     * - '/a'           // Directory path (starts with /)
+     * - '/b/'          // Directory path (starts and ends with /)
+     * - 'dir/'         // Directory path (ends with /)
+     * - 'a/b'          // Nested path
+     * - 'dir\\file'    // Windows path separator
+     * - '../file'      // Path traversal
+     * - 'CON.txt'      // Windows reserved name
+     * - 'file?.txt'    // Invalid characters
+     * - ''             // Empty string
+     * - '.'            // Current directory
+     * - '..'           // Parent directory
+     *
+     * Examples of VALID inputs (will return true):
+     * - 'document.txt'
+     * - 'README.md'
+     * - 'config.json'
+     * - '用户手册.pdf'
+     * - 'data-2024.csv'
+     */
+    public static function isValidFileName(string $fileName): bool
+    {
+        // Check if filename is empty
+        if (empty(trim($fileName))) {
+            return false;
+        }
+
+        // Trim the filename
+        $fileName = trim($fileName);
+
+        // Check for null bytes (security risk)
+        if (strpos($fileName, "\0") !== false) {
+            return false;
+        }
+
+        // Check for path separators (filename should not contain paths)
+        if (strpos($fileName, '/') !== false || strpos($fileName, '\\') !== false) {
+            return false;
+        }
+
+        // Check for dangerous characters that could cause file system issues
+        // Windows forbidden characters: < > : " | ? *
+        // Also check for control characters (ASCII 0-31)
+        if (preg_match('/[<>:"|?*\x00-\x1f]/', $fileName)) {
+            return false;
+        }
+
+        // Prevent path traversal patterns
+        if (strpos($fileName, '..') !== false) {
+            return false;
+        }
+
+        // Check filename length (typical filesystem limit is 255 bytes)
+        if (strlen($fileName) > 255) {
+            return false;
+        }
+
+        // Check for Windows reserved names (case-insensitive)
+        // First, remove extension to check the base name
+        $baseName = pathinfo($fileName, PATHINFO_FILENAME);
+        $reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+        if (in_array(strtoupper($baseName), $reservedNames)) {
+            return false;
+        }
+
+        // Check for filenames that are just dots
+        if ($fileName === '.' || $fileName === '..') {
+            return false;
+        }
+
+        // Check for filenames starting or ending with spaces or dots (problematic on Windows)
+        if (preg_match('/^[\s.]+|[\s.]+$/', $fileName)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a target path is under or equal to a specified base directory.
+     *
+     * @param string $basePath Base directory path to check against
+     * @param string $targetPath Target path to validate
+     * @return bool True if target path is under base path or equal to it, false otherwise
+     *
+     * Examples:
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project') → true (equal)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project/file.txt') → true (under)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project/subdir/file.txt') → true (nested)
+     * - isPathUnderDirectory('/workspace/project', '/workspace') → false (parent)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/other') → false (sibling)
+     * - isPathUnderDirectory('/workspace/project', '/workspace/project/../other') → false (traversal)
+     */
+    public static function isPathUnderDirectory(string $basePath, string $targetPath): bool
+    {
+        // Check for null bytes BEFORE trimming (security risk)
+        if (strpos($basePath, "\0") !== false || strpos($targetPath, "\0") !== false) {
+            return false;
+        }
+
+        // Check for empty paths
+        if (empty(trim($basePath)) || empty(trim($targetPath))) {
+            return false;
+        }
+
+        // Trim and normalize paths
+        $basePath = trim($basePath);
+        $targetPath = trim($targetPath);
+
+        // Normalize paths by removing redundant separators and resolving . and .. components
+        $normalizedBasePath = self::normalizePath($basePath);
+        $normalizedTargetPath = self::normalizePath($targetPath);
+
+        // If normalization failed (invalid paths), return false
+        if ($normalizedBasePath === false || $normalizedTargetPath === false) {
+            return false;
+        }
+
+        // Ensure both paths end with a trailing slash for proper comparison (except for exact equality)
+        $basePathWithSlash = rtrim($normalizedBasePath, '/') . '/';
+        $targetPathWithSlash = rtrim($normalizedTargetPath, '/') . '/';
+
+        // Check if paths are exactly equal
+        if ($normalizedBasePath === $normalizedTargetPath) {
+            return true;
+        }
+
+        // Check if target path starts with base path (is under base directory)
+        return strpos($targetPathWithSlash, $basePathWithSlash) === 0;
+    }
+
+    /**
+     * Validate if a given string represents a valid directory name.
+     *
+     * @param string $directoryName Directory name to validate
+     * @return bool True if the string represents a valid directory, false otherwise
+     *
+     * Examples of VALID directory names:
+     * - 'a'            // Simple directory name
+     * - 'a/b'          // Nested directory path
+     * - '/a'           // Absolute directory path
+     * - '/'            // Root directory
+     *
+     * Examples of INVALID directory names:
+     * - ''             // Empty string
+     * - 'file.txt'     // File with extension (assumed to be a file)
+     * - 'dir/file.txt' // Path ending with a file
+     * - '../dir'       // Path traversal
+     * - 'dir\\'        // Windows path separator
+     * - 'dir?'         // Invalid characters
+     */
+    public static function isValidDirectoryName(string $directoryName): bool
+    {
+        // Check if directory name is empty
+        if (empty(trim($directoryName))) {
+            return false;
+        }
+
+        // Check for leading/trailing spaces in the original string (before trimming)
+        if ($directoryName !== trim($directoryName)) {
+            return false;
+        }
+
+        // Trim the directory name
+        $directoryName = trim($directoryName);
+
+        // Root directory is always valid
+        if ($directoryName === '/') {
+            return true;
+        }
+
+        // Check for null bytes (security risk)
+        if (strpos($directoryName, "\0") !== false) {
+            return false;
+        }
+
+        // Check for dangerous characters that could cause file system issues
+        // Windows forbidden characters: < > : " | ? *
+        // Also check for control characters (ASCII 0-31)
+        if (preg_match('/[<>:"|?*\x00-\x1f]/', $directoryName)) {
+            return false;
+        }
+
+        // Check for Windows path separators (we only allow forward slashes)
+        if (strpos($directoryName, '\\') !== false) {
+            return false;
+        }
+
+        // Prevent path traversal patterns
+        if (strpos($directoryName, '..') !== false) {
+            return false;
+        }
+
+        // Split into path components and validate each part
+        $components = array_filter(explode('/', $directoryName), fn (string $part): bool => strlen($part) > 0);
+
+        foreach ($components as $component) {
+            // Each component should not be empty after filtering
+            if (empty(trim($component))) {
+                continue;
+            }
+
+            // Check component length (typical filesystem limit is 255 bytes per component)
+            if (strlen($component) > 255) {
+                return false;
+            }
+
+            // Check for Windows reserved names (case-insensitive)
+            $reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+            if (in_array(strtoupper($component), $reservedNames)) {
+                return false;
+            }
+
+            // Check for components that are just dots
+            if ($component === '.' || $component === '..') {
+                return false;
+            }
+
+            // Check for components starting or ending with spaces or dots (problematic on Windows)
+            if (preg_match('/^[\s.]+|[\s.]+$/', $component)) {
+                return false;
+            }
+
+            // Check if component looks like a file (has an extension)
+            // Only check the last component to determine if it's a file
+            $pathParts = explode('/', $directoryName);
+            $lastComponent = end($pathParts);
+            if ($component === $lastComponent && preg_match('/\.[a-zA-Z0-9]+$/', $component)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Normalize a file path by resolving . and .. components and removing redundant separators.
+     *
+     * @param string $path Path to normalize
+     * @return false|string Normalized path or false if path is invalid
+     */
+    private static function normalizePath(string $path): false|string
+    {
+        // Convert Windows backslashes to forward slashes
+        $path = str_replace('\\', '/', $path);
+
+        // Remove multiple consecutive slashes
+        $path = preg_replace('#/+#', '/', $path);
+
+        // Split path into components
+        $isAbsolute = str_starts_with($path, '/');
+        $components = array_filter(explode('/', $path), fn (string $part): bool => strlen($part) > 0);
+        $normalizedComponents = [];
+
+        foreach ($components as $component) {
+            if ($component === '.') {
+                // Current directory - skip
+                continue;
+            }
+            if ($component === '..') {
+                // Parent directory
+                if (empty($normalizedComponents)) {
+                    // If we're at the root and encounter .., this is invalid for absolute paths
+                    if ($isAbsolute) {
+                        return false;
+                    }
+                    // For relative paths, we can't go above the starting point in our context
+                    return false;
+                }
+                // Go up one level
+                array_pop($normalizedComponents);
+            } else {
+                // Regular component
+                $normalizedComponents[] = $component;
+            }
+        }
+
+        // Reconstruct the path
+        $normalizedPath = ($isAbsolute ? '/' : '') . implode('/', $normalizedComponents);
+
+        // Handle root directory case
+        if ($isAbsolute && $normalizedPath === '/') {
+            return '/';
+        }
+
+        // Remove trailing slash for non-root paths
+        return rtrim($normalizedPath, '/');
     }
 }

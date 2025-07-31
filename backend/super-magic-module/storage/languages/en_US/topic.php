@@ -5,8 +5,8 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
-    'default_topic_name' => 'New Topic',
-    'topic_not_found' => 'Topic not found',
-    'create_topic_failed' => 'Create topic failed',
+    'not_found' => 'Topic not found',
+    'create_topic_failed' => 'Failed to create topic',
+    'concurrent_operation_failed' => 'Concurrent operation failed',
     'topic_access_denied' => 'Topic access denied',
 ];

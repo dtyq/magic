@@ -15,17 +15,64 @@ class FileTreeUtil
     /**
      * 将文件列表组装成树状结构，支持无限极嵌套.
      *
-     * @param string $workDir 工作目录
+     * 新版本直接使用 relative_file_path 构建树结构，支持 is_directory 字段
+     *
      * @param array $files 文件列表数据
      * @return array 树状结构数组
      */
-    public static function assembleFilesTree(string $workDir, array $files): array
+    public static function assembleFilesTree(array $files): array
     {
         if (empty($files)) {
             return [];
         }
 
-        // 文件树根节点
+        // 预处理：按排序值对文件进行排序
+        usort($files, function ($a, $b) {
+            // 首先按父目录分组
+            $aParentId = $a['parent_id'] ?? 0;
+            $bParentId = $b['parent_id'] ?? 0;
+
+            if ($aParentId !== $bParentId) {
+                return $aParentId <=> $bParentId;
+            }
+
+            // 同一父目录下按排序值排序
+            $aSortValue = $a['sort'] ?? 0;
+            $bSortValue = $b['sort'] ?? 0;
+
+            if ($aSortValue === $bSortValue) {
+                // 排序值相同时按file_id排序
+                $aFileId = $a['file_id'] ?? 0;
+                $bFileId = $b['file_id'] ?? 0;
+                return $aFileId <=> $bFileId;
+            }
+
+            return $aSortValue <=> $bSortValue;
+        });
+
+        // 预处理：为每个文件确定类型和标准化路径
+        $processedFiles = [];
+        foreach ($files as $file) {
+            $relativePath = $file['relative_file_path'] ?? '';
+            if (empty($relativePath)) {
+                continue; // 跳过没有相对路径的文件
+            }
+
+            // 标准化路径：移除开头的斜杠，确保以斜杠结尾的是目录
+            $normalizedPath = ltrim($relativePath, '/');
+
+            // 检测是否为目录
+            $isDirectory = self::detectIsDirectory($file);
+
+            $processedFiles[] = [
+                'original_data' => $file,
+                'normalized_path' => $normalizedPath,
+                'is_directory' => $isDirectory,
+                'path_parts' => $normalizedPath ? explode('/', rtrim($normalizedPath, '/')) : [],
+            ];
+        }
+
+        // 构建文件树
         $root = [
             'type' => 'root',
             'is_directory' => true,
@@ -34,145 +81,65 @@ class FileTreeUtil
         ];
 
         // 目录映射，用于快速查找目录节点
-        $directoryMap = ['' => &$root]; // 根目录的引用
+        $directoryMap = ['' => &$root];
 
-        // 去掉workDir开头可能的斜杠，确保匹配
-        $workDir = ltrim($workDir, '/');
-
-        // 遍历所有文件路径，确定根目录
-        $rootDir = '';
-        foreach ($files as $file) {
-            if (empty($file['file_key'])) {
-                continue; // 跳过没有文件路径的记录
+        // 第一步：创建所有目录节点
+        foreach ($processedFiles as $processedFile) {
+            if (! $processedFile['is_directory']) {
+                continue;
             }
 
-            $filePath = $file['file_key'];
-
-            // 查找workDir在文件路径中的位置
-            $workDirPos = strpos($filePath, $workDir);
-            if ($workDirPos === false) {
-                continue; // 找不到workDir，跳过
+            $pathParts = $processedFile['path_parts'];
+            if (empty($pathParts)) {
+                continue;
             }
 
-            // 获取workDir结束的位置
-            $rootDir = substr($filePath, 0, $workDirPos + strlen($workDir));
-            break;
+            self::ensureDirectoryPath($directoryMap, $pathParts, $processedFile['original_data']);
         }
 
-        // 如果没有找到有效的根目录，创建一个扁平的目录结构
-        if (empty($rootDir)) {
-            // 直接将所有文件作为根节点的子节点
-            foreach ($files as $file) {
-                if (empty($file['file_key'])) {
-                    continue; // 跳过没有文件路径的记录
-                }
-
-                // 提取文件名，通常是路径最后一部分
-                $pathParts = explode('/', $file['file_key']);
-                $fileName = end($pathParts);
-
-                // 创建文件节点
-                $fileNode = $file;
-                $fileNode['type'] = 'file';
-                $fileNode['is_directory'] = false;
-                $fileNode['children'] = [];
-                $fileNode['name'] = $fileName;
-
-                // 添加到根节点
-                $root['children'][] = $fileNode;
+        // 第二步：放置所有文件到对应目录
+        foreach ($processedFiles as $processedFile) {
+            if ($processedFile['is_directory']) {
+                continue;
             }
 
-            return $root['children'];
-        }
-
-        // 处理所有文件
-        foreach ($files as $file) {
-            if (empty($file['file_key'])) {
-                continue; // 跳过没有文件路径的记录
+            $pathParts = $processedFile['path_parts'];
+            if (empty($pathParts)) {
+                continue;
             }
 
-            $filePath = $file['file_key'];
+            // 文件名是路径的最后一部分
+            $fileName = array_pop($pathParts);
 
-            // 提取相对路径
-            if (strpos($filePath, $rootDir) === 0) {
-                // 移除根目录前缀，获取相对路径
-                $relativePath = substr($filePath, strlen($rootDir));
-                $relativePath = ltrim($relativePath, '/');
+            // 确保父目录存在
+            if (! empty($pathParts)) {
+                self::ensureDirectoryPath($directoryMap, $pathParts);
+            }
 
-                // 创建文件节点
-                $fileNode = $file;
-                $fileNode['type'] = 'file';
-                $fileNode['is_directory'] = false;
-                $fileNode['children'] = [];
+            // 创建文件节点
+            $fileNode = $processedFile['original_data'];
+            $fileNode['type'] = 'file';
+            $fileNode['is_directory'] = false;
+            $fileNode['children'] = [];
+            $fileNode['name'] = $fileName;
 
-                // 如果相对路径为空，表示文件直接位于根目录
-                if (empty($relativePath)) {
-                    $root['children'][] = $fileNode;
-                    continue;
-                }
+            // 检测是否为隐藏文件
+            if (! isset($fileNode['is_hidden'])) {
+                $fileNode['is_hidden'] = str_starts_with($fileName, '.');
+            }
 
-                // 分析相对路径，提取目录部分和文件名
-                $pathParts = explode('/', $relativePath);
-                $fileName = array_pop($pathParts); // 移除并获取最后一部分作为文件名
+            // 获取父目录路径
+            $parentPath = empty($pathParts) ? '' : implode('/', $pathParts);
 
-                if (empty($pathParts)) {
-                    // 没有目录部分，文件直接位于根目录下
-                    $root['children'][] = $fileNode;
-                    continue;
-                }
-
-                // 逐级构建目录
-                $currentPath = '';
-                $parent = &$root;
-                $parentIsHidden = false; // 父级是否为隐藏目录
-
-                foreach ($pathParts as $dirName) {
-                    if (empty($dirName)) {
-                        continue; // 跳过空目录名
-                    }
-
-                    // 更新当前路径
-                    $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
-
-                    // 如果当前路径的目录不存在，创建它
-                    if (! isset($directoryMap[$currentPath])) {
-                        // 判断当前目录是否为隐藏目录
-                        $isHiddenDir = self::isHiddenDirectory($dirName) || $parentIsHidden;
-
-                        // 创建新目录节点
-                        $newDir = [
-                            'name' => $dirName,
-                            'path' => $currentPath,
-                            'type' => 'directory',
-                            'is_directory' => true,
-                            'is_hidden' => $isHiddenDir,
-                            'children' => [],
-                        ];
-
-                        // 将新目录添加到父目录的子项中
-                        $parent['children'][] = $newDir;
-
-                        // 保存目录引用到映射中
-                        $directoryMap[$currentPath] = &$parent['children'][count($parent['children']) - 1];
-                    }
-
-                    // 更新父目录引用为当前目录
-                    $parent = &$directoryMap[$currentPath];
-                    // 更新父级隐藏状态，如果当前目录是隐藏的，那么其子级都应该是隐藏的
-                    $parentIsHidden = $parent['is_hidden'] ?? false;
-                }
-
-                // 如果父目录是隐藏的，那么文件也应该被标记为隐藏
-                if ($parentIsHidden) {
-                    $fileNode['is_hidden'] = true;
-                }
-
-                // 将文件添加到最终目录的子项中
-                $parent['children'][] = $fileNode;
+            // 将文件添加到父目录
+            if (isset($directoryMap[$parentPath])) {
+                $directoryMap[$parentPath]['children'][] = $fileNode;
             }
         }
 
-        // 返回根目录的子项作为结果
+        // 第三步：对所有目录的子节点进行排序
+        self::sortAllDirectoryChildren($root);
+
         return $root['children'];
     }
 
@@ -287,6 +254,139 @@ class FileTreeUtil
             $callback($node);
             if (! empty($node['children'])) {
                 self::walkTree($node['children'], $callback);
+            }
+        }
+    }
+
+    /**
+     * 检测文件项是否为目录
+     * 优先使用 is_directory 字段，回退到路径分析.
+     *
+     * @param array $file 文件数据
+     * @return bool true-目录，false-文件
+     */
+    private static function detectIsDirectory(array $file): bool
+    {
+        // 优先使用 is_directory 字段（新数据）
+        if (isset($file['is_directory'])) {
+            return (bool) $file['is_directory'];
+        }
+
+        // 回退到路径分析（历史数据兼容）
+        $relativePath = $file['relative_file_path'] ?? '';
+
+        // 路径以斜杠结尾通常表示目录
+        if (str_ends_with($relativePath, '/')) {
+            return true;
+        }
+
+        // 没有文件扩展名且 file_size 为 0 可能是目录
+        $fileExtension = $file['file_extension'] ?? '';
+        $fileSize = $file['file_size'] ?? 0;
+
+        if (empty($fileExtension) && $fileSize === 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 确保目录路径存在，如果不存在则创建.
+     *
+     * @param array &$directoryMap 目录映射表的引用
+     * @param array $pathParts 路径部分数组
+     * @param null|array $directoryData 目录的原始数据（可选）
+     */
+    private static function ensureDirectoryPath(array &$directoryMap, array $pathParts, ?array $directoryData = null): void
+    {
+        $currentPath = '';
+        $parentIsHidden = false;
+
+        foreach ($pathParts as $index => $dirName) {
+            if (empty($dirName)) {
+                continue;
+            }
+
+            // 构建当前路径
+            $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
+
+            // 如果目录不存在，创建它
+            if (! isset($directoryMap[$currentPath])) {
+                // 判断是否为隐藏目录
+                $isHiddenDir = self::isHiddenDirectory($dirName) || $parentIsHidden;
+
+                // 创建目录节点
+                $newDir = [
+                    'name' => $dirName,
+                    'path' => $currentPath,
+                    'type' => 'directory',
+                    'is_directory' => true,
+                    'is_hidden' => $isHiddenDir,
+                    'children' => [],
+                ];
+
+                // 如果是最后一个路径部分且提供了目录数据，合并原始数据
+                if ($index === count($pathParts) - 1 && $directoryData) {
+                    $newDir = array_merge($directoryData, $newDir);
+                }
+
+                // 获取父目录路径
+                $parentPath = '';
+                if ($index > 0) {
+                    $parentParts = array_slice($pathParts, 0, $index);
+                    $parentPath = implode('/', $parentParts);
+                }
+
+                // 将新目录添加到父目录
+                if (isset($directoryMap[$parentPath])) {
+                    $directoryMap[$parentPath]['children'][] = $newDir;
+                    // 获取刚添加的目录的引用
+                    $directoryMap[$currentPath] = &$directoryMap[$parentPath]['children'][count($directoryMap[$parentPath]['children']) - 1];
+                }
+            }
+
+            // 更新父级隐藏状态
+            $parentIsHidden = $directoryMap[$currentPath]['is_hidden'] ?? false;
+        }
+    }
+
+    /**
+     * 递归排序所有目录的子节点.
+     */
+    private static function sortAllDirectoryChildren(array &$directory): void
+    {
+        if (empty($directory['children'])) {
+            return;
+        }
+
+        // 对当前目录的子节点进行排序
+        usort($directory['children'], function ($a, $b) {
+            // 目录优先于文件
+            $aIsDir = $a['is_directory'] ?? false;
+            $bIsDir = $b['is_directory'] ?? false;
+
+            if ($aIsDir !== $bIsDir) {
+                return $bIsDir <=> $aIsDir; // 目录在前
+            }
+
+            // 按排序值排序
+            $aSort = $a['sort'] ?? $a['original_data']['sort'] ?? 0;
+            $bSort = $b['sort'] ?? $b['original_data']['sort'] ?? 0;
+
+            if ($aSort === $bSort) {
+                $aFileId = $a['file_id'] ?? $a['original_data']['file_id'] ?? 0;
+                $bFileId = $b['file_id'] ?? $b['original_data']['file_id'] ?? 0;
+                return $aFileId <=> $bFileId;
+            }
+
+            return $aSort <=> $bSort;
+        });
+
+        // 递归排序子目录
+        foreach ($directory['children'] as &$child) {
+            if ($child['is_directory'] ?? false) {
+                self::sortAllDirectoryChildren($child);
             }
         }
     }

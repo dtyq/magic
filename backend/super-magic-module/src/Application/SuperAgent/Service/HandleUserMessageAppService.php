@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -24,9 +26,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
@@ -42,6 +46,8 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
+    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
+
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
@@ -50,9 +56,13 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
+        if (container()->has(SupperMagicAgentMCPInterface::class)) {
+            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
+        }
     }
 
     public function handleInternalMessage(DataIsolation $dataIsolation, UserMessageDTO $dto): void
@@ -191,7 +201,7 @@ class HandleUserMessageAppService extends AbstractAppService
             // Save user information
             $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
 
-            // Send message to agent
+            // Generate task context
             $taskContext = new TaskContext(
                 task: $taskEntity,
                 dataIsolation: $dataIsolation,
@@ -205,7 +215,15 @@ class HandleUserMessageAppService extends AbstractAppService
                 mcpConfig: $userMessageDTO->getMcpConfig(),
                 modelId: $userMessageDTO->getModelId(),
             );
+            // Add MCP config to task context
+            $mcpDataIsolation = MCPDataIsolation::create(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            );
+            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
+            $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
+            // Create and send message to agent
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
 
@@ -260,6 +278,7 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
+        // step by zero
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
         // get department ids
         $departmentIds = [];
@@ -311,7 +330,15 @@ class HandleUserMessageAppService extends AbstractAppService
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
         // Create sandbox container
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $taskContext->getSandboxId());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
+
+        if (empty($taskContext->getSandboxId())) {
+            $sandboxId = (string) $taskContext->getTopicId();
+        } else {
+            $sandboxId = $taskContext->getSandboxId();
+        }
+        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent

@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model;
 
 use App\Infrastructure\Core\AbstractModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Hyperf\Database\Model\SoftDeletes;
 
 class TaskFileModel extends AbstractModel
@@ -36,6 +38,11 @@ class TaskFileModel extends AbstractModel
         'external_url',
         'storage_type', // 存储类型，由FileProcessAppService.processAttachmentsArray方法传入
         'is_hidden', // 是否为隐藏文件
+        'is_directory', // 是否为目录
+        'sort', // 排序字段
+        'parent_id', // 父级ID
+        'metadata', // 文件元数据，存储 JSON
+        'source', // 来源字段：1-首页，2-项目目录，3-agent
         'created_at',
         'updated_at',
         'deleted_at',
@@ -45,8 +52,11 @@ class TaskFileModel extends AbstractModel
      * 默认属性值
      */
     protected array $attributes = [
-        'storage_type' => 'workspace', // 默认存储类型为workspace
+        'storage_type' => StorageType::WORKSPACE->value, // 默认存储类型为workspace
         'is_hidden' => 0, // 默认不是隐藏文件：0-否，1-是
+        'is_directory' => 0, // 默认不是目录：0-否，1-是
+        'sort' => 0, // 默认排序为0
+        'source' => TaskFileSource::HOME->value, // 默认来源为首页
     ];
 
     /**
@@ -54,5 +64,8 @@ class TaskFileModel extends AbstractModel
      */
     protected array $casts = [
         'is_hidden' => 'boolean', // 自动将数据库中的0/1转换为false/true
+        'is_directory' => 'boolean', // 自动将数据库中的0/1转换为false/true
+        'source' => TaskFileSource::class, // 自动将数据库中的int转换为TaskFileSource枚举
+        'storage_type' => StorageType::class, // 自动将数据库中的string转换为StorageType枚举
     ];
 }

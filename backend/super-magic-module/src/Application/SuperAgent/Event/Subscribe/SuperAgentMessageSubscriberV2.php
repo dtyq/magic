@@ -8,17 +8,14 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskMode;
@@ -36,18 +33,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     public function __construct(
-        protected readonly TaskAppService $SuperAgentAppService,
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
         protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
 
         parent::__construct($magicConversationDomainService);
     }
@@ -113,21 +104,15 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // Convert mentions array to JSON if not null
             $mentionsJson = ! empty($mentions) ? json_encode($mentions, JSON_UNESCAPED_UNICODE) : null;
 
+            // raw content
+            $rawContent = $this->getRawContent($userCallAgentEvent);
+
             // Parse instruction information
             [$chatInstructs, $taskMode] = $this->parseInstructions($instructions);
 
             // Parse topic mode from super agent extra
             $topicModeValue = $superAgentExtra?->getTopicPattern();
             $topicMode = $topicModeValue ? TopicMode::tryFrom($topicModeValue) ?? TopicMode::GENERAL : TopicMode::GENERAL;
-
-            // raw content
-            $rawContent = $this->getRawContent($userCallAgentEvent);
-
-            // MCP config
-            $mcpDataIsolation = MCPDataIsolation::create(
-                $dataIsolation->getCurrentOrganizationCode(),
-                $dataIsolation->getCurrentUserId()
-            );
 
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
@@ -146,11 +131,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 modelId: $superAgentExtra?->getModelId() ?? '',
             );
 
-            $taskContext = $this->handleUserMessageAppService->getTaskContext($dataIsolation, $userMessageDTO);
-            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
-            $userMessageDTO->setMcpConfig($mcpConfig);
-
-            // Call handle user message service
             if ($chatInstructs == ChatInstruction::Interrupted) {
                 $this->handleUserMessageAppService->handleInternalMessage($dataIsolation, $userMessageDTO);
             } else {

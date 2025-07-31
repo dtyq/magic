@@ -20,6 +20,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -335,7 +336,7 @@ class WorkspaceAppService extends AbstractAppService
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey);
+                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
                 if ($fileLink) {
                     $dto->fileUrl = $fileLink->getUrl();
                 } else {
@@ -467,6 +468,8 @@ class WorkspaceAppService extends AbstractAppService
         $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
         if ($topicEntity != null) {
             $data['project_id'] = (string) $topicEntity->getProjectId();
+            $projectEntity = $this->projectDomainService->getProject($topicEntity->getProjectId(), $topicEntity->getUserId());
+            $data['project_name'] = $projectEntity->getProjectName();
         }
         return $data;
     }
@@ -563,7 +566,7 @@ class WorkspaceAppService extends AbstractAppService
             if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
-            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames, $options);
+            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames, $options);
             if (empty($fileLink)) {
                 // 如果获取URL失败，跳过
                 continue;
@@ -618,7 +621,7 @@ class WorkspaceAppService extends AbstractAppService
             if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
-            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), null, $downloadNames);
+            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames);
             if (empty($fileLink)) {
                 // 如果获取URL失败，跳过
                 continue;
@@ -717,7 +720,7 @@ class WorkspaceAppService extends AbstractAppService
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey);
+                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
                 if ($fileLink) {
                     $dto->fileUrl = $fileLink->getUrl();
                 } else {
@@ -731,7 +734,7 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         // 构建树状结构
-        $tree = FileTreeUtil::assembleFilesTree($workDir, $list);
+        $tree = FileTreeUtil::assembleFilesTree($list);
 
         return [
             'list' => $list,
@@ -818,7 +821,7 @@ class WorkspaceAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
             // 获取工作区目录
-            $workDir = WorkDirectoryUtil::generateWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
+            $workDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $projectEntity->getId());
 
             // Step 4: Create default topic
             $this->logger->info('开始创建默认话题');

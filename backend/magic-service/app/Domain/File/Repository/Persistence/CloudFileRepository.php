@@ -20,7 +20,9 @@ use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Stringable\Str;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 class CloudFileRepository implements CloudFileRepositoryInterface
@@ -184,7 +186,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     public function downloadByChunks(string $organizationCode, string $filePath, string $localPath, ?StorageBucketType $bucketType = null, array $options = []): void
     {
         $bucketType = $bucketType ?? StorageBucketType::Private;
-        $filesystem = $this->cloudFile->get($bucketType->value);
+        $filesystem = $this->getFilesystem($bucketType->value);
 
         // Create chunk download config with options
         $config = ChunkDownloadConfig::fromArray([
@@ -243,9 +245,21 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         string $organizationCode,
         StorageBucketType $bucketType = StorageBucketType::Private,
         string $dir = '',
-        int $expires = 7200
+        int $expires = 7200,
+        bool $autoBucket = true,
     ): array {
-        $dir = $dir ? sprintf('%s/%s', md5($bucketType->value), ltrim($dir, '/')) : md5($bucketType->value);
+        if ($dir) {
+            if ($autoBucket) {
+                // If directory is provided, append bucket type to the directory
+                $dir = sprintf('%s/%s', md5($bucketType->value), ltrim($dir, '/'));
+            } else {
+                // If no bucket type, just use the directory as is
+                $dir = ltrim($dir, '/');
+            }
+        } else {
+            $dir = '';
+        }
+
         $credentialPolicy = new CredentialPolicy([
             'sts' => true,
             'role_session_name' => 'magic',
@@ -263,9 +277,9 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         return $this->getFilesystem($bucketType->value)->getPreSignedUrls($fileNames, $expires, $this->getOptions($organizationCode));
     }
 
-    public function getMetas(array $paths, string $organizationCode): array
+    public function getMetas(array $paths, string $organizationCode, StorageBucketType $bucketType = StorageBucketType::Private): array
     {
-        return $this->getFilesystem(StorageBucketType::Private->value)->getMetas($paths, $this->getOptions($organizationCode));
+        return $this->getFilesystem($bucketType->value)->getMetas($paths, $this->getOptions($organizationCode));
     }
 
     public function getDefaultIconPaths(string $appId = 'open'): array
@@ -320,6 +334,468 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     public function generateWorkDir(string $userId, int $projectId, string $code = 'magic', string $lastPath = 'project'): string
     {
         return sprintf('/%s/%s/%s_%d', $code, $userId, $lastPath, $projectId);
+    }
+
+    /**
+     * List objects by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $prefix Object prefix to filter
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (marker, max-keys, delimiter, etc.)
+     * @return array List of objects
+     */
+    public function listObjectsByCredential(
+        string $organizationCode,
+        string $prefix = '',
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array {
+        try {
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'sts_type' => 'list_objects',
+                'dir' => $prefix,  // No dir restriction for listing
+                'expires' => 3600,
+            ]);
+
+            $appId = config('kk_brd_service.app_id');
+            $fullPrefix = "{$organizationCode}/{$appId}" . '/' . trim($prefix, '/') . '/';
+            $result = $filesystem->listObjectsByCredential($credentialPolicy, $fullPrefix, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('list_objects_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'prefix' => $prefix,
+                'bucket_type' => $bucketType->value,
+                'object_count' => count($result['objects'] ?? []),
+                'is_truncated' => $result['is_truncated'] ?? false,
+            ]);
+
+            return $result;
+        } catch (Throwable $exception) {
+            $this->logger->error('list_objects_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'prefix' => $prefix,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Delete object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (version_id, etc.)
+     * @throws Throwable
+     */
+    public function deleteObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if file path starts with organization code
+            if (! Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Object deletion failed: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'sts_type' => 'del_objects',
+                'role_session_name' => 'magic',
+                'dir' => $prefix,  // No dir restriction for listing
+                'expires' => 3600,
+            ]);
+
+            $filesystem->deleteObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('delete_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'version_id' => $options['version_id'] ?? null,
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('delete_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Copy object by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (source_bucket, source_version_id, metadata_directive, etc.)
+     * @throws Throwable
+     */
+    public function copyObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $sourceKey,
+        string $destinationKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if both keys belong to organization code or are explicitly allowed
+            if (! Str::startsWith($sourceKey, $organizationCode) && ! ($options['allow_cross_organization'] ?? false)) {
+                $this->logger->warning('Object copy failed: source key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'source_key' => $sourceKey,
+                ]);
+                throw new InvalidArgumentException('Source key does not belong to specified organization');
+            }
+
+            if (! Str::startsWith($destinationKey, $organizationCode)) {
+                $this->logger->warning('Object copy failed: destination key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'destination_key' => $destinationKey,
+                ]);
+                throw new InvalidArgumentException('Destination key does not belong to specified organization');
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => $prefix,
+                'expires' => 3600,
+            ]);
+
+            $filesystem->copyObjectByCredential($credentialPolicy, $sourceKey, $destinationKey, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('copy_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket_type' => $bucketType->value,
+                'source_bucket' => $options['source_bucket'] ?? null,
+                'metadata_directive' => $options['metadata_directive'] ?? 'COPY',
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('copy_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Get object metadata by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to get metadata
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Object metadata
+     * @throws Throwable
+     */
+    public function getHeadObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array {
+        try {
+            // Security check: validate if object key belongs to organization code
+            if (! Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Get object metadata failed: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => '',  // No dir restriction for head object
+                'expires' => 3600,
+            ]);
+
+            $result = $filesystem->getHeadObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('get_head_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'content_length' => $result['content_length'] ?? null,
+                'last_modified' => $result['last_modified'] ?? null,
+            ]);
+
+            return $result;
+        } catch (Throwable $exception) {
+            $this->logger->error('get_head_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Create object by credential (file or folder).
+     *
+     * @param string $prefix Prefix
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to create
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (content, content_type, etc.)
+     * @throws Throwable
+     */
+    public function createObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if object key belongs to organization code
+            if (! Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Create object failed: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
+            }
+
+            // Check if it's a folder or file
+            $isFolder = str_ends_with($objectKey, '/');
+
+            // Ensure folder names end with '/'
+            if (isset($options['is_folder']) && $options['is_folder'] && ! $isFolder) {
+                $objectKey .= '/';
+                $isFolder = true;
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => $prefix,
+                'expires' => 3600,
+            ]);
+
+            // Prepare options for creation
+            $createOptions = $options;
+
+            // Set default content for folders
+            if ($isFolder && ! isset($createOptions['content'])) {
+                $createOptions['content'] = '';
+            }
+
+            $filesystem->createObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $createOptions));
+
+            $this->logger->info('create_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'object_type' => $isFolder ? 'folder' : 'file',
+                'bucket_type' => $bucketType->value,
+                'content_length' => strlen($createOptions['content'] ?? ''),
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('create_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Create folder by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $folderPath Folder path (will automatically add '/' if missing)
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @throws Throwable
+     */
+    public function createFolderByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $folderPath,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        // Ensure folder path ends with '/'
+        if (! str_ends_with($folderPath, '/')) {
+            $folderPath .= '/';
+        }
+
+        $options['is_folder'] = true;
+        $this->createObjectByCredential($prefix, $organizationCode, $folderPath, $bucketType, $options);
+    }
+
+    /**
+     * Create file by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $filePath File path
+     * @param string $content File content (default empty)
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @throws Throwable
+     */
+    public function createFileByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $filePath,
+        string $content = '',
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        // Ensure file path doesn't end with '/'
+        $filePath = rtrim($filePath, '/');
+
+        $options['content'] = $content;
+        $options['is_folder'] = false;
+        $this->createObjectByCredential($prefix, $organizationCode, $filePath, $bucketType, $options);
+    }
+
+    /**
+     * Rename object by credential.
+     *
+     * @param string $prefix Prefix for the operation
+     * @param string $organizationCode Organization code
+     * @param string $sourceKey Source object key
+     * @param string $destinationKey Destination object key
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @throws Throwable
+     */
+    public function renameObjectByCredential(
+        string $prefix,
+        string $organizationCode,
+        string $sourceKey,
+        string $destinationKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if both keys belong to organization code
+            if (! Str::startsWith($sourceKey, $organizationCode)) {
+                $this->logger->warning('Object rename failed: source key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'source_key' => $sourceKey,
+                ]);
+                throw new InvalidArgumentException('Source key does not belong to specified organization');
+            }
+
+            if (! Str::startsWith($destinationKey, $organizationCode)) {
+                $this->logger->warning('Object rename failed: destination key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'destination_key' => $destinationKey,
+                ]);
+                throw new InvalidArgumentException('Destination key does not belong to specified organization');
+            }
+
+            // Extract the new filename for download
+            $newFileName = basename($destinationKey);
+
+            // Step 1: Copy object to new location with new download name
+            $copyOptions = array_merge($options, [
+                'metadata_directive' => 'REPLACE',
+                'download_name' => $newFileName,
+            ]);
+
+            $this->copyObjectByCredential(
+                $prefix,
+                $organizationCode,
+                $sourceKey,
+                $destinationKey,
+                $bucketType,
+                $copyOptions
+            );
+
+            // Step 2: Verify the destination object exists before deleting source
+            try {
+                $destinationMetadata = $this->getHeadObjectByCredential(
+                    $organizationCode,
+                    $destinationKey,
+                    $bucketType
+                );
+
+                $this->logger->info('rename_destination_verified', [
+                    'organization_code' => $organizationCode,
+                    'destination_key' => $destinationKey,
+                    'content_length' => $destinationMetadata['content_length'],
+                    'etag' => $destinationMetadata['etag'],
+                ]);
+            } catch (Throwable $verifyException) {
+                $this->logger->error('rename_destination_verification_failed', [
+                    'organization_code' => $organizationCode,
+                    'destination_key' => $destinationKey,
+                    'error' => $verifyException->getMessage(),
+                ]);
+                throw new RuntimeException(
+                    'Destination object verification failed after copy. Rename operation aborted to prevent data loss.',
+                    0,
+                    $verifyException
+                );
+            }
+
+            // Step 3: Delete the original object only after confirming destination exists
+            $this->deleteObjectByCredential(
+                $prefix, // use the same prefix as the rename operation
+                $organizationCode,
+                $sourceKey,
+                $bucketType
+            );
+
+            $this->logger->info('rename_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'new_file_name' => $newFileName,
+                'bucket_type' => $bucketType->value,
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('rename_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'source_key' => $sourceKey,
+                'destination_key' => $destinationKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
     }
 
     protected function getOptions(string $organizationCode, array $options = []): array
