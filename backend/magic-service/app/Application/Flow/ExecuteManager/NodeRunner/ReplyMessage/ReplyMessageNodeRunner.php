@@ -284,6 +284,7 @@ class ReplyMessageNodeRunner extends NodeRunner
 
     private function sendMessageForStreamIMChat(ExecutionData $executionData, Generator $chatCompletionChoiceGenerator, StreamResponse $streamResponse): void
     {
+        var_dump(111);
         $chatAppService = di(MagicChatMessageAppService::class);
 
         $appMessageId = IdGenerator::getUniqueId32();
@@ -305,7 +306,6 @@ class ReplyMessageNodeRunner extends NodeRunner
             $receiveSeqDTO->setExtra($flowSeqEntity->getExtra()?->getExtraCanCopyData());
             $receiveSeqDTO->setReferMessageId($flowSeqEntity->getMessageId());
         }
-
         // 发送开始标记
         $chatAppService->agentSendMessage($receiveSeqDTO, $aiUserId, $receiveUserId, $appMessageId, receiverType: ConversationType::User);
 

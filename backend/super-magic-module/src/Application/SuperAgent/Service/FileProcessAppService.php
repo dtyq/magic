@@ -38,6 +38,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileNameResponseDTO;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\DbConnection\Db;
@@ -926,6 +927,26 @@ class FileProcessAppService extends AbstractAppService
     public function getGitDir(string $fileKey): string
     {
         return '.workspace';
+    }
+
+    /**
+     * Get file name by file ID.
+     *
+     * @param int $fileId File ID
+     * @return array File name response
+     */
+    public function getFileNameById(int $fileId): array
+    {
+        // Get file entity by ID
+        $taskFileEntity = $this->taskFileDomainService->getById($fileId);
+
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        // Create response DTO and return
+        $responseDTO = new FileNameResponseDTO($taskFileEntity->getFileName());
+        return $responseDTO->toArray();
     }
 
     /**

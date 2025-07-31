@@ -387,4 +387,16 @@ class FileApi extends AbstractApi
         // Call application service without user context
         return $this->sandboxFileNotificationAppService->handleNotificationWithoutAuth($requestDTO);
     }
+
+    /**
+     * Get file name by file ID.
+     *
+     * @param int $id File ID
+     * @return array File name response
+     */
+    public function getFileByName(int $id): array
+    {
+        // Call app service to get file name
+        return $this->fileProcessAppService->getFileNameById($id);
+    }
 }
