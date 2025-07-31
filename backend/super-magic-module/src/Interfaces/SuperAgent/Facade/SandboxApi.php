@@ -74,8 +74,6 @@ class SandboxApi extends AbstractApi
         return $result->toArray();
     }
 
-
-
     // 创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
     #[ApiResponse('low_code')]
     public function initSandboxByApiKey(RequestContext $requestContext, InitSandboxRequestDTO $requestDTO): array
