@@ -23,12 +23,12 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         parent::__construct($loggerFactory);
     }
 
-    public function convert(string $sandboxId, string $projectId, FileConverterRequest $request): FileConverterResponse
+    public function convert(string $sandboxId, string $projectId, FileConverterRequest $request, string $workDir): FileConverterResponse
     {
         $requestData = $request->toArray();
         try {
             // 使用网关的 ensureSandbox 方法，确保沙箱存在
-            $actualSandboxId = $this->gateway->ensureSandboxAvailable($sandboxId, $projectId);
+            $actualSandboxId = $this->gateway->ensureSandboxAvailable($sandboxId, $projectId, $workDir);
 
             // 然后直接代理请求到沙箱
             $result = $this->gateway->proxySandboxRequest(

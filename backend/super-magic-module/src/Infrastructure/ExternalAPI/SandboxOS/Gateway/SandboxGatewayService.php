@@ -31,9 +31,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
     private ?string $organizationCode = null;
 
-    public function __construct(
-        LoggerFactory $loggerFactory
-    ) {
+    public function __construct(LoggerFactory $loggerFactory)
+    {
         parent::__construct($loggerFactory);
     }
 
@@ -367,7 +366,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         array $headers = []
     ): GatewayResult {
         $maxRetries = 3;
-        $baseDelay = 2000; // Base delay in milliseconds
+        $baseDelay = 1000; // Base delay in milliseconds
 
         $this->logger->debug('[Sandbox][Gateway] Proxying request to sandbox', [
             'sandbox_id' => $sandboxId,
@@ -475,7 +474,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         return $this->proxySandboxRequest($sandboxId, 'POST', 'api/v1/file/versions', ['file_key' => $fileKey, 'git_directory' => $gitDir]);
     }
 
-    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult
+    public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir = '.workspace'): GatewayResult
     {
         $this->logger->info('[Sandbox][Gateway] getFileVersionContent', ['sandbox_id' => $sandboxId, 'file_key' => $fileKey, 'commit_hash' => $commitHash, 'git_directory' => $gitDir]);
 
@@ -492,7 +491,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     /**
      * 确保沙箱存在并且可用.
      */
-    public function ensureSandboxAvailable(string $sandboxId, string $projectId, string $workDir = ''): string
+    public function ensureSandboxAvailable(string $sandboxId, string $projectId, string $workDir): string
     {
         try {
             // 检查沙箱是否可用
