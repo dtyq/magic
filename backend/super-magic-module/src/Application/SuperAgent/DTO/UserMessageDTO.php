@@ -29,8 +29,8 @@ class UserMessageDTO
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
         private array $mcpConfig = [],
-        private readonly string $modelId = '',
-        private readonly string $language = '',
+        private string $modelId = '',
+        private string $language = '',
     ) {
     }
 
