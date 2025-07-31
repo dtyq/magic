@@ -65,6 +65,7 @@ class MagicMessageEntity extends AbstractEntity
     protected ?string $deletedAt = null;
 
     protected string $language = '';
+
     protected MessageInterface $content;
 
     protected ?string $currentVersionId;

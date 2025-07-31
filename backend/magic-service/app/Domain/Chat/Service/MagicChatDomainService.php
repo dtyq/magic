@@ -46,10 +46,10 @@ use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Hyperf\Codec\Json;
 use Hyperf\Collection\Arr;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\SocketIOServer\Socket;
 use Throwable;
-use Hyperf\Contract\TranslatorInterface;
 
 use function Hyperf\Coroutine\co;
 
