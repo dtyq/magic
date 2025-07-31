@@ -66,6 +66,7 @@ readonly class KnowledgeBaseFragmentSyncSubscriber implements ListenerInterface
                         'user_id' => $fragment->getModifier(),
                         'business_id' => $knowledge->getCode(),
                         'source_id' => 'fragment_saved',
+                        'knowledge_name' => $knowledge->getName(),
                     ],
                 ]);
                 $fragment->setVector(Json::encode($embeddings));
