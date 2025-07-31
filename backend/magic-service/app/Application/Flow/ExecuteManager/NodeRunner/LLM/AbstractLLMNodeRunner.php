@@ -70,6 +70,7 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
                 'business_id' => $executionData->getAgentId(),
                 'source_id' => $executionData->getOperator()->getSourceId(),
                 'user_name' => $executionData->getOperator()->getNickname(),
+                'flow_info' => $executionData->getTriggerTopInfo()['flow_info'] ?? [],
             ],
         );
     }

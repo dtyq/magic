@@ -135,6 +135,8 @@ class ExecutionData
      */
     private array $instructionConfigs = [];
 
+    private array $triggerTopInfo = [];
+
     public function __construct(
         FlowDataIsolation $flowDataIsolation,
         Operator $operator,
@@ -173,6 +175,7 @@ class ExecutionData
         $this->flowStreamStatus = $parent->getStreamStatus();
         $this->level = $parent->getLevel() + 1;
         $this->uniqueParentId = $parent->getUniqueId();
+        $this->triggerTopInfo = $parent->getTriggerTopInfo();
     }
 
     public function isTop(): bool
@@ -587,6 +590,16 @@ class ExecutionData
     public function isThirdPlatformChat(): bool
     {
         return (bool) ThirdPlatformChatType::tryFrom($this->operator->getSourceId());
+    }
+
+    public function getTriggerTopInfo(): array
+    {
+        return $this->triggerTopInfo;
+    }
+
+    public function setTriggerTopInfo(array $triggerTopInfo): void
+    {
+        $this->triggerTopInfo = $triggerTopInfo;
     }
 
     private function initGlobalVariable(): void
