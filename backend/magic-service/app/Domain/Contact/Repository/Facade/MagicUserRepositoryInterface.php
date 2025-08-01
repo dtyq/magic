@@ -48,6 +48,9 @@ interface MagicUserRepositoryInterface
      */
     public function getUserIdByType(UserIdType $userIdType, string $addStr): string;
 
+    /**
+     * @return string[]
+     */
     public function getUserOrganizations(string $userId): array;
 
     public function getUserByAiCode(string $aiCode): array;
