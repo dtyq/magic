@@ -28,6 +28,11 @@ class TopicDomainService
         return $this->topicRepository->getTopicById($id);
     }
 
+    public function getTopicWithDeleted(int $id): ?TopicEntity
+    {
+        return $this->topicRepository->getTopicWithDeleted($id);
+    }
+
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
     {
         return $this->topicRepository->getTopicBySandboxId($sandboxId);
@@ -42,9 +47,9 @@ class TopicDomainService
         return $topic->getSandboxId();
     }
 
-    public function updateTopicStatus(int $id, int $taskId, string $sandboxId, TaskStatus $taskStatus): bool
+    public function updateTopicStatus(int $id, int $taskId, TaskStatus $taskStatus): bool
     {
-        return $this->topicRepository->updateTopicStatus($id, $taskId, $sandboxId, $taskStatus);
+        return $this->topicRepository->updateTopicStatus($id, $taskId, $taskStatus);
     }
 
     public function updateTopicStatusAndSandboxId(int $id, int $taskId, TaskStatus $taskStatus, string $sandboxId): bool
@@ -381,6 +386,19 @@ class TopicDomainService
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         // 保存更新
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
+
+    public function updateTopicSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId): bool
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'sandbox_id' => $sandboxId,
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
         return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
 }

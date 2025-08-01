@@ -384,7 +384,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         $topicId = AccessTokenUtil::getResource($token);
-        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $topicId);
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }

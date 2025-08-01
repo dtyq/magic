@@ -209,6 +209,22 @@ interface CloudFileRepositoryInterface
         array $options = []
     ): void;
 
+    /**
+     * Generate pre-signed URL by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to generate URL for
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (method, expires, filename, etc.)
+     * @return string Pre-signed URL
+     */
+    public function getPreSignedUrlByCredential(
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): string;
+
     public function getFullPrefix(string $organizationCode): string;
 
     public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;

@@ -167,6 +167,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
         // 根据文件id获取文件名称
         Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
+        // 批量获取下载链接
+        Router::post('/batch-urls', [FileApi::class, 'getFileUrls']);
     });
 });
 

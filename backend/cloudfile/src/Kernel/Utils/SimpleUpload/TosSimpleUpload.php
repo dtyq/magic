@@ -25,6 +25,7 @@ use Tos\Model\CreateMultipartUploadInput;
 use Tos\Model\DeleteObjectInput;
 use Tos\Model\HeadObjectInput;
 use Tos\Model\ListObjectsInput;
+use Tos\Model\PreSignedURLInput;
 use Tos\Model\PutObjectInput;
 use Tos\Model\UploadedPart;
 use Tos\Model\UploadPartInput;
@@ -814,6 +815,110 @@ class TosSimpleUpload extends SimpleUpload
                 'error' => $exception->getMessage(),
             ]);
             throw new CloudFileException('Create object failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Generate pre-signed URL by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to generate URL for
+     * @param array $options Additional options
+     * @return string Pre-signed URL
+     */
+    public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+            
+            // Set expiration time (default 1 hour)
+            $expires = $options['expires'] ?? 3600;
+            
+            $this->sdkContainer->getLogger()->info('TOS getPreSignedUrlByCredential request', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'method' => $options['method'] ?? 'GET',
+                'expires' => $expires,
+            ]);
+            
+            // Create pre-signed URL input
+            // Note: TOS expects expires in seconds (duration), not absolute timestamp
+            $preSignedInput = new PreSignedURLInput(
+                $options['method'] ?? 'GET',
+                $sdkConfig['bucket'],
+                $objectKey,
+                $expires
+            );
+            
+            // Set response headers if specified
+            if (isset($options['filename'])) {
+                $filename = $options['filename'];
+                $preSignedInput->setHeader('response-content-disposition', 
+                    'attachment; filename="' . addslashes($filename) . '"'
+                );
+            }
+            
+            if (isset($options['content_type'])) {
+                $preSignedInput->setHeader('response-content-type', $options['content_type']);
+            }
+            
+            // Set custom response headers if provided
+            if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
+                foreach ($options['custom_headers'] as $headerName => $headerValue) {
+                    $preSignedInput->setHeader($headerName, $headerValue);
+                }
+            }
+            
+            // Generate pre-signed URL
+            $preSignedOutput = $tosClient->preSignedURL($preSignedInput);
+            $signedUrl = $preSignedOutput->getSignedUrl();
+            
+            $this->sdkContainer->getLogger()->info('get_presigned_url_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'method' => $options['method'] ?? 'GET',
+                'expires' => $expires,
+                'url_length' => strlen($signedUrl),
+            ]);
+            
+            return $signedUrl;
+            
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('get_presigned_url_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('get_presigned_url_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('get_presigned_url_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Generate pre-signed URL failed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 

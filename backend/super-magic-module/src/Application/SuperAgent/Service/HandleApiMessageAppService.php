@@ -54,7 +54,6 @@ class HandleApiMessageAppService extends AbstractAppService
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
-        private readonly AgentAppService $agentAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
@@ -337,7 +336,7 @@ class HandleApiMessageAppService extends AbstractAppService
         }
         // Batch query status
         $updateSandboxIds = [];
-        $result = $this->agentAppService->getBatchSandboxStatus($sandboxIds);
+        $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
         foreach ($result->getSandboxStatuses() as $sandboxStatus) {
             if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
                 $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
@@ -370,13 +369,13 @@ class HandleApiMessageAppService extends AbstractAppService
         $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
 
         // Initialize agent
-        $this->agentAppService->initializeAgent($dataIsolation, $taskContext);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
 
         // Wait for workspace to be ready
-        $this->agentAppService->waitForWorkspaceReady($taskContext->getSandboxId());
+        $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-        //  $this->agentAppService->sendChatMessage($dataIsolation, $taskContext);
+        //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;

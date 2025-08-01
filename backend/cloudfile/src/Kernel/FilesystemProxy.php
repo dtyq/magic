@@ -330,6 +330,22 @@ class FilesystemProxy extends Filesystem
     }
 
     /**
+     * 获取预签名URL - 通过临时凭证.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项 (method, expires, filename等)
+     * @return string 预签名URL
+     */
+    public function getPreSignedUrlByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): string
+    {
+        $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('get_presigned_url');
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        return $this->getSimpleUploadInstance($this->adapterName)->getPreSignedUrlByCredential($credential, $objectKey, $options);
+    }
+
+    /**
      * Download file by chunks.
      *
      * @param string $filePath Remote file path

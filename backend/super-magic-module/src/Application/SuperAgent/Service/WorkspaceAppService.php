@@ -463,7 +463,7 @@ class WorkspaceAppService extends AbstractAppService
         ];
 
         // 获取 topic 信息
-        $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
         if ($topicEntity != null) {
             $data['project_id'] = (string) $topicEntity->getProjectId();
             $projectEntity = $this->projectDomainService->getProject($topicEntity->getProjectId(), $topicEntity->getUserId());
@@ -561,7 +561,7 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             $downloadNames = [];
-            if ($downloadMode == 'download') {
+            if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames, $options);
@@ -601,15 +601,15 @@ class WorkspaceAppService extends AbstractAppService
         $result = [];
 
         // 获取 topic 详情
-        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $topicId);
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
 
         foreach ($fileIds as $fileId) {
             $fileEntity = $this->taskDomainService->getTaskFile((int) $fileId);
-            $isBelongTopic = ((string) $fileEntity->getTopicId()) === $topicId;
-            $isBelongProject = ((string) $fileEntity->getProjectId()) == $topicEntity->getProjectId();
+            $isBelongTopic = ((string) $fileEntity?->getTopicId()) === $topicId;
+            $isBelongProject = ((string) $fileEntity?->getProjectId()) == $topicEntity->getProjectId();
             if (empty($fileEntity) || (! $isBelongTopic && ! $isBelongProject)) {
                 // 如果文件不存在或既不属于该话题也不属于该项目，跳过
                 continue;
