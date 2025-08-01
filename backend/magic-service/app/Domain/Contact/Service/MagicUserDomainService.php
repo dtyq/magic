@@ -26,6 +26,7 @@ use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Chat\Assembler\UserAssembler;
 use App\Interfaces\Chat\DTO\UserDetailDTO;
 use Hyperf\Codec\Json;
@@ -85,6 +86,15 @@ class MagicUserDomainService extends AbstractContactDomainService
         if (! in_array($currentOrganizationCode, $userOrganizations, true)) {
             ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_EXIST);
         }
+    }
+
+    /**
+     * 获取用户所属的组织列表.
+     * @return string[]
+     */
+    public function getUserOrganizations(string $userId): array
+    {
+        return $this->userRepository->getUserOrganizations($userId);
     }
 
     public function getByUserId(string $uid): ?MagicUserEntity
@@ -153,25 +163,37 @@ class MagicUserDomainService extends AbstractContactDomainService
     }
 
     /**
-     * 根据用户ID和多个组织编码查询用户详情，过滤掉官方组织的非AI用户.
+     * 根据用户ID和用户组织列表查询用户详情，根据用户组织决定过滤策略.
      * @param array $userIds 用户ID数组
-     * @param array $orgCodes 组织编码数组
-     * @param string $officialOrganizationCode 官方组织编码
+     * @param array $userOrganizations 当前用户拥有的组织编码数组
      * @return array<UserDetailDTO>
      */
-    public function getUserDetailByUserIdsWithOrgCodes(array $userIds, array $orgCodes, string $officialOrganizationCode): array
+    public function getUserDetailByUserIdsWithOrgCodes(array $userIds, array $userOrganizations): array
     {
+        // 获取官方组织编码
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+
+        // 合并用户组织和官方组织
+        $orgCodes = array_filter(array_unique(array_merge($userOrganizations, [$officialOrganizationCode])));
+
         // 从 user表拿基本信息，支持多组织查询
         $users = $this->userRepository->getUserByIdsAndOrganizations($userIds, $orgCodes);
-        // 过滤掉官方组织的非AI用户
-        $users = array_filter($users, static function (MagicUserEntity $user) use ($officialOrganizationCode) {
-            // 如果不是官方组织，直接保留
-            if ($user->getOrganizationCode() !== $officialOrganizationCode) {
-                return true;
-            }
-            // 如果是官方组织，只保留AI用户
-            return $user->getUserType() === UserType::Ai;
-        });
+
+        // 检查当前用户是否拥有官方组织
+        $hasOfficialOrganization = in_array($officialOrganizationCode, $userOrganizations, true);
+
+        // 根据用户是否拥有官方组织来决定过滤策略
+        if (! $hasOfficialOrganization) {
+            // 如果用户没有官方组织，过滤掉官方组织的非AI用户
+            $users = array_filter($users, static function (MagicUserEntity $user) use ($officialOrganizationCode) {
+                // 如果不是官方组织，直接保留
+                if ($user->getOrganizationCode() !== $officialOrganizationCode) {
+                    return true;
+                }
+                // 如果是官方组织，只保留AI用户
+                return $user->getUserType() === UserType::Ai;
+            });
+        }
 
         if (empty($users)) {
             return [];

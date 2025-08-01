@@ -188,13 +188,28 @@ readonly class MagicUserRepository implements MagicUserRepositoryInterface
         return $list;
     }
 
+    /**
+     * @return string[]
+     */
     public function getUserOrganizations(string $userId): array
     {
         $userEntity = $this->getUserById($userId);
         if ($userEntity === null) {
             return [];
         }
-        return [$userEntity->getOrganizationCode()];
+
+        $magicId = $userEntity->getMagicId();
+
+        // 第二次查询：根据 magic_id 查询所有该账号在不同组织中的用户记录
+        $query = $this->userModel::query()
+            ->select('organization_code')
+            ->where('magic_id', $magicId)
+            ->where('status', AccountStatus::Normal->value)
+            ->distinct();
+
+        $results = Db::select($query->toSql(), $query->getBindings());
+
+        return array_column($results, 'organization_code');
     }
 
     public function getUserByAiCode(string $aiCode): array
