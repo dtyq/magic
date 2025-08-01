@@ -20,6 +20,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Kernel\Assembler\FileAssembler;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Random\RandomException;
 use RedisException;
 use Throwable;
@@ -73,15 +74,19 @@ class MagicAccountAppService extends AbstractAppService
             if (empty($authorization->getMagicId()) && ! empty($authorization->getId())) {
                 $magicInfo = $this->userDomainService->getUserById($authorization->getId());
                 $authorization->setMagicId($magicInfo?->getMagicId());
+                $authorization->setOrganizationCode($magicInfo?->getOrganizationCode());
+            }
+            // 通过 aiCode 查询 magic_flows 表获取所属组织。
+            // 注意超级麦吉当前是作为一个没有写入 magic_flows 数据库的 flow 存在。 SUPER_MAGIC_CODE 写入了 accounts 表。
+            if ($aiCode !== AgentConstant::SUPER_MAGIC_CODE) {
+                $disabledDataIsolation = FlowDataIsolation::create()->disabled();
+                $magicFlowEntity = $this->magicFlowDomainService->getByCode($disabledDataIsolation, $aiCode);
+                if (! $magicFlowEntity) {
+                    ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
+                }
+                $authorization->setOrganizationCode($magicFlowEntity->getOrganizationCode());
             }
 
-            // 通过aiCode查询magic_flows表获取所属组织
-            $disabledDataIsolation = FlowDataIsolation::create()->disabled();
-            $magicFlowEntity = $this->magicFlowDomainService->getByCode($disabledDataIsolation, $aiCode);
-            if (! $magicFlowEntity) {
-                ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
-            }
-            $authorization->setOrganizationCode($magicFlowEntity->getOrganizationCode());
             $dataIsolation = $this->createDataIsolation($authorization);
             // 智能体账号信息
             if (! isset($accountDTO)) {
