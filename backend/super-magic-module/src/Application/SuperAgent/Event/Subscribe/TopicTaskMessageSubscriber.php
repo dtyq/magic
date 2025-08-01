@@ -24,9 +24,9 @@ use Throwable;
  * 话题任务消息订阅者.
  */
 #[Consumer(
-    exchange: 'super_magic_topic_task_message',
-    routingKey: 'super_magic_topic_task_message',
-    queue: 'super_magic_topic_task_message',
+    exchange: 'super_magic_topic_task_message_new',
+    routingKey: 'super_magic_topic_task_message_new',
+    queue: 'super_magic_topic_task_message_new',
     nums: 1
 )]
 class TopicTaskMessageSubscriber extends ConsumerMessage
@@ -129,7 +129,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                     date('Y-m-d H:i:s', $actualOriginalTimestamp),
                     $messageDTO->getPayload()?->getMessageId()
                 ));
-                return Result::REQUEUE;
+                return Result::ACK;
             }
 
             $this->logger->info(sprintf(
