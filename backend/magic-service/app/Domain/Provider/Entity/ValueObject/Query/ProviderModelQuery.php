@@ -19,6 +19,30 @@ class ProviderModelQuery extends Query
 
     protected ?ModelType $modelType = null;
 
+    protected ?bool $superMagicDisplay = null;
+
+    protected ?array $providerConfigIds = null;
+
+    public function getSuperMagicDisplay(): ?bool
+    {
+        return $this->superMagicDisplay;
+    }
+
+    public function setSuperMagicDisplay(?bool $superMagicDisplay): void
+    {
+        $this->superMagicDisplay = $superMagicDisplay;
+    }
+
+    public function getProviderConfigIds(): ?array
+    {
+        return $this->providerConfigIds;
+    }
+
+    public function setProviderConfigIds(?array $providerConfigIds): void
+    {
+        $this->providerConfigIds = $providerConfigIds;
+    }
+
     public function getCategory(): ?Category
     {
         return $this->category;

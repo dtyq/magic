@@ -18,6 +18,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 
 class ProviderConfigRepository extends ProviderAbstractRepository implements ProviderConfigRepositoryInterface
 {
+    protected bool $filterOrganizationCode = true;
+
     public function getById(ProviderDataIsolation $dataIsolation, int $id, bool $checkProviderEnabled = true): ?ProviderConfigEntity
     {
         $builder = $this->createBuilder($dataIsolation, ProviderConfigModel::query());
@@ -97,5 +99,18 @@ class ProviderConfigRepository extends ProviderAbstractRepository implements Pro
             'total' => $result['total'],
             'list' => $list,
         ];
+    }
+
+    /**
+     * 获取所有启用的ProviderConfig ID列表.
+     *
+     * @return array<int>
+     */
+    public function getEnabledProviderConfigIds(ProviderDataIsolation $dataIsolation): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderConfigModel::query());
+
+        $builder->where('status', Status::Enabled->value);
+        return $builder->select('id')->pluck('id')->toArray();
     }
 }
