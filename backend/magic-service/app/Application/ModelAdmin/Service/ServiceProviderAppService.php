@@ -48,6 +48,18 @@ class ServiceProviderAppService
     ) {
     }
 
+    public function tryInitModels(string $organizationCode): void
+    {
+        $magicUserAuthorization = new MagicUserAuthorization();
+        $magicUserAuthorization->setOrganizationCode($organizationCode);
+
+        $serviceProviderConfigDTOS = $this->serviceProviderDomainService->getServiceProviderConfigs($organizationCode);
+
+        if (empty($serviceProviderConfigDTOS)) {
+            $this->serviceProviderDomainService->initOrganizationServiceProviders($organizationCode);
+        }
+    }
+
     /**
      * 根据组织获取服务商.
      * @return ServiceProviderConfigDTO[]
@@ -285,6 +297,12 @@ class ServiceProviderAppService
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
+        // 兼容报错
+        try {
+            $this->tryInitModels($organizationCode);
+        } catch (Exception $e) {
+        }
+
         $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
 
         $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode, $currentPackage);
