@@ -465,6 +465,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'flow.common.not_found', ['label' => 'trigger_type']);
         }
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
+        $magicFlowEntity->setOrganizationCode($flowDataIsolation->getCurrentOrganizationCode());
 
         $result = [
             'success' => true,
