@@ -28,6 +28,18 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
+    public function getFilesByIds(array $fileIds): array
+    {
+        $models = $this->model::query()->whereIn('file_id', $fileIds)->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
     public function getTaskFilesByIds(array $ids): array
     {
         if (empty($ids)) {
