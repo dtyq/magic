@@ -192,7 +192,24 @@ class MagicAgentAppService extends AbstractAppService
 
     public function getAgentVersionById(string $agentVersionId, MagicUserAuthorization $authorization): MagicAgentVersionEntity
     {
-        $magicAgentVersionEntity = $this->magicAgentVersionDomainService->getAgentById($agentVersionId);
+        try {
+            // 首先尝试作为 agent_version_id 获取
+            $magicAgentVersionEntity = $this->magicAgentVersionDomainService->getAgentById($agentVersionId);
+        } catch (Throwable $e) {
+            // 如果失败，尝试作为 agent_id 获取其最新已发布版本
+            try {
+                $releaseVersions = $this->magicAgentVersionDomainService->getReleaseAgentVersions($agentVersionId);
+                if (empty($releaseVersions)) {
+                    throw $e;
+                }
+                // 取最新版本（按ID降序排列，第一个是最新的）
+                $magicAgentVersionEntity = $releaseVersions[0];
+            } catch (Throwable) {
+                // 如果两种方式都失败，抛出原始异常
+                throw $e;
+            }
+        }
+
         $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $magicAgentVersionEntity->getAgentAvatar());
         if ($fileLink !== null) {
             $magicAgentVersionEntity->setAgentAvatar($fileLink->getUrl());
