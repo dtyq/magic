@@ -294,8 +294,8 @@ class MagicAgentAppService extends AbstractAppService
         // 转换为数组格式
         $agentVersions = MagicAgentVersionFactory::toArrays($visibleAgentVersions);
 
-        // 获取助理总数
-        $totalAgentsCount = $this->getTotalAgentsCount($organizationCode, $agentName);
+        // 获取助理总数（考虑用户可见性权限）
+        $totalAgentsCount = $this->getTotalAgentsCount($organizationCode, $agentName, $currentUserId);
 
         // 处理创建者信息
         $this->enrichCreatorInfo($agentVersions);
@@ -1193,12 +1193,23 @@ class MagicAgentAppService extends AbstractAppService
     }
 
     /**
-     * 获取助理总数.
+     * 获取助理总数（考虑用户可见性权限）.
+     * 优化：使用JOIN查询避免传入大量ID，并根据用户可见性权限过滤.
      * 优化：使用JOIN查询避免传入大量ID.
      */
-    private function getTotalAgentsCount(string $organizationCode, string $agentName): int
+    private function getTotalAgentsCount(string $organizationCode, string $agentName, string $currentUserId): int
     {
-        return $this->magicAgentVersionDomainService->getEnabledAgentsByOrganizationCount($organizationCode, $agentName);
+        // 获取所有启用的助理版本（不分页，用于计算总数）
+        $allEnabledAgents = $this->magicAgentVersionDomainService->getEnabledAgentsByOrganization($organizationCode, 1, PHP_INT_MAX, $agentName);
+
+        if (empty($allEnabledAgents)) {
+            return 0;
+        }
+
+        // 根据可见性配置过滤助理
+        $visibleAgentVersions = $this->filterVisibleAgents($allEnabledAgents, $currentUserId, $organizationCode);
+
+        return count($visibleAgentVersions);
     }
 
     /**
