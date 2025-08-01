@@ -188,6 +188,7 @@ class MagicAgentApi extends AbstractApi
     }
 
     // 发布助理版本
+
     /**
      * @throws Throwable
      */
@@ -367,10 +368,17 @@ class MagicAgentApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $page = (int) $request->input('page', 1);
-        $pageSize = (int) $request->input('page_size', 20);
-        $agentName = $request->input('agent_name') ?? $request->input('robot_name') ?? '';
+        $inputs = $this->request->all();
+        $query = new MagicAgentQuery($inputs);
+        $query->setOrder(['id' => 'desc']);
 
-        return $this->magicAgentAppService->getChatModeAvailableAgents($authenticatable, $page, $pageSize, $agentName);
+        // 创建分页对象
+        $page = $this->createPage();
+
+        // 获取全量数据
+        $data = $this->magicAgentAppService->getChatModeAvailableAgents($authenticatable, $query);
+
+        // 在 API 层进行分页处理
+        return AgentAssembler::createChatModelAvailableList($page, $data['total'], $data['list']);
     }
 }

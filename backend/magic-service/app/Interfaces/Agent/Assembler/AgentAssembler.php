@@ -35,4 +35,14 @@ class AgentAssembler
         $list = array_map(fn (MagicAgentEntity $entity) => self::createAvailableAgentDTO($entity, $icons), $list);
         return new PageDTO($page->getPage(), $total, $list);
     }
+
+    public static function createChatModelAvailableList(Page $page, int $total, array $list, array $icons = []): PageDTO
+    {
+        // 处理分页
+        $offset = ($page->getPage() - 1) * $page->getPageNum();
+        $pagedList = array_slice($list, $offset, $page->getPageNum());
+
+        // 直接返回数组数据，因为已经包含会话ID等信息
+        return new PageDTO($page->getPage(), $total, $pagedList);
+    }
 }
