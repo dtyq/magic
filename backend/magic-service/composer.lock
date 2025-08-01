@@ -1889,16 +1889,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.33",
+            "version": "1.0.34",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "9e123529cd9f85060c369a8ad6619d9b73b60060"
+                "reference": "cf16d53cb26c3f0f7bd3c14559c11a941d81d9ab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=9e123529cd9f85060c369a8ad6619d9b73b60060",
-                "reference": "9e123529cd9f85060c369a8ad6619d9b73b60060",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=cf16d53cb26c3f0f7bd3c14559c11a941d81d9ab",
+                "reference": "cf16d53cb26c3f0f7bd3c14559c11a941d81d9ab",
                 "shasum": ""
             },
             "require": {
@@ -1975,9 +1975,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.33"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.34"
             },
-            "time": "2025-08-01T07:16:12+00:00"
+            "time": "2025-08-01T09:36:33+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2192,16 +2192,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.79",
+            "version": "0.0.80",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "1d2ca06cda5b93ffc46c917e00278baa6ff92fdd"
+                "reference": "86fc83b149e366c9e5abdb30505f555b6739b2d4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=1d2ca06cda5b93ffc46c917e00278baa6ff92fdd",
-                "reference": "1d2ca06cda5b93ffc46c917e00278baa6ff92fdd",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=86fc83b149e366c9e5abdb30505f555b6739b2d4",
+                "reference": "86fc83b149e366c9e5abdb30505f555b6739b2d4",
                 "shasum": ""
             },
             "require": {
@@ -2302,9 +2302,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.79"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.80"
             },
-            "time": "2025-08-01T07:17:01+00:00"
+            "time": "2025-08-01T17:40:03+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -16034,16 +16034,16 @@
         },
         {
             "name": "myclabs/deep-copy",
-            "version": "1.13.3",
+            "version": "1.13.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/myclabs/DeepCopy.git",
-                "reference": "faed855a7b5f4d4637717c2b3863e277116beb36"
+                "reference": "07d290f0c47959fd5eed98c95ee5602db07e0b6a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/faed855a7b5f4d4637717c2b3863e277116beb36",
-                "reference": "faed855a7b5f4d4637717c2b3863e277116beb36",
+                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/07d290f0c47959fd5eed98c95ee5602db07e0b6a",
+                "reference": "07d290f0c47959fd5eed98c95ee5602db07e0b6a",
                 "shasum": ""
             },
             "require": {
@@ -16082,7 +16082,7 @@
             ],
             "support": {
                 "issues": "https://github.com/myclabs/DeepCopy/issues",
-                "source": "https://github.com/myclabs/DeepCopy/tree/1.13.3"
+                "source": "https://github.com/myclabs/DeepCopy/tree/1.13.4"
             },
             "funding": [
                 {
@@ -16090,7 +16090,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-05T12:25:42+00:00"
+            "time": "2025-08-01T08:46:24+00:00"
         },
         {
             "name": "phar-io/manifest",
