@@ -160,6 +160,18 @@ class TaskDomainService
         return $this->topicRepository->updateTopic($topicEntity);
     }
 
+    public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'sandbox_id' => $sandboxId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->taskRepository->updateTaskByCondition($conditions, $data);
+    }
+
     public function handleSandboxMessage(string $taskId, string $messageJson): TaskMessageEntity
     {
         $messageData = json_decode($messageJson, true);

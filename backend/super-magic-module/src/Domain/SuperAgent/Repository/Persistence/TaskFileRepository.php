@@ -28,6 +28,18 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
+    public function getFilesByIds(array $fileIds): array
+    {
+        $models = $this->model::query()->whereIn('file_id', $fileIds)->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
     public function getTaskFilesByIds(array $ids): array
     {
         if (empty($ids)) {
@@ -42,18 +54,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $entities;
-    }
-
-    public function getFilesByIds(array $fileIds): array
-    {
-        $models = $this->model::query()->whereIn('file_id', $fileIds)->get();
-
-        $list = [];
-        foreach ($models as $model) {
-            $list[] = new TaskFileEntity($model->toArray());
-        }
-
-        return $list;
     }
 
     /**
@@ -270,7 +270,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 首先检查是否已经存在相同的file_key和topic_id的记录
         $existingEntity = $this->model::query()
             ->where('file_key', $entity->getFileKey())
-            ->where('topic_id', $entity->getTopicId())
             ->first();
 
         // 如果已存在记录，则返回已存在的实体

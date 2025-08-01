@@ -113,6 +113,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->updatedAt = (string) $entity->getUpdatedAt();
         $dto->isDirectory = $entity->getIsDirectory();
         $dto->sort = $entity->getSort();
+        $dto->updatedAt = (string) $entity->getUpdatedAt();
 
         // Handle metadata JSON decoding
         $metadata = $entity->getMetadata();

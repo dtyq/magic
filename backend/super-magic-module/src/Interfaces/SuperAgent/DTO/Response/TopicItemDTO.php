@@ -58,6 +58,11 @@ class TopicItemDTO extends AbstractDTO
     protected string $sandboxId = '';
 
     /**
+     * @var string 更新时间
+     */
+    protected string $updatedAt = '';
+
+    /**
      * 从实体创建 DTO.
      */
     public static function fromEntity(TopicEntity $entity): self
@@ -73,6 +78,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTopicMode($entity->getTopicMode()->value ?? '');
         $dto->setTopicMode($entity->getTopicMode()->value ?? '');
         $dto->setSandboxId($entity->getSandboxId());
+        $dto->setUpdatedAt($entity->getUpdatedAt());
         return $dto;
     }
 
@@ -175,6 +181,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getUpdatedAt(): string
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(string $updatedAt): self
+    {
+        $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
     /**
      * 从数组创建DTO.
      */
@@ -190,6 +207,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
         $dto->topicMode = $data['topic_mode'] ?? 'general';
         $dto->sandboxId = $data['sandbox_id'] ?? '';
+        $dto->updatedAt = $data['updated_at'] ?? '';
 
         return $dto;
     }
@@ -210,6 +228,7 @@ class TopicItemDTO extends AbstractDTO
             'project_id' => $this->projectId,
             'topic_mode' => $this->topicMode,
             'sandbox_id' => $this->sandboxId,
+            'updated_at' => $this->updatedAt,
         ];
     }
 }

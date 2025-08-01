@@ -190,6 +190,44 @@ class ClientMessageAppService extends AbstractAppService
         }
     }
 
+    public function sendReminderMessageToClient(
+        int $topicId,
+        string $taskId,
+        string $chatTopicId,
+        string $chatConversationId,
+        string $remind = '',
+        string $remindEvent = ''
+    ): void {
+        try {
+            $message = $this->createSuperAgentMessage(
+                $topicId,
+                $taskId,
+                $remind,
+                MessageType::Reminder->value,
+                TaskStatus::Suspended->value,
+                $remindEvent,
+                [],
+                null,
+                null
+            );
+
+            $this->doSendMessage($message, $chatTopicId, $chatConversationId);
+
+            $this->logger->info(sprintf(
+                'Reminder message sent to client, Task ID: %s, Reminder Reason: %s , Event: %s',
+                $taskId,
+                $remind,
+                $remindEvent
+            ));
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to send Reminder message to client: %s, Task ID: %s',
+                $e->getMessage(),
+                $taskId
+            ));
+        }
+    }
+
     /**
      * Core implementation for sending messages to client
      * Unified message sending logic.
