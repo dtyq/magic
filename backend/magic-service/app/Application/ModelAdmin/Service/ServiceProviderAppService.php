@@ -303,14 +303,14 @@ class ServiceProviderAppService extends AbstractKernelAppService
      */
     public function getSuperMagicDisplayModelsForOrganization(Authenticatable $authenticatable): array
     {
-        // 兼容报错
-        try {
-            $this->tryInitModels($organizationCode);
-        } catch (Exception $e) {
-        }
-
         $providerDataIsolation = $this->createProviderDataIsolation($authenticatable);
         $providerDataIsolation->setOnlyOfficialOrganization(true);
+
+        // 兼容报错
+        try {
+            $this->tryInitModels($providerDataIsolation->getCurrentOrganizationCode());
+        } catch (Exception $e) {
+        }
 
         // 获取可用模型
         $providerModelQuery = new ProviderModelQuery();
