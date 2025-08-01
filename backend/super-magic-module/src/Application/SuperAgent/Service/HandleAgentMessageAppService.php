@@ -220,11 +220,28 @@ class HandleAgentMessageAppService extends AbstractAppService
         // 2. Process all attachments
         $this->processAllAttachments($messageData, $taskContext);
 
-        // 3. Record AI message
-        $this->recordAgentMessage($messageData, $taskContext);
+        // 兜底操作，如果当前任务的消息已经是完成
+        if ($this->isSendMessage($taskContext)) {
+            // 3. Record AI message
+            $this->recordAgentMessage($messageData, $taskContext);
 
-        // 4. Send message to client
-        $this->sendMessageToClient($messageData, $taskContext);
+            // 4. Send message to client
+            $this->sendMessageToClient($messageData, $taskContext);
+        }
+    }
+
+    private function isSendMessage(TaskContext $taskContext): bool
+    {
+        $taskEntity = $this->taskDomainService->getTaskById($taskContext->getTask()->getId());
+        if ($taskEntity === null) {
+            $this->logger->error('Check Send Message, Task not found: ' . $taskContext->getTask()->getId());
+            return false;
+        }
+        if ($taskEntity->getStatus() === TaskStatus::FINISHED) {
+            $this->logger->error('Check Send Message, Task is finished: ' . $taskContext->getTask()->getId());
+            return false;
+        }
+        return true;
     }
 
     /**
