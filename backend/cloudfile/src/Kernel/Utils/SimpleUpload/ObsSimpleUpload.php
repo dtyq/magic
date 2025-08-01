@@ -104,4 +104,12 @@ class ObsSimpleUpload extends SimpleUpload
     {
         throw new CloudFileException('createObjectByCredential not implemented for ObsSimpleUpload');
     }
+
+    /**
+     * Generate pre-signed URL by credential (not implemented yet).
+     */
+    public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string
+    {
+        throw new CloudFileException('getPreSignedUrlByCredential not implemented for ObsSimpleUpload');
+    }
 }

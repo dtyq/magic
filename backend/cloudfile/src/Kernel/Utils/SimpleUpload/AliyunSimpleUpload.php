@@ -627,6 +627,92 @@ class AliyunSimpleUpload extends SimpleUpload
     }
 
     /**
+     * Generate pre-signed URL by credential using OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to generate URL for
+     * @param array $options Additional options
+     * @return string Pre-signed URL
+     */
+    public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+            
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+            
+            // Set expiration time (default 1 hour)
+            $expires = $options['expires'] ?? 3600;
+            $expiresTime = time() + $expires;
+            
+            $this->sdkContainer->getLogger()->info('Aliyun OSS getPreSignedUrlByCredential request', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'method' => $options['method'] ?? 'GET',
+                'expires' => $expires,
+            ]);
+            
+            // Prepare signed URL options
+            $signedUrlOptions = [];
+            
+            // Set response headers if specified
+            if (isset($options['filename'])) {
+                $filename = $options['filename'];
+                $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-disposition'] = 
+                    'attachment; filename="' . addslashes($filename) . '"';
+            }
+            
+            if (isset($options['content_type'])) {
+                $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-type'] = $options['content_type'];
+            }
+            
+            // Set custom response headers if provided
+            if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
+                foreach ($options['custom_headers'] as $headerName => $headerValue) {
+                    // For response headers, add 'response-' prefix if not already present
+                    if (strpos($headerName, 'response-') !== 0) {
+                        $headerName = 'response-' . $headerName;
+                    }
+                    $signedUrlOptions[OssClient::OSS_SUB_RESOURCE][$headerName] = $headerValue;
+                }
+            }
+            
+            // Generate signed URL
+            $method = $options['method'] ?? 'GET';
+            $signedUrl = $ossClient->signUrl($sdkConfig['bucket'], $objectKey, $expiresTime, $method, $signedUrlOptions);
+            
+            $this->sdkContainer->getLogger()->info('get_presigned_url_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'method' => $method,
+                'expires' => $expires,
+                'url_length' => strlen($signedUrl),
+            ]);
+            
+            return $signedUrl;
+            
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('get_presigned_url_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('get_presigned_url_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Generate pre-signed URL failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
      * Upload single object using STS credential via OSS SDK.
      * @see https://help.aliyun.com/zh/oss/developer-reference/simple-upload
      */

@@ -131,6 +131,22 @@ class FileServiceSimpleUpload extends SimpleUpload
         $simpleUpload->createObjectByCredential($credential, $objectKey, $options);
     }
 
+    /**
+     * Generate pre-signed URL by credential
+     * 将请求转发给具体的平台实现.
+     *
+     * @param array $credential 凭证信息
+     * @param string $objectKey 对象键
+     * @param array $options 额外选项
+     * @return string 预签名URL
+     * @throws CloudFileException
+     */
+    public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        return $simpleUpload->getPreSignedUrlByCredential($credential, $objectKey, $options);
+    }
+
     private function getSimpleUpload(array $credential): SimpleUpload
     {
         $platform = $credential['platform'] ?? '';
