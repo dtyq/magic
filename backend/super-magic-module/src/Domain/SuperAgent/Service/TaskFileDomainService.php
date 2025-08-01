@@ -885,10 +885,7 @@ class TaskFileDomainService
             }
 
             try {
-                $urlResult = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
-                if ($urlResult !== null) {
-                    $result[] = $urlResult;
-                }
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
             } catch (Throwable $e) {
                 // 如果获取URL失败，跳过
                 continue;
@@ -944,10 +941,7 @@ class TaskFileDomainService
                 $dataIsolation->setCurrentUserId($fileEntity->getUserId());
                 $dataIsolation->setCurrentOrganizationCode($organizationCode);
 
-                $urlResult = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
-                if ($urlResult !== null) {
-                    $result[] = $urlResult;
-                }
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
             } catch (Throwable $e) {
                 // 如果获取URL失败，跳过
                 continue;
