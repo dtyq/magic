@@ -153,6 +153,56 @@ class MagicUserDomainService extends AbstractContactDomainService
     }
 
     /**
+     * 批量根据 aiCode（flowCode）+ 组织编码获取助理的 user_id.
+     * @return array<string, string> 返回 aiCode => userId 的映射
+     */
+    public function getByAiCodes(DataIsolation $dataIsolation, array $aiCodes): array
+    {
+        if (empty($aiCodes)) {
+            return [];
+        }
+
+        // 1. 根据 aiCodes 批量获取 account 信息
+        $accounts = $this->accountRepository->getAccountInfoByAiCodes($aiCodes);
+        if (empty($accounts)) {
+            return [];
+        }
+
+        // 2. 收集 magic_ids
+        $magicIds = [];
+        $aiCodeToMagicIdMap = [];
+        foreach ($accounts as $account) {
+            $magicIds[] = $account->getMagicId();
+            $aiCodeToMagicIdMap[$account->getAiCode()] = $account->getMagicId();
+        }
+
+        // 3. 根据 magic_ids 批量获取用户信息
+        $users = $this->userRepository->getUserByMagicIds($magicIds);
+        if (empty($users)) {
+            return [];
+        }
+
+        // 4. 过滤组织编码并构建 magicId => userId 映射
+        $magicIdToUserIdMap = [];
+        foreach ($users as $user) {
+            // 只保留当前组织的用户
+            if ($user->getOrganizationCode() === $dataIsolation->getCurrentOrganizationCode()) {
+                $magicIdToUserIdMap[$user->getMagicId()] = $user->getUserId();
+            }
+        }
+
+        // 5. 构建最终的 aiCode => userId 映射
+        $result = [];
+        foreach ($aiCodeToMagicIdMap as $aiCode => $magicId) {
+            if (isset($magicIdToUserIdMap[$magicId])) {
+                $result[$aiCode] = $magicIdToUserIdMap[$magicId];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @return array<UserDetailDTO>
      */
     public function getUserDetailByUserIds(array $userIds, DataIsolation $dataIsolation): array

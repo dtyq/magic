@@ -312,85 +312,118 @@ class MagicAgentAppService extends AbstractAppService
     }
 
     /**
-     * 获取聊天模式可用助理列表
-     * 包含：1.官方组织的助理（在最前面） 2.本组织可见的助理.
+     * 获取聊天模式可用助理列表（全量数据，不分页）.
+     * @param Authenticatable $authorization 用户授权
+     * @param MagicAgentQuery $query 查询条件
+     * @return array 助理列表及会话ID
      */
-    public function getChatModeAvailableAgents(Authenticatable $authorization, int $page, int $pageSize, string $agentName): array
+    public function getChatModeAvailableAgents(Authenticatable $authorization, MagicAgentQuery $query): array
     {
         if (! $authorization instanceof MagicUserAuthorization) {
-            return $this->getEmptyPageResult($page, $pageSize);
+            return ['total' => 0, 'list' => []];
         }
 
-        $organizationCode = $authorization->getOrganizationCode();
+        // 1. 使用 queriesAvailable 查询官方+用户组织的助理（全量数据）
+        $fullQuery = clone $query;
+        $fullPage = Page::createNoPage(); // 获取全量数据
+        $agentAppService = di(AgentAppService::class);
+        $fullData = $agentAppService->queriesAvailable($authorization, $fullQuery, $fullPage, true);
 
-        // 判断是否是官方组织，如果是官方组织，直接返回组织内助理
-        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
-            return $this->getAgentsByOrganizationPage($authorization, $page, $pageSize, $agentName);
+        if (empty($fullData['list'])) {
+            return ['total' => 0, 'list' => []];
         }
 
-        // 非官方组织：需要合并官方助理和组织助理
-        // 1. 获取官方助理（全部）
-        $officialAgents = $this->getOfficialAgents($authorization, $agentName);
-        $officialAgentCount = count($officialAgents);
+        // 2. 获取全量助理实体
+        $totalCount = $fullData['total'];
+        /** @var MagicAgentEntity[] $agentEntities */
+        $agentEntities = $fullData['list'];
 
-        // 2. 计算当前页面的偏移量
-        $offset = ($page - 1) * $pageSize;
+        // 3. 分离官方和非官方助理的 flow_code
+        $officialFlowCodes = [];
+        $userOrgFlowCodes = [];
 
-        // 3. 初始化结果数组
-        $resultAgents = [];
-        // 4. 处理分页逻辑
-        if ($offset < $officialAgentCount) {
-            // 当前页面需要包含官方助理
-            $officialPageAgents = array_slice($officialAgents, $offset, $pageSize);
-            $resultAgents = array_merge($resultAgents, $officialPageAgents);
-            $remainingPageSize = $pageSize - count($officialPageAgents);
-
-            // 如果还有剩余空间，获取组织助理；否则只获取总数用于分页计算
-            $organizationPageSize = $remainingPageSize > 0 ? $remainingPageSize : 1;
-            $organizationAgents = $this->getAgentsByOrganizationPage($authorization, 1, $organizationPageSize, $agentName);
-
-            if ($remainingPageSize > 0) {
-                $resultAgents = array_merge($resultAgents, $organizationAgents['list']);
-            }
-            $organizationTotal = $organizationAgents['total'];
-        } else {
-            // 当前页面只需要组织助理
-            $organizationOffset = $offset - $officialAgentCount;
-            $organizationPage = (int) ($organizationOffset / $pageSize) + 1;
-            $organizationSkip = $organizationOffset % $pageSize;
-
-            // 整页组织助理的情况
-            if ($organizationSkip === 0) {
-                $organizationAgents = $this->getAgentsByOrganizationPage($authorization, $organizationPage, $pageSize, $agentName);
-                $resultAgents = $organizationAgents['list'];
-                $organizationTotal = $organizationAgents['total'];
+        foreach ($agentEntities as $agent) {
+            $flowCode = $agent->getFlowCode();
+            // 判断是否是官方组织的助理
+            if (OfficialOrganizationUtil::isOfficialOrganization($agent->getOrganizationCode())) {
+                $officialFlowCodes[] = $flowCode;
             } else {
-                // 跨页获取组织助理
-                $firstPageAgents = $this->getAgentsByOrganizationPage($authorization, $organizationPage, $pageSize, $agentName);
-                $firstPageData = array_slice($firstPageAgents['list'], $organizationSkip);
-                $resultAgents = array_merge($resultAgents, $firstPageData);
-                $organizationTotal = $firstPageAgents['total'];
+                $userOrgFlowCodes[] = $flowCode;
+            }
+        }
 
-                // 如果第一页数据不够，继续从下一页获取
-                $remainingSize = $pageSize - count($firstPageData);
-                if ($remainingSize > 0) {
-                    $secondPageAgents = $this->getAgentsByOrganizationPage($authorization, $organizationPage + 1, $remainingSize, $agentName);
-                    $resultAgents = array_merge($resultAgents, array_slice($secondPageAgents['list'], 0, $remainingSize));
+        // 4. 分别查询官方和用户组织的助理用户ID
+        $flowCodeToUserIdMap = [];
+
+        // 4.1 查询官方助理的用户ID
+        if (! empty($officialFlowCodes) && OfficialOrganizationUtil::hasOfficialOrganization()) {
+            $officialDataIsolation = new ContactDataIsolation();
+            $officialDataIsolation->setCurrentUserId($authorization->getId());
+            $officialDataIsolation->setCurrentOrganizationCode(OfficialOrganizationUtil::getOfficialOrganizationCode());
+
+            $officialUserIdMap = $this->magicUserDomainService->getByAiCodes($officialDataIsolation, $officialFlowCodes);
+            $flowCodeToUserIdMap = array_merge($flowCodeToUserIdMap, $officialUserIdMap);
+        }
+
+        // 4.2 查询用户组织助理的用户ID
+        if (! empty($userOrgFlowCodes)) {
+            $userDataIsolation = new ContactDataIsolation();
+            $userDataIsolation->setCurrentUserId($authorization->getId());
+            $userDataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+
+            $userOrgUserIdMap = $this->magicUserDomainService->getByAiCodes($userDataIsolation, $userOrgFlowCodes);
+            $flowCodeToUserIdMap = array_merge($flowCodeToUserIdMap, $userOrgUserIdMap);
+        }
+
+        // 5. 收集所有助理的用户ID
+        $agentUserIds = array_values($flowCodeToUserIdMap);
+
+        // 6. 查询用户与这些助理的会话ID
+        $conversationMap = [];
+        if (! empty($agentUserIds)) {
+            $conversationMap = $this->magicConversationDomainService->getConversationIdMappingByReceiveIds(
+                $authorization->getId(),
+                $agentUserIds
+            );
+        }
+
+        // 7. 转换为数组格式并添加会话ID
+        $result = [];
+        foreach ($agentEntities as $agent) {
+            $agentData = $agent->toArray();
+
+            // 添加 agent_id 字段，值同 id
+            $agentData['agent_id'] = $agentData['id'];
+
+            // 处理头像链接
+            if ($agent->getAgentAvatar()) {
+                $fileLink = $this->fileDomainService->getLink(
+                    $authorization->getOrganizationCode(),
+                    $agent->getAgentAvatar()
+                );
+                if ($fileLink) {
+                    $agentData['agent_avatar'] = $fileLink->getUrl();
                 }
             }
+
+            // 添加助理用户ID和会话ID
+            $flowCode = $agent->getFlowCode();
+            if (isset($flowCodeToUserIdMap[$flowCode])) {
+                $userId = $flowCodeToUserIdMap[$flowCode];
+                $agentData['user_id'] = $userId;
+
+                // 添加会话ID（如果存在）
+                if (isset($conversationMap[$userId])) {
+                    $agentData['conversation_id'] = $conversationMap[$userId];
+                }
+            }
+
+            $result[] = $agentData;
         }
 
-        // 5. 移除官方组织助理的敏感字段并添加会话ID
-        $this->processOfficialAgentsFields($resultAgents, $authorization);
-
-        // 6. 计算总数（非官方组织的助理不会和官方助理重复）
-        $totalCount = $officialAgentCount + $organizationTotal;
-
         return [
-            'page' => $page,
-            'page_size' => $pageSize,
             'total' => $totalCount,
-            'list' => $resultAgents,
+            'list' => $result,
         ];
     }
 
@@ -1024,71 +1057,6 @@ class MagicAgentAppService extends AbstractAppService
         }
 
         return $data;
-    }
-
-    /**
-     * 获取官方助理列表.
-     */
-    private function getOfficialAgents(MagicUserAuthorization $authorization, string $agentName): array
-    {
-        if (! OfficialOrganizationUtil::hasOfficialOrganization()) {
-            return [];
-        }
-
-        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
-
-        // 复制当前授权对象并修改组织代码
-        $officialAuthorization = clone $authorization;
-        $officialAuthorization->setOrganizationCode($officialOrganizationCode);
-
-        // 直接使用 getAgentsByOrganizationPage 获取官方组织的助理
-        $officialAgentsResult = $this->getAgentsByOrganizationPage($officialAuthorization, 1, 100, $agentName);
-        $officialAgents = $officialAgentsResult['list'];
-
-        // 标记为官方助理
-        foreach ($officialAgents as &$agent) {
-            $agent['is_official'] = true;
-        }
-
-        return $officialAgents;
-    }
-
-    /**
-     * 处理助理字段：给所有助理添加会话ID，给官方组织助理移除敏感字段.
-     */
-    private function processOfficialAgentsFields(array &$agents, MagicUserAuthorization $authorization): void
-    {
-        $currentUserId = $authorization->getId();
-
-        // 收集所有助理的用户ID
-        $allAgentUserIds = [];
-        foreach ($agents as $agent) {
-            if (! empty($agent['user_id'])) {
-                $allAgentUserIds[] = $agent['user_id'];
-            }
-        }
-
-        // 查询用户与所有助理的会话ID映射
-        $conversationMap = [];
-        if (! empty($allAgentUserIds)) {
-            $conversationMap = $this->magicConversationDomainService->getConversationIdMappingByReceiveIds(
-                $currentUserId,
-                $allAgentUserIds
-            );
-        }
-
-        // 处理每个助理
-        foreach ($agents as &$agent) {
-            // 给所有助理添加会话ID（如果存在）
-            if (! empty($agent['user_id']) && isset($conversationMap[$agent['user_id']])) {
-                $agent['conversation_id'] = $conversationMap[$agent['user_id']];
-            }
-
-            // 只对官方助理移除敏感字段
-            if (isset($agent['is_official']) && $agent['is_official']) {
-                unset($agent['created_uid'], $agent['visibility_config'], $agent['created_info']);
-            }
-        }
     }
 
     /**
