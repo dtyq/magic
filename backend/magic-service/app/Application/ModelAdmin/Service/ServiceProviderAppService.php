@@ -56,18 +56,6 @@ class ServiceProviderAppService extends AbstractKernelAppService
     ) {
     }
 
-    public function tryInitModels(string $organizationCode): void
-    {
-        $magicUserAuthorization = new MagicUserAuthorization();
-        $magicUserAuthorization->setOrganizationCode($organizationCode);
-
-        $serviceProviderConfigDTOS = $this->serviceProviderDomainService->getServiceProviderConfigs($organizationCode);
-
-        if (empty($serviceProviderConfigDTOS)) {
-            $this->serviceProviderDomainService->initOrganizationServiceProviders($organizationCode);
-        }
-    }
-
     /**
      * 根据组织获取服务商.
      * @return ServiceProviderConfigDTO[]
@@ -305,12 +293,6 @@ class ServiceProviderAppService extends AbstractKernelAppService
     {
         $providerDataIsolation = $this->createProviderDataIsolation($authenticatable);
         $providerDataIsolation->setOnlyOfficialOrganization(true);
-
-        // 兼容报错
-        try {
-            $this->tryInitModels($providerDataIsolation->getCurrentOrganizationCode());
-        } catch (Exception $e) {
-        }
 
         // 获取可用模型
         $providerModelQuery = new ProviderModelQuery();
