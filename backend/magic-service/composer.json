@@ -27,7 +27,7 @@
         "dragonmantank/cron-expression": "^3.3",
         "dtyq/api-response": "~0.1",
         "dtyq/async-event": "~0.1",
-        "dtyq/cloudfile": "~0.1",
+        "dtyq/cloudfile": "dev-enterprise-master",
         "dtyq/easy-dingtalk": "~0.1",
         "dtyq/flow-expr-engine": "~0.1",
         "dtyq/rule-engine-core": "~0.1",
@@ -178,6 +178,10 @@
         {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/dtyq/billing-manager.git"
+        },
+        {
+            "type": "gitlab",
+            "url": "https://git.kkgroup.cn/dtyq/cloudfile.git"
         }
     ]
 }
