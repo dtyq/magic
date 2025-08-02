@@ -51,9 +51,9 @@ class FileBatchConstant
     // ====== TTL Constants (in seconds) ======
 
     /**
-     * Task status cache TTL - 10 minutes.
+     * Task status cache TTL - 1 hour.
      */
-    public const TTL_TASK_STATUS = 600;
+    public const TTL_TASK_STATUS = 3600;
 
     /**
      * User permission cache TTL - 24 hours.
