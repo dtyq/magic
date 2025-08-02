@@ -62,7 +62,7 @@ class FileBatchAppService extends AbstractAppService
         $fileIds = $requestDTO->getFileIds();
 
         // Basic validation
-        if (count($fileIds) > 50) {
+        if (count($fileIds) > 1000) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
