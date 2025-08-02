@@ -90,16 +90,32 @@ class FileBatchAppService extends AbstractAppService
         // Check if task already exists and completed
         $taskStatus = $this->statusManager->getTaskStatus($batchKey);
         if ($taskStatus && $taskStatus['status'] === 'ready') {
-            // Task completed, return download link
-            $downloadUrl = $taskStatus['result']['download_url'] ?? '';
+            // Check if files have been updated since cache creation
+            $latestFileUpdateTime = $this->getLatestFileUpdateTime($userFiles);
+            $cacheUpdatedAt = $taskStatus['updated_at'] ?? 0;
 
-            return new CreateBatchDownloadResponseDTO(
-                'ready',
-                $batchKey,
-                $downloadUrl,
-                $taskStatus['result']['file_count'] ?? count($userFiles),
-                'Files are ready'
-            );
+            if ($latestFileUpdateTime > $cacheUpdatedAt) {
+                // Files have been updated, need to regenerate cache
+                $this->logger->info('Files updated since cache creation, invalidating cache', [
+                    'batch_key' => $batchKey,
+                    'latest_file_time' => date('Y-m-d H:i:s', $latestFileUpdateTime),
+                    'cache_updated_at' => date('Y-m-d H:i:s', $cacheUpdatedAt),
+                ]);
+
+                // Clear existing cache and proceed to regenerate
+                $this->statusManager->cleanupTask($batchKey);
+            } else {
+                // Cache is still valid, return existing download link
+                $downloadUrl = $taskStatus['result']['download_url'] ?? '';
+
+                return new CreateBatchDownloadResponseDTO(
+                    'ready',
+                    $batchKey,
+                    $downloadUrl,
+                    $taskStatus['result']['file_count'] ?? count($userFiles),
+                    'Files are ready'
+                );
+            }
         }
 
         // Get workdir path
@@ -294,5 +310,31 @@ class FileBatchAppService extends AbstractAppService
             return '';
         }
         return $fileLink->getUrl();
+    }
+
+    /**
+     * Get the latest file update time from user files.
+     *
+     * @param array $userFiles Array of TaskFileEntity objects
+     * @return int Latest update timestamp (0 if no files or no update time)
+     */
+    private function getLatestFileUpdateTime(array $userFiles): int
+    {
+        $latestTimestamp = 0;
+
+        /** @var TaskFileEntity $file */
+        foreach ($userFiles as $file) {
+            $updateTime = $file->getUpdatedAt();
+
+            if (! empty($updateTime)) {
+                // Convert Y-m-d H:i:s format to timestamp
+                $timestamp = strtotime($updateTime);
+                if ($timestamp > $latestTimestamp) {
+                    $latestTimestamp = $timestamp;
+                }
+            }
+        }
+
+        return $latestTimestamp;
     }
 }
