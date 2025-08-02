@@ -94,7 +94,7 @@ class HandleUserMessageAppService extends AbstractAppService
         // Send interrupt message directly to client
         $this->clientMessageAppService->sendInterruptMessageToClient(
             topicId: $topicEntity->getId(),
-            taskId: $topicEntity->getCurrentTaskId() ?? '0',
+            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
             chatTopicId: $dto->getChatTopicId(),
             chatConversationId: $dto->getChatConversationId(),
             interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
