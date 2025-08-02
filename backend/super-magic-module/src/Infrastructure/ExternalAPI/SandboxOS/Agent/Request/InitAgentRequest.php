@@ -26,7 +26,8 @@ class InitAgentRequest
         private string $taskMode = 'plan',
         private string $agentMode = '',
         private string $magicServiceHost = '',
-        private string $chatHistoryDir = ''
+        private string $chatHistoryDir = '',
+        private string $workDir = ''
     ) {
     }
 
@@ -46,7 +47,8 @@ class InitAgentRequest
             $data['task_mode'] ?? 'plan',
             $data['agent_mode'] ?? '',
             $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
-            $data['chat_history_dir'] ?? ''
+            $data['chat_history_dir'] ?? '',
+            $data['work_dir'] ?? ''
         );
     }
 
@@ -72,9 +74,10 @@ class InitAgentRequest
         string $taskMode = 'plan',
         string $agentMode = '',
         string $magicServiceHost = '',
-        string $chatHistoryDir = ''
+        string $chatHistoryDir = '',
+        string $workDir = ''
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $chatHistoryDir);
+        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $chatHistoryDir, $workDir);
     }
 
     /**
@@ -252,6 +255,17 @@ class InitAgentRequest
         return $this->chatHistoryDir;
     }
 
+    public function getWorkDir(): string
+    {
+        return $this->workDir;
+    }
+
+    public function setWorkDir(string $workDir): self
+    {
+        $this->workDir = $workDir;
+        return $this;
+    }
+
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
@@ -271,6 +285,7 @@ class InitAgentRequest
             'agent_mode' => $this->agentMode,
             'magic_service_host' => $this->magicServiceHost,
             'chat_history_dir' => $this->chatHistoryDir,
+            'work_dir' => $this->workDir,
         ];
     }
 }
