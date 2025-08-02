@@ -11,11 +11,13 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Annotation\Consumer;
 use Hyperf\Amqp\Message\ConsumerMessage;
 use Hyperf\Amqp\Result;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\Redis\Redis;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
 use Throwable;
@@ -51,7 +53,8 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
     public function __construct(
         private readonly HandleAgentMessageAppService $superAgentAppService,
         protected LockerInterface $locker,
-        private readonly StdoutLoggerInterface $logger
+        private readonly StdoutLoggerInterface $logger,
+        private readonly Redis $redis
     ) {
         // 设置队列优先级参数
         // 注意：AMQPTable 的值需要是 AMQP 规范的类型，例如 ['S', 'value'] for string, ['I', value] for integer
@@ -103,6 +106,13 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
 
             // 创建DTO
             $messageDTO = TopicTaskMessageDTO::fromArray($data);
+
+            // Check if task has been terminated before processing
+            $taskId = $messageDTO->getMetadata()?->getSuperMagicTaskId();
+            if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskId)) {
+                $this->logger->info(sprintf('任务 %s 已终止，将直接处理消息', $taskId));
+                return Result::ACK;
+            }
 
             // 获取sandboxId用于锁定
             $sandboxId = $messageDTO->getMetadata()?->getSandboxId();
