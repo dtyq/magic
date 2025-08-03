@@ -75,6 +75,16 @@ abstract class SimpleUpload
     abstract public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void;
 
     /**
+     * Generate pre-signed URL by credential.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to generate URL for
+     * @param array $options Additional options (method, expires, filename, etc.)
+     * @return string Pre-signed URL
+     */
+    abstract public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string;
+
+    /**
      * 分片上传文件
      * 默认实现抛出"暂未实现"异常，子类需要重写此方法.
      *
