@@ -43,4 +43,5 @@ RUN --mount=type=secret,id=composer,target=/root/.composer/auth.json \
 EXPOSE 9501
 EXPOSE 9502
 
+
 ENTRYPOINT ["sh", "/opt/www/start.sh"]
