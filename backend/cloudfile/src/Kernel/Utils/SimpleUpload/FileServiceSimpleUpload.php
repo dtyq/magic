@@ -137,8 +137,8 @@ class FileServiceSimpleUpload extends SimpleUpload
      *
      * @param array $credential 凭证信息
      * @param string $objectKey 对象键
-     * @param array $options 额外选项
-     * @return string 预签名URL
+     * @param array $options 额外选项 (method, expires, filename, etc.)
+     * @return string Pre-signed URL
      * @throws CloudFileException
      */
     public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string

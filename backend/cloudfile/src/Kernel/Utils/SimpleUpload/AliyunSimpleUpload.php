@@ -639,35 +639,35 @@ class AliyunSimpleUpload extends SimpleUpload
         try {
             // Convert credential to SDK config
             $sdkConfig = $this->convertCredentialToSdkConfig($credential);
-            
+
             // Create OSS SDK client
             $ossClient = $this->createOssClient($sdkConfig);
-            
+
             // Set expiration time (default 1 hour)
             $expires = $options['expires'] ?? 3600;
             $expiresTime = time() + $expires;
-            
+
             $this->sdkContainer->getLogger()->info('Aliyun OSS getPreSignedUrlByCredential request', [
                 'bucket' => $sdkConfig['bucket'],
                 'object_key' => $objectKey,
                 'method' => $options['method'] ?? 'GET',
                 'expires' => $expires,
             ]);
-            
+
             // Prepare signed URL options
             $signedUrlOptions = [];
-            
+
             // Set response headers if specified
             if (isset($options['filename'])) {
                 $filename = $options['filename'];
-                $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-disposition'] = 
-                    'attachment; filename="' . addslashes($filename) . '"';
+                $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-disposition']
+                    = 'attachment; filename="' . addslashes($filename) . '"';
             }
-            
+
             if (isset($options['content_type'])) {
                 $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-type'] = $options['content_type'];
             }
-            
+
             // Set custom response headers if provided
             if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
                 foreach ($options['custom_headers'] as $headerName => $headerValue) {
@@ -678,11 +678,11 @@ class AliyunSimpleUpload extends SimpleUpload
                     $signedUrlOptions[OssClient::OSS_SUB_RESOURCE][$headerName] = $headerValue;
                 }
             }
-            
+
             // Generate signed URL
             $method = $options['method'] ?? 'GET';
             $signedUrl = $ossClient->signUrl($sdkConfig['bucket'], $objectKey, $expiresTime, $method, $signedUrlOptions);
-            
+
             $this->sdkContainer->getLogger()->info('get_presigned_url_success', [
                 'bucket' => $sdkConfig['bucket'],
                 'object_key' => $objectKey,
@@ -690,9 +690,8 @@ class AliyunSimpleUpload extends SimpleUpload
                 'expires' => $expires,
                 'url_length' => strlen($signedUrl),
             ]);
-            
+
             return $signedUrl;
-            
         } catch (OssException $exception) {
             $this->sdkContainer->getLogger()->error('get_presigned_url_error', [
                 'bucket' => $sdkConfig['bucket'] ?? 'unknown',
