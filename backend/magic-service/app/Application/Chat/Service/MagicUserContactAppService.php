@@ -40,7 +40,6 @@ use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\UserAssembler;
@@ -161,11 +160,11 @@ class MagicUserContactAppService extends AbstractAppService
         $queryType = $dto->getQueryType();
         $dataIsolation = $this->createDataIsolation($authorization);
 
-        // 获取包含官方组织和当前组织的组织编码数组
-        $orgCodes = OfficialOrganizationUtil::getOrganizationCodesWithOfficial($authorization->getOrganizationCode());
+        // 获取当前用户拥有的组织列表
+        $userOrganizations = $this->userDomainService->getUserOrganizations($dataIsolation->getCurrentUserId());
 
-        // 基本用户信息查询 - 同时查询官方组织和当前组织，但只返回AI用户
-        $usersDetailDTOList = $this->userDomainService->getUserDetailByUserIdsWithOrgCodes($userIds, $orgCodes, OfficialOrganizationUtil::getOfficialOrganizationCode());
+        // 基本用户信息查询 - 传入用户拥有的组织列表
+        $usersDetailDTOList = $this->userDomainService->getUserDetailByUserIdsWithOrgCodes($userIds, $userOrganizations);
         // 处理用户头像
         $usersDetail = $this->getUsersAvatarCoordinator($usersDetailDTOList, $dataIsolation);
 

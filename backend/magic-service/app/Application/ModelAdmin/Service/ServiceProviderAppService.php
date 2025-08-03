@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\ModelAdmin\Service;
 
+use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\File\Service\FileDomainService;
@@ -23,28 +24,35 @@ use App\Domain\ModelAdmin\Entity\ServiceProviderOriginalModelsEntity;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderDTO;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
-use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelAdmin\Service\Provider\ConnectResponse;
 use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
+use App\Domain\Provider\Entity\ValueObject\Status as ProviderStatus;
+use App\Domain\Provider\Service\ProviderConfigDomainService;
+use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Locker\Excpetion\LockException;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Exception;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
+use Qbhy\HyperfAuth\Authenticatable;
 
-class ServiceProviderAppService
+class ServiceProviderAppService extends AbstractKernelAppService
 {
     public function __construct(
         protected ServiceProviderDomainService $serviceProviderDomainService,
         protected MagicOrganizationEnvDomainService $organizationEnvDomainService,
         protected readonly FileDomainService $fileDomainService,
         protected PackageFilterInterface $packageFilter,
+        protected ProviderModelDomainService $providerModelDomainService,
+        protected ProviderConfigDomainService $providerConfigDomainService,
     ) {
     }
 
@@ -280,30 +288,66 @@ class ServiceProviderAppService
 
     /**
      * Get super magic display models and Magic provider models visible to current organization.
-     * @param string $organizationCode Organization code
-     * @return SuperMagicModelsDTO[]
      */
-    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    public function getSuperMagicDisplayModelsForOrganization(Authenticatable $authenticatable): array
     {
-        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+        $providerDataIsolation = $this->createProviderDataIsolation($authenticatable);
+        $providerDataIsolation->setOnlyOfficialOrganization(true);
 
-        $models = $this->serviceProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode, $currentPackage);
+        // 获取可用模型
+        $providerModelQuery = new ProviderModelQuery();
+        $providerModelQuery->setSuperMagicDisplay(true);
+        $providerModelQuery->setStatus(ProviderStatus::Enabled);
+        $providerModelQuery->setOrder(['sort' => 'desc']);
+        $providerModelQuery->setProviderConfigIds($this->providerConfigDomainService->getEnabledProviderConfigIds($providerDataIsolation));
+        $data = $this->providerModelDomainService->queries($providerDataIsolation, $providerModelQuery, Page::createNoPage());
+        $models = $data['list'] ?? [];
 
-        $modelDTOs = [];
+        // 获取当前组织套餐
+        $currentPackage = $this->packageFilter->getCurrentPackage($providerDataIsolation->getCurrentOrganizationCode());
 
+        // 过滤数据
+        $iconPaths = [];
+        $list = [];
         foreach ($models as $model) {
-            $icon = $model->getIcon();
-            $organizationCode = substr($icon, 0, strpos($icon, '/'));
-            $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
-
-            $modelDTO = new SuperMagicModelsDTO($model->toArray());
-            if ($fileLink) {
-                $modelDTO->setIcon($fileLink->getUrl());
+            // 如果已经设置过了，则不再添加
+            if (isset($list[$model->getModelId()])) {
+                continue;
             }
-            $modelDTOs[] = $modelDTO;
+
+            $modelConfig = $model->getConfig();
+            if (! $modelConfig->isSupportFunction()) {
+                continue;
+            }
+            $iconPaths[] = $model->getIcon();
+
+            // 如果当前组织就是官方组织，那可以直接展示全部
+            if ($providerDataIsolation->isOfficialOrganization()) {
+                $list[$model->getModelId()] = $model;
+                continue;
+            }
+
+            if (empty($model->getVisiblePackages()) || in_array($currentPackage, $model->getVisiblePackages())) {
+                $list[$model->getModelId()] = $model;
+            }
         }
 
-        return $modelDTOs;
+        // 使用官方组织编码获取图标
+        $icons = $this->fileDomainService->getLinks($providerDataIsolation->getOfficialOrganizationCode(), $iconPaths);
+
+        $result = [];
+        foreach ($list as $model) {
+            $icon = $icons[$model->getIcon()] ?? null;
+            $result[] = [
+                'id' => (string) $model->getId(),
+                'model_id' => $model->getModelId(),
+                'name' => $model->getName(),
+                'icon' => $icon?->getUrl() ?? '',
+                'sort' => $model->getSort(),
+            ];
+        }
+
+        return $result;
     }
 
     /**

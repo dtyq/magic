@@ -29,10 +29,10 @@ class AgentAppService extends AbstractAppService
      * @param Page $page 分页信息
      * @return array{total: int, list: array<MagicAgentEntity>, icons: array<string,FileLink>}
      */
-    public function queriesAvailable(Authenticatable $authorization, MagicAgentQuery $query, Page $page): array
+    public function queriesAvailable(Authenticatable $authorization, MagicAgentQuery $query, Page $page, bool $containOfficialOrganization = false): array
     {
         $agentDataIsolation = $this->createAgentDataIsolation($authorization);
-
+        $agentDataIsolation->setContainOfficialOrganization($containOfficialOrganization);
         // 获取组织内可用的 Agent Ids
         $orgAgentIds = $this->getOrgAvailableAgentIds($agentDataIsolation);
 
@@ -52,7 +52,7 @@ class AgentAppService extends AbstractAppService
         }
         $query->setIds($agentIds);
         $query->setStatus(MagicAgentVersionStatus::ENTERPRISE_ENABLED->value);
-        $query->setSelect(['id', 'robot_name', 'robot_avatar', 'robot_description', 'created_at']);
+        $query->setSelect(['id', 'robot_name', 'robot_avatar', 'robot_description', 'created_at', 'flow_code', 'organization_code']);
 
         $data = $this->agentDomainService->queries($agentDataIsolation, $query, $page);
         $icons = [];

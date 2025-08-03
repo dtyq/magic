@@ -30,12 +30,14 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
@@ -56,6 +58,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -220,11 +223,34 @@ class HandleAgentMessageAppService extends AbstractAppService
         // 2. Process all attachments
         $this->processAllAttachments($messageData, $taskContext);
 
-        // 3. Record AI message
-        $this->recordAgentMessage($messageData, $taskContext);
+        // 兜底操作，如果当前任务的消息已经是完成
+        if ($this->isSendMessage($taskContext)) {
+            // 3. Record AI message
+            $this->recordAgentMessage($messageData, $taskContext);
 
-        // 4. Send message to client
-        $this->sendMessageToClient($messageData, $taskContext);
+            // 4. Send message to client
+            $this->sendMessageToClient($messageData, $taskContext);
+        }
+    }
+
+    private function isSendMessage(TaskContext $taskContext): bool
+    {
+        $taskEntity = $this->taskDomainService->getTaskById($taskContext->getTask()->getId());
+        if ($taskEntity === null) {
+            $this->logger->error('Check Send Message, Task not found: ' . $taskContext->getTask()->getId());
+            return false;
+        }
+        if ($taskEntity->getStatus() === TaskStatus::FINISHED) {
+            $this->logger->error('Check Send Message, Task is finished: ' . $taskContext->getTask()->getId());
+            return false;
+        }
+
+        // Check if task has been terminated by user
+        if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskEntity->getId())) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

@@ -28,4 +28,11 @@ interface ProviderConfigRepositoryInterface
      * @return array{total: int, list: array<ProviderConfigEntity>}
      */
     public function queries(ProviderDataIsolation $dataIsolation, ProviderConfigQuery $query, Page $page): array;
+
+    /**
+     * 获取所有启用的ProviderConfig ID列表.
+     *
+     * @return array<int>
+     */
+    public function getEnabledProviderConfigIds(ProviderDataIsolation $dataIsolation): array;
 }

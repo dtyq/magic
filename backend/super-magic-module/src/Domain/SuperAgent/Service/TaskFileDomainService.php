@@ -730,20 +730,21 @@ class TaskFileDomainService
         $projectId = $projectEntity->getId();
         $workDir = $projectEntity->getWorkDir();
 
-        // 1. Get parent directory ID (create directories if needed)
-        $parentId = $this->findOrCreateDirectoryAndGetParentId(
-            $projectId,
-            $userId,
-            $organizationCode,
-            $fileKey,
-            $workDir
-        );
-
-        // 2. Check if file already exists
-        $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
-
+        Db::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
         Db::beginTransaction();
         try {
+            // 1. Get parent directory ID (create directories if needed)
+            $parentId = $this->findOrCreateDirectoryAndGetParentId(
+                $projectId,
+                $userId,
+                $organizationCode,
+                $fileKey,
+                $workDir
+            );
+
+            // 2. Check if file already exists
+            $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
+
             if ($existingFile !== null) {
                 // Update existing file
                 $taskFileEntity = $this->updateSandboxFile($existingFile, $data, $organizationCode);

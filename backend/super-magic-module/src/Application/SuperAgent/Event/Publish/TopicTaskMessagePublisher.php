@@ -16,7 +16,7 @@ use PhpAmqpLib\Wire\AMQPTable;
 /**
  * 话题任务消息发布器.
  */
-#[Producer(exchange: 'super_magic_topic_task_message', routingKey: 'super_magic_topic_task_message')]
+#[Producer(exchange: 'super_magic_topic_task_message_new', routingKey: 'super_magic_topic_task_message_new')]
 class TopicTaskMessagePublisher extends ProducerMessage
 {
     /**

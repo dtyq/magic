@@ -15,7 +15,6 @@ use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
 use App\Domain\ModelAdmin\Entity\ServiceProviderConfigEntity;
 use App\Domain\ModelAdmin\Entity\ServiceProviderModelsEntity;
 use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfigDTO;
-use App\Domain\ModelAdmin\Entity\ValueObject\SuperMagicModelsDTO;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
@@ -236,15 +235,13 @@ class ServiceProviderApi extends AbstractApi
 
     /**
      * Get super magic display models and Magic provider models visible to current organization.
-     * @return SuperMagicModelsDTO[]
      */
     public function getSuperMagicDisplayModels(RequestInterface $request): array
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $organizationCode = $authenticatable->getOrganizationCode();
 
-        return $this->serviceProviderAppService->getSuperMagicDisplayModelsForOrganization($organizationCode);
+        return $this->serviceProviderAppService->getSuperMagicDisplayModelsForOrganization($authenticatable);
     }
 
     private function getPhone(string $userId)

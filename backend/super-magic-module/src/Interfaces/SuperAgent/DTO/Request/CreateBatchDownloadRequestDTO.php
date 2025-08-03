@@ -84,7 +84,7 @@ class CreateBatchDownloadRequestDTO
 
         // If file_ids is provided, validate it
         if (! empty($fileIds)) {
-            if (count($fileIds) > 50) {
+            if (count($fileIds) > 1000) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
             }
 

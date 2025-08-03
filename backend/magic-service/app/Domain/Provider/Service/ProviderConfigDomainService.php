@@ -41,4 +41,9 @@ readonly class ProviderConfigDomainService
     {
         return $this->serviceProviderConfigRepository->queries($dataIsolation, $query, $page);
     }
+
+    public function getEnabledProviderConfigIds(ProviderDataIsolation $dataIsolation): array
+    {
+        return $this->serviceProviderConfigRepository->getEnabledProviderConfigIds($dataIsolation);
+    }
 }
