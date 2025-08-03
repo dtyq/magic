@@ -831,20 +831,20 @@ class TosSimpleUpload extends SimpleUpload
         try {
             // Convert credential to SDK config
             $sdkConfig = $this->convertCredentialToSdkConfig($credential);
-            
+
             // Create TOS SDK client
             $tosClient = new TosClient($sdkConfig);
-            
+
             // Set expiration time (default 1 hour)
             $expires = $options['expires'] ?? 3600;
-            
+
             $this->sdkContainer->getLogger()->info('TOS getPreSignedUrlByCredential request', [
                 'bucket' => $sdkConfig['bucket'],
                 'object_key' => $objectKey,
                 'method' => $options['method'] ?? 'GET',
                 'expires' => $expires,
             ]);
-            
+
             // Create pre-signed URL input
             // Note: TOS expects expires in seconds (duration), not absolute timestamp
             $preSignedInput = new PreSignedURLInput(
@@ -853,30 +853,36 @@ class TosSimpleUpload extends SimpleUpload
                 $objectKey,
                 $expires
             );
-            
+
+            // Prepare headers array
+            $headers = [];
+
             // Set response headers if specified
             if (isset($options['filename'])) {
                 $filename = $options['filename'];
-                $preSignedInput->setHeader('response-content-disposition', 
-                    'attachment; filename="' . addslashes($filename) . '"'
-                );
+                $headers['response-content-disposition'] = 'attachment; filename="' . addslashes($filename) . '"';
             }
-            
+
             if (isset($options['content_type'])) {
-                $preSignedInput->setHeader('response-content-type', $options['content_type']);
+                $headers['response-content-type'] = $options['content_type'];
             }
-            
-            // Set custom response headers if provided
+
+            // Add custom response headers if provided
             if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
                 foreach ($options['custom_headers'] as $headerName => $headerValue) {
-                    $preSignedInput->setHeader($headerName, $headerValue);
+                    $headers[$headerName] = (string) $headerValue;
                 }
             }
-            
+
+            // Set all headers at once if any headers are defined
+            if (! empty($headers)) {
+                $preSignedInput->setHeader($headers);
+            }
+
             // Generate pre-signed URL
             $preSignedOutput = $tosClient->preSignedURL($preSignedInput);
             $signedUrl = $preSignedOutput->getSignedUrl();
-            
+
             $this->sdkContainer->getLogger()->info('get_presigned_url_success', [
                 'bucket' => $sdkConfig['bucket'],
                 'object_key' => $objectKey,
@@ -884,9 +890,8 @@ class TosSimpleUpload extends SimpleUpload
                 'expires' => $expires,
                 'url_length' => strlen($signedUrl),
             ]);
-            
+
             return $signedUrl;
-            
         } catch (TosClientException $exception) {
             $this->sdkContainer->getLogger()->error('get_presigned_url_client_error', [
                 'bucket' => $sdkConfig['bucket'] ?? 'unknown',
