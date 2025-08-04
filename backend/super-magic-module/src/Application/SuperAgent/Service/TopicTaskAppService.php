@@ -56,7 +56,7 @@ class TopicTaskAppService extends AbstractAppService
         $language = $this->translator->getLocale();
         $metadata->setLanguage($language);
         $messageDTO->setMetadata($metadata);
-        $this->logger->info('deliverTopicTaskMessage', ['messageData' => $messageDTO->toArray()]);
+        $this->logger->info('deliverTopicTaskMessage', ['messageData' => $messageDTO->getMetadata()]);
         if (empty($sandboxId)) {
             $this->logger->warning('Cannot acquire lock without a valid sandboxId in deliverTopicTaskMessage.', ['messageData' => $messageDTO->toArray()]);
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'message_missing_topic_id_for_locking');
