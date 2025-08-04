@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c11d9dbab058101506b545ffce339c9c",
+    "content-hash": "cce36f33f27686b29d41b3a86058eb26",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -12071,16 +12071,16 @@
         },
         {
             "name": "swow/swow",
-            "version": "v1.5.3",
+            "version": "v1.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/swow/swow.git",
-                "reference": "fd9c823aa73c104f5f09fdd3c5dc33190337b6e2"
+                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/swow/swow/zipball/fd9c823aa73c104f5f09fdd3c5dc33190337b6e2",
-                "reference": "fd9c823aa73c104f5f09fdd3c5dc33190337b6e2",
+                "url": "https://api.github.com/repos/swow/swow/zipball/87305892ff5b7e82bb1daec4f9a5558ef4b28810",
+                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810",
                 "shasum": ""
             },
             "require": {
@@ -12152,9 +12152,9 @@
             ],
             "support": {
                 "issues": "https://github.com/swow/swow",
-                "source": "https://github.com/swow/swow/tree/v1.5.3"
+                "source": "https://github.com/swow/swow/tree/v1.6.0"
             },
-            "time": "2024-07-22T12:03:34+00:00"
+            "time": "2025-08-03T07:10:21+00:00"
         },
         {
             "name": "symfony/cache",
