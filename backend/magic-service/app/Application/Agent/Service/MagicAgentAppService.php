@@ -190,22 +190,18 @@ class MagicAgentAppService extends AbstractAppService
         ];
     }
 
-    public function getAgentVersionById(string $agentVersionId, MagicUserAuthorization $authorization): MagicAgentVersionEntity
+    public function getAgentById(string $agentVersionId, MagicUserAuthorization $authorization): MagicAgentVersionEntity
     {
         try {
-            // 首先尝试作为 agent_version_id 获取
+            // 首先尝试作为 agent_version_id 从已发布版本中获取
             $magicAgentVersionEntity = $this->magicAgentVersionDomainService->getAgentById($agentVersionId);
         } catch (Throwable $e) {
-            // 如果失败，尝试作为 agent_id 获取其最新已发布版本
+            // 如果失败，从 magic_bots 表获取原始助理数据，并转换为 MagicAgentVersionEntity（版本号为 null）
             try {
-                $releaseVersions = $this->magicAgentVersionDomainService->getReleaseAgentVersions($agentVersionId);
-                if (empty($releaseVersions)) {
-                    throw $e;
-                }
-                // 取最新版本（按ID降序排列，第一个是最新的）
-                $magicAgentVersionEntity = $releaseVersions[0];
+                $magicAgentEntity = $this->magicAgentDomainService->getById($agentVersionId);
+                $magicAgentVersionEntity = $this->convertAgentToAgentVersion($magicAgentEntity);
             } catch (Throwable) {
-                // 如果两种方式都失败，抛出原始异常
+                // 如果都失败，抛出原始异常
                 throw $e;
             }
         }
@@ -350,61 +346,18 @@ class MagicAgentAppService extends AbstractAppService
             return ['total' => 0, 'list' => []];
         }
 
-        // 2. 获取全量助理实体
+        // 获取全量助理实体
         $totalCount = $fullData['total'];
         /** @var MagicAgentEntity[] $agentEntities */
         $agentEntities = $fullData['list'];
 
-        // 3. 分离官方和非官方助理的 flow_code
-        $officialFlowCodes = [];
-        $userOrgFlowCodes = [];
+        // 获取助理会话映射
+        [$flowCodeToUserIdMap, $conversationMap] = $this->getAgentConversationMapping($agentEntities, $authorization);
 
-        foreach ($agentEntities as $agent) {
-            $flowCode = $agent->getFlowCode();
-            // 判断是否是官方组织的助理
-            if (OfficialOrganizationUtil::isOfficialOrganization($agent->getOrganizationCode())) {
-                $officialFlowCodes[] = $flowCode;
-            } else {
-                $userOrgFlowCodes[] = $flowCode;
-            }
-        }
+        // 批量获取头像链接
+        $avatarUrlMap = $this->batchGetAvatarUrls($agentEntities, $authorization);
 
-        // 4. 分别查询官方和用户组织的助理用户ID
-        $flowCodeToUserIdMap = [];
-
-        // 4.1 查询官方助理的用户ID
-        if (! empty($officialFlowCodes) && OfficialOrganizationUtil::hasOfficialOrganization()) {
-            $officialDataIsolation = new ContactDataIsolation();
-            $officialDataIsolation->setCurrentUserId($authorization->getId());
-            $officialDataIsolation->setCurrentOrganizationCode(OfficialOrganizationUtil::getOfficialOrganizationCode());
-
-            $officialUserIdMap = $this->magicUserDomainService->getByAiCodes($officialDataIsolation, $officialFlowCodes);
-            $flowCodeToUserIdMap = array_merge($flowCodeToUserIdMap, $officialUserIdMap);
-        }
-
-        // 4.2 查询用户组织助理的用户ID
-        if (! empty($userOrgFlowCodes)) {
-            $userDataIsolation = new ContactDataIsolation();
-            $userDataIsolation->setCurrentUserId($authorization->getId());
-            $userDataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
-
-            $userOrgUserIdMap = $this->magicUserDomainService->getByAiCodes($userDataIsolation, $userOrgFlowCodes);
-            $flowCodeToUserIdMap = array_merge($flowCodeToUserIdMap, $userOrgUserIdMap);
-        }
-
-        // 5. 收集所有助理的用户ID
-        $agentUserIds = array_values($flowCodeToUserIdMap);
-
-        // 6. 查询用户与这些助理的会话ID
-        $conversationMap = [];
-        if (! empty($agentUserIds)) {
-            $conversationMap = $this->magicConversationDomainService->getConversationIdMappingByReceiveIds(
-                $authorization->getId(),
-                $agentUserIds
-            );
-        }
-
-        // 7. 转换为数组格式并添加会话ID
+        // 转换为数组格式并添加会话ID
         $result = [];
         foreach ($agentEntities as $agent) {
             $agentData = $agent->toArray();
@@ -412,16 +365,12 @@ class MagicAgentAppService extends AbstractAppService
             // 添加 agent_id 字段，值同 id
             $agentData['agent_id'] = $agentData['id'];
 
+            // 添加是否为官方组织标识
+            $agentData['is_office'] = OfficialOrganizationUtil::isOfficialOrganization($agent->getOrganizationCode());
+
             // 处理头像链接
-            if ($agent->getAgentAvatar()) {
-                $fileLink = $this->fileDomainService->getLink(
-                    $authorization->getOrganizationCode(),
-                    $agent->getAgentAvatar()
-                );
-                if ($fileLink) {
-                    $agentData['agent_avatar'] = $fileLink->getUrl();
-                }
-            }
+            $agentData['agent_avatar'] = $avatarUrlMap[$agent->getAgentAvatar()] ?? null;
+            $agentData['robot_avatar'] = $agentData['agent_avatar'];
 
             // 添加助理用户ID和会话ID
             $flowCode = $agent->getFlowCode();
@@ -1122,7 +1071,7 @@ class MagicAgentAppService extends AbstractAppService
                     $department = $departmentsMap[$departmentId];
                     $pathStr = $department->getPath();
                     // 路径格式为 "-1/parent_id/department_id"，去除前导的-1
-                    $allDepartmentIds[] = array_filter(explode('/', trim($pathStr, '/')), function ($id) {
+                    $allDepartmentIds[] = array_filter(explode('/', trim($pathStr, '/')), static function ($id) {
                         return $id !== '-1';
                     });
                 }
@@ -1398,5 +1347,162 @@ class MagicAgentAppService extends AbstractAppService
         }
 
         return $config;
+    }
+
+    /**
+     * 分离官方组织和用户组织的助理.
+     *
+     * @param array $agentEntities 助理实体数组
+     * @return array 返回 [officialAgents, userOrgAgents]
+     */
+    private function separateOfficialAndUserAgents(array $agentEntities): array
+    {
+        $officialAgents = [];
+        $userOrgAgents = [];
+
+        foreach ($agentEntities as $agent) {
+            if (OfficialOrganizationUtil::isOfficialOrganization($agent->getOrganizationCode())) {
+                $officialAgents[] = $agent;
+            } else {
+                $userOrgAgents[] = $agent;
+            }
+        }
+
+        return [$officialAgents, $userOrgAgents];
+    }
+
+    /**
+     * 获取助理会话映射.
+     *
+     * @param MagicAgentEntity[] $agentEntities 助理实体数组
+     * @param MagicUserAuthorization $authorization 用户授权对象
+     * @return array 返回 [flowCodeToUserIdMap, conversationMap]
+     */
+    private function getAgentConversationMapping(array $agentEntities, MagicUserAuthorization $authorization): array
+    {
+        // 3. 分离官方和非官方助理
+        [$officialAgents, $userOrgAgents] = $this->separateOfficialAndUserAgents($agentEntities);
+
+        // 提取 flow_code
+        $officialFlowCodes = array_map(static fn ($agent) => $agent->getFlowCode(), $officialAgents);
+        $userOrgFlowCodes = array_map(static fn ($agent) => $agent->getFlowCode(), $userOrgAgents);
+
+        // 4. 分别查询官方和用户组织的助理用户ID
+        $flowCodeToUserIdMap = [];
+
+        // 4.1 查询官方助理的用户ID
+        if (! empty($officialFlowCodes) && OfficialOrganizationUtil::hasOfficialOrganization()) {
+            $officialDataIsolation = new ContactDataIsolation();
+            $officialDataIsolation->setCurrentUserId($authorization->getId());
+            $officialDataIsolation->setCurrentOrganizationCode(OfficialOrganizationUtil::getOfficialOrganizationCode());
+
+            $officialUserIdMap = $this->magicUserDomainService->getByAiCodes($officialDataIsolation, $officialFlowCodes);
+            $flowCodeToUserIdMap = array_merge($flowCodeToUserIdMap, $officialUserIdMap);
+        }
+
+        // 4.2 查询用户组织助理的用户ID
+        if (! empty($userOrgFlowCodes)) {
+            $userDataIsolation = new ContactDataIsolation();
+            $userDataIsolation->setCurrentUserId($authorization->getId());
+            $userDataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+
+            $userOrgUserIdMap = $this->magicUserDomainService->getByAiCodes($userDataIsolation, $userOrgFlowCodes);
+            $flowCodeToUserIdMap = array_merge($flowCodeToUserIdMap, $userOrgUserIdMap);
+        }
+
+        // 5. 收集所有助理的用户ID
+        $agentUserIds = array_values($flowCodeToUserIdMap);
+
+        // 6. 查询用户与这些助理的会话ID
+        $conversationMap = [];
+        if (! empty($agentUserIds)) {
+            $conversationMap = $this->magicConversationDomainService->getConversationIdMappingByReceiveIds(
+                $authorization->getId(),
+                $agentUserIds
+            );
+        }
+
+        return [$flowCodeToUserIdMap, $conversationMap];
+    }
+
+    /**
+     * 批量获取助理头像URL.
+     *
+     * @param MagicAgentEntity[] $agentEntities 助理实体数组
+     * @param MagicUserAuthorization $authorization 用户授权对象
+     * @return array 头像路径到URL的映射
+     */
+    private function batchGetAvatarUrls(array $agentEntities, MagicUserAuthorization $authorization): array
+    {
+        // 分离官方组织和用户组织的助理
+        [$officialAgents, $userOrgAgents] = $this->separateOfficialAndUserAgents($agentEntities);
+
+        $avatarUrlMap = [];
+
+        // 批量获取官方组织的头像链接
+        if (! empty($officialAgents) && OfficialOrganizationUtil::hasOfficialOrganization()) {
+            $officialAvatars = array_filter(array_map(static fn ($agent) => $agent->getAgentAvatar(), $officialAgents));
+            if (! empty($officialAvatars)) {
+                $officialFileLinks = $this->fileDomainService->getLinks(
+                    OfficialOrganizationUtil::getOfficialOrganizationCode(),
+                    array_unique($officialAvatars)
+                );
+
+                foreach ($officialFileLinks as $fileLink) {
+                    $avatarUrlMap[$fileLink->getPath()] = $fileLink->getUrl();
+                }
+            }
+        }
+
+        // 批量获取用户组织的头像链接
+        if (! empty($userOrgAgents)) {
+            $userOrgAvatars = array_filter(array_map(static fn ($agent) => $agent->getAgentAvatar(), $userOrgAgents));
+            if (! empty($userOrgAvatars)) {
+                $userOrgFileLinks = $this->fileDomainService->getLinks(
+                    $authorization->getOrganizationCode(),
+                    array_unique($userOrgAvatars)
+                );
+
+                foreach ($userOrgFileLinks as $fileLink) {
+                    $avatarUrlMap[$fileLink->getPath()] = $fileLink->getUrl();
+                }
+            }
+        }
+
+        return $avatarUrlMap;
+    }
+
+    /**
+     * 将 MagicAgentEntity 转换为 MagicAgentVersionEntity.
+     * 用于处理私人助理没有发布版本的情况.
+     *
+     * @param MagicAgentEntity $agentEntity 助理实体
+     * @return MagicAgentVersionEntity 助理版本实体
+     */
+    private function convertAgentToAgentVersion(MagicAgentEntity $agentEntity): MagicAgentVersionEntity
+    {
+        $magicAgentVersionEntity = new MagicAgentVersionEntity();
+
+        // 设置基本信息
+        $magicAgentVersionEntity->setFlowCode($agentEntity->getFlowCode());
+        $magicAgentVersionEntity->setAgentId($agentEntity->getId());
+        $magicAgentVersionEntity->setAgentName($agentEntity->getAgentName());
+        $magicAgentVersionEntity->setAgentAvatar($agentEntity->getAgentAvatar());
+        $magicAgentVersionEntity->setAgentDescription($agentEntity->getAgentDescription());
+        $magicAgentVersionEntity->setOrganizationCode($agentEntity->getOrganizationCode());
+        $magicAgentVersionEntity->setCreatedUid($agentEntity->getCreatedUid());
+        $magicAgentVersionEntity->setInstructs($agentEntity->getInstructs());
+        $magicAgentVersionEntity->setStartPage($agentEntity->getStartPage());
+
+        // 版本相关信息设为null，表示没有发布版本
+        $magicAgentVersionEntity->setVersionNumber(null);
+        $magicAgentVersionEntity->setVersionDescription(null);
+
+        // 设置时间信息
+        $magicAgentVersionEntity->setCreatedAt($agentEntity->getCreatedAt());
+        $magicAgentVersionEntity->setUpdatedUid($agentEntity->getUpdatedUid());
+        $magicAgentVersionEntity->setUpdatedAt($agentEntity->getUpdatedAt());
+
+        return $magicAgentVersionEntity;
     }
 }
