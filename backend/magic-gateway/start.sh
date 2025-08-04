@@ -13,14 +13,14 @@ echo -e "${YELLOW}启动 Go 版 API 网关服务...${NC}"
 check_running_process() {
     # 查找正在运行的api-gateway进程
     EXISTING_PID=$(pgrep -f "./api-gateway")
-    
+
     if [ -n "$EXISTING_PID" ]; then
         echo -e "${RED}检测到API网关服务已在运行，PID: $EXISTING_PID${NC}"
         echo -e "${YELLOW}正在终止现有进程...${NC}"
-        
+
         # 尝试正常终止进程
         kill $EXISTING_PID 2>/dev/null
-        
+
         # 等待进程终止
         for i in {1..5}; do
             if ! ps -p $EXISTING_PID > /dev/null; then
@@ -30,7 +30,7 @@ check_running_process() {
             echo -e "${YELLOW}等待进程终止，尝试 $i/5...${NC}"
             sleep 1
         done
-        
+
         # 如果进程仍在运行，强制终止
         echo -e "${RED}无法正常终止进程，尝试强制终止...${NC}"
         kill -9 $EXISTING_PID 2>/dev/null
@@ -41,7 +41,7 @@ check_running_process() {
             exit 1
         fi
     fi
-    
+
     # 再检查8000端口是否被占用
     PORT_PID=$(lsof -t -i:8000 2>/dev/null)
     if [ -n "$PORT_PID" ]; then
@@ -105,27 +105,27 @@ sleep 3
 
 # 检查 API 网关服务是否正常运行
 for i in {1..5}; do
-    if curl -s http://localhost:8000/status > /dev/null; then
+    if curl -s http://localhost:8001/status > /dev/null; then
         echo -e "${GREEN}API 网关服务已启动 (PID: $API_PID)${NC}"
         echo -e "${GREEN}服务已启动${NC}"
-        echo -e "${YELLOW}API 网关地址: http://localhost:8000${NC}"
-        
+        echo -e "${YELLOW}API 网关地址: http://localhost:8001${NC}"
+
         echo -e "${BLUE}获取令牌示例:${NC}"
-        echo -e "${BLUE}curl -X POST http://localhost:8000/auth -H \"X-USER-ID: your-user-id\"${NC}"
+        echo -e "${BLUE}curl -X POST http://localhost:8001/auth -H \"X-USER-ID: your-user-id\"${NC}"
         echo -e "${BLUE}注意: 获取令牌请求只能从本地(localhost)发起${NC}"
         echo -e "${BLUE}提示: 令牌永久有效，无过期时间限制，使用Magic-Authorization头${NC}"
-        
+
         # 显示Docker示例
         echo -e "${BLUE}Docker容器使用示例:${NC}"
         echo -e "${BLUE}# 1. 在宿主机获取令牌${NC}"
-        echo -e "${BLUE}TOKEN=\$(curl -s -X POST http://localhost:8000/auth -H \"X-USER-ID: your-user-id\" | jq -r '.token')${NC}"
+        echo -e "${BLUE}TOKEN=\$(curl -s -X POST http://localhost:8001/auth -H \"X-USER-ID: your-user-id\" | jq -r '.token')${NC}"
         echo -e "${BLUE}# 2. 启动容器并注入令牌${NC}"
-        echo -e "${BLUE}docker run -e API_TOKEN=\"\$TOKEN\" -e API_GATEWAY_URL=\"http://host.docker.internal:8000\" your-image${NC}"
+        echo -e "${BLUE}docker run -e API_TOKEN=\"\$TOKEN\" -e API_GATEWAY_URL=\"http://host.docker.internal:8001\" your-image${NC}"
         echo -e "${BLUE}# 3. 容器内使用令牌示例${NC}"
         echo -e "${BLUE}curl -H \"Magic-Authorization: Bearer \$API_TOKEN\" \$API_GATEWAY_URL/services${NC}"
-        
+
         echo -e "${YELLOW}按 Ctrl+C 停止服务${NC}"
-        
+
         # 等待用户按 Ctrl+C
         wait
         exit 0
@@ -137,4 +137,4 @@ done
 
 echo -e "${RED}API 网关服务启动失败，请检查日志${NC}"
 kill $API_PID 2>/dev/null || true
-exit 1 
+exit 1

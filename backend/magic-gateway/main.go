@@ -123,16 +123,19 @@ func initRedisClient() {
 	// 如果明确指定了DB，则使用指定的
 	if dbStr := getEnvWithDefault("REDIS_DB", ""); dbStr != "" {
 		if db, err := strconv.Atoi(dbStr); err == nil {
-			redisDB = db
+			redisDB = strconv.Itoa(db)
 		}
 	}
 
-	logger.Printf("连接Redis: %s (DB: %d, 环境: %s)", redisAddr, redisDB, env)
+	logger.Printf("连接Redis: %s (DB: %s, 环境: %s)", redisAddr, redisDB, env)
+
+	// 将redisDB字符串转换为整数
+	redisDBInt, _ := strconv.Atoi(redisDB)
 
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPassword,
-		DB:       redisDB,
+		DB:       redisDBInt,
 	})
 
 	// 测试连接
@@ -142,7 +145,7 @@ func initRedisClient() {
 		logger.Printf("将使用内存存储作为后备方案")
 		redisAvailable = false
 	} else {
-		logger.Printf("成功连接到Redis服务器，使用数据库: %d", redisDB)
+		logger.Printf("成功连接到Redis服务器，使用数据库: %s", redisDB)
 		redisAvailable = true
 	}
 }
