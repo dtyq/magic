@@ -72,7 +72,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
     {
         try {
             // 记录接收到的消息内容
-            $this->logger->info(sprintf(
+            $this->logger->debug(sprintf(
                 '接收到话题任务消息: %s',
                 json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ));
