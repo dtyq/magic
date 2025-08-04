@@ -616,7 +616,7 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 				// 如果没有Bearer前缀，则自动添加
 				authHeader = "Bearer " + authHeader
 				if debugMode {
-					logger.Printf("自动为Magic-Authorization头添加Bearer前缀: %s", authHeader)
+					//logger.Printf("自动为Magic-Authorization头添加Bearer前缀: %s", authHeader)
 				}
 			}
 		}
@@ -883,6 +883,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 处理JSON请求
 		contentType := r.Header.Get("Content-Type")
+		var jsonData interface{}
 		if strings.Contains(contentType, "application/json") {
 			var data interface{}
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
@@ -893,12 +894,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 				// 替换环境变量引用
 				data = replaceEnvVars(data)
-
-				// 记录替换后的请求体
-				if newBody, err := json.Marshal(data); err == nil {
-					// logger.Printf("替换环境变量后的请求体: %s", string(newBody))
-					bodyBytes = newBody
-				}
+				jsonData = data
 			} else {
 				logger.Printf("解析JSON请求体失败: %v", err)
 			}
@@ -906,60 +902,6 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 创建新请求体
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-		// 构建请求头，替换环境变量引用
-		proxyHeaders := make(http.Header)
-		for key, values := range r.Header {
-			if shouldSkipHeader(key) {
-				continue
-			}
-
-			for _, value := range values {
-				// 特殊处理 Authorization 头
-				if key == "Authorization" {
-					// 处理 Bearer env:XXX 格式
-					if strings.HasPrefix(value, "Bearer env:") {
-						envKey := strings.TrimPrefix(value, "Bearer env:")
-						if envValue, exists := envVars[envKey]; exists {
-							proxyHeaders.Add(key, "Bearer "+envValue)
-							if debugMode {
-								logger.Printf("替换环境变量引用 (Bearer env:): %s => Bearer %s", envKey, envValue)
-							}
-							continue
-						}
-					}
-
-					// 处理直接使用环境变量名的情况，如 Bearer OPENAI_API_KEY
-					if strings.HasPrefix(value, "Bearer ") {
-						tokenValue := strings.TrimPrefix(value, "Bearer ")
-						if envValue, exists := envVars[tokenValue]; exists {
-							proxyHeaders.Add(key, "Bearer "+envValue)
-							if debugMode {
-								logger.Printf("替换环境变量引用 (直接引用): Bearer %s => Bearer %s", tokenValue, envValue)
-							}
-							continue
-						}
-					}
-				}
-
-				// 检查所有头部值是否直接为环境变量名
-				if envValue, exists := envVars[value]; exists {
-					// 如果头部值完全等于某个环境变量名，则替换为环境变量的值
-					proxyHeaders.Add(key, envValue)
-					if debugMode {
-						logger.Printf("替换请求头中的环境变量名称: %s: %s => %s", key, value, envValue)
-					}
-					continue
-				}
-
-				// 替换字符串中的环境变量引用
-				newValue := replaceEnvVarsInString(value)
-				proxyHeaders.Add(key, newValue)
-				if debugMode && newValue != value {
-					logger.Printf("替换请求头中的环境变量引用: %s: %s => %s", key, value, newValue)
-				}
-			}
-		}
 
 		// 确定目标服务URL
 		targetBase := r.URL.Query().Get("target")
@@ -1054,15 +996,75 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 如果没有目标URL，返回错误
-		if targetBase == "" {
-			logger.Printf("未指定目标API URL: %s", path)
-			http.Error(w, "未指定目标API URL", http.StatusBadRequest)
-			return
+		// 构建请求头，替换环境变量引用
+		proxyHeaders := make(http.Header)
+		for key, values := range r.Header {
+			if shouldSkipHeader(key) {
+				continue
+			}
+
+			for _, value := range values {
+				// 特殊处理 Authorization 头
+				if key == "Authorization" {
+					// 处理 Bearer env:XXX 格式
+					if strings.HasPrefix(value, "Bearer env:") {
+						envKey := strings.TrimPrefix(value, "Bearer env:")
+						if envValue, exists := envVars[envKey]; exists {
+							proxyHeaders.Add(key, "Bearer "+envValue)
+							if debugMode {
+								logger.Printf("替换环境变量引用 (Bearer env:): %s", envKey)
+							}
+							continue
+						}
+					}
+
+					// 处理直接使用环境变量名的情况，如 Bearer OPENAI_API_KEY
+					if strings.HasPrefix(value, "Bearer ") {
+						tokenValue := strings.TrimPrefix(value, "Bearer ")
+						if envValue, exists := envVars[tokenValue]; exists {
+							proxyHeaders.Add(key, "Bearer "+envValue)
+							if debugMode {
+								logger.Printf("替换环境变量引用 (直接引用): Bearer %s => Bearer %s", tokenValue, envValue)
+							}
+							continue
+						}
+					}
+				}
+
+				// 检查所有头部值是否直接为环境变量名
+				if envValue, exists := envVars[value]; exists {
+					// 如果头部值完全等于某个环境变量名，则替换为环境变量的值
+					proxyHeaders.Add(key, envValue)
+					if debugMode {
+						logger.Printf("替换请求头中的环境变量名称: %s: %s => %s", key, value, envValue)
+					}
+					continue
+				}
+
+				// 替换字符串中的环境变量引用
+				newValue := replaceEnvVarsInString(value)
+				proxyHeaders.Add(key, newValue)
+				if debugMode && newValue != value {
+					logger.Printf("替换请求头中的环境变量引用: %s: %s => %s", key, value, newValue)
+				}
+			}
 		}
+
+
 
 		// 替换URL中的环境变量
 		targetBase = replaceEnvVarsInString(targetBase)
+
+		// 处理JSON请求体中的特定API密钥替换
+		if jsonData != nil {
+			jsonData = processApiKeyInBody(jsonData, targetBase)
+			// 重新序列化JSON数据
+			if newBody, err := json.Marshal(jsonData); err == nil {
+				bodyBytes = newBody
+				// 更新请求体
+				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			}
+		}
 
 		// 构建完整URL
 		targetBase = strings.TrimSuffix(targetBase, "/")
@@ -1356,7 +1358,9 @@ func logFullRequest(r *http.Request) {
 	logger.Printf("--- 请求头 ---")
 	for key, values := range r.Header {
 		for _, value := range values {
-			logger.Printf("%s: %s", key, value)
+			if debugMode{
+				logger.Printf("%s: %s", key, value)
+			}
 		}
 	}
 
@@ -1374,14 +1378,116 @@ func logFullRequest(r *http.Request) {
 			if err == nil {
 				logger.Printf("%s", prettyJSON.String())
 			} else {
-				logger.Printf("%s", string(bodyBytes))
+				if debugMode{
+					logger.Printf("%s", string(bodyBytes))
+				}
 			}
 		} else {
-			logger.Printf("%s", string(bodyBytes))
+			if debugMode{
+				logger.Printf("%s", string(bodyBytes))
+			}
 		}
 
 		// 重置请求体以便后续处理
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 	logger.Printf("=====================================")
+}
+
+// processApiKeyInBody 处理特定API_BASE_URL对应的API密钥在请求体中的替换
+func processApiKeyInBody(data interface{}, targetBase string) interface{} {
+	// 定义需要检查的特定API_BASE_URL和对应的API_KEY
+	specialApiKeys := map[string]string{
+		"TEXT_TO_IMAGE_API_BASE_URL":     "TEXT_TO_IMAGE_ACCESS_KEY",
+		"VOICE_UNDERSTANDING_API_BASE_URL": "VOICE_UNDERSTANDING_API_KEY",
+		"BING_SUBSCRIPTION_ENDPOINT":     "BING_SUBSCRIPTION_KEY",
+	}
+
+	// 检查目标URL是否匹配特定的API_BASE_URL
+	var matchedApiKey string
+	for baseUrlKey, apiKeyKey := range specialApiKeys {
+		if baseUrlValue, exists := envVars[baseUrlKey]; exists {
+			// 检查目标URL是否精确匹配该API_BASE_URL的值
+			// 使用更严格的匹配逻辑，确保域名完全匹配
+			if strings.HasPrefix(targetBase, baseUrlValue) {
+				// 额外的检查：确保下一个字符是路径分隔符或URL结束
+				remainingPart := targetBase[len(baseUrlValue):]
+				if remainingPart == "" || strings.HasPrefix(remainingPart, "/") {
+					if apiKeyValue, exists := envVars[apiKeyKey]; exists {
+						matchedApiKey = apiKeyValue
+						if debugMode {
+							logger.Printf("检测到特定API_BASE_URL匹配: %s => %s", baseUrlKey, apiKeyKey)
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// 如果没有匹配到特定的API密钥，直接返回原数据
+	if matchedApiKey == "" {
+		return data
+	}
+
+	// 递归处理数据结构，查找并替换API密钥
+	return replaceApiKeyInData(data, matchedApiKey)
+}
+
+// replaceApiKeyInData 递归替换数据结构中的API密钥
+func replaceApiKeyInData(data interface{}, apiKey string) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			// 检查是否是API密钥相关的字段
+			if isApiKeyField(key) {
+				// 如果字段值为空或者是占位符，则替换为实际的API密钥
+				if strValue, ok := value.(string); ok {
+					// 检查各种占位符格式
+					if strValue == "" ||
+					   strValue == "env:"+key ||
+					   strValue == "${"+key+"}" ||
+					   strValue == "$"+key ||
+					   strValue == "{$"+key+"}" ||
+					   strings.Contains(strValue, "${") ||
+					   strings.Contains(strValue, "$") {
+						result[key] = apiKey
+						if debugMode {
+							logger.Printf("在请求体中替换API密钥: %s => %s", key, apiKey)
+						}
+						continue
+					}
+				}
+			}
+			result[key] = replaceApiKeyInData(value, apiKey)
+		}
+		return result
+
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = replaceApiKeyInData(item, apiKey)
+		}
+		return result
+
+	default:
+		return v
+	}
+}
+
+// isApiKeyField 检查字段名是否是API密钥相关的字段
+func isApiKeyField(fieldName string) bool {
+	apiKeyFields := []string{
+		"api_key", "apiKey", "access_key", "accessKey", "key", "token", "authorization",
+		"TEXT_TO_IMAGE_ACCESS_KEY", "VOICE_UNDERSTANDING_API_KEY", "BING_SUBSCRIPTION_KEY",
+	}
+
+	fieldNameLower := strings.ToLower(fieldName)
+	for _, apiField := range apiKeyFields {
+		if strings.Contains(fieldNameLower, strings.ToLower(apiField)) {
+			return true
+		}
+	}
+	return false
 }
