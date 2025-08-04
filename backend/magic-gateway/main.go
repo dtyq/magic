@@ -107,6 +107,7 @@ func initRedisClient() {
 	// 如果在Docker环境中运行，使用容器名称连接Redis
 	redisHost := getEnvWithDefault("REDIS_HOST", "magic-redis")
 	redisPort := getEnvWithDefault("REDIS_PORT", "6379")
+	redisDB := getEnvWithDefault("REDIS_DB", "6")
 	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
 
 	// 向后兼容，如果直接设置了REDIS_ADDR则优先使用
@@ -118,21 +119,6 @@ func initRedisClient() {
 
 	// 根据环境确定使用的Redis数据库
 	env := getEnvWithDefault("ENV", "test")
-	redisDB := 0 // 默认使用DB 0
-
-	// 为不同环境使用不同的数据库
-	switch env {
-	case "test":
-		redisDB = 0
-	case "pre":
-		redisDB = 1
-	case "prod":
-		redisDB = 2
-	default:
-		// 未知环境默认使用test环境的数据库
-		redisDB = 0
-		logger.Printf("未知环境: %s, 将使用test环境的Redis数据库", env)
-	}
 
 	// 如果明确指定了DB，则使用指定的
 	if dbStr := getEnvWithDefault("REDIS_DB", ""); dbStr != "" {
