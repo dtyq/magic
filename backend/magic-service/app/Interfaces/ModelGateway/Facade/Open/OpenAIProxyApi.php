@@ -33,8 +33,8 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $headerConfigs = [];
         foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower($key);
-            $headerConfigs[strtolower($key)] = $request->getHeader($key)[0] ?? '';
+            $key = strtolower((string) $key);
+            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
         }
         $sendMsgGPTDTO->setHeaderConfigs($headerConfigs);
 
@@ -44,7 +44,7 @@ class OpenAIProxyApi extends AbstractOpenApi
             return [];
         }
         if ($response instanceof ChatCompletionResponse) {
-            return LLMAssembler::createResponseByChatCompletionResponse($response);
+            return LLMAssembler::createResponseByChatCompletionResponse($response, (string) $sendMsgGPTDTO->getModel());
         }
         return null;
     }
@@ -62,8 +62,8 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $headerConfigs = [];
         foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower($key);
-            $headerConfigs[strtolower($key)] = $request->getHeader($key)[0] ?? '';
+            $key = strtolower((string) $key);
+            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
         }
         $embeddingDTO->setHeaderConfigs($headerConfigs);
 

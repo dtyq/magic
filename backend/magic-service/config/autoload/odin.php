@@ -224,6 +224,7 @@ return [
                 'stream_first' => 60.0, // 首个流式块超时（秒）
             ],
             'custom_error_mapping_rules' => [],
+            'http_handler' => 'stream',
         ],
         'models' => $models,
         // 全局模型 options，可被模型本身的 options 覆盖
