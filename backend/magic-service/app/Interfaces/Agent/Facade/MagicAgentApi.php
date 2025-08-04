@@ -296,7 +296,7 @@ class MagicAgentApi extends AbstractApi
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
         $agentVersionId = $agentVersionId ?? $request->input('bot_version_id');
-        $magicAgentVersionEntity = $this->magicAgentAppService->getAgentVersionById($agentVersionId, $authorization);
+        $magicAgentVersionEntity = $this->magicAgentAppService->getAgentById($agentVersionId, $authorization);
         $userDTO = MagicUserEntity::fromMagicAgentVersionEntity($magicAgentVersionEntity);
         $aiCode = $magicAgentVersionEntity->getFlowCode();
         $userEntity = $this->accountAppService->aiRegister($userDTO, $authorization, $aiCode);
@@ -364,7 +364,7 @@ class MagicAgentApi extends AbstractApi
     }
 
     // 获取聊天模式可用助理列表
-    public function getChatModeAvailableAgents(RequestInterface $request)
+    public function getChatModeAvailableAgents()
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();

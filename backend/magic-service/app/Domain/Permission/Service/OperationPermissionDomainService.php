@@ -165,12 +165,12 @@ readonly class OperationPermissionDomainService
         // 获取用户所在部门、群组添加到 target 中查找
         $userDepartmentList = $this->departmentUserRepository->getDepartmentIdsByUserIds($contactDataIsolation, $userIds, true);
         $userGroupIds = $this->magicGroupRepository->getGroupIdsByUserIds($userIds);
-
-        $targetIds = $userIds;
+        $targetIds = [];
+        $targetIds[] = $userIds;
 
         $departmentUserIds = [];
         foreach ($userDepartmentList as $userId => $departmentIds) {
-            $targetIds = array_merge($targetIds, $departmentIds);
+            $targetIds[] = $departmentIds;
             foreach ($departmentIds as $departmentId) {
                 $departmentUserIds[$departmentId][] = $userId;
             }
@@ -178,12 +178,13 @@ readonly class OperationPermissionDomainService
 
         $groupUserIds = [];
         foreach ($userGroupIds as $userId => $groupIds) {
-            $targetIds = array_merge($targetIds, $groupIds);
+            $targetIds[] = $groupIds;
             foreach ($groupIds as $groupId) {
                 $groupUserIds[$groupId][] = $userId;
             }
         }
-
+        $targetIds = array_merge(...$targetIds);
+        $targetIds = array_values(array_unique($targetIds));
         $resourcesOperationPermissions = $this->listByTargetIds($dataIsolation, $resourceType, $targetIds, $resourceIds);
 
         $list = [];
