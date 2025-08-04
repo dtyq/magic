@@ -21,7 +21,7 @@ use Hyperf\Odin\Message\AssistantMessage;
 
 class LLMAssembler
 {
-    public static function createResponseByChatCompletionResponse(ChatCompletionResponse $chatCompletionResponse): array
+    public static function createResponseByChatCompletionResponse(ChatCompletionResponse $chatCompletionResponse, ?string $modelName = null): array
     {
         $usage = [];
         $chatUsage = $chatCompletionResponse->getUsage();
@@ -42,6 +42,7 @@ class LLMAssembler
             'id' => $chatCompletionResponse->getId(),
             'object' => $chatCompletionResponse->getObject(),
             'created' => $chatCompletionResponse->getCreated(),
+            'model' => $modelName ?? $chatCompletionResponse->getModel(),
             'choices' => $choices,
             'usage' => $usage,
         ];
@@ -49,30 +50,28 @@ class LLMAssembler
 
     public static function createStreamResponseByChatCompletionResponse(CompletionDTO $sendMsgLLMDTO, ChatCompletionStreamResponse $chatCompletionStreamResponse): void
     {
-        self::getEventStream()->write('data:' . json_encode([
-            'choices' => [],
-            'created' => 0,
-            'id' => '',
-            'model' => '',
-            'object' => '',
-            'prompt_filter_results' => [],
-        ], JSON_UNESCAPED_UNICODE) . "\n\n");
-
         /** @var ChatCompletionChoice $choice */
         foreach ($chatCompletionStreamResponse->getStreamIterator() as $choice) {
             $message = $choice->getMessage();
             if ($message instanceof AssistantMessage && $message->hasToolCalls()) {
                 $delta = $message->toArrayWithStream();
+                // Fix tool_calls index for streaming
+                if (isset($delta['tool_calls']) && is_array($delta['tool_calls'])) {
+                    foreach ($delta['tool_calls'] as $index => &$toolCall) {
+                        $toolCall['index'] = $index;
+                    }
+                }
             } else {
                 $delta = $message->toArray();
             }
             $data = [
                 'choices' => [
-                    'content_filter_results' => [],
-                    'finish_reason' => $choice->getFinishReason(),
-                    'index' => $choice->getIndex(),
-                    'logprobs' => $choice->getLogprobs(),
-                    'delta' => $delta,
+                    [
+                        'finish_reason' => $choice->getFinishReason(),
+                        'index' => $choice->getIndex(),
+                        'logprobs' => $choice->getLogprobs(),
+                        'delta' => $delta,
+                    ],
                 ],
                 'created' => $chatCompletionStreamResponse->getCreated(),
                 'id' => $chatCompletionStreamResponse->getId(),
