@@ -1314,23 +1314,23 @@ class TaskFileDomainService
             case 'inline':
                 // 预览模式：如果文件可预览则inline，否则强制下载
                 if (ContentTypeUtil::isPreviewable($filename)) {
-                    $urlOptions['custom_headers']['response-content-disposition']
+                    $urlOptions['custom_query']['response-content-disposition']
                         = ContentTypeUtil::buildContentDispositionHeader($filename, 'inline');
                 } else {
-                    $urlOptions['custom_headers']['response-content-disposition']
+                    $urlOptions['custom_query']['response-content-disposition']
                         = ContentTypeUtil::buildContentDispositionHeader($filename, 'attachment');
                 }
                 break;
             case 'download':
             default:
                 // 下载模式：强制下载，使用标准的 attachment 格式
-                $urlOptions['custom_headers']['response-content-disposition']
+                $urlOptions['custom_query']['response-content-disposition']
                     = ContentTypeUtil::buildContentDispositionHeader($filename, 'attachment');
                 break;
         }
 
         // 设置Content-Type响应头
-        $urlOptions['custom_headers']['response-content-type'] = $urlOptions['content_type'];
+        $urlOptions['custom_query']['response-content-type'] = $urlOptions['content_type'];
 
         // 设置filename用于预签名URL生成
         $urlOptions['filename'] = $filename;

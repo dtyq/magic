@@ -879,6 +879,10 @@ class TosSimpleUpload extends SimpleUpload
                 $preSignedInput->setHeader($headers);
             }
 
+            if (isset($options['custom_query']) && is_array($options['custom_query'])) {
+                $preSignedInput->setQuery($options['custom_query']);
+            }
+
             // Generate pre-signed URL
             $preSignedOutput = $tosClient->preSignedURL($preSignedInput);
             $signedUrl = $preSignedOutput->getSignedUrl();
