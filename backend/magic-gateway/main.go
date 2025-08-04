@@ -51,6 +51,8 @@ type TokenInfo struct {
 type JWTClaims struct {
 	jwt.RegisteredClaims
 	ContainerID string `json:"container_id"`
+	MagicUserID string `json:"magic_user_id,omitempty"`
+	MagicOrganizationCode string `json:"magic_organization_code,omitempty"`
 }
 
 // ServiceInfo 存储服务配置信息
@@ -510,6 +512,8 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)), // 30天后过期
 		},
 		ContainerID: userID, // 保持字段名不变，但存储用户ID
+		MagicUserID: magicUserID,
+		MagicOrganizationCode: magicOrganizationCode,
 	}
 
 	// 创建令牌
@@ -621,16 +625,20 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 
-		//super-magic代码有问题，暂时去掉 验证令牌
-		// claims, valid := validateToken(authHeader)
-		// if !valid {
-		// 	http.Error(w, "无效或过期的令牌", http.StatusUnauthorized)
-		// 	return
-		// }
+		// 验证令牌
+		claims, valid := validateToken(authHeader)
+		if !valid {
+			http.Error(w, "无效或过期的令牌", http.StatusUnauthorized)
+			return
+		}
 
 		// 将令牌信息存储在请求上下文中
-		// r.Header.Set("X-USER-ID", claims.ContainerID)
-		// r.Header.Set("X-TOKEN-ID", claims.ID)
+		r.Header.Set("X-USER-ID", claims.ContainerID)
+		r.Header.Set("X-TOKEN-ID", claims.ID)
+
+		// 将JWT claims存储到请求上下文中，供后续处理程序使用
+		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
+		r = r.WithContext(ctx)
 
 		// 调用下一个处理程序
 		next(w, r)
@@ -855,17 +863,25 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 需要认证
 	handler := withAuth(func(w http.ResponseWriter, r *http.Request) {
-		// 获取用户信息
+		// 从JWT claims中获取用户信息
 		userID := r.Header.Get("X-USER-ID")
-		magicUserID := r.Header.Get("magic-user-id")
-		magicOrganizationCode := r.Header.Get("magic-organization-code")
+		// 从请求头中获取magic-task-id 和magic-topic-id
+		magicTaskID := r.Header.Get("magic-task-id")
+		magicTopicID := r.Header.Get("magic-topic-id")
+		var magicUserID, magicOrganizationCode string
+
+		// 从请求上下文中获取JWT claims
+		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
+			magicUserID = claims.MagicUserID
+			magicOrganizationCode = claims.MagicOrganizationCode
+		}
 
 		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
 		if userID == "" && magicUserID != "" {
 			userID = magicUserID
 		}
 
-		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s", userID, magicOrganizationCode, path)
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -1137,6 +1153,21 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
 			if debugMode {
 				logger.Printf("透传magic-organization-code: %s", magicOrganizationCode)
+			}
+		}
+
+		if magicTaskID != "" {
+			proxyReq.Header.Set("magic-task-id", magicTaskID)
+			if debugMode {
+				logger.Printf("透传magic-task-id: %s", magicTaskID)
+			}
+		}
+
+
+		if magicTopicID != "" {
+			proxyReq.Header.Set("magic-topic-id", magicTopicID)
+			if debugMode {
+				logger.Printf("透传magic-topic-id: %s", magicTopicID)
 			}
 		}
 
