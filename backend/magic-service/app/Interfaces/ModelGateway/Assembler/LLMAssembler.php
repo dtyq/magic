@@ -83,12 +83,8 @@ class LLMAssembler
         }
 
         // Send usage information as the last chunk if requested
-        if ($sendMsgLLMDTO->shouldIncludeUsageInStream()) {
-            $usage = [];
-            $chatUsage = $chatCompletionStreamResponse->getUsage();
-            if ($chatUsage) {
-                $usage = $chatUsage->toArray();
-            }
+        if ($sendMsgLLMDTO->shouldIncludeUsageInStream() && $chatCompletionStreamResponse->getUsage()) {
+            $usage = $chatCompletionStreamResponse->getUsage()->toArray();
 
             $usageData = [
                 'choices' => [], // Empty choices array for usage chunk
