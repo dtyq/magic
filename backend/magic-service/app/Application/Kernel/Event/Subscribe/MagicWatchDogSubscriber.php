@@ -40,7 +40,7 @@ readonly class MagicWatchDogSubscriber implements ListenerInterface
             return;
         }
         $quantum = 10 * 1000 * 1000; // 单位：毫秒
-        $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('MagicWatchDogSubscriber');
+        $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get('MagicWatchDogSubscriber');
         // 看门狗找同步阻塞的地方
         $logger->info('麦吉看门狗，启动！');
         $alertCountMap = new WeakMap();
@@ -49,13 +49,15 @@ readonly class MagicWatchDogSubscriber implements ListenerInterface
             $alertCount = ($alertCountMap[$coroutine] ??= 0) + 1;
             $alertCountMap[$coroutine] = $alertCount;
             // 当单个协程运行超过 $millSeconds 时，会触发看门狗，打印协程调用栈
-            $trace = $coroutine->getTraceAsString();
-            $logger->error(sprintf(
-                '麦吉看门狗 发现阻塞 协程 id:%s，同个协程阻塞次数：%s trace :%s ',
-                $coroutine->getId(),
-                $alertCount,
-                $trace
-            ));
+            if ($alertCount > 1) {
+                $trace = str_replace(["\n", "\r"], ' | ', $coroutine->getTraceAsString());
+                $logger->error(sprintf(
+                    '麦吉看门狗 发现阻塞 协程 id:%s，同个协程阻塞次数：%s trace :%s ',
+                    $coroutine->getId(),
+                    $alertCount,
+                    $trace
+                ));
+            }
             // 让出时间片，让其他协程有机会执行
             $millSeconds = 10 * 1000; // 10 毫秒
             usleep($millSeconds * $alertCount);

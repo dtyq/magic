@@ -27,6 +27,7 @@ use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Util\Locker\RedisLocker;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 
 abstract class AbstractAppService extends AbstractKernelAppService
@@ -51,6 +52,7 @@ abstract class AbstractAppService extends AbstractKernelAppService
         protected readonly AgentDomainService $agentDomainService,
         protected readonly MagicConversationDomainService $magicConversationDomainService,
         public readonly LoggerFactory $loggerFactory,
+        protected readonly Redis $redis,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }

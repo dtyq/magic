@@ -16,7 +16,9 @@ use App\Domain\Flow\Entity\ValueObject\Query\MagicFLowVersionQuery;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Hyperf\Codec\Json;
 use Qbhy\HyperfAuth\Authenticatable;
 
 class AgentAppService extends AbstractAppService
@@ -33,20 +35,36 @@ class AgentAppService extends AbstractAppService
     {
         $agentDataIsolation = $this->createAgentDataIsolation($authorization);
         $agentDataIsolation->setContainOfficialOrganization($containOfficialOrganization);
-        // 获取组织内可用的 Agent Ids
-        $orgAgentIds = $this->getOrgAvailableAgentIds($agentDataIsolation);
 
-        // 获取自己有权限的 id
-        $permissionDataIsolation = new PermissionDataIsolation($agentDataIsolation->getCurrentOrganizationCode(), $agentDataIsolation->getCurrentUserId());
-        $agentResources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-            $permissionDataIsolation,
-            ResourceType::AgentCode,
-            [$agentDataIsolation->getCurrentUserId()]
-        )[$agentDataIsolation->getCurrentUserId()] ?? [];
-        $selfAgentIds = array_keys($agentResources);
+        // 生成缓存 key
+        $cacheKey = sprintf('queriesAvailableAgents:user:%s:official:%s', $authorization->getId(), $containOfficialOrganization ? '1' : '0');
 
-        // 合并
-        $agentIds = array_unique(array_merge($orgAgentIds, $selfAgentIds));
+        // 尝试从缓存获取 agentIds
+        $agentIds = $this->redis->get($cacheKey);
+        if ($agentIds !== false) {
+            $agentIds = Json::decode($agentIds);
+        } else {
+            // 获取组织内可用的 Agent Ids
+            $orgAgentIds = $this->getOrgAvailableAgentIds($agentDataIsolation, $containOfficialOrganization);
+
+            // 获取自己有权限的 id
+            $permissionDataIsolation = new PermissionDataIsolation($agentDataIsolation->getCurrentOrganizationCode(), $agentDataIsolation->getCurrentUserId());
+            $agentResources = $this->operationPermissionAppService->getResourceOperationByUserIds(
+                $permissionDataIsolation,
+                ResourceType::AgentCode,
+                [$agentDataIsolation->getCurrentUserId()]
+            )[$agentDataIsolation->getCurrentUserId()] ?? [];
+            $selfAgentIds = array_keys($agentResources);
+
+            // 合并
+            $agentIds = array_unique(array_merge($orgAgentIds, $selfAgentIds));
+
+            // 缓存结果（仅当不为空时）
+            if (! empty($agentIds)) {
+                $this->redis->setex($cacheKey, 180, Json::encode($agentIds)); // 缓存 3 分钟
+            }
+        }
+
         if (empty($agentIds)) {
             return ['total' => 0, 'list' => [], 'icons' => []];
         }
@@ -66,15 +84,33 @@ class AgentAppService extends AbstractAppService
         return $data;
     }
 
-    private function getOrgAvailableAgentIds(AgentDataIsolation $agentDataIsolation): array
+    private function getOrgAvailableAgentIds(AgentDataIsolation $agentDataIsolation, bool $containOfficialOrganization = false): array
     {
         $query = new MagicFLowVersionQuery();
-        $query->setSelect(['id', 'root_id', 'visibility_config']);
+        $query->setSelect(['id', 'root_id', 'visibility_config', 'organization_code']);
         $page = Page::createNoPage();
         $data = $this->agentDomainService->getOrgAvailableAgentIds($agentDataIsolation, $query, $page);
 
         $contactDataIsolation = $this->createContactDataIsolationByBase($agentDataIsolation);
         $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactDataIsolation, $agentDataIsolation->getCurrentUserId(), true);
+
+        // 如果需要包含官方组织，则将官方组织的助理排在最前面
+        if ($containOfficialOrganization) {
+            $officialAgents = [];
+            $nonOfficialAgents = [];
+
+            foreach ($data['list'] as $agentVersion) {
+                if (OfficialOrganizationUtil::isOfficialOrganization($agentVersion->getOrganizationCode())) {
+                    $officialAgents[] = $agentVersion;
+                } else {
+                    $nonOfficialAgents[] = $agentVersion;
+                }
+            }
+
+            // 重新排序：官方组织的助理在前
+            $data['list'] = array_merge($officialAgents, $nonOfficialAgents);
+        }
+
         $visibleAgents = [];
         foreach ($data['list'] as $agentVersion) {
             $visibilityConfig = $agentVersion->getVisibilityConfig();
