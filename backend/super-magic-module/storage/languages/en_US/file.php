@@ -26,7 +26,7 @@ return [
     // Batch download related
     'batch_file_ids_required' => 'File IDs are required',
     'batch_file_ids_invalid' => 'Invalid file ID format',
-    'batch_too_many_files' => 'Cannot batch download more than 50 files',
+    'batch_too_many_files' => 'Cannot batch download more than 1000 files',
     'batch_no_valid_files' => 'No valid accessible files found',
     'batch_access_denied' => 'Batch download task access denied',
     'batch_publish_failed' => 'Failed to publish batch download task',

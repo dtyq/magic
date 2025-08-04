@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -38,6 +39,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
@@ -60,6 +62,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -245,6 +248,12 @@ class HandleAgentMessageAppService extends AbstractAppService
             $this->logger->error('Check Send Message, Task is finished: ' . $taskContext->getTask()->getId());
             return false;
         }
+
+        // Check if task has been terminated by user
+        if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskEntity->getId())) {
+            return false;
+        }
+
         return true;
     }
 

@@ -33,9 +33,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -61,6 +63,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
+        private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -88,19 +91,23 @@ class HandleUserMessageAppService extends AbstractAppService
             status: TaskStatus::Suspended,
             errMsg: 'User manually terminated task',
         );
+
+        // Set task termination flag in Redis to prevent agent messages from being processed
+        TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskEntity->getId());
+
+        // Send interrupt message directly to client
+        $this->clientMessageAppService->sendInterruptMessageToClient(
+            topicId: $topicEntity->getId(),
+            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+            chatTopicId: $dto->getChatTopicId(),
+            chatConversationId: $dto->getChatConversationId(),
+            interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+        );
+
         // Get sandbox status, if sandbox is running, send interrupt command
         $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
         if ($result->getStatus() === SandboxStatus::RUNNING) {
             $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
-        } else {
-            // Send interrupt message directly to client
-            $this->clientMessageAppService->sendInterruptMessageToClient(
-                topicId: $topicEntity->getId(),
-                taskId: $topicEntity->getCurrentTaskId() ?? '0',
-                chatTopicId: $dto->getChatTopicId(),
-                chatConversationId: $dto->getChatConversationId(),
-                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
-            );
         }
     }
     /*
