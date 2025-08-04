@@ -21,6 +21,8 @@ class CompletionDTO extends AbstractRequestDTO
 
     protected bool $stream = false;
 
+    protected ?array $streamOptions = null;
+
     protected string $prompt = '';
 
     protected float $frequencyPenalty = 0.0;
@@ -137,5 +139,22 @@ class CompletionDTO extends AbstractRequestDTO
     public function setThinking(?array $thinking): void
     {
         $this->thinking = $thinking;
+    }
+
+    public function getStreamOptions(): ?array
+    {
+        return $this->streamOptions;
+    }
+
+    public function setStreamOptions(?array $streamOptions): void
+    {
+        $this->streamOptions = $streamOptions;
+    }
+
+    public function shouldIncludeUsageInStream(): bool
+    {
+        return $this->stream
+               && isset($this->streamOptions['include_usage'])
+               && $this->streamOptions['include_usage'] === true;
     }
 }

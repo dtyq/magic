@@ -77,8 +77,28 @@ class LLMAssembler
                 'id' => $chatCompletionStreamResponse->getId(),
                 'model' => $sendMsgLLMDTO->getModel(),
                 'object' => $chatCompletionStreamResponse->getObject(),
+                'usage' => null, // usage is null in all chunks except the last one when include_usage is true
             ];
             self::getEventStream()->write('data:' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n");
+        }
+
+        // Send usage information as the last chunk if requested
+        if ($sendMsgLLMDTO->shouldIncludeUsageInStream()) {
+            $usage = [];
+            $chatUsage = $chatCompletionStreamResponse->getUsage();
+            if ($chatUsage) {
+                $usage = $chatUsage->toArray();
+            }
+
+            $usageData = [
+                'choices' => [], // Empty choices array for usage chunk
+                'created' => $chatCompletionStreamResponse->getCreated(),
+                'id' => $chatCompletionStreamResponse->getId(),
+                'model' => $sendMsgLLMDTO->getModel(),
+                'object' => $chatCompletionStreamResponse->getObject(),
+                'usage' => $usage,
+            ];
+            self::getEventStream()->write('data:' . json_encode($usageData, JSON_UNESCAPED_UNICODE) . "\n\n");
         }
 
         self::getEventStream()->write('data:[DONE]' . "\n\n");
