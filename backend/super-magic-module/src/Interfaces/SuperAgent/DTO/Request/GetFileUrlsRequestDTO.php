@@ -39,7 +39,7 @@ class GetFileUrlsRequestDTO
     {
         $this->fileIds = $params['file_ids'] ?? [];
         $this->token = $params['token'] ?? '';
-        $this->downloadMode = $params['download_mode'] ?? 'download';
+        $this->downloadMode = $params['download_mode'] ?? 'preview';
         $this->topicId = $params['topic_id'] ?? '';
         $this->projectId = $params['project_id'] ?? '';
         $this->cache = $params['cache'] ?? true;
