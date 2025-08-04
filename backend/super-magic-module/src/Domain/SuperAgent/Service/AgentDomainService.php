@@ -61,7 +61,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(string $projectId, string $sandboxID, string $workDir): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
@@ -69,6 +69,7 @@ class AgentDomainService
             'project_oss_path' => $workDir,
         ]);
 
+        $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir);
 
         // 添加详细的调试日志，检查 result 对象

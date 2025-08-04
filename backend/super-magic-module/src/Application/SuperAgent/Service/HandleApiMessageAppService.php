@@ -366,7 +366,7 @@ class HandleApiMessageAppService extends AbstractAppService
         } else {
             $sandboxId = $taskContext->getSandboxId();
         }
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
+        $sandboxId = $this->agentDomainService->createSandbox($dataIsolation, (string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
 
         // Initialize agent
         $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
