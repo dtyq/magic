@@ -190,7 +190,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
 
     public function acquireLock(string $lockKey, string $lockOwner, int $lockExpireSeconds): bool
     {
-        return $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+        return $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
     }
 
     /**
