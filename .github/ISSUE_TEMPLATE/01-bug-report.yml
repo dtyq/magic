@@ -70,7 +70,7 @@ body:
   - type: textarea
     id: additional-context
     attributes:
-      label: Logs and Additional Context / 日志额外的上下文
+      label: Logs and Additional Context / 日志和额外的上下文
       description: |
         Logs and Add any other contexts / 日志和额外要提及的信息
       placeholder: |
