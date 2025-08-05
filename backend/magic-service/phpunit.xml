@@ -33,6 +33,9 @@
       <directory suffix="Test.php">test/Cases/Application/Permission</directory>
       <directory suffix="Test.php">test/Cases/Permission</directory>
     </testsuite>
+    <testsuite name="组织测试">
+      <directory suffix="Test.php">test/Cases/Domain/Organization</directory>
+    </testsuite>
   </testsuites>
 
   <!-- 覆盖率统计的目录配置，不是执行单测的目录 -->

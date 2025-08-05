@@ -22,4 +22,26 @@ enum PermissionErrorCode: int
 
     #[ErrorMessage(message: 'permission.access_denied')]
     case AccessDenied = 42003;
+
+    // 组织相关错误码
+    #[ErrorMessage(message: 'permission.organization_code_required')]
+    case ORGANIZATION_CODE_REQUIRED = 42100;
+
+    #[ErrorMessage(message: 'permission.organization_name_required')]
+    case ORGANIZATION_NAME_REQUIRED = 42101;
+
+    #[ErrorMessage(message: 'permission.organization_industry_type_required')]
+    case ORGANIZATION_INDUSTRY_TYPE_REQUIRED = 42102;
+
+    #[ErrorMessage(message: 'permission.organization_seats_invalid')]
+    case ORGANIZATION_SEATS_INVALID = 42103;
+
+    #[ErrorMessage(message: 'permission.organization_code_exists')]
+    case ORGANIZATION_CODE_EXISTS = 42104;
+
+    #[ErrorMessage(message: 'permission.organization_name_exists')]
+    case ORGANIZATION_NAME_EXISTS = 42105;
+
+    #[ErrorMessage(message: 'permission.organization_not_exists')]
+    case ORGANIZATION_NOT_EXISTS = 42106;
 }

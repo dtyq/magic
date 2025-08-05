@@ -144,11 +144,13 @@ use App\Domain\ModelGateway\Repository\Persistence\UserConfigRepository;
 use App\Domain\OrganizationEnvironment\Entity\Facade\OpenPlatformConfigInterface;
 use App\Domain\OrganizationEnvironment\Entity\Item\OpenPlatformConfigItem;
 use App\Domain\OrganizationEnvironment\Repository\Facade\EnvironmentRepositoryInterface;
+use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationsEnvironmentRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationsPlatformRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\MagicEnvironmentsRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsEnvironmentRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsPlatformRepository;
+use App\Infrastructure\Util\OrganizationEnvironment\Repository\OrganizationRepository;
 use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
@@ -340,6 +342,9 @@ $dependencies = [
 
     EnvironmentRepositoryInterface::class => MagicEnvironmentsRepository::class,
     OrganizationsEnvironmentRepositoryInterface::class => OrganizationsEnvironmentRepository::class,
+    
+    // 组织管理
+    OrganizationRepositoryInterface::class => OrganizationRepository::class,
 
     // 群组
     MagicGroupRepositoryInterface::class => MagicGroupRepository::class,
