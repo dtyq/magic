@@ -31,7 +31,6 @@ return new class extends Migration {
 
             // 索引
             $table->index(['organization_code'], 'idx_organization_code');
-            $table->index(['status'], 'idx_status');
 
             $table->comment('RBAC角色表');
         });

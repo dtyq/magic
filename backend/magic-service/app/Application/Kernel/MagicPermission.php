@@ -233,7 +233,12 @@ class MagicPermission implements MagicPermissionInterface
                     default => ucfirst($segment),                        // 其他中间层
                 };
 
-                if (! isset($current['children'][$segment])) {
+                // 确保 children 数组存在并检查 segment
+                if (! isset($current['children'])) {
+                    $current['children'] = [];
+                }
+
+                if (! array_key_exists($segment, $current['children'])) {
                     $current['children'][$segment] = [
                         'label' => $label,
                         'permission_key' => $accumKey,

@@ -92,7 +92,7 @@ class RoleRepository implements RoleRepositoryInterface
             if (isset($filters['name']) && ! empty($filters['name'])) {
                 $query->where('name', 'like', '%' . $filters['name'] . '%');
             }
-            if (isset($filters['status']) && $filters['status'] !== null) {
+            if (isset($filters['status'])) {
                 $query->where('status', $filters['status']);
             }
         }
