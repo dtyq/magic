@@ -8,18 +8,21 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\MagicUserDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
-use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicTaskMessagePublisher;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicMessageProcessPublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageStorageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Assembler\TopicTaskMessageAssembler;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Producer;
@@ -36,6 +39,8 @@ class TopicTaskAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly MessageStorageDomainService $messageStorageDomainService,
+        protected MagicUserDomainService $userDomainService,
         protected LockerInterface $locker,
         protected LoggerFactory $loggerFactory,
         protected TranslatorInterface $translator,
@@ -50,70 +55,79 @@ class TopicTaskAppService extends AbstractAppService
      */
     public function deliverTopicTaskMessage(TopicTaskMessageDTO $messageDTO): array
     {
-        // If there's no valid topicId, cannot acquire lock, process directly or report error
+        // 获取sandbox_id
         $sandboxId = $messageDTO->getMetadata()->getSandboxId();
         $metadata = $messageDTO->getMetadata();
         $language = $this->translator->getLocale();
         $metadata->setLanguage($language);
         $messageDTO->setMetadata($metadata);
-        $this->logger->info('deliverTopicTaskMessage', ['messageData' => $messageDTO->getMetadata()]);
-        if (empty($sandboxId)) {
-            $this->logger->warning('Cannot acquire lock without a valid sandboxId in deliverTopicTaskMessage.', ['messageData' => $messageDTO->toArray()]);
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'message_missing_topic_id_for_locking');
-        }
 
-        $lockKey = 'deliver_sandbox_message_lock:' . $sandboxId;
-        $lockOwner = IdGenerator::getUniqueId32(); // Use unique ID as lock holder identifier
-        $lockExpireSeconds = 10; // Lock expiration time (seconds) to prevent deadlock
-        $lockAcquired = false;
+        $this->logger->info('开始处理话题任务消息投递', [
+            'sandbox_id' => $sandboxId,
+            'message_id' => $messageDTO->getPayload()?->getMessageId(),
+        ]);
+
+        if (empty($sandboxId)) {
+            $this->logger->warning('无效的sandbox_id，无法处理消息', ['messageData' => $messageDTO->toArray()]);
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'message_missing_sandbox_id');
+        }
 
         try {
-            // Attempt to acquire distributed mutex lock
-            $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
-
-            if ($lockAcquired) {
-                // --- Critical section start ---
-                $this->logger->debug(sprintf('Lock acquired for sandbox %s by %s', $sandboxId, $lockOwner));
-
-                // Use assembler to convert DTO to domain event
-                $topicTaskMessageEvent = TopicTaskMessageAssembler::toEvent($messageDTO);
-                // Create message publisher
-                $topicTaskMessagePublisher = new TopicTaskMessagePublisher($topicTaskMessageEvent);
-                // Get Producer and send message
-                $producer = di(Producer::class);
-                $result = $producer->produce($topicTaskMessagePublisher);
-
-                // Check send result
-                if (! $result) {
-                    $this->logger->error(sprintf(
-                        'deliverTopicTaskMessage failed after acquiring lock, message: %s',
-                        json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE)
-                    ));
-                    // Note: Even if sending fails, must ensure lock is released
-                    ExceptionBuilder::throw(GenericErrorCode::SystemError, 'message_delivery_failed');
-                }
-                // --- Critical section end ---
-                $this->logger->debug(sprintf('Message produced for sandbox %s by %s', $sandboxId, $lockOwner));
-            } else {
-                // Failed to acquire lock (might be held by another instance)
-                $this->logger->warning(sprintf('Failed to acquire mutex lock for sandbox %s. It might be held by another instance.', $sandboxId));
-                // Decide based on business requirements: throw error, retry later (e.g., put in delay queue), or log and consider failed
-                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'concurrent_message_delivery_failed');
+            // 1. 根据sandbox_id获取topic_id
+            $topicEntity = $this->topicDomainService->getTopicBySandboxId($sandboxId);
+            if (! $topicEntity) {
+                $this->logger->error('根据sandbox_id未找到对应的topic', ['sandbox_id' => $sandboxId]);
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic_not_found_by_sandbox_id');
             }
-        } finally {
-            // If lock was acquired, ensure it's released
-            if ($lockAcquired) {
-                if ($this->locker->release($lockKey, $lockOwner)) {
-                    $this->logger->debug(sprintf('Lock released for sandbox %s by %s', $sandboxId, $lockOwner));
-                } else {
-                    // Log lock release failure, may require manual intervention
-                    $this->logger->error(sprintf('Failed to release lock for sandbox %s held by %s. Manual intervention may be required.', $sandboxId, $lockOwner));
-                }
+
+            $topicId = $topicEntity->getId();
+            $this->logger->info('找到对应的topic', [
+                'sandbox_id' => $sandboxId,
+                'topic_id' => $topicId,
+            ]);
+
+            // 2. 在应用层完成DTO到实体的转换
+            // Get message ID (prefer message ID from payload, generate new one if none)
+            $messageId = $messageDTO->getPayload()?->getMessageId() ?: IdGenerator::getSnowId();
+            $seqId = (int) $messageId;
+            $dataIsolation = DataIsolation::simpleMake($topicEntity->getUserOrganizationCode(), $topicEntity->getUserId());
+            $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
+            $messageEntity = $messageDTO->toTaskMessageEntity($topicId, $aiUserEntity->getUserId(), $topicEntity->getUserId());
+            $messageEntity->setSeqId($seqId);
+            $messageEntity->setRawContent(json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE));
+
+            // 3. 存储消息到数据库（调用领域层服务）
+            $this->messageStorageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
+
+            // 4. 发布轻量级的处理事件
+            $processEvent = new TopicMessageProcessEvent($topicId);
+            $processPublisher = new TopicMessageProcessPublisher($processEvent);
+
+            $producer = di(Producer::class);
+            $result = $producer->produce($processPublisher);
+
+            if (! $result) {
+                $this->logger->error('发布消息处理事件失败', [
+                    'topic_id' => $topicId,
+                    'sandbox_id' => $sandboxId,
+                    'message_id' => $messageDTO->getPayload()?->getMessageId(),
+                ]);
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'message_process_event_publish_failed');
             }
+
+            $this->logger->info('话题任务消息投递完成', [
+                'topic_id' => $topicId,
+                'sandbox_id' => $sandboxId,
+                'message_id' => $messageDTO->getPayload()?->getMessageId(),
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->error('话题任务消息投递失败', [
+                'sandbox_id' => $sandboxId,
+                'message_id' => $messageDTO->getPayload()?->getMessageId(),
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         }
-
-        // Get message ID (prefer message ID from payload, generate new one if none)
-        $messageId = $messageDTO->getPayload()?->getMessageId() ?: IdGenerator::getSnowId();
 
         return DeliverMessageResponseDTO::fromResult(true, $messageId)->toArray();
     }

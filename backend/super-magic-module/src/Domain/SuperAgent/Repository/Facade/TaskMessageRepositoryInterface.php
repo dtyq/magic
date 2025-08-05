@@ -46,4 +46,101 @@ interface TaskMessageRepositoryInterface
     public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array;
 
     public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity;
+
+    /**
+     * 根据topic_id和处理状态查询消息列表，按seq_id升序排列.
+     * @param int $topicId 话题ID
+     * @param string $processingStatus 处理状态
+     * @param string $senderType 发送者类型
+     * @param int $limit 限制数量
+     * @return TaskMessageEntity[]
+     */
+    public function findPendingMessagesByTopicId(int $topicId, string $processingStatus, string $senderType = 'assistant', int $limit = 50): array;
+
+    /**
+     * 更新消息处理状态.
+     * @param int $id 消息ID
+     * @param string $processingStatus 处理状态
+     * @param null|string $errorMessage 错误信息
+     * @param int $retryCount 重试次数
+     */
+    public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void;
+
+    /**
+     * 批量更新消息处理状态.
+     * @param array $ids 消息ID数组
+     * @param string $processingStatus 处理状态
+     */
+    public function batchUpdateProcessingStatus(array $ids, string $processingStatus): void;
+
+    /**
+     * 获取下一个seq_id.
+     */
+    public function getNextSeqId(): int;
+
+    /**
+     * 查询超时的处理中消息.
+     * @param int $timeoutMinutes 超时分钟数
+     * @return TaskMessageEntity[]
+     */
+    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array;
+
+    /**
+     * 查询需要重试的失败消息.
+     * @param int $maxRetries 最大重试次数
+     * @return TaskMessageEntity[]
+     */
+    public function findRetriableFailedMessages(int $maxRetries = 3): array;
+
+    /**
+     * 保存原始消息数据并生成seq_id.
+     * @param array $rawData 原始消息数据
+     * @param TaskMessageEntity $message 消息实体
+     */
+    public function saveWithRawData(array $rawData, TaskMessageEntity $message): void;
+
+    /**
+     * 根据seq_id和topic_id查询消息.
+     * @param int $seqId 序列ID
+     * @param int $topicId 话题ID
+     * @return null|TaskMessageEntity 消息实体或null
+     */
+    public function findBySeqIdAndTopicId(int $seqId, int $topicId): ?TaskMessageEntity;
+
+    /**
+     * 根据topic_id和message_id查询消息.
+     * @param int $topicId 话题ID
+     * @param string $messageId 消息ID
+     * @return null|TaskMessageEntity 消息实体或null
+     */
+    public function findByTopicIdAndMessageId(int $topicId, string $messageId): ?TaskMessageEntity;
+
+    /**
+     * 更新现有消息的业务字段.
+     * @param TaskMessageEntity $message 消息实体
+     */
+    public function updateExistingMessage(TaskMessageEntity $message): void;
+
+    /**
+     * 获取待处理的消息列表（用于顺序批量处理）.
+     *
+     * 查询条件：
+     * - pending: 全部处理
+     * - processing: 超过指定分钟数的（认为已超时）
+     * - failed: 重试次数不超过最大值的
+     *
+     * @param int $topicId 话题ID
+     * @param string $senderType 发送者类型
+     * @param int $timeoutMinutes 处理超时时间（分钟）
+     * @param int $maxRetries 最大重试次数
+     * @param int $limit 限制数量
+     * @return TaskMessageEntity[] 按seq_id升序排列的消息列表
+     */
+    public function findProcessableMessages(
+        int $topicId,
+        string $senderType = 'assistant',
+        int $timeoutMinutes = 30,
+        int $maxRetries = 3,
+        int $limit = 50
+    ): array;
 }

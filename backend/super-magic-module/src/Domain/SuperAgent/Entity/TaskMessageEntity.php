@@ -13,6 +13,15 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 
 class TaskMessageEntity extends AbstractEntity
 {
+    // 处理状态常量
+    public const PROCESSING_STATUS_PENDING = 'pending';
+
+    public const PROCESSING_STATUS_PROCESSING = 'processing';
+
+    public const PROCESSING_STATUS_COMPLETED = 'completed';
+
+    public const PROCESSING_STATUS_FAILED = 'failed';
+
     /**
      * @var int 消息ID
      */
@@ -99,6 +108,36 @@ class TaskMessageEntity extends AbstractEntity
     protected int $sendTimestamp = 0;
 
     protected bool $showInUi = true;
+
+    /**
+     * @var null|string 原始投递消息JSON数据
+     */
+    protected ?string $rawData = null;
+
+    /**
+     * @var null|int 序列ID，用于消息排序
+     */
+    protected ?int $seqId = null;
+
+    /**
+     * @var string 消息处理状态
+     */
+    protected string $processingStatus = self::PROCESSING_STATUS_PENDING;
+
+    /**
+     * @var null|string 处理失败时的错误信息
+     */
+    protected ?string $errorMessage = null;
+
+    /**
+     * @var int 重试次数
+     */
+    protected int $retryCount = 0;
+
+    /**
+     * @var null|string 处理完成时间
+     */
+    protected ?string $processedAt = null;
 
     public function __construct(array $data = [])
     {
@@ -288,6 +327,72 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getRawData(): ?string
+    {
+        return $this->rawData;
+    }
+
+    public function setRawData(?string $rawData): self
+    {
+        $this->rawData = $rawData;
+        return $this;
+    }
+
+    public function getSeqId(): ?int
+    {
+        return $this->seqId;
+    }
+
+    public function setSeqId(?int $seqId): self
+    {
+        $this->seqId = $seqId;
+        return $this;
+    }
+
+    public function getProcessingStatus(): string
+    {
+        return $this->processingStatus;
+    }
+
+    public function setProcessingStatus(string $processingStatus): self
+    {
+        $this->processingStatus = $processingStatus;
+        return $this;
+    }
+
+    public function getErrorMessage(): ?string
+    {
+        return $this->errorMessage;
+    }
+
+    public function setErrorMessage(?string $errorMessage): self
+    {
+        $this->errorMessage = $errorMessage;
+        return $this;
+    }
+
+    public function getRetryCount(): int
+    {
+        return $this->retryCount;
+    }
+
+    public function setRetryCount(int $retryCount): self
+    {
+        $this->retryCount = $retryCount;
+        return $this;
+    }
+
+    public function getProcessedAt(): ?string
+    {
+        return $this->processedAt;
+    }
+
+    public function setProcessedAt(?string $processedAt): self
+    {
+        $this->processedAt = $processedAt;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -309,6 +414,13 @@ class TaskMessageEntity extends AbstractEntity
             'event' => $this->event,
             'send_timestamp' => $this->sendTimestamp,
             'show_in_ui' => $this->showInUi,
+            // 新增的队列处理字段
+            'raw_data' => $this->rawData,
+            'seq_id' => $this->seqId,
+            'processing_status' => $this->processingStatus,
+            'error_message' => $this->errorMessage,
+            'retry_count' => $this->retryCount,
+            'processed_at' => $this->processedAt,
         ];
 
         return array_filter($result, function ($value) {
