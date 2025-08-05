@@ -7,15 +7,13 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Crontab;
 
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
-
-use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Crontab\Annotation\Crontab;
@@ -40,11 +38,17 @@ use Throwable;
 readonly class MessageCompensationCrontab
 {
     private const GLOBAL_LOCK_KEY = 'message_compensation_crontab_lock';
+
     private const TOPIC_LOCK_PREFIX = 'handle_topic_message_lock:';
+
     private const GLOBAL_LOCK_EXPIRE = 60; // Global lock timeout: 60 seconds
+
     private const TOPIC_LOCK_EXPIRE = 20;  // Topic lock timeout: 20 seconds (same as consumer)
+
     private const TIME_WINDOW_MINUTES = 20; // Query messages from last 20 minutes
+
     private const MAX_TOPICS_PER_BATCH = 50; // Maximum topics to process per batch
+
     private const MAX_TOPICS_PER_EXECUTION = 20; // Maximum topics to process per execution
 
     protected LoggerInterface $logger;
@@ -58,7 +62,7 @@ readonly class MessageCompensationCrontab
     }
 
     /**
-     * Main execution method
+     * Main execution method.
      */
     public function execute(): void
     {
@@ -68,7 +72,7 @@ readonly class MessageCompensationCrontab
         $this->logger->info('消息补偿定时任务开始执行');
 
         // Step 1: Acquire global lock to prevent multiple instances
-        if (!$this->acquireGlobalLock($globalLockOwner)) {
+        if (! $this->acquireGlobalLock($globalLockOwner)) {
             $this->logger->info('无法获取全局锁，其他实例正在执行补偿任务，跳过本次执行');
             return;
         }
@@ -76,7 +80,7 @@ readonly class MessageCompensationCrontab
         try {
             // Step 2: Get topics that need compensation
             $topicTasks = $this->getCompensationTopics();
-            
+
             if (empty($topicTasks)) {
                 $this->logger->info('没有需要补偿处理的话题');
                 return;
@@ -94,7 +98,6 @@ readonly class MessageCompensationCrontab
                 $topicCount,
                 $executionTime
             ));
-
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 '消息补偿定时任务执行异常: %s',
@@ -108,18 +111,18 @@ readonly class MessageCompensationCrontab
 
     /**
      * Get topics that need compensation processing
-     * 获取需要补偿处理的话题列表（高性能查询）
+     * 获取需要补偿处理的话题列表（高性能查询）.
      */
     private function getCompensationTopics(): array
     {
         try {
             $timeThreshold = Carbon::now()->subMinutes(self::TIME_WINDOW_MINUTES);
-            
+
             // High-performance query: Use simple conditions and proper indexing
             // 使用原生SQL提高性能，避免ORM开销，只查询topic_id进行分组
-            $sql = "
+            $sql = '
                 SELECT DISTINCT topic_id 
-                FROM " . (new TaskMessageModel())->getTable() . " 
+                FROM ' . (new TaskMessageModel())->getTable() . " 
                 WHERE processing_status IN (?, ?) 
                   AND created_at >= ? 
                   AND sender_type = 'assistant'
@@ -132,7 +135,7 @@ readonly class MessageCompensationCrontab
                 TaskMessageEntity::PROCESSING_STATUS_PENDING,
                 TaskMessageEntity::PROCESSING_STATUS_PROCESSING,
                 $timeThreshold->toDateTimeString(),
-                self::MAX_TOPICS_PER_BATCH
+                self::MAX_TOPICS_PER_BATCH,
             ]);
 
             $topicTasks = [];
@@ -152,7 +155,6 @@ readonly class MessageCompensationCrontab
             ));
 
             return $topicTasks;
-
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 '查询补偿话题失败: %s',
@@ -164,7 +166,7 @@ readonly class MessageCompensationCrontab
 
     /**
      * Process topics concurrently using coroutines
-     * 使用协程并发处理话题列表
+     * 使用协程并发处理话题列表.
      */
     private function processTopicsConcurrently(array $topicTasks): void
     {
@@ -188,7 +190,7 @@ readonly class MessageCompensationCrontab
                 $parallel->add(function () use ($topicTask, $fromCoroutineId) {
                     // Copy coroutine context to maintain proper isolation
                     CoContext::copy($fromCoroutineId);
-                    
+
                     return $this->processTopicWithLock(
                         $topicTask['topic_id'],
                         0  // 补偿任务不需要具体的task_id
@@ -202,10 +204,10 @@ readonly class MessageCompensationCrontab
             // Collect statistics
             $batchSuccessful = 0;
             foreach ($results as $result) {
-                $totalProcessed++;
+                ++$totalProcessed;
                 if ($result['success']) {
-                    $totalSuccessful++;
-                    $batchSuccessful++;
+                    ++$totalSuccessful;
+                    ++$batchSuccessful;
                 }
             }
 
@@ -227,7 +229,7 @@ readonly class MessageCompensationCrontab
 
     /**
      * Process single topic with lock protection
-     * 使用锁保护处理单个话题
+     * 使用锁保护处理单个话题.
      */
     private function processTopicWithLock(int $topicId, int $taskId): array
     {
@@ -236,7 +238,7 @@ readonly class MessageCompensationCrontab
         $startTime = microtime(true);
 
         // Try to acquire topic lock
-        if (!$this->acquireTopicLock($lockKey, $lockOwner)) {
+        if (! $this->acquireTopicLock($lockKey, $lockOwner)) {
             $this->logger->info(sprintf(
                 'topic %d 正在被其他实例处理，跳过补偿处理',
                 $topicId
@@ -245,7 +247,7 @@ readonly class MessageCompensationCrontab
                 'success' => false,
                 'topic_id' => $topicId,
                 'reason' => 'lock_failed',
-                'processed_count' => 0
+                'processed_count' => 0,
             ];
         }
 
@@ -271,9 +273,8 @@ readonly class MessageCompensationCrontab
                 'success' => true,
                 'topic_id' => $topicId,
                 'processed_count' => $processedCount,
-                'execution_time_ms' => $executionTime
+                'execution_time_ms' => $executionTime,
             ];
-
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'topic %d 补偿处理失败: %s',
@@ -281,7 +282,7 @@ readonly class MessageCompensationCrontab
                 $e->getMessage()
             ), [
                 'topic_id' => $topicId,
-                'exception' => $e
+                'exception' => $e,
             ]);
 
             return [
@@ -289,9 +290,8 @@ readonly class MessageCompensationCrontab
                 'topic_id' => $topicId,
                 'reason' => 'processing_failed',
                 'error' => $e->getMessage(),
-                'processed_count' => 0
+                'processed_count' => 0,
             ];
-
         } finally {
             // Always release topic lock
             if ($this->releaseTopicLock($lockKey, $lockOwner)) {
@@ -311,7 +311,7 @@ readonly class MessageCompensationCrontab
     }
 
     /**
-     * Acquire global lock
+     * Acquire global lock.
      */
     private function acquireGlobalLock(string $lockOwner): bool
     {
@@ -319,7 +319,7 @@ readonly class MessageCompensationCrontab
     }
 
     /**
-     * Release global lock
+     * Release global lock.
      */
     private function releaseGlobalLock(string $lockOwner): void
     {
@@ -331,7 +331,7 @@ readonly class MessageCompensationCrontab
     }
 
     /**
-     * Acquire topic lock
+     * Acquire topic lock.
      */
     private function acquireTopicLock(string $lockKey, string $lockOwner): bool
     {
@@ -339,10 +339,10 @@ readonly class MessageCompensationCrontab
     }
 
     /**
-     * Release topic lock
+     * Release topic lock.
      */
     private function releaseTopicLock(string $lockKey, string $lockOwner): bool
     {
         return $this->locker->release($lockKey, $lockOwner);
     }
-} 
+}

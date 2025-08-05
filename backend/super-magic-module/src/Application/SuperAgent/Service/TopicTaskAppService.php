@@ -18,7 +18,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageStorageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
@@ -108,8 +107,6 @@ class TopicTaskAppService extends AbstractAppService
                 $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
                 $messageEntity = $messageDTO->toTaskMessageEntity($topicId, $aiUserEntity->getUserId(), $topicEntity->getUserId());
                 $messageEntity->setRawContent(json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE));
-
-
 
                 // 3. 存储消息到数据库（调用领域层服务）
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());

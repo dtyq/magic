@@ -177,10 +177,10 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     {
         // 使用原子操作获取下一个seq_id
         $query = $this->model::query()
-                ->where('topic_id', $topicId)
-                ->where('task_id', $taskId)
-                ->orderBy('seq_id', 'desc')
-                ->first();
+            ->where('topic_id', $topicId)
+            ->where('task_id', $taskId)
+            ->orderBy('seq_id', 'desc')
+            ->first();
         if (! $query) {
             return 1;
         }
