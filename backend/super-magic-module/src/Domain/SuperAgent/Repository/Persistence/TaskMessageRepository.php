@@ -7,10 +7,12 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Hyperf\DbConnection\Db;
+use InvalidArgumentException;
 
 class TaskMessageRepository implements TaskMessageRepositoryInterface
 {
@@ -120,5 +122,237 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             return null;
         }
         return new TaskMessageEntity($record->toArray());
+    }
+
+    public function findPendingMessagesByTopicId(int $topicId, string $processingStatus, string $senderType = 'assistant', int $limit = 50): array
+    {
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('processing_status', $processingStatus)
+            ->where('sender_type', $senderType)
+            ->orderBy('seq_id', 'asc')
+            ->limit($limit);
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+
+        return array_map(function ($record) {
+            return new TaskMessageEntity((array) $record);
+        }, $result);
+    }
+
+    public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void
+    {
+        $updateData = [
+            'processing_status' => $processingStatus,
+            'retry_count' => $retryCount,
+            'updated_at' => Carbon::now(),
+        ];
+
+        if ($errorMessage !== null) {
+            $updateData['error_message'] = $errorMessage;
+        }
+
+        if ($processingStatus === TaskMessageModel::PROCESSING_STATUS_COMPLETED) {
+            $updateData['processed_at'] = Carbon::now();
+        }
+
+        $this->model::query()->where('id', $id)->update($updateData);
+    }
+
+    public function batchUpdateProcessingStatus(array $ids, string $processingStatus): void
+    {
+        $updateData = [
+            'processing_status' => $processingStatus,
+            'updated_at' => Carbon::now(),
+        ];
+
+        if ($processingStatus === TaskMessageModel::PROCESSING_STATUS_COMPLETED) {
+            $updateData['processed_at'] = Carbon::now();
+        }
+
+        $this->model::query()->whereIn('id', $ids)->update($updateData);
+    }
+
+    public function getNextSeqId(): int
+    {
+        // 使用原子操作获取下一个seq_id
+        $result = Db::selectOne('SELECT COALESCE(MAX(seq_id), 0) + 1 as next_seq_id FROM magic_super_agent_message');
+        return (int) $result['next_seq_id'];
+    }
+
+    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array
+    {
+        $timeoutTime = Carbon::now()->subMinutes($timeoutMinutes);
+
+        $query = $this->model::query()
+            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_PROCESSING)
+            ->where('updated_at', '<', $timeoutTime)
+            ->orderBy('seq_id', 'asc');
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+
+        return array_map(function ($record) {
+            return new TaskMessageEntity((array) $record);
+        }, $result);
+    }
+
+    public function findRetriableFailedMessages(int $maxRetries = 3): array
+    {
+        $query = $this->model::query()
+            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_FAILED)
+            ->where('retry_count', '<', $maxRetries)
+            ->orderBy('seq_id', 'asc');
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+
+        return array_map(function ($record) {
+            return new TaskMessageEntity((array) $record);
+        }, $result);
+    }
+
+    public function saveWithRawData(array $rawData, TaskMessageEntity $message): void
+    {
+        $messageArray = $message->toArray();
+
+        // seq_id应该已经在领域服务中设置好了
+        if (empty($messageArray['seq_id'])) {
+            throw new InvalidArgumentException('seq_id must be set before saving');
+        }
+
+        // 保存原始数据
+        $messageArray['raw_data'] = json_encode($rawData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        // 设置初始处理状态
+        $messageArray['processing_status'] = TaskMessageModel::PROCESSING_STATUS_PENDING;
+        $messageArray['retry_count'] = 0;
+
+        $this->model::query()->create($messageArray);
+    }
+
+    public function findBySeqIdAndTopicId(int $seqId, int $topicId): ?TaskMessageEntity
+    {
+        $query = $this->model::query()
+            ->where('seq_id', $seqId)
+            ->where('topic_id', $topicId)
+            ->first();
+
+        if (! $query) {
+            return null;
+        }
+
+        return new TaskMessageEntity($query->toArray());
+    }
+
+    public function findByTopicIdAndMessageId(int $topicId, string $messageId): ?TaskMessageEntity
+    {
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('message_id', $messageId)
+            ->first();
+
+        if (! $query) {
+            return null;
+        }
+
+        return new TaskMessageEntity($query->toArray());
+    }
+
+    public function updateExistingMessage(TaskMessageEntity $message): void
+    {
+        // 更新业务字段，但保留队列处理相关字段（raw_data, seq_id, processing_status等）
+        $updateData = [
+            'sender_type' => $message->getSenderType(),
+            'sender_uid' => $message->getSenderUid(),
+            'receiver_uid' => $message->getReceiverUid(),
+            'type' => $message->getType(),
+            'task_id' => $message->getTaskId(),
+            'status' => $message->getStatus(),
+            'content' => $message->getContent(),
+            'raw_content' => $message->getRawContent(),
+            'steps' => $message->getSteps(),
+            'tool' => $message->getTool(),
+            'attachments' => $message->getAttachments(),
+            'mentions' => $message->getMentions(),
+            'event' => $message->getEvent(),
+            'send_timestamp' => $message->getSendTimestamp(),
+            'show_in_ui' => $message->getShowInUi(),
+            'updated_at' => Carbon::now(),
+        ];
+
+        // 过滤掉null值
+        $updateData = array_filter($updateData, function ($value) {
+            return $value !== null;
+        });
+
+        $this->model::query()
+            ->where('topic_id', $message->getTopicId())
+            ->where('message_id', $message->getMessageId())
+            ->update($updateData);
+    }
+
+    public function findProcessableMessages(
+        int $topicId,
+        string $senderType = 'assistant',
+        int $timeoutMinutes = 30,
+        int $maxRetries = 3,
+        int $limit = 50
+    ): array {
+        // 简化SQL查询：只按topic_id + sender_type + 三个状态查询
+        // 在代码中处理复杂逻辑，避免复杂SQL在大表上的性能问题
+        $query = $this->model::query()
+            ->select([
+                'id',
+                'seq_id',
+                'processing_status',
+                'updated_at',
+                'retry_count',
+                'raw_data',
+                'message_id',
+                'task_id',
+            ])
+            ->where('topic_id', $topicId)
+            ->where('sender_type', $senderType)
+            ->whereIn('processing_status', [
+                TaskMessageModel::PROCESSING_STATUS_PENDING,
+                TaskMessageModel::PROCESSING_STATUS_PROCESSING,
+                TaskMessageModel::PROCESSING_STATUS_FAILED,
+            ])
+            ->orderBy('seq_id', 'asc')
+            ->limit($limit * 2); // 适当放大limit，因为要在代码中过滤
+
+        $records = $query->get();
+        $timeoutTime = Carbon::now()->subMinutes($timeoutMinutes);
+        $processableMessages = [];
+
+        foreach ($records as $record) {
+            $shouldProcess = false;
+
+            switch ($record->processing_status) {
+                case TaskMessageModel::PROCESSING_STATUS_PENDING:
+                    // pending状态的全部处理
+                    $shouldProcess = true;
+                    break;
+                case TaskMessageModel::PROCESSING_STATUS_PROCESSING:
+                    // processing状态但超过指定时间的（认为是超时）
+                    $updatedAt = Carbon::parse($record->updated_at);
+                    $shouldProcess = $updatedAt->lt($timeoutTime);
+                    break;
+                case TaskMessageModel::PROCESSING_STATUS_FAILED:
+                    // failed状态但重试次数不超过最大值的
+                    $shouldProcess = $record->retry_count <= $maxRetries;
+                    break;
+            }
+
+            if ($shouldProcess) {
+                $processableMessages[] = new TaskMessageEntity($record->toArray());
+
+                // 达到目标数量就停止
+                if (count($processableMessages) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $processableMessages;
     }
 }
