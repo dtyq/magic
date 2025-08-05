@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessagePayload;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TokenUsageDetails;
@@ -119,5 +120,36 @@ class TopicTaskMessageDTO
             'payload' => $this->payload->toArray(),
             'token_usage_details' => $this->tokenUsageDetails?->toArray(),
         ];
+    }
+
+    /**
+     * 转换为TaskMessageEntity实体.
+     *
+     * @param int $topicId 话题ID
+     * @return TaskMessageEntity 任务消息实体
+     */
+    public function toTaskMessageEntity(int $topicId, string $senderUid, string $receiverUid): TaskMessageEntity
+    {
+        $messageData = [
+            'sender_type' => 'assistant',
+            'sender_uid' => $senderUid,
+            'receiver_uid' => $receiverUid,
+            'message_id' => $this->payload->getMessageId() ?? '',
+            'type' => $this->payload->getType() ?? '',
+            'task_id' => $this->payload->getTaskId() ?? '',
+            'topic_id' => $topicId,
+            'status' => $this->payload->getStatus() ?? 'pending',
+            'content' => $this->payload->getContent() ?? '',
+            'raw_content' => '',
+            'steps' => $this->payload->getSteps() ?? null,
+            'tool' => $this->payload->getTool() ?? null,
+            'attachments' => $this->payload->getAttachments() ?? null,
+            'mentions' => null,
+            'event' => $this->payload->getEvent() ?? '',
+            'send_timestamp' => $this->payload->getSendTimestamp() ?? time(),
+            'show_in_ui' => $this->payload->getShowInUi() ?? true,
+        ];
+
+        return new TaskMessageEntity($messageData);
     }
 }

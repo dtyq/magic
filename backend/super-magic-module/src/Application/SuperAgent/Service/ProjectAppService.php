@@ -7,10 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
@@ -57,7 +55,6 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
-        private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -465,19 +462,10 @@ class ProjectAppService extends AbstractAppService
             $dto->projectId = (string) $entity->getProjectId();
             // 设置排序字段
             $dto->sort = $entity->getSort();
+            $dto->fileUrl = '';
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
-            if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
-                if ($fileLink) {
-                    $dto->fileUrl = $fileLink->getUrl();
-                } else {
-                    $dto->fileUrl = '';
-                }
-            } else {
-                $dto->fileUrl = '';
-            }
             // 判断file key是否重复，如果重复，则跳过
             if (in_array($fileKey, $fileKeys)) {
                 continue;
