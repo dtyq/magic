@@ -78,9 +78,9 @@ func initJWTSecurity() {
 	}
 
 	// 验证API密钥强度
-	if len(apiKey) < 32 {
-		logger.Printf("警告: MAGIC_GATEWAY_API_KEY长度不足，建议至少32字符")
-	}
+	// if len(apiKey) < 32 {
+	// 	logger.Printf("警告: MAGIC_GATEWAY_API_KEY长度不足，建议至少32字符")
+	// }
 
 	// 使用API密钥作为JWT密钥
 	jwtSecret = []byte(apiKey)
@@ -118,7 +118,9 @@ func init() {
 	// 加载.env文件
 	err := godotenv.Load()
 	if err != nil {
-		logger.Println("警告: 无法加载.env文件:", err)
+		if debugMode {
+			logger.Printf("警告: 无法加载.env文件:", err)
+		}
 	}
 
 	// 初始化JWT安全配置
