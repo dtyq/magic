@@ -177,33 +177,22 @@ class OrganizationRepository implements OrganizationRepositoryInterface
             return;
         }
 
-        if (isset($filters['name']) && ! empty($filters['name'])) {
+        if (! empty($filters['name'])) {
             $query->where('name', 'like', '%' . $filters['name'] . '%');
         }
 
-        if (isset($filters['code']) && ! empty($filters['code'])) {
-            $query->where('code', 'like', '%' . $filters['code'] . '%');
+        if (! empty($filters['magic_organization_code'])) {
+            $query->where('magic_organization_code', $filters['magic_organization_code']);
         }
 
         if (isset($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
-        if (isset($filters['is_temporary'])) {
-            $query->where('is_temporary', $filters['is_temporary']);
-        }
-
-        if (isset($filters['industry_type']) && ! empty($filters['industry_type'])) {
-            $query->where('industry_type', $filters['industry_type']);
-        }
-
         if (isset($filters['creator_id'])) {
             $query->where('creator_id', $filters['creator_id']);
         }
 
-        if (isset($filters['platform_type']) && ! empty($filters['platform_type'])) {
-            $query->where('platform_type', $filters['platform_type']);
-        }
     }
 
     /**

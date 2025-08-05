@@ -344,12 +344,12 @@ class OrganizationDomainServiceTest extends HttpTestCase
 
             // 删除通过编码记录的组织
             foreach ($this->testOrganizationCodes as $code) {
-                OrganizationModel::query()->where('code', $code)->forceDelete();
+                OrganizationModel::query()->where('magic_organization_code', $code)->forceDelete();
             }
 
             // 删除可能残留的测试数据
             OrganizationModel::query()
-                ->where('code', 'like', 'TEST_ORG_%')
+                ->where('magic_organization_code', 'like', 'TEST_ORG_%')
                 ->orWhere('name', 'like', 'Test Organization%')
                 ->orWhere('name', 'like', 'Updated Organization%')
                 ->forceDelete();
