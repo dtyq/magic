@@ -76,7 +76,7 @@ interface TaskMessageRepositoryInterface
     /**
      * 获取下一个seq_id.
      */
-    public function getNextSeqId(): int;
+    public function getNextSeqId(int $topicId, int $taskId): int;
 
     /**
      * 查询超时的处理中消息.
@@ -138,6 +138,7 @@ interface TaskMessageRepositoryInterface
      */
     public function findProcessableMessages(
         int $topicId,
+        int $taskId,
         string $senderType = 'assistant',
         int $timeoutMinutes = 30,
         int $maxRetries = 3,

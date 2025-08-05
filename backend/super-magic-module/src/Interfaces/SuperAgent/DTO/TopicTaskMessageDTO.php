@@ -148,6 +148,7 @@ class TopicTaskMessageDTO
             'event' => $this->payload->getEvent() ?? '',
             'send_timestamp' => $this->payload->getSendTimestamp() ?? time(),
             'show_in_ui' => $this->payload->getShowInUi() ?? true,
+            'seq_id' => $this->payload->getSeqId() ?? 0,
         ];
 
         return new TaskMessageEntity($messageData);

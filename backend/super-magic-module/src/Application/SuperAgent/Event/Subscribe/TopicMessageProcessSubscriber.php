@@ -70,6 +70,7 @@ class TopicMessageProcessSubscriber extends ConsumerMessage
 
             // 获取topic_id
             $topicId = (int) ($data['topic_id'] ?? 0);
+            $taskId = (int) ($data['task_id'] ?? 0);
             if ($topicId <= 0) {
                 $this->logger->warning('无效的topic_id，跳过处理', [
                     'topic_id' => $topicId,
@@ -81,7 +82,7 @@ class TopicMessageProcessSubscriber extends ConsumerMessage
             // 尝试获取话题级别的锁
             $lockKey = 'handle_topic_message_lock:' . $topicId;
             $lockOwner = IdGenerator::getUniqueId32();
-            $lockExpireSeconds = 60; // 给批量处理更多时间
+            $lockExpireSeconds = 20; // 给批量处理更多时间
 
             $lockAcquired = $this->acquireLock($lockKey, $lockOwner, $lockExpireSeconds);
 
@@ -101,7 +102,7 @@ class TopicMessageProcessSubscriber extends ConsumerMessage
 
             try {
                 // 调用批量处理方法
-                $processedCount = $this->handleAgentMessageAppService->batchHandleAgentMessage($topicId);
+                $processedCount = $this->handleAgentMessageAppService->batchHandleAgentMessage($topicId, $taskId);
 
                 $this->logger->info(sprintf(
                     'topic %d 批量处理完成，处理消息数量: %d',
@@ -147,7 +148,7 @@ class TopicMessageProcessSubscriber extends ConsumerMessage
      */
     public function acquireLock(string $lockKey, string $lockOwner, int $lockExpireSeconds): bool
     {
-        return $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+        return $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
     }
 
     /**

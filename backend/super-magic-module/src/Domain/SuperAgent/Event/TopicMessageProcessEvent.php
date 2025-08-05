@@ -17,9 +17,11 @@ class TopicMessageProcessEvent extends AbstractEvent
      * 构造函数.
      *
      * @param int $topicId 话题ID
+     * @param int $taskId 任务ID
      */
     public function __construct(
-        private readonly int $topicId
+        private readonly int $topicId,
+        private readonly int $taskId = 0
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
@@ -31,7 +33,8 @@ class TopicMessageProcessEvent extends AbstractEvent
     public static function fromArray(array $data): self
     {
         return new self(
-            topicId: (int) ($data['topic_id'] ?? 0)
+            topicId: (int) ($data['topic_id'] ?? 0),
+            taskId: (int) ($data['task_id'] ?? 0)
         );
     }
 
@@ -42,6 +45,7 @@ class TopicMessageProcessEvent extends AbstractEvent
     {
         return [
             'topic_id' => $this->topicId,
+            'task_id' => $this->taskId,
             'event_id' => $this->getEventId(),
         ];
     }
@@ -52,5 +56,13 @@ class TopicMessageProcessEvent extends AbstractEvent
     public function getTopicId(): int
     {
         return $this->topicId;
+    }
+
+    /**
+     * 获取任务ID.
+     */
+    public function getTaskId(): int
+    {
+        return $this->taskId;
     }
 }
