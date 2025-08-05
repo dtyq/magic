@@ -181,6 +181,7 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
 
         $entities = [];
         foreach ($models as $model) {
+            /* @var OrganizationAdminModel $model */
             $entities[] = $this->mapToEntity($model);
         }
 

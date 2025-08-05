@@ -28,10 +28,8 @@ return new class extends Migration {
             $table->softDeletes();
 
             // 索引
-            $table->index(['role_id'], 'idx_role_id');
-            $table->index(['user_id'], 'idx_user_id');
-            $table->index(['organization_code'], 'idx_organization_code');
-            $table->unique(['role_id', 'user_id'], 'unq_role_user');
+            $table->index(['organization_code', 'user_id'], 'idx_organization_code_user_id');
+            $table->index(['role_id', 'user_id'], 'idx_role_user');
 
             $table->comment('RBAC角色用户关联表');
         });

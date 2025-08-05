@@ -9,6 +9,7 @@ namespace App\Application\Permission\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Permission\Entity\OrganizationAdminEntity;
@@ -21,7 +22,8 @@ class OrganizationAdminAppService extends AbstractKernelAppService
     public function __construct(
         private readonly OrganizationAdminDomainService $organizationAdminDomainService,
         private readonly MagicUserDomainService $userDomainService,
-        private readonly MagicDepartmentUserDomainService $departmentUserDomainService
+        private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
+        private readonly MagicDepartmentDomainService $departmentDomainService
     ) {
     }
 
@@ -159,7 +161,7 @@ class OrganizationAdminAppService extends AbstractKernelAppService
             $departmentUser = $departmentUsers[0];
 
             // 获取部门详细信息
-            $department = $this->departmentUserDomainService->getDepartmentById(
+            $department = $this->departmentDomainService->getDepartmentById(
                 $dataIsolation,
                 $departmentUser->getDepartmentId()
             );
