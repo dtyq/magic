@@ -268,35 +268,11 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
     public function updateExistingMessage(TaskMessageEntity $message): void
     {
-        // 更新业务字段，但保留队列处理相关字段（raw_data, seq_id, processing_status等）
-        $updateData = [
-            'sender_type' => $message->getSenderType(),
-            'sender_uid' => $message->getSenderUid(),
-            'receiver_uid' => $message->getReceiverUid(),
-            'type' => $message->getType(),
-            'task_id' => $message->getTaskId(),
-            'status' => $message->getStatus(),
-            'content' => $message->getContent(),
-            'raw_content' => $message->getRawContent(),
-            'steps' => $message->getSteps(),
-            'tool' => $message->getTool(),
-            'attachments' => $message->getAttachments(),
-            'mentions' => $message->getMentions(),
-            'event' => $message->getEvent(),
-            'send_timestamp' => $message->getSendTimestamp(),
-            'show_in_ui' => $message->getShowInUi(),
-            'updated_at' => Carbon::now(),
-        ];
-
-        // 过滤掉null值
-        $updateData = array_filter($updateData, function ($value) {
-            return $value !== null;
-        });
+        $entityArray = $message->toArray();
 
         $this->model::query()
-            ->where('topic_id', $message->getTopicId())
-            ->where('message_id', $message->getMessageId())
-            ->update($updateData);
+            ->where('file_id', $message->getTaskId())
+            ->update($entityArray);
     }
 
     public function findProcessableMessages(
@@ -321,15 +297,18 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
                 'task_id',
             ])
             ->where('topic_id', $topicId)
-            ->where('task_id', $taskId)
             ->where('sender_type', $senderType)
             ->whereIn('processing_status', [
                 TaskMessageModel::PROCESSING_STATUS_PENDING,
                 TaskMessageModel::PROCESSING_STATUS_PROCESSING,
                 TaskMessageModel::PROCESSING_STATUS_FAILED,
-            ])
-            ->orderBy('seq_id', 'asc')
-            ->limit($limit * 2); // 适当放大limit，因为要在代码中过滤
+            ]);
+
+        if ($taskId > 0) {
+            $query = $query->where('task_id', $taskId);
+        }
+
+        $query->orderBy('seq_id', 'asc')->limit($limit * 2); // 适当放大limit，因为要在代码中过滤
 
         $records = $query->get();
         $timeoutTime = Carbon::now()->subMinutes($timeoutMinutes);

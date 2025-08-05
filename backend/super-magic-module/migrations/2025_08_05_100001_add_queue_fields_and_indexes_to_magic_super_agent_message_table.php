@@ -24,8 +24,8 @@ return new class extends Migration {
             $table->bigInteger('seq_id')->unsigned()->nullable()->comment('序列ID，用于消息排序')->after('raw_data');
 
             // 添加处理状态字段
-            $table->enum('processing_status', ['pending', 'processing', 'completed', 'failed'])
-                ->default('pending')
+            $table->string('processing_status', ['pending', 'processing', 'completed', 'failed'])
+                ->default('')
                 ->comment('消息处理状态：pending-待处理，processing-处理中，completed-已完成，failed-失败')
                 ->after('seq_id');
 

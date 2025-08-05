@@ -118,7 +118,7 @@ class HandleAgentMessageAppService extends AbstractAppService
      * @param int $topicId 话题ID
      * @return int 处理的消息数量
      */
-    public function batchHandleAgentMessage(int $topicId, int $taskId): int
+    public function batchHandleAgentMessage(int $topicId, ?int $taskId): int
     {
         $this->logger->info(sprintf('开始批量处理topic %d的消息', $topicId));
 
@@ -148,11 +148,11 @@ class HandleAgentMessageAppService extends AbstractAppService
                 );
 
                 // 检查任务是否已终止
-                $taskId = $messageEntity->getTaskId();
-                if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskId)) {
+                $currentTaskId = $messageEntity->getTaskId();
+                if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $currentTaskId)) {
                     $this->logger->info(sprintf(
                         '任务 %s 已终止，跳过消息处理 message_id: %s',
-                        $taskId,
+                        $currentTaskId,
                         $messageEntity->getMessageId()
                     ));
 
