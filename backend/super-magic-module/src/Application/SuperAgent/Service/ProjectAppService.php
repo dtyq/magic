@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
