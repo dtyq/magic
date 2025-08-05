@@ -98,7 +98,7 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
         }
 
         if (! empty($filters['user_id'])) {
-            $query->where('user_id', 'like', '%' . $filters['user_id'] . '%');
+            $query->where('user_id', $filters['user_id']);
         }
 
         // 排序
