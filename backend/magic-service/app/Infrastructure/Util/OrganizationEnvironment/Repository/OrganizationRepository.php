@@ -192,7 +192,6 @@ class OrganizationRepository implements OrganizationRepositoryInterface
         if (isset($filters['creator_id'])) {
             $query->where('creator_id', $filters['creator_id']);
         }
-
     }
 
     /**

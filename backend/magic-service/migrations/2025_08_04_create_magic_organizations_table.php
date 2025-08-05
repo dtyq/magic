@@ -21,11 +21,11 @@ return new class extends Migration {
             $table->bigIncrements('id')->comment('主键ID');
             $table->string('magic_organization_code', 100)->unique()->comment('组织编码');
             $table->string('name', 100)->comment('组织名称');
-            $table->string('platform_type',64)->nullable()->comment('平台类型');
+            $table->string('platform_type', 64)->nullable()->comment('平台类型');
             $table->mediumText('logo')->nullable()->comment('组织logo');
             $table->mediumText('introduction')->nullable()->comment('企业描述');
             $table->string('contact_user')->nullable()->comment('联系人');
-            $table->string('contact_mobile',32)->nullable()->comment('联系电话');
+            $table->string('contact_mobile', 32)->nullable()->comment('联系电话');
             $table->string('industry_type')->comment('组织行业类型');
             $table->string('number', 32)->nullable()->comment('企业规模');
             $table->tinyInteger('status')->default(1)->comment('状态 1:正常 2:禁用');
