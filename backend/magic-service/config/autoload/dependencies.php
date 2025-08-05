@@ -10,6 +10,8 @@ use App\Application\Flow\ExecuteManager\NodeRunner\Code\CodeExecutor\PHPExecutor
 use App\Application\Flow\ExecuteManager\NodeRunner\Code\CodeExecutor\PythonExecutor;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\BaseMessageAttachmentHandler;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\MessageAttachmentHandlerInterface;
+use App\Application\Kernel\Contract\MagicPermissionInterface;
+use App\Application\Kernel\MagicPermission;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -148,6 +150,8 @@ use App\Domain\OrganizationEnvironment\Repository\MagicEnvironmentsRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsEnvironmentRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsPlatformRepository;
 use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterface;
+use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
+use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
 use App\Domain\Permission\Repository\Persistence\OperationPermissionRepository;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
@@ -201,6 +205,8 @@ use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\Locker\RedisLocker;
+use App\Infrastructure\Util\Permission\Repository\OrganizationAdminRepository;
+use App\Infrastructure\Util\Permission\Repository\RoleRepository;
 use App\Interfaces\MCP\Facade\HttpTransportHandler\ApiKeyProviderAuthenticator;
 use Dtyq\PhpMcp\Shared\Auth\AuthenticatorInterface;
 use Hyperf\Config\ProviderConfig;
@@ -313,6 +319,8 @@ $dependencies = [
 
     // permission
     OperationPermissionRepositoryInterface::class => OperationPermissionRepository::class,
+    RoleRepositoryInterface::class => RoleRepository::class,
+    OrganizationAdminRepositoryInterface::class => OrganizationAdminRepository::class,
 
     // system
     ClientInterface::class => SimpleClientFactory::class,
@@ -372,6 +380,7 @@ $dependencies = [
 
     // 权限
     PermissionInterface::class => Permission::class,
+    MagicPermissionInterface::class => MagicPermission::class,
 
     // broadcast
     SubscriberInterface::class => AmqpSubscriber::class,

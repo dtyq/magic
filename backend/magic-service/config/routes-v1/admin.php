@@ -8,6 +8,7 @@ use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
 use App\Interfaces\ModelAdmin\Facade\ServiceProviderApi;
+use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 组织管理后台路由
@@ -53,5 +54,15 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('/creators', [AdminAgentApi::class, 'getOrganizationAgentsCreators']);
         Router::get('/{agentId}', [AdminAgentApi::class, 'getAgentDetail']);
         Router::delete('/{agentId}', [AdminAgentApi::class, 'deleteAgent']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    // 组织管理员
+    Router::addGroup('/organization-admin', static function () {
+        Router::get('/list', [OrganizationAdminApi::class, 'list']);
+        Router::get('/{id:\d+}', [OrganizationAdminApi::class, 'show']);
+        Router::post('/grant', [OrganizationAdminApi::class, 'grant']);
+        Router::delete('/{id:\d+}', [OrganizationAdminApi::class, 'destroy']);
+        Router::put('/{id:\d+}/enable', [OrganizationAdminApi::class, 'enable']);
+        Router::put('/{id:\d+}/disable', [OrganizationAdminApi::class, 'disable']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });
