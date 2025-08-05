@@ -39,9 +39,10 @@ body:
     attributes:
       label: Bug Description / Bug 描述
       description: |
-        Description for the problem you've encountered / 问题的描述
+        What I want and what I've got / 我想要什么结果和实际上我遇到了什么问题
       placeholder: |
-        For example: I want to log in after installed (what I'm expecting), but it failed with error 404 (what I've got) / 例如：我期望能够部署后登录（想要的样子），但部署后登录总是报错404失败（实际遇到的情况）
+        For example: I want to log in after installed (what I'm expecting), but it failed with error 404 (what I've got)
+        例如：我期望能够部署后登录（想要的样子），但部署后登录总是报错404失败（实际遇到的情况）
     validations:
       required: true
 
@@ -49,10 +50,12 @@ body:
     id: reproduction-steps
     attributes:
       label: Steps to Reproduce / 复现步骤
-      description: Detailed steps to reproduce the behavior / 具体怎么复现这个问题
+      description: |
+        Detailed steps to reproduce the behavior / 具体怎么复现这个问题
+        Please tell us your environment here / 请在这里告诉我们你的运行环境以方便复现修复BUG
       placeholder: |
         For example：
-        On my macbookPro M4, macOS 16.0
+        On my macbookPro M4, macOS 16.0 (the enviroment)
         1. Start the service
         2. Goto page xxx
         3. Click xxx
@@ -71,13 +74,17 @@ body:
       description: |
         Logs and Add any other contexts / 日志和额外要提及的信息
       placeholder: |
-        If you want to put log here, remember to wrap it with ```, or your log will be a mess / 如果要添加日志，记得加上```，要么你的日志会乱七八糟的
+        If you want to put log here, remember to wrap it with ```, or your log will be a mess
+        要添加日志的话，记得前后加上```，要么你的日志会乱七八糟的
 
         ```
         2025-01-01 DEBUG just like this 就像这样
         2025-01-01 DEBUG add a line contains only ``` before and after the logs 在日志前后加上只有```的一行就行
         ```
 
-        For example: When I use another macbook running macOS 15, it works well / 例如： 当我用另一台跑着macOS 15的macbook，功能是正常的
+        Other contexts, for example:
+        When I use another macbook running macOS 15, it works well
+        其他的信息，例如：
+        当我用另一台跑着macOS 15的macbook，功能是正常的
     validations:
       required: false
