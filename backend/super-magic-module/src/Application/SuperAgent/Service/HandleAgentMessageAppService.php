@@ -503,27 +503,6 @@ class HandleAgentMessageAppService extends AbstractAppService
     {
         $task = $taskContext->getTask();
 
-        // Create TaskMessageDTO for AI message
-        $taskMessageDTO = new TaskMessageDTO(
-            taskId: (string) $task->getId(),
-            role: Role::Assistant->value,
-            senderUid: $taskContext->getAgentUserId(),
-            receiverUid: $task->getUserId(),
-            messageType: $messageData['messageType'],
-            content: $messageData['content'],
-            status: $messageData['status'],
-            steps: $messageData['steps'],
-            tool: $messageData['tool'],
-            topicId: $task->getTopicId(),
-            event: $messageData['event'],
-            attachments: $messageData['attachments'],
-            mentions: null,
-            showInUi: $messageData['showInUi'],
-            messageId: $messageData['messageId']
-        );
-
-        $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
-
         // 先查找是否已存在该消息（通过topic_id + message_id）
         $existingMessage = $this->taskMessageRepository->findByTopicIdAndMessageId(
             $task->getTopicId(),
@@ -531,22 +510,56 @@ class HandleAgentMessageAppService extends AbstractAppService
         );
 
         if ($existingMessage) {
-            // 消息已存在，更新业务字段
+            // 消息已存在，直接在 app 层更新现有实体的字段
             $this->logger->info(sprintf(
                 '消息已存在，更新业务字段 topic_id: %d, message_id: %s',
                 $task->getTopicId(),
                 $messageData['messageId']
             ));
 
-            $this->taskMessageRepository->updateExistingMessage($taskMessageEntity);
+            // 直接更新现有实体的字段
+            $existingMessage->setSenderType(Role::Assistant->value)
+                ->setSenderUid($taskContext->getAgentUserId())
+                ->setReceiverUid($task->getUserId())
+                ->setType($messageData['messageType'])
+                ->setTaskId((string) $task->getId())
+                ->setStatus($messageData['status'])
+                ->setContent($messageData['content'])
+                ->setSteps($messageData['steps'])
+                ->setTool($messageData['tool'])
+                ->setAttachments($messageData['attachments'])
+                ->setEvent($messageData['event'])
+                ->setShowInUi($messageData['showInUi']);
+
+            $this->taskMessageRepository->updateExistingMessage($existingMessage);
         } else {
-            // 消息不存在，插入新记录
+            // 消息不存在，创建新实体并插入新记录
             $this->logger->info(sprintf(
                 '消息不存在，插入新记录 topic_id: %d, message_id: %s',
                 $task->getTopicId(),
                 $messageData['messageId']
             ));
 
+            // 创建 TaskMessageDTO for AI message
+            $taskMessageDTO = new TaskMessageDTO(
+                taskId: (string) $task->getId(),
+                role: Role::Assistant->value,
+                senderUid: $taskContext->getAgentUserId(),
+                receiverUid: $task->getUserId(),
+                messageType: $messageData['messageType'],
+                content: $messageData['content'],
+                status: $messageData['status'],
+                steps: $messageData['steps'],
+                tool: $messageData['tool'],
+                topicId: $task->getTopicId(),
+                event: $messageData['event'],
+                attachments: $messageData['attachments'],
+                mentions: null,
+                showInUi: $messageData['showInUi'],
+                messageId: $messageData['messageId']
+            );
+
+            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
             $this->taskDomainService->recordTaskMessage($taskMessageEntity);
         }
     }

@@ -465,19 +465,10 @@ class ProjectAppService extends AbstractAppService
             $dto->projectId = (string) $entity->getProjectId();
             // 设置排序字段
             $dto->sort = $entity->getSort();
+            $dto->fileUrl = '';
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
-            if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
-                if ($fileLink) {
-                    $dto->fileUrl = $fileLink->getUrl();
-                } else {
-                    $dto->fileUrl = '';
-                }
-            } else {
-                $dto->fileUrl = '';
-            }
             // 判断file key是否重复，如果重复，则跳过
             if (in_array($fileKey, $fileKeys)) {
                 continue;
