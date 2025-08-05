@@ -37,23 +37,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     public function batchSave(array $messages): void
     {
         $data = array_map(function (TaskMessageEntity $message) {
-            $messageArray = $message->toArray();
-
-            // Manually serialize array fields for batch insert since casts are not applied
-            if (isset($messageArray['steps']) && is_array($messageArray['steps'])) {
-                $messageArray['steps'] = json_encode($messageArray['steps'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if (isset($messageArray['tool']) && is_array($messageArray['tool'])) {
-                $messageArray['tool'] = json_encode($messageArray['tool'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if (isset($messageArray['attachments']) && is_array($messageArray['attachments'])) {
-                $messageArray['attachments'] = json_encode($messageArray['attachments'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if (isset($messageArray['mentions']) && is_array($messageArray['mentions'])) {
-                $messageArray['mentions'] = json_encode($messageArray['mentions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-
-            return $messageArray;
+            return $message->toArray();
         }, $messages);
 
         $this->model::query()->insert($data);
@@ -189,11 +173,20 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->whereIn('id', $ids)->update($updateData);
     }
 
-    public function getNextSeqId(): int
+    public function getNextSeqId(int $topicId, int $taskId): int
     {
         // 使用原子操作获取下一个seq_id
-        $result = Db::selectOne('SELECT COALESCE(MAX(seq_id), 0) + 1 as next_seq_id FROM magic_super_agent_message');
-        return (int) $result['next_seq_id'];
+        $query = $this->model::query()
+                ->where('topic_id', $topicId)
+                ->where('task_id', $taskId)
+                ->orderBy('seq_id', 'desc')
+                ->first();
+        if (! $query) {
+            return 1;
+        }
+
+        $entity = new TaskMessageEntity($query->toArray());
+        return $entity->getSeqId() + 1;
     }
 
     public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array
@@ -275,43 +268,40 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
     public function updateExistingMessage(TaskMessageEntity $message): void
     {
-        // 从实体获取所有数据，排除队列处理相关字段
-        $allData = $message->toArray();
+        // 更新业务字段，但保留队列处理相关字段（raw_data, seq_id, processing_status等）
+        $updateData = [
+            'sender_type' => $message->getSenderType(),
+            'sender_uid' => $message->getSenderUid(),
+            'receiver_uid' => $message->getReceiverUid(),
+            'type' => $message->getType(),
+            'task_id' => $message->getTaskId(),
+            'status' => $message->getStatus(),
+            'content' => $message->getContent(),
+            'raw_content' => $message->getRawContent(),
+            'steps' => $message->getSteps(),
+            'tool' => $message->getTool(),
+            'attachments' => $message->getAttachments(),
+            'mentions' => $message->getMentions(),
+            'event' => $message->getEvent(),
+            'send_timestamp' => $message->getSendTimestamp(),
+            'show_in_ui' => $message->getShowInUi(),
+            'updated_at' => Carbon::now(),
+        ];
 
-        // 定义不应该被更新的队列处理相关字段
-        $preservedFields = ['id', 'raw_data', 'seq_id', 'processing_status', 'error_message', 'retry_count', 'processed_at', 'created_at'];
+        // 过滤掉null值
+        $updateData = array_filter($updateData, function ($value) {
+            return $value !== null;
+        });
 
-        // 移除不应该更新的字段
-        $rawUpdateData = array_diff_key($allData, array_flip($preservedFields));
-
-        // 手动序列化数组字段
-        if (isset($rawUpdateData['steps']) && is_array($rawUpdateData['steps'])) {
-            $rawUpdateData['steps'] = json_encode($rawUpdateData['steps'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if (isset($rawUpdateData['tool']) && is_array($rawUpdateData['tool'])) {
-            $rawUpdateData['tool'] = json_encode($rawUpdateData['tool'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if (isset($rawUpdateData['attachments']) && is_array($rawUpdateData['attachments'])) {
-            $rawUpdateData['attachments'] = json_encode($rawUpdateData['attachments'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if (isset($rawUpdateData['mentions']) && is_array($rawUpdateData['mentions'])) {
-            $rawUpdateData['mentions'] = json_encode($rawUpdateData['mentions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-
-        // 添加更新时间
-        $rawUpdateData['updated_at'] = Carbon::now();
-
-        // 直接更新，过滤null值
         $this->model::query()
             ->where('topic_id', $message->getTopicId())
             ->where('message_id', $message->getMessageId())
-            ->update(array_filter($rawUpdateData, function ($value) {
-                return $value !== null;
-            }));
+            ->update($updateData);
     }
 
     public function findProcessableMessages(
         int $topicId,
+        int $taskId,
         string $senderType = 'assistant',
         int $timeoutMinutes = 30,
         int $maxRetries = 3,
@@ -331,6 +321,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
                 'task_id',
             ])
             ->where('topic_id', $topicId)
+            ->where('task_id', $taskId)
             ->where('sender_type', $senderType)
             ->whereIn('processing_status', [
                 TaskMessageModel::PROCESSING_STATUS_PENDING,

@@ -24,10 +24,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
@@ -56,10 +56,10 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly TaskMessageDomainService $taskMessageDomainService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
-        private readonly TaskMessageRepositoryInterface $taskMessageRepository,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -118,12 +118,12 @@ class HandleAgentMessageAppService extends AbstractAppService
      * @param int $topicId 话题ID
      * @return int 处理的消息数量
      */
-    public function batchHandleAgentMessage(int $topicId): int
+    public function batchHandleAgentMessage(int $topicId, int $taskId): int
     {
         $this->logger->info(sprintf('开始批量处理topic %d的消息', $topicId));
 
         // 1. 获取待处理的消息列表（按seq_id升序排列）
-        $processableMessages = $this->taskMessageRepository->findProcessableMessages(topicId: $topicId);
+        $processableMessages = $this->taskMessageDomainService->findProcessableMessages(topicId: $topicId, taskId: $taskId);
 
         if (empty($processableMessages)) {
             $this->logger->info(sprintf('topic %d 没有待处理的消息', $topicId));
@@ -142,7 +142,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         foreach ($processableMessages as $messageEntity) {
             try {
                 // 更新状态为处理中
-                $this->taskMessageRepository->updateProcessingStatus(
+                $this->taskMessageDomainService->updateProcessingStatus(
                     id: $messageEntity->getId(),
                     processingStatus: TaskMessageEntity::PROCESSING_STATUS_PROCESSING
                 );
@@ -157,7 +157,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                     ));
 
                     // 标记为已完成
-                    $this->taskMessageRepository->updateProcessingStatus(
+                    $this->taskMessageDomainService->updateProcessingStatus(
                         id: $messageEntity->getId(),
                         processingStatus: TaskMessageEntity::PROCESSING_STATUS_COMPLETED,
                         errorMessage: '任务已终止'
@@ -177,7 +177,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $this->handleAgentMessage($messageDTO);
 
                 // 标记为已完成
-                $this->taskMessageRepository->updateProcessingStatus(
+                $this->taskMessageDomainService->updateProcessingStatus(
                     id: $messageEntity->getId(),
                     processingStatus: TaskMessageEntity::PROCESSING_STATUS_COMPLETED
                 );
@@ -201,7 +201,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 // 处理失败，更新重试次数和错误信息
                 $newRetryCount = $messageEntity->getRetryCount() + 1;
 
-                $this->taskMessageRepository->updateProcessingStatus(
+                $this->taskMessageDomainService->updateProcessingStatus(
                     id: $messageEntity->getId(),
                     processingStatus: TaskMessageEntity::PROCESSING_STATUS_FAILED,
                     errorMessage: $e->getMessage(),
@@ -504,7 +504,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         $task = $taskContext->getTask();
 
         // 先查找是否已存在该消息（通过topic_id + message_id）
-        $existingMessage = $this->taskMessageRepository->findByTopicIdAndMessageId(
+        $existingMessage = $this->taskMessageDomainService->findByTopicIdAndMessageId(
             $task->getTopicId(),
             $messageData['messageId']
         );
@@ -531,7 +531,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 ->setEvent($messageData['event'])
                 ->setShowInUi($messageData['showInUi']);
 
-            $this->taskMessageRepository->updateExistingMessage($existingMessage);
+            $this->taskMessageDomainService->updateExistingMessage($existingMessage);
         } else {
             // 消息不存在，创建新实体并插入新记录
             $this->logger->info(sprintf(
