@@ -108,5 +108,4 @@ class OrganizationModel extends AbstractModel
     {
         $this->status = self::STATUS_DISABLED;
     }
-
 }

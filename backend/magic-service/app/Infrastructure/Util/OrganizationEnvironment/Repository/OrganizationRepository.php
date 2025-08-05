@@ -168,7 +168,6 @@ class OrganizationRepository implements OrganizationRepositoryInterface
         return $query->exists();
     }
 
-
     /**
      * 应用过滤条件.
      */

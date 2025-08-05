@@ -150,7 +150,6 @@ use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationsPlatformRe
 use App\Domain\OrganizationEnvironment\Repository\MagicEnvironmentsRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsEnvironmentRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsPlatformRepository;
-use App\Infrastructure\Util\OrganizationEnvironment\Repository\OrganizationRepository;
 use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
@@ -207,6 +206,7 @@ use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\Locker\RedisLocker;
+use App\Infrastructure\Util\OrganizationEnvironment\Repository\OrganizationRepository;
 use App\Infrastructure\Util\Permission\Repository\OrganizationAdminRepository;
 use App\Infrastructure\Util\Permission\Repository\RoleRepository;
 use App\Interfaces\MCP\Facade\HttpTransportHandler\ApiKeyProviderAuthenticator;
@@ -342,7 +342,7 @@ $dependencies = [
 
     EnvironmentRepositoryInterface::class => MagicEnvironmentsRepository::class,
     OrganizationsEnvironmentRepositoryInterface::class => OrganizationsEnvironmentRepository::class,
-    
+
     // 组织管理
     OrganizationRepositoryInterface::class => OrganizationRepository::class,
 

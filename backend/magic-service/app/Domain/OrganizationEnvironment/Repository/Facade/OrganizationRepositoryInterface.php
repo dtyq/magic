@@ -55,5 +55,4 @@ interface OrganizationRepositoryInterface
      * 检查名称是否已存在.
      */
     public function existsByName(string $name, ?int $excludeId = null): bool;
-
 }
