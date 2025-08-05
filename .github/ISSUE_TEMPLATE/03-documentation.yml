@@ -1,5 +1,5 @@
-name: 📚 Documentation
-description: Report documentation issues or suggest improvements
+name: 📚 Documentation / 文档
+description: Report documentation issues or suggest improvements / 反馈文档问题或建议修改
 title: "[Docs]: "
 labels: ["documentation", "needs-review"]
 assignees: []

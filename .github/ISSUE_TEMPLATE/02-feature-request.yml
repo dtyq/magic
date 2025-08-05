@@ -1,5 +1,5 @@
-name: ✨ Feature Request
-description: Suggest a new feature or enhancement for Magic
+name: ✨ Feature Request / 特性请求
+description: I want a new feature / 我想要新功能
 title: "[Feature]: "
 labels: ["enhancement", "needs-review"]
 assignees: []

@@ -1,5 +1,5 @@
-name: 🔒 Security Issue
-description: Report a security vulnerability (use private disclosure for critical issues)
+name: 🔒 Security Issue / 安全问题
+description: Report a security vulnerability (use private disclosure for critical issues) / 反馈安全问题（严重的安全问题请通过私信联系）
 title: "[Security]: "
 labels: ["security", "high-priority"]
 assignees: []
