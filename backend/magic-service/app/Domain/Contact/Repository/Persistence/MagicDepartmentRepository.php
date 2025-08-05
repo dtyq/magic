@@ -284,11 +284,15 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
     public function getAllOrganizationsRootDepartments(int $page = 1, int $pageSize = 20, string $organizationName = ''): array
     {
         $query = $this->model->newQuery()
-            ->where('department_id', '=', PlatformRootDepartmentId::Magic);
+            ->where('department_id', '=', PlatformRootDepartmentId::Magic)
+            ->where('parent_department_id', '-1');
 
         // Add organization name fuzzy search if provided
         if (! empty($organizationName)) {
-            $query->where('name', 'like', "%{$organizationName}%");
+            $query->where(function ($query) use ($organizationName) {
+                $query->orWhere('name', 'like', "%{$organizationName}%");
+                $query->orWhere('organization_code', '=', $organizationName);
+            });
         }
 
         // Get total count for pagination
