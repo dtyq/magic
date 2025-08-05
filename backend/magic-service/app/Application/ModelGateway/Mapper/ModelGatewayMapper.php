@@ -61,7 +61,7 @@ class ModelGatewayMapper extends ModelMapper
 
     public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
     {
-        $logger = $loggerFactory->get('ModelGatewayMapper', 'debug');
+        $logger = $loggerFactory->get('ModelGatewayMapper');
         $this->models['chat'] = [];
         $this->models['embedding'] = [];
         parent::__construct($config, $logger);
