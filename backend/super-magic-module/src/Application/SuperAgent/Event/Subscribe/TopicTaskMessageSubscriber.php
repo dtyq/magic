@@ -26,9 +26,9 @@ use Throwable;
  * 话题任务消息订阅者.
  */
 #[Consumer(
-    exchange: 'super_magic_topic_task_message_new',
-    routingKey: 'super_magic_topic_task_message_new',
-    queue: 'super_magic_topic_task_message_new',
+    exchange: 'super_magic_topic_task_message',
+    routingKey: 'super_magic_topic_task_message',
+    queue: 'super_magic_topic_task_message',
     nums: 1
 )]
 class TopicTaskMessageSubscriber extends ConsumerMessage
