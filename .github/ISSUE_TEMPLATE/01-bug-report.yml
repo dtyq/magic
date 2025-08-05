@@ -1,5 +1,5 @@
 name: 🐛 Bug Report / BUG反馈
-description: Report a bug or unexpected behavior in Magic / 反馈BUG或其他奇怪的行为
+description: I've encountered a BUG or unexpected behavior / 我遇到了BUG或奇怪的行为
 title: "[Bug]: "
 labels: ["bug", "needs-triage"]
 assignees: []
