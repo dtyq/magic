@@ -10,7 +10,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
@@ -57,7 +56,6 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
-        private readonly FileAppService $fileAppService,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
