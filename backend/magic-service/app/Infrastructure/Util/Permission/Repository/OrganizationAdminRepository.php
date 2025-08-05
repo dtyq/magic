@@ -7,20 +7,27 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Permission\Repository;
 
+use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
 use App\Domain\Permission\Entity\OrganizationAdminEntity;
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
 use App\Domain\Permission\Repository\Persistence\Model\OrganizationAdminModel;
 use App\Infrastructure\Core\ValueObject\Page;
 use DateTime;
 use Hyperf\Database\Model\Builder;
+use Hyperf\DbConnection\Db;
 
 use function Hyperf\Support\now;
 
 /**
  * 组织管理员仓库实现.
  */
-class OrganizationAdminRepository implements OrganizationAdminRepositoryInterface
+readonly class OrganizationAdminRepository implements OrganizationAdminRepositoryInterface
 {
+    public function __construct(
+        private MagicUserRepositoryInterface $userRepository
+    ) {
+    }
+
     /**
      * 保存组织管理员.
      */
@@ -29,6 +36,7 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
         $data = [
             'user_id' => $organizationAdminEntity->getUserId(),
             'organization_code' => $organizationCode,
+            'magic_id' => $organizationAdminEntity->getMagicId(),
             'grantor_user_id' => $organizationAdminEntity->getGrantorUserId(),
             'granted_at' => $organizationAdminEntity->getGrantedAt(),
             'status' => $organizationAdminEntity->getStatus(),
@@ -62,7 +70,7 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
             ->where('id', $id)
             ->first();
 
-        return $model ? $this->mapToEntity($model) : null;
+        return $model ? $this->mapArrayToEntity($model->toArray()) : null;
     }
 
     /**
@@ -74,7 +82,7 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
             ->where('user_id', $userId)
             ->first();
 
-        return $model ? $this->mapToEntity($model) : null;
+        return $model ? $this->mapArrayToEntity($model->toArray()) : null;
     }
 
     /**
@@ -98,11 +106,12 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
 
         // 分页
         $total = $query->count();
-        $models = $query->forPage($page->getPage(), $page->getPageNum())->get();
+        $query->forPage($page->getPage(), $page->getPageNum());
 
+        $models = Db::select($query->toSql(), $query->getBindings());
         $entities = [];
         foreach ($models as $model) {
-            $entities[] = $this->mapToEntity($model);
+            $entities[] = $this->mapArrayToEntity($model);
         }
 
         return [
@@ -143,6 +152,13 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
             // 如果已存在，更新状态和授权信息
             $existing->grant($grantorUserId);
             $existing->setRemarks($remarks);
+
+            // 确保 magic_id 是最新的
+            $user = $this->userRepository->getUserById($userId);
+            if ($user) {
+                $existing->setMagicId($user->getMagicId());
+            }
+
             return $this->save($organizationCode, $existing);
         }
 
@@ -150,6 +166,13 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
         $entity = new OrganizationAdminEntity();
         $entity->setUserId($userId);
         $entity->setOrganizationCode($organizationCode);
+
+        // 获取用户的 magic_id
+        $user = $this->userRepository->getUserById($userId);
+        if ($user) {
+            $entity->setMagicId($user->getMagicId());
+        }
+
         $entity->setGrantorUserId($grantorUserId);
         $entity->setGrantedAt(new DateTime());
         $entity->setStatus(OrganizationAdminModel::STATUS_ENABLED);
@@ -175,14 +198,12 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
      */
     public function getAllOrganizationAdmins(string $organizationCode): array
     {
-        $models = $this->organizationAdminQuery($organizationCode)
-            ->where('status', OrganizationAdminModel::STATUS_ENABLED)
-            ->get();
+        $query = $this->organizationAdminQuery($organizationCode);
+        $models = Db::select($query->toSql(), $query->getBindings());
 
         $entities = [];
-        foreach ($models as $model) {
-            /* @var OrganizationAdminModel $model */
-            $entities[] = $this->mapToEntity($model);
+        foreach ($models as $row) {
+            $entities[] = $this->mapArrayToEntity($row);
         }
 
         return $entities;
@@ -216,26 +237,32 @@ class OrganizationAdminRepository implements OrganizationAdminRepositoryInterfac
     }
 
     /**
-     * 映射模型到实体.
+     * 映射数组数据到实体.
+     * @param mixed $row
      */
-    private function mapToEntity(OrganizationAdminModel $model): OrganizationAdminEntity
+    private function mapArrayToEntity($row): OrganizationAdminEntity
     {
-        $entity = new OrganizationAdminEntity();
-        $entity->setId($model->id);
-        $entity->setUserId($model->user_id);
-        $entity->setOrganizationCode($model->organization_code);
-        $entity->setGrantorUserId($model->grantor_user_id);
-        $entity->setStatus($model->status);
-        $entity->setRemarks($model->remarks);
+        // 处理 DB::select 返回的 stdClass 对象或数组
+        $data = is_array($row) ? $row : (array) $row;
 
-        if ($model->granted_at) {
-            $entity->setGrantedAt(DateTime::createFromInterface($model->granted_at));
+        $entity = new OrganizationAdminEntity();
+        $entity->setId($data['id'] ?? null);
+        $entity->setUserId($data['user_id'] ?? '');
+        $entity->setOrganizationCode($data['organization_code'] ?? '');
+        $entity->setMagicId($data['magic_id'] ?? null);
+        $entity->setGrantorUserId($data['grantor_user_id'] ?? null);
+        $entity->setStatus($data['status'] ?? 1);
+        $entity->setRemarks($data['remarks'] ?? null);
+
+        // 处理日期字段
+        if (isset($data['granted_at']) && $data['granted_at']) {
+            $entity->setGrantedAt(new DateTime($data['granted_at']));
         }
-        if ($model->created_at) {
-            $entity->setCreatedAt(DateTime::createFromInterface($model->created_at));
+        if (isset($data['created_at']) && $data['created_at']) {
+            $entity->setCreatedAt(new DateTime($data['created_at']));
         }
-        if ($model->updated_at) {
-            $entity->setUpdatedAt(DateTime::createFromInterface($model->updated_at));
+        if (isset($data['updated_at']) && $data['updated_at']) {
+            $entity->setUpdatedAt(new DateTime($data['updated_at']));
         }
 
         return $entity;

@@ -32,6 +32,7 @@ class OrganizationAdminModel extends AbstractModel
     protected array $fillable = [
         'user_id',
         'organization_code',
+        'magic_id',
         'grantor_user_id',
         'granted_at',
         'status',

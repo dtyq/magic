@@ -23,6 +23,8 @@ class OrganizationAdminEntity extends AbstractEntity
 
     protected string $organizationCode;
 
+    protected ?string $magicId = null;
+
     protected ?string $grantorUserId = null;
 
     protected ?DateTime $grantedAt = null;
@@ -121,6 +123,16 @@ class OrganizationAdminEntity extends AbstractEntity
     public function setOrganizationCode(string $organizationCode): void
     {
         $this->organizationCode = $organizationCode;
+    }
+
+    public function getMagicId(): ?string
+    {
+        return $this->magicId;
+    }
+
+    public function setMagicId(?string $magicId): void
+    {
+        $this->magicId = $magicId;
     }
 
     public function getGrantorUserId(): ?string

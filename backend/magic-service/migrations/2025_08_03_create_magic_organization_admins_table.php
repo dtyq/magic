@@ -21,7 +21,7 @@ return new class extends Migration {
             $table->bigIncrements('id');
             $table->string('user_id', 64)->comment('用户ID，对应magic_contact_users.user_id');
             $table->string('organization_code', 64)->comment('组织编码');
-            $table->string('magic_id', 64)->comment('Magic ID');
+            $table->string('magic_id', 64)->nullable()->comment('Magic ID');
             $table->string('grantor_user_id', 64)->nullable()->comment('授权者用户ID');
             $table->timestamp('granted_at')->nullable()->comment('授权时间');
             $table->tinyInteger('status')->default(1)->comment('状态: 0=禁用, 1=启用');
