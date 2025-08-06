@@ -79,20 +79,6 @@ interface TaskMessageRepositoryInterface
     public function getNextSeqId(int $topicId, int $taskId): int;
 
     /**
-     * 查询超时的处理中消息.
-     * @param int $timeoutMinutes 超时分钟数
-     * @return TaskMessageEntity[]
-     */
-    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array;
-
-    /**
-     * 查询需要重试的失败消息.
-     * @param int $maxRetries 最大重试次数
-     * @return TaskMessageEntity[]
-     */
-    public function findRetriableFailedMessages(int $maxRetries = 3): array;
-
-    /**
      * 保存原始消息数据并生成seq_id.
      * @param array $rawData 原始消息数据
      * @param TaskMessageEntity $message 消息实体

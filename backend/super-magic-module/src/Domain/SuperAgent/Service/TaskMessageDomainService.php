@@ -30,11 +30,6 @@ class TaskMessageDomainService
         $this->messageRepository->updateProcessingStatus($id, $processingStatus, $errorMessage, $retryCount);
     }
 
-    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): void
-    {
-        $this->messageRepository->findTimeoutProcessingMessages($timeoutMinutes);
-    }
-
     public function findProcessableMessages(int $topicId, int $taskId, string $senderType = 'assistant', int $timeoutMinutes = 30, int $maxRetries = 3, int $limit = 50): array
     {
         return $this->messageRepository->findProcessableMessages($topicId, $taskId, $senderType, $timeoutMinutes, $maxRetries, $limit);

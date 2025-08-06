@@ -176,48 +176,15 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
     public function getNextSeqId(int $topicId, int $taskId): int
     {
-        // 使用原子操作获取下一个seq_id
-        $query = $this->model::query()
+        // 利用降序索引直接获取最大 seq_id，配合 ORDER BY seq_id DESC
+        $maxSeqId = $this->model::query()
             ->where('topic_id', $topicId)
             ->where('task_id', $taskId)
-            ->orderBy('seq_id', 'desc')
-            ->first();
-        if (! $query) {
-            return 1;
-        }
+            ->orderByDesc('seq_id')
+            ->value('seq_id');
 
-        $entity = new TaskMessageEntity($query->toArray());
-        return $entity->getSeqId() + 1;
-    }
-
-    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array
-    {
-        $timeoutTime = Carbon::now()->subMinutes($timeoutMinutes);
-
-        $query = $this->model::query()
-            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_PROCESSING)
-            ->where('updated_at', '<', $timeoutTime)
-            ->orderBy('seq_id', 'asc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
-    }
-
-    public function findRetriableFailedMessages(int $maxRetries = 3): array
-    {
-        $query = $this->model::query()
-            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_FAILED)
-            ->where('retry_count', '<', $maxRetries)
-            ->orderBy('seq_id', 'asc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
+        // 如果没有记录，返回1；否则返回最大值+1
+        return ($maxSeqId ?? 0) + 1;
     }
 
     public function saveWithRawData(array $rawData, TaskMessageEntity $message): void
