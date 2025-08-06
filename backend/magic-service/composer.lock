@@ -2589,12 +2589,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "e38d6e4e27b3fb6a4f0a0df9c73b1c2c84b39235"
+                "reference": "6e69cb76a31f82be309ef9cde1265840496c0d52"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=e38d6e4e27b3fb6a4f0a0df9c73b1c2c84b39235",
-                "reference": "e38d6e4e27b3fb6a4f0a0df9c73b1c2c84b39235",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=6e69cb76a31f82be309ef9cde1265840496c0d52",
+                "reference": "6e69cb76a31f82be309ef9cde1265840496c0d52",
                 "shasum": ""
             },
             "require": {
@@ -2688,7 +2688,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-06T16:31:45+08:00"
+            "time": "2025-08-06T17:09:28+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -8166,16 +8166,16 @@
         },
         {
             "name": "kk-erp-service/service-sdk",
-            "version": "3.0.3",
+            "version": "3.0.4",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:erp-service/service-sdk.git",
-                "reference": "cf1369b0e9651f1461fc739b4b082b085d3f12c9"
+                "reference": "7cb222e932ed2a8fd3bb3690d863a0d5edefa77a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/erp-service%2Fservice-sdk/repository/archive.zip?sha=cf1369b0e9651f1461fc739b4b082b085d3f12c9",
-                "reference": "cf1369b0e9651f1461fc739b4b082b085d3f12c9",
+                "url": "https://git.kkgroup.cn/api/v4/projects/erp-service%2Fservice-sdk/repository/archive.zip?sha=7cb222e932ed2a8fd3bb3690d863a0d5edefa77a",
+                "reference": "7cb222e932ed2a8fd3bb3690d863a0d5edefa77a",
                 "shasum": ""
             },
             "require": {
@@ -8214,10 +8214,10 @@
             ],
             "description": "service sdk",
             "support": {
-                "source": "https://git.kkgroup.cn/erp-service/service-sdk/-/tree/3.0.3",
+                "source": "https://git.kkgroup.cn/erp-service/service-sdk/-/tree/3.0.4",
                 "issues": "https://git.kkgroup.cn/erp-service/service-sdk/-/issues"
             },
-            "time": "2025-06-13T16:54:10+08:00"
+            "time": "2025-08-06T17:07:57+08:00"
         },
         {
             "name": "kkguan-service/keewood-service-open-sdk",
