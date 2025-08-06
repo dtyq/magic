@@ -137,6 +137,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         ));
 
         $processedCount = 0;
+        $isTermination = false;
 
         // 2. 按顺序逐条处理消息
         foreach ($processableMessages as $messageEntity) {
@@ -190,6 +191,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                     $messageEntity->getSeqId()
                 ));
             } catch (EventException $e) {
+                $isTermination = true;
                 $this->logger->error(sprintf(
                     '处理消息失败 message_id: %s, seq_id: %d, error: %s',
                     $messageEntity->getMessageId(),
@@ -222,6 +224,14 @@ class HandleAgentMessageAppService extends AbstractAppService
             $topicId,
             $processedCount
         ));
+
+        if ($isTermination && ! empty($taskId)) {
+            TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskId);
+            $this->logger->info(sprintf(
+                '任务 %s 已终止，停止批量处理消息',
+                $taskId
+            ));
+        }
 
         return $processedCount;
     }
@@ -261,6 +271,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 chatConversationId: $taskContext->getChatConversationId(),
                 interruptReason: $msg
             );
+            TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
         }
     }
 
@@ -806,7 +817,6 @@ class HandleAgentMessageAppService extends AbstractAppService
         ?TopicEntity $topicEntity
     ): void {
         // 收到异常，设置中断信息
-        TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
         $this->logger->error(sprintf('Exception occurred while processing message event callback: %s', $e->getMessage()));
 
         if ($taskContext && $topicEntity) {
