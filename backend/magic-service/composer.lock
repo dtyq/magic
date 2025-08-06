@@ -2570,16 +2570,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.69",
+            "version": "v0.0.70",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "6cfa93446fa63804f0b63880ef409d2fdf7b2cbf"
+                "reference": "e6289d53167d4948afee5978186dee5d643cf634"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=6cfa93446fa63804f0b63880ef409d2fdf7b2cbf",
-                "reference": "6cfa93446fa63804f0b63880ef409d2fdf7b2cbf",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=e6289d53167d4948afee5978186dee5d643cf634",
+                "reference": "e6289d53167d4948afee5978186dee5d643cf634",
                 "shasum": ""
             },
             "require": {
@@ -2671,9 +2671,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.69"
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.70"
             },
-            "time": "2025-08-05T13:22:57+08:00"
+            "time": "2025-08-06T22:49:34+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -14553,16 +14553,16 @@
         },
         {
             "name": "w7corp/easywechat",
-            "version": "6.17.5",
+            "version": "6.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/w7corp/easywechat.git",
-                "reference": "ea6460149b20a0a31d614d18c5c8cbe77414c4ca"
+                "reference": "de9a1e3ec2ea357dcf29fc53af5dd7ea2454a06e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/w7corp/easywechat/zipball/ea6460149b20a0a31d614d18c5c8cbe77414c4ca",
-                "reference": "ea6460149b20a0a31d614d18c5c8cbe77414c4ca",
+                "url": "https://api.github.com/repos/w7corp/easywechat/zipball/de9a1e3ec2ea357dcf29fc53af5dd7ea2454a06e",
+                "reference": "de9a1e3ec2ea357dcf29fc53af5dd7ea2454a06e",
                 "shasum": ""
             },
             "require": {
@@ -14623,7 +14623,7 @@
             ],
             "support": {
                 "issues": "https://github.com/w7corp/easywechat/issues",
-                "source": "https://github.com/w7corp/easywechat/tree/6.17.5"
+                "source": "https://github.com/w7corp/easywechat/tree/6.18.0"
             },
             "funding": [
                 {
@@ -14631,7 +14631,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-03-19T00:52:30+00:00"
+            "time": "2025-08-06T14:42:12+00:00"
         },
         {
             "name": "web-token/jwt-checker",
