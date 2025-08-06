@@ -102,10 +102,11 @@ interface TaskMessageRepositoryInterface
     /**
      * 根据seq_id和topic_id查询消息.
      * @param int $seqId 序列ID
+     * @param int $taskId 任务ID
      * @param int $topicId 话题ID
      * @return null|TaskMessageEntity 消息实体或null
      */
-    public function findBySeqIdAndTopicId(int $seqId, int $topicId): ?TaskMessageEntity;
+    public function findBySeqIdAndTopicId(int $seqId, int $taskId, int $topicId): ?TaskMessageEntity;
 
     /**
      * 根据topic_id和message_id查询消息.

@@ -73,13 +73,15 @@ class TaskMessageDomainService
         // 2. 检查消息是否重复（通过seq_id + topic_id）
         $existingMessage = $this->messageRepository->findBySeqIdAndTopicId(
             $seqId,
-            (int) $messageEntity->getTopicId()
+            (int) $messageEntity->getTaskId(),
+            (int) $messageEntity->getTopicId(),
         );
 
         if ($existingMessage) {
             $this->logger->info('消息已存在，跳过重复存储', [
                 'topic_id' => $messageEntity->getTopicId(),
                 'seq_id' => $seqId,
+                'task_id' => $messageEntity->getTaskId(),
                 'message_id' => $messageEntity->getMessageId(),
             ]);
             return $existingMessage;

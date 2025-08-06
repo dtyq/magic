@@ -66,6 +66,10 @@ readonly class MessageCompensationCrontab
      */
     public function execute(): void
     {
+        $enableCrontab = config('super-magic.message.enable_compensate', false);
+        if ($enableCrontab === false) {
+            return;
+        }
         $startTime = microtime(true);
         $globalLockOwner = IdGenerator::getUniqueId32();
 
