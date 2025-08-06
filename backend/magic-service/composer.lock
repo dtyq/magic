@@ -2192,16 +2192,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.81",
+            "version": "0.0.82",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "ebbc094dbb6a4f59e6a4fa7e16d238c6b8102651"
+                "reference": "57e5aab28a1500e2be8e66947045ab94f9deb7fd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=ebbc094dbb6a4f59e6a4fa7e16d238c6b8102651",
-                "reference": "ebbc094dbb6a4f59e6a4fa7e16d238c6b8102651",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=57e5aab28a1500e2be8e66947045ab94f9deb7fd",
+                "reference": "57e5aab28a1500e2be8e66947045ab94f9deb7fd",
                 "shasum": ""
             },
             "require": {
@@ -2302,9 +2302,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.81"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.82"
             },
-            "time": "2025-08-01T19:37:15+08:00"
+            "time": "2025-08-06T17:10:17+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -8151,16 +8151,16 @@
         },
         {
             "name": "kk-erp-service/service-sdk",
-            "version": "3.0.3",
+            "version": "3.0.4",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:erp-service/service-sdk.git",
-                "reference": "cf1369b0e9651f1461fc739b4b082b085d3f12c9"
+                "reference": "2d986e079744125e5e94cbc55bbf6dce9cb9f19b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/erp-service%2Fservice-sdk/repository/archive.zip?sha=cf1369b0e9651f1461fc739b4b082b085d3f12c9",
-                "reference": "cf1369b0e9651f1461fc739b4b082b085d3f12c9",
+                "url": "https://git.kkgroup.cn/api/v4/projects/erp-service%2Fservice-sdk/repository/archive.zip?sha=2d986e079744125e5e94cbc55bbf6dce9cb9f19b",
+                "reference": "2d986e079744125e5e94cbc55bbf6dce9cb9f19b",
                 "shasum": ""
             },
             "require": {
@@ -8199,10 +8199,10 @@
             ],
             "description": "service sdk",
             "support": {
-                "source": "https://git.kkgroup.cn/erp-service/service-sdk/-/tree/3.0.3",
+                "source": "https://git.kkgroup.cn/erp-service/service-sdk/-/tree/3.0.4",
                 "issues": "https://git.kkgroup.cn/erp-service/service-sdk/-/issues"
             },
-            "time": "2025-06-13T16:54:10+08:00"
+            "time": "2025-08-06T17:15:08+08:00"
         },
         {
             "name": "kkguan-service/keewood-service-open-sdk",
