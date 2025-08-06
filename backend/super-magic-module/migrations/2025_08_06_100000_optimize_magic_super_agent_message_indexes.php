@@ -7,6 +7,7 @@ declare(strict_types=1);
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
+use Hyperf\DbConnection\Db;
 
 return new class extends Migration {
     /**
@@ -19,7 +20,10 @@ return new class extends Migration {
 
             // 场景1: topic_id + task_id + seq_id (倒序)
             // 用于按序列ID倒序查询特定topic和task的消息
-            $table->index(['topic_id', 'task_id', 'seq_id'], 'idx_topic_task_seq_desc');
+            // 设置 seq_id 为降序索引，优化 ORDER BY seq_id DESC 查询
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_topic_task_seq_desc')) {
+                Db::statement('CREATE INDEX idx_topic_task_seq_desc ON magic_super_agent_message (topic_id, task_id, seq_id DESC)');
+            }
 
             // 场景2: topic_id + task_id + sender_type + processing_status
             // 用于查询特定topic和task下指定发送者类型和处理状态的消息
@@ -32,6 +36,9 @@ return new class extends Migration {
             // 场景4: processing_status + created_at
             // 用于按处理状态和创建时间查询，常用于队列处理和监控
             $table->index(['processing_status', 'created_at'], 'idx_status_created');
+
+            // 主要查询索引：topic_id + processing_status + sender_type + seq_id 升序
+            $table->index(['topic_id', 'processing_status', 'sender_type', 'seq_id'], 'idx_topic_status_sender_seq');
 
             // ============ 删除指定的旧索引 ============
 
@@ -76,20 +83,6 @@ return new class extends Migration {
     {
         Schema::table('magic_super_agent_message', function (Blueprint $table) {
             // 删除新增的索引
-            $table->dropIndex('idx_topic_task_seq_desc');
-            $table->dropIndex('idx_topic_task_sender_status');
-            $table->dropIndex('idx_topic_message');
-            $table->dropIndex('idx_status_created');
-
-            // 恢复被删除的所有索引
-            $table->index(['id'], 'idx_id');
-            $table->index(['message_id'], 'idx_message_id');
-            $table->index(['task_id', 'type'], 'idx_task_type');
-            $table->index(['sender_uid', 'created_at'], 'idx_sender_created');
-            $table->index(['receiver_uid', 'created_at'], 'idx_receiver_created');
-            $table->unique(['message_id'], 'magic_super_agent_message_message_id_unique');
-
-            // 注意：idx_topic_show_deleted 保留，无需恢复
         });
     }
 };

@@ -37,11 +37,6 @@ return new class extends Migration {
 
             // 添加处理完成时间
             $table->timestamp('processed_at')->nullable()->comment('处理完成时间')->after('retry_count');
-
-            // ============ 添加队列处理索引 ============
-
-            // 主要查询索引：topic_id + processing_status + sender_type + seq_id 升序
-            $table->index(['topic_id', 'processing_status', 'sender_type', 'seq_id'], 'idx_topic_status_sender_seq');
         });
     }
 
