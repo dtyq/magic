@@ -102,7 +102,7 @@ class TopicMessageProcessSubscriber extends ConsumerMessage
 
             try {
                 // 调用批量处理方法
-                $processedCount = $this->handleAgentMessageAppService->batchHandleAgentMessage($topicId, $taskId);
+                $processedCount = $this->handleAgentMessageAppService->batchHandleAgentMessage($topicId, 0);
 
                 $this->logger->info(sprintf(
                     'topic %d 批量处理完成，处理消息数量: %d',
