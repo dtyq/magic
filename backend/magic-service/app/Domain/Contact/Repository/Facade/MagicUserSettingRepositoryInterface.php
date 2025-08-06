@@ -18,6 +18,11 @@ interface MagicUserSettingRepositoryInterface
 
     public function get(DataIsolation $dataIsolation, string $key): ?MagicUserSettingEntity;
 
+    // 通过 magicId 维度存取
+    public function saveByMagicId(string $magicId, MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity;
+
+    public function getByMagicId(string $magicId, string $key): ?MagicUserSettingEntity;
+
     /**
      * @return array{total: int, list: array<MagicUserSettingEntity>}
      */

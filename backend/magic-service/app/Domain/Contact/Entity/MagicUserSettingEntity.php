@@ -13,6 +13,8 @@ class MagicUserSettingEntity extends AbstractEntity
 {
     private ?int $id = null;
 
+    private string $magicId = '';
+
     private string $organizationCode = '';
 
     private string $userId = '';
@@ -37,6 +39,16 @@ class MagicUserSettingEntity extends AbstractEntity
     public function setId(?int $id): void
     {
         $this->id = $id;
+    }
+
+    public function getMagicId(): string
+    {
+        return $this->magicId;
+    }
+
+    public function setMagicId(string $magicId): void
+    {
+        $this->magicId = $magicId;
     }
 
     public function getOrganizationCode(): string
@@ -134,6 +146,7 @@ class MagicUserSettingEntity extends AbstractEntity
     public function prepareForModification(MagicUserSettingEntity $existingEntity): void
     {
         $this->id = $existingEntity->getId();
+        $this->magicId = $existingEntity->getMagicId();
         $this->organizationCode = $existingEntity->getOrganizationCode();
         $this->createdAt = $existingEntity->getCreatedAt();
         $this->creator = $existingEntity->getCreator();

@@ -10,17 +10,31 @@ namespace App\Application\Contact\Service;
 use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\Query\MagicUserSettingQuery;
+use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
+use App\Domain\Contact\Repository\Facade\MagicUserSettingRepositoryInterface;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
 class MagicUserSettingAppService extends AbstractContactAppService
 {
     use DataIsolationTrait;
+
+    /**
+     * 保存/获取当前组织信息时使用的键.
+     */
+    private const CURRENT_ORGANIZATION_KEY = 'current_organization_data';
+
+    #[Inject]
+    protected MagicUserRepositoryInterface $magicUserRepository;
+
+    #[Inject]
+    protected MagicUserSettingRepositoryInterface $magicUserSettingRepository;
 
     public function __construct(
         private readonly MagicUserSettingDomainService $magicUserSettingDomainService
@@ -110,5 +124,30 @@ class MagicUserSettingAppService extends AbstractContactAppService
         $query->setUserId($dataIsolation->getCurrentUserId());
 
         return $this->magicUserSettingDomainService->queries($dataIsolation, $query, $page);
+    }
+
+    /**
+     * 保存当前组织信息（通过 magicId）.
+     * @param string $magicId 账号标识
+     * @param array<string, mixed> $organizationData 组织信息数据
+     */
+    public function saveCurrentOrganizationDataByMagicId(string $magicId, array $organizationData): MagicUserSettingEntity
+    {
+        $entity = new MagicUserSettingEntity();
+        $entity->setKey(self::CURRENT_ORGANIZATION_KEY);
+        $entity->setValue($organizationData);
+
+        return $this->magicUserSettingDomainService->saveByMagicId($magicId, $entity);
+    }
+
+    /**
+     * 获取当前组织信息（通过 magicId）.
+     * @param string $magicId 账号标识
+     * @return null|array<string, mixed>
+     */
+    public function getCurrentOrganizationDataByMagicId(string $magicId): ?array
+    {
+        $setting = $this->magicUserSettingDomainService->getByMagicId($magicId, self::CURRENT_ORGANIZATION_KEY);
+        return $setting?->getValue();
     }
 }

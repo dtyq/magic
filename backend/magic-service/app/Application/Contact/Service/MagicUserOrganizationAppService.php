@@ -11,7 +11,6 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Redis\MagicUserOrganizationRedisService;
 use Hyperf\Di\Annotation\Inject;
 
 /**
@@ -23,7 +22,7 @@ class MagicUserOrganizationAppService
     protected MagicUserDomainService $userDomainService;
 
     #[Inject]
-    protected MagicUserOrganizationRedisService $redisService;
+    protected MagicUserSettingAppService $userSettingAppService;
 
     #[Inject]
     protected MagicOrganizationEnvDomainService $organizationEnvDomainService;
@@ -33,7 +32,7 @@ class MagicUserOrganizationAppService
      */
     public function getCurrentOrganizationCode(string $magicId): ?array
     {
-        return $this->redisService->getCurrentOrganizationData($magicId);
+        return $this->userSettingAppService->getCurrentOrganizationDataByMagicId($magicId);
     }
 
     /**
@@ -53,7 +52,7 @@ class MagicUserOrganizationAppService
             ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_EXIST);
         }
 
-        // 3. redis 记录 magic_organization_code，origin_organization_code，environment_id，切换时间
+        // 3. 保存 magic_organization_code，origin_organization_code，environment_id，切换时间
         $organizationData = [
             'magic_organization_code' => $magicOrganizationCode,
             'third_organization_code' => $organizationEnvEntity->getOriginOrganizationCode(),
@@ -61,7 +60,7 @@ class MagicUserOrganizationAppService
             'switch_time' => time(),
         ];
 
-        $this->redisService->setCurrentOrganizationData($magicId, $organizationData);
+        $this->userSettingAppService->saveCurrentOrganizationDataByMagicId($magicId, $organizationData);
         return $organizationData;
     }
 }
