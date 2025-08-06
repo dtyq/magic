@@ -14,7 +14,7 @@ return new class extends Migration {
         if (! Schema::hasColumn('magic_user_settings', 'magic_id')) {
             Schema::table('magic_user_settings', function (Blueprint $table) {
                 $table->string('magic_id', 64)->nullable()->comment('账号 MagicId')->after('organization_code');
-                $table->index(['magic_id'], 'idx_magic_user_settings_magic_id');
+                $table->index(['magic_id', 'key'], 'idx_magic_user_settings_magic_id_key');
             });
         }
     }
