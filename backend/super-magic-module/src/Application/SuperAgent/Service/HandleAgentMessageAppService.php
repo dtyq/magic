@@ -196,7 +196,6 @@ class HandleAgentMessageAppService extends AbstractAppService
                     $messageEntity->getSeqId(),
                     $e->getMessage()
                 ));
-                break;
             } catch (Throwable $e) {
                 // 处理失败，更新重试次数和错误信息
                 $newRetryCount = $messageEntity->getRetryCount() + 1;
@@ -806,6 +805,8 @@ class HandleAgentMessageAppService extends AbstractAppService
         ?TaskContext $taskContext,
         ?TopicEntity $topicEntity
     ): void {
+        // 收到异常，设置中断信息
+        TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
         $this->logger->error(sprintf('Exception occurred while processing message event callback: %s', $e->getMessage()));
 
         if ($taskContext && $topicEntity) {

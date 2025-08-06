@@ -27,18 +27,26 @@ return new class extends Migration {
 
             // 场景2: topic_id + task_id + sender_type + processing_status
             // 用于查询特定topic和task下指定发送者类型和处理状态的消息
-            $table->index(['topic_id', 'task_id', 'sender_type', 'processing_status'], 'idx_topic_task_sender_status');
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_topic_task_sender_status')) {
+                $table->index(['topic_id', 'task_id', 'sender_type', 'processing_status'], 'idx_topic_task_sender_status');
+            }
 
             // 场景3: topic_id + message_id
             // 用于在特定topic下查找消息，虽然message_id有唯一索引，但加上topic_id可以提升查询效率
-            $table->index(['topic_id', 'message_id'], 'idx_topic_message');
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_topic_message')) {
+                $table->index(['topic_id', 'message_id'], 'idx_topic_message');
+            }
 
             // 场景4: processing_status + created_at
             // 用于按处理状态和创建时间查询，常用于队列处理和监控
-            $table->index(['processing_status', 'created_at'], 'idx_status_created');
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_status_created')) {
+                $table->index(['processing_status', 'created_at'], 'idx_status_created');
+            }
 
             // 主要查询索引：topic_id + processing_status + sender_type + seq_id 升序
-            $table->index(['topic_id', 'processing_status', 'sender_type', 'seq_id'], 'idx_topic_status_sender_seq');
+            if (! Schema::hasIndex('magic_super_agent_message', 'idx_topic_status_sender_seq')) {
+                $table->index(['topic_id', 'processing_status', 'sender_type', 'seq_id'], 'idx_topic_status_sender_seq');
+            }
 
             // ============ 删除指定的旧索引 ============
 
