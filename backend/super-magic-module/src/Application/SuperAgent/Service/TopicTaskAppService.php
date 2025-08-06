@@ -106,7 +106,6 @@ class TopicTaskAppService extends AbstractAppService
                 $dataIsolation = DataIsolation::simpleMake($topicEntity->getUserOrganizationCode(), $topicEntity->getUserId());
                 $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
                 $messageEntity = $messageDTO->toTaskMessageEntity($topicId, $aiUserEntity->getUserId(), $topicEntity->getUserId());
-                $messageEntity->setRawData(json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE));
 
                 // 3. 存储消息到数据库（调用领域层服务）
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
