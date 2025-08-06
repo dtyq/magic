@@ -28,6 +28,7 @@ class MessagePayload
      * @param null|array $projectArchive 项目归档数据
      * @param bool $showInUi 是否在UI中显示
      * @param string $remark 备注
+     * @param int $seqId 序列ID
      */
     public function __construct(
         private string $messageId = '',
@@ -43,6 +44,7 @@ class MessagePayload
         private ?array $projectArchive = null,
         private bool $showInUi = true,
         private string $remark = '',
+        private int $seqId = 0,
     ) {
     }
 
@@ -67,6 +69,7 @@ class MessagePayload
             $data['project_archive'] ?? null,
             $data['show_in_ui'] ?? true,
             $data['remark'] ?? '',
+            $data['seq_id'] ?? 0,
         );
     }
 
@@ -91,6 +94,7 @@ class MessagePayload
             'project_archive' => $this->projectArchive,
             'show_in_ui' => $this->showInUi,
             'remark' => $this->remark,
+            'seq_id' => $this->seqId,
         ];
     }
 
@@ -161,6 +165,11 @@ class MessagePayload
     public function getRemark(): string
     {
         return $this->remark;
+    }
+
+    public function getSeqId(): int
+    {
+        return $this->seqId;
     }
 
     // Withers for immutability
@@ -248,6 +257,20 @@ class MessagePayload
     {
         $clone = clone $this;
         $clone->showInUi = $showInUi;
+        return $clone;
+    }
+
+    public function withRemark(string $remark): self
+    {
+        $clone = clone $this;
+        $clone->remark = $remark;
+        return $clone;
+    }
+
+    public function withSeqId(int $seqId): self
+    {
+        $clone = clone $this;
+        $clone->seqId = $seqId;
         return $clone;
     }
 }

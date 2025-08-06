@@ -377,11 +377,11 @@ class AgentDomainService
      * 轮询工作区状态，直到初始化完成、失败或超时.
      *
      * @param string $sandboxId 沙箱ID
-     * @param int $timeoutSeconds 超时时间（秒），默认10分钟
-     * @param int $intervalSeconds 轮询间隔（秒），默认2秒
+     * @param int $timeoutSeconds 超时时间（秒），默认5分钟
+     * @param float $intervalSeconds 轮询间隔（秒），默认500ms
      * @throws SandboxOperationException 当初始化失败或超时时抛出异常
      */
-    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 600, int $intervalSeconds = 2): void
+    public function waitForWorkspaceReady(string $sandboxId, int $timeoutSeconds = 300, float $intervalSeconds = 0.5): void
     {
         $this->logger->info('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
@@ -426,7 +426,7 @@ class AgentDomainService
                 }
 
                 // 等待下一次轮询
-                sleep($intervalSeconds);
+                usleep((int) ($intervalSeconds * 1000000)); // 转换为微秒
             } catch (SandboxOperationException $e) {
                 // 重新抛出沙箱操作异常
                 throw $e;
