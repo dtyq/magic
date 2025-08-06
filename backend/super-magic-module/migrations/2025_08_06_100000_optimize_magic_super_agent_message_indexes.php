@@ -3,17 +3,12 @@
 declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
- *
- * 索引优化迁移：
- * 1. 新增4个针对特定查询场景的复合索引
- * 2. 删除6个冗余或不再使用的索引，仅保留 idx_topic_show_deleted
- * 3. ⚠️ 注意：此迁移会删除 message_id 的唯一约束
  */
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
 
-return new class () extends Migration {
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -37,7 +32,6 @@ return new class () extends Migration {
             // 场景4: processing_status + created_at
             // 用于按处理状态和创建时间查询，常用于队列处理和监控
             $table->index(['processing_status', 'created_at'], 'idx_status_created');
-    
 
             // ============ 删除指定的旧索引 ============
 
