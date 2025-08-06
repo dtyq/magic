@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInt
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Hyperf\DbConnection\Db;
 use InvalidArgumentException;
+use RuntimeException;
 
 class TaskMessageRepository implements TaskMessageRepositoryInterface
 {
@@ -268,11 +269,20 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
     public function updateExistingMessage(TaskMessageEntity $message): void
     {
+        // Use Eloquent model instance to leverage casts automatic conversion
+        $model = $this->model::query()->find($message->getId());
+
+        if (! $model) {
+            throw new RuntimeException('Task message not found for ID: ' . $message->getId());
+        }
+
         $entityArray = $message->toArray();
 
-        $this->model::query()
-            ->where('file_id', $message->getTaskId())
-            ->update($entityArray);
+        // Fill model attributes - casts will automatically handle array to JSON conversion
+        $model->fill($entityArray);
+
+        // Save using Eloquent - this will apply casts and handle timestamps automatically
+        $model->save();
     }
 
     public function findProcessableMessages(
