@@ -239,11 +239,12 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->create($messageArray);
     }
 
-    public function findBySeqIdAndTopicId(int $seqId, int $topicId): ?TaskMessageEntity
+    public function findBySeqIdAndTopicId(int $seqId, int $taskId, int $topicId): ?TaskMessageEntity
     {
         $query = $this->model::query()
             ->where('seq_id', $seqId)
             ->where('topic_id', $topicId)
+            ->where('task_id', $taskId)
             ->first();
 
         if (! $query) {
