@@ -645,7 +645,6 @@ class AliyunSimpleUpload extends SimpleUpload
 
             // Set expiration time (default 1 hour)
             $expires = $options['expires'] ?? 3600;
-            $expiresTime = time() + $expires;
 
             $this->sdkContainer->getLogger()->info('Aliyun OSS getPreSignedUrlByCredential request', [
                 'bucket' => $sdkConfig['bucket'],
@@ -655,33 +654,34 @@ class AliyunSimpleUpload extends SimpleUpload
             ]);
 
             // Prepare signed URL options
+            // For OSS signUrl, response override parameters are set directly in options array
             $signedUrlOptions = [];
 
             // Set response headers if specified
             if (isset($options['filename'])) {
                 $filename = $options['filename'];
-                $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-disposition']
+                $signedUrlOptions['response-content-disposition']
                     = 'attachment; filename="' . addslashes($filename) . '"';
             }
 
             if (isset($options['content_type'])) {
-                $signedUrlOptions[OssClient::OSS_SUB_RESOURCE]['response-content-type'] = $options['content_type'];
+                $signedUrlOptions['response-content-type'] = $options['content_type'];
             }
 
             // Set custom response headers if provided
             if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
                 foreach ($options['custom_headers'] as $headerName => $headerValue) {
-                    // For response headers, add 'response-' prefix if not already present
+                    // For response override parameters, ensure they have 'response-' prefix
                     if (strpos($headerName, 'response-') !== 0) {
                         $headerName = 'response-' . $headerName;
                     }
-                    $signedUrlOptions[OssClient::OSS_SUB_RESOURCE][$headerName] = $headerValue;
+                    $signedUrlOptions[$headerName] = (string) $headerValue;
                 }
             }
 
-            // Generate signed URL
+            // Generate signed URL - pass relative seconds, not absolute timestamp
             $method = $options['method'] ?? 'GET';
-            $signedUrl = $ossClient->signUrl($sdkConfig['bucket'], $objectKey, $expiresTime, $method, $signedUrlOptions);
+            $signedUrl = $ossClient->signUrl($sdkConfig['bucket'], $objectKey, $expires, $method, $signedUrlOptions);
 
             $this->sdkContainer->getLogger()->info('get_presigned_url_success', [
                 'bucket' => $sdkConfig['bucket'],
