@@ -25,6 +25,8 @@ class OrganizationAdminResponseDTO extends AbstractDTO
 
     public string $operationTime = '';
 
+    public bool $isOrganizationCreator = false;
+
     public function getUserId(): string
     {
         return $this->userId;
@@ -93,5 +95,15 @@ class OrganizationAdminResponseDTO extends AbstractDTO
     public function setOperationTime(string $operationTime): void
     {
         $this->operationTime = $operationTime;
+    }
+
+    public function isOrganizationCreator(): bool
+    {
+        return $this->isOrganizationCreator;
+    }
+
+    public function setIsOrganizationCreator(bool $isOrganizationCreator): void
+    {
+        $this->isOrganizationCreator = $isOrganizationCreator;
     }
 }

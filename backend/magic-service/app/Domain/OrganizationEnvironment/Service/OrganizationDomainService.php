@@ -7,11 +7,15 @@ declare(strict_types=1);
 
 namespace App\Domain\OrganizationEnvironment\Service;
 
+use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
+use App\Domain\Permission\Service\OrganizationAdminDomainService;
 use App\ErrorCode\PermissionErrorCode;
+use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use Throwable;
 
 /**
  * 组织领域服务.
@@ -19,7 +23,9 @@ use App\Infrastructure\Core\ValueObject\Page;
 readonly class OrganizationDomainService
 {
     public function __construct(
-        private OrganizationRepositoryInterface $organizationRepository
+        private OrganizationRepositoryInterface $organizationRepository,
+        private MagicUserDomainService $userDomainService,
+        private OrganizationAdminDomainService $organizationAdminDomainService
     ) {
     }
 
@@ -38,9 +44,36 @@ readonly class OrganizationDomainService
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NAME_EXISTS);
         }
 
+        // 检查创建者是否存在
+        $creatorId = $organizationEntity->getCreatorId();
+        if ($creatorId !== null) {
+            $creator = $this->userDomainService->getUserById((string) $creatorId);
+            if ($creator === null) {
+                ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
+            }
+        }
+
         $organizationEntity->prepareForCreation();
 
-        return $this->organizationRepository->save($organizationEntity);
+        $savedOrganization = $this->organizationRepository->save($organizationEntity);
+
+        // 为创建者添加组织管理员权限并标记为组织创建人
+        if ($creatorId !== null) {
+            try {
+                $this->organizationAdminDomainService->grant(
+                    $savedOrganization->getMagicOrganizationCode(),
+                    (string) $creatorId,
+                    (string) $creatorId, // 授予者也是创建者自己
+                    '组织创建者自动获得管理员权限',
+                    true // 标记为组织创建人
+                );
+            } catch (Throwable $e) {
+                // 如果授予管理员权限失败，记录日志但不影响组织创建
+                error_log("Failed to grant organization admin permission for creator {$creatorId}: " . $e->getMessage());
+            }
+        }
+
+        return $savedOrganization;
     }
 
     /**

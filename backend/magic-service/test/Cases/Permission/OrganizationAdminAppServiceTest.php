@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Permission;
 
 use App\Application\Permission\Service\OrganizationAdminAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Permission\Entity\OrganizationAdminEntity;
 use App\Infrastructure\Core\ValueObject\Page;
 use Exception;
@@ -50,7 +51,7 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
     {
         // 授予组织管理员权限
         $organizationAdmin = $this->organizationAdminAppService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId,
             $this->testGrantorUserId,
             'Test grant'
@@ -67,14 +68,14 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
     {
         // 先授予权限
         $this->organizationAdminAppService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId,
             $this->testGrantorUserId
         );
 
         // 根据用户ID获取组织管理员
         $organizationAdmin = $this->organizationAdminAppService->getByUserId(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId
         );
 
@@ -90,7 +91,7 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
             $uniqueUserId = 'test_user_' . uniqid() . "_{$i}";
             $testUserIds[] = $uniqueUserId;
             $this->organizationAdminAppService->grant(
-                $this->testOrganizationCode,
+                $this->createDataIsolation($this->testOrganizationCode),
                 $uniqueUserId,
                 $this->testGrantorUserId
             );
@@ -98,7 +99,7 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
 
         // 查询组织管理员列表
         $page = new Page(1, 10);
-        $result = $this->organizationAdminAppService->queries($this->testOrganizationCode, $page);
+        $result = $this->organizationAdminAppService->queries($this->createDataIsolation($this->testOrganizationCode), $page);
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('total', $result);
@@ -111,13 +112,13 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
     {
         // 先授予权限
         $organizationAdmin = $this->organizationAdminAppService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId,
             $this->testGrantorUserId
         );
 
         // 获取详情
-        $details = $this->organizationAdminAppService->show($this->testOrganizationCode, $organizationAdmin->getId());
+        $details = $this->organizationAdminAppService->show($this->createDataIsolation($this->testOrganizationCode), $organizationAdmin->getId());
 
         $this->assertIsArray($details);
         $this->assertArrayHasKey('organization_admin', $details);
@@ -134,7 +135,7 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
     {
         // 先授予权限
         $organizationAdmin = $this->organizationAdminAppService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId,
             $this->testGrantorUserId
         );
@@ -142,21 +143,21 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
         $organizationAdminId = $organizationAdmin->getId();
 
         // 禁用组织管理员
-        $this->organizationAdminAppService->disable($this->testOrganizationCode, $organizationAdminId);
+        $this->organizationAdminAppService->disable($this->createDataIsolation($this->testOrganizationCode), $organizationAdminId);
 
         // 验证已禁用
         $disabledOrganizationAdmin = $this->organizationAdminAppService->getByUserId(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId
         );
         $this->assertFalse($disabledOrganizationAdmin->isEnabled());
 
         // 启用组织管理员
-        $this->organizationAdminAppService->enable($this->testOrganizationCode, $organizationAdminId);
+        $this->organizationAdminAppService->enable($this->createDataIsolation($this->testOrganizationCode), $organizationAdminId);
 
         // 验证已启用
         $enabledOrganizationAdmin = $this->organizationAdminAppService->getByUserId(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId
         );
         $this->assertTrue($enabledOrganizationAdmin->isEnabled());
@@ -166,7 +167,7 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
     {
         // 先授予权限
         $organizationAdmin = $this->organizationAdminAppService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId,
             $this->testGrantorUserId
         );
@@ -174,14 +175,19 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
         $organizationAdminId = $organizationAdmin->getId();
 
         // 删除组织管理员
-        $this->organizationAdminAppService->destroy($this->testOrganizationCode, $organizationAdminId);
+        $this->organizationAdminAppService->destroy($this->createDataIsolation($this->testOrganizationCode), $organizationAdminId);
 
         // 验证已删除
         $deletedOrganizationAdmin = $this->organizationAdminAppService->getByUserId(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserId
         );
         $this->assertNull($deletedOrganizationAdmin);
+    }
+
+    private function createDataIsolation(string $organizationCode): DataIsolation
+    {
+        return DataIsolation::simpleMake($organizationCode);
     }
 
     private function cleanUpTestData(): void
@@ -190,11 +196,11 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
             // 清理主测试用户
             if (isset($this->testUserId)) {
                 $organizationAdmin = $this->organizationAdminAppService->getByUserId(
-                    $this->testOrganizationCode,
+                    $this->createDataIsolation($this->testOrganizationCode),
                     $this->testUserId
                 );
                 if ($organizationAdmin) {
-                    $this->organizationAdminAppService->destroy($this->testOrganizationCode, $organizationAdmin->getId());
+                    $this->organizationAdminAppService->destroy($this->createDataIsolation($this->testOrganizationCode), $organizationAdmin->getId());
                 }
             }
 
@@ -202,11 +208,11 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
             for ($i = 1; $i <= 5; ++$i) {
                 $testUserId = "test_user_{$i}";
                 $organizationAdmin = $this->organizationAdminAppService->getByUserId(
-                    $this->testOrganizationCode,
+                    $this->createDataIsolation($this->testOrganizationCode),
                     $testUserId
                 );
                 if ($organizationAdmin) {
-                    $this->organizationAdminAppService->destroy($this->testOrganizationCode, $organizationAdmin->getId());
+                    $this->organizationAdminAppService->destroy($this->createDataIsolation($this->testOrganizationCode), $organizationAdmin->getId());
                 }
             }
         } catch (Exception $e) {

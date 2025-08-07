@@ -26,7 +26,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $industry_type 组织行业类型
  * @property null|string $number 企业规模
  * @property int $status 状态 1:正常 2:禁用
- * @property null|int $creator_id 创建人
+ * @property null|string $creator_id 创建人
  * @property int $type
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 更新时间
@@ -86,7 +86,7 @@ class OrganizationModel extends AbstractModel
         'industry_type' => 'string',
         'number' => 'string',
         'status' => 'int',
-        'creator_id' => 'int',
+        'creator_id' => 'string',
         'type' => 'int',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
