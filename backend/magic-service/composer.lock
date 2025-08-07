@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.352.2",
+            "version": "3.352.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "695daa607b6770e426613453f04f4a82f1555887"
+                "reference": "89537fbca9f70ebb3b01c761e8cef933df09d046"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/695daa607b6770e426613453f04f4a82f1555887",
-                "reference": "695daa607b6770e426613453f04f4a82f1555887",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/89537fbca9f70ebb3b01c761e8cef933df09d046",
+                "reference": "89537fbca9f70ebb3b01c761e8cef933df09d046",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.2"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.3"
             },
-            "time": "2025-08-05T18:15:51+00:00"
+            "time": "2025-08-06T18:16:28+00:00"
         },
         {
             "name": "brick/math",
@@ -2589,12 +2589,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "877edd7ca2e2b1510fecd699b52ee36e4c344f5b"
+                "reference": "8e170e2f5d7576f972f64be106062b4ab995cc96"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=877edd7ca2e2b1510fecd699b52ee36e4c344f5b",
-                "reference": "877edd7ca2e2b1510fecd699b52ee36e4c344f5b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=8e170e2f5d7576f972f64be106062b4ab995cc96",
+                "reference": "8e170e2f5d7576f972f64be106062b4ab995cc96",
                 "shasum": ""
             },
             "require": {
@@ -2688,7 +2688,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-06T21:13:49+08:00"
+            "time": "2025-08-07T14:11:36+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6390,16 +6390,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.31",
+            "version": "v1.1.32",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "01ec593c007e30bb9e777670d5d3a380d486d253"
+                "reference": "c8502a5dc10d9ec4bc668a98987d0a3111fb7856"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=01ec593c007e30bb9e777670d5d3a380d486d253",
-                "reference": "01ec593c007e30bb9e777670d5d3a380d486d253",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=c8502a5dc10d9ec4bc668a98987d0a3111fb7856",
+                "reference": "c8502a5dc10d9ec4bc668a98987d0a3111fb7856",
                 "shasum": ""
             },
             "require": {
@@ -6470,9 +6470,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.31"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.32"
             },
-            "time": "2025-08-04T16:21:31+08:00"
+            "time": "2025-08-07T18:07:44+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -14568,16 +14568,16 @@
         },
         {
             "name": "w7corp/easywechat",
-            "version": "6.17.5",
+            "version": "6.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/w7corp/easywechat.git",
-                "reference": "ea6460149b20a0a31d614d18c5c8cbe77414c4ca"
+                "reference": "de9a1e3ec2ea357dcf29fc53af5dd7ea2454a06e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/w7corp/easywechat/zipball/ea6460149b20a0a31d614d18c5c8cbe77414c4ca",
-                "reference": "ea6460149b20a0a31d614d18c5c8cbe77414c4ca",
+                "url": "https://api.github.com/repos/w7corp/easywechat/zipball/de9a1e3ec2ea357dcf29fc53af5dd7ea2454a06e",
+                "reference": "de9a1e3ec2ea357dcf29fc53af5dd7ea2454a06e",
                 "shasum": ""
             },
             "require": {
@@ -14638,7 +14638,7 @@
             ],
             "support": {
                 "issues": "https://github.com/w7corp/easywechat/issues",
-                "source": "https://github.com/w7corp/easywechat/tree/6.17.5"
+                "source": "https://github.com/w7corp/easywechat/tree/6.18.0"
             },
             "funding": [
                 {
@@ -14646,7 +14646,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-03-19T00:52:30+00:00"
+            "time": "2025-08-06T14:42:12+00:00"
         },
         {
             "name": "web-token/jwt-checker",
@@ -17245,12 +17245,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "1e0e2464bb35bfcda29949fbdf1aea125669a7d2"
+                "reference": "90fce983a76dd90a53a5b8171a98421aa703d58d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1e0e2464bb35bfcda29949fbdf1aea125669a7d2",
-                "reference": "1e0e2464bb35bfcda29949fbdf1aea125669a7d2",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/90fce983a76dd90a53a5b8171a98421aa703d58d",
+                "reference": "90fce983a76dd90a53a5b8171a98421aa703d58d",
                 "shasum": ""
             },
             "conflict": {
@@ -17367,7 +17367,7 @@
                 "commerceteam/commerce": ">=0.9.6,<0.9.9",
                 "components/jquery": ">=1.0.3,<3.5",
                 "composer/composer": "<1.10.27|>=2,<2.2.24|>=2.3,<2.7.7",
-                "concrete5/concrete5": "<9.4.0.0-RC2-dev",
+                "concrete5/concrete5": "<9.4.3",
                 "concrete5/core": "<8.5.8|>=9,<9.1",
                 "contao-components/mediaelement": ">=2.14.2,<2.21.1",
                 "contao/comments-bundle": ">=2,<4.13.40|>=5.0.0.0-RC1-dev,<5.3.4",
@@ -17878,7 +17878,7 @@
                 "sfroemken/url_redirect": "<=1.2.1",
                 "sheng/yiicms": "<1.2.1",
                 "shopware/core": "<6.5.8.18-dev|>=6.6,<6.6.10.3-dev|>=6.7.0.0-RC1-dev,<6.7.0.0-RC2-dev",
-                "shopware/platform": "<6.5.8.18-dev|>=6.6,<6.6.10.3-dev|>=6.7.0.0-RC1-dev,<6.7.0.0-RC2-dev",
+                "shopware/platform": "<=6.6.10.4|>=6.7.0.0-RC1-dev,<6.7.0.0-RC2-dev",
                 "shopware/production": "<=6.3.5.2",
                 "shopware/shopware": "<=5.7.17",
                 "shopware/storefront": "<=6.4.8.1|>=6.5.8,<6.5.8.7-dev",
@@ -18199,7 +18199,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-05T16:06:15+00:00"
+            "time": "2025-08-06T18:07:51+00:00"
         },
         {
             "name": "sebastian/cli-parser",
