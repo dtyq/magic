@@ -11,6 +11,8 @@ use App\Infrastructure\Core\AbstractDTO;
 
 class OrganizationAdminResponseDTO extends AbstractDTO
 {
+    public string $id;
+
     public string $userId;
 
     public string $userName = '';
@@ -26,6 +28,16 @@ class OrganizationAdminResponseDTO extends AbstractDTO
     public string $operationTime = '';
 
     public bool $isOrganizationCreator = false;
+
+    public function getId(): string
+    {
+        return $this->id;
+    }
+
+    public function setId(string $id): void
+    {
+        $this->id = $id;
+    }
 
     public function getUserId(): string
     {

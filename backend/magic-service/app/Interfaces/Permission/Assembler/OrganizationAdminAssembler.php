@@ -61,6 +61,7 @@ class OrganizationAdminAssembler
         $departmentInfo = $data['department_info'] ?? [];
 
         $dto = new OrganizationAdminResponseDTO();
+        $dto->setId((string)$entity->getId());
         $dto->setUserId($entity->getUserId());
         $dto->setUserName($userInfo['nickname'] ?? '');
         $dto->setAvatar($userInfo['avatar_url'] ?? '');
