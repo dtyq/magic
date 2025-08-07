@@ -901,6 +901,8 @@ class HandleAgentMessageAppService extends AbstractAppService
                     (string) $taskContext->getTask()->getId(),
                     trans('task.agent_stopped')
                 );
+            } else {
+                TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
             }
         } catch (SandboxOperationException $e) {
             // ignore
