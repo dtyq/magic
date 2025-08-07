@@ -29,7 +29,7 @@ return new class extends Migration {
             $table->string('industry_type')->comment('组织行业类型');
             $table->string('number', 32)->nullable()->comment('企业规模');
             $table->tinyInteger('status')->default(1)->comment('状态 1:正常 2:禁用');
-            $table->unsignedBigInteger('creator_id')->nullable()->comment('创建人');
+            $table->string('creator_id', 64)->nullable()->comment('创建人');
             $table->tinyInteger('type')->default(0)->comment('组织类型 0:团队组织 1:个人组织');
             $table->timestamps();
             $table->softDeletes();

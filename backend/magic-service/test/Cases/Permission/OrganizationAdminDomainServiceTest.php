@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Permission;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Permission\Entity\OrganizationAdminEntity;
 use App\Domain\Permission\Service\OrganizationAdminDomainService;
 use Exception;
@@ -57,7 +58,7 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
         $this->cleanUpTestData();
 
         // 调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->testOrganizationCode);
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
 
         // 验证结果
         $this->assertIsArray($result);
@@ -68,14 +69,14 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         // 创建一个组织管理员
         $organizationAdmin = $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[0],
             $this->testGrantorUserId,
             'Test single admin'
         );
 
         // 调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->testOrganizationCode);
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
 
         // 验证结果
         $this->assertIsArray($result);
@@ -94,7 +95,7 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
         $admins = [];
         foreach ($this->testUserIds as $index => $userId) {
             $admins[] = $this->organizationAdminDomainService->grant(
-                $this->testOrganizationCode,
+                $this->createDataIsolation($this->testOrganizationCode),
                 $userId,
                 $this->testGrantorUserId,
                 "Test admin #{$index}"
@@ -102,7 +103,7 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
         }
 
         // 调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->testOrganizationCode);
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
 
         // 验证结果
         $this->assertIsArray($result);
@@ -127,7 +128,7 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         // 在测试组织中创建管理员
         $testOrgAdmin = $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[0],
             $this->testGrantorUserId,
             'Test org admin'
@@ -135,14 +136,14 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
 
         // 在另一个组织中创建管理员
         $anotherOrgAdmin = $this->organizationAdminDomainService->grant(
-            $this->anotherOrganizationCode,
+            $this->createDataIsolation($this->anotherOrganizationCode),
             $this->testUserIds[1],
             $this->testGrantorUserId,
             'Another org admin'
         );
 
         // 调用方法获取测试组织的管理员
-        $testOrgResult = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->testOrganizationCode);
+        $testOrgResult = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
 
         // 验证只返回测试组织的管理员
         $this->assertIsArray($testOrgResult);
@@ -151,7 +152,7 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
         $this->assertEquals($this->testOrganizationCode, $testOrgResult[0]->getOrganizationCode());
 
         // 调用方法获取另一个组织的管理员
-        $anotherOrgResult = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->anotherOrganizationCode);
+        $anotherOrgResult = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->anotherOrganizationCode));
 
         // 验证只返回另一个组织的管理员
         $this->assertIsArray($anotherOrgResult);
@@ -164,7 +165,7 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         // 创建启用的管理员
         $enabledAdmin = $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[0],
             $this->testGrantorUserId,
             'Enabled admin'
@@ -172,15 +173,15 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
 
         // 创建另一个管理员并禁用
         $disabledAdmin = $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[1],
             $this->testGrantorUserId,
             'Disabled admin'
         );
-        $this->organizationAdminDomainService->disable($this->testOrganizationCode, $disabledAdmin->getId());
+        $this->organizationAdminDomainService->disable($this->createDataIsolation($this->testOrganizationCode), $disabledAdmin->getId());
 
         // 调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->testOrganizationCode);
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
 
         // 验证结果包含启用和禁用的管理员
         $this->assertIsArray($result);
@@ -204,13 +205,13 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         // 创建一些管理员
         $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[0],
             $this->testGrantorUserId
         );
 
         // 使用空的组织代码调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins('');
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation(''));
 
         // 验证结果为空
         $this->assertIsArray($result);
@@ -221,13 +222,13 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         // 创建一些管理员
         $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[0],
             $this->testGrantorUserId
         );
 
         // 使用不存在的组织代码调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins('non_existent_org_code');
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation('non_existent_org_code'));
 
         // 验证结果为空
         $this->assertIsArray($result);
@@ -238,14 +239,14 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         // 创建一个组织管理员
         $organizationAdmin = $this->organizationAdminDomainService->grant(
-            $this->testOrganizationCode,
+            $this->createDataIsolation($this->testOrganizationCode),
             $this->testUserIds[0],
             $this->testGrantorUserId,
             'Test complete data'
         );
 
         // 调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->testOrganizationCode);
+        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
 
         // 验证返回的实体包含所有必要字段
         $this->assertCount(1, $result);
@@ -260,6 +261,90 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
         $this->assertNotNull($entity->getUpdatedAt());
         $this->assertIsInt($entity->getStatus());
         $this->assertEquals('Test complete data', $entity->getRemarks());
+        $this->assertIsBool($entity->isOrganizationCreator());
+    }
+
+    public function testGrantWithOrganizationCreatorFlagSetsIsOrganizationCreatorCorrectly(): void
+    {
+        // 创建一个普通管理员（非组织创建者）
+        $normalAdmin = $this->organizationAdminDomainService->grant(
+            $this->createDataIsolation($this->testOrganizationCode),
+            $this->testUserIds[0],
+            $this->testGrantorUserId,
+            'Normal admin',
+            false
+        );
+
+        $this->assertFalse($normalAdmin->isOrganizationCreator());
+
+        // 创建一个组织创建者
+        $creatorAdmin = $this->organizationAdminDomainService->grant(
+            $this->createDataIsolation($this->testOrganizationCode),
+            $this->testUserIds[1],
+            $this->testGrantorUserId,
+            'Organization creator',
+            true
+        );
+
+        $this->assertTrue($creatorAdmin->isOrganizationCreator());
+    }
+
+    public function testIsOrganizationCreatorMethodReturnsCorrectValue(): void
+    {
+        // 创建一个组织创建者
+        $creatorAdmin = $this->organizationAdminDomainService->grant(
+            $this->createDataIsolation($this->testOrganizationCode),
+            $this->testUserIds[0],
+            $this->testGrantorUserId,
+            'Organization creator',
+            true
+        );
+
+        // 通过服务方法检查是否为组织创建者
+        $this->assertTrue($this->organizationAdminDomainService->isOrganizationCreator(
+            $this->createDataIsolation($this->testOrganizationCode),
+            $this->testUserIds[0]
+        ));
+
+        // 检查不存在的用户
+        $this->assertFalse($this->organizationAdminDomainService->isOrganizationCreator(
+            $this->createDataIsolation($this->testOrganizationCode),
+            'non_existent_user'
+        ));
+    }
+
+    public function testGetOrganizationCreatorReturnsCorrectEntity(): void
+    {
+        // 创建多个管理员，其中一个是组织创建者
+        $normalAdmin = $this->organizationAdminDomainService->grant(
+            $this->createDataIsolation($this->testOrganizationCode),
+            $this->testUserIds[0],
+            $this->testGrantorUserId,
+            'Normal admin',
+            false
+        );
+
+        $creatorAdmin = $this->organizationAdminDomainService->grant(
+            $this->createDataIsolation($this->testOrganizationCode),
+            $this->testUserIds[1],
+            $this->testGrantorUserId,
+            'Organization creator',
+            true
+        );
+
+        // 获取组织创建者
+        $foundCreator = $this->organizationAdminDomainService->getOrganizationCreator(
+            $this->createDataIsolation($this->testOrganizationCode)
+        );
+
+        $this->assertNotNull($foundCreator);
+        $this->assertEquals($this->testUserIds[1], $foundCreator->getUserId());
+        $this->assertTrue($foundCreator->isOrganizationCreator());
+    }
+
+    private function createDataIsolation(string $organizationCode): DataIsolation
+    {
+        return DataIsolation::simpleMake($organizationCode);
     }
 
     private function cleanUpTestData(): void
@@ -279,16 +364,16 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
     {
         try {
             // 获取所有管理员并删除
-            $allAdmins = $this->organizationAdminDomainService->getAllOrganizationAdmins($organizationCode);
+            $allAdmins = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($organizationCode));
             foreach ($allAdmins as $admin) {
-                $this->organizationAdminDomainService->destroy($organizationCode, $admin);
+                $this->organizationAdminDomainService->destroy($this->createDataIsolation($organizationCode), $admin);
             }
 
             // 清理特定测试用户ID
             foreach ($this->testUserIds as $userId) {
-                $organizationAdmin = $this->organizationAdminDomainService->getByUserId($organizationCode, $userId);
+                $organizationAdmin = $this->organizationAdminDomainService->getByUserId($this->createDataIsolation($organizationCode), $userId);
                 if ($organizationAdmin) {
-                    $this->organizationAdminDomainService->destroy($organizationCode, $organizationAdmin);
+                    $this->organizationAdminDomainService->destroy($this->createDataIsolation($organizationCode), $organizationAdmin);
                 }
             }
         } catch (Exception $e) {

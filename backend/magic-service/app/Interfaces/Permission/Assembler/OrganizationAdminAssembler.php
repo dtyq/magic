@@ -26,6 +26,7 @@ class OrganizationAdminAssembler
         $dto->setGrantorUserName(''); // 需要从用户服务获取
         $dto->setGrantorUserAvatar(''); // 需要从用户服务获取
         $dto->setOperationTime($entity->getGrantedAt()?->format('Y-m-d H:i:s') ?? '');
+        $dto->setIsOrganizationCreator($entity->isOrganizationCreator());
 
         return $dto;
     }
@@ -67,6 +68,7 @@ class OrganizationAdminAssembler
         $dto->setGrantorUserName($grantorInfo['nickname'] ?? '');
         $dto->setGrantorUserAvatar($grantorInfo['avatar_url'] ?? '');
         $dto->setOperationTime($entity->getGrantedAt()?->format('Y-m-d H:i:s') ?? '');
+        $dto->setIsOrganizationCreator($entity->isOrganizationCreator());
 
         return $dto;
     }

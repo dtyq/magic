@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Permission\Repository;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
 use App\Domain\Permission\Entity\OrganizationAdminEntity;
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
@@ -31,15 +32,16 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 保存组织管理员.
      */
-    public function save(string $organizationCode, OrganizationAdminEntity $organizationAdminEntity): OrganizationAdminEntity
+    public function save(DataIsolation $dataIsolation, OrganizationAdminEntity $organizationAdminEntity): OrganizationAdminEntity
     {
         $data = [
             'user_id' => $organizationAdminEntity->getUserId(),
-            'organization_code' => $organizationCode,
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
             'magic_id' => $organizationAdminEntity->getMagicId(),
             'grantor_user_id' => $organizationAdminEntity->getGrantorUserId(),
             'granted_at' => $organizationAdminEntity->getGrantedAt(),
             'status' => $organizationAdminEntity->getStatus(),
+            'is_organization_creator' => $organizationAdminEntity->isOrganizationCreator() ? 1 : 0,
             'remarks' => $organizationAdminEntity->getRemarks(),
             'updated_at' => $organizationAdminEntity->getUpdatedAt() ?? now(),
         ];
@@ -49,7 +51,7 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
             $model = OrganizationAdminModel::create($data);
             $organizationAdminEntity->setId($model->id);
         } else {
-            $model = $this->organizationAdminQuery($organizationCode)
+            $model = $this->organizationAdminQuery($dataIsolation)
                 ->where('id', $organizationAdminEntity->getId())
                 ->first();
             if ($model) {
@@ -64,9 +66,9 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 根据ID获取组织管理员.
      */
-    public function getById(string $organizationCode, int $id): ?OrganizationAdminEntity
+    public function getById(DataIsolation $dataIsolation, int $id): ?OrganizationAdminEntity
     {
-        $model = $this->organizationAdminQuery($organizationCode)
+        $model = $this->organizationAdminQuery($dataIsolation)
             ->where('id', $id)
             ->first();
 
@@ -76,9 +78,9 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 根据用户ID获取组织管理员.
      */
-    public function getByUserId(string $organizationCode, string $userId): ?OrganizationAdminEntity
+    public function getByUserId(DataIsolation $dataIsolation, string $userId): ?OrganizationAdminEntity
     {
-        $model = $this->organizationAdminQuery($organizationCode)
+        $model = $this->organizationAdminQuery($dataIsolation)
             ->where('user_id', $userId)
             ->first();
 
@@ -88,21 +90,17 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 查询组织管理员列表.
      */
-    public function queries(string $organizationCode, Page $page, ?array $filters = null): array
+    public function queries(DataIsolation $dataIsolation, Page $page, ?array $filters = null): array
     {
-        $query = $this->organizationAdminQuery($organizationCode);
-
-        // 应用过滤器
-        if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
-        }
+        $query = $this->organizationAdminQuery($dataIsolation);
 
         if (! empty($filters['user_id'])) {
             $query->where('user_id', $filters['user_id']);
         }
 
-        // 排序
-        $query->orderBy('granted_at', 'desc');
+        // 排序：先按是否为组织创建者排序，再按授权时间排序，都是降序
+        $query->orderBy('is_organization_creator', 'desc')
+            ->orderBy('granted_at', 'desc');
 
         // 分页
         $total = $query->count();
@@ -123,9 +121,9 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 删除组织管理员.
      */
-    public function delete(string $organizationCode, OrganizationAdminEntity $organizationAdminEntity): void
+    public function delete(DataIsolation $dataIsolation, OrganizationAdminEntity $organizationAdminEntity): void
     {
-        $this->organizationAdminQuery($organizationCode)
+        $this->organizationAdminQuery($dataIsolation)
             ->where('id', $organizationAdminEntity->getId())
             ->delete();
     }
@@ -133,9 +131,9 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 检查用户是否为组织管理员.
      */
-    public function isOrganizationAdmin(string $organizationCode, string $userId): bool
+    public function isOrganizationAdmin(DataIsolation $dataIsolation, string $userId): bool
     {
-        return $this->organizationAdminQuery($organizationCode)
+        return $this->organizationAdminQuery($dataIsolation)
             ->where('user_id', $userId)
             ->where('status', OrganizationAdminModel::STATUS_ENABLED)
             ->exists();
@@ -144,14 +142,15 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 授予用户组织管理员权限.
      */
-    public function grant(string $organizationCode, string $userId, string $grantorUserId, ?string $remarks = null): OrganizationAdminEntity
+    public function grant(DataIsolation $dataIsolation, string $userId, string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity
     {
         // 检查是否已存在
-        $existing = $this->getByUserId($organizationCode, $userId);
+        $existing = $this->getByUserId($dataIsolation, $userId);
         if ($existing) {
             // 如果已存在，更新状态和授权信息
             $existing->grant($grantorUserId);
             $existing->setRemarks($remarks);
+            $existing->setIsOrganizationCreator($isOrganizationCreator);
 
             // 确保 magic_id 是最新的
             $user = $this->userRepository->getUserById($userId);
@@ -159,13 +158,13 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
                 $existing->setMagicId($user->getMagicId());
             }
 
-            return $this->save($organizationCode, $existing);
+            return $this->save($dataIsolation, $existing);
         }
 
         // 创建新的组织管理员
         $entity = new OrganizationAdminEntity();
         $entity->setUserId($userId);
-        $entity->setOrganizationCode($organizationCode);
+        $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
 
         // 获取用户的 magic_id
         $user = $this->userRepository->getUserById($userId);
@@ -176,29 +175,43 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
         $entity->setGrantorUserId($grantorUserId);
         $entity->setGrantedAt(new DateTime());
         $entity->setStatus(OrganizationAdminModel::STATUS_ENABLED);
+        $entity->setIsOrganizationCreator($isOrganizationCreator);
         $entity->setRemarks($remarks);
 
-        return $this->save($organizationCode, $entity);
+        return $this->save($dataIsolation, $entity);
     }
 
     /**
      * 撤销用户组织管理员权限.
      */
-    public function revoke(string $organizationCode, string $userId): void
+    public function revoke(DataIsolation $dataIsolation, string $userId): void
     {
-        $entity = $this->getByUserId($organizationCode, $userId);
+        $entity = $this->getByUserId($dataIsolation, $userId);
         if ($entity) {
             $entity->revoke();
-            $this->save($organizationCode, $entity);
+            $this->save($dataIsolation, $entity);
         }
+    }
+
+    /**
+     * 获取组织创建人.
+     */
+    public function getOrganizationCreator(DataIsolation $dataIsolation): ?OrganizationAdminEntity
+    {
+        $model = $this->organizationAdminQuery($dataIsolation)
+            ->where('is_organization_creator', 1)
+            ->where('status', OrganizationAdminModel::STATUS_ENABLED)
+            ->first();
+
+        return $model ? $this->mapArrayToEntity($model->toArray()) : null;
     }
 
     /**
      * 获取组织下所有组织管理员.
      */
-    public function getAllOrganizationAdmins(string $organizationCode): array
+    public function getAllOrganizationAdmins(DataIsolation $dataIsolation): array
     {
-        $query = $this->organizationAdminQuery($organizationCode);
+        $query = $this->organizationAdminQuery($dataIsolation);
         $models = Db::select($query->toSql(), $query->getBindings());
 
         $entities = [];
@@ -212,9 +225,9 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 批量检查用户是否为组织管理员.
      */
-    public function batchCheckOrganizationAdmin(string $organizationCode, array $userIds): array
+    public function batchCheckOrganizationAdmin(DataIsolation $dataIsolation, array $userIds): array
     {
-        $organizationAdminUserIds = $this->organizationAdminQuery($organizationCode)
+        $organizationAdminUserIds = $this->organizationAdminQuery($dataIsolation)
             ->whereIn('user_id', $userIds)
             ->where('status', OrganizationAdminModel::STATUS_ENABLED)
             ->pluck('user_id')
@@ -229,11 +242,11 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     }
 
     /**
-     * 基于组织编码获取 OrganizationAdminModel 查询构造器.
+     * 基于数据隔离获取 OrganizationAdminModel 查询构造器.
      */
-    private function organizationAdminQuery(string $organizationCode): Builder
+    private function organizationAdminQuery(DataIsolation $dataIsolation): Builder
     {
-        return OrganizationAdminModel::query()->where('organization_code', $organizationCode);
+        return OrganizationAdminModel::query()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
     }
 
     /**
@@ -252,6 +265,7 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
         $entity->setMagicId($data['magic_id'] ?? null);
         $entity->setGrantorUserId($data['grantor_user_id'] ?? null);
         $entity->setStatus($data['status'] ?? 1);
+        $entity->setIsOrganizationCreator((bool) ($data['is_organization_creator'] ?? false));
         $entity->setRemarks($data['remarks'] ?? null);
 
         // 处理日期字段

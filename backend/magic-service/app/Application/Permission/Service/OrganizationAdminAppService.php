@@ -31,16 +31,16 @@ class OrganizationAdminAppService extends AbstractKernelAppService
      * 查询组织管理员列表.
      * @return array{total: int, list: array}
      */
-    public function queries(string $organizationCode, Page $page, ?array $filters = null): array
+    public function queries(DataIsolation $dataIsolation, Page $page, ?array $filters = null): array
     {
-        $result = $this->organizationAdminDomainService->queries($organizationCode, $page, $filters);
+        $result = $this->organizationAdminDomainService->queries($dataIsolation, $page, $filters);
 
         // 获取用户信息
         $organizationAdmins = $result['list'];
         $enrichedList = [];
 
         foreach ($organizationAdmins as $organizationAdmin) {
-            $enrichedData = $this->enrichOrganizationAdminWithUserInfo($organizationCode, $organizationAdmin);
+            $enrichedData = $this->enrichOrganizationAdminWithUserInfo($dataIsolation, $organizationAdmin);
             $enrichedList[] = $enrichedData;
         }
 
@@ -53,57 +53,70 @@ class OrganizationAdminAppService extends AbstractKernelAppService
     /**
      * 获取组织管理员详情.
      */
-    public function show(string $organizationCode, int $id): array
+    public function show(DataIsolation $dataIsolation, int $id): array
     {
-        $organizationAdmin = $this->organizationAdminDomainService->show($organizationCode, $id);
-        return $this->enrichOrganizationAdminWithUserInfo($organizationCode, $organizationAdmin);
+        $organizationAdmin = $this->organizationAdminDomainService->show($dataIsolation, $id);
+        return $this->enrichOrganizationAdminWithUserInfo($dataIsolation, $organizationAdmin);
     }
 
     /**
      * 根据用户ID获取组织管理员.
      */
-    public function getByUserId(string $organizationCode, string $userId): ?OrganizationAdminEntity
+    public function getByUserId(DataIsolation $dataIsolation, string $userId): ?OrganizationAdminEntity
     {
-        return $this->organizationAdminDomainService->getByUserId($organizationCode, $userId);
+        return $this->organizationAdminDomainService->getByUserId($dataIsolation, $userId);
     }
 
     /**
      * 授予用户组织管理员权限.
      */
-    public function grant(string $organizationCode, string $userId, string $grantorUserId, ?string $remarks = null): OrganizationAdminEntity
+    public function grant(DataIsolation $dataIsolation, string $userId, string $grantorUserId, ?string $remarks = null): OrganizationAdminEntity
     {
-        return $this->organizationAdminDomainService->grant($organizationCode, $userId, $grantorUserId, $remarks);
+        return $this->organizationAdminDomainService->grant($dataIsolation, $userId, $grantorUserId, $remarks);
     }
 
     /**
      * 删除组织管理员.
      */
-    public function destroy(string $organizationCode, int $id): void
+    public function destroy(DataIsolation $dataIsolation, int $id): void
     {
-        $organizationAdmin = $this->organizationAdminDomainService->show($organizationCode, $id);
-        $this->organizationAdminDomainService->destroy($organizationCode, $organizationAdmin);
+        $organizationAdmin = $this->organizationAdminDomainService->show($dataIsolation, $id);
+        $this->organizationAdminDomainService->destroy($dataIsolation, $organizationAdmin);
     }
 
     /**
      * 启用组织管理员.
      */
-    public function enable(string $organizationCode, int $id): void
+    public function enable(DataIsolation $dataIsolation, int $id): void
     {
-        $this->organizationAdminDomainService->enable($organizationCode, $id);
+        $this->organizationAdminDomainService->enable($dataIsolation, $id);
     }
 
     /**
      * 禁用组织管理员.
      */
-    public function disable(string $organizationCode, int $id): void
+    public function disable(DataIsolation $dataIsolation, int $id): void
     {
-        $this->organizationAdminDomainService->disable($organizationCode, $id);
+        $this->organizationAdminDomainService->disable($dataIsolation, $id);
+    }
+
+    /**
+     * 转让组织创建人身份.
+     */
+    public function transferOwnership(DataIsolation $dataIsolation, string $newOwnerUserId, string $currentOwnerUserId): void
+    {
+        $this->organizationAdminDomainService->transferOrganizationCreator(
+            $dataIsolation,
+            $currentOwnerUserId,
+            $newOwnerUserId,
+            $currentOwnerUserId // 操作者就是当前创建者
+        );
     }
 
     /**
      * 丰富组织管理员实体的用户信息.
      */
-    private function enrichOrganizationAdminWithUserInfo(string $organizationCode, OrganizationAdminEntity $organizationAdmin): array
+    private function enrichOrganizationAdminWithUserInfo(DataIsolation $dataIsolation, OrganizationAdminEntity $organizationAdmin): array
     {
         // 获取用户基本信息
         $userInfo = $this->getUserInfo($organizationAdmin->getUserId());
@@ -115,7 +128,7 @@ class OrganizationAdminAppService extends AbstractKernelAppService
         }
 
         // 获取部门信息
-        $departmentInfo = $this->getDepartmentInfo($organizationCode, $organizationAdmin->getUserId());
+        $departmentInfo = $this->getDepartmentInfo($dataIsolation, $organizationAdmin->getUserId());
 
         return [
             'organization_admin' => $organizationAdmin,
@@ -145,10 +158,9 @@ class OrganizationAdminAppService extends AbstractKernelAppService
     /**
      * 获取用户部门信息.
      */
-    private function getDepartmentInfo(string $organizationCode, string $userId): array
+    private function getDepartmentInfo(DataIsolation $dataIsolation, string $userId): array
     {
         try {
-            $dataIsolation = new DataIsolation(['organization_code' => $organizationCode]);
             $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds(
                 [$userId],
                 $dataIsolation

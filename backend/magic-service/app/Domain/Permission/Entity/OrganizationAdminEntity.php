@@ -31,6 +31,8 @@ class OrganizationAdminEntity extends AbstractEntity
 
     protected int $status = 1; // 状态: 0=禁用, 1=启用
 
+    protected bool $isOrganizationCreator = false; // 是否为组织创建人
+
     protected ?string $remarks = null;
 
     protected ?DateTime $createdAt = null;
@@ -193,6 +195,26 @@ class OrganizationAdminEntity extends AbstractEntity
     public function setUpdatedAt(?DateTime $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function isOrganizationCreator(): bool
+    {
+        return $this->isOrganizationCreator;
+    }
+
+    public function setIsOrganizationCreator(bool $isOrganizationCreator): void
+    {
+        $this->isOrganizationCreator = $isOrganizationCreator;
+    }
+
+    public function markAsOrganizationCreator(): void
+    {
+        $this->isOrganizationCreator = true;
+    }
+
+    public function unmarkAsOrganizationCreator(): void
+    {
+        $this->isOrganizationCreator = false;
     }
 
     protected function validate(): void

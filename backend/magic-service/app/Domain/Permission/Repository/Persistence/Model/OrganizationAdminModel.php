@@ -36,6 +36,7 @@ class OrganizationAdminModel extends AbstractModel
         'grantor_user_id',
         'granted_at',
         'status',
+        'is_organization_creator',
         'remarks',
     ];
 
@@ -45,6 +46,7 @@ class OrganizationAdminModel extends AbstractModel
     protected array $casts = [
         'id' => 'integer',
         'status' => 'integer',
+        'is_organization_creator' => 'boolean',
         'granted_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

@@ -39,7 +39,7 @@ class OrganizationEntity extends AbstractEntity
 
     protected int $status = 1; // 状态: 1=正常, 2=禁用
 
-    protected ?int $creatorId = null;
+    protected ?string $creatorId = null;
 
     protected int $type = 0; // 组织类型 0:团队组织 1:个人组织
 
@@ -201,12 +201,12 @@ class OrganizationEntity extends AbstractEntity
         $this->status = $status;
     }
 
-    public function getCreatorId(): ?int
+    public function getCreatorId(): ?string
     {
         return $this->creatorId;
     }
 
-    public function setCreatorId(?int $creatorId): void
+    public function setCreatorId(?string $creatorId): void
     {
         $this->creatorId = $creatorId;
     }
