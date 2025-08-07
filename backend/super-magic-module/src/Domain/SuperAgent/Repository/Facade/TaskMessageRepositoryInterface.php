@@ -103,8 +103,8 @@ interface TaskMessageRepositoryInterface
     public function findByTopicIdAndMessageId(int $topicId, string $messageId): ?TaskMessageEntity;
 
     /**
-     * 更新现有消息，保留队列处理相关字段.
-     * @param TaskMessageEntity $message 已更新字段的消息实体
+     * 更新现有消息的业务字段.
+     * @param TaskMessageEntity $message 消息实体
      */
     public function updateExistingMessage(TaskMessageEntity $message): void;
 
