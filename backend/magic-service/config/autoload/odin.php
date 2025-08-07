@@ -232,6 +232,7 @@ return [
                 // 注意：messages 和 tools 字段不在白名单中，不会被打印
                 'whitelist_fields' => [
                     // 基本请求信息
+                    'request_id',                  // 请求ID
                     'model_id',                    // 模型ID
                     'model',                       // 模型名称
                     'duration_ms',                 // 请求耗时
