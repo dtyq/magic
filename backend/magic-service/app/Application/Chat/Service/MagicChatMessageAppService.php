@@ -472,7 +472,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
      * 比如根据发件方的seq,为收件方生成seq,投递seq.
      * @throws Throwable
      */
-    public function dispatchMQChatMessage(MagicSeqEntity $senderSeqEntity): void
+    public function asyncHandlerChatMessage(MagicSeqEntity $senderSeqEntity): void
     {
         Db::beginTransaction();
         try {
@@ -492,28 +492,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
             $magicSeqStatus = MagicMessageStatus::Unread;
             // 根据会话类型,生成seq
             switch ($receiveConversationType) {
-                case ConversationType::Ai:
-                case ConversationType::User:
-                    try {
-                        # 助理可能参与私聊/群聊等场景,读取记忆时,需要读取自己会话窗口下的消息.
-                        $receiveSeqEntity = $this->magicChatDomainService->generateReceiveSequenceByChatMessage($senderSeqEntity, $senderMessageEntity, $magicSeqStatus);
-                        // 避免 seq 表承载太多功能,加太多索引,因此将话题的消息单独写入到 topic_messages 表中
-                        $this->magicChatDomainService->createTopicMessage($receiveSeqEntity);
-                        $this->pushReceiveChatSequence($senderMessageEntity, $receiveSeqEntity);
-                    } catch (Throwable$exception) {
-                        $errMsg = [
-                            'file' => $exception->getFile(),
-                            'line' => $exception->getLine(),
-                            'message' => $exception->getMessage(),
-                            'trace' => $exception->getTraceAsString(),
-                        ];
-                        $this->logger->error(sprintf(
-                            'messageDispatchError senderSeqEntity:%s errMsg:%s',
-                            Json::encode($senderSeqEntity->toArray()),
-                            Json::encode($errMsg)
-                        ));
-                    }
-                    break;
                 case ConversationType::Group:
                     $seqListCreateDTO = $this->magicChatDomainService->generateGroupReceiveSequence($senderSeqEntity, $senderMessageEntity, $magicSeqStatus);
                     // todo 群里面的话题消息也写入 topic_messages 表中
@@ -647,8 +625,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
         请直接输出标题：
         PROMPT;
 
-        $prompt = str_replace('{language}', $language, $prompt);
-        $prompt = str_replace('{textContent}', $textContent, $prompt);
+        $prompt = str_replace(['{language}', '{textContent}'], [$language, $textContent], $prompt);
 
         $conversationId = uniqid('', true);
         $messageHistory = new MessageHistory();
@@ -736,7 +713,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             $senderSeqDTO->setExtra($extra->setEditMessageOptions($editMessageOptions));
             // 再查一次 $messageEntity ，避免重复创建
             $messageEntity = $this->magicChatDomainService->getMessageByMagicMessageId($senderMessageDTO->getMagicMessageId());
-            $messageEntity->setLanguage($language);
+            $messageEntity && $messageEntity->setLanguage($language);
         }
 
         // 如果引用的消息被编辑过，那么修改 referMessageId 为原始的消息 id
@@ -791,18 +768,26 @@ class MagicChatMessageAppService extends MagicSeqAppService
             }
             $senderChatSeqCreatedEvent = $this->magicChatDomainService->getChatSeqCreatedEvent(
                 $messageEntity->getReceiveType(),
-                $senderSeqEntity->getSeqId(),
-                $receiveUserCount
+                $senderSeqEntity,
+                $receiveUserCount,
             );
-            // 异步给收件方生成Seq并推送给收件方
-            # !!! 注意,事务中投递 mq,可能事务还没提交,mq消息就已被消费.
-            # 因此需要把投递 mq 放在操作的最后,并在消费 mq 的时候,查不到时延迟重试几次.
-            $this->magicChatDomainService->dispatchSeq($senderChatSeqCreatedEvent);
+            $conversationType = $senderConversationEntity->getReceiveType();
+            if (in_array($conversationType, [ConversationType::Ai, ConversationType::User], true)) {
+                // 为了保证收发双方的消息顺序一致性，如果是私聊，则同步生成 seq
+                $receiveSeqEntity = $this->syncHandlerSingleChatMessage($senderSeqEntity, $messageEntity);
+            } elseif ($conversationType === ConversationType::Group) {
+                // 群聊等场景异步给收件方生成Seq并推送给收件方
+                $this->magicChatDomainService->dispatchSeq($senderChatSeqCreatedEvent);
+            } else {
+                ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR);
+            }
             Db::commit();
         } catch (Throwable $exception) {
             Db::rollBack();
             throw $exception;
         }
+        // 使用 mq 推送消息给收件方
+        isset($receiveSeqEntity) && $this->pushReceiveChatSequence($messageEntity, $receiveSeqEntity);
         // 异步推送消息给自己的其他设备
         if ($messageEntity->getSenderType() !== ConversationType::Ai) {
             co(function () use ($senderChatSeqCreatedEvent) {
@@ -977,6 +962,20 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
+     * 为了保证收发双方的消息顺序一致性，如果是私聊，则同步生成 seq.
+     * @throws Throwable
+     */
+    private function syncHandlerSingleChatMessage(MagicSeqEntity $senderSeqEntity, MagicMessageEntity $senderMessageEntity): MagicSeqEntity
+    {
+        $magicSeqStatus = MagicMessageStatus::Unread;
+        # 助理可能参与私聊/群聊等场景,读取记忆时,需要读取自己会话窗口下的消息.
+        $receiveSeqEntity = $this->magicChatDomainService->generateReceiveSequenceByChatMessage($senderSeqEntity, $senderMessageEntity, $magicSeqStatus);
+        // 避免 seq 表承载太多功能,加太多索引,因此将话题的消息单独写入到 topic_messages 表中
+        $this->magicChatDomainService->createTopicMessage($receiveSeqEntity);
+        return $receiveSeqEntity;
+    }
+
+    /**
      * 使用大模型生成内容摘要
      *
      * @param MagicUserAuthorization $authorization 用户授权信息
@@ -1097,7 +1096,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     private function pushReceiveChatSequence(MagicMessageEntity $messageEntity, MagicSeqEntity $seq): void
     {
         $receiveType = $messageEntity->getReceiveType();
-        $seqCreatedEvent = $this->magicChatDomainService->getChatSeqCreatedEvent($receiveType, $seq->getSeqId(), 1);
+        $seqCreatedEvent = $this->magicChatDomainService->getChatSeqPushEvent($receiveType, $seq->getSeqId(), 1);
         $this->magicChatDomainService->pushChatSequence($seqCreatedEvent);
     }
 
@@ -1111,25 +1110,32 @@ class MagicChatMessageAppService extends MagicSeqAppService
         MagicUserAuthorization $userAuthorization,
         MagicConversationEntity $senderConversationEntity
     ): array {
-        $chatMessageType = $senderMessageDTO->getMessageType();
-        if (! $chatMessageType instanceof ChatMessageType) {
-            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR);
+        $lockKey = sprintf('messageDispatch:lock:%s', $senderConversationEntity->getId());
+        $owner = uniqid('', true);
+        try {
+            $this->locker->spinLock($lockKey, $owner, 5);
+            $chatMessageType = $senderMessageDTO->getMessageType();
+            if (! $chatMessageType instanceof ChatMessageType) {
+                ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR);
+            }
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
+            // 消息鉴权
+            $this->checkSendMessageAuth($senderSeqDTO, $senderMessageDTO, $senderConversationEntity, $dataIsolation);
+            // 安全性保证，校验附件中的文件是否属于当前用户
+            $senderMessageDTO = $this->checkAndFillAttachments($senderMessageDTO, $dataIsolation);
+            // 业务参数校验
+            $this->validateBusinessParams($senderMessageDTO, $dataIsolation);
+            // 消息分发
+            $conversationType = $senderConversationEntity->getReceiveType();
+            return match ($conversationType) {
+                ConversationType::Ai,
+                ConversationType::User,
+                ConversationType::Group => $this->magicChat($senderSeqDTO, $senderMessageDTO, $senderConversationEntity),
+                default => ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR),
+            };
+        } finally {
+            $this->locker->release($lockKey, $owner);
         }
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
-        // 消息鉴权
-        $this->checkSendMessageAuth($senderSeqDTO, $senderMessageDTO, $senderConversationEntity, $dataIsolation);
-        // 安全性保证，校验附件中的文件是否属于当前用户
-        $senderMessageDTO = $this->checkAndFillAttachments($senderMessageDTO, $dataIsolation);
-        // 业务参数校验
-        $this->validateBusinessParams($senderMessageDTO, $dataIsolation);
-        // 非流式的消息分发
-        $conversationType = $senderConversationEntity->getReceiveType();
-        return match ($conversationType) {
-            ConversationType::Ai,
-            ConversationType::User,
-            ConversationType::Group => $this->magicChat($senderSeqDTO, $senderMessageDTO, $senderConversationEntity),
-            default => ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR),
-        };
     }
 
     /**

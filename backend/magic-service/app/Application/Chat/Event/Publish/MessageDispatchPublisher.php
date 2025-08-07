@@ -27,6 +27,6 @@ class MessageDispatchPublisher extends ProducerMessage
     {
         $this->exchange = $this->getExchangeName($this->topic);
         $this->routingKey = $this->getRoutingKeyName($this->topic, $event->getPriority());
-        $this->payload = ['seqIds' => $event->getSeqIds()];
+        $this->payload = $event->toArray();
     }
 }
