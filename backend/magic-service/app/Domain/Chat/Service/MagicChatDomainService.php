@@ -216,7 +216,16 @@ class MagicChatDomainService extends AbstractDomainService
         return $aiSeqDTO;
     }
 
-    public function getChatSeqCreatedEvent(ConversationType $receiveType, string $seqId, int $receiveUserCount): SeqCreatedEvent
+    public function getChatSeqCreatedEvent(ConversationType $receiveType, MagicSeqEntity $seqEntity, int $receiveUserCount): SeqCreatedEvent
+    {
+        $messagePriority = $this->getChatMessagePriority($receiveType, $receiveUserCount);
+        $seqCreatedEvent = new SeqCreatedEvent([$seqEntity->getSeqId()]);
+        $seqCreatedEvent->setPriority($messagePriority);
+        $seqCreatedEvent->setConversationId($seqEntity->getConversationId());
+        return $seqCreatedEvent;
+    }
+
+    public function getChatSeqPushEvent(ConversationType $receiveType, string $seqId, int $receiveUserCount): SeqCreatedEvent
     {
         $messagePriority = $this->getChatMessagePriority($receiveType, $receiveUserCount);
         $seqCreatedEvent = new SeqCreatedEvent([$seqId]);

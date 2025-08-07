@@ -15,6 +15,7 @@ use App\Domain\Chat\Event\Seq\SeqCreatedEvent;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use Hyperf\Amqp\Result;
 use Hyperf\Codec\Json;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -49,9 +50,16 @@ abstract class AbstractMessageDispatchSubscriber extends AbstractSeqConsumer
         if ($seqIds[0] === ControlMessageType::Ping->value) {
             return Result::ACK;
         }
+        $conversationId = $data['conversationId'] ?? null;
         // 生成收件方的seq
         $this->logger->info(sprintf('messageDispatch 收到消息 data:%s', Json::encode($data)));
+        $lock = di(LockerInterface::class);
         try {
+            if ($conversationId) {
+                $lockKey = sprintf('messageDispatch:lock:%s', $conversationId);
+                $owner = uniqid('', true);
+                $lock->spinLock($lockKey, $owner);
+            }
             foreach ($seqIds as $seqId) {
                 $seqId = (string) $seqId;
                 // 用redis检测seq是否已经尝试多次,如果超过 n 次,则不再推送
@@ -95,7 +103,7 @@ abstract class AbstractMessageDispatchSubscriber extends AbstractSeqConsumer
                 }
                 if ($userSeqEntity->getSeqType() instanceof ChatMessageType) {
                     // 聊天消息分发
-                    $this->magicChatMessageAppService->dispatchMQChatMessage($userSeqEntity);
+                    $this->magicChatMessageAppService->asyncHandlerChatMessage($userSeqEntity);
                 }
                 // seq 处理成功
                 $this->setSeqCanNotRetry($seqRetryKey);
@@ -110,6 +118,10 @@ abstract class AbstractMessageDispatchSubscriber extends AbstractSeqConsumer
             ));
             // todo 调用消息质量保证模块,如果是服务器压力大导致的失败,则放入延迟重试队列,并指数级延长重试时间间隔
             return Result::REQUEUE;
+        } finally {
+            if (isset($lockKey, $owner)) {
+                $lock->release($lockKey, $owner);
+            }
         }
         return Result::ACK;
     }

@@ -182,10 +182,11 @@ abstract class AbstractDomainService
     /**
      * 批量分发消息:提高性能,合并多个 seq_id 为一条消息,减少消息推送次数.
      */
-    public function batchDispatchSeq(array $seqIds, MessagePriority $messagePriority): void
+    public function batchDispatchSeq(array $seqIds, MessagePriority $messagePriority, string $conversationId): void
     {
         $seqCreatedEvent = new SeqCreatedEvent($seqIds);
         $seqCreatedEvent->setPriority($messagePriority);
+        $seqCreatedEvent->setConversationId($conversationId);
         $seqCreatedPublisher = new MessageDispatchPublisher($seqCreatedEvent);
         if (! $this->producer->produce($seqCreatedPublisher)) {
             $this->logger->error(sprintf('batchDispatchSeq failed seqIds:%s  message:%s', Json::encode($seqIds), Json::encode($seqCreatedEvent)));
@@ -198,6 +199,7 @@ abstract class AbstractDomainService
         $messagePriority = $this->getControlMessagePriority($seqEntity);
         $seqCreatedEvent = new SeqCreatedEvent([$seqEntity->getSeqId()]);
         $seqCreatedEvent->setPriority($messagePriority);
+        $seqCreatedEvent->setConversationId($seqEntity->getConversationId());
         return $seqCreatedEvent;
     }
 
@@ -344,7 +346,7 @@ abstract class AbstractDomainService
                         // 异步将生成的消息流通知用户的其他设备.
                         $seqIds = array_column($userMessageStatusChangeSeqEntities, 'id');
                         // 批量分发已读消息,给消息发送者
-                        $this->batchDispatchSeq($seqIds, $messagePriority);
+                        $this->batchDispatchSeq($seqIds, $messagePriority, $userMessageStatusChangeSeqEntities[0]->getConversationId());
                         Db::commit();
                         $this->logger->info(sprintf('batchDispatchSeq 成功 seqIds:%s  $messagePriority:%s', Json::encode($seqIds), Json::encode($messagePriority)));
                     } catch (Throwable $exception) {
@@ -412,7 +414,7 @@ abstract class AbstractDomainService
                             // 异步将生成的消息流通知用户的其他设备.
                             $seqIds = [$userRevokedSeqEntity->getId()];
                             // 批量分发已读消息,给消息发送者
-                            $this->batchDispatchSeq($seqIds, $messagePriority);
+                            $this->batchDispatchSeq($seqIds, $messagePriority, $userSeqEntity->getConversationId());
                             Db::commit();
                             $this->logger->info(sprintf('batchDispatchSeq 成功 seqIds:%s  $messagePriority:%s', Json::encode($seqIds), Json::encode($messagePriority)));
                         } catch (Throwable $exception) {
