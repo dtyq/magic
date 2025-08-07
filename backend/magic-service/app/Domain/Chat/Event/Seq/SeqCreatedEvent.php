@@ -15,6 +15,9 @@ class SeqCreatedEvent extends AbstractEvent implements ChatEventInterface
 {
     protected array $seqIds = [];
 
+    // 如果存在，消费时按会话 id 加自旋锁，尽量保证收发双方的消息顺序一致
+    protected ?string $conversationId = null;
+
     protected MessagePriority $seqPriority;
 
     public function __construct(array $seqIds)
@@ -40,5 +43,15 @@ class SeqCreatedEvent extends AbstractEvent implements ChatEventInterface
     public function setPriority(MessagePriority $priority): void
     {
         $this->seqPriority = $priority;
+    }
+
+    public function getConversationId(): string
+    {
+        return $this->conversationId;
+    }
+
+    public function setConversationId(?string $conversationId): void
+    {
+        $this->conversationId = $conversationId;
     }
 }

@@ -24,8 +24,8 @@ return new class extends Migration {
             $table->bigInteger('seq_id')->unsigned()->nullable()->comment('序列ID，用于消息排序')->after('raw_data');
 
             // 添加处理状态字段
-            $table->enum('processing_status', ['pending', 'processing', 'completed', 'failed'])
-                ->default('pending')
+            $table->string('processing_status', 20)
+                ->default('')
                 ->comment('消息处理状态：pending-待处理，processing-处理中，completed-已完成，failed-失败')
                 ->after('seq_id');
 
@@ -37,26 +37,6 @@ return new class extends Migration {
 
             // 添加处理完成时间
             $table->timestamp('processed_at')->nullable()->comment('处理完成时间')->after('retry_count');
-
-            // ============ 添加队列处理索引 ============
-
-            // 主要查询索引：topic_id + processing_status + sender_type + seq_id 升序
-            $table->index(['topic_id', 'processing_status', 'sender_type', 'seq_id'], 'idx_topic_status_sender_seq');
-
-            // 队列处理索引：processing_status + seq_id 升序（用于按顺序处理）
-            $table->index(['processing_status', 'seq_id'], 'idx_status_seq_asc');
-
-            // 补偿任务索引：processing_status + created_at（用于扫描超时任务）
-            $table->index(['processing_status', 'created_at'], 'idx_status_created');
-
-            // 重试任务索引：processing_status + retry_count + created_at
-            $table->index(['processing_status', 'retry_count', 'created_at'], 'idx_status_retry_created');
-
-            // seq_id 单独索引（用于生成唯一序列）
-            $table->index(['seq_id'], 'idx_seq_id');
-
-            // 任务ID + 处理状态索引（用于查询特定任务的处理状态）
-            $table->index(['task_id', 'processing_status'], 'idx_task_status');
         });
     }
 

@@ -76,21 +76,7 @@ interface TaskMessageRepositoryInterface
     /**
      * 获取下一个seq_id.
      */
-    public function getNextSeqId(): int;
-
-    /**
-     * 查询超时的处理中消息.
-     * @param int $timeoutMinutes 超时分钟数
-     * @return TaskMessageEntity[]
-     */
-    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array;
-
-    /**
-     * 查询需要重试的失败消息.
-     * @param int $maxRetries 最大重试次数
-     * @return TaskMessageEntity[]
-     */
-    public function findRetriableFailedMessages(int $maxRetries = 3): array;
+    public function getNextSeqId(int $topicId, int $taskId): int;
 
     /**
      * 保存原始消息数据并生成seq_id.
@@ -102,10 +88,11 @@ interface TaskMessageRepositoryInterface
     /**
      * 根据seq_id和topic_id查询消息.
      * @param int $seqId 序列ID
+     * @param int $taskId 任务ID
      * @param int $topicId 话题ID
      * @return null|TaskMessageEntity 消息实体或null
      */
-    public function findBySeqIdAndTopicId(int $seqId, int $topicId): ?TaskMessageEntity;
+    public function findBySeqIdAndTopicId(int $seqId, int $taskId, int $topicId): ?TaskMessageEntity;
 
     /**
      * 根据topic_id和message_id查询消息.
@@ -116,8 +103,8 @@ interface TaskMessageRepositoryInterface
     public function findByTopicIdAndMessageId(int $topicId, string $messageId): ?TaskMessageEntity;
 
     /**
-     * 更新现有消息，保留队列处理相关字段.
-     * @param TaskMessageEntity $message 已更新字段的消息实体
+     * 更新现有消息的业务字段.
+     * @param TaskMessageEntity $message 消息实体
      */
     public function updateExistingMessage(TaskMessageEntity $message): void;
 
@@ -138,6 +125,7 @@ interface TaskMessageRepositoryInterface
      */
     public function findProcessableMessages(
         int $topicId,
+        int $taskId,
         string $senderType = 'assistant',
         int $timeoutMinutes = 30,
         int $maxRetries = 3,

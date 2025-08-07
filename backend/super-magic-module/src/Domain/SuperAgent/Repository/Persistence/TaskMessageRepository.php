@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInt
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Hyperf\DbConnection\Db;
 use InvalidArgumentException;
+use RuntimeException;
 
 class TaskMessageRepository implements TaskMessageRepositoryInterface
 {
@@ -37,23 +38,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     public function batchSave(array $messages): void
     {
         $data = array_map(function (TaskMessageEntity $message) {
-            $messageArray = $message->toArray();
-
-            // Manually serialize array fields for batch insert since casts are not applied
-            if (isset($messageArray['steps']) && is_array($messageArray['steps'])) {
-                $messageArray['steps'] = json_encode($messageArray['steps'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if (isset($messageArray['tool']) && is_array($messageArray['tool'])) {
-                $messageArray['tool'] = json_encode($messageArray['tool'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if (isset($messageArray['attachments']) && is_array($messageArray['attachments'])) {
-                $messageArray['attachments'] = json_encode($messageArray['attachments'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if (isset($messageArray['mentions']) && is_array($messageArray['mentions'])) {
-                $messageArray['mentions'] = json_encode($messageArray['mentions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-
-            return $messageArray;
+            return $message->toArray();
         }, $messages);
 
         $this->model::query()->insert($data);
@@ -189,41 +174,17 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->whereIn('id', $ids)->update($updateData);
     }
 
-    public function getNextSeqId(): int
+    public function getNextSeqId(int $topicId, int $taskId): int
     {
-        // 使用原子操作获取下一个seq_id
-        $result = Db::selectOne('SELECT COALESCE(MAX(seq_id), 0) + 1 as next_seq_id FROM magic_super_agent_message');
-        return (int) $result['next_seq_id'];
-    }
+        // 利用降序索引直接获取最大 seq_id，配合 ORDER BY seq_id DESC
+        $maxSeqId = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('task_id', $taskId)
+            ->orderByDesc('seq_id')
+            ->value('seq_id');
 
-    public function findTimeoutProcessingMessages(int $timeoutMinutes = 10): array
-    {
-        $timeoutTime = Carbon::now()->subMinutes($timeoutMinutes);
-
-        $query = $this->model::query()
-            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_PROCESSING)
-            ->where('updated_at', '<', $timeoutTime)
-            ->orderBy('seq_id', 'asc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
-    }
-
-    public function findRetriableFailedMessages(int $maxRetries = 3): array
-    {
-        $query = $this->model::query()
-            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_FAILED)
-            ->where('retry_count', '<', $maxRetries)
-            ->orderBy('seq_id', 'asc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
+        // 如果没有记录，返回1；否则返回最大值+1
+        return ($maxSeqId ?? 0) + 1;
     }
 
     public function saveWithRawData(array $rawData, TaskMessageEntity $message): void
@@ -245,11 +206,12 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->create($messageArray);
     }
 
-    public function findBySeqIdAndTopicId(int $seqId, int $topicId): ?TaskMessageEntity
+    public function findBySeqIdAndTopicId(int $seqId, int $taskId, int $topicId): ?TaskMessageEntity
     {
         $query = $this->model::query()
             ->where('seq_id', $seqId)
             ->where('topic_id', $topicId)
+            ->where('task_id', $taskId)
             ->first();
 
         if (! $query) {
@@ -275,43 +237,25 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
     public function updateExistingMessage(TaskMessageEntity $message): void
     {
-        // 从实体获取所有数据，排除队列处理相关字段
-        $allData = $message->toArray();
+        // Use Eloquent model instance to leverage casts automatic conversion
+        $model = $this->model::query()->find($message->getId());
 
-        // 定义不应该被更新的队列处理相关字段
-        $preservedFields = ['id', 'raw_data', 'seq_id', 'processing_status', 'error_message', 'retry_count', 'processed_at', 'created_at'];
-
-        // 移除不应该更新的字段
-        $rawUpdateData = array_diff_key($allData, array_flip($preservedFields));
-
-        // 手动序列化数组字段
-        if (isset($rawUpdateData['steps']) && is_array($rawUpdateData['steps'])) {
-            $rawUpdateData['steps'] = json_encode($rawUpdateData['steps'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if (isset($rawUpdateData['tool']) && is_array($rawUpdateData['tool'])) {
-            $rawUpdateData['tool'] = json_encode($rawUpdateData['tool'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if (isset($rawUpdateData['attachments']) && is_array($rawUpdateData['attachments'])) {
-            $rawUpdateData['attachments'] = json_encode($rawUpdateData['attachments'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if (isset($rawUpdateData['mentions']) && is_array($rawUpdateData['mentions'])) {
-            $rawUpdateData['mentions'] = json_encode($rawUpdateData['mentions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (! $model) {
+            throw new RuntimeException('Task message not found for ID: ' . $message->getId());
         }
 
-        // 添加更新时间
-        $rawUpdateData['updated_at'] = Carbon::now();
+        $entityArray = $message->toArray();
 
-        // 直接更新，过滤null值
-        $this->model::query()
-            ->where('topic_id', $message->getTopicId())
-            ->where('message_id', $message->getMessageId())
-            ->update(array_filter($rawUpdateData, function ($value) {
-                return $value !== null;
-            }));
+        // Fill model attributes - casts will automatically handle array to JSON conversion
+        $model->fill($entityArray);
+
+        // Save using Eloquent - this will apply casts and handle timestamps automatically
+        $model->save();
     }
 
     public function findProcessableMessages(
         int $topicId,
+        int $taskId,
         string $senderType = 'assistant',
         int $timeoutMinutes = 30,
         int $maxRetries = 3,
@@ -336,9 +280,13 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
                 TaskMessageModel::PROCESSING_STATUS_PENDING,
                 TaskMessageModel::PROCESSING_STATUS_PROCESSING,
                 TaskMessageModel::PROCESSING_STATUS_FAILED,
-            ])
-            ->orderBy('seq_id', 'asc')
-            ->limit($limit * 2); // 适当放大limit，因为要在代码中过滤
+            ]);
+
+        if ($taskId > 0) {
+            $query = $query->where('task_id', $taskId);
+        }
+
+        $query->orderBy('seq_id', 'asc')->limit($limit * 2); // 适当放大limit，因为要在代码中过滤
 
         $records = $query->get();
         $timeoutTime = Carbon::now()->subMinutes($timeoutMinutes);

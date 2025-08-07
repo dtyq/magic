@@ -12,16 +12,37 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInt
 use Hyperf\Contract\StdoutLoggerInterface;
 use InvalidArgumentException;
 
-/**
- * 消息存储领域服务.
- * 负责将接收到的消息数据存储到数据库.
- */
-class MessageStorageDomainService
+class TaskMessageDomainService
 {
     public function __construct(
-        private readonly TaskMessageRepositoryInterface $taskMessageRepository,
+        protected TaskMessageRepositoryInterface $messageRepository,
         private readonly StdoutLoggerInterface $logger
     ) {
+    }
+
+    public function getNextSeqId(int $topicId, int $taskId): int
+    {
+        return $this->messageRepository->getNextSeqId($topicId, $taskId);
+    }
+
+    public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void
+    {
+        $this->messageRepository->updateProcessingStatus($id, $processingStatus, $errorMessage, $retryCount);
+    }
+
+    public function findProcessableMessages(int $topicId, int $taskId, string $senderType = 'assistant', int $timeoutMinutes = 30, int $maxRetries = 3, int $limit = 50): array
+    {
+        return $this->messageRepository->findProcessableMessages($topicId, $taskId, $senderType, $timeoutMinutes, $maxRetries, $limit);
+    }
+
+    public function findByTopicIdAndMessageId(int $topicId, string $messageId): ?TaskMessageEntity
+    {
+        return $this->messageRepository->findByTopicIdAndMessageId($topicId, $messageId);
+    }
+
+    public function updateExistingMessage(TaskMessageEntity $message): void
+    {
+        $this->messageRepository->updateExistingMessage($message);
     }
 
     /**
@@ -45,15 +66,17 @@ class MessageStorageDomainService
         }
 
         // 2. 检查消息是否重复（通过seq_id + topic_id）
-        $existingMessage = $this->taskMessageRepository->findBySeqIdAndTopicId(
+        $existingMessage = $this->messageRepository->findBySeqIdAndTopicId(
             $seqId,
-            (int) $messageEntity->getTopicId()
+            (int) $messageEntity->getTaskId(),
+            (int) $messageEntity->getTopicId(),
         );
 
         if ($existingMessage) {
             $this->logger->info('消息已存在，跳过重复存储', [
                 'topic_id' => $messageEntity->getTopicId(),
                 'seq_id' => $seqId,
+                'task_id' => $messageEntity->getTaskId(),
                 'message_id' => $messageEntity->getMessageId(),
             ]);
             return $existingMessage;
@@ -62,7 +85,7 @@ class MessageStorageDomainService
         // 3. 消息不存在，进行存储
         $messageEntity->setStatus(TaskMessageEntity::PROCESSING_STATUS_PENDING);
         $messageEntity->setRetryCount(0);
-        $this->taskMessageRepository->saveWithRawData(
+        $this->messageRepository->saveWithRawData(
             $rawData, // 原始数据
             $messageEntity
         );

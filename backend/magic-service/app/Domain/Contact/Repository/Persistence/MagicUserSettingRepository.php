@@ -83,4 +83,45 @@ class MagicUserSettingRepository extends AbstractMagicContactRepository implemen
             'list' => $list,
         ];
     }
+
+    /**
+     * 通过 magicId + key 获取用户设置（跨组织）.
+     */
+    public function getByMagicId(string $magicId, string $key): ?MagicUserSettingEntity
+    {
+        /** @var null|UserSettingModel $model */
+        $model = UserSettingModel::query()
+            ->where('magic_id', $magicId)
+            ->where('key', $key)
+            ->first();
+
+        return $model ? MagicUserSettingFactory::createEntity($model) : null;
+    }
+
+    /**
+     * 通过 magicId 保存用户设置（跨组织），若已存在相同 key 则更新。
+     */
+    public function saveByMagicId(string $magicId, MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity
+    {
+        // 写入 magicId
+        $magicUserSettingEntity->setMagicId($magicId);
+
+        // 查找现有记录
+        $model = UserSettingModel::query()
+            ->where('magic_id', $magicId)
+            ->where('key', $magicUserSettingEntity->getKey())
+            ->first();
+
+        if (! $model) {
+            $model = new UserSettingModel();
+        } else {
+            $magicUserSettingEntity->setId($model->id);
+        }
+
+        $model->fill(MagicUserSettingFactory::createModel($magicUserSettingEntity));
+        $model->save();
+
+        $magicUserSettingEntity->setId($model->id);
+        return $magicUserSettingEntity;
+    }
 }
