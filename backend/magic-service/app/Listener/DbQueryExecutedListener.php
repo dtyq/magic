@@ -58,6 +58,10 @@ class DbQueryExecutedListener implements ListenerInterface
                     $position += strlen($value);
                 }
             }
+
+            // 只打印前 1024 个字符
+            $sql = substr($sql, 0, 1024);
+
             // 对敏感表的SQL进行脱敏处理
             $sql = $this->desensitizeSql($sql);
             $this->logger->info(sprintf('[%s:%s] %s', $event->connectionName, $event->time, $sql));
