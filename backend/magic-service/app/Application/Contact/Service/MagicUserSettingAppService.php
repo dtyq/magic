@@ -11,7 +11,6 @@ use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\Query\MagicUserSettingQuery;
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
-use App\Domain\Contact\Repository\Facade\MagicUserSettingRepositoryInterface;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -25,16 +24,8 @@ class MagicUserSettingAppService extends AbstractContactAppService
 {
     use DataIsolationTrait;
 
-    /**
-     * 保存/获取当前组织信息时使用的键.
-     */
-    private const CURRENT_ORGANIZATION_KEY = 'current_organization_data';
-
     #[Inject]
     protected MagicUserRepositoryInterface $magicUserRepository;
-
-    #[Inject]
-    protected MagicUserSettingRepositoryInterface $magicUserSettingRepository;
 
     public function __construct(
         private readonly MagicUserSettingDomainService $magicUserSettingDomainService
@@ -134,7 +125,7 @@ class MagicUserSettingAppService extends AbstractContactAppService
     public function saveCurrentOrganizationDataByMagicId(string $magicId, array $organizationData): MagicUserSettingEntity
     {
         $entity = new MagicUserSettingEntity();
-        $entity->setKey(self::CURRENT_ORGANIZATION_KEY);
+        $entity->setKey(UserSettingKey::CurrentOrganization->value);
         $entity->setValue($organizationData);
 
         return $this->magicUserSettingDomainService->saveByMagicId($magicId, $entity);
@@ -147,7 +138,7 @@ class MagicUserSettingAppService extends AbstractContactAppService
      */
     public function getCurrentOrganizationDataByMagicId(string $magicId): ?array
     {
-        $setting = $this->magicUserSettingDomainService->getByMagicId($magicId, self::CURRENT_ORGANIZATION_KEY);
+        $setting = $this->magicUserSettingDomainService->getByMagicId($magicId, UserSettingKey::CurrentOrganization->value);
         return $setting?->getValue();
     }
 }

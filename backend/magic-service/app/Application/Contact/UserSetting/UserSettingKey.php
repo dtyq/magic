@@ -20,6 +20,9 @@ enum UserSettingKey: string
     // 项目话题模型配置
     case SuperMagicProjectTopicModel = 'SuperMagicProjectTopicModel';
 
+    // 用户当前组织
+    case CurrentOrganization = 'CurrentOrganization';
+
     public static function genSuperMagicProjectMCPServers(string $projectId): string
     {
         return self::SuperMagicProjectMCPServers->value . '_' . $projectId;
