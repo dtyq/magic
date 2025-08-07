@@ -9,6 +9,8 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
@@ -29,8 +31,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\LockKeyManageUtils;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -42,6 +47,8 @@ use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
+
+use function Hyperf\Translation\trans;
 
 /**
  * Handle Agent Message Application Service
@@ -60,6 +67,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly LockerInterface $locker,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -681,7 +689,32 @@ class HandleAgentMessageAppService extends AbstractAppService
             return ['attachment' => [], 'taskFileEntity' => null];
         }
 
+        // Setup spin lock for file_key to prevent concurrent processing
+        $lockKey = LockKeyManageUtils::getFileKeyLock($attachment['file_key']);
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockExpireSeconds = 5; // 5 seconds timeout as requested
+        $lockAcquired = false;
+
         try {
+            // Attempt to acquire distributed spin lock
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
+            if (! $lockAcquired) {
+                $this->logger->warning(sprintf(
+                    'Failed to acquire lock for file_key processing: %s, task_id: %s, filename: %s',
+                    $attachment['file_key'],
+                    $task->getTaskId(),
+                    $attachment['filename']
+                ));
+                return ['attachment' => $attachment, 'taskFileEntity' => null];
+            }
+
+            $this->logger->info(sprintf(
+                'Lock acquired for file_key processing: %s, task_id: %s, filename: %s',
+                $attachment['file_key'],
+                $task->getTaskId(),
+                $attachment['filename']
+            ));
+
             // 1. Get context information for directory creation
             $projectId = $task->getProjectId();
             $workDir = $task->getWorkDir();
@@ -714,11 +747,10 @@ class HandleAgentMessageAppService extends AbstractAppService
             $attachment['file_id'] = (string) $fileId;
             $attachment['topic_id'] = $task->getTopicId();
             $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
-            $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
             $attachment['metadata'] = FileMetadataUtil::getMetadataObject($taskFileEntity->getMetadata());
 
             $this->logger->info(sprintf(
-                'Attachment saved successfully, file_id: %s, task_id: %s, filename: %s',
+                'Attachment processed successfully with lock protection, file_id: %s, task_id: %s, filename: %s',
                 $fileId,
                 $task->getTaskId(),
                 $attachment['filename']
@@ -727,13 +759,33 @@ class HandleAgentMessageAppService extends AbstractAppService
             return ['attachment' => $attachment, 'taskFileEntity' => $taskFileEntity];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Exception processing attachment: %s, filename: %s, task_id: %s',
+                'Exception processing attachment with lock protection: %s, filename: %s, task_id: %s, file_key: %s',
                 $e->getMessage(),
                 $attachment['filename'] ?? 'unknown',
-                $task->getTaskId()
+                $task->getTaskId(),
+                $attachment['file_key']
             ));
 
             return ['attachment' => $attachment, 'taskFileEntity' => null];
+        } finally {
+            // Ensure lock is always released
+            if ($lockAcquired) {
+                if ($this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->debug(sprintf(
+                        'Lock released for file_key processing: %s, task_id: %s, filename: %s',
+                        $attachment['file_key'],
+                        $task->getTaskId(),
+                        $attachment['filename']
+                    ));
+                } else {
+                    $this->logger->error(sprintf(
+                        'Failed to release lock for file_key processing: %s, task_id: %s, filename: %s. Manual intervention may be required.',
+                        $attachment['file_key'],
+                        $task->getTaskId(),
+                        $attachment['filename']
+                    ));
+                }
+            }
         }
     }
 
@@ -819,13 +871,42 @@ class HandleAgentMessageAppService extends AbstractAppService
         // 收到异常，设置中断信息
         $this->logger->error(sprintf('Exception occurred while processing message event callback: %s', $e->getMessage()));
 
-        if ($taskContext && $topicEntity) {
-            $this->sendInternalMessageToSandbox(
-                $taskContext->getDataIsolation(),
-                $taskContext,
-                $topicEntity,
-                $e->getMessage()
-            );
+        $dataIsolation = $taskContext->getDataIsolation();
+        // Update task status
+        $this->topicTaskAppService->updateTaskStatus(
+            dataIsolation: $dataIsolation,
+            task: $taskContext->getTask(),
+            status: TaskStatus::Suspended,
+            errMsg: $e->getMessage(),
+        );
+
+        $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
+        // Send remind message directly to client
+        $this->clientMessageAppService->sendReminderMessageToClient(
+            topicId: $topicEntity->getId(),
+            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+            chatTopicId: $taskContext->getChatTopicId(),
+            chatConversationId: $taskContext->getChatConversationId(),
+            remind: $e->getMessage(),
+            remindEvent: $remindType
+        );
+
+        // Get sandbox status, if sandbox is running, send interrupt command
+        try {
+            $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
+            if ($result->getStatus() === SandboxStatus::RUNNING) {
+                $this->agentDomainService->sendInterruptMessage(
+                    $dataIsolation,
+                    $taskContext->getTask()->getSandboxId(),
+                    (string) $taskContext->getTask()->getId(),
+                    trans('task.agent_stopped')
+                );
+            } else {
+                TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
+            }
+        } catch (SandboxOperationException $e) {
+            // ignore
+            $this->logger->error(sprintf('Exception occurred while getting status, sandboxId: %s, error: %s', $topicEntity->getSandboxId(), $e->getMessage()));
         }
     }
 

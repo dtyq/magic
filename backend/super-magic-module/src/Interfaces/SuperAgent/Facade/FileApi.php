@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
 use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -23,6 +24,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
@@ -32,6 +34,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\RateLimit\Annotation\RateLimit;
+use Qbhy\HyperfAuth\AuthManager;
 
 #[ApiResponse('low_code')]
 class FileApi extends AbstractApi
@@ -397,5 +400,42 @@ class FileApi extends AbstractApi
     {
         // Call app service to get file name
         return $this->fileProcessAppService->getFileNameById($id);
+    }
+
+    /**
+     * 获取文件URL列表.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 文件URL列表
+     * @throws BusinessException 如果参数无效则抛出异常
+     */
+    public function getFileUrls(RequestContext $requestContext): array
+    {
+        // 获取请求DTO
+        $dto = GetFileUrlsRequestDTO::fromRequest($this->request);
+
+        if (! empty($dto->getToken())) {
+            // 走令牌校验逻辑
+            return $this->fileManagementAppService->getFileUrlsByAccessToken(
+                $dto->getFileIds(),
+                $dto->getToken(),
+                $dto->getDownloadMode()
+            );
+        }
+
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
+
+        // 构建options参数
+        $options = [];
+        $options['cache'] = false;
+
+        // 调用应用服务
+        return $this->fileManagementAppService->getFileUrls(
+            $requestContext,
+            $dto->getFileIds(),
+            $dto->getDownloadMode(),
+            $options
+        );
     }
 }

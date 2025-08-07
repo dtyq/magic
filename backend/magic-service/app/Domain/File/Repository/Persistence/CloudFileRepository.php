@@ -689,6 +689,75 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     }
 
     /**
+     * Generate pre-signed URL by credential.
+     *
+     * @param string $organizationCode Organization code
+     * @param string $objectKey Object key to generate URL for
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options (method, expires, filename, etc.)
+     * @return string Pre-signed URL
+     * @throws Throwable
+     */
+    public function getPreSignedUrlByCredential(
+        string $organizationCode,
+        string $objectKey,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): string {
+        try {
+            // Security check: validate if object key belongs to organization code
+            if (! Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Get pre-signed URL failed: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => '',  // No dir restriction for getting pre-signed URLs
+                'expires' => $options['expires'] ?? 3600,
+            ]);
+
+            // Set default filename if not provided
+            if (! isset($options['filename'])) {
+                $options['filename'] = basename($objectKey);
+            }
+
+            // Set default HTTP method
+            if (! isset($options['method'])) {
+                $options['method'] = 'GET';
+            }
+
+            $preSignedUrl = $filesystem->getPreSignedUrlByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('get_presigned_url_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'method' => $options['method'],
+                'expires' => $options['expires'] ?? 3600,
+                'filename' => $options['filename'],
+                'url_length' => strlen($preSignedUrl),
+            ]);
+
+            return $preSignedUrl;
+        } catch (Throwable $exception) {
+            $this->logger->error('get_presigned_url_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
      * Rename object by credential.
      *
      * @param string $prefix Prefix for the operation

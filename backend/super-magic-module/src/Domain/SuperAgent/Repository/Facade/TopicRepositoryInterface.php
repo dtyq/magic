@@ -86,7 +86,7 @@ interface TopicRepositoryInterface
      */
     public function getTopicStatusMetrics(array $conditions = []): array;
 
-    public function updateTopicStatus(int $id, $taskId, string $sandboxId, TaskStatus $status): bool;
+    public function updateTopicStatus(int $id, $taskId, TaskStatus $status): bool;
 
     public function updateTopicStatusAndSandboxId(int $id, $taskId, TaskStatus $status, string $sandboxId): bool;
 

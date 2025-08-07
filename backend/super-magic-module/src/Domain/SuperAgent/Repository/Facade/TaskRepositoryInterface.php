@@ -139,4 +139,6 @@ interface TaskRepositoryInterface
      * 统计项目下的任务数量.
      */
     public function countTasksByProjectId(int $projectId): int;
+
+    public function updateTaskByCondition(array $condition, array $data): bool;
 }

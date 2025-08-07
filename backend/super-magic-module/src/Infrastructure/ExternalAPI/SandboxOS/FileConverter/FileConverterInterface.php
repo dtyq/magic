@@ -15,7 +15,7 @@ interface FileConverterInterface
     /**
      * 转换文件.
      */
-    public function convert(string $sandboxId, string $projectId, FileConverterRequest $request, string $workDir): FileConverterResponse;
+    public function convert(string $userId, string $organizationCode, string $sandboxId, string $projectId, FileConverterRequest $request, string $workDir): FileConverterResponse;
 
     /**
      * 查询转换结果.

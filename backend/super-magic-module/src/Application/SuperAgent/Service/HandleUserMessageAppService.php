@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
@@ -249,12 +250,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 $e->getMessage()
             ));
             // Send error message directly to client
-            $this->clientMessageAppService->sendErrorMessageToClient(
+            $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
+            $this->clientMessageAppService->sendReminderMessageToClient(
                 topicId: $topicId,
                 taskId: $taskId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
                 chatConversationId: $userMessageDTO->getChatConversationId(),
-                errorMessage: $e->getMessage()
+                remind: $e->getMessage(),
+                remindEvent: $remindType
             );
             throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
@@ -342,13 +345,15 @@ class HandleUserMessageAppService extends AbstractAppService
         // Create sandbox container
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-
         if (empty($taskContext->getSandboxId())) {
             $sandboxId = (string) $taskContext->getTopicId();
         } else {
             $sandboxId = $taskContext->getSandboxId();
         }
-        $sandboxId = $this->agentDomainService->createSandbox((string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
+        $sandboxId = $this->agentDomainService->createSandbox($dataIsolation, (string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
+        // update topic sandbox id
+        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
+        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
         // Initialize agent

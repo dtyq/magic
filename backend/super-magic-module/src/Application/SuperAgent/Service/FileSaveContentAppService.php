@@ -25,7 +25,7 @@ use Psr\Log\LoggerInterface;
  * 沙箱文件编辑应用服务
  * 负责协调沙箱文件编辑的完整流程.
  */
-class FileSaveContentAppService
+class FileSaveContentAppService extends AbstractAppService
 {
     private LoggerInterface $logger;
 
@@ -75,7 +75,8 @@ class FileSaveContentAppService
             $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId);
             $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuth->getOrganizationCode());
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
-            $this->agentDomainService->createSandbox($projectId, $sandboxId, $fullWorkdir);
+            $dataIsolation = $this->createDataIsolation($userAuth);
+            $this->agentDomainService->createSandbox($dataIsolation, $projectId, $sandboxId, $fullWorkdir);
 
             // 4. 检查沙箱是否就绪
             $this->agentDomainService->waitForSandboxReady($sandboxId);

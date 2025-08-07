@@ -558,4 +558,81 @@ class FileManagementAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.file_move_failed'));
         }
     }
+
+    /**
+     * Get file URLs for multiple files.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param array $fileIds Array of file IDs
+     * @param string $downloadMode Download mode (download, preview)
+     * @param array $options Additional options
+     * @return array File URLs
+     */
+    public function getFileUrls(RequestContext $requestContext, array $fileIds, string $downloadMode, array $options = []): array
+    {
+        try {
+            $userAuthorization = $requestContext->getUserAuthorization();
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+            return $this->taskFileDomainService->getFileUrls(
+                $dataIsolation,
+                $fileIds,
+                $downloadMode,
+                $options
+            );
+        } catch (BusinessException $e) {
+            $this->logger->warning(sprintf(
+                'Business logic error in get file URLs: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
+                $e->getMessage(),
+                implode(',', $fileIds),
+                $downloadMode,
+                $e->getCode()
+            ));
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'System error in get file URLs: %s, File IDs: %s, Download Mode: %s',
+                $e->getMessage(),
+                implode(',', $fileIds),
+                $downloadMode
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_urls_failed'));
+        }
+    }
+
+    /**
+     * Get file URLs by access token.
+     *
+     * @param array $fileIds Array of file IDs
+     * @param string $accessToken Access token for verification
+     * @param string $downloadMode Download mode (download, preview)
+     * @return array File URLs
+     */
+    public function getFileUrlsByAccessToken(array $fileIds, string $accessToken, string $downloadMode): array
+    {
+        try {
+            return $this->taskFileDomainService->getFileUrlsByAccessToken(
+                $fileIds,
+                $accessToken,
+                $downloadMode
+            );
+        } catch (BusinessException $e) {
+            $this->logger->warning(sprintf(
+                'Business logic error in get file URLs by token: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
+                $e->getMessage(),
+                implode(',', $fileIds),
+                $downloadMode,
+                $e->getCode()
+            ));
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'System error in get file URLs by token: %s, File IDs: %s, Download Mode: %s',
+                $e->getMessage(),
+                implode(',', $fileIds),
+                $downloadMode
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_urls_by_token_failed'));
+        }
+    }
 }

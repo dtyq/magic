@@ -137,8 +137,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachments']);
     });
 
-    // 获取任务附件
-    Router::post('/tasks/get-file-url', [TaskApi::class, 'getFileUrls']);
+    // 获取任务附件 （需要替换一下这个名称）
+    Router::post('/tasks/get-file-url', [FileApi::class, 'getFileUrls']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
@@ -167,6 +167,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
         // 根据文件id获取文件名称
         Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
+        // 批量获取下载链接
+        // Router::post('/batch-urls', [FileApi::class, 'getFileUrls']);
     });
 });
 
