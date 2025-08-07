@@ -732,7 +732,6 @@ class TaskFileDomainService
         $projectId = $projectEntity->getId();
         $workDir = $projectEntity->getWorkDir();
 
-        Db::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
         Db::beginTransaction();
         try {
             // 1. Get parent directory ID (create directories if needed)
