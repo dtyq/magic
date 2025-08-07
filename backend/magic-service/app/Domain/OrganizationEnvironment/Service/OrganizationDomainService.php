@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\OrganizationEnvironment\Service;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
@@ -60,8 +61,9 @@ readonly class OrganizationDomainService
         // 为创建者添加组织管理员权限并标记为组织创建人
         if ($creatorId !== null) {
             try {
+                $dataIsolation = DataIsolation::simpleMake($savedOrganization->getMagicOrganizationCode(), (string) $creatorId);
                 $this->organizationAdminDomainService->grant(
-                    $savedOrganization->getMagicOrganizationCode(),
+                    $dataIsolation,
                     (string) $creatorId,
                     (string) $creatorId, // 授予者也是创建者自己
                     '组织创建者自动获得管理员权限',

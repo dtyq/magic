@@ -386,7 +386,7 @@ class OrganizationDomainServiceTest extends HttpTestCase
     {
         // 创建组织实体（带有不存在的创建者ID）
         $organization = $this->createTestOrganizationEntity(0);
-        $nonExistentCreatorId = 999999; // 使用一个不太可能存在的数字ID
+        $nonExistentCreatorId = "999999"; // 使用一个不太可能存在的数字ID
         $organization->setCreatorId($nonExistentCreatorId);
 
         $this->expectException(Exception::class);
