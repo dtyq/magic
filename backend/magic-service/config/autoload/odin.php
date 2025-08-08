@@ -302,6 +302,10 @@ return [
             'magic-aoai-eastus2-prod-gpt-5-mini-global' => 1,
             'magic-aoai-eastus2-prod-gpt-5-nano-global' => 1,
             'magic-aoai-eastus2-prod-gpt-5-chat-global' => 1,
+            'kobayashi-aoai-eastus2-prod-gpt-5-global' => 1,
+            'kobayashi-aoai-eastus2-prod-gpt-5-mini-global' => 1,
+            'kobayashi-aoai-eastus2-prod-gpt-5-nano-global' => 1,
+            'kobayashi-aoai-eastus2-prod-gpt-5-chat-global' => 1,
         ],
     ],
     'content_copy_keys' => [
