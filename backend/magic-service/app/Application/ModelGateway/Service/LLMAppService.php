@@ -60,15 +60,12 @@ use Hyperf\Odin\Contract\Api\Response\ResponseInterface;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
 use Hyperf\Odin\Exception\LLMException;
-use Hyperf\Odin\Exception\LLMException\LLMNetworkException;
 use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Tool\Definition\ToolDefinition;
 use Hyperf\Odin\Utils\MessageUtil;
 use Hyperf\Odin\Utils\ToolUtil;
 use Hyperf\Redis\Redis;
-use Hyperf\Retry\Retry;
-use Hyperf\Retry\RetryContext;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
@@ -1000,39 +997,22 @@ class LLMAppService extends AbstractLLMAppService
         $chatRequest->setBusinessParams($sendMsgDTO->getBusinessParams());
         $chatRequest->setThinking($sendMsgDTO->getThinking());
 
-        $call = function () use ($sendMsgDTO, $odinModel, $chatRequest) {
-            return match ($sendMsgDTO->getCallMethod()) {
-                AbstractRequestDTO::METHOD_COMPLETIONS => $odinModel->completions(
-                    prompt: $sendMsgDTO->getPrompt(),
-                    temperature: $sendMsgDTO->getTemperature(),
-                    maxTokens: $sendMsgDTO->getMaxTokens(),
-                    stop: $sendMsgDTO->getStop() ?? [],
-                    frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
-                    presencePenalty: $sendMsgDTO->getPresencePenalty(),
-                    businessParams: $sendMsgDTO->getBusinessParams(),
-                ),
-                AbstractRequestDTO::METHOD_CHAT_COMPLETIONS => match ($sendMsgDTO->isStream()) {
-                    true => $odinModel->chatStreamWithRequest($chatRequest),
-                    default => $odinModel->chatWithRequest($chatRequest),
-                },
-                default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
-            };
+        return match ($sendMsgDTO->getCallMethod()) {
+            AbstractRequestDTO::METHOD_COMPLETIONS => $odinModel->completions(
+                prompt: $sendMsgDTO->getPrompt(),
+                temperature: $sendMsgDTO->getTemperature(),
+                maxTokens: $sendMsgDTO->getMaxTokens(),
+                stop: $sendMsgDTO->getStop() ?? [],
+                frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
+                presencePenalty: $sendMsgDTO->getPresencePenalty(),
+                businessParams: $sendMsgDTO->getBusinessParams(),
+            ),
+            AbstractRequestDTO::METHOD_CHAT_COMPLETIONS => match ($sendMsgDTO->isStream()) {
+                true => $odinModel->chatStreamWithRequest($chatRequest),
+                default => $odinModel->chatWithRequest($chatRequest),
+            },
+            default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
         };
-
-        return Retry::max(3)
-            ->backoff(500)
-            ->when(function (RetryContext $context) {
-                // 第一次执行时允许尝试
-                if ($context->isFirstTry()) {
-                    return true;
-                }
-
-                $throwable = $context->lastThrowable;
-                // 只有网络异常才重试
-                return $throwable instanceof LLMNetworkException
-                       || ($throwable && $throwable->getPrevious() instanceof LLMNetworkException);
-            })
-            ->call($call);
     }
 
     /**
