@@ -325,10 +325,6 @@ class TaskDomainService
             $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
             // Check and set whether it's a hidden file
             $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
-            // Update storage type if provided
-            if (isset($fileData['storage_type'])) {
-                $taskFileEntity->setStorageType($fileData['storage_type']);
-            }
             if ($parentId !== null) {
                 $taskFileEntity->setParentId($parentId);
             }
