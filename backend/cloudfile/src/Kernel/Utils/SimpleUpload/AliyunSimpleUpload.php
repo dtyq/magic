@@ -664,9 +664,9 @@ class AliyunSimpleUpload extends SimpleUpload
                     = 'attachment; filename="' . addslashes($filename) . '"';
             }
 
-            if (isset($options['content_type'])) {
-                $signedUrlOptions['response-content-type'] = $options['content_type'];
-            }
+            //            if (isset($options['content_type'])) {
+            //                $signedUrlOptions['response-content-type'] = $options['content_type'];
+            //            }
 
             // Set custom response headers if provided
             if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
@@ -674,6 +674,11 @@ class AliyunSimpleUpload extends SimpleUpload
                     // For response override parameters, ensure they have 'response-' prefix
                     if (strpos($headerName, 'response-') !== 0) {
                         $headerName = 'response-' . $headerName;
+                    }
+                    // Skip response-content-type to avoid OSS InvalidRequest: Can not override response header on content-type
+                    if (strtolower($headerName) === 'response-content-type') {
+                        $this->sdkContainer->getLogger()->info('Aliyun OSS ignoring response-content-type override for presign');
+                        continue;
                     }
                     $signedUrlOptions[$headerName] = (string) $headerValue;
                 }
