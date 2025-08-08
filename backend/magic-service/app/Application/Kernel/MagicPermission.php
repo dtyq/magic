@@ -243,7 +243,6 @@ class MagicPermission implements MagicPermissionInterface
                         'label' => $label,
                         'permission_key' => $accumKey,
                         'children' => [],
-                        'check_status' => 0,
                     ];
                 }
 
@@ -255,7 +254,6 @@ class MagicPermission implements MagicPermissionInterface
                 'label' => $permission['operation_label'],
                 'permission_key' => $permission['permission_key'],
                 'full_label' => $permission['resource_label'] . '-' . $permission['operation_label'],
-                'check_status' => 0,
                 'is_leaf' => true,
             ];
         }
