@@ -25,7 +25,6 @@ use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
@@ -59,7 +58,7 @@ use Hyperf\Odin\Api\Response\TextCompletionResponse;
 use Hyperf\Odin\Contract\Api\Response\ResponseInterface;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
-use Hyperf\Odin\Exception\LLMException;
+use Hyperf\Odin\Exception\OdinException;
 use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Tool\Definition\ToolDefinition;
@@ -523,17 +522,11 @@ class LLMAppService extends AbstractLLMAppService
             );
 
             return $response;
-        } catch (BusinessException $exception) {
-            // Business exceptions should be distinguished from endpoint exceptions for high availability
-            // This helps the HA system differentiate between client-side errors (400) and server-side errors (500)
-            // which improves the effectiveness of endpoint health monitoring and failover decisions
-            $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $exception, 400);
-            throw $exception;
         } catch (Throwable $throwable) {
             $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
-            if ($throwable instanceof LLMException || $throwable instanceof InvalidArgumentException) {
+            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException) {
                 $message = $throwable->getMessage();
             }
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, $message, throwable: $throwable);

@@ -11,7 +11,6 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\Odin\Exception\LLMException;
 use Hyperf\Odin\Exception\OdinException;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -22,25 +21,19 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
     {
         $this->stopPropagation();
 
-        $statusCode = 400;
-        $errorCode = $throwable->getCode();
+        $statusCode = 500;
+        $errorCode = 500;
+        $errorMessage = 'Internal Server Error';
 
-        $previousException = $throwable->getPrevious();
-        if ($previousException instanceof LLMException) {
-            $errorMessage = $previousException->getPrevious()?->getMessage() ?? $previousException->getMessage();
-        } elseif ($previousException instanceof OdinException) {
-            $errorMessage = $previousException->getMessage();
-        } elseif ($previousException instanceof BusinessException) {
-            $errorMessage = $previousException->getMessage();
-            $errorCode = $previousException->getCode();
-        } else {
-            if ($throwable instanceof BusinessException) {
-                $errorMessage = $throwable->getMessage();
-                $errorCode = $throwable->getCode();
-            } else {
-                $errorMessage = 'system error';
-                $statusCode = 500;
-            }
+        $previous = $throwable->getPrevious();
+        if ($previous instanceof OdinException) {
+            $statusCode = $previous->getStatusCode();
+            $errorCode = $previous->getErrorCode();
+            $errorMessage = $previous->getMessage();
+        } elseif ($previous instanceof BusinessException) {
+            $statusCode = 400;
+            $errorCode = 400;
+            $errorMessage = $previous->getMessage();
         }
 
         $errorMessage = preg_replace('/https?:\/\/[^\s]+/', '', $errorMessage);
