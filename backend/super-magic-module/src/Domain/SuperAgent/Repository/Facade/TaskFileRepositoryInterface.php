@@ -101,6 +101,8 @@ interface TaskFileRepositoryInterface
      */
     public function deleteById(int $id): void;
 
+    public function deleteByFileKeyAndProjectId(string $fileKey, int $projectId): int;
+
     /**
      * 根据文件ID数组和用户ID批量获取用户文件.
      *
@@ -172,7 +174,7 @@ interface TaskFileRepositoryInterface
      * @param int $limit 查询限制
      * @return TaskFileEntity[] 文件列表
      */
-    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array;
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 1000): array;
 
     /**
      * 批量删除文件.
@@ -180,6 +182,13 @@ interface TaskFileRepositoryInterface
      * @param array $fileIds 文件ID数组
      */
     public function deleteByIds(array $fileIds): void;
+
+    /**
+     * 根据文件Keys批量删除文件.
+     *
+     * @param array $fileKeys 文件Key数组
+     */
+    public function deleteByFileKeys(array $fileKeys): void;
 
     /**
      * Batch bind files to project with parent directory.

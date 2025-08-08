@@ -29,6 +29,8 @@ use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Hyperf\DbConnection\Db;
 use Throwable;
 
@@ -36,12 +38,15 @@ use function Hyperf\Translation\trans;
 
 class TaskFileDomainService
 {
+
+    private readonly LoggerInterface $logger;
     public function __construct(
         protected TaskRepositoryInterface $taskRepository,
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
         protected TopicRepositoryInterface $topicRepository,
-        protected CloudFileRepositoryInterface $cloudFileRepository
+        protected CloudFileRepositoryInterface $cloudFileRepository,
+        LoggerFactory $loggerFactory
     ) {
     }
 
@@ -450,6 +455,9 @@ class TaskFileDomainService
             // Delete file record
             $this->taskFileRepository->deleteById($fileEntity->getFileId());
 
+            // Delete the same file in projects
+            $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
+
             Db::commit();
             return true;
         } catch (Throwable $e) {
@@ -497,6 +505,7 @@ class TaskFileDomainService
 
             // 4. 批量删除数据库记录
             $fileIds = array_map(fn ($entity) => $entity->getFileId(), $fileEntities);
+            // 根据文件ID批量删除数据库记录
             $this->taskFileRepository->deleteByIds($fileIds);
 
             Db::commit();
@@ -792,6 +801,10 @@ class TaskFileDomainService
 
         try {
             $this->taskFileRepository->deleteById($existingFile->getFileId());
+
+            // Delete the same file in projects
+            $this->taskFileRepository->deleteByFileKeyAndProjectId($existingFile->getFileKey(), $existingFile->getProjectId());
+
             return true;
         } catch (Throwable $e) {
             // Log error if needed
@@ -1246,14 +1259,9 @@ class TaskFileDomainService
                 'last_modified' => date('Y-m-d H:i:s'),
             ];
         }
-        $headObjectResult = $this->cloudFileRepository->getMetas([$fileKey], $organizationCode, StorageBucketType::SandBox);
-        $meta = $headObjectResult[$fileKey] ?? null;
-        if ($meta === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
-        }
-        $info = $meta->getFileAttributes();
+        $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
         return [
-            'size' => $info['fileSize'],
+            'size' => $headObjectResult['content_length'] ?? 0,
             'last_modified' => date('Y-m-d H:i:s'),
         ];
     }

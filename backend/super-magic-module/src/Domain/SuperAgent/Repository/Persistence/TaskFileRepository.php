@@ -308,6 +308,12 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         $this->model::query()->where('file_id', $id)->delete();
     }
 
+    public function deleteByFileKeyAndProjectId(string $fileKey, int $projectId): int
+    {
+        $result = $this->model::query()->where('file_key', $fileKey)->where('project_id', $projectId)->delete();
+        return $result ?? 0;
+    }
+
     public function getByFileKeyAndSandboxId(string $fileKey, int $sandboxId): ?TaskFileEntity
     {
         $model = $this->model::query()
@@ -505,6 +511,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         $this->model::query()
             ->whereIn('file_id', $fileIds)
+            ->delete();
+    }
+
+    /**
+     * 根据文件Keys批量删除文件.
+     */
+    public function deleteByFileKeys(array $fileKeys): void
+    {
+        if (empty($fileKeys)) {
+            return;
+        }
+
+        $this->model::query()
+            ->whereIn('file_key', $fileKeys)
             ->delete();
     }
 
