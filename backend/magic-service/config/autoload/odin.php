@@ -287,6 +287,7 @@ return [
                 // 是否启用字段白名单过滤，默认true（启用过滤）
                 'enable_whitelist' => env('ODIN_LOG_WHITELIST_ENABLED', true),
             ],
+            'network_retry_count' => 1,
         ],
         'models' => $models,
         // 全局模型 options，可被模型本身的 options 覆盖
@@ -295,6 +296,12 @@ return [
                 // 示例：自定义错误映射
                 // '自定义错误关键词' => \Hyperf\Odin\Exception\LLMException\LLMTimeoutError::class,
             ],
+        ],
+        'model_fixed_temperature' => [
+            'magic-aoai-eastus2-prod-gpt-5-global' => 1,
+            'magic-aoai-eastus2-prod-gpt-5-mini-global' => 1,
+            'magic-aoai-eastus2-prod-gpt-5-nano-global' => 1,
+            'magic-aoai-eastus2-prod-gpt-5-chat-global' => 1,
         ],
     ],
     'content_copy_keys' => [
