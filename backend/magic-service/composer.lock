@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.352.3",
+            "version": "3.352.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "89537fbca9f70ebb3b01c761e8cef933df09d046"
+                "reference": "d3ce2a85687d55cd67d52682306227bc6aa836d6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/89537fbca9f70ebb3b01c761e8cef933df09d046",
-                "reference": "89537fbca9f70ebb3b01c761e8cef933df09d046",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d3ce2a85687d55cd67d52682306227bc6aa836d6",
+                "reference": "d3ce2a85687d55cd67d52682306227bc6aa836d6",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.3"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.4"
             },
-            "time": "2025-08-06T18:16:28+00:00"
+            "time": "2025-08-07T18:15:55+00:00"
         },
         {
             "name": "brick/math",
@@ -1981,16 +1981,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.8",
+            "version": "v0.1.9",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "fe3292af35717112a3fe12302c1d1a4f9b9488ad"
+                "reference": "dc261e63a28c693b5e20167739da5bfe3bfb6349"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/fe3292af35717112a3fe12302c1d1a4f9b9488ad",
-                "reference": "fe3292af35717112a3fe12302c1d1a4f9b9488ad",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/dc261e63a28c693b5e20167739da5bfe3bfb6349",
+                "reference": "dc261e63a28c693b5e20167739da5bfe3bfb6349",
                 "shasum": ""
             },
             "require": {
@@ -2040,7 +2040,7 @@
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "Apache License 2.0"
+                "Apache-2.0"
             ],
             "authors": [
                 {
@@ -2051,9 +2051,9 @@
             "description": "Package description here.",
             "support": {
                 "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.8"
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.9"
             },
-            "time": "2025-07-29T16:27:21+00:00"
+            "time": "2025-08-07T16:21:53+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2570,16 +2570,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.71",
+            "version": "v0.0.72",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "7e111886aced6107e1eed6695a27baa6c4587395"
+                "reference": "d471d1ea703011a592fb8c93890fcdfb2908c3ae"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=7e111886aced6107e1eed6695a27baa6c4587395",
-                "reference": "7e111886aced6107e1eed6695a27baa6c4587395",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=d471d1ea703011a592fb8c93890fcdfb2908c3ae",
+                "reference": "d471d1ea703011a592fb8c93890fcdfb2908c3ae",
                 "shasum": ""
             },
             "require": {
@@ -2671,9 +2671,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.71"
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.72"
             },
-            "time": "2025-08-06T23:57:56+08:00"
+            "time": "2025-08-08T00:14:53+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -14503,16 +14503,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.153",
+            "version": "v1.0.154",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "54d929b43c88487638e4469c5a175e7d341e5336"
+                "reference": "6706998c7fc6bc8fcb7b332ca804a2969ebb8414"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/54d929b43c88487638e4469c5a175e7d341e5336",
-                "reference": "54d929b43c88487638e4469c5a175e7d341e5336",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/6706998c7fc6bc8fcb7b332ca804a2969ebb8414",
+                "reference": "6706998c7fc6bc8fcb7b332ca804a2969ebb8414",
                 "shasum": ""
             },
             "require": {
@@ -14547,9 +14547,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.153"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.154"
             },
-            "time": "2025-07-10T12:02:07+00:00"
+            "time": "2025-08-07T12:06:59+00:00"
         },
         {
             "name": "w7corp/easywechat",
