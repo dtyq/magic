@@ -1137,7 +1137,11 @@ class TaskFileDomainService
         $dirEntity->setIsDirectory(true);
         $dirEntity->setParentId($parentId);
         $dirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
-        $dirEntity->setStorageType(StorageType::WORKSPACE);
+        if (WorkDirectoryUtil::isSnapshotFile($fileKey)) {
+            $dirEntity->setStorageType(StorageType::SNAPSHOT);
+        } else {
+            $dirEntity->setStorageType(StorageType::WORKSPACE);
+        }
         $dirEntity->setIsHidden(false);
         $dirEntity->setSort(0);
 

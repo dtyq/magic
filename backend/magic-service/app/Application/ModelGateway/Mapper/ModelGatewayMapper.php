@@ -614,6 +614,47 @@ class ModelGatewayMapper extends ModelMapper
         $this->attributes[$key] = $attributes;
     }
 
+    protected function createModel(string $model, array $item): EmbeddingInterface|ModelInterface
+    {
+        $implementation = $item['implementation'] ?? '';
+        if (! class_exists($implementation)) {
+            throw new InvalidArgumentException(sprintf('Implementation %s is not defined.', $implementation));
+        }
+
+        // 获取全局模型配置和API配置
+        $generalModelOptions = $this->config->get('odin.llm.general_model_options', []);
+        $generalApiOptions = $this->config->get('odin.llm.general_api_options', []);
+
+        // 全局配置可以被模型配置覆盖
+        $modelOptionsArray = array_merge($generalModelOptions, $item['model_options'] ?? []);
+        $apiOptionsArray = array_merge($generalApiOptions, $item['api_options'] ?? []);
+
+        // 创建选项对象
+        $modelOptions = new ModelOptions($modelOptionsArray);
+        $apiOptions = new ApiOptions($apiOptionsArray);
+
+        $fixedTemperature = $this->getFixedTemperatureForModel($model);
+        if ($fixedTemperature !== null) {
+            $modelOptions->setFixedTemperature((float) $fixedTemperature);
+        }
+
+        // 获取配置
+        $config = $item['config'] ?? [];
+
+        // 获取实际的端点名称，优先使用模型配置中的model字段
+        $endpoint = empty($item['model']) ? $model : $item['model'];
+
+        // 使用ModelFactory创建模型实例
+        return ModelFactory::create(
+            $implementation,
+            $endpoint,
+            $config,
+            $modelOptions,
+            $apiOptions,
+            $this->logger
+        );
+    }
+
     private function createProxy(string $model, ModelOptions $modelOptions, ApiOptions $apiOptions): MagicAILocalModel
     {
         // 使用ModelFactory创建模型实例
