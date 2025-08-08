@@ -613,7 +613,7 @@ class ModelGatewayMapper extends ModelMapper
         $this->attributes[$key] = $attributes;
     }
 
-    private function createModel(string $model, array $item): EmbeddingInterface|ModelInterface
+    protected function createModel(string $model, array $item): EmbeddingInterface|ModelInterface
     {
         $implementation = $item['implementation'] ?? '';
         if (! class_exists($implementation)) {
