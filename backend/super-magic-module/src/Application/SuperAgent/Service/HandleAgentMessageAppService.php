@@ -729,6 +729,11 @@ class HandleAgentMessageAppService extends AbstractAppService
             );
 
             // 3. Call FileProcessAppService with parentId
+            if (WorkDirectoryUtil::isSnapshotFile($attachment['file_key'])) {
+                $storageType = StorageType::SNAPSHOT->value;
+            } else {
+                $storageType = StorageType::WORKSPACE->value;
+            }
             /** @var TaskFileEntity $taskFileEntity */
             [$fileId, $taskFileEntity] = $this->fileProcessAppService->processFileByFileKey(
                 $attachment['file_key'],
@@ -738,7 +743,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $task->getTopicId(),
                 (int) $task->getId(),
                 $attachment['file_tag'] ?? FileType::PROCESS->value,
-                StorageType::WORKSPACE->value, // Default storage type
+                $storageType, // Default storage type
                 TaskFileSource::AGENT->value,  // Default source
                 $parentId // Pass the parent_id
             );

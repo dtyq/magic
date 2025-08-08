@@ -31,7 +31,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
@@ -335,13 +334,13 @@ class HandleApiMessageAppService extends AbstractAppService
             $sandboxIds[] = $sandboxId;
         }
         // Batch query status
-        $updateSandboxIds = [];
         $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
-        foreach ($result->getSandboxStatuses() as $sandboxStatus) {
-            if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
-                $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
-            }
-        }
+
+        // Get running sandbox IDs from remote result
+        $runningSandboxIds = $result->getRunningSandboxIds();
+
+        // Find sandbox IDs that are not running (including missing ones)
+        $updateSandboxIds = array_diff($sandboxIds, $runningSandboxIds);
         // Update topic status
         $this->topicDomainService->updateTopicStatusBySandboxIds($updateSandboxIds, TaskStatus::Suspended);
         // Update task status

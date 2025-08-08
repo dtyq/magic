@@ -143,6 +143,8 @@ class ProjectApi extends AbstractApi
 
         // 登录用户使用的场景
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
+        // todo fix
+        $dto->setPageSize(2000);
         return $this->projectAppService->getProjectAttachments($requestContext, $dto);
     }
 
