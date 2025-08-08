@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
@@ -306,6 +307,58 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
         } catch (Exception $e) {
             $this->logger->error('[Sandbox][Agent] Unexpected error when executing script task', [
                 'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return AgentResponse::fromApiResponse([
+                'code' => 2000,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+    }
+
+    /**
+     * 回滚到指定的checkpoint.
+     */
+    public function rollbackCheckpoint(string $sandboxId, CheckpointRollbackRequest $request): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Agent] Rolling back to checkpoint', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $request->getTargetMessageId(),
+        ]);
+
+        try {
+            // 通过Gateway转发到沙箱的checkpoint回滚API
+            $result = $this->gateway->proxySandboxRequest(
+                $sandboxId,
+                'POST',
+                'api/checkpoints/rollback',
+                $request->toArray()
+            );
+
+            $response = AgentResponse::fromGatewayResult($result);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Agent] Checkpoint rollback successful', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $request->getTargetMessageId(),
+                    'message' => $response->getMessage(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Agent] Failed to rollback checkpoint', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $request->getTargetMessageId(),
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            $this->logger->error('[Sandbox][Agent] Unexpected error when rolling back checkpoint', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $request->getTargetMessageId(),
                 'error' => $e->getMessage(),
             ]);
 
