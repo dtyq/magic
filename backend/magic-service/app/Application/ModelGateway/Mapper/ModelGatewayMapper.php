@@ -633,6 +633,11 @@ class ModelGatewayMapper extends ModelMapper
         $modelOptions = new ModelOptions($modelOptionsArray);
         $apiOptions = new ApiOptions($apiOptionsArray);
 
+        $fixedTemperature = $this->getFixedTemperatureForModel($model);
+        if ($fixedTemperature !== null) {
+            $modelOptions->setFixedTemperature((float) $fixedTemperature);
+        }
+
         // 获取配置
         $config = $item['config'] ?? [];
 
