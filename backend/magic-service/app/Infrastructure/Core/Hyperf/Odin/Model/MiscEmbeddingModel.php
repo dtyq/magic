@@ -16,30 +16,21 @@ use Hyperf\Odin\Api\Response\EmbeddingResponse;
 use Hyperf\Odin\Contract\Api\ClientInterface;
 use Hyperf\Odin\Model\OpenAIModel;
 use Psr\Log\LoggerInterface;
-use Throwable;
 
 class MiscEmbeddingModel extends OpenAIModel
 {
     public function embeddings(array|string $input, ?string $encoding_format = 'float', ?string $user = null, array $businessParams = []): EmbeddingResponse
     {
-        try {
-            // 检查模型是否支持嵌入功能
-            $this->checkEmbeddingSupport();
+        // 检查模型是否支持嵌入功能
+        $this->checkEmbeddingSupport();
 
-            $client = $this->getClient();
-            $embeddingRequest = new MiscEmbeddingRequest(
-                input: $input,
-                model: $this->model
-            );
+        $client = $this->getClient();
+        $embeddingRequest = new MiscEmbeddingRequest(
+            input: $input,
+            model: $this->model
+        );
 
-            return $client->embeddings($embeddingRequest);
-        } catch (Throwable $e) {
-            $context = [
-                'model' => $this->model,
-                'input' => $input,
-            ];
-            throw $this->handleException($e, $context);
-        }
+        return $client->embeddings($embeddingRequest);
     }
 
     protected function getClient(): ClientInterface
