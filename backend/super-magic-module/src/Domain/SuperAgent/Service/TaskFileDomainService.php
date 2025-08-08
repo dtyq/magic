@@ -1262,11 +1262,17 @@ class TaskFileDomainService
                 'last_modified' => date('Y-m-d H:i:s'),
             ];
         }
-        $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
-        return [
-            'size' => $headObjectResult['content_length'] ?? 0,
-            'last_modified' => date('Y-m-d H:i:s'),
-        ];
+
+        try {
+            $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
+            return [
+                'size' => $headObjectResult['content_length'] ?? 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
+        } catch (Throwable $e) {
+            // File not found or other cloud storage error
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
     }
 
     /**
