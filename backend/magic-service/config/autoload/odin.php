@@ -224,7 +224,81 @@ return [
                 'stream_first' => 60.0, // 首个流式块超时（秒）
             ],
             'custom_error_mapping_rules' => [],
-            'http_handler' => 'stream',
+            'logging' => [
+                // 日志字段白名单配置
+                // 如果为空数组或未配置，则打印所有字段
+                // 如果配置了字段列表，则只打印指定的字段
+                // 支持嵌套字段，使用点语法如 'args.messages'
+                // 注意：messages 和 tools 字段不在白名单中，不会被打印
+                'whitelist_fields' => [
+                    // 基本请求信息
+                    'request_id',                  // 请求ID
+                    'model_id',                    // 模型ID
+                    'model',                       // 模型名称
+                    'duration_ms',                 // 请求耗时
+                    'url',                         // 请求URL
+                    'status_code',                 // 响应状态码
+
+                    // options 信息
+                    'options.headers',
+                    'options.json.model',
+                    'options.json.temperature',
+                    'options.json.max_tokens',
+                    'options.json.stop',
+                    'options.json.frequency_penalty',
+                    'options.json.presence_penalty',
+                    'options.json.business_params',
+                    'options.json.thinking',
+
+                    // 使用量统计
+                    'usage',                       // 完整的usage对象
+                    'usage.input_tokens',          // 输入token数量
+                    'usage.output_tokens',         // 输出token数量
+                    'usage.total_tokens',          // 总token数量
+
+                    // 请求参数（排除敏感内容）
+                    'args.temperature',            // 温度参数
+                    'args.max_tokens',             // 最大token限制
+                    'args.top_p',                  // Top-p参数
+                    'args.top_k',                  // Top-k参数
+                    'args.frequency_penalty',      // 频率惩罚
+                    'args.presence_penalty',       // 存在惩罚
+                    'args.stream',                 // 流式响应标志
+                    'args.stop',                   // 停止词
+                    'args.seed',                   // 随机种子
+
+                    // Token预估信息
+                    'token_estimate',              // Token估算详情
+                    'token_estimate.input_tokens', // 估算输入tokens
+                    'token_estimate.output_tokens', // 估算输出tokens
+
+                    // 响应内容（排除具体内容）
+                    'choices.0.finish_reason',     // 完成原因
+                    'choices.0.index',             // 选择索引
+
+                    // 错误信息
+                    'error',                       // 错误详情
+                    'error.type',                  // 错误类型
+                    'error.message',               // 错误消息（不包含具体内容）
+
+                    // 其他元数据
+                    'created',                     // 创建时间戳
+                    'id',                         // 请求ID
+                    'object',                     // 对象类型
+                    'system_fingerprint',         // 系统指纹
+                    'performance_flag',            // 性能标记（慢请求标识）
+
+                    // 注意：以下字段被排除，不会打印
+                    // - args.messages (用户消息内容)
+                    // - args.tools (工具定义)
+                    // - choices.0.message (响应消息内容)
+                    // - choices.0.delta (流式响应增量内容)
+                    // - content (响应内容)
+                ],
+                // 是否启用字段白名单过滤，默认true（启用过滤）
+                'enable_whitelist' => env('ODIN_LOG_WHITELIST_ENABLED', true),
+            ],
+            'network_retry_count' => 1,
         ],
         'models' => $models,
         // 全局模型 options，可被模型本身的 options 覆盖
@@ -233,6 +307,9 @@ return [
                 // 示例：自定义错误映射
                 // '自定义错误关键词' => \Hyperf\Odin\Exception\LLMException\LLMTimeoutError::class,
             ],
+        ],
+        'model_fixed_temperature' => [
+            '%gpt-5%' => 1,
         ],
     ],
     'content_copy_keys' => [

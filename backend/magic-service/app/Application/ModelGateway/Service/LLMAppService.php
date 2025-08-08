@@ -25,7 +25,6 @@ use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
@@ -59,16 +58,13 @@ use Hyperf\Odin\Api\Response\TextCompletionResponse;
 use Hyperf\Odin\Contract\Api\Response\ResponseInterface;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
-use Hyperf\Odin\Exception\LLMException;
-use Hyperf\Odin\Exception\LLMException\LLMNetworkException;
+use Hyperf\Odin\Exception\OdinException;
 use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Tool\Definition\ToolDefinition;
 use Hyperf\Odin\Utils\MessageUtil;
 use Hyperf\Odin\Utils\ToolUtil;
 use Hyperf\Redis\Redis;
-use Hyperf\Retry\Retry;
-use Hyperf\Retry\RetryContext;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
@@ -526,17 +522,11 @@ class LLMAppService extends AbstractLLMAppService
             );
 
             return $response;
-        } catch (BusinessException $exception) {
-            // Business exceptions should be distinguished from endpoint exceptions for high availability
-            // This helps the HA system differentiate between client-side errors (400) and server-side errors (500)
-            // which improves the effectiveness of endpoint health monitoring and failover decisions
-            $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $exception, 400);
-            throw $exception;
         } catch (Throwable $throwable) {
             $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
-            if ($throwable instanceof LLMException || $throwable instanceof InvalidArgumentException) {
+            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException) {
                 $message = $throwable->getMessage();
             }
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, $message, throwable: $throwable);
@@ -1000,39 +990,22 @@ class LLMAppService extends AbstractLLMAppService
         $chatRequest->setBusinessParams($sendMsgDTO->getBusinessParams());
         $chatRequest->setThinking($sendMsgDTO->getThinking());
 
-        $call = function () use ($sendMsgDTO, $odinModel, $chatRequest) {
-            return match ($sendMsgDTO->getCallMethod()) {
-                AbstractRequestDTO::METHOD_COMPLETIONS => $odinModel->completions(
-                    prompt: $sendMsgDTO->getPrompt(),
-                    temperature: $sendMsgDTO->getTemperature(),
-                    maxTokens: $sendMsgDTO->getMaxTokens(),
-                    stop: $sendMsgDTO->getStop() ?? [],
-                    frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
-                    presencePenalty: $sendMsgDTO->getPresencePenalty(),
-                    businessParams: $sendMsgDTO->getBusinessParams(),
-                ),
-                AbstractRequestDTO::METHOD_CHAT_COMPLETIONS => match ($sendMsgDTO->isStream()) {
-                    true => $odinModel->chatStreamWithRequest($chatRequest),
-                    default => $odinModel->chatWithRequest($chatRequest),
-                },
-                default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
-            };
+        return match ($sendMsgDTO->getCallMethod()) {
+            AbstractRequestDTO::METHOD_COMPLETIONS => $odinModel->completions(
+                prompt: $sendMsgDTO->getPrompt(),
+                temperature: $sendMsgDTO->getTemperature(),
+                maxTokens: $sendMsgDTO->getMaxTokens(),
+                stop: $sendMsgDTO->getStop() ?? [],
+                frequencyPenalty: $sendMsgDTO->getFrequencyPenalty(),
+                presencePenalty: $sendMsgDTO->getPresencePenalty(),
+                businessParams: $sendMsgDTO->getBusinessParams(),
+            ),
+            AbstractRequestDTO::METHOD_CHAT_COMPLETIONS => match ($sendMsgDTO->isStream()) {
+                true => $odinModel->chatStreamWithRequest($chatRequest),
+                default => $odinModel->chatWithRequest($chatRequest),
+            },
+            default => ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Unsupported call method'),
         };
-
-        return Retry::max(3)
-            ->backoff(500)
-            ->when(function (RetryContext $context) {
-                // 第一次执行时允许尝试
-                if ($context->isFirstTry()) {
-                    return true;
-                }
-
-                $throwable = $context->lastThrowable;
-                // 只有网络异常才重试
-                return $throwable instanceof LLMNetworkException
-                       || ($throwable && $throwable->getPrevious() instanceof LLMNetworkException);
-            })
-            ->call($call);
     }
 
     /**

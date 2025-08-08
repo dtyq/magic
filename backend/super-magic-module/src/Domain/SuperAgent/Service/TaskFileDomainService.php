@@ -732,7 +732,6 @@ class TaskFileDomainService
         $projectId = $projectEntity->getId();
         $workDir = $projectEntity->getWorkDir();
 
-        Db::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
         Db::beginTransaction();
         try {
             // 1. Get parent directory ID (create directories if needed)
@@ -1220,7 +1219,7 @@ class TaskFileDomainService
         $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
         $taskFileEntity->setSource(TaskFileSource::AGENT);
         $taskFileEntity->setStorageType(StorageType::WORKSPACE);
-        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         $taskFileEntity->setSort(0);
         // Set timestamps
         $now = date('Y-m-d H:i:s');
@@ -1365,5 +1364,29 @@ class TaskFileDomainService
             'file_id' => $fileId,
             'url' => $preSignedUrl,
         ];
+    }
+
+    /**
+     * Check if file is hidden file.
+     *
+     * @param string $fileKey File path
+     * @return bool Whether it's a hidden file: true-yes, false-no
+     */
+    private function isHiddenFile(string $fileKey): bool
+    {
+        // Remove leading slash, uniform processing
+        $fileKey = ltrim($fileKey, '/');
+
+        // Split path into parts
+        $pathParts = explode('/', $fileKey);
+
+        // Check if each path part starts with .
+        foreach ($pathParts as $part) {
+            if (! empty($part) && str_starts_with($part, '.')) {
+                return true; // It's a hidden file
+            }
+        }
+
+        return false; // It's not a hidden file
     }
 }
