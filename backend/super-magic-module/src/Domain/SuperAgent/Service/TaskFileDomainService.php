@@ -29,17 +29,17 @@ use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
-use Hyperf\DbConnection\Db;
 use Throwable;
 
 use function Hyperf\Translation\trans;
 
 class TaskFileDomainService
 {
-
     private readonly LoggerInterface $logger;
+
     public function __construct(
         protected TaskRepositoryInterface $taskRepository,
         protected TaskFileRepositoryInterface $taskFileRepository,
@@ -48,6 +48,7 @@ class TaskFileDomainService
         protected CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     public function getProjectFilesFromCloudStorage(string $organizationCode, string $workDir): array
@@ -498,8 +499,10 @@ class TaskFileDomainService
                     $this->cloudFileRepository->deleteObjectByCredential($prefix, $organizationCode, $fileKey, StorageBucketType::SandBox);
                     ++$deletedCount;
                 } catch (Throwable $e) {
-                    // 记录单个文件删除失败，但继续处理其他文件
-                    // 这里可以添加日志记录
+                    $this->logger->error('Failed to delete cloud file', [
+                        'file_key' => $fileKey,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
