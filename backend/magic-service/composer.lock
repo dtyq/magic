@@ -1981,16 +1981,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.9",
+            "version": "v0.1.10",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "dc261e63a28c693b5e20167739da5bfe3bfb6349"
+                "reference": "31c9668ef3b8ab1729d4e80fe4938abec94c4f9a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/dc261e63a28c693b5e20167739da5bfe3bfb6349",
-                "reference": "dc261e63a28c693b5e20167739da5bfe3bfb6349",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/31c9668ef3b8ab1729d4e80fe4938abec94c4f9a",
+                "reference": "31c9668ef3b8ab1729d4e80fe4938abec94c4f9a",
                 "shasum": ""
             },
             "require": {
@@ -2051,9 +2051,9 @@
             "description": "Package description here.",
             "support": {
                 "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.9"
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.10"
             },
-            "time": "2025-08-07T16:21:53+00:00"
+            "time": "2025-08-08T04:23:02+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
