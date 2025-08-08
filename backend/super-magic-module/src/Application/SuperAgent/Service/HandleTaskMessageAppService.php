@@ -558,13 +558,13 @@ class HandleTaskMessageAppService extends AbstractAppService
             $sandboxIds[] = $sandboxId;
         }
         // Batch query status
-        $updateSandboxIds = [];
         $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
-        foreach ($result->getSandboxStatuses() as $sandboxStatus) {
-            if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
-                $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
-            }
-        }
+        
+        // Get running sandbox IDs from remote result
+        $runningSandboxIds = $result->getRunningSandboxIds();
+        
+        // Find sandbox IDs that are not running (including missing ones)
+        $updateSandboxIds = array_diff($sandboxIds, $runningSandboxIds);
         // Update topic status
         $this->topicDomainService->updateTopicStatusBySandboxIds($updateSandboxIds, TaskStatus::Suspended);
         // Update task status

@@ -239,11 +239,18 @@ class HandleUserMessageAppService extends AbstractAppService
             $taskEntity->setSandboxId($sandboxID);
 
             // Update task status
-            $this->topicTaskAppService->updateTaskStatus(
-                dataIsolation: $dataIsolation,
-                task: $taskEntity,
-                status: TaskStatus::RUNNING
-            );
+            if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskEntity->getId())) {
+                $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
+                if ($result->getStatus() === SandboxStatus::RUNNING) {
+                    $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+                }
+            } else {
+                $this->topicTaskAppService->updateTaskStatus(
+                    dataIsolation: $dataIsolation,
+                    task: $taskEntity,
+                    status: TaskStatus::RUNNING
+                );
+            }
         } catch (EventException $e) {
             $this->logger->error(sprintf(
                 'Initialize task, event processing failed: %s',
@@ -319,14 +326,17 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $sandboxIds[] = $sandboxId;
         }
-        // Batch query status
-        $updateSandboxIds = [];
-        $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
-        foreach ($result->getSandboxStatuses() as $sandboxStatus) {
-            if ($sandboxStatus['status'] != SandboxStatus::RUNNING) {
-                $updateSandboxIds[] = $sandboxStatus['sandbox_id'];
-            }
+        if (count($sandboxIds) === 0) {
+            return 0;
         }
+        // Batch query status
+        $result = $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
+        
+        // Get running sandbox IDs from remote result
+        $runningSandboxIds = $result->getRunningSandboxIds();
+        
+        // Find sandbox IDs that are not running (including missing ones)
+        $updateSandboxIds = array_diff($sandboxIds, $runningSandboxIds);
         // Update topic status
         $this->topicDomainService->updateTopicStatusBySandboxIds($updateSandboxIds, TaskStatus::Suspended);
         // Update task status
