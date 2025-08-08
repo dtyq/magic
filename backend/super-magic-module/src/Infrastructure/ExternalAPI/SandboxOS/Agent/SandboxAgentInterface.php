@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
@@ -72,4 +73,13 @@ interface SandboxAgentInterface
      * @return AgentResponse 执行响应
      */
     public function executeScriptTask(string $sandboxId, ScriptTaskRequest $request): AgentResponse;
+
+    /**
+     * 回滚到指定的checkpoint.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param CheckpointRollbackRequest $request checkpoint回滚请求
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpoint(string $sandboxId, CheckpointRollbackRequest $request): AgentResponse;
 }

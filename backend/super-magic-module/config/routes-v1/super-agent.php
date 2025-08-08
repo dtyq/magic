@@ -122,6 +122,8 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+            // 回滚检查点
+            Router::post('/checkpoint/rollback', [SandboxApi::class, 'rollbackCheckpoint']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]

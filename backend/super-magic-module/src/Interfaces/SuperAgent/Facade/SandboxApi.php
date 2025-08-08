@@ -23,11 +23,13 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\InitSandboxRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UserInfoRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InitSandboxResponseDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -244,5 +246,56 @@ class SandboxApi extends AbstractApi
             }
         }
         $requestDTO->setTopicId($topicId);
+    }
+
+    /**
+     * 回滚沙箱到指定的checkpoint.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 回滚结果
+     */
+    #[ApiResponse('low_code')]
+    public function rollbackCheckpoint(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        
+        // 从请求中创建DTO并验证参数
+        $requestDTO = CheckpointRollbackRequestDTO::fromRequest($this->request);
+        
+        $topicId = $requestDTO->getTopicId();
+        $targetMessageId = $requestDTO->getTargetMessageId();
+        
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+        
+        if (empty($targetMessageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'target_message_id is required');
+        }
+        
+        // 获取话题信息以获取沙箱ID
+        $topic = $this->topicAppService->getTopicById((int) $topicId);
+        
+        $sandboxId = $topic->getSandboxId();
+        
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required for this topic');
+        }
+        
+        // 调用应用服务执行回滚操作
+        $result = $this->agentAppService->rollbackCheckpoint($sandboxId, $targetMessageId);
+        
+        if (!$result->isSuccess()) {
+            ExceptionBuilder::throw(AgentErrorCode::SANDBOX_NOT_FOUND, $result->getMessage());
+        }
+        
+        // 构建响应DTO
+        $responseDTO = new CheckpointRollbackResponseDTO();
+        $responseDTO->setSandboxId($sandboxId);
+        $responseDTO->setTargetMessageId($targetMessageId);
+        $responseDTO->setMessage($result->getMessage());
+        $responseDTO->setSuccess($result->isSuccess());
+        
+        return $responseDTO->toArray();
     }
 }

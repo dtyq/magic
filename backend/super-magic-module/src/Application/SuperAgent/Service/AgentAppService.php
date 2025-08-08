@@ -174,4 +174,46 @@ class AgentAppService
         ]);
         throw new SandboxOperationException('Wait for workspace ready', 'Workspace ready timeout after ' . $timeoutSeconds . ' seconds', 3003);
     }
+
+    /**
+     * 回滚到指定的checkpoint.
+     *
+     * @param string $sandboxId 沙箱ID 
+     * @param string $targetMessageId 目标消息ID
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpoint(string $sandboxId, string $targetMessageId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint requested', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        try {
+            $response = $this->agentDomainService->rollbackCheckpoint($sandboxId, $targetMessageId);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][App] Checkpoint rollback successful', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][App] Checkpoint rollback failed', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][App] Unexpected error during checkpoint rollback', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Rollback checkpoint', 'Checkpoint rollback failed: ' . $e->getMessage(), 3004);
+        }
+    }
 }
