@@ -239,6 +239,17 @@ return [
                     'url',                         // 请求URL
                     'status_code',                 // 响应状态码
 
+                    // options 信息
+                    'options.headers',
+                    'options.json.model',
+                    'options.json.temperature',
+                    'options.json.max_tokens',
+                    'options.json.stop',
+                    'options.json.frequency_penalty',
+                    'options.json.presence_penalty',
+                    'options.json.business_params',
+                    'options.json.thinking',
+
                     // 使用量统计
                     'usage',                       // 完整的usage对象
                     'usage.input_tokens',          // 输入token数量
