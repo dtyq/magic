@@ -1243,7 +1243,6 @@ class TaskFileDomainService
         } else {
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
         }
-        $taskFileEntity->setStorageType(StorageType::WORKSPACE);
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         $taskFileEntity->setSort(0);
         // Set timestamps
