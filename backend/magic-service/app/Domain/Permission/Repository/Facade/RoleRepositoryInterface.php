@@ -41,7 +41,7 @@ interface RoleRepositoryInterface
     /**
      * 为角色分配权限.
      */
-    public function assignPermissions(string $organizationCode, int $roleId, array $permissionKeys, ?string $assignedBy = null): void;
+    public function assignPermissions(string $organizationCode, int $roleId, array $permissionKeys, ?string $assignedUid = null): void;
 
     /**
      * 移除角色权限.
