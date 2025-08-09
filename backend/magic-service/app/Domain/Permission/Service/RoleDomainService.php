@@ -38,6 +38,7 @@ readonly class RoleDomainService
     public function save(PermissionDataIsolation $dataIsolation, RoleEntity $savingRoleEntity): RoleEntity
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $savingRoleEntity->setOrganizationCode($organizationCode);
 
         // 1. 校验权限键有效性
         foreach ($savingRoleEntity->getPermissions() as $permissionKey) {
@@ -48,10 +49,11 @@ readonly class RoleDomainService
 
         if ($savingRoleEntity->shouldCreate()) {
             $roleEntity = clone $savingRoleEntity;
-            $roleEntity->prepareForCreation();
+            $roleEntity->prepareForCreation($dataIsolation->getCurrentOrganizationCode());
 
             // 检查名称在组织下是否唯一
             if ($this->roleRepository->getByName($organizationCode, $savingRoleEntity->getName())) {
+                //TODO: 处理报错信息
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.role_name_exists', ['name' => $savingRoleEntity->getName()]);
             }
         } else {
@@ -82,7 +84,7 @@ readonly class RoleDomainService
                 $organizationCode,
                 $savedRoleEntity->getId(),
                 $userIds,
-                $savedRoleEntity->getUpdatedUid() ?? $savedRoleEntity->getCreatedUid()
+                $dataIsolation->getCurrentUserId()
             );
         }
 
@@ -98,6 +100,11 @@ readonly class RoleDomainService
         if (! $roleEntity) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.role_not_found', ['id' => $id]);
         }
+        
+        // 补充角色关联的用户ID信息
+        $roleUsers = $this->roleRepository->getRoleUsers($dataIsolation->getCurrentOrganizationCode(), $id);
+        $roleEntity->setUserIds($roleUsers);
+        
         return $roleEntity;
     }
 
@@ -119,41 +126,11 @@ readonly class RoleDomainService
         // 检查角色是否还有用户关联
         $roleUsers = $this->roleRepository->getRoleUsers($organizationCode, $roleEntity->getId());
         if (! empty($roleUsers)) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.role_has_users', ['count' => count($roleUsers)]);
+            // 先删除角色与用户的关联关系
+            $this->roleRepository->removeUsers($organizationCode, $roleEntity->getId(), $roleUsers);
         }
 
         $this->roleRepository->delete($organizationCode, $roleEntity);
-    }
-
-    /**
-     * 为角色分配权限.
-     */
-    public function assignPermissions(PermissionDataIsolation $dataIsolation, int $roleId, array $permissionKeys, ?string $assignedBy = null): void
-    {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-        // 验证角色存在
-        $role = $this->show($dataIsolation, $roleId);
-
-        // 验证权限键有效性
-        foreach ($permissionKeys as $permissionKey) {
-            if (! $this->permission->isValidPermission($permissionKey)) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.invalid_permission_key', ['key' => $permissionKey]);
-            }
-        }
-
-        $this->roleRepository->assignPermissions($organizationCode, $roleId, $permissionKeys, $assignedBy);
-    }
-
-    /**
-     * 移除角色权限.
-     */
-    public function removePermissions(PermissionDataIsolation $dataIsolation, int $roleId, array $permissionKeys): void
-    {
-        // 验证角色存在
-        $this->show($dataIsolation, $roleId);
-
-        $this->roleRepository->removePermissions($dataIsolation->getCurrentOrganizationCode(), $roleId, $permissionKeys);
     }
 
     /**

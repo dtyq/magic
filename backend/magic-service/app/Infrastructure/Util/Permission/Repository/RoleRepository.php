@@ -133,7 +133,7 @@ class RoleRepository implements RoleRepositoryInterface
     /**
      * 为角色分配权限.
      */
-    public function assignPermissions(string $organizationCode, int $roleId, array $permissionKeys, ?string $assignedBy = null): void
+    public function assignPermissions(string $organizationCode, int $roleId, array $permissionKeys, ?string $assignedUid = null): void
     {
         $model = $this->roleQuery($organizationCode)
             ->where('id', $roleId)
@@ -143,13 +143,14 @@ class RoleRepository implements RoleRepositoryInterface
             return;
         }
 
+        // TODO: 检查保存
         // 合并权限（去重）
         $currentPermissions = $model->getPermissions();
         $newPermissions = array_unique(array_merge($currentPermissions, $permissionKeys));
 
         // 更新权限
         $model->setPermissions($newPermissions);
-        $model->updated_uid = $assignedBy;
+        $model->updated_uid = $assignedUid;
         $model->save();
     }
 

@@ -50,9 +50,10 @@ class RoleEntity extends AbstractEntity
         return empty($this->id);
     }
 
-    public function prepareForCreation(): void
+    public function prepareForCreation($createUid): void
     {
         $this->validate();
+        $this->createdUid = $createUid;
 
         if (empty($this->createdAt)) {
             $this->createdAt = new DateTime();
