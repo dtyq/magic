@@ -22,6 +22,7 @@ class SubAdminAssembler
             'id' => $entity->getId(),
             'name' => $entity->getName(),
             'status' => $entity->getStatus(),
+            'permission_tag' => $entity->getPermissionTag(),
             'permissions' => $entity->getPermissions(),
             'user_ids' => $entity->getUserIds(),
             'created_at' => $entity->getCreatedAt()?->format('Y-m-d H:i:s'),

@@ -8,12 +8,14 @@ declare(strict_types=1);
 namespace App\Domain\Permission\Service;
 
 use App\Application\Kernel\Contract\MagicPermissionInterface;
+use App\Application\Kernel\MagicPermission;
 use App\Domain\Permission\Entity\RoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use Throwable;
 
 readonly class RoleDomainService
 {
@@ -56,10 +58,33 @@ readonly class RoleDomainService
         $savingRoleEntity->setOrganizationCode($organizationCode);
 
         // 1. 校验权限键有效性
+        // 更新 permissionTag 信息：根据权限键提取二级模块标签，用于前端展示分类
+        $permissionTags = [];
         foreach ($savingRoleEntity->getPermissions() as $permissionKey) {
+            // 校验权限键有效性
             if (! $this->permission->isValidPermission($permissionKey)) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.invalid_permission_key', ['key' => $permissionKey]);
             }
+
+            // 跳过全局权限常量，无需参与标签提取
+            if ($permissionKey === MagicPermission::ALL_PERMISSIONS) {
+                continue;
+            }
+
+            // 解析权限键，获取资源并提取其二级模块标签
+            try {
+                $parsed = $this->permission->parsePermission($permissionKey);
+                $resource = $parsed['resource'];
+                $moduleLabel = $this->permission->getResourceModule($resource);
+                $permissionTags[$moduleLabel] = $moduleLabel; // 使用键值去重
+            } catch (Throwable $e) {
+                // 解析失败时忽略该权限的标签提取，校验已通过，不影响保存
+            }
+        }
+
+        // 将标签列表写入 RoleEntity
+        if (! empty($permissionTags)) {
+            $savingRoleEntity->setPermissionTag(array_values($permissionTags));
         }
 
         if ($savingRoleEntity->shouldCreate()) {
@@ -68,7 +93,6 @@ readonly class RoleDomainService
 
             // 检查名称在组织下是否唯一
             if ($this->roleRepository->getByName($organizationCode, $savingRoleEntity->getName())) {
-                // TODO: 处理报错信息
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.role_name_exists', ['name' => $savingRoleEntity->getName()]);
             }
         } else {

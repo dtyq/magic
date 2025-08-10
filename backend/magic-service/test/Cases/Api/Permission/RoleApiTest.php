@@ -17,9 +17,9 @@ use HyperfTest\Cases\Api\AbstractHttpTest;
  */
 class RoleApiTest extends AbstractHttpTest
 {
-    public const string CREATE_SUB_ADMIN_API = '/api/v1/roles/sub-admins';
+    public const string CREATE_SUB_ADMIN_API = '/api/v1/admin/roles/sub-admins';
 
-    public const string UPDATE_SUB_ADMIN_API = '/api/v1/roles/sub-admins/';
+    public const string SUB_ADMIN_API = '/api/v1/admin/roles/sub-admins/';
 
     /**
      * 测试子管理员列表查询.
@@ -82,7 +82,7 @@ class RoleApiTest extends AbstractHttpTest
         ];
 
         $response = $this->put(
-            self::UPDATE_SUB_ADMIN_API . $id,
+            self::SUB_ADMIN_API . $id,
             $requestData,
             $this->getCommonHeaders()
         );
@@ -100,7 +100,7 @@ class RoleApiTest extends AbstractHttpTest
         // === 测试更新子管理员END ===
 
         // === 测试查询子管理员 ===
-        $detailResp = $this->get('/api/v1/roles/sub-admins/' . $id, [], $this->getCommonHeaders());
+        $detailResp = $this->get(self::SUB_ADMIN_API . $id, [], $this->getCommonHeaders());
         // 断言详情接口响应结构与数据
         $this->assertIsArray($detailResp);
         $this->assertEquals(1000, $detailResp['code'] ?? null);
@@ -132,12 +132,12 @@ class RoleApiTest extends AbstractHttpTest
 
         // === 测试删除子管理员 ===
         // 调用删除接口
-        $deleteResp = $this->delete('/api/v1/roles/sub-admins/' . $id, [], $this->getCommonHeaders());
+        $deleteResp = $this->delete(self::SUB_ADMIN_API . $id, [], $this->getCommonHeaders());
         $this->assertIsArray($deleteResp);
         $this->assertEquals(1000, $deleteResp['code']);
 
         // 再次查询应当返回角色不存在或空
-        $detailResp = $this->get('/api/v1/roles/sub-admins/' . $id, [], $this->getCommonHeaders());
+        $detailResp = $this->get(self::SUB_ADMIN_API . $id, [], $this->getCommonHeaders());
         // 预期这里会返回错误码，具体根据业务而定，只要非1000即可
         $this->assertNotEquals(1000, $detailResp['code'] ?? null);
         // === 测试删除子管理员END ===
