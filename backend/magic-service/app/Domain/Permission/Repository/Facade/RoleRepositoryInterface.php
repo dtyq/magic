@@ -69,6 +69,17 @@ interface RoleRepositoryInterface
     public function getRoleUsers(string $organizationCode, int $roleId): array;
 
     /**
+     * 批量获取多个角色的用户列表。
+     * 返回格式为 [roleId => userId[]].
+     *
+     * @param string $organizationCode 组织编码
+     * @param int[] $roleIds 角色 ID 列表
+     *
+     * @return array<int, array>
+     */
+    public function getRoleUsersMap(string $organizationCode, array $roleIds): array;
+
+    /**
      * 获取用户的角色列表.
      */
     public function getUserRoles(string $organizationCode, string $userId): array;

@@ -7,9 +7,14 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Permission\Facade;
 
+use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\Permission\Service\RoleAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Permission\Entity\RoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
+use App\Domain\Permission\Entity\ValueObject\Query\SubAdminQuery;
+use App\Interfaces\Kernel\DTO\PageDTO;
+use App\Interfaces\Permission\Assembler\SubAdminAssembler;
 use App\Interfaces\Permission\DTO\CreateSubAdminRequestDTO;
 use App\Interfaces\Permission\DTO\UpdateSubAdminRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -21,6 +26,9 @@ class RoleApi extends AbstractPermissionApi
 {
     #[Inject]
     protected RoleAppService $roleAppService;
+
+    #[Inject]
+    protected MagicUserInfoAppService $userInfoAppService;
 
     public function getSubAdminList(): array
     {
@@ -36,20 +44,47 @@ class RoleApi extends AbstractPermissionApi
         // 创建分页对象
         $page = $this->createPage();
 
-        // 获取查询过滤参数
-        $filters = $this->request->all();
-        // 移除分页参数，只保留过滤参数
-        unset($filters['page'], $filters['page_size']);
+        // 构建查询对象（自动过滤掉分页字段）
+        $query = new SubAdminQuery($this->request->all());
+
+        // 转换为仓储过滤数组
+        $filters = $query->toFilters();
 
         // 查询角色列表
         $result = $this->roleAppService->queries($dataIsolation, $page, $filters);
 
-        return [
-            'total' => $result['total'],
-            'list' => array_map(fn(RoleEntity $role) => $role->toArray(), $result['list']),
-            'page' => $page->getPage(),
-            'page_size' => $page->getPageNum()
-        ];
+        // 批量获取用户详情（每个角色仅取前5个userId）
+        $contactIsolation = ContactDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId()
+        );
+
+        // 收集需要查询的用户ID
+        $roleUserIdsMap = [];
+        $allNeedUserIds = [];
+        foreach ($result['list'] as $index => $roleEntity) {
+            /** @var RoleEntity $roleEntity */
+            $limitedIds = array_slice($roleEntity->getUserIds(), 0, 5);
+            $roleUserIdsMap[$index] = $limitedIds;
+            $allNeedUserIds = array_merge($allNeedUserIds, $limitedIds);
+        }
+        $allNeedUserIds = array_values(array_unique($allNeedUserIds));
+
+        // 批量查询用户信息
+        $allUserInfo = [];
+        if (! empty($allNeedUserIds)) {
+            $allUserInfo = $this->userInfoAppService->getBatchUserInfo($allNeedUserIds, $contactIsolation);
+        }
+
+        // 重新组装列表数据
+        $list = [];
+        foreach ($result['list'] as $index => $roleEntity) {
+            $limitedIds = $roleUserIdsMap[$index] ?? [];
+            $userDetailsForRole = array_intersect_key($allUserInfo, array_flip($limitedIds));
+            $list[] = SubAdminAssembler::assembleWithUserInfo($roleEntity, $userDetailsForRole);
+        }
+
+        return (new PageDTO($page->getPage(), $result['total'], $list))->toArray();
     }
 
     public function getSubAdminById(int $id): array
@@ -66,7 +101,17 @@ class RoleApi extends AbstractPermissionApi
         // 获取角色详情
         $roleEntity = $this->roleAppService->show($dataIsolation, $id);
 
-        return $roleEntity->toArray();
+        // 获取角色关联的用户信息
+        $contactIsolation = ContactDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId()
+        );
+        $userInfo = $this->userInfoAppService->getBatchUserInfo(
+            $roleEntity->getUserIds(),
+            $contactIsolation
+        );
+
+        return SubAdminAssembler::assembleWithUserInfo($roleEntity, $userInfo);
     }
 
     public function createSubAdmin(): array
@@ -149,5 +194,23 @@ class RoleApi extends AbstractPermissionApi
         $savedRole = $this->roleAppService->updateRole($dataIsolation, $roleEntity);
 
         return $savedRole->toArray();
+    }
+
+    public function deleteSubAdmin(int $id): array
+    {
+        // 获取认证信息
+        $authorization = $this->getAuthorization();
+
+        // 创建数据隔离上下文
+        $dataIsolation = PermissionDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId()
+        );
+
+        // 删除角色
+        $this->roleAppService->destroy($dataIsolation, $id);
+
+        // 返回空数组以触发统一的 ApiResponse 封装
+        return [];
     }
 }

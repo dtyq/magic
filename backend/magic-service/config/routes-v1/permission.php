@@ -25,6 +25,7 @@ Router::addGroup('/api/v1', static function () {
         Router::get('/sub-admins', [RoleApi::class, 'getSubAdminList']);
         Router::post('/sub-admins', [RoleApi::class, 'createSubAdmin']);
         Router::put('/sub-admins/{id}', [RoleApi::class, 'updateSubAdmin']);
+        Router::delete('/sub-admins/{id}', [RoleApi::class, 'deleteSubAdmin']);
         Router::get('/sub-admins/{id}', [RoleApi::class, 'getSubAdminById']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

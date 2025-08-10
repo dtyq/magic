@@ -253,6 +253,34 @@ class RoleRepository implements RoleRepositoryInterface
     }
 
     /**
+     * 批量获取角色的用户列表，返回 [roleId => userIds[]]。
+     */
+    public function getRoleUsersMap(string $organizationCode, array $roleIds): array
+    {
+        if (empty($roleIds)) {
+            return [];
+        }
+
+        $rows = $this->roleUserQuery($organizationCode)
+            ->whereIn('role_id', $roleIds)
+            ->get(['role_id', 'user_id'])
+            ->toArray();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $rid = (int) $row['role_id'];
+            $map[$rid][] = $row['user_id'];
+        }
+
+        // 确保所有 roleIds 都有 key
+        foreach ($roleIds as $rid) {
+            $map[$rid] = $map[$rid] ?? [];
+        }
+
+        return $map;
+    }
+
+    /**
      * 获取用户的角色列表.
      */
     public function getUserRoles(string $organizationCode, string $userId): array

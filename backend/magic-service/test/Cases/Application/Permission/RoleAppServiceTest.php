@@ -47,16 +47,16 @@ class RoleAppServiceTest extends HttpTestCase
         $magicPermission = new MagicPermission();
         // 添加测试权限数据
         $testPermissions = [
-            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value,MagicOperationEnum::EDIT->value),
-            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_IMAGE->value,MagicOperationEnum::QUERY->value),
+            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value, MagicOperationEnum::EDIT->value),
+            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_IMAGE->value, MagicOperationEnum::QUERY->value),
         ];
         $roleEntity->setPermissions($testPermissions);
-        
+
         // 添加测试用户ID数据
         $testUserIds = [
             'test_user_001',
             'test_user_002',
-            'test_user_003'
+            'test_user_003',
         ];
         $roleEntity->setUserIds($testUserIds);
 
@@ -66,15 +66,15 @@ class RoleAppServiceTest extends HttpTestCase
         $this->assertNotNull($savedRole);
         $this->assertIsInt($savedRole->getId());
         $this->assertEquals($uniqueName, $savedRole->getName());
-        
+
         // 验证权限数据被正确保存
         $this->assertEquals($testPermissions, $savedRole->getPermissions());
         $this->assertCount(2, $savedRole->getPermissions());
-        
+
         // 验证用户ID数据被正确保存
         $this->assertEquals($testUserIds, $savedRole->getUserIds());
         $this->assertCount(3, $savedRole->getUserIds());
-        
+
         // 验证权限方法
         $this->assertTrue($savedRole->hasPermission($testPermissions[0]));
         $this->assertTrue($savedRole->hasPermission($testPermissions[1]));
@@ -88,7 +88,7 @@ class RoleAppServiceTest extends HttpTestCase
         $foundRole = $this->roleAppService->show($this->dataIsolation, $savedRole->getId());
         $this->assertEquals($savedRole->getId(), $foundRole->getId());
         $this->assertEquals($savedRole->getName(), $foundRole->getName());
-        
+
         // 验证查询到的角色包含正确的权限和用户数据
         $this->assertEquals($testPermissions, $foundRole->getPermissions());
         $this->assertEquals($testUserIds, $foundRole->getUserIds());
