@@ -29,17 +29,17 @@ use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
-use Hyperf\DbConnection\Db;
 use Throwable;
 
 use function Hyperf\Translation\trans;
 
 class TaskFileDomainService
 {
-
     private readonly LoggerInterface $logger;
+
     public function __construct(
         protected TaskRepositoryInterface $taskRepository,
         protected TaskFileRepositoryInterface $taskFileRepository,
@@ -48,6 +48,7 @@ class TaskFileDomainService
         protected CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     public function getProjectFilesFromCloudStorage(string $organizationCode, string $workDir): array
@@ -498,8 +499,10 @@ class TaskFileDomainService
                     $this->cloudFileRepository->deleteObjectByCredential($prefix, $organizationCode, $fileKey, StorageBucketType::SandBox);
                     ++$deletedCount;
                 } catch (Throwable $e) {
-                    // 记录单个文件删除失败，但继续处理其他文件
-                    // 这里可以添加日志记录
+                    $this->logger->error('Failed to delete cloud file', [
+                        'file_key' => $fileKey,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
@@ -1134,7 +1137,11 @@ class TaskFileDomainService
         $dirEntity->setIsDirectory(true);
         $dirEntity->setParentId($parentId);
         $dirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
-        $dirEntity->setStorageType(StorageType::WORKSPACE);
+        if (WorkDirectoryUtil::isSnapshotFile($fileKey)) {
+            $dirEntity->setStorageType(StorageType::SNAPSHOT);
+        } else {
+            $dirEntity->setStorageType(StorageType::WORKSPACE);
+        }
         $dirEntity->setIsHidden(false);
         $dirEntity->setSort(0);
 
@@ -1231,7 +1238,11 @@ class TaskFileDomainService
         $taskFileEntity->setIsDirectory($isDirectory);
         $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
         $taskFileEntity->setSource(TaskFileSource::AGENT);
-        $taskFileEntity->setStorageType(StorageType::WORKSPACE);
+        if (WorkDirectoryUtil::isSnapshotFile($fileKey)) {
+            $taskFileEntity->setStorageType(StorageType::SNAPSHOT);
+        } else {
+            $taskFileEntity->setStorageType(StorageType::WORKSPACE);
+        }
         $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
         $taskFileEntity->setSort(0);
         // Set timestamps
@@ -1259,11 +1270,17 @@ class TaskFileDomainService
                 'last_modified' => date('Y-m-d H:i:s'),
             ];
         }
-        $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
-        return [
-            'size' => $headObjectResult['content_length'] ?? 0,
-            'last_modified' => date('Y-m-d H:i:s'),
-        ];
+
+        try {
+            $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
+            return [
+                'size' => $headObjectResult['content_length'] ?? 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
+        } catch (Throwable $e) {
+            // File not found or other cloud storage error
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
     }
 
     /**
