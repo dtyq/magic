@@ -10,7 +10,6 @@ namespace HyperfTest\Cases\Api\Permission;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Kernel\MagicPermission;
-use Hyperf\Codec\Json;
 use HyperfTest\Cases\Api\AbstractHttpTest;
 
 /**
@@ -22,13 +21,25 @@ class RoleApiTest extends AbstractHttpTest
 
     public const string UPDATE_SUB_ADMIN_API = '/api/v1/roles/sub-admins/';
 
+    /**
+     * 测试子管理员列表查询.
+     */
+    public function testGetSubAdminListAndById(): void
+    {
+        // === 测试 getSubAdminList ===
+        $listResp = $this->get('/api/v1/roles/sub-admins', [], $this->getCommonHeaders());
+
+        $this->assertIsArray($listResp);
+        $this->assertEquals(1000, $listResp['code'] ?? null);
+    }
+
     public function testCreateSubAdminSuccess(): void
     {
         // === 测试创建子管理员 ===
         $magicPermission = new MagicPermission();
         $testPermissions = [
-            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value,MagicOperationEnum::EDIT->value),
-            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_IMAGE->value,MagicOperationEnum::QUERY->value),
+            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value, MagicOperationEnum::EDIT->value),
+            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_IMAGE->value, MagicOperationEnum::QUERY->value),
         ];
         $requestData = [
             'name' => '测试子管理员角色',
@@ -60,11 +71,11 @@ class RoleApiTest extends AbstractHttpTest
         $id = $response['data']['id'];
 
         $testPermissions = [
-            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value,MagicOperationEnum::QUERY->value),
+            $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value, MagicOperationEnum::QUERY->value),
         ];
 
         $requestData = [
-            'name' => '更新的子管理员角色'.rand(100,999),
+            'name' => '更新的子管理员角色' . rand(100, 999),
             'status' => 0,
             'permissions' => $testPermissions,
             'user_ids' => ['usi_343adbdbe8a026226311c67bdea152ea'],
@@ -89,8 +100,46 @@ class RoleApiTest extends AbstractHttpTest
         // === 测试更新子管理员END ===
 
         // === 测试查询子管理员 ===
+        $detailResp = $this->get('/api/v1/roles/sub-admins/' . $id, [], $this->getCommonHeaders());
+        // 断言详情接口响应结构与数据
+        $this->assertIsArray($detailResp);
+        $this->assertEquals(1000, $detailResp['code'] ?? null);
+
+        $expectedDetailStructure = [
+            'id' => 0,
+            'name' => '',
+            'status' => 0,
+            'permissions' => [],
+            'user_ids' => [],
+            'created_at' => null,
+            'updated_at' => null,
+        ];
+
+        $this->assertArrayValueTypesEquals(
+            $expectedDetailStructure,
+            $detailResp['data'] ?? [],
+            '子管理员详情接口响应结构不符合预期',
+            false,
+            false
+        );
+
+        // 核对数据内容
+        $this->assertEquals($id, $detailResp['data']['id'] ?? null);
+        $this->assertEquals($requestData['name'], $detailResp['data']['name'] ?? null);
+        $this->assertEquals($requestData['status'], $detailResp['data']['status'] ?? null);
 
         // === 测试查询子管理员END ===
-    }
 
+        // === 测试删除子管理员 ===
+        // 调用删除接口
+        $deleteResp = $this->delete('/api/v1/roles/sub-admins/' . $id, [], $this->getCommonHeaders());
+        $this->assertIsArray($deleteResp);
+        $this->assertEquals(1000, $deleteResp['code']);
+
+        // 再次查询应当返回角色不存在或空
+        $detailResp = $this->get('/api/v1/roles/sub-admins/' . $id, [], $this->getCommonHeaders());
+        // 预期这里会返回错误码，具体根据业务而定，只要非1000即可
+        $this->assertNotEquals(1000, $detailResp['code'] ?? null);
+        // === 测试删除子管理员END ===
+    }
 }

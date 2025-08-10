@@ -29,7 +29,22 @@ readonly class RoleDomainService
      */
     public function queries(PermissionDataIsolation $dataIsolation, Page $page, ?array $filters = null): array
     {
-        return $this->roleRepository->queries($dataIsolation->getCurrentOrganizationCode(), $page, $filters);
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        // 查询角色列表
+        $result = $this->roleRepository->queries($organizationCode, $page, $filters);
+
+        // 批量查询用户ID，避免 N+1 查询
+        $roleIds = array_map(static fn (RoleEntity $r) => $r->getId(), $result['list']);
+        $roleUsersMap = $this->roleRepository->getRoleUsersMap($organizationCode, $roleIds);
+
+        foreach ($result['list'] as $roleEntity) {
+            /* @var RoleEntity $roleEntity */
+            $userIds = $roleUsersMap[$roleEntity->getId()] ?? [];
+            $roleEntity->setUserIds($userIds);
+        }
+
+        return $result;
     }
 
     /**
@@ -53,7 +68,7 @@ readonly class RoleDomainService
 
             // 检查名称在组织下是否唯一
             if ($this->roleRepository->getByName($organizationCode, $savingRoleEntity->getName())) {
-                //TODO: 处理报错信息
+                // TODO: 处理报错信息
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.role_name_exists', ['name' => $savingRoleEntity->getName()]);
             }
         } else {
@@ -100,11 +115,11 @@ readonly class RoleDomainService
         if (! $roleEntity) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.role_not_found', ['id' => $id]);
         }
-        
+
         // 补充角色关联的用户ID信息
         $roleUsers = $this->roleRepository->getRoleUsers($dataIsolation->getCurrentOrganizationCode(), $id);
         $roleEntity->setUserIds($roleUsers);
-        
+
         return $roleEntity;
     }
 
