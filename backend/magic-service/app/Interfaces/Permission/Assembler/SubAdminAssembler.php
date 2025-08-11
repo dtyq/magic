@@ -25,7 +25,7 @@ class SubAdminAssembler
             'permission_tag' => $entity->getPermissionTag(),
             'permissions' => $entity->getPermissions(),
             'user_ids' => $entity->getUserIds(),
-            'updated_uid' => $entity->getUpdatedAt(),
+            'updated_uid' => $entity->getUpdatedUid(),
             'created_at' => $entity->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updated_at' => $entity->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ];
