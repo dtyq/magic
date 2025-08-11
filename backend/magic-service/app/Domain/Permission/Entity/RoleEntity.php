@@ -25,6 +25,11 @@ class RoleEntity extends AbstractEntity
 
     protected ?array $permissionTag = null; // 权限标签，用于前端展示分类
 
+    /**
+     * 是否在前端列表中展示：1=是 0=否.
+     */
+    protected int $isDisplay = 1;
+
     protected int $status = 1; // 状态: 0=禁用, 1=启用
 
     protected ?string $createdUid = null;
@@ -105,22 +110,6 @@ class RoleEntity extends AbstractEntity
         }
     }
 
-    public function addUser(string $userId): void
-    {
-        if (! in_array($userId, $this->userIds)) {
-            $this->userIds[] = $userId;
-        }
-    }
-
-    public function removeUser(string $userId): void
-    {
-        $index = array_search($userId, $this->userIds);
-        if ($index !== false) {
-            unset($this->userIds[$index]);
-            $this->userIds = array_values($this->userIds); // 重新索引
-        }
-    }
-
     public function hasUser(string $userId): bool
     {
         return in_array($userId, $this->userIds);
@@ -180,6 +169,16 @@ class RoleEntity extends AbstractEntity
     public function setPermissionTag(?array $permissionTag): void
     {
         $this->permissionTag = $permissionTag;
+    }
+
+    public function getIsDisplay(): int
+    {
+        return $this->isDisplay;
+    }
+
+    public function setIsDisplay(int $isDisplay): void
+    {
+        $this->isDisplay = $isDisplay;
     }
 
     public function getStatus(): int
@@ -263,6 +262,10 @@ class RoleEntity extends AbstractEntity
 
         if (! in_array($this->status, [0, 1])) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.invalid_status');
+        }
+
+        if (! in_array($this->isDisplay, [0, 1])) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.invalid_is_display');
         }
     }
 }

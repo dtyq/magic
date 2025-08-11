@@ -62,4 +62,11 @@ interface MagicPermissionInterface
      * 获取资源的模块.
      */
     public function getResourceModule(string $resource): string;
+
+    /**
+     * 检查用户权限集合中是否包含指定权限（考虑隐式包含）。
+     *
+     * @param string[] $userPermissions
+     */
+    public function checkPermission(string $permissionKey, array $userPermissions): bool;
 }

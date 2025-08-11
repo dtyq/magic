@@ -8,11 +8,14 @@ declare(strict_types=1);
 namespace App\Interfaces\Permission\Facade;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
+use App\Application\Kernel\Enum\MagicOperationEnum;
+use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Permission\Service\RoleAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Permission\Entity\RoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Entity\ValueObject\Query\SubAdminQuery;
+use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Kernel\DTO\PageDTO;
 use App\Interfaces\Permission\Assembler\SubAdminAssembler;
 use App\Interfaces\Permission\DTO\CreateSubAdminRequestDTO;
@@ -30,6 +33,7 @@ class RoleApi extends AbstractPermissionApi
     #[Inject]
     protected MagicUserInfoAppService $userInfoAppService;
 
+    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
     public function getSubAdminList(): array
     {
         // 获取认证信息
@@ -65,6 +69,7 @@ class RoleApi extends AbstractPermissionApi
         foreach ($result['list'] as $index => $roleEntity) {
             /** @var RoleEntity $roleEntity */
             $limitedIds = array_slice($roleEntity->getUserIds(), 0, 5);
+            $limitedIds[] = $roleEntity->getUpdatedUid();
             $roleUserIdsMap[$index] = $limitedIds;
             $allNeedUserIds = array_merge($allNeedUserIds, $limitedIds);
         }
@@ -81,12 +86,13 @@ class RoleApi extends AbstractPermissionApi
         foreach ($result['list'] as $index => $roleEntity) {
             $limitedIds = $roleUserIdsMap[$index] ?? [];
             $userDetailsForRole = array_intersect_key($allUserInfo, array_flip($limitedIds));
-            $list[] = SubAdminAssembler::assembleWithUserInfo($roleEntity, $userDetailsForRole);
+            $list[] = SubAdminAssembler::assembleWithUserInfo($roleEntity, $userDetailsForRole, $allUserInfo[$roleEntity->getUpdatedUid()]);
         }
 
         return (new PageDTO($page->getPage(), $result['total'], $list))->toArray();
     }
 
+    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
     public function getSubAdminById(int $id): array
     {
         // 获取认证信息
@@ -114,6 +120,7 @@ class RoleApi extends AbstractPermissionApi
         return SubAdminAssembler::assembleWithUserInfo($roleEntity, $userInfo);
     }
 
+    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
     public function createSubAdmin(): array
     {
         // 获取认证信息
@@ -149,6 +156,7 @@ class RoleApi extends AbstractPermissionApi
         return $savedRole->toArray();
     }
 
+    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
     public function updateSubAdmin(): array
     {
         // 获取认证信息
@@ -196,6 +204,7 @@ class RoleApi extends AbstractPermissionApi
         return $savedRole->toArray();
     }
 
+    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
     public function deleteSubAdmin(int $id): array
     {
         // 获取认证信息

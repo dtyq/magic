@@ -66,13 +66,13 @@ class OrganizationAdminApiTest extends HttpTestCase
 
     public function testGrantSuperAdminPermission(): void
     {
-        // 返回用户不存在
+        $userId = 'usi_71f7b56bec00b0cd9f9daba18caa7a4c';
         $response = $this->post('/api/v1/admin/organization-admin/grant', [
-            'user_id' => $this->testUserId,
+            'user_id' => $userId,
             'remarks' => 'Test grant via API',
         ], $this->getTestHeaders());
 
-        $this->assertNotEquals(1000, $response['code'] ?? 0, '响应码不为1000');
+        $this->assertEquals(1000, $response['code'] ?? 0, '响应码不为1000');
     }
 
     private function createDataIsolation(string $organizationCode): DataIsolation

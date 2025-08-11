@@ -20,6 +20,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property array $permission_key 角色权限列表
  * @property string $organization_code 组织编码
  * @property null|array $permission_tag 权限标签，用于前端展示分类
+ * @property int $is_display 是否显示
  * @property int $status 状态: 0=禁用, 1=启用
  * @property null|string $created_uid 创建者用户ID
  * @property null|string $updated_uid 更新者用户ID
@@ -53,6 +54,7 @@ class RoleModel extends AbstractModel
         'permission_key',
         'organization_code',
         'permission_tag',
+        'is_display',
         'status',
         'created_uid',
         'updated_uid',
@@ -70,6 +72,7 @@ class RoleModel extends AbstractModel
         'permission_key' => 'array',
         'organization_code' => 'string',
         'permission_tag' => 'array',
+        'is_display' => 'int',
         'status' => 'int',
         'created_uid' => 'string',
         'updated_uid' => 'string',

@@ -22,6 +22,7 @@ return new class extends Migration {
             $table->string('name', 255)->comment('角色名称');
             $table->json('permission_key')->nullable()->comment('角色权限列表');
             $table->string('organization_code', 64)->comment('组织编码');
+            $table->tinyInteger('is_display')->default(1)->comment('是否展示: 0=否, 1=是');
             $table->json('permission_tag')->nullable()->comment('权限标签，用于前端展示分类');
             $table->tinyInteger('status')->default(1)->comment('状态: 0=禁用, 1=启用');
             $table->string('created_uid', 64)->nullable()->comment('创建者用户ID');
