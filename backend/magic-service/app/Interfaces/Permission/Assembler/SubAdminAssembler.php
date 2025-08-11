@@ -19,12 +19,13 @@ class SubAdminAssembler
     public static function toArray(RoleEntity $entity): array
     {
         return [
-            'id' => $entity->getId(),
+            'id' => (string) $entity->getId(),
             'name' => $entity->getName(),
             'status' => $entity->getStatus(),
             'permission_tag' => $entity->getPermissionTag(),
             'permissions' => $entity->getPermissions(),
             'user_ids' => $entity->getUserIds(),
+            'updated_uid' => $entity->getUpdatedAt(),
             'created_at' => $entity->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updated_at' => $entity->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ];
@@ -41,10 +42,11 @@ class SubAdminAssembler
         return new PageDTO($page->getPage(), $total, $listArray);
     }
 
-    public static function assembleWithUserInfo(RoleEntity $entity, array $userInfoList): array
+    public static function assembleWithUserInfo(RoleEntity $entity, array $userInfoList, array $updatedUser = []): array
     {
         $data = self::toArray($entity);
         $data['users'] = $userInfoList; // 用户详细信息列表
+        $data['updated_user'] = $updatedUser;
         return $data;
     }
 }

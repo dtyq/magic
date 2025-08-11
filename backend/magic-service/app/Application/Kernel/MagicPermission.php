@@ -288,6 +288,41 @@ class MagicPermission implements MagicPermissionInterface
     }
 
     /**
+     * 判断用户权限集合中是否拥有指定权限（考虑隐式包含）。
+     *
+     * 规则：
+     *   1. 如直接命中权限键，返回 true；
+     *   2. 如果拥有全局权限 ALL_PERMISSIONS，返回 true；
+     *   3. 若未命中，则检查由该权限隐式包含的权限集合（例如 *edit* 隐式包含 *query*）。
+     *
+     * @param string $permissionKey 目标权限键
+     * @param string[] $userPermissions 用户已拥有的权限键集合
+     */
+    public function checkPermission(string $permissionKey, array $userPermissions): bool
+    {
+        // 命中全局权限直接放行
+        if (in_array(self::ALL_PERMISSIONS, $userPermissions, true)) {
+            return true;
+        }
+
+        // 直接命中
+        if (in_array($permissionKey, $userPermissions, true)) {
+            return true;
+        }
+
+        $parsed = $this->parsePermission($permissionKey);
+        if ($parsed['operation'] === MagicOperationEnum::QUERY->value) {
+            // edit 权限隐式包含 query 权限
+            $permissionKey = $this->buildPermission($parsed['resource'], MagicOperationEnum::EDIT->value);
+            if (in_array($permissionKey, $userPermissions, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * 递归将 child map 转为索引数组.
      */
     private function normalizeTree(array $branch): array

@@ -24,24 +24,14 @@ enum MagicResourceEnum: string
 
     // ===== 二级：模块 =====
     case ADMIN_AI = 'admin.ai';
+    case ADMIN_SAFE = 'admin.safe'; # 安全与权限
     case CONSOLE_API = 'console.api';
 
     // ===== 三级：具体资源 (用于具体绑定接口）=====
     case ADMIN_AI_MODEL = 'admin.ai.model_management';
     case ADMIN_AI_IMAGE = 'admin.ai.image_generation';
+    case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 安全-子管理员
     case CONSOLE_API_ASSISTANT = 'console.api.assistant';
-
-    /* --------------------------------------------------------------------- */
-    /*                       元信息（Meta Information） */
-    /* --------------------------------------------------------------------- */
-
-    /**
-     * 标签，使用 i18n 翻译.
-     */
-    public function label(): string
-    {
-        return __($this->translationKey());
-    }
 
     /**
      * 对应 i18n key.
@@ -52,15 +42,18 @@ enum MagicResourceEnum: string
             self::ADMIN => 'permission.resource.admin',
             self::CONSOLE => 'permission.resource.console',
             self::ADMIN_AI => 'permission.resource.admin_ai',
+            self::ADMIN_SAFE => 'permission.resource.admin_safe', # 安全与权限
             self::CONSOLE_API => 'permission.resource.api',
+            self::CONSOLE_API_ASSISTANT => 'permission.resource.api_assistant',
             self::ADMIN_AI_MODEL => 'permission.resource.ai_model',
             self::ADMIN_AI_IMAGE => 'permission.resource.ai_image',
-            self::CONSOLE_API_ASSISTANT => 'permission.resource.api_assistant',
+            self::SAFE_SUB_ADMIN => 'permission.resource.safe_sub_admin', # 子管理员
         };
     }
 
     /**
-     * 上级资源（没有则返回 null）.
+     * 上级资源.
+     * 注意：新增操作资源后要补充这个配置.
      */
     public function parent(): ?self
     {
@@ -69,12 +62,19 @@ enum MagicResourceEnum: string
             self::ADMIN,
             self::CONSOLE => null,
             // 模块
-            self::ADMIN_AI => self::ADMIN,
             self::CONSOLE_API => self::CONSOLE,
+            self::ADMIN_AI,
+            self::ADMIN_SAFE => self::ADMIN,
             // 操作资源
+            self::CONSOLE_API_ASSISTANT => self::CONSOLE_API,
             self::ADMIN_AI_MODEL,
             self::ADMIN_AI_IMAGE => self::ADMIN_AI,
-            self::CONSOLE_API_ASSISTANT => self::CONSOLE_API,
+            self::SAFE_SUB_ADMIN => self::ADMIN_SAFE,
         };
+    }
+
+    public function label(): string
+    {
+        return __($this->translationKey());
     }
 }

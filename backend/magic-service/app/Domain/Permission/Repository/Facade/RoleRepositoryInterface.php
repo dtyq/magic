@@ -39,21 +39,6 @@ interface RoleRepositoryInterface
     public function delete(string $organizationCode, RoleEntity $roleEntity): void;
 
     /**
-     * 为角色分配权限.
-     */
-    public function assignPermissions(string $organizationCode, int $roleId, array $permissionKeys, ?string $assignedUid = null): void;
-
-    /**
-     * 移除角色权限.
-     */
-    public function removePermissions(string $organizationCode, int $roleId, array $permissionKeys): void;
-
-    /**
-     * 获取角色的权限列表.
-     */
-    public function getRolePermissions(string $organizationCode, int $roleId): array;
-
-    /**
      * 为角色分配用户.
      */
     public function assignUsers(string $organizationCode, int $roleId, array $userIds, ?string $assignedBy = null): void;
@@ -88,14 +73,4 @@ interface RoleRepositoryInterface
      * 获取用户的所有权限.
      */
     public function getUserPermissions(string $organizationCode, string $userId): array;
-
-    /**
-     * 检查用户是否拥有指定权限.
-     */
-    public function hasPermission(string $organizationCode, string $userId, string $permissionKey): bool;
-
-    /**
-     * 批量检查用户权限.
-     */
-    public function hasPermissions(string $organizationCode, string $userId, array $permissionKeys): array;
 }

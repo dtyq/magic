@@ -27,7 +27,7 @@ class RoleApiTest extends AbstractHttpTest
     public function testGetSubAdminListAndById(): void
     {
         // === 测试 getSubAdminList ===
-        $listResp = $this->get('/api/v1/roles/sub-admins', [], $this->getCommonHeaders());
+        $listResp = $this->get(self::CREATE_SUB_ADMIN_API, [], $this->getCommonHeaders());
 
         $this->assertIsArray($listResp);
         $this->assertEquals(1000, $listResp['code'] ?? null);
@@ -40,6 +40,7 @@ class RoleApiTest extends AbstractHttpTest
         $testPermissions = [
             $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value, MagicOperationEnum::EDIT->value),
             $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_IMAGE->value, MagicOperationEnum::QUERY->value),
+            $magicPermission->buildPermission(MagicResourceEnum::SAFE_SUB_ADMIN->value, MagicOperationEnum::EDIT->value),
         ];
         $requestData = [
             'name' => '测试子管理员角色',
@@ -71,6 +72,7 @@ class RoleApiTest extends AbstractHttpTest
         $id = $response['data']['id'];
 
         $testPermissions = [
+            $magicPermission->buildPermission(MagicResourceEnum::SAFE_SUB_ADMIN->value, MagicOperationEnum::EDIT->value),
             $magicPermission->buildPermission(MagicResourceEnum::ADMIN_AI_MODEL->value, MagicOperationEnum::QUERY->value),
         ];
 
@@ -106,7 +108,7 @@ class RoleApiTest extends AbstractHttpTest
         $this->assertEquals(1000, $detailResp['code'] ?? null);
 
         $expectedDetailStructure = [
-            'id' => 0,
+            'id' => '',
             'name' => '',
             'status' => 0,
             'permissions' => [],

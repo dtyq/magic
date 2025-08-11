@@ -31,6 +31,7 @@ class RoleRepository implements RoleRepositoryInterface
             'permission_key' => $roleEntity->getPermissions(),
             'organization_code' => $organizationCode,
             'permission_tag' => $roleEntity->getPermissionTag(),
+            'is_display' => $roleEntity->getIsDisplay(),
             'status' => $roleEntity->getStatus(),
             'created_uid' => $roleEntity->getCreatedUid(),
             'updated_uid' => $roleEntity->getUpdatedUid(),
@@ -86,6 +87,8 @@ class RoleRepository implements RoleRepositoryInterface
     public function queries(string $organizationCode, Page $page, ?array $filters = null): array
     {
         $query = $this->roleQuery($organizationCode);
+        // 默认只查询需要展示的角色
+        $query->where('is_display', 1);
 
         // 应用过滤条件
         if ($filters) {
@@ -128,64 +131,6 @@ class RoleRepository implements RoleRepositoryInterface
         if ($model) {
             $model->delete();
         }
-    }
-
-    /**
-     * 为角色分配权限.
-     */
-    public function assignPermissions(string $organizationCode, int $roleId, array $permissionKeys, ?string $assignedUid = null): void
-    {
-        $model = $this->roleQuery($organizationCode)
-            ->where('id', $roleId)
-            ->first();
-
-        if (! $model) {
-            return;
-        }
-
-        // TODO: 检查保存
-        // 合并权限（去重）
-        $currentPermissions = $model->getPermissions();
-        $newPermissions = array_unique(array_merge($currentPermissions, $permissionKeys));
-
-        // 更新权限
-        $model->setPermissions($newPermissions);
-        $model->updated_uid = $assignedUid;
-        $model->save();
-    }
-
-    /**
-     * 移除角色权限.
-     */
-    public function removePermissions(string $organizationCode, int $roleId, array $permissionKeys): void
-    {
-        $model = $this->roleQuery($organizationCode)
-            ->where('id', $roleId)
-            ->first();
-
-        if (! $model) {
-            return;
-        }
-
-        // 移除指定权限
-        $currentPermissions = $model->getPermissions();
-        $newPermissions = array_diff($currentPermissions, $permissionKeys);
-
-        // 更新权限
-        $model->setPermissions(array_values($newPermissions));
-        $model->save();
-    }
-
-    /**
-     * 获取角色的权限列表.
-     */
-    public function getRolePermissions(string $organizationCode, int $roleId): array
-    {
-        $model = $this->roleQuery($organizationCode)
-            ->where('id', $roleId)
-            ->first();
-
-        return $model ? $model->getPermissions() : [];
     }
 
     /**
@@ -323,30 +268,6 @@ class RoleRepository implements RoleRepositoryInterface
     }
 
     /**
-     * 检查用户是否拥有指定权限.
-     */
-    public function hasPermission(string $organizationCode, string $userId, string $permissionKey): bool
-    {
-        $userPermissions = $this->getUserPermissions($organizationCode, $userId);
-        return in_array($permissionKey, $userPermissions);
-    }
-
-    /**
-     * 批量检查用户权限.
-     */
-    public function hasPermissions(string $organizationCode, string $userId, array $permissionKeys): array
-    {
-        $userPermissions = $this->getUserPermissions($organizationCode, $userId);
-
-        $result = [];
-        foreach ($permissionKeys as $permissionKey) {
-            $result[$permissionKey] = in_array($permissionKey, $userPermissions);
-        }
-
-        return $result;
-    }
-
-    /**
      * 基于组织编码获取 RoleModel 查询构造器.
      */
     private function roleQuery(string $organizationCode)
@@ -377,6 +298,9 @@ class RoleRepository implements RoleRepositoryInterface
 
         // 获取权限标签
         $entity->setPermissionTag($model->getPermissionTag());
+
+        // is_display
+        $entity->setIsDisplay($model->is_display);
 
         $entity->setStatus($model->status);
         $entity->setCreatedUid($model->created_uid);
