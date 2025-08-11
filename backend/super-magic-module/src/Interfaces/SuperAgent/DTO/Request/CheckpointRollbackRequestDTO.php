@@ -12,6 +12,7 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 class CheckpointRollbackRequestDTO extends AbstractRequestDTO
 {
     protected string $topicId = '';
+
     protected string $targetMessageId = '';
 
     /**

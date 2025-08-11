@@ -178,7 +178,7 @@ class AgentAppService
     /**
      * 回滚到指定的checkpoint.
      *
-     * @param string $sandboxId 沙箱ID 
+     * @param string $sandboxId 沙箱ID
      * @param string $targetMessageId 目标消息ID
      * @return AgentResponse 回滚响应
      */
