@@ -473,6 +473,14 @@ class MagicUserDomainService extends AbstractContactDomainService
         return UserAssembler::getUsersDetail($magicUserEntities, [$accountEntity]);
     }
 
+    /**
+     * 检查两个用户是否是好友关系.
+     */
+    public function isFriend(string $userId, string $friendId): bool
+    {
+        return $this->friendRepository->isFriend($userId, $friendId);
+    }
+
     protected function setUserIdsByAiCodes(FriendQueryDTO $friendQueryDTO, DataIsolation $dataIsolation): array
     {
         $userIdToFlowCodeMaps = [];

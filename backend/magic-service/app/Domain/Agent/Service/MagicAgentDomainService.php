@@ -49,7 +49,7 @@ class MagicAgentDomainService
     public function getByFlowCode(string $flowCode): MagicAgentEntity
     {
         $agent = $this->agentRepository->getByFlowCode($flowCode);
-        if (empty($agent)) {
+        if ($agent === null) {
             ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'common.not_found', ['label' => $flowCode]);
         }
         return $agent;
@@ -139,11 +139,6 @@ class MagicAgentDomainService
         return $this->agentRepository->getById($agentId);
     }
 
-    public function getEnterpriseAvailableAgentIds(string $organizationCode): array
-    {
-        return $this->agentVersionRepository->getEnterpriseAvailableAgentIds($organizationCode);
-    }
-
     public function getDefaultConversationAICodes(): array
     {
         $aiCodes = config('agent.default_conversation_ai_codes');
@@ -184,12 +179,35 @@ class MagicAgentDomainService
         }
 
         $agents = MagicAgentVersionFactory::toArrays($agents);
-        // 收集助理的流程代码并获取每个助理的头像链接
+
+        // 收集助理头像文件键
+        $fileKeys = array_column($agents, 'agent_avatar');
+        // 移除空值
+        $validFileKeys = array_filter($fileKeys, static fn ($fileKey) => ! empty($fileKey));
+
+        // 按组织分组fileKeys
+        $orgFileKeys = [];
+        foreach ($validFileKeys as $fileKey) {
+            $orgCode = explode('/', $fileKey, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $orgFileKeys[$orgCode][] = $fileKey;
+            }
+        }
+
+        // 按组织批量获取链接
+        $links = [];
+        foreach ($orgFileKeys as $orgCode => $fileKeys) {
+            $orgLinks = $this->cloudFileRepository->getLinks($orgCode, $fileKeys);
+            $links[] = $orgLinks;
+        }
+        if (! empty($links)) {
+            $links = array_merge(...$links);
+        }
+
+        // 替换每个助理的头像链接
         foreach ($agents as &$agent) {
-            // 获取助理的头像链接
-            $fileLinks = $this->cloudFileRepository->getLinks($organizationCode, [$agent['agent_avatar']]);
-            $fileKey = array_key_first($fileLinks);
-            $fileLink = $fileLinks[$fileKey] ?? null;
+            $avatarKey = $agent['agent_avatar'];
+            $fileLink = $links[$avatarKey] ?? null;
             $agent['agent_avatar'] = $fileLink?->getUrl() ?? '';
         }
         return $agents;

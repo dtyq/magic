@@ -70,7 +70,7 @@ class MagicUserContactAppService extends AbstractAppService
         protected readonly ContainerInterface $container
     ) {
         try {
-            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(get_class($this));
+            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(get_class($this));
         } catch (Throwable) {
         }
     }
@@ -82,6 +82,12 @@ class MagicUserContactAppService extends AbstractAppService
     public function addFriend(MagicUserAuthorization $userAuthorization, string $friendId, AddFriendType $addFriendType): bool
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 检查是否已经是好友
+        if ($this->userDomainService->isFriend($dataIsolation->getCurrentUserId(), $friendId)) {
+            return true;
+        }
+
         if (! $this->userDomainService->addFriend($dataIsolation, $friendId)) {
             return false;
         }
@@ -99,8 +105,13 @@ class MagicUserContactAppService extends AbstractAppService
      * 向AI助理发送添加好友控制消息.
      * @throws Throwable
      */
-    public function sendAddFriendControlMessage(DataIsolation $dataIsolation, MagicUserEntity $friendUserEntity): void
+    public function sendAddFriendControlMessage(DataIsolation $dataIsolation, MagicUserEntity $friendUserEntity): bool
     {
+        // 检查是否已经是好友
+        if ($this->userDomainService->isFriend($dataIsolation->getCurrentUserId(), $friendUserEntity->getUserId())) {
+            return true;
+        }
+
         $now = date('Y-m-d H:i:s');
         $messageDTO = new MagicMessageEntity([
             'receive_id' => $friendUserEntity->getUserId(),
@@ -134,6 +145,8 @@ class MagicUserContactAppService extends AbstractAppService
         $receiverConversationEntity->setUserOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         // 通用控制消息处理逻辑
         $this->magicChatDomainService->handleCommonControlMessage($messageDTO, $conversationEntity, $receiverConversationEntity);
+
+        return true;
     }
 
     public function searchFriend(string $keyword): array
@@ -340,8 +353,7 @@ class MagicUserContactAppService extends AbstractAppService
     public function getUserUpdatePermission(MagicUserAuthorization $userAuthorization): array
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        $userDomainExtendService = di(MagicUserDomainExtendInterface::class);
-        return $userDomainExtendService->getUserUpdatePermission($dataIsolation);
+        return di(MagicUserDomainExtendInterface::class)->getUserUpdatePermission($dataIsolation);
     }
 
     /**
@@ -451,13 +463,32 @@ class MagicUserContactAppService extends AbstractAppService
     {
         $fileKeys = array_column($usersDetail, 'avatar_url');
         // 移除空值/http或者 https开头的/长度小于 32的
-        foreach ($fileKeys as $key => $fileKey) {
-            if (empty($fileKey) || mb_strlen($fileKey) < 32 || str_starts_with($fileKey, 'http')) {
-                unset($fileKeys[$key]);
+        $validFileKeys = [];
+        foreach ($fileKeys as $fileKey) {
+            if (! empty($fileKey) && mb_strlen($fileKey) >= 32 && ! str_starts_with($fileKey, 'http')) {
+                $validFileKeys[] = $fileKey;
             }
         }
-        $fileKeys = array_values($fileKeys);
-        $links = $this->fileDomainService->getLinks($dataIsolation->getCurrentOrganizationCode(), $fileKeys);
+
+        // 按组织分组fileKeys
+        $orgFileKeys = [];
+        foreach ($validFileKeys as $fileKey) {
+            $orgCode = explode('/', $fileKey, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $orgFileKeys[$orgCode][] = $fileKey;
+            }
+        }
+
+        // 按组织批量获取链接
+        $links = [];
+        foreach ($orgFileKeys as $orgCode => $fileKeys) {
+            $orgLinks = $this->fileDomainService->getLinks($orgCode, $fileKeys);
+            $links[] = $orgLinks;
+        }
+        if (! empty($links)) {
+            $links = array_merge(...$links);
+        }
+
         // 替换 avatar_url
         foreach ($usersDetail as &$user) {
             $avatarUrl = $user['avatar_url'];
