@@ -429,17 +429,6 @@ class ProviderModelEntity extends AbstractEntity
         return $this;
     }
 
-    public function getVisiblePackages(): array
-    {
-        return $this->visiblePackages;
-    }
-
-    public function setVisiblePackages(?array $visiblePackages): self
-    {
-        $this->visiblePackages = $visiblePackages ?? [];
-        return $this;
-    }
-
     public function getIsOffice(): bool
     {
         return $this->isOffice;

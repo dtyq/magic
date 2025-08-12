@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cce36f33f27686b29d41b3a86058eb26",
+    "content-hash": "d8ad4b123156fb49b4e88bfeb53acba1",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.352.5",
+            "version": "3.352.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "e226dcc96c0a1165d9c8248ec637d1006b883609"
+                "reference": "06d8e8c85f91e957f48480ce41e9c8a6d9fa253f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/e226dcc96c0a1165d9c8248ec637d1006b883609",
-                "reference": "e226dcc96c0a1165d9c8248ec637d1006b883609",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/06d8e8c85f91e957f48480ce41e9c8a6d9fa253f",
+                "reference": "06d8e8c85f91e957f48480ce41e9c8a6d9fa253f",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.5"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.6"
             },
-            "time": "2025-08-08T18:09:38+00:00"
+            "time": "2025-08-11T18:04:59+00:00"
         },
         {
             "name": "brick/math",
@@ -2210,12 +2210,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "e8cc642d5f8e48724243cda038848b74207185f2"
+                "reference": "784db7878ba30d36f3a76c4616b317992b8760b2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e8cc642d5f8e48724243cda038848b74207185f2",
-                "reference": "e8cc642d5f8e48724243cda038848b74207185f2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=784db7878ba30d36f3a76c4616b317992b8760b2",
+                "reference": "784db7878ba30d36f3a76c4616b317992b8760b2",
                 "shasum": ""
             },
             "require": {
@@ -2318,7 +2318,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-11T14:55:10+00:00"
+            "time": "2025-08-12T11:56:59+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -12071,16 +12071,16 @@
         },
         {
             "name": "swow/swow",
-            "version": "v1.6.1",
+            "version": "v1.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/swow/swow.git",
-                "reference": "0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093"
+                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/swow/swow/zipball/0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093",
-                "reference": "0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093",
+                "url": "https://api.github.com/repos/swow/swow/zipball/87305892ff5b7e82bb1daec4f9a5558ef4b28810",
+                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810",
                 "shasum": ""
             },
             "require": {
@@ -12152,9 +12152,9 @@
             ],
             "support": {
                 "issues": "https://github.com/swow/swow",
-                "source": "https://github.com/swow/swow/tree/v1.6.1"
+                "source": "https://github.com/swow/swow/tree/v1.6.0"
             },
-            "time": "2025-08-10T22:24:12+00:00"
+            "time": "2025-08-03T07:10:21+00:00"
         },
         {
             "name": "symfony/cache",
@@ -19584,8 +19584,8 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "dtyq/cloudfile": 20,
-        "dtyq/super-magic-module": 20,
         "dtyq/magic-enterprise-service": 20,
+        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19602,6 +19602,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
 }
