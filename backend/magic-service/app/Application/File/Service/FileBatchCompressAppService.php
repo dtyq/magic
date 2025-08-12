@@ -438,8 +438,9 @@ class FileBatchCompressAppService extends AbstractAppService
                 ];
             }
 
-            // Step 3: Generate download link
-            $downloadLink = $this->generateDownloadLink($organizationCode, $uploadResult['file_key']);
+            // Step 3: Generate download link with proper filename for Content-Disposition
+            $downloadNames = [$uploadResult['file_key'] => $zipFileName];
+            $downloadLink = $this->generateDownloadLink($organizationCode, $uploadResult['file_key'], $downloadNames);
 
             // @phpstan-ignore-next-line (defensive programming - file might not exist in edge cases)
             $zipSize = file_exists($tempZipPath) ? filesize($tempZipPath) : 0;
@@ -925,10 +926,10 @@ class FileBatchCompressAppService extends AbstractAppService
     /**
      * Generate download link for compressed file.
      */
-    private function generateDownloadLink(string $organizationCode, string $fileKey): ?FileLink
+    private function generateDownloadLink(string $organizationCode, string $fileKey, array $downloadNames = []): ?FileLink
     {
         try {
-            return $this->fileDomainService->getLink($organizationCode, $fileKey, $this->storageBucketType);
+            return $this->fileDomainService->getLink($organizationCode, $fileKey, $this->storageBucketType, $downloadNames);
         } catch (Throwable $e) {
             $this->logger->error('Failed to generate download link', [
                 'file_key' => $fileKey,

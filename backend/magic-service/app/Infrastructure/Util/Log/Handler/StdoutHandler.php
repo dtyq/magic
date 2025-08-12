@@ -25,8 +25,46 @@ class StdoutHandler extends AbstractProcessingHandler
 
     protected function write(LogRecord $record): void
     {
+        $context = $record->context;
+        $systemInfo = $context['system_info'] ?? [];
+        if ($systemInfo) {
+            unset($context['system_info']);
+        }
+
+        // Pre-allocate string buffer for better memory performance
+        $parts = [];
+
+        // Add system info prefixes
+        if ($systemInfo) {
+            $requestId = $systemInfo['request_id'] ?? '';
+            $coroutineId = $systemInfo['coroutine_id'] ?? '';
+            $traceId = $systemInfo['trace_id'] ?? '';
+
+            if (! empty($requestId)) {
+                $parts[] = "[{$requestId}]";
+            }
+            if (! empty($coroutineId)) {
+                $parts[] = "[{$coroutineId}]";
+            }
+            if (! empty($traceId)) {
+                $parts[] = "[{$traceId}]";
+            }
+        }
+
+        // Add timestamp, channel, and message
+        $parts[] = '[' . $record->datetime->format('Y-m-d H:i:s') . ']';
+        $parts[] = '[' . $record->channel . ']';
+        $parts[] = '[' . $record->message . ']';
+
+        // Add context if present (avoid encoding empty arrays)
+        if (! empty($context)) {
+            $parts[] = Json::encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        // Join once instead of multiple concatenations
+        $formatted = implode('', $parts);
         $level = strtolower($record->level->getName());
-        $formatted = '[' . date('Y-m-d H:i:s') . '][' . $record->channel . '][' . $record->message . ']' . Json::encode($record->context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
         call_user_func([$this->logger, $level], $formatted);
     }
 }
