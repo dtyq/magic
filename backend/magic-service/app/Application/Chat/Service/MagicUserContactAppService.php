@@ -70,7 +70,7 @@ class MagicUserContactAppService extends AbstractAppService
         protected readonly ContainerInterface $container
     ) {
         try {
-            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(get_class($this));
+            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(get_class($this));
         } catch (Throwable) {
         }
     }
@@ -353,8 +353,7 @@ class MagicUserContactAppService extends AbstractAppService
     public function getUserUpdatePermission(MagicUserAuthorization $userAuthorization): array
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        $userDomainExtendService = di(MagicUserDomainExtendInterface::class);
-        return $userDomainExtendService->getUserUpdatePermission($dataIsolation);
+        return di(MagicUserDomainExtendInterface::class)->getUserUpdatePermission($dataIsolation);
     }
 
     /**
@@ -464,13 +463,32 @@ class MagicUserContactAppService extends AbstractAppService
     {
         $fileKeys = array_column($usersDetail, 'avatar_url');
         // 移除空值/http或者 https开头的/长度小于 32的
-        foreach ($fileKeys as $key => $fileKey) {
-            if (empty($fileKey) || mb_strlen($fileKey) < 32 || str_starts_with($fileKey, 'http')) {
-                unset($fileKeys[$key]);
+        $validFileKeys = [];
+        foreach ($fileKeys as $fileKey) {
+            if (! empty($fileKey) && mb_strlen($fileKey) >= 32 && ! str_starts_with($fileKey, 'http')) {
+                $validFileKeys[] = $fileKey;
             }
         }
-        $fileKeys = array_values($fileKeys);
-        $links = $this->fileDomainService->getLinks($dataIsolation->getCurrentOrganizationCode(), $fileKeys);
+
+        // 按组织分组fileKeys
+        $orgFileKeys = [];
+        foreach ($validFileKeys as $fileKey) {
+            $orgCode = explode('/', $fileKey, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $orgFileKeys[$orgCode][] = $fileKey;
+            }
+        }
+
+        // 按组织批量获取链接
+        $links = [];
+        foreach ($orgFileKeys as $orgCode => $fileKeys) {
+            $orgLinks = $this->fileDomainService->getLinks($orgCode, $fileKeys);
+            $links[] = $orgLinks;
+        }
+        if (! empty($links)) {
+            $links = array_merge(...$links);
+        }
+
         // 替换 avatar_url
         foreach ($usersDetail as &$user) {
             $avatarUrl = $user['avatar_url'];
