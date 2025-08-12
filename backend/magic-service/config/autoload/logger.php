@@ -5,8 +5,8 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Util\Log\AppendRequestIdProcessor;
+use App\Infrastructure\Util\Log\Formatter\NullFormatter;
 use App\Infrastructure\Util\Log\Handler\StdoutHandler;
-use Monolog\Formatter\LineFormatter;
 use Monolog\Level;
 
 return [
@@ -18,12 +18,7 @@ return [
             ],
         ],
         'formatter' => [
-            'class' => LineFormatter::class,
-            'constructor' => [
-                'format' => null,
-                'dateFormat' => 'Y-m-d H:i:s',
-                'allowInlineLineBreaks' => true,
-            ],
+            'class' => NullFormatter::class,
         ],
         'processors' => [
             [
@@ -39,12 +34,7 @@ return [
             ],
         ],
         'formatter' => [
-            'class' => LineFormatter::class,
-            'constructor' => [
-                'format' => null,
-                'dateFormat' => 'Y-m-d H:i:s',
-                'allowInlineLineBreaks' => true,
-            ],
+            'class' => NullFormatter::class,
         ],
         'processors' => [
             [
