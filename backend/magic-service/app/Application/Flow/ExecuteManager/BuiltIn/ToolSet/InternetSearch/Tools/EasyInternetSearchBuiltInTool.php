@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\InternetSearch\Tools;
 
-use App\Application\Chat\Service\MagicChatAISearchAppService;
+use App\Application\Chat\Service\MagicChatAISearchV2AppService;
 use App\Application\Flow\ExecuteManager\BuiltIn\BuiltInToolSet;
 use App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AbstractBuiltInTool;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
@@ -61,7 +61,7 @@ class EasyInternetSearchBuiltInTool extends AbstractBuiltInTool
                 ->setSearchDeepLevel(SearchDeepLevel::SIMPLE)
                 ->setUserId($userEntity->getUserId())
                 ->setOrganizationCode($userEntity->getOrganizationCode());
-            return di(MagicChatAISearchAppService::class)->easyInternetSearch($magicChatAggregateSearchReqDTO);
+            return di(MagicChatAISearchV2AppService::class)->easyInternetSearch($magicChatAggregateSearchReqDTO);
         };
     }
 
