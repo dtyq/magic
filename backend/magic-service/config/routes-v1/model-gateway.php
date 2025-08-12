@@ -5,10 +5,10 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
-use App\Interfaces\ModelAdmin\Facade\ServiceProviderApi;
 use App\Interfaces\ModelGateway\Facade\Admin\AccessTokenModelGatewayAdminApi;
 use App\Interfaces\ModelGateway\Facade\Admin\ApplicationModelGatewayAdminApi;
 use App\Interfaces\ModelGateway\Facade\Open\OpenAIProxyApi;
+use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
 // OpenAI 兼容接口 - 一定是 openai 模式，不要修改这里

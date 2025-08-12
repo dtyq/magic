@@ -14,14 +14,14 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
-use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\ModelGateway\Service\ApplicationDomainService;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\Domain\ModelGateway\Service\MsgLogDomainService;
 use App\Domain\ModelGateway\Service\OrganizationConfigDomainService;
 use App\Domain\ModelGateway\Service\UserConfigDomainService;
+use App\Domain\Provider\Service\AdminProviderDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
@@ -38,7 +38,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected readonly MsgLogDomainService $msgLogDomainService,
         protected readonly MagicUserDomainService $magicUserDomainService,
         protected LoggerFactory $loggerFactory,
-        protected ServiceProviderDomainService $serviceProviderDomainService,
+        protected AdminProviderDomainService $serviceProviderDomainService,
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
         protected WatermarkConfigInterface $watermarkConfig,

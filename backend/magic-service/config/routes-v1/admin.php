@@ -7,7 +7,7 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
-use App\Interfaces\ModelAdmin\Facade\ServiceProviderApi;
+use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 组织管理后台路由
@@ -15,7 +15,7 @@ Router::addGroup('/api/v1/admin', static function () {
     Router::addGroup('/service-providers', static function () {
         // 服务商管理
         Router::get('', [ServiceProviderApi::class, 'getServiceProviders']);
-        Router::get('/{serviceProviderConfigId:\d+}', [ServiceProviderApi::class, 'getServiceProviderConfig']);
+        Router::get('/{serviceProviderConfigId:\d+}', [ServiceProviderApi::class, 'getServiceProviderConfigModels']);
         Router::put('', [ServiceProviderApi::class, 'updateServiceProviderConfig']);
         Router::post('', [ServiceProviderApi::class, 'addServiceProviderForOrganization']);
         Router::delete('/{serviceProviderConfigId:\d+}', [ServiceProviderApi::class, 'deleteServiceProviderForOrganization']);
@@ -35,7 +35,7 @@ Router::addGroup('/api/v1/admin', static function () {
 
         // 其他功能
         Router::post('/connectivity-test', [ServiceProviderApi::class, 'connectivityTest']);
-        Router::post('/by-category', [ServiceProviderApi::class, 'getServiceProvidersByCategory']);
+        Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
         Router::get('/non-official-llm', [ServiceProviderApi::class, 'getNonOfficialLlmProviders']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);
     }, ['middleware' => [RequestContextMiddleware::class]]);

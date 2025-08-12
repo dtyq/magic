@@ -82,6 +82,12 @@ class MagicUserContactAppService extends AbstractAppService
     public function addFriend(MagicUserAuthorization $userAuthorization, string $friendId, AddFriendType $addFriendType): bool
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 检查是否已经是好友
+        if ($this->userDomainService->isFriend($dataIsolation->getCurrentUserId(), $friendId)) {
+            return true;
+        }
+
         if (! $this->userDomainService->addFriend($dataIsolation, $friendId)) {
             return false;
         }
@@ -99,8 +105,13 @@ class MagicUserContactAppService extends AbstractAppService
      * 向AI助理发送添加好友控制消息.
      * @throws Throwable
      */
-    public function sendAddFriendControlMessage(DataIsolation $dataIsolation, MagicUserEntity $friendUserEntity): void
+    public function sendAddFriendControlMessage(DataIsolation $dataIsolation, MagicUserEntity $friendUserEntity): bool
     {
+        // 检查是否已经是好友
+        if ($this->userDomainService->isFriend($dataIsolation->getCurrentUserId(), $friendUserEntity->getUserId())) {
+            return true;
+        }
+
         $now = date('Y-m-d H:i:s');
         $messageDTO = new MagicMessageEntity([
             'receive_id' => $friendUserEntity->getUserId(),
@@ -134,6 +145,8 @@ class MagicUserContactAppService extends AbstractAppService
         $receiverConversationEntity->setUserOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         // 通用控制消息处理逻辑
         $this->magicChatDomainService->handleCommonControlMessage($messageDTO, $conversationEntity, $receiverConversationEntity);
+
+        return true;
     }
 
     public function searchFriend(string $keyword): array

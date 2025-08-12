@@ -7,11 +7,14 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity\ValueObject\Query;
 
+use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\Status;
 
 class ProviderConfigQuery extends Query
 {
     protected ?array $ids = [];
+
+    protected Category $category = Category::LLM;
 
     protected ?Status $status = null;
 
@@ -34,5 +37,15 @@ class ProviderConfigQuery extends Query
     {
         $this->status = $status;
         return $this;
+    }
+
+    public function getCategory(): Category
+    {
+        return $this->category;
+    }
+
+    public function setCategory(Category $category): void
+    {
+        $this->category = $category;
     }
 }

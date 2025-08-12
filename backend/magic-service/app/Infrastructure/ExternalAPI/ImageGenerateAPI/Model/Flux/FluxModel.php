@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux;
 
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
@@ -37,7 +37,7 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
 
     protected FluxAPI $api;
 
-    public function __construct(ServiceProviderConfig $serviceProviderConfig)
+    public function __construct(ProviderConfigItem $serviceProviderConfig)
     {
         parent::__construct();
         $this->api = new FluxAPI($serviceProviderConfig->getApiKey());

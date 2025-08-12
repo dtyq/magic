@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Interfaces\KnowledgeBase\Facade;
 
-use App\Domain\ModelAdmin\Constant\ServiceProviderType;
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderDTO;
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderModelsDTO;
+use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
+use App\Domain\Provider\DTO\ProviderModelDetailDTO;
+use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseProviderAssembler;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 
@@ -18,14 +18,14 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
 {
     /**
      * 获取官方重排序提供商列表.
-     * @return array<ServiceProviderDTO>
+     * @return array<ProviderConfigModelsDTO>
      */
-    public function getOfficialRerankProviderList()
+    public function getOfficialRerankProviderList(): array
     {
-        $dto = new ServiceProviderDTO();
+        $dto = new ProviderConfigModelsDTO();
         $dto->setId('official_rerank');
         $dto->setName('官方重排序服务商');
-        $dto->setProviderType(ServiceProviderType::OFFICIAL->value);
+        $dto->setProviderType(ProviderType::Official->value);
         $dto->setDescription('官方提供的重排序服务');
         $dto->setIcon('');
         $dto->setCategory('rerank');
@@ -36,7 +36,7 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
         $models = [];
 
         // 基础重排序模型
-        $baseModel = new ServiceProviderModelsDTO();
+        $baseModel = new ProviderModelDetailDTO();
         $baseModel->setId('official_rerank_model');
         $baseModel->setName('官方重排模型');
         $baseModel->setModelVersion('v1.0');
@@ -56,7 +56,7 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
 
     /**
      * 获取嵌入提供商列表.
-     * @return array<ServiceProviderDTO>
+     * @return array<ProviderConfigModelsDTO>
      */
     public function getEmbeddingProviderList(): array
     {

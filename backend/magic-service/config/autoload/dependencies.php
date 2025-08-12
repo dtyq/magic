@@ -122,8 +122,6 @@ use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
 use App\Domain\MCP\Repository\Persistence\MCPServerRepository;
 use App\Domain\MCP\Repository\Persistence\MCPServerToolRepository;
 use App\Domain\MCP\Repository\Persistence\MCPUserSettingRepository;
-use App\Domain\ModelAdmin\Service\Filter\DefaultPackageFilter;
-use App\Domain\ModelAdmin\Service\Filter\PackageFilterInterface;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -146,12 +144,18 @@ use App\Domain\OrganizationEnvironment\Repository\OrganizationsEnvironmentReposi
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsPlatformRepository;
 use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterface;
 use App\Domain\Permission\Repository\Persistence\OperationPermissionRepository;
+use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
+use App\Domain\Provider\Repository\Facade\ProviderOriginalModelRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderRepositoryInterface;
+use App\Domain\Provider\Repository\Persistence\MagicProviderAndModelsRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
+use App\Domain\Provider\Repository\Persistence\ProviderOriginalModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderRepository;
+use App\Domain\Provider\Service\ModelFilter\DefaultPackageFilter;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
@@ -281,7 +285,8 @@ $dependencies = [
     ProviderRepositoryInterface::class => ProviderRepository::class,
     ProviderConfigRepositoryInterface::class => ProviderConfigRepository::class,
     ProviderModelRepositoryInterface::class => ProviderModelRepository::class,
-
+    ProviderOriginalModelRepositoryInterface::class => ProviderOriginalModelRepository::class,
+    MagicProviderAndModelsInterface::class => MagicProviderAndModelsRepository::class,
     // mcp
     MCPServerRepositoryInterface::class => MCPServerRepository::class,
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,

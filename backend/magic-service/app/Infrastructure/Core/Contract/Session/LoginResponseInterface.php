@@ -34,4 +34,11 @@ interface LoginResponseInterface
     public function getThirdPlatformType(): PlatformType;
 
     public function setThirdPlatformType(null|PlatformType|string $thirdPlatformType): self;
+
+    /**
+     * 转换为数组格式.
+     *
+     * @return array<string, mixed> 包含所有属性的数组
+     */
+    public function toArray(): array;
 }

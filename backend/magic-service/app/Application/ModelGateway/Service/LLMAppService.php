@@ -10,8 +10,6 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
-use App\Domain\ModelAdmin\Constant\ServiceProviderCategory;
-use App\Domain\ModelAdmin\Constant\ServiceProviderType;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -22,6 +20,8 @@ use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -44,6 +44,7 @@ use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
+use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
@@ -166,15 +167,15 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function imageGenerate(MagicUserAuthorization $authorization, string $modelVersion, string $modelId, array $data): array
     {
-        $serviceProviderResponse = $this->serviceProviderDomainService->getServiceProviderConfig($modelVersion, $modelId, $authorization->getOrganizationCode());
-        if ($serviceProviderResponse === null) {
+        $providerModelsDTO = $this->serviceProviderDomainService->getServiceProviderConfig($modelVersion, $modelId, $authorization->getOrganizationCode());
+        if ($providerModelsDTO === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
-        if ($serviceProviderResponse->getServiceProviderType() === ServiceProviderType::NORMAL) {
-            $modelVersion = $serviceProviderResponse->getServiceProviderModelsEntity()->getModelVersion();
+        if ($providerModelsDTO->getServiceProviderType() === ProviderType::Normal) {
+            $modelVersion = $providerModelsDTO->getModels()[0]?->getModelVersion();
         }
         if (empty($modelVersion)) {
-            $modelVersion = $serviceProviderResponse->getServiceProviderModelsEntity()->getModelVersion();
+            $modelVersion = $providerModelsDTO->getModels()[0]?->getModelVersion();
         }
         if (! isset($data['model'])) {
             $data['model'] = $modelVersion;
@@ -197,18 +198,18 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
 
-        $serviceProviderConfig = $serviceProviderResponse->getServiceProviderConfig();
-        if ($serviceProviderConfig === null) {
+        $providerConfigItem = $providerModelsDTO->getConfig();
+        if ($providerConfigItem === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
-        $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
+        $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $providerConfigItem);
 
         // Collect configuration information and handle sensitive data
         $configInfo = [
             'model' => $data['model'] ?? '',
-            'apiKey' => $this->serviceProviderDomainService->maskString($serviceProviderConfig->getApiKey()),
-            'ak' => $this->serviceProviderDomainService->maskString($serviceProviderConfig->getAk()),
-            'sk' => $this->serviceProviderDomainService->maskString($serviceProviderConfig->getSk()),
+            'apiKey' => StringMaskUtil::mask($providerConfigItem->getApiKey()),
+            'ak' => StringMaskUtil::mask($providerConfigItem->getAk()),
+            'sk' => StringMaskUtil::mask($providerConfigItem->getSk()),
         ];
 
         $this->logger->info('Image generation service configuration', $configInfo);
@@ -236,7 +237,7 @@ class LLMAppService extends AbstractLLMAppService
         /**
          * @var MiracleVisionModel $imageGenerateService
          */
-        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getServiceProviderConfig());
+        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
         $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
         return $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
     }
@@ -250,7 +251,7 @@ class LLMAppService extends AbstractLLMAppService
         /**
          * @var MiracleVisionModel $imageGenerateService
          */
-        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getServiceProviderConfig());
+        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
         return $imageGenerateService->queryTask($taskId);
     }
 
@@ -261,7 +262,7 @@ class LLMAppService extends AbstractLLMAppService
         $organizationCode = $accessTokenEntity->getOrganizationCode();
         $creator = $accessTokenEntity->getCreator();
         $modelVersion = $textGenerateImageDTO->getModel();
-        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
 
         $imageGenerateParamsVO = new AIImageGenerateParamsVO();
@@ -319,7 +320,7 @@ class LLMAppService extends AbstractLLMAppService
         $this->validateAccessToken($imageEditDTO);
 
         $modelVersion = $imageEditDTO->getModel();
-        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, ServiceProviderCategory::VLM);
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
 
         $imageGenerateParamsVO = new AIImageGenerateParamsVO();
@@ -436,8 +437,15 @@ class LLMAppService extends AbstractLLMAppService
 
             // Try to get high availability model configuration
             $orgCode = $contextData['organization_code'] ?? null;
-            $modeId = $this->getHighAvailableModelId($proxyModelRequest, $endpointDTO, $orgCode);
-            if (empty($modeId)) {
+
+            // Check if high availability is enabled
+            if ($proxyModelRequest->isEnableHighAvailability()) {
+                $modeId = $this->getHighAvailableModelId($proxyModelRequest, $endpointDTO, $orgCode);
+                if (empty($modeId)) {
+                    $modeId = $proxyModelRequest->getModel();
+                }
+            } else {
+                // High availability is disabled, use the original model ID directly
                 $modeId = $proxyModelRequest->getModel();
             }
 
@@ -482,7 +490,6 @@ class LLMAppService extends AbstractLLMAppService
             if ($model instanceof AwsBedrockModel && method_exists($model, 'setConfig')) {
                 $model->setConfig(array_merge($model->getConfig(), $this->createAwsAutoCacheConfig($proxyModelRequest, $model->getModelName())));
             }
-
             // Record start time
             $startTime = microtime(true);
 
@@ -516,14 +523,16 @@ class LLMAppService extends AbstractLLMAppService
                 'response_time' => $responseTime,
             ]);
 
-            // If endpoint is obtained, report high availability data in normal cases
-            $this->reportHighAvailabilityResponse(
-                $endpointDTO,
-                $responseTime,
-                200, // Use 200 status code in normal cases
-                0,   // Business status code marked as success
-                1
-            );
+            // If endpoint is obtained and high availability is enabled, report high availability data in normal cases
+            if ($proxyModelRequest->isEnableHighAvailability()) {
+                $this->reportHighAvailabilityResponse(
+                    $endpointDTO,
+                    $responseTime,
+                    200, // Use 200 status code in normal cases
+                    0,   // Business status code marked as success
+                    1
+                );
+            }
 
             return $response;
         } catch (BusinessException $exception) {
@@ -792,15 +801,17 @@ class LLMAppService extends AbstractLLMAppService
         // Calculate response time
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
-        // Report to high availability service if endpoint is available
-        $this->reportHighAvailabilityResponse(
-            $endpointDTO,
-            $responseTime,
-            $httpStatusCode,
-            $throwable->getCode(),
-            0,
-            $throwable
-        );
+        // Report to high availability service if endpoint is available and high availability is enabled
+        if ($proxyModelRequest->isEnableHighAvailability()) {
+            $this->reportHighAvailabilityResponse(
+                $endpointDTO,
+                $responseTime,
+                $httpStatusCode,
+                $throwable->getCode(),
+                0,
+                $throwable
+            );
+        }
 
         $this->logModelCallFailure($proxyModelRequest->getModel(), $throwable);
     }

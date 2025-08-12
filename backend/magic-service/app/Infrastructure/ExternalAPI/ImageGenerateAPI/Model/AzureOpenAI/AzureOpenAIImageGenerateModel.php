@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -27,9 +27,9 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
 
     private AzureOpenAIAPI $api;
 
-    private ServiceProviderConfig $config;
+    private ProviderConfigItem $config;
 
-    public function __construct(ServiceProviderConfig $serviceProviderConfig)
+    public function __construct(ProviderConfigItem $serviceProviderConfig)
     {
         $this->config = $serviceProviderConfig;
         $baseUrl = $this->config->getUrl();
