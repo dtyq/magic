@@ -13,6 +13,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Infrastructure\Core\AbstractEntity;
 use DateTime;
+use Hyperf\Codec\Json;
 
 class ProviderEntity extends AbstractEntity
 {
@@ -42,6 +43,8 @@ class ProviderEntity extends AbstractEntity
 
     protected DateTime $updatedAt;
 
+    protected ?DateTime $deletedAt = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -49,7 +52,11 @@ class ProviderEntity extends AbstractEntity
 
     public function setId(null|int|string $id): void
     {
-        $this->id = $id ? (int) $id : null;
+        if (is_numeric($id)) {
+            $this->id = (int) $id;
+        } else {
+            $this->id = null;
+        }
     }
 
     public function getName(): string
@@ -57,9 +64,13 @@ class ProviderEntity extends AbstractEntity
         return $this->name;
     }
 
-    public function setName(string $name): void
+    public function setName(null|int|string $name): void
     {
-        $this->name = $name;
+        if ($name === null) {
+            $this->name = '';
+        } else {
+            $this->name = (string) $name;
+        }
     }
 
     public function getProviderCode(): ProviderCode
@@ -67,9 +78,15 @@ class ProviderEntity extends AbstractEntity
         return $this->providerCode;
     }
 
-    public function setProviderCode(ProviderCode $providerCode): void
+    public function setProviderCode(null|int|ProviderCode|string $providerCode): void
     {
-        $this->providerCode = $providerCode;
+        if ($providerCode === null || $providerCode === '') {
+            $this->providerCode = ProviderCode::Official;
+        } elseif ($providerCode instanceof ProviderCode) {
+            $this->providerCode = $providerCode;
+        } else {
+            $this->providerCode = ProviderCode::from((string) $providerCode);
+        }
     }
 
     public function getDescription(): ?string
@@ -77,9 +94,13 @@ class ProviderEntity extends AbstractEntity
         return $this->description;
     }
 
-    public function setDescription(?string $description): void
+    public function setDescription(null|int|string $description): void
     {
-        $this->description = $description;
+        if ($description === null) {
+            $this->description = '';
+        } else {
+            $this->description = (string) $description;
+        }
     }
 
     public function getIcon(): ?string
@@ -87,9 +108,13 @@ class ProviderEntity extends AbstractEntity
         return $this->icon;
     }
 
-    public function setIcon(?string $icon): void
+    public function setIcon(null|int|string $icon): void
     {
-        $this->icon = $icon;
+        if ($icon === null) {
+            $this->icon = '';
+        } else {
+            $this->icon = (string) $icon;
+        }
     }
 
     public function getProviderType(): ProviderType
@@ -97,9 +122,15 @@ class ProviderEntity extends AbstractEntity
         return $this->providerType;
     }
 
-    public function setProviderType(ProviderType $providerType): void
+    public function setProviderType(null|int|ProviderType|string $providerType): void
     {
-        $this->providerType = $providerType;
+        if ($providerType === null || $providerType === '') {
+            $this->providerType = ProviderType::Normal;
+        } elseif ($providerType instanceof ProviderType) {
+            $this->providerType = $providerType;
+        } else {
+            $this->providerType = ProviderType::from((int) $providerType);
+        }
     }
 
     public function getCategory(): Category
@@ -107,9 +138,15 @@ class ProviderEntity extends AbstractEntity
         return $this->category;
     }
 
-    public function setCategory(Category $category): void
+    public function setCategory(null|Category|int|string $category): void
     {
-        $this->category = $category;
+        if ($category === null || $category === '') {
+            $this->category = Category::LLM;
+        } elseif ($category instanceof Category) {
+            $this->category = $category;
+        } else {
+            $this->category = Category::from((string) $category);
+        }
     }
 
     public function getStatus(): Status
@@ -117,9 +154,15 @@ class ProviderEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(Status $status): void
+    public function setStatus(null|int|Status|string $status): void
     {
-        $this->status = $status;
+        if ($status === null || $status === '') {
+            $this->status = Status::Disabled;
+        } elseif ($status instanceof Status) {
+            $this->status = $status;
+        } else {
+            $this->status = Status::from((int) $status);
+        }
     }
 
     public function getIsModelsEnable(): int
@@ -127,9 +170,13 @@ class ProviderEntity extends AbstractEntity
         return $this->isModelsEnable;
     }
 
-    public function setIsModelsEnable(int $isModelsEnable): void
+    public function setIsModelsEnable(null|int|string $isModelsEnable): void
     {
-        $this->isModelsEnable = $isModelsEnable;
+        if ($isModelsEnable === null) {
+            $this->isModelsEnable = 0;
+        } else {
+            $this->isModelsEnable = (int) $isModelsEnable;
+        }
     }
 
     public function getTranslate(): ?array
@@ -137,9 +184,16 @@ class ProviderEntity extends AbstractEntity
         return $this->translate;
     }
 
-    public function setTranslate(?array $translate): void
+    public function setTranslate(null|array|string $translate): void
     {
-        $this->translate = $translate ?? [];
+        if ($translate === null) {
+            $this->translate = [];
+        } elseif (is_string($translate)) {
+            $decoded = Json::decode($translate);
+            $this->translate = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->translate = $translate;
+        }
     }
 
     public function getRemark(): string
@@ -147,9 +201,13 @@ class ProviderEntity extends AbstractEntity
         return $this->remark;
     }
 
-    public function setRemark(string $remark): void
+    public function setRemark(null|int|string $remark): void
     {
-        $this->remark = $remark;
+        if ($remark === null) {
+            $this->remark = '';
+        } else {
+            $this->remark = (string) $remark;
+        }
     }
 
     public function getCreatedAt(): DateTime
@@ -157,9 +215,9 @@ class ProviderEntity extends AbstractEntity
         return $this->createdAt;
     }
 
-    public function setCreatedAt(DateTime $createdAt): void
+    public function setCreatedAt(DateTime|string $createdAt): void
     {
-        $this->createdAt = $createdAt;
+        $this->createdAt = $createdAt instanceof DateTime ? $createdAt : new DateTime($createdAt);
     }
 
     public function getUpdatedAt(): DateTime
@@ -167,8 +225,32 @@ class ProviderEntity extends AbstractEntity
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(DateTime $updatedAt): void
+    public function setUpdatedAt(DateTime|string $updatedAt): void
     {
-        $this->updatedAt = $updatedAt;
+        $this->updatedAt = $updatedAt instanceof DateTime ? $updatedAt : new DateTime($updatedAt);
+    }
+
+    public function getDeletedAt(): ?DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(null|DateTime|string $deletedAt): void
+    {
+        if ($deletedAt === null) {
+            $this->deletedAt = null;
+        } else {
+            $this->deletedAt = $deletedAt instanceof DateTime ? $deletedAt : new DateTime($deletedAt);
+        }
+    }
+
+    public function i18n(string $languages): void
+    {
+        if (isset($this->translate['name'][$languages])) {
+            $this->name = $this->translate['name'][$languages];
+        }
+        if (isset($this->translate['description'][$languages])) {
+            $this->description = $this->translate['description'][$languages];
+        }
     }
 }

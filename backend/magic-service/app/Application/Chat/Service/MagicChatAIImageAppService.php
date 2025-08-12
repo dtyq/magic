@@ -25,9 +25,9 @@ use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\ModelAdmin\Constant\ServiceProviderType;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\ModelGateway\Service\MsgLogDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderType;
+use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -63,7 +63,7 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
         protected readonly MagicAIImageDomainService $magicAIImageDomainService,
         protected readonly FileDomainService $fileDomainService,
         protected readonly MagicChatFileDomainService $magicChatFileDomainService,
-        protected readonly ServiceProviderDomainService $serviceProviderDomainService,
+        protected readonly AdminProviderDomainService $serviceProviderDomainService,
         protected readonly LLMAppService $llmAppService,
         protected readonly MsgLogDomainService $msgLogDomainService,
         protected readonly Redis $redis,
@@ -130,10 +130,10 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
         /**
          * @var MiracleVisionModel $imageGenerateService
          */
-        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getServiceProviderConfig());
+        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
 
-        if ($miracleVisionServiceProviderConfig->getServiceProviderType() === ServiceProviderType::NORMAL) {
-            $imageGenerateService->setApiKey($miracleVisionServiceProviderConfig->getServiceProviderConfig()->getApiKey());
+        if ($miracleVisionServiceProviderConfig->getServiceProviderType() === ProviderType::Normal) {
+            $imageGenerateService->setApiKey($miracleVisionServiceProviderConfig->getConfig()?->getApiKey());
         }
 
         return $this->magicAIImageDomainService->imageConvertHigh($url, $imageGenerateService);

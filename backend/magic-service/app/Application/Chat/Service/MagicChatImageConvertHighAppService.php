@@ -23,7 +23,7 @@ use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
+use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -58,7 +58,7 @@ class MagicChatImageConvertHighAppService extends AbstractAIImageAppService
         protected readonly MagicAIImageDomainService $magicAIImageDomainService,
         protected readonly FileDomainService $fileDomainService,
         protected readonly MagicChatFileDomainService $magicChatFileDomainService,
-        protected readonly ServiceProviderDomainService $serviceProviderDomainService,
+        protected readonly AdminProviderDomainService $serviceProviderDomainService,
         protected readonly LLMAppService $llmAppService,
         protected readonly Redis $redis,
         protected IdGeneratorInterface $idGenerator,

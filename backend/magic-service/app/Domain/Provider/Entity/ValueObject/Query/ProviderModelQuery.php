@@ -23,6 +23,8 @@ class ProviderModelQuery extends Query
 
     protected ?array $providerConfigIds = null;
 
+    protected bool $isOffice = false;
+
     public function getSuperMagicDisplay(): ?bool
     {
         return $this->superMagicDisplay;
@@ -72,5 +74,15 @@ class ProviderModelQuery extends Query
     public function setModelType(?ModelType $modelType): void
     {
         $this->modelType = $modelType;
+    }
+
+    public function isOffice(): bool
+    {
+        return $this->isOffice;
+    }
+
+    public function setIsOffice(bool $isOffice): void
+    {
+        $this->isOffice = $isOffice;
     }
 }

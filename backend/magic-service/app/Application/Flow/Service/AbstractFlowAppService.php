@@ -33,11 +33,11 @@ use App\Domain\Flow\Service\MagicFlowVersionDomainService;
 use App\Domain\Flow\Service\MagicFlowWaitMessageDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
+use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
@@ -64,7 +64,7 @@ abstract class AbstractFlowAppService extends AbstractKernelAppService
         protected readonly MagicOrganizationEnvDomainService $magicEnvironmentDomainService,
         protected readonly MagicFlowExecuteLogDomainService $magicFlowExecuteLogDomainService,
         protected readonly MagicAccountDomainService $magicAccountDomainService,
-        protected readonly ServiceProviderDomainService $serviceProviderDomainService,
+        protected readonly AdminProviderDomainService $serviceProviderDomainService,
         protected readonly KnowledgeBaseDocumentDomainService $magicFlowDocumentDomainService,
         protected readonly KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
     ) {

@@ -7,20 +7,22 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity;
 
-use App\Domain\Provider\Entity\ValueObject\ProviderConfigVO;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Infrastructure\Core\AbstractEntity;
 use DateTime;
+use Hyperf\Codec\Json;
 
 class ProviderConfigEntity extends AbstractEntity
 {
     protected ?int $id = null;
 
-    protected int $providerId;
+    protected int $serviceProviderId;
 
     protected string $organizationCode;
 
-    protected ProviderConfigVO $config;
+    protected ?ProviderConfigItem $config = null;
 
     protected Status $status;
 
@@ -32,24 +34,36 @@ class ProviderConfigEntity extends AbstractEntity
 
     protected DateTime $updatedAt;
 
+    protected ?DateTime $deletedAt = null;
+
+    private ?ProviderCode $providerCode = null;
+
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function setId(?int $id): void
+    public function setId(null|int|string $id): void
     {
-        $this->id = $id;
+        if (is_numeric($id)) {
+            $this->id = (int) $id;
+        } else {
+            $this->id = null;
+        }
     }
 
-    public function getProviderId(): int
+    public function getServiceProviderId(): int
     {
-        return $this->providerId;
+        return $this->serviceProviderId;
     }
 
-    public function setProviderId(int $providerId): void
+    public function setServiceProviderId(null|int|string $serviceProviderId): void
     {
-        $this->providerId = $providerId;
+        if (is_numeric($serviceProviderId)) {
+            $this->serviceProviderId = (int) $serviceProviderId;
+        } else {
+            $this->serviceProviderId = 0;
+        }
     }
 
     public function getOrganizationCode(): string
@@ -57,19 +71,32 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->organizationCode;
     }
 
-    public function setOrganizationCode(string $organizationCode): void
+    public function setOrganizationCode(null|int|string $organizationCode): void
     {
-        $this->organizationCode = $organizationCode;
+        if ($organizationCode === null) {
+            $this->organizationCode = '';
+        } else {
+            $this->organizationCode = (string) $organizationCode;
+        }
     }
 
-    public function getConfig(): ProviderConfigVO
+    public function getConfig(): ?ProviderConfigItem
     {
-        return $this->config;
+        return $this->config ?? null;
     }
 
-    public function setConfig(ProviderConfigVO $config): void
+    public function setConfig(null|array|ProviderConfigItem|string $config): void
     {
-        $this->config = $config;
+        if ($config === null) {
+            $this->config = null;
+        } elseif (is_string($config)) {
+            $decoded = Json::decode($config);
+            $this->config = new ProviderConfigItem(is_array($decoded) ? $decoded : []);
+        } elseif ($config instanceof ProviderConfigItem) {
+            $this->config = $config;
+        } else {
+            $this->config = new ProviderConfigItem($config);
+        }
     }
 
     public function getStatus(): Status
@@ -77,9 +104,15 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(Status $status): void
+    public function setStatus(null|int|Status|string $status): void
     {
-        $this->status = $status;
+        if ($status === null || $status === '') {
+            $this->status = Status::Disabled;
+        } elseif ($status instanceof Status) {
+            $this->status = $status;
+        } else {
+            $this->status = Status::from((int) $status);
+        }
     }
 
     public function getAlias(): string
@@ -87,9 +120,13 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->alias;
     }
 
-    public function setAlias(string $alias): void
+    public function setAlias(null|int|string $alias): void
     {
-        $this->alias = $alias;
+        if ($alias === null) {
+            $this->alias = '';
+        } else {
+            $this->alias = (string) $alias;
+        }
     }
 
     public function getTranslate(): array
@@ -97,9 +134,16 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->translate;
     }
 
-    public function setTranslate(array $translate): void
+    public function setTranslate(null|array|string $translate): void
     {
-        $this->translate = $translate;
+        if ($translate === null) {
+            $this->translate = [];
+        } elseif (is_string($translate)) {
+            $decoded = Json::decode($translate);
+            $this->translate = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->translate = $translate;
+        }
     }
 
     public function getCreatedAt(): DateTime
@@ -107,9 +151,13 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->createdAt;
     }
 
-    public function setCreatedAt(DateTime $createdAt): void
+    public function setCreatedAt(null|DateTime|string $createdAt): void
     {
-        $this->createdAt = $createdAt;
+        if ($createdAt === null) {
+            $this->createdAt = new DateTime();
+        } else {
+            $this->createdAt = $createdAt instanceof DateTime ? $createdAt : new DateTime($createdAt);
+        }
     }
 
     public function getUpdatedAt(): DateTime
@@ -117,8 +165,77 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(DateTime $updatedAt): void
+    public function setUpdatedAt(null|DateTime|string $updatedAt): void
     {
-        $this->updatedAt = $updatedAt;
+        if ($updatedAt === null) {
+            $this->updatedAt = new DateTime();
+        } else {
+            $this->updatedAt = $updatedAt instanceof DateTime ? $updatedAt : new DateTime($updatedAt);
+        }
+    }
+
+    public function getDeletedAt(): ?DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(null|DateTime|string $deletedAt): void
+    {
+        if ($deletedAt === null) {
+            $this->deletedAt = null;
+        } else {
+            $this->deletedAt = $deletedAt instanceof DateTime ? $deletedAt : new DateTime($deletedAt);
+        }
+    }
+
+    public function getProviderCode(): ?ProviderCode
+    {
+        return $this->providerCode;
+    }
+
+    public function setProviderCode(null|int|ProviderCode|string $providerCode): void
+    {
+        if ($providerCode === null || $providerCode === '') {
+            $this->providerCode = null;
+        } elseif ($providerCode instanceof ProviderCode) {
+            $this->providerCode = $providerCode;
+        } else {
+            $this->providerCode = ProviderCode::from((string) $providerCode);
+        }
+    }
+
+    public function getImplementation(): ?string
+    {
+        return $this->providerCode?->getImplementation();
+    }
+
+    public function getActualImplementationConfig(): array
+    {
+        if (! $this->config || ! $this->providerCode) {
+            return [];
+        }
+        return $this->providerCode->getImplementationConfig($this->config);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->getStatus()->isEnabled();
+    }
+
+    public function enable(): void
+    {
+        $this->status = Status::Enabled;
+    }
+
+    public function disable(): void
+    {
+        $this->status = Status::Disabled;
+    }
+
+    public function i18n(string $languages): void
+    {
+        if (isset($this->translate['alias'][$languages])) {
+            $this->alias = $this->translate['alias'][$languages];
+        }
     }
 }

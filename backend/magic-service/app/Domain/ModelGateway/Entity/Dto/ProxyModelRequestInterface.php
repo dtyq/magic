@@ -24,4 +24,8 @@ interface ProxyModelRequestInterface
     public function addBusinessParam(string $key, mixed $value): void;
 
     public function getHeaderConfig(string $key, mixed $default = null): mixed;
+
+    public function isEnableHighAvailability(): bool;
+
+    public function setEnableHighAvailability(bool $enableHighAvailability): void;
 }
