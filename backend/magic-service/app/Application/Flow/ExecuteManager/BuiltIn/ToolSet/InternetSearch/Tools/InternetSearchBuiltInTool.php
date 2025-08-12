@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\InternetSearch\Tools;
 
-use App\Application\Chat\Service\MagicChatAISearchAppService;
+use App\Application\Chat\Service\MagicChatAISearchV2AppService;
 use App\Application\Flow\ExecuteManager\BuiltIn\BuiltInToolSet;
 use App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AbstractBuiltInTool;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
@@ -63,7 +63,7 @@ class InternetSearchBuiltInTool extends AbstractBuiltInTool
                 ->setTopicId((string) $topicId)
                 ->setUserMessage($searchKeywordMessage)
                 ->setSearchDeepLevel($useDeepSearch ? SearchDeepLevel::DEEP : SearchDeepLevel::SIMPLE);
-            di(MagicChatAISearchAppService::class)->aggregateSearch($magicChatAggregateSearchReqDTO);
+            di(MagicChatAISearchV2AppService::class)->aggregateSearch($magicChatAggregateSearchReqDTO);
             return null;
         };
     }
