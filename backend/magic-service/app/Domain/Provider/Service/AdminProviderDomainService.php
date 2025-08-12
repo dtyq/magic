@@ -258,7 +258,9 @@ class AdminProviderDomainService extends AbstractProviderDomainService
                 if ((string) $model->getId() === $key) {
                     $models[] = $model;
                 }
-            } elseif ((string) $model->getModelType()->value === $key) {
+            } elseif ($model->getModelId() === $key) {
+                $models[] = $model;
+            } elseif ($model->getModelVersion() === $key) {
                 $models[] = $model;
             }
         }
