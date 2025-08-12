@@ -413,10 +413,18 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
-        // 1. Get models with super magic display state enabled
-        // 创建数据隔离对象
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
-        $models = $this->providerModelRepository->getOrganizationSuperMagicModels($dataIsolation);
+
+        // 获取所有分类的可用模型
+        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
+
+        // 按super_magic_display_state过滤
+        $models = [];
+        foreach ($allModels as $model) {
+            if ($model->isSuperMagicDisplayState() === 1) {
+                $models[] = $model;
+            }
+        }
 
         $superMagicModels = [];
         foreach ($models as $model) {
