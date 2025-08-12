@@ -2191,16 +2191,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.86",
+            "version": "0.0.87",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "7f19a76a930041b54af3a85a6519f2d860629396"
+                "reference": "4f8efbee47830735da450b6ca5eb46f41d19b539"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=7f19a76a930041b54af3a85a6519f2d860629396",
-                "reference": "7f19a76a930041b54af3a85a6519f2d860629396",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4f8efbee47830735da450b6ca5eb46f41d19b539",
+                "reference": "4f8efbee47830735da450b6ca5eb46f41d19b539",
                 "shasum": ""
             },
             "require": {
@@ -2301,9 +2301,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.86"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.87"
             },
-            "time": "2025-08-11T15:04:25+00:00"
+            "time": "2025-08-12T22:28:34+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -16591,16 +16591,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.50",
+            "version": "10.5.51",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "a858178a64d88653e94ece15b25a860d48a4644b"
+                "reference": "ace160e31aaa317a99c411410c40c502b4be42a4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/a858178a64d88653e94ece15b25a860d48a4644b",
-                "reference": "a858178a64d88653e94ece15b25a860d48a4644b",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/ace160e31aaa317a99c411410c40c502b4be42a4",
+                "reference": "ace160e31aaa317a99c411410c40c502b4be42a4",
                 "shasum": ""
             },
             "require": {
@@ -16672,7 +16672,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.50"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.51"
             },
             "funding": [
                 {
@@ -16696,7 +16696,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-10T08:34:14+00:00"
+            "time": "2025-08-12T07:31:25+00:00"
         },
         {
             "name": "react/cache",
