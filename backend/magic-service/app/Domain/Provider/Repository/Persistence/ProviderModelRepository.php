@@ -179,15 +179,38 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
      */
     public function getAvailableModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null): array
     {
+        return $this->getModelsForOrganization($dataIsolation, $category, false);
+    }
+
+    /**
+     * 获取组织SuperMagic模型列表（包含组织自己的模型和SuperMagic模型）.
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param null|Category $category 模型分类，为空时返回所有分类模型
+     * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和SuperMagic模型（不去重）
+     */
+    public function getOrganizationSuperMagicModels(ProviderDataIsolation $dataIsolation, ?Category $category = null): array
+    {
+        return $this->getModelsForOrganization($dataIsolation, $category, true);
+    }
+
+    /**
+     * 获取组织模型列表的通用方法（减少代码重复）.
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param null|Category $category 模型分类，为空时返回所有分类模型
+     * @param bool $isSuperMagic 是否使用SuperMagic逻辑
+     * @return ProviderModelEntity[] 按sort降序排序的模型列表
+     */
+    private function getModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category, bool $isSuperMagic): array
+    {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
 
         // 生成缓存键
-        $cacheKey = sprintf('provider_models:available:%s:%s', $organizationCode, $category->value ?? 'all');
+        $cacheType = $isSuperMagic ? 'supermagic' : 'available';
+        $cacheKey = sprintf('provider_models:%s:%s:%s', $cacheType, $organizationCode, $category->value ?? 'all');
 
         // 尝试从缓存获取
         $redis = di(Redis::class);
         $cachedData = $redis->get($cacheKey);
-
         if ($cachedData !== false) {
             // 从缓存恢复实体对象
             $modelsArray = Json::decode($cachedData);
@@ -218,7 +241,11 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         // 2. 获取Magic模型（如果不是官方组织）
         $magicModels = [];
         if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
-            $magicModels = $this->magicProviderAndModels->getMagicEnableModels($organizationCode, $category);
+            if ($isSuperMagic) {
+                $magicModels = $this->magicProviderAndModels->getMagicEnableModelsForSuperMagic($organizationCode, $category);
+            } else {
+                $magicModels = $this->magicProviderAndModels->getMagicEnableModels($organizationCode, $category);
+            }
         }
 
         // 3. 直接合并模型列表，不去重

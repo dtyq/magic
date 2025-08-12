@@ -118,65 +118,20 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
      */
     public function getMagicEnableModels(string $organizationCode, ?Category $category = null): array
     {
-        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
-            return [];
-        }
-        // 数据集 A：获取官方组织下所有启用的模型（包含配置过滤）
-        $officialModels = $this->getOfficialEnabledModels($category);
+        return $this->getMagicEnableModelsInternal($organizationCode, $category, false);
+    }
 
-        // 如果没有官方模型，直接返回空数组
-        if (empty($officialModels)) {
-            return [];
-        }
-
-        // 提取官方模型的ID数组
-        $officialModelIds = [];
-        foreach ($officialModels as $officialModel) {
-            $officialModelIds[] = $officialModel->getId();
-        }
-
-        // 数据集 B：查询当前组织下 model_parent_id 在官方模型 ID 列表中的模型
-        $configBuilder = $this->createProviderModelQuery();
-        $configBuilder->where('organization_code', $organizationCode)->whereIn('model_parent_id', $officialModelIds);
-
-        // 如果指定了分类，添加分类过滤条件
-        if ($category !== null) {
-            $configBuilder->where('category', $category->value);
-        }
-
-        $configResult = Db::select($configBuilder->toSql(), $configBuilder->getBindings());
-        $modelEntities = ProviderModelAssembler::toEntities($configResult);
-
-        // 创建配置模型的映射表，以 model_parent_id 为 key
-        $modelMap = [];
-        foreach ($modelEntities as $modelEntity) {
-            if ($modelEntity->getModelParentId()) {
-                $modelMap[$modelEntity->getModelParentId()] = $modelEntity;
-            }
-        }
-
-        // 如果配置模型映射为空，直接返回官方模型列表
-        if (empty($modelMap)) {
-            $finalModels = $officialModels;
-        } else {
-            // 处理官方模型的状态合并
-            $finalModels = [];
-            foreach ($officialModels as $officialModel) {
-                $modelId = $officialModel->getId();
-
-                // 检查是否有普通组织的引用模型
-                if (isset($modelMap[$modelId])) {
-                    $organizationModel = $modelMap[$modelId];
-
-                    // 直接用配置模型的状态替换官方模型的状态
-                    $officialModel->setStatus($organizationModel->getStatus());
-                }
-                $finalModels[] = $officialModel;
-            }
-        }
-
-        // 应用套餐过滤
-        return $this->applyPackageFilteringToModels($finalModels, $organizationCode);
+    /**
+     * 根据组织编码和类别获取 SuperMagic 服务商启用中的模型列表.
+     * 与getMagicEnableModels的区别：对于isSuperMagicDisplayState===1的模型不进行套餐过滤.
+     *
+     * @param string $organizationCode 组织编码
+     * @param null|Category $category 服务商类别，为空时返回所有分类模型
+     * @return array<ProviderModelEntity> SuperMagic 服务商模型实体数组
+     */
+    public function getMagicEnableModelsForSuperMagic(string $organizationCode, ?Category $category = null): array
+    {
+        return $this->getMagicEnableModelsInternal($organizationCode, $category, true);
     }
 
     /**
@@ -259,6 +214,81 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
     }
 
     /**
+     * Magic 服务商启用中的模型列表的内部通用方法（减少代码重复）.
+     *
+     * @param string $organizationCode 组织编码
+     * @param null|Category $category 服务商类别，为空时返回所有分类模型
+     * @param bool $isSuperMagic 是否使用SuperMagic逻辑
+     * @return array<ProviderModelEntity> Magic 服务商模型实体数组
+     */
+    private function getMagicEnableModelsInternal(string $organizationCode, ?Category $category, bool $isSuperMagic): array
+    {
+        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+            return [];
+        }
+        // 数据集 A：获取官方组织下所有启用的模型（包含配置过滤）
+        $officialModels = $this->getOfficialEnabledModels($category);
+
+        // 如果没有官方模型，直接返回空数组
+        if (empty($officialModels)) {
+            return [];
+        }
+
+        // 提取官方模型的ID数组
+        $officialModelIds = [];
+        foreach ($officialModels as $officialModel) {
+            $officialModelIds[] = $officialModel->getId();
+        }
+
+        // 数据集 B：查询当前组织下 model_parent_id 在官方模型 ID 列表中的模型
+        $configBuilder = $this->createProviderModelQuery();
+        $configBuilder->where('organization_code', $organizationCode)->whereIn('model_parent_id', $officialModelIds);
+
+        // 如果指定了分类，添加分类过滤条件
+        if ($category !== null) {
+            $configBuilder->where('category', $category->value);
+        }
+
+        $configResult = Db::select($configBuilder->toSql(), $configBuilder->getBindings());
+        $modelEntities = ProviderModelAssembler::toEntities($configResult);
+
+        // 创建配置模型的映射表，以 model_parent_id 为 key
+        $modelMap = [];
+        foreach ($modelEntities as $modelEntity) {
+            if ($modelEntity->getModelParentId()) {
+                $modelMap[$modelEntity->getModelParentId()] = $modelEntity;
+            }
+        }
+
+        // 如果配置模型映射为空，直接返回官方模型列表
+        if (empty($modelMap)) {
+            $finalModels = $officialModels;
+        } else {
+            // 处理官方模型的状态合并
+            $finalModels = [];
+            foreach ($officialModels as $officialModel) {
+                $modelId = $officialModel->getId();
+
+                // 检查是否有普通组织的引用模型
+                if (isset($modelMap[$modelId])) {
+                    $organizationModel = $modelMap[$modelId];
+
+                    // 直接用配置模型的状态替换官方模型的状态
+                    $officialModel->setStatus($organizationModel->getStatus());
+                }
+                $finalModels[] = $officialModel;
+            }
+        }
+
+        // 根据是否SuperMagic应用不同的套餐过滤
+        if ($isSuperMagic) {
+            return $this->applyPackageFilteringToModelsForSuperMagic($finalModels, $organizationCode);
+        }
+
+        return $this->applyPackageFilteringToModels($finalModels, $organizationCode);
+    }
+
+    /**
      * 获取官方组织下所有启用的模型（包含配置过滤）.
      *
      * @param null|Category $category 服务商类别，为空时返回所有分类模型
@@ -338,7 +368,46 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
             }
 
             // 如果配置了可见套餐，检查当前套餐是否在其中
-            if ($currentPackage && in_array($currentPackage, $visiblePackages, true)) {
+            if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
+                $filteredModels[] = $model;
+            }
+        }
+
+        return $filteredModels;
+    }
+
+    /**
+     * 应用SuperMagic套餐过滤处理（针对模型实体列表）.
+     * 与applyPackageFilteringToModels的区别：对于isSuperMagicDisplayState===1的模型不进行套餐过滤.
+     *
+     * @param array<ProviderModelEntity> $models 模型实体列表
+     * @param string $organizationCode 组织编码
+     * @return array<ProviderModelEntity> 过滤后的模型实体列表
+     */
+    private function applyPackageFilteringToModelsForSuperMagic(array $models, string $organizationCode): array
+    {
+        // 如果是官方组织，直接返回所有
+        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+            return $models;
+        }
+        $currentPackage = $this->packageFilter->getCurrentPackage($organizationCode);
+        $filteredModels = [];
+        foreach ($models as $model) {
+            // SuperMagic特殊逻辑：如果isSuperMagicDisplayState===1，直接加入，不进行套餐过滤
+            if ($model->isSuperMagicDisplayState() === 1) {
+                $filteredModels[] = $model;
+                continue;
+            }
+
+            $visiblePackages = $model->getVisiblePackages();
+            // 如果没有配置可见套餐，则对所有套餐可见
+            if (empty($visiblePackages)) {
+                $filteredModels[] = $model;
+                continue;
+            }
+
+            // 如果配置了可见套餐，检查当前套餐是否在其中
+            if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
                 $filteredModels[] = $model;
             }
         }

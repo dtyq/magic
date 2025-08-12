@@ -411,30 +411,12 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * @param string $organizationCode Organization code
      * @return ProviderModelEntity[]
      */
-    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode, string $currentPackage): array
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
-        $isOfficeOrganization = OfficialOrganizationUtil::isOfficialOrganization($organizationCode);
-
         // 1. Get models with super magic display state enabled
         // 创建数据隔离对象
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
-
-        // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
-
-        // 按super_magic_display_state过滤
-        $models = [];
-        foreach ($allModels as $model) {
-            if ($model->isSuperMagicDisplayState() === 1) {
-                $models[] = $model;
-            }
-        }
-
-        // 2. Get all models under Magic service provider for current organization
-        $magicServiceProvider = $this->serviceProviderRepository->getOfficial(Category::LLM);
-        if (! $magicServiceProvider) {
-            return $models;
-        }
+        $models = $this->providerModelRepository->getOrganizationSuperMagicModels($dataIsolation);
 
         $superMagicModels = [];
         foreach ($models as $model) {
@@ -442,15 +424,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             if (! $modelConfig || ! $modelConfig->isSupportFunction()) {
                 continue;
             }
-            // 如果是官方组织，直接添加所有模型
-            if ($isOfficeOrganization) {
-                $superMagicModels[] = $model;
-                continue;
-            }
-            // 如果有套餐可见性，那么要检查套餐可见性
-            if (empty($model->getVisiblePackages()) || in_array($currentPackage, $model->getVisiblePackages())) {
-                $superMagicModels[] = $model;
-            }
+            $superMagicModels[] = $model;
         }
 
         // 根据 modelId 去重

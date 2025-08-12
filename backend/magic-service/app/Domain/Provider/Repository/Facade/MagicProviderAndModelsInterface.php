@@ -33,6 +33,16 @@ interface MagicProviderAndModelsInterface
     public function getMagicEnableModels(string $organizationCode, ?Category $category = null): array;
 
     /**
+     * 根据组织编码和类别获取 SuperMagic 服务商启用中的模型列表.
+     * 与getMagicEnableModels的区别：对于isSuperMagicDisplayState===1的模型不进行套餐过滤.
+     *
+     * @param string $organizationCode 组织编码
+     * @param null|Category $category 服务商类别，为空时返回所有分类模型
+     * @return array<ProviderModelEntity> SuperMagic 服务商模型实体数组
+     */
+    public function getMagicEnableModelsForSuperMagic(string $organizationCode, ?Category $category = null): array;
+
+    /**
      * 根据 modelParentId 获取组织 Magic 模型.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离对象

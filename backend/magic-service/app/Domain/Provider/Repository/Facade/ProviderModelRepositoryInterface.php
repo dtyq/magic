@@ -50,4 +50,12 @@ interface ProviderModelRepositoryInterface
      * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和Magic模型（不去重）
      */
     public function getAvailableModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null): array;
+
+    /**
+     * 获取组织SuperMagic模型列表（包含组织自己的模型和SuperMagic模型）.
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param null|Category $category 模型分类，为空时返回所有分类模型
+     * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和SuperMagic模型（不去重）
+     */
+    public function getOrganizationSuperMagicModels(ProviderDataIsolation $dataIsolation, ?Category $category = null): array;
 }
