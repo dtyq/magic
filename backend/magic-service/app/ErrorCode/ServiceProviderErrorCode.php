@@ -26,9 +26,6 @@ enum ServiceProviderErrorCode: int
     #[ErrorMessage('service_provider.service_provider_config_error')]
     case ServiceProviderConfigError = 44004;
 
-    #[ErrorMessage('service_provider.request_fmodelled')]
-    case RequestFmodelled = 44005;
-
     #[ErrorMessage('service_provider.response_parse_error')]
     case ResponseParseError = 44006;
 
@@ -43,4 +40,13 @@ enum ServiceProviderErrorCode: int
 
     #[ErrorMessage('service_provider.service_provider_not_active')]
     case ServiceProviderNotActive = 44010;
+
+    #[ErrorMessage('service_provider.model_officially_disabled')]
+    case ModelOfficiallyDisabled = 44011;
+
+    #[ErrorMessage('service_provider.magic_provider_not_found')]
+    case MagicProviderNotFound = 44012;
+
+    #[ErrorMessage('service_provider.model_operation_locked')]
+    case ModelOperationLocked = 44013;
 }

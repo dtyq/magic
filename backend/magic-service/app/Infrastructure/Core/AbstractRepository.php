@@ -42,7 +42,7 @@ abstract class AbstractRepository
     /**
      * @return array{total: int, list: array|Collection}
      */
-    protected function getByPage(Builder $builder, Page $page, ?AbstractQuery $query = null): array
+    protected function getByPage(Builder|\Hyperf\Database\Query\Builder $builder, Page $page, ?AbstractQuery $query = null): array
     {
         if ($query) {
             foreach ($query->getOrder() as $column => $order) {

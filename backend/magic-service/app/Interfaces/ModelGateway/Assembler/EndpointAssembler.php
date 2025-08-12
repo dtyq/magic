@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Assembler;
 
-use App\Domain\ModelAdmin\Entity\ServiceProviderModelsEntity;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\CircuitBreakerStatus;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\DelimiterType;
@@ -69,9 +69,9 @@ class EndpointAssembler
     }
 
     /**
-     * Convert multiple ServiceProviderModelsEntity to EndpointDTO array.
+     * Convert multiple ProviderModelEntity to EndpointDTO array.
      *
-     * @param ServiceProviderModelsEntity[] $providerModelEntities Service provider model entity array
+     * @param ProviderModelEntity[] $providerModelEntities Service provider model entity array
      * @param HighAvailabilityAppType $appType High availability application type
      * @return EndpointDTO[]
      */

@@ -34,6 +34,8 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     protected array $headerConfigs = [];
 
+    protected bool $enableHighAvailability = true;
+
     public function getBusinessParam(string $key, bool $checkExists = false): mixed
     {
         $value = $this->businessParams[$key] ?? null;
@@ -108,6 +110,16 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
     {
         $key = strtolower($key);
         return $this->headerConfigs[$key] ?? $default;
+    }
+
+    public function isEnableHighAvailability(): bool
+    {
+        return $this->enableHighAvailability;
+    }
+
+    public function setEnableHighAvailability(bool $enableHighAvailability): void
+    {
+        $this->enableHighAvailability = $enableHighAvailability;
     }
 
     private function formatHeaderBusinessParams(array $headerConfigs): void

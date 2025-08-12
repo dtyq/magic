@@ -19,8 +19,8 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseFragmentDomainService;
-use App\Domain\ModelAdmin\Service\ServiceProviderDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
+use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\File\Parser\FileParser;
@@ -40,7 +40,7 @@ abstract class AbstractKnowledgeAppService extends AbstractKernelAppService
         protected readonly KnowledgeBaseDocumentDomainService $knowledgeBaseDocumentDomainService,
         protected readonly KnowledgeBaseFragmentDomainService $knowledgeBaseFragmentDomainService,
         protected readonly FileDomainService $fileDomainService,
-        protected readonly ServiceProviderDomainService $serviceProviderDomainService,
+        protected readonly AdminProviderDomainService $serviceProviderDomainService,
         protected readonly FileParser $fileParser,
         protected readonly KnowledgeSimilarityManager $knowledgeSimilarityManager,
         protected readonly DocumentFileStrategy $documentFileStrategy,

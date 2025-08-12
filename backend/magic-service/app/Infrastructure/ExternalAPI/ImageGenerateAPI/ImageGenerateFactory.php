@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
-use App\Domain\ModelAdmin\Entity\ValueObject\ServiceProviderConfig;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
@@ -29,7 +29,7 @@ use InvalidArgumentException;
 
 class ImageGenerateFactory
 {
-    public static function create(ImageGenerateModelType $imageGenerateType, ServiceProviderConfig $serviceProviderConfig): ImageGenerate
+    public static function create(ImageGenerateModelType $imageGenerateType, ProviderConfigItem $serviceProviderConfig): ImageGenerate
     {
         return match ($imageGenerateType) {
             ImageGenerateModelType::Midjourney => new MidjourneyModel($serviceProviderConfig),

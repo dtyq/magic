@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity\ValueObject;
 
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Model\AzureOpenAIModel;
 use Hyperf\Odin\Model\DoubaoModel;
@@ -35,7 +36,7 @@ enum ProviderCode: string
         };
     }
 
-    public function getImplementationConfig(ProviderConfigVO $config, string $name = ''): array
+    public function getImplementationConfig(ProviderConfigItem $config, string $name = ''): array
     {
         return match ($this) {
             self::MicrosoftAzure => [
@@ -48,6 +49,7 @@ enum ProviderCode: string
                 'access_key' => $config->getAk(),
                 'secret_key' => $config->getSk(),
                 'region' => $config->getRegion(),
+                'auto_cache' => true,
             ],
             default => [
                 'api_key' => $config->getApiKey(),

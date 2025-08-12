@@ -9,7 +9,6 @@ namespace App\Domain\Provider\Repository\Persistence\Model;
 
 use App\Infrastructure\Core\AbstractModel;
 use DateTime;
-use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\Snowflake\Concern\Snowflake;
 
 /**
@@ -33,6 +32,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property array $visible_applications
  * @property array $visible_packages
  * @property int $is_office
+ * @property int $super_magic_display_state
  * @property DateTime $created_at
  * @property DateTime $updated_at
  * @property DateTime $deleted_at
@@ -40,7 +40,6 @@ use Hyperf\Snowflake\Concern\Snowflake;
 class ProviderModelModel extends AbstractModel
 {
     use Snowflake;
-    use SoftDeletes;
 
     protected ?string $table = 'service_provider_models';
 
@@ -48,7 +47,7 @@ class ProviderModelModel extends AbstractModel
         'id', 'service_provider_config_id', 'name', 'model_version', 'category', 'model_id',
         'model_type', 'config', 'description', 'sort', 'icon', 'organization_code',
         'status', 'disabled_by', 'translate', 'model_parent_id', 'visible_organizations', 'visible_applications', 'visible_packages',
-        'load_balancing_weight', 'is_office', 'created_at', 'updated_at', 'deleted_at',
+        'load_balancing_weight', 'is_office', 'super_magic_display_state', 'created_at', 'updated_at', 'deleted_at',
     ];
 
     protected array $casts = [
@@ -73,6 +72,7 @@ class ProviderModelModel extends AbstractModel
         'load_balancing_weight' => 'integer',
         'visible_packages' => 'array',
         'is_office' => 'integer',
+        'super_magic_display_state' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

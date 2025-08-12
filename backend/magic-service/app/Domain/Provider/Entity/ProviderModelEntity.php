@@ -7,19 +7,24 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity;
 
+use App\Domain\Provider\DTO\Item\ModelConfigItem;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\DisabledByType;
-use App\Domain\Provider\Entity\ValueObject\ModelConfigVO;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\Status;
+use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use DateTime;
+use Hyperf\Codec\Json;
+
+use function Hyperf\Translation\__;
 
 class ProviderModelEntity extends AbstractEntity
 {
     protected ?int $id = null;
 
-    protected int $providerConfigId;
+    protected int $serviceProviderConfigId;
 
     protected string $name = '';
 
@@ -31,9 +36,9 @@ class ProviderModelEntity extends AbstractEntity
 
     protected ModelType $modelType;
 
-    protected ModelConfigVO $config;
+    protected ?ModelConfigItem $config = null;
 
-    protected ?string $description = null;
+    protected ?string $description = '';
 
     protected int $sort = 0;
 
@@ -42,6 +47,8 @@ class ProviderModelEntity extends AbstractEntity
     protected ?DateTime $createdAt = null;
 
     protected ?DateTime $updatedAt = null;
+
+    protected ?DateTime $deletedAt = null;
 
     protected string $organizationCode = '';
 
@@ -63,25 +70,36 @@ class ProviderModelEntity extends AbstractEntity
 
     protected bool $isOffice = false;
 
+    protected int $superMagicDisplayState = 0;
+
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function setId(?int $id): self
+    public function setId(null|int|string $id): self
     {
-        $this->id = $id;
+        if (is_numeric($id)) {
+            $this->id = (int) $id;
+        } else {
+            $this->id = null;
+        }
+
         return $this;
     }
 
-    public function getProviderConfigId(): int
+    public function getServiceProviderConfigId(): int
     {
-        return $this->providerConfigId;
+        return $this->serviceProviderConfigId;
     }
 
-    public function setProviderConfigId(int $providerConfigId): self
+    public function setServiceProviderConfigId(null|int|string $serviceProviderConfigId): self
     {
-        $this->providerConfigId = $providerConfigId;
+        if (is_numeric($serviceProviderConfigId)) {
+            $this->serviceProviderConfigId = (int) $serviceProviderConfigId;
+        } else {
+            $this->serviceProviderConfigId = 0;
+        }
         return $this;
     }
 
@@ -90,9 +108,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->name;
     }
 
-    public function setName(string $name): self
+    public function setName(null|int|string $name): self
     {
-        $this->name = $name;
+        if ($name === null) {
+            $this->name = '';
+        } else {
+            $this->name = (string) $name;
+        }
         return $this;
     }
 
@@ -101,9 +123,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->modelVersion;
     }
 
-    public function setModelVersion(string $modelVersion): self
+    public function setModelVersion(null|int|string $modelVersion): self
     {
-        $this->modelVersion = $modelVersion;
+        if ($modelVersion === null) {
+            $this->modelVersion = '';
+        } else {
+            $this->modelVersion = (string) $modelVersion;
+        }
         return $this;
     }
 
@@ -112,9 +138,15 @@ class ProviderModelEntity extends AbstractEntity
         return $this->category;
     }
 
-    public function setCategory(Category $category): self
+    public function setCategory(null|Category|int|string $category): self
     {
-        $this->category = $category;
+        if ($category === null || $category === '') {
+            $this->category = Category::LLM;
+        } elseif ($category instanceof Category) {
+            $this->category = $category;
+        } else {
+            $this->category = Category::from((string) $category);
+        }
         return $this;
     }
 
@@ -123,9 +155,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->modelId;
     }
 
-    public function setModelId(string $modelId): self
+    public function setModelId(null|int|string $modelId): self
     {
-        $this->modelId = $modelId;
+        if ($modelId === null) {
+            $this->modelId = '';
+        } else {
+            $this->modelId = (string) $modelId;
+        }
         return $this;
     }
 
@@ -134,35 +170,50 @@ class ProviderModelEntity extends AbstractEntity
         return $this->modelType;
     }
 
-    public function setModelType(ModelType $modelType): self
+    public function setModelType(null|int|ModelType|string $modelType): self
     {
-        $this->modelType = $modelType;
-        return $this;
-    }
-
-    public function getConfig(): ModelConfigVO
-    {
-        return $this->config;
-    }
-
-    public function setConfig(array|ModelConfigVO $config): self
-    {
-        if (is_array($config)) {
-            $this->config = new ModelConfigVO($config);
+        if ($modelType === null || $modelType === '') {
+            $this->modelType = ModelType::LLM;
+        } elseif ($modelType instanceof ModelType) {
+            $this->modelType = $modelType;
         } else {
-            $this->config = $config;
+            $this->modelType = ModelType::from((int) $modelType);
         }
         return $this;
     }
 
-    public function getDescription(): ?string
+    public function getConfig(): ?ModelConfigItem
+    {
+        return $this->config ?? null;
+    }
+
+    public function setConfig(null|array|ModelConfigItem|string $config): self
+    {
+        if ($config instanceof ModelConfigItem) {
+            $this->config = $config;
+        } elseif (is_string($config) && json_validate($config)) {
+            $decoded = Json::decode($config);
+            $this->config = new ModelConfigItem(is_array($decoded) ? $decoded : []);
+        } elseif (is_array($config)) {
+            $this->config = new ModelConfigItem($config);
+        } else {
+            $this->config = null;
+        }
+        return $this;
+    }
+
+    public function getDescription(): string
     {
         return $this->description;
     }
 
-    public function setDescription(?string $description): self
+    public function setDescription(null|int|string $description): self
     {
-        $this->description = $description;
+        if ($description === null) {
+            $this->description = '';
+        } else {
+            $this->description = (string) $description;
+        }
         return $this;
     }
 
@@ -171,9 +222,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->sort;
     }
 
-    public function setSort(int $sort): self
+    public function setSort(null|int|string $sort): self
     {
-        $this->sort = $sort;
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
+        }
         return $this;
     }
 
@@ -182,9 +237,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->icon;
     }
 
-    public function setIcon(string $icon): self
+    public function setIcon(null|int|string $icon): self
     {
-        $this->icon = $icon;
+        if ($icon === null) {
+            $this->icon = '';
+        } else {
+            $this->icon = (string) $icon;
+        }
         return $this;
     }
 
@@ -193,9 +252,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->createdAt;
     }
 
-    public function setCreatedAt(?DateTime $createdAt): self
+    public function setCreatedAt(null|DateTime|string $createdAt): self
     {
-        $this->createdAt = $createdAt;
+        if ($createdAt === null) {
+            $this->createdAt = null;
+        } else {
+            $this->createdAt = $createdAt instanceof DateTime ? $createdAt : new DateTime($createdAt);
+        }
         return $this;
     }
 
@@ -204,9 +267,28 @@ class ProviderModelEntity extends AbstractEntity
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(?DateTime $updatedAt): self
+    public function setUpdatedAt(null|DateTime|string $updatedAt): self
     {
-        $this->updatedAt = $updatedAt;
+        if ($updatedAt === null) {
+            $this->updatedAt = null;
+        } else {
+            $this->updatedAt = $updatedAt instanceof DateTime ? $updatedAt : new DateTime($updatedAt);
+        }
+        return $this;
+    }
+
+    public function getDeletedAt(): ?DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(null|DateTime|string $deletedAt): self
+    {
+        if ($deletedAt === null) {
+            $this->deletedAt = null;
+        } else {
+            $this->deletedAt = $deletedAt instanceof DateTime ? $deletedAt : new DateTime($deletedAt);
+        }
         return $this;
     }
 
@@ -215,20 +297,30 @@ class ProviderModelEntity extends AbstractEntity
         return $this->organizationCode;
     }
 
-    public function setOrganizationCode(string $organizationCode): self
+    public function setOrganizationCode(null|int|string $organizationCode): self
     {
-        $this->organizationCode = $organizationCode;
+        if ($organizationCode === null) {
+            $this->organizationCode = '';
+        } else {
+            $this->organizationCode = (string) $organizationCode;
+        }
         return $this;
     }
 
-    public function getStatus(): Status
+    public function getStatus(): ?Status
     {
-        return $this->status;
+        return $this->status ?? null;
     }
 
-    public function setStatus(Status $status): self
+    public function setStatus(null|int|Status|string $status): self
     {
-        $this->status = $status;
+        if ($status === null || $status === '') {
+            $this->status = Status::Disabled;
+        } elseif ($status instanceof Status) {
+            $this->status = $status;
+        } else {
+            $this->status = Status::from((int) $status);
+        }
         return $this;
     }
 
@@ -237,9 +329,16 @@ class ProviderModelEntity extends AbstractEntity
         return $this->disabledBy;
     }
 
-    public function setDisabledBy(?DisabledByType $disabledBy): self
+    public function setDisabledBy(null|DisabledByType|int|string $disabledBy): self
     {
-        $this->disabledBy = $disabledBy;
+        if ($disabledBy === null || $disabledBy === '') {
+            $this->disabledBy = null;
+        } elseif ($disabledBy instanceof DisabledByType) {
+            $this->disabledBy = $disabledBy;
+        } else {
+            $this->disabledBy = DisabledByType::from((string) $disabledBy);
+        }
+
         return $this;
     }
 
@@ -248,9 +347,16 @@ class ProviderModelEntity extends AbstractEntity
         return $this->translate;
     }
 
-    public function setTranslate(array $translate): self
+    public function setTranslate(null|array|string $translate): self
     {
-        $this->translate = $translate;
+        if ($translate === null) {
+            $this->translate = [];
+        } elseif (is_string($translate)) {
+            $decoded = Json::decode($translate);
+            $this->translate = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->translate = $translate;
+        }
         return $this;
     }
 
@@ -259,9 +365,13 @@ class ProviderModelEntity extends AbstractEntity
         return $this->modelParentId;
     }
 
-    public function setModelParentId(int $modelParentId): self
+    public function setModelParentId(null|int|string $modelParentId): self
     {
-        $this->modelParentId = $modelParentId;
+        if (is_numeric($modelParentId)) {
+            $this->modelParentId = (int) $modelParentId;
+        } else {
+            $this->modelParentId = 0;
+        }
         return $this;
     }
 
@@ -270,9 +380,16 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visibleOrganizations;
     }
 
-    public function setVisibleOrganizations(?array $visibleOrganizations): self
+    public function setVisibleOrganizations(null|array|string $visibleOrganizations): self
     {
-        $this->visibleOrganizations = $visibleOrganizations ?? [];
+        if ($visibleOrganizations === null) {
+            $this->visibleOrganizations = [];
+        } elseif (is_string($visibleOrganizations)) {
+            $decoded = Json::decode($visibleOrganizations);
+            $this->visibleOrganizations = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->visibleOrganizations = $visibleOrganizations;
+        }
         return $this;
     }
 
@@ -281,9 +398,16 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visibleApplications;
     }
 
-    public function setVisibleApplications(?array $visibleApplications): self
+    public function setVisibleApplications(null|array|string $visibleApplications): self
     {
-        $this->visibleApplications = $visibleApplications ?? [];
+        if ($visibleApplications === null) {
+            $this->visibleApplications = [];
+        } elseif (is_string($visibleApplications)) {
+            $decoded = Json::decode($visibleApplications);
+            $this->visibleApplications = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->visibleApplications = $visibleApplications;
+        }
         return $this;
     }
 
@@ -292,20 +416,16 @@ class ProviderModelEntity extends AbstractEntity
         return $this->visiblePackages;
     }
 
-    public function setVisiblePackages(?array $visiblePackages): self
+    public function setVisiblePackages(null|array|string $visiblePackages): self
     {
-        $this->visiblePackages = $visiblePackages ?? [];
-        return $this;
-    }
-
-    public function getLoadBalancingWeight(): ?int
-    {
-        return $this->loadBalancingWeight;
-    }
-
-    public function setLoadBalancingWeight(?int $loadBalancingWeight): self
-    {
-        $this->loadBalancingWeight = $loadBalancingWeight;
+        if ($visiblePackages === null) {
+            $this->visiblePackages = [];
+        } elseif (is_string($visiblePackages)) {
+            $decoded = Json::decode($visiblePackages);
+            $this->visiblePackages = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->visiblePackages = $visiblePackages;
+        }
         return $this;
     }
 
@@ -319,9 +439,78 @@ class ProviderModelEntity extends AbstractEntity
         return $this->isOffice;
     }
 
-    public function setIsOffice(bool $isOffice): self
+    public function setIsOffice(null|bool|int|string $isOffice): self
     {
-        $this->isOffice = $isOffice;
+        if ($isOffice === null) {
+            $this->isOffice = false;
+        } elseif (is_string($isOffice)) {
+            $this->isOffice = in_array(strtolower($isOffice), ['true', '1', 'yes', 'on']);
+        } else {
+            $this->isOffice = (bool) $isOffice;
+        }
         return $this;
+    }
+
+    public function isSuperMagicDisplayState(): int
+    {
+        return $this->superMagicDisplayState;
+    }
+
+    public function setSuperMagicDisplayState(null|int|string $superMagicDisplayState): void
+    {
+        if ($superMagicDisplayState === null) {
+            $this->superMagicDisplayState = 0;
+        } else {
+            $this->superMagicDisplayState = (int) $superMagicDisplayState;
+        }
+    }
+
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(null|int|string $loadBalancingWeight): self
+    {
+        if ($loadBalancingWeight === null) {
+            $this->loadBalancingWeight = null;
+        } else {
+            $this->loadBalancingWeight = (int) $loadBalancingWeight;
+        }
+        return $this;
+    }
+
+    public function valid(): void
+    {
+        if (empty($this->modelVersion)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.model_version_required'));
+        }
+
+        if (empty($this->modelId)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.model_id_required'));
+        }
+
+        if (! empty($this->name) && strlen($this->name) > 50) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.name_max_length'));
+        }
+
+        if (empty($this->name)) {
+            $this->name = $this->getModelVersion();
+        }
+
+        if (empty($this->organizationCode)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter);
+        }
+
+        if (! $this->config) {
+            $this->config = new ModelConfigItem();
+        }
+    }
+
+    public function i18n(string $languages): void
+    {
+        if (isset($this->translate['name'][$languages])) {
+            $this->name = $this->translate['name'][$languages];
+        }
     }
 }
