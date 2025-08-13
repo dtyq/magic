@@ -1892,12 +1892,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "ae928248a6c02b251ffd099610cd9cbb376f124d"
+                "reference": "af2d6fd73cff9f9d2ea68644c36d7d50d39c94a2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=ae928248a6c02b251ffd099610cd9cbb376f124d",
-                "reference": "ae928248a6c02b251ffd099610cd9cbb376f124d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=af2d6fd73cff9f9d2ea68644c36d7d50d39c94a2",
+                "reference": "af2d6fd73cff9f9d2ea68644c36d7d50d39c94a2",
                 "shasum": ""
             },
             "require": {
@@ -1977,7 +1977,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-12T06:04:28+00:00"
+            "time": "2025-08-13T08:41:48+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -6389,16 +6389,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.40",
+            "version": "v1.1.41",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "b1cfa28e6a1327ec79b789cd8606b873194358d5"
+                "reference": "403a51c8b5e34b86abb9a38bb1b40b82ea82ea8e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=b1cfa28e6a1327ec79b789cd8606b873194358d5",
-                "reference": "b1cfa28e6a1327ec79b789cd8606b873194358d5",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=403a51c8b5e34b86abb9a38bb1b40b82ea82ea8e",
+                "reference": "403a51c8b5e34b86abb9a38bb1b40b82ea82ea8e",
                 "shasum": ""
             },
             "require": {
@@ -6470,9 +6470,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.40"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.41"
             },
-            "time": "2025-08-12T14:13:39+08:00"
+            "time": "2025-08-13T16:33:02+08:00"
         },
         {
             "name": "hyperf/phar",
