@@ -89,9 +89,8 @@ class SandboxApi extends AbstractApi
         }
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
-        //判断请求头是否存在magic-user-id
+        // 判断请求头是否存在magic-user-id
         $magicUserId = $this->request->header('magic-user-id', '');
-
 
         $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, $magicUserId);
 
