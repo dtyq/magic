@@ -39,6 +39,8 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?float $cacheHitPricing = null;
 
+    protected bool $officialRecommended = false;
+
     public function getMaxTokens(): ?int
     {
         return $this->maxTokens;
@@ -171,6 +173,11 @@ class ModelConfigItem extends AbstractDTO
         return $this->cacheHitPricing;
     }
 
+    public function isOfficialRecommended(): bool
+    {
+        return $this->officialRecommended;
+    }
+
     public function setMaxOutputTokens(?int $maxOutputTokens): void
     {
         $this->maxOutputTokens = $maxOutputTokens;
@@ -254,5 +261,10 @@ class ModelConfigItem extends AbstractDTO
         } else {
             $this->cacheHitPricing = null;
         }
+    }
+
+    public function setOfficialRecommended(bool $officialRecommended): void
+    {
+        $this->officialRecommended = $officialRecommended;
     }
 }

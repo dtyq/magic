@@ -36,7 +36,7 @@ class ProviderConfigEntity extends AbstractEntity
 
     protected ?DateTime $deletedAt = null;
 
-    protected int $sort;
+    protected int $sort = 0;
 
     private ?ProviderCode $providerCode = null;
 
@@ -120,24 +120,6 @@ class ProviderConfigEntity extends AbstractEntity
     public function getAlias(): string
     {
         return $this->alias;
-    }
-
-    /**
-     * 获取本地化的服务商名称.
-     */
-    public function getLocalizedAlias(string $locale): string
-    {
-        $alias = $this->translate['alias'][$locale]
-            ?? $this->translate['alias']['zh_CN']
-            ?? $this->translate['alias']['en_US']
-            ?? $this->alias;
-        if ($alias) {
-            $alias = $this->alias;
-        }
-        if (empty($alias)) {
-            return $locale === 'zh_CN' ? '自定义服务商' : 'Custom Provider';
-        }
-        return $alias;
     }
 
     public function setAlias(null|int|string $alias): void
@@ -252,20 +234,24 @@ class ProviderConfigEntity extends AbstractEntity
         $this->status = Status::Disabled;
     }
 
-    public function i18n(string $languages): void
-    {
-        if (isset($this->translate['alias'][$languages])) {
-            $this->alias = $this->translate['alias'][$languages];
-        }
-    }
-
     public function getSort(): int
     {
         return $this->sort;
     }
 
-    public function setSort(int $sort): void
+    public function setSort(null|int|string $sort): void
     {
-        $this->sort = $sort;
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
+        }
+    }
+
+    public function i18n(string $languages): void
+    {
+        if (isset($this->translate['alias'][$languages])) {
+            $this->alias = $this->translate['alias'][$languages];
+        }
     }
 }

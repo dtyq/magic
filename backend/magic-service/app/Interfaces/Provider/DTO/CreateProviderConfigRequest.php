@@ -22,6 +22,8 @@ class CreateProviderConfigRequest extends AbstractDTO
 
     protected array $translate;
 
+    protected int $sort = 0;
+
     public function getAlias(): string
     {
         return $this->alias;
@@ -70,5 +72,19 @@ class CreateProviderConfigRequest extends AbstractDTO
     public function setTranslate(array $translate): void
     {
         $this->translate = $translate;
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(null|int|string $sort): void
+    {
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
+        }
     }
 }

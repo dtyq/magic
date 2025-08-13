@@ -71,6 +71,8 @@ class ProviderConfigDTO extends AbstractDTO
 
     protected string $remark = '';
 
+    protected int $sort = 0;
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -245,6 +247,20 @@ class ProviderConfigDTO extends AbstractDTO
             $this->remark = '';
         } else {
             $this->remark = (string) $remark;
+        }
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(null|int|string $sort): void
+    {
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
         }
     }
 
