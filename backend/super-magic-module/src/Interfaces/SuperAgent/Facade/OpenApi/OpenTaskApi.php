@@ -205,11 +205,10 @@ class OpenTaskApi extends AbstractApi
      * Summary of getOpenApiTaskAttachments.
      */
     #[ApiResponse('low_code')]
-    public function getOpenApiTaskAttachments(RequestContext $requestContext, $id): array
+    public function getOpenApiTaskAttachments(RequestContext $requestContext, string $id): array
     {
         // 获取任务文件请求DTO
         // $requestDTO = GetTaskFilesRequestDTO::fromRequest($this->request);
-        var_dump($id, '===============');
         if (empty($id)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'id is required');
         }
@@ -225,5 +224,16 @@ class OpenTaskApi extends AbstractApi
         $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
 
         return $this->workspaceAppService->getTaskAttachments($userAuthorization, (int) $id, 1, 100);
+    }
+
+    //获取任务信息
+    public function getTask(RequestContext $requestContext, string $taskId): array
+    {
+        $task = $this->taskAppService->getTaskById((int) $taskId);
+        if (empty($task)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_not_found');
+        }
+
+        return $task->toArray();
     }
 }
