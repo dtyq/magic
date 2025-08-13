@@ -15,7 +15,6 @@ use App\Infrastructure\Core\DataIsolation\DataIsolationFilter;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use DateTime;
-use Hyperf\Codec\Json;
 use Hyperf\Database\Model\Collection;
 use Hyperf\Database\Query\Builder;
 
@@ -54,14 +53,7 @@ abstract class AbstractProviderModelRepository
      */
     protected function serializeEntityToArray(ProviderModelEntity $entity): array
     {
-        $entityArray = $entity->toArray();
-        $entityArray['config'] = Json::encode($entity->getConfig() ? $entity->getConfig()->toArray() : []);
-        $entityArray['translate'] = Json::encode($entity->getTranslate() ?: []);
-        $entityArray['visible_organizations'] = Json::encode($entity->getVisibleOrganizations());
-        $entityArray['visible_applications'] = Json::encode($entity->getVisibleApplications());
-        $entityArray['visible_packages'] = Json::encode($entity->getVisiblePackages());
-
-        return $entityArray;
+        return $entity->toArray();
     }
 
     /**
