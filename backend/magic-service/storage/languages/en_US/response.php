@@ -63,6 +63,7 @@ return [
     'illegal_export' => 'Illegal export operation',
     'noting_to_export' => 'No exportable resources',
     'upload_file_error' => 'upload file failed',
+    'batch_delete_failed' => 'batch delete files failed',
     'illegal_type' => 'illegal type',
     'illegal_data' => 'illegal data',
     'data_repeat' => 'Do not upload duplicate data',

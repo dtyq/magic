@@ -105,6 +105,8 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 批量删除文件
+            Router::post('/batch-delete', [FileApi::class, 'batchDeleteFiles']);
 
             // 批量下载相关
             Router::addGroup('/batch-download', static function () {

@@ -16,6 +16,7 @@ return [
     'file_delete_failed' => 'Failed to delete file',
     'file_rename_failed' => 'Failed to rename file',
     'directory_delete_failed' => 'Failed to delete directory',
+    'batch_delete_failed' => 'Failed to batch delete files',
     'permission_denied' => 'File permission denied',
     'files_not_found_or_no_permission' => 'Files not found or no permission to access',
     'content_too_large' => 'File content too large',

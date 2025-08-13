@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 
 /**
  * 项目条目DTO.
@@ -41,7 +40,7 @@ class ProjectItemDTO
             workDir: $project->getWorkDir(),
             currentTopicId: (string) $project->getCurrentTopicId(),
             currentTopicStatus: $project->getCurrentTopicStatus(),
-            projectStatus: $projectStatus ?? TaskStatus::WAITING->value,
+            projectStatus: $projectStatus ?? $project->getCurrentTopicStatus(),
             projectMode: $project->getProjectMode(),
             workspaceName: $workspaceName,
             createdAt: $project->getCreatedAt(),

@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
@@ -440,6 +441,61 @@ class FileManagementAppService extends AbstractAppService
                 $requestDTO->getFileId()
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.directory_delete_failed'));
+        }
+    }
+
+    public function batchDeleteFiles(RequestContext $requestContext, BatchDeleteFilesRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            $projectId = (int) $requestDTO->getProjectId();
+            $fileIds = $requestDTO->getFileIds();
+            $forceDelete = $requestDTO->getForceDelete();
+
+            // Validate project ownership
+            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            }
+
+            // Call domain service to batch delete files
+            $result = $this->taskFileDomainService->batchDeleteProjectFiles(
+                $dataIsolation,
+                $projectEntity->getWorkDir(),
+                $projectId,
+                $fileIds,
+                $forceDelete
+            );
+
+            $this->logger->info(sprintf(
+                'Successfully batch deleted files: Project ID: %s, File count: %d, Deleted count: %d',
+                $projectId,
+                count($fileIds),
+                $result['deleted_count']
+            ));
+
+            return $result;
+        } catch (BusinessException $e) {
+            // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
+            $this->logger->warning(sprintf(
+                'Business logic error in batch delete files: %s, Project ID: %s, File IDs: %s, Error Code: %d',
+                $e->getMessage(),
+                $requestDTO->getProjectId(),
+                implode(',', $requestDTO->getFileIds()),
+                $e->getCode()
+            ));
+            // 直接重新抛出业务异常，让上层处理
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'System error in batch delete files: %s, Project ID: %s, File IDs: %s',
+                $e->getMessage(),
+                $requestDTO->getProjectId(),
+                implode(',', $requestDTO->getFileIds())
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.batch_delete_failed'));
         }
     }
 

@@ -193,7 +193,7 @@ class FilesystemProxy extends Filesystem
         $isCache = (bool) ($options['cache'] ?? true);
         $cacheKey = $credentialPolicy->uniqueKey($options);
         if ($isCache && $data = $this->getCache($cacheKey)) {
-            return $data;
+            // return $data;
         }
         $credential = $this->expand->getUploadCredential($credentialPolicy, $options);
 

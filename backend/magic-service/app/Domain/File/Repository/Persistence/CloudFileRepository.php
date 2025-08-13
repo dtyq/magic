@@ -758,6 +758,81 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     }
 
     /**
+     * Delete multiple objects by credential.
+     *
+     * @param string $prefix Prefix for data isolation
+     * @param string $organizationCode Organization code for data isolation
+     * @param array $objectKeys Array of object keys to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     * @throws Throwable
+     */
+    public function deleteObjectsByCredential(
+        string $prefix,
+        string $organizationCode,
+        array $objectKeys,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array {
+        try {
+            // Validate input
+            if (empty($objectKeys)) {
+                return [
+                    'deleted' => [],
+                    'errors' => [],
+                ];
+            }
+
+            // Security check: validate if all object keys belong to organization code
+            $invalidKeys = [];
+            foreach ($objectKeys as $objectKey) {
+                if (! Str::startsWith($objectKey, $organizationCode)) {
+                    $invalidKeys[] = $objectKey;
+                }
+            }
+
+            if (! empty($invalidKeys)) {
+                $this->logger->warning('Delete objects failed: some object keys do not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'invalid_keys' => $invalidKeys,
+                    'total_keys' => count($objectKeys),
+                ]);
+                throw new InvalidArgumentException('Some object keys do not belong to specified organization');
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => $prefix,  // No dir restriction for deleting objects
+                'expires' => $options['expires'] ?? 3600,
+            ]);
+
+            $result = $filesystem->deleteObjectsByCredential($credentialPolicy, $objectKeys, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('delete_objects_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'bucket_type' => $bucketType->value,
+                'total_requested' => count($objectKeys),
+                'total_deleted' => count($result['deleted']),
+                'total_errors' => count($result['errors']),
+            ]);
+
+            return $result;
+        } catch (Throwable $exception) {
+            $this->logger->error('delete_objects_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'bucket_type' => $bucketType->value,
+                'total_keys' => count($objectKeys),
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
      * Rename object by credential.
      *
      * @param string $prefix Prefix for the operation

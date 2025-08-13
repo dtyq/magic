@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppSer
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
@@ -228,6 +229,17 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         return $this->fileManagementAppService->deleteDirectory($requestContext, $requestDTO);
+    }
+
+    public function batchDeleteFiles(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestDTO = BatchDeleteFilesRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务
+        return $this->fileManagementAppService->batchDeleteFiles($requestContext, $requestDTO);
     }
 
     public function renameFile(RequestContext $requestContext, string $id): array
