@@ -47,7 +47,7 @@ class BatchDeleteFilesRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'file_ids' => 'required|array|min:1|max:100',
+            'file_ids' => 'required|array|min:1|max:500',
             'file_ids.*' => 'required|integer|min:1',
             'project_id' => 'required|string|max:50',
             'force_delete' => 'nullable|boolean',
@@ -63,7 +63,7 @@ class BatchDeleteFilesRequestDTO extends AbstractRequestDTO
             'file_ids.required' => 'File IDs cannot be empty',
             'file_ids.array' => 'File IDs must be an array',
             'file_ids.min' => 'At least one file ID is required',
-            'file_ids.max' => 'Cannot delete more than 100 files at once',
+            'file_ids.max' => 'Cannot delete more than 500 files at once',
             'file_ids.*.required' => 'Each file ID cannot be empty',
             'file_ids.*.integer' => 'Each file ID must be an integer',
             'file_ids.*.min' => 'Each file ID must be greater than 0',

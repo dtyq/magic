@@ -470,10 +470,9 @@ class FileManagementAppService extends AbstractAppService
             );
 
             $this->logger->info(sprintf(
-                'Successfully batch deleted files: Project ID: %s, File count: %d, Deleted count: %d',
+                'Successfully batch deleted files: Project ID: %s, File count: %d',
                 $projectId,
-                count($fileIds),
-                $result['deleted_count']
+                count($fileIds)
             ));
 
             return $result;
