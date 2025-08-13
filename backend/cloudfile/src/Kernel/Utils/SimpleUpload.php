@@ -85,6 +85,16 @@ abstract class SimpleUpload
     abstract public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string;
 
     /**
+     * Delete multiple objects by credential.
+     *
+     * @param array $credential Credential array
+     * @param array $objectKeys Array of object keys to delete
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     */
+    abstract public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array;
+
+    /**
      * 分片上传文件
      * 默认实现抛出"暂未实现"异常，子类需要重写此方法.
      *

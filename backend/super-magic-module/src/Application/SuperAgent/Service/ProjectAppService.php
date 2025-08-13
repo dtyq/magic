@@ -268,19 +268,19 @@ class ProjectAppService extends AbstractAppService
         );
 
         // 提取所有项目ID
-        $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
+        // $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
 
         // 提取所有工作区ID
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $result['list'] ?? []));
 
         // 批量获取项目状态
-        $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds);
+        // $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds);
 
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $projectStatusMap, $workspaceNameMap);
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap);
 
         return $listResponseDTO->toArray();
     }

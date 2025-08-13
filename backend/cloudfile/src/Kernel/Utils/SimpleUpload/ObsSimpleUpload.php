@@ -112,4 +112,12 @@ class ObsSimpleUpload extends SimpleUpload
     {
         throw new CloudFileException('getPreSignedUrlByCredential not implemented for ObsSimpleUpload');
     }
+
+    /**
+     * Delete multiple objects by credential (not implemented yet).
+     */
+    public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array
+    {
+        throw new CloudFileException('deleteObjectsByCredential not implemented for ObsSimpleUpload');
+    }
 }
