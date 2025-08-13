@@ -243,30 +243,7 @@ class FileManagementAppService extends AbstractAppService
             Db::commit();
 
             // 返回保存结果
-            $result = [
-                'file_id' => (string) $savedEntity->getFileId(),
-                'file_key' => $savedEntity->getFileKey(),
-                'file_name' => $savedEntity->getFileName(),
-                'file_size' => $savedEntity->getFileSize(),
-                'file_type' => $savedEntity->getFileType(),
-                'source' => $savedEntity->getSource()->value,
-                'source_name' => $savedEntity->getSource()->getName(),
-                'is_directory' => $savedEntity->getIsDirectory(),
-                'sort' => $savedEntity->getSort(),
-                'parent_id' => $savedEntity->getParentId(),
-                'created_at' => $savedEntity->getCreatedAt(),
-                'relative_file_path' => '',
-            ];
-
-            // 如果有项目ID，添加相对路径
-            if (! empty($projectId)) {
-                $result['relative_file_path'] = WorkDirectoryUtil::getRelativeFilePath(
-                    $savedEntity->getFileKey(),
-                    $projectEntity->getWorkDir()
-                );
-            }
-
-            return $result;
+            return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             Db::rollBack();
@@ -343,7 +320,7 @@ class FileManagementAppService extends AbstractAppService
 
             Db::commit();
             // 返回创建结果
-            return TaskFileItemDTO::fromEntity($taskFileEntity)->toArray();
+            return TaskFileItemDTO::fromEntity($taskFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             Db::rollBack();
@@ -474,8 +451,23 @@ class FileManagementAppService extends AbstractAppService
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
-            $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
-            return TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
+
+            if ($fileEntity->getIsDirectory()) {
+                // Directory rename: batch process all sub-files
+                $renamedCount = $this->taskFileDomainService->renameDirectoryFiles(
+                    $dataIsolation,
+                    $fileEntity,
+                    $projectEntity->getWorkDir(),
+                    $targetName
+                );
+                // Get the updated entity after rename
+                $newFileEntity = $this->taskFileDomainService->getById($fileId);
+            } else {
+                // Single file rename: use existing method
+                $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
+            }
+
+            return TaskFileItemDTO::fromEntity($newFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             $this->logger->warning(sprintf(
