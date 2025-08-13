@@ -23,6 +23,22 @@ class ModelConfigItem extends AbstractDTO
 
     protected bool $supportEmbedding = false;
 
+    protected ?int $maxOutputTokens = null;
+
+    protected float $creativity = 0.5;
+
+    protected float $temperature = 0.7;
+
+    protected ?string $billingCurrency = null;
+
+    protected ?float $inputPricing = null;
+
+    protected ?float $outputPricing = null;
+
+    protected ?float $cacheWritePricing = null;
+
+    protected ?float $cacheHitPricing = null;
+
     public function getMaxTokens(): ?int
     {
         return $this->maxTokens;
@@ -112,6 +128,131 @@ class ModelConfigItem extends AbstractDTO
             $this->supportDeepThink = in_array(strtolower($supportDeepThink), ['true', '1', 'yes', 'on']);
         } else {
             $this->supportDeepThink = (bool) $supportDeepThink;
+        }
+    }
+
+    public function getMaxOutputTokens(): ?int
+    {
+        return $this->maxOutputTokens;
+    }
+
+    public function getCreativity(): float
+    {
+        return $this->creativity;
+    }
+
+    public function getTemperature(): float
+    {
+        return $this->temperature;
+    }
+
+    public function getBillingCurrency(): ?string
+    {
+        return $this->billingCurrency;
+    }
+
+    public function getInputPricing(): ?float
+    {
+        return $this->inputPricing;
+    }
+
+    public function getOutputPricing(): ?float
+    {
+        return $this->outputPricing;
+    }
+
+    public function getCacheWritePricing(): ?float
+    {
+        return $this->cacheWritePricing;
+    }
+
+    public function getCacheHitPricing(): ?float
+    {
+        return $this->cacheHitPricing;
+    }
+
+    public function setMaxOutputTokens(?int $maxOutputTokens): void
+    {
+        $this->maxOutputTokens = $maxOutputTokens;
+    }
+
+    public function setCreativity(?float $creativity): void
+    {
+        if ($creativity === null) {
+            $this->creativity = 0.5;
+        } elseif ($creativity < 0 || $creativity > 2) {
+            $this->creativity = 0.5;
+        } else {
+            $this->creativity = $creativity;
+        }
+    }
+
+    public function setTemperature(?float $temperature): void
+    {
+        if ($temperature === null) {
+            $this->temperature = 0.7;
+        } elseif ($temperature < 0 || $temperature > 2) {
+            $this->temperature = 0.7;
+        } else {
+            $this->temperature = $temperature;
+        }
+    }
+
+    public function setBillingCurrency(?string $billingCurrency): void
+    {
+        if ($billingCurrency === null) {
+            $this->billingCurrency = null;
+        } else {
+            $currency = strtoupper(trim((string) $billingCurrency));
+            if (in_array($currency, ['CNY', 'USD'])) {
+                $this->billingCurrency = $currency;
+            } else {
+                $this->billingCurrency = null;
+            }
+        }
+    }
+
+    public function setInputPricing(?float $inputPricing): void
+    {
+        if ($inputPricing === null) {
+            $this->inputPricing = null;
+        } elseif ($inputPricing > 0) {
+            $this->inputPricing = $inputPricing;
+        } else {
+            $this->inputPricing = null;
+        }
+    }
+
+    public function setOutputPricing(?float $outputPricing): void
+    {
+        if ($outputPricing === null) {
+            $this->outputPricing = null;
+        } elseif ($outputPricing > 0) {
+            $this->outputPricing = $outputPricing;
+        } else {
+            $this->outputPricing = null;
+        }
+    }
+
+    public function setCacheWritePricing(?float $cacheWritePricing): void
+    {
+        if ($cacheWritePricing === null) {
+            $this->cacheWritePricing = null;
+        } elseif ($cacheWritePricing > 0) {
+            $this->cacheWritePricing = $cacheWritePricing;
+        } else {
+            $this->cacheWritePricing = null;
+        }
+    }
+
+    public function setCacheHitPricing(?float $cacheHitPricing): void
+    {
+        if ($cacheHitPricing === null) {
+            $this->cacheHitPricing = null;
+        } elseif ($cacheHitPricing > 0) {
+            $this->cacheHitPricing = $cacheHitPricing;
+        } else {
+            $this->cacheHitPricing = null;
         }
     }
 }

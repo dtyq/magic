@@ -306,7 +306,7 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
         // 过滤掉 provider config 未启用的模型
         $filteredOfficialResult = [];
         foreach ($officialResult as $model) {
-            if (in_array($model['service_provider_config_id'], $enabledConfigIds, true)) {
+            if (in_array($model['service_provider_config_id'], $enabledConfigIds)) {
                 $filteredOfficialResult[] = $model;
             }
         }
@@ -338,7 +338,7 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
             }
 
             // 如果配置了可见套餐，检查当前套餐是否在其中
-            if ($currentPackage && in_array($currentPackage, $visiblePackages, true)) {
+            if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
                 $filteredModels[] = $model;
             }
         }
