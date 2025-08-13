@@ -16,6 +16,7 @@ return [
     'file_delete_failed' => '删除文件失败',
     'file_rename_failed' => '重命名文件失败',
     'directory_delete_failed' => '删除目录失败',
+    'batch_delete_failed' => '批量删除文件失败',
     'permission_denied' => '文件权限被拒绝',
     'files_not_found_or_no_permission' => '文件未找到或无访问权限',
     'content_too_large' => '文件内容过大',

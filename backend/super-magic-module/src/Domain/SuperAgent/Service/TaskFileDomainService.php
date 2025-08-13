@@ -447,18 +447,20 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
-        Db::beginTransaction();
+        // Delete cloud file
         try {
-            // Delete cloud file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
+        } catch (Throwable $e) {
+            $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
+        }
 
+        Db::beginTransaction();
+        try {
             // Delete file record
             $this->taskFileRepository->deleteById($fileEntity->getFileId());
-
             // Delete the same file in projects
             $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
-
             Db::commit();
             return true;
         } catch (Throwable $e) {
@@ -494,15 +496,42 @@ class TaskFileDomainService
             }
 
             // 删除云存储文件（批量操作）
-            foreach ($fileKeys as $fileKey) {
+            if (! empty($fileKeys)) {
                 try {
-                    $this->cloudFileRepository->deleteObjectByCredential($prefix, $organizationCode, $fileKey, StorageBucketType::SandBox);
-                    ++$deletedCount;
+                    $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $fileKeys,
+                        StorageBucketType::SandBox
+                    );
+
+                    // 统计成功删除的文件数量
+                    $deletedCount = count($deleteResult['deleted']);
+
+                    // 记录删除失败的文件
+                    if (! empty($deleteResult['errors'])) {
+                        foreach ($deleteResult['errors'] as $error) {
+                            $this->logger->error('Failed to delete cloud file in batch', [
+                                'file_key' => $error['key'],
+                                'error_code' => $error['code'] ?? 'unknown',
+                                'error_message' => $error['message'] ?? 'unknown error',
+                            ]);
+                        }
+                    }
+
+                    $this->logger->info('Batch delete cloud files completed', [
+                        'total_files' => count($fileKeys),
+                        'deleted_count' => $deletedCount,
+                        'failed_count' => count($deleteResult['errors']),
+                    ]);
                 } catch (Throwable $e) {
-                    $this->logger->error('Failed to delete cloud file', [
-                        'file_key' => $fileKey,
+                    $this->logger->error('Failed to batch delete cloud files', [
+                        'file_count' => count($fileKeys),
                         'error' => $e->getMessage(),
                     ]);
+
+                    // 批量删除失败时，记录为0个成功删除
+                    $deletedCount = 0;
                 }
             }
 
@@ -515,6 +544,115 @@ class TaskFileDomainService
             return $deletedCount;
         } catch (Throwable $e) {
             Db::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Batch delete project files by file IDs.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $workDir Project work directory
+     * @param int $projectId Project ID
+     * @param array $fileIds Array of file IDs to delete
+     * @param bool $forceDelete Whether to force delete (optional)
+     * @return array Result with counts of deleted files
+     */
+    public function batchDeleteProjectFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, array $fileIds, bool $forceDelete = false): array
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $userId = $dataIsolation->getCurrentUserId();
+
+        try {
+            // 1. Batch get file entities by IDs (performance optimized)
+            $fileEntities = $this->taskFileRepository->getFilesByIds($fileIds);
+
+            if (empty($fileEntities)) {
+                return [
+                    'project_id' => $projectId,
+                    'total_files' => count($fileIds),
+                ];
+            }
+
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+            // 2. Validate permissions and project ownership
+            $fileKeys = [];
+            foreach ($fileEntities as $fileEntity) {
+                // Validate file ownership
+                if ($fileEntity->getUserId() !== $userId) {
+                    $this->logger->error('File ownership validation failed', [
+                        'file_id' => $fileEntity->getFileId(),
+                        'user_id' => $userId,
+                        'file_user_id' => $fileEntity->getUserId(),
+                    ]);
+                    continue; // Skip if force delete
+                }
+
+                // Validate file belongs to the project
+                if ($fileEntity->getProjectId() !== $projectId) {
+                    $this->logger->error('File project ownership validation failed', [
+                        'file_id' => $fileEntity->getFileId(),
+                        'project_id' => $projectId,
+                        'file_project_id' => $fileEntity->getProjectId(),
+                    ]);
+                    continue; // Skip if force delete
+                }
+
+                $fileKeys[] = $fileEntity->getFileKey();
+            }
+
+            // 3. Delete cloud files
+            if (! empty($fileKeys)) {
+                try {
+                    $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $fileKeys,
+                        StorageBucketType::SandBox
+                    );
+
+                    // 统计成功删除的文件数量
+                    $deletedCount = count($deleteResult['deleted']);
+
+                    // 记录删除失败的文件
+                    if (! empty($deleteResult['errors'])) {
+                        foreach ($deleteResult['errors'] as $error) {
+                            $this->logger->error('Failed to delete cloud file in batch', [
+                                'file_key' => $error['key'],
+                                'error_code' => $error['code'] ?? 'unknown',
+                                'error_message' => $error['message'] ?? 'unknown error',
+                            ]);
+                        }
+                    }
+
+                    $this->logger->info('Batch delete cloud files completed', [
+                        'total_files' => count($fileKeys),
+                        'deleted_count' => $deletedCount,
+                        'failed_count' => count($deleteResult['errors']),
+                    ]);
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to batch delete cloud files', [
+                        'file_count' => count($fileKeys),
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // 批量删除失败时，记录为0个成功删除
+                    $deletedCount = 0;
+                }
+            }
+
+            // 4. 批量删除数据库记录
+            $fileIds = array_map(fn ($entity) => $entity->getFileId(), $fileEntities);
+            // 根据文件ID批量删除数据库记录
+            $this->taskFileRepository->deleteByIds($fileIds);
+
+            return [
+                'project_id' => $projectId,
+                'total_files' => count($fileIds),
+            ];
+        } catch (Throwable $e) {
             throw $e;
         }
     }
@@ -573,6 +711,84 @@ class TaskFileDomainService
 
             Db::commit();
             return $fileEntity;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
+    }
+
+    public function renameDirectoryFiles(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $newDirName): int
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $oldDirKey = $dirEntity->getFileKey();
+        $parentDir = dirname($oldDirKey);
+        $newDirKey = rtrim($parentDir, '/') . '/' . ltrim($newDirName, '/') . '/';
+
+        // Check if target directory name already exists
+        $targetFileEntity = $this->taskFileRepository->getByFileKey($newDirKey);
+        if ($targetFileEntity !== null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
+        }
+
+        // Validate new directory key is within work directory
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($organizationCode),
+            $workDir
+        );
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $newDirKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+        }
+
+        Db::beginTransaction();
+        try {
+            // 1. Find all files in the directory (flat query)
+            $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $oldDirKey);
+
+            if (empty($fileEntities)) {
+                Db::commit();
+                return 0;
+            }
+
+            $renamedCount = 0;
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+
+            // 2. Batch update file keys in database
+            foreach ($fileEntities as $fileEntity) {
+                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
+                    continue;
+                }
+
+                // Calculate new file key by replacing old directory path with new directory path
+                $newFileKey = str_replace($oldDirKey, $newDirKey, $fileEntity->getFileKey());
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // Update entity
+                $fileEntity->setFileKey($newFileKey);
+                if ($fileEntity->getFileId() === $dirEntity->getFileId()) {
+                    // Update directory name for the main directory entity
+                    $fileEntity->setFileName($newDirName);
+                }
+                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+                // Update in database
+                $this->taskFileRepository->updateById($fileEntity);
+
+                // 3. Rename in cloud storage
+                try {
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    ++$renamedCount;
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to rename file in cloud storage', [
+                        'old_file_key' => $oldFileKey,
+                        'new_file_key' => $newFileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            Db::commit();
+            return $renamedCount;
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
@@ -1279,7 +1495,18 @@ class TaskFileDomainService
             ];
         } catch (Throwable $e) {
             // File not found or other cloud storage error
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+            $this->logger->warning(
+                'Failed to get file info from cloud storage',
+                [
+                    'file_key' => $fileKey,
+                    'organization_code' => $organizationCode,
+                    'error' => $e->getMessage(),
+                ]
+            );
+            return [
+                'size' => 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
         }
     }
 

@@ -22,9 +22,11 @@ use Tos\Model\AbortMultipartUploadInput;
 use Tos\Model\CompleteMultipartUploadInput;
 use Tos\Model\CopyObjectInput;
 use Tos\Model\CreateMultipartUploadInput;
+use Tos\Model\DeleteMultiObjectsInput;
 use Tos\Model\DeleteObjectInput;
 use Tos\Model\HeadObjectInput;
 use Tos\Model\ListObjectsInput;
+use Tos\Model\ObjectTobeDeleted;
 use Tos\Model\PreSignedURLInput;
 use Tos\Model\PutObjectInput;
 use Tos\Model\UploadedPart;
@@ -928,6 +930,134 @@ class TosSimpleUpload extends SimpleUpload
                 'error' => $exception->getMessage(),
             ]);
             throw new CloudFileException('Generate pre-signed URL failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Delete multiple objects by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param array $objectKeys Array of object keys to delete
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     */
+    public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            // Validate input
+            if (empty($objectKeys)) {
+                return [
+                    'deleted' => [],
+                    'errors' => [],
+                ];
+            }
+
+            // TOS supports maximum 1000 objects per request
+            $maxObjectsPerRequest = 1000;
+            $allDeleted = [];
+            $allErrors = [];
+
+            // Process in chunks if there are more than 1000 objects
+            $chunks = array_chunk($objectKeys, $maxObjectsPerRequest);
+
+            foreach ($chunks as $chunk) {
+                // Create objects to be deleted
+                $objectsToDelete = [];
+                foreach ($chunk as $objectKey) {
+                    $objectsToDelete[] = new ObjectTobeDeleted($objectKey);
+                }
+
+                // Create delete input
+                $deleteInput = new DeleteMultiObjectsInput($sdkConfig['bucket'], $objectsToDelete);
+
+                // Set quiet mode based on options (default false to get detailed result)
+                $quiet = $options['quiet'] ?? false;
+                $deleteInput->setQuiet($quiet);
+
+                $this->sdkContainer->getLogger()->info('TOS deleteObjectsByCredential request', [
+                    'bucket' => $sdkConfig['bucket'],
+                    'object_count' => count($chunk),
+                    'quiet' => $quiet,
+                ]);
+
+                // Execute delete
+                $deleteOutput = $tosClient->deleteMultiObjects($deleteInput);
+
+                // Process successful deletions
+                if ($deleteOutput->getDeleted()) {
+                    foreach ($deleteOutput->getDeleted() as $deleted) {
+                        $allDeleted[] = [
+                            'key' => $deleted->getKey(),
+                            'version_id' => $deleted->getVersionID(),
+                            'delete_marker_version_id' => $deleted->getDeleteMarkerVersionID(),
+                        ];
+                    }
+                }
+
+                // Process errors
+                if ($deleteOutput->getError()) {
+                    foreach ($deleteOutput->getError() as $error) {
+                        $allErrors[] = [
+                            'key' => $error->getKey(),
+                            'version_id' => $error->getVersionID(),
+                            'code' => $error->getCode(),
+                            'message' => $error->getMessage(),
+                        ];
+                    }
+                }
+            }
+
+            $result = [
+                'deleted' => $allDeleted,
+                'errors' => $allErrors,
+            ];
+
+            $this->sdkContainer->getLogger()->info('delete_objects_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'total_requested' => count($objectKeys),
+                'total_deleted' => count($allDeleted),
+                'total_errors' => count($allErrors),
+            ]);
+
+            return $result;
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('delete_objects_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_count' => count($objectKeys),
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('delete_objects_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_count' => count($objectKeys),
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('delete_objects_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_count' => count($objectKeys),
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Delete objects failed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 

@@ -717,6 +717,92 @@ class AliyunSimpleUpload extends SimpleUpload
     }
 
     /**
+     * Delete multiple objects by credential using Aliyun OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param array $objectKeys Array of object keys to delete
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     * @throws CloudFileException
+     */
+    public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create Aliyun OSS client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            // Validate input
+            if (empty($objectKeys)) {
+                return [
+                    'deleted' => [],
+                    'errors' => [],
+                ];
+            }
+
+            // Aliyun OSS supports maximum 1000 objects per request
+            $maxObjectsPerRequest = 1000;
+            $allDeleted = [];
+            $allErrors = [];
+
+            // Process in chunks if there are more than 1000 objects
+            $chunks = array_chunk($objectKeys, $maxObjectsPerRequest);
+
+            foreach ($chunks as $chunk) {
+                $this->sdkContainer->getLogger()->info('Aliyun OSS deleteObjectsByCredential request', [
+                    'bucket' => $sdkConfig['bucket'],
+                    'object_count' => count($chunk),
+                ]);
+
+                // Execute batch delete using Aliyun OSS deleteObjects method
+                $deleteResult = $ossClient->deleteObjects($sdkConfig['bucket'], $chunk);
+
+                // Process results - Aliyun OSS deleteObjects returns array of successfully deleted objects
+                // If no exceptions are thrown, all objects in the chunk were successfully deleted
+                foreach ($chunk as $objectKey) {
+                    $allDeleted[] = [
+                        'key' => $objectKey,
+                        'version_id' => null, // Aliyun doesn't return version info for simple delete
+                        'delete_marker' => false,
+                        'delete_marker_version_id' => null,
+                    ];
+                }
+            }
+
+            $result = [
+                'deleted' => $allDeleted,
+                'errors' => $allErrors,
+            ];
+
+            $this->sdkContainer->getLogger()->info('delete_objects_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'total_requested' => count($objectKeys),
+                'total_deleted' => count($allDeleted),
+            ]);
+
+            return $result;
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('delete_objects_oss_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_count' => count($objectKeys),
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('delete_objects_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_count' => count($objectKeys),
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Delete objects failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
      * Upload single object using STS credential via OSS SDK.
      * @see https://help.aliyun.com/zh/oss/developer-reference/simple-upload
      */

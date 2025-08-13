@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
@@ -243,30 +244,7 @@ class FileManagementAppService extends AbstractAppService
             Db::commit();
 
             // 返回保存结果
-            $result = [
-                'file_id' => (string) $savedEntity->getFileId(),
-                'file_key' => $savedEntity->getFileKey(),
-                'file_name' => $savedEntity->getFileName(),
-                'file_size' => $savedEntity->getFileSize(),
-                'file_type' => $savedEntity->getFileType(),
-                'source' => $savedEntity->getSource()->value,
-                'source_name' => $savedEntity->getSource()->getName(),
-                'is_directory' => $savedEntity->getIsDirectory(),
-                'sort' => $savedEntity->getSort(),
-                'parent_id' => $savedEntity->getParentId(),
-                'created_at' => $savedEntity->getCreatedAt(),
-                'relative_file_path' => '',
-            ];
-
-            // 如果有项目ID，添加相对路径
-            if (! empty($projectId)) {
-                $result['relative_file_path'] = WorkDirectoryUtil::getRelativeFilePath(
-                    $savedEntity->getFileKey(),
-                    $projectEntity->getWorkDir()
-                );
-            }
-
-            return $result;
+            return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             Db::rollBack();
@@ -343,7 +321,7 @@ class FileManagementAppService extends AbstractAppService
 
             Db::commit();
             // 返回创建结果
-            return TaskFileItemDTO::fromEntity($taskFileEntity)->toArray();
+            return TaskFileItemDTO::fromEntity($taskFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             Db::rollBack();
@@ -466,6 +444,60 @@ class FileManagementAppService extends AbstractAppService
         }
     }
 
+    public function batchDeleteFiles(RequestContext $requestContext, BatchDeleteFilesRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            $projectId = (int) $requestDTO->getProjectId();
+            $fileIds = $requestDTO->getFileIds();
+            $forceDelete = $requestDTO->getForceDelete();
+
+            // Validate project ownership
+            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            }
+
+            // Call domain service to batch delete files
+            $result = $this->taskFileDomainService->batchDeleteProjectFiles(
+                $dataIsolation,
+                $projectEntity->getWorkDir(),
+                $projectId,
+                $fileIds,
+                $forceDelete
+            );
+
+            $this->logger->info(sprintf(
+                'Successfully batch deleted files: Project ID: %s, File count: %d',
+                $projectId,
+                count($fileIds)
+            ));
+
+            return $result;
+        } catch (BusinessException $e) {
+            // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
+            $this->logger->warning(sprintf(
+                'Business logic error in batch delete files: %s, Project ID: %s, File IDs: %s, Error Code: %d',
+                $e->getMessage(),
+                $requestDTO->getProjectId(),
+                implode(',', $requestDTO->getFileIds()),
+                $e->getCode()
+            ));
+            // 直接重新抛出业务异常，让上层处理
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'System error in batch delete files: %s, Project ID: %s, File IDs: %s',
+                $e->getMessage(),
+                $requestDTO->getProjectId(),
+                implode(',', $requestDTO->getFileIds())
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.batch_delete_failed'));
+        }
+    }
+
     public function renameFile(RequestContext $requestContext, int $fileId, string $targetName): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -474,8 +506,23 @@ class FileManagementAppService extends AbstractAppService
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
-            $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
-            return TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
+
+            if ($fileEntity->getIsDirectory()) {
+                // Directory rename: batch process all sub-files
+                $renamedCount = $this->taskFileDomainService->renameDirectoryFiles(
+                    $dataIsolation,
+                    $fileEntity,
+                    $projectEntity->getWorkDir(),
+                    $targetName
+                );
+                // Get the updated entity after rename
+                $newFileEntity = $this->taskFileDomainService->getById($fileId);
+            } else {
+                // Single file rename: use existing method
+                $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
+            }
+
+            return TaskFileItemDTO::fromEntity($newFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             $this->logger->warning(sprintf(
