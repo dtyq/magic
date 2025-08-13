@@ -1257,8 +1257,6 @@ class TaskAppService extends AbstractAppService
 
             // 执行状态更新
             $this->taskDomainService->updateTaskStatus(
-                dataIsolation: $dataIsolation,
-                topicId: $task->getTopicId(),
                 status: $status,
                 id: $task->getId(),
                 taskId: $taskId,

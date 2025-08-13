@@ -447,18 +447,20 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
-        Db::beginTransaction();
+        // Delete cloud file
         try {
-            // Delete cloud file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
+        } catch (Throwable $e) {
+            $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
+        }
 
+        Db::beginTransaction();
+        try {
             // Delete file record
             $this->taskFileRepository->deleteById($fileEntity->getFileId());
-
             // Delete the same file in projects
             $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
-
             Db::commit();
             return true;
         } catch (Throwable $e) {
@@ -573,6 +575,84 @@ class TaskFileDomainService
 
             Db::commit();
             return $fileEntity;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
+    }
+
+    public function renameDirectoryFiles(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $newDirName): int
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $oldDirKey = $dirEntity->getFileKey();
+        $parentDir = dirname($oldDirKey);
+        $newDirKey = rtrim($parentDir, '/') . '/' . $newDirName . '/';
+
+        // Check if target directory name already exists
+        $targetFileEntity = $this->taskFileRepository->getByFileKey($newDirKey);
+        if ($targetFileEntity !== null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
+        }
+
+        // Validate new directory key is within work directory
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($organizationCode),
+            $workDir
+        );
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $newDirKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+        }
+
+        Db::beginTransaction();
+        try {
+            // 1. Find all files in the directory (flat query)
+            $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $oldDirKey);
+
+            if (empty($fileEntities)) {
+                Db::commit();
+                return 0;
+            }
+
+            $renamedCount = 0;
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+
+            // 2. Batch update file keys in database
+            foreach ($fileEntities as $fileEntity) {
+                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
+                    continue;
+                }
+
+                // Calculate new file key by replacing old directory path with new directory path
+                $newFileKey = str_replace($oldDirKey, $newDirKey, $fileEntity->getFileKey());
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // Update entity
+                $fileEntity->setFileKey($newFileKey);
+                if ($fileEntity->getFileId() === $dirEntity->getFileId()) {
+                    // Update directory name for the main directory entity
+                    $fileEntity->setFileName($newDirName);
+                }
+                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+                // Update in database
+                $this->taskFileRepository->updateById($fileEntity);
+
+                // 3. Rename in cloud storage
+                try {
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    ++$renamedCount;
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to rename file in cloud storage', [
+                        'old_file_key' => $oldFileKey,
+                        'new_file_key' => $newFileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            Db::commit();
+            return $renamedCount;
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
@@ -1279,7 +1359,18 @@ class TaskFileDomainService
             ];
         } catch (Throwable $e) {
             // File not found or other cloud storage error
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+            $this->logger->warning(
+                'Failed to get file info from cloud storage',
+                [
+                    'file_key' => $fileKey,
+                    'organization_code' => $organizationCode,
+                    'error' => $e->getMessage(),
+                ]
+            );
+            return [
+                'size' => 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
         }
     }
 

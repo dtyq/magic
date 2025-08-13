@@ -252,7 +252,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 );
             }
         } catch (EventException $e) {
-            $this->logger->error(sprintf(
+            $this->logger->warning(sprintf(
                 'Initialize task, event processing failed: %s',
                 $e->getMessage()
             ));
@@ -266,12 +266,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 remind: $e->getMessage(),
                 remindEvent: $remindType
             );
-            throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
-            //            $text = json_encode([
-            //                'code' => $e->getCode(),
-            //                'message' => get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
-            //            ], JSON_THROW_ON_ERROR);
             $this->logger->error(sprintf(
                 'handleChatMessage Error: %s, User: %s file: %s line: %s',
                 $e->getMessage(),
