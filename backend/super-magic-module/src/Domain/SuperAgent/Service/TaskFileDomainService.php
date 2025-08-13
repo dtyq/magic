@@ -450,7 +450,7 @@ class TaskFileDomainService
         // Delete cloud file
         try {
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->deleteObjectsByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), [$fileEntity->getFileKey()], StorageBucketType::SandBox);
+            $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
         } catch (Throwable $e) {
             $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
         }
