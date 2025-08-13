@@ -1980,16 +1980,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "v0.1.10",
+            "version": "v0.1.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/dtyq/cloudfile.git",
-                "reference": "31c9668ef3b8ab1729d4e80fe4938abec94c4f9a"
+                "reference": "cc7cd7661b2b58f1008020b330d72f05e5550dc2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/31c9668ef3b8ab1729d4e80fe4938abec94c4f9a",
-                "reference": "31c9668ef3b8ab1729d4e80fe4938abec94c4f9a",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/cc7cd7661b2b58f1008020b330d72f05e5550dc2",
+                "reference": "cc7cd7661b2b58f1008020b330d72f05e5550dc2",
                 "shasum": ""
             },
             "require": {
@@ -2050,9 +2050,9 @@
             "description": "Package description here.",
             "support": {
                 "issues": "https://github.com/dtyq/cloudfile/issues",
-                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.10"
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.11"
             },
-            "time": "2025-08-08T04:23:02+00:00"
+            "time": "2025-08-13T10:07:51+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2569,16 +2569,16 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "v0.0.74",
+            "version": "v0.0.75",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "2e2010174f42ddcf68e34e201f67b8767ccd43c3"
+                "reference": "04f9e7d10678320c99a732ea33a8b911c32ab5d1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=2e2010174f42ddcf68e34e201f67b8767ccd43c3",
-                "reference": "2e2010174f42ddcf68e34e201f67b8767ccd43c3",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=04f9e7d10678320c99a732ea33a8b911c32ab5d1",
+                "reference": "04f9e7d10678320c99a732ea33a8b911c32ab5d1",
                 "shasum": ""
             },
             "require": {
@@ -2670,9 +2670,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.74"
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.75"
             },
-            "time": "2025-08-09T16:06:32+08:00"
+            "time": "2025-08-13T21:39:53+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
