@@ -91,7 +91,7 @@ func initJWTSecurity() {
 
 	lastKeyRotation = time.Now()
 
-	logger.Printf("JWT安全配置已初始化，使用MAGIC_GATEWAY_API_KEY作为密钥，密钥版本: %s", jwtSecretID)
+	logger.Printf("JWT安全配置已初始化，使用MAGIC_GATEWAY_API_KEY作为密钥")
 }
 
 // 生成防重放攻击的随机数
@@ -459,8 +459,7 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// 将令牌信息存储在请求上下文中
-		r.Header.Set("X-USER-ID", claims.ContainerID)
-		r.Header.Set("X-TOKEN-ID", claims.ID)
+		r.Header.Set("X-User-Id", claims.ContainerID)
 
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
@@ -1227,7 +1226,10 @@ func logFullRequest(r *http.Request) {
 	for key, values := range r.Header {
 		for _, value := range values {
 			if debugMode{
-				logger.Printf("%s: %s", key, value)
+				//过滤 Magic-Authorization 、X-Gateway-Api-Key
+				if key != "Magic-Authorization" && key != "X-Gateway-Api-Key" {
+					logger.Printf("%s: %s", key, value)
+				}
 			}
 		}
 	}
@@ -1239,22 +1241,22 @@ func logFullRequest(r *http.Request) {
 		logger.Printf("读取请求体失败: %v", err)
 	} else {
 		// 尝试格式化JSON请求体
-		contentType := r.Header.Get("Content-Type")
-		if strings.Contains(contentType, "application/json") {
-			var prettyJSON bytes.Buffer
-			err = json.Indent(&prettyJSON, bodyBytes, "", "  ")
-			if err == nil {
-				logger.Printf("%s", prettyJSON.String())
-			} else {
-				if debugMode{
-					logger.Printf("%s", string(bodyBytes))
-				}
-			}
-		} else {
-			if debugMode{
-				logger.Printf("%s", string(bodyBytes))
-			}
-		}
+		// contentType := r.Header.Get("Content-Type")
+		// if strings.Contains(contentType, "application/json") {
+		// 	var prettyJSON bytes.Buffer
+		// 	err = json.Indent(&prettyJSON, bodyBytes, "", "  ")
+		// 	if err == nil {
+		// 		logger.Printf("%s", prettyJSON.String())
+		// 	} else {
+		// 		if debugMode{
+		// 			logger.Printf("%s", string(bodyBytes))
+		// 		}
+		// 	}
+		// } else {
+		// 	if debugMode{
+		// 		logger.Printf("%s", string(bodyBytes))
+		// 	}
+		// }
 
 		// 重置请求体以便后续处理
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
