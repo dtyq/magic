@@ -483,7 +483,7 @@ class AgentDomainService
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
             workspaceId: $taskContext->getWorkspaceId(),
             projectId: (string) $taskContext->getTask()->getProjectId(),
-            language: $dataIsolation->getLanguage() ?? "",
+            language: $dataIsolation->getLanguage() ?? '',
             userInfo: $userInfo,
         );
 
