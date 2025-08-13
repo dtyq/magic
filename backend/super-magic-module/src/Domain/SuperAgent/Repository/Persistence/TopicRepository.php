@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Domain\Chat\Repository\Persistence\Model\MagicChatSequenceModel;
+use App\Domain\Chat\Repository\Persistence\Model\MagicChatTopicMessageModel;
+use App\Domain\Chat\Repository\Persistence\Model\MagicMessageModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -17,8 +20,12 @@ use Hyperf\DbConnection\Db;
 
 class TopicRepository implements TopicRepositoryInterface
 {
-    public function __construct(protected TopicModel $model)
-    {
+    public function __construct(
+        protected TopicModel $model,
+        protected MagicChatSequenceModel $magicChatSequenceModel,
+        protected MagicChatTopicMessageModel $magicChatTopicMessageModel,
+        protected MagicMessageModel $magicMessageModel
+    ) {
     }
 
     public function getTopicById(int $id): ?TopicEntity
@@ -431,6 +438,115 @@ class TopicRepository implements TopicRepositoryInterface
             $entityData[$camelKey] = $value;
         }
         return $entityData;
+    }
+
+    // ======================= 消息回滚相关方法实现 =======================
+    
+    /**
+     * 根据序列ID获取magic_message_id
+     */
+    public function getMagicMessageIdBySeqId(string $seqId): ?string
+    {
+        $result = $this->magicChatSequenceModel::query()
+            ->where('id', $seqId)
+            ->value('magic_message_id');
+        
+        return $result ?: null;
+    }
+    
+    /**
+     * 根据magic_message_id获取所有相关的seq_id（所有视角）
+     */
+    public function getAllSeqIdsByMagicMessageId(string $magicMessageId): array
+    {
+        // 返回所有相关的seq_id
+        return $this->magicChatSequenceModel::query()
+            ->where('magic_message_id', $magicMessageId)
+            ->pluck('id')
+            ->toArray();
+    }
+    
+    /**
+     * 根据基础seq_ids获取当前话题当前消息以及这条消息后面的所有消息
+     */
+    public function getAllSeqIdsFromCurrent(array $baseSeqIds): array
+    {
+        if (empty($baseSeqIds)) {
+            return [];
+        }
+        
+        // 批量查询所有baseSeqIds对应的conversation_id和topic_id
+        $topicInfos = $this->magicChatTopicMessageModel::query()
+            ->select(['seq_id', 'conversation_id', 'topic_id'])
+            ->whereIn('seq_id', $baseSeqIds)
+            ->get()
+            ->keyBy('seq_id');
+        
+        if ($topicInfos->isEmpty()) {
+            return [];
+        }
+        
+        $allSeqIds = [];
+        
+        // 遍历查询到的topicInfo，获取每个话题下大于等于该seq_id的所有消息
+        foreach ($topicInfos as $topicInfo) {
+            // 查询该话题下大于等于该seq_id的所有消息（包含当前消息和后续消息）
+            $seqIds = $this->magicChatTopicMessageModel::query()
+                ->where('conversation_id', $topicInfo->conversation_id)
+                ->where('topic_id', $topicInfo->topic_id)
+                ->where('seq_id', '>=', $topicInfo->seq_id)
+                ->pluck('seq_id')
+                ->toArray();
+            
+            $allSeqIds = array_merge($allSeqIds, $seqIds);
+        }
+        
+        return array_unique($allSeqIds);
+    }
+    
+    /**
+     * 删除topic_messages数据
+     */
+    public function deleteTopicMessages(array $seqIds): int
+    {
+        if (empty($seqIds)) {
+            return 0;
+        }
+        
+        return $this->magicChatTopicMessageModel::query()
+            ->whereIn('seq_id', $seqIds)
+            ->delete();
+    }
+    
+    /**
+     * 根据seq_ids删除messages和sequences数据
+     */
+    public function deleteMessagesAndSequencesBySeqIds(array $seqIds): bool
+    {
+        if (empty($seqIds)) {
+            return true;
+        }
+        
+        // 获取所有相关的magic_message_ids
+        $magicMessageIds = $this->magicChatSequenceModel::query()
+            ->whereIn('id', $seqIds)
+            ->distinct()
+            ->pluck('magic_message_id')
+            ->toArray();
+        
+        // 删除 magic_chat_messages
+        if (!empty($magicMessageIds)) {
+            $this->magicMessageModel::query()
+                ->whereIn('magic_message_id', $magicMessageIds)
+                ->delete();
+        }
+        
+        // 删除 magic_chat_sequences
+        $this->magicChatSequenceModel::query()
+            ->whereIn('id', $seqIds)
+            ->delete();
+        
+        return true;
     }
 
     /**

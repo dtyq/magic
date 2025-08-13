@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
@@ -30,6 +31,7 @@ class AgentAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private readonly AgentDomainService $agentDomainService,
+        private readonly TopicDomainService $topicDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -189,31 +191,42 @@ class AgentAppService
             'target_message_id' => $targetMessageId,
         ]);
 
-        try {
-            $response = $this->agentDomainService->rollbackCheckpoint($sandboxId, $targetMessageId);
+        // 执行沙箱回滚
+        $response = $this->agentDomainService->rollbackCheckpoint($sandboxId, $targetMessageId);
 
-            if ($response->isSuccess()) {
-                $this->logger->info('[Sandbox][App] Checkpoint rollback successful', [
-                    'sandbox_id' => $sandboxId,
-                    'target_message_id' => $targetMessageId,
-                ]);
-            } else {
-                $this->logger->error('[Sandbox][App] Checkpoint rollback failed', [
-                    'sandbox_id' => $sandboxId,
-                    'target_message_id' => $targetMessageId,
-                    'code' => $response->getCode(),
-                    'message' => $response->getMessage(),
-                ]);
-            }
-
-            return $response;
-        } catch (Throwable $e) {
-            $this->logger->error('[Sandbox][App] Unexpected error during checkpoint rollback', [
+        // 沙箱回滚失败，记录日志并提前返回
+        if (!$response->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Checkpoint rollback failed', [
                 'sandbox_id' => $sandboxId,
                 'target_message_id' => $targetMessageId,
-                'error' => $e->getMessage(),
+                'code' => $response->getCode(),
+                'message' => $response->getMessage(),
             ]);
-            throw new SandboxOperationException('Rollback checkpoint', 'Checkpoint rollback failed: ' . $e->getMessage(), 3004);
+            
+            // 沙箱回滚失败，不执行消息回滚
+            $this->logger->info('[Sandbox][App] Skipping message rollback due to sandbox rollback failure', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId
+            ]);
+            
+            return $response;
         }
+
+        // 沙箱回滚成功，记录日志并执行消息回滚
+        $this->logger->info('[Sandbox][App] Checkpoint rollback successful', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+            'sandbox_response' => $response->getMessage()
+        ]);
+        
+        // 执行消息回滚
+        $this->topicDomainService->rollbackMessages($targetMessageId);
+        
+        $this->logger->info('[Sandbox][App] Message rollback completed successfully', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId
+        ]);
+        
+        return $response;
     }
 }

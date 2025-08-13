@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Exception;
+use Hyperf\DbConnection\Db;
 
 class TopicDomainService
 {
@@ -400,5 +401,40 @@ class TopicDomainService
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
+
+    // ======================= 消息回滚相关方法 =======================
+
+    /**
+     * 执行消息回滚逻辑
+     */
+    public function rollbackMessages(string $targetSeqId): void
+    {
+        // 根据seq_id获取magic_message_id
+        $magicMessageId = $this->topicRepository->getMagicMessageIdBySeqId($targetSeqId);
+        if (empty($magicMessageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.seq_id_not_found');
+        }
+
+        // 获取所有相关的seq_id（所有视角）
+        $baseSeqIds = $this->topicRepository->getAllSeqIdsByMagicMessageId($magicMessageId);
+        if (empty($baseSeqIds)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.magic_message_id_not_found');
+        }
+
+        // 获取从当前消息开始的所有seq_ids（当前消息和后续消息）
+        $allSeqIds = $this->topicRepository->getAllSeqIdsFromCurrent($baseSeqIds);
+        if (empty($allSeqIds)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.seq_id_not_found');
+        }
+
+        // 在事务中执行删除操作
+        Db::transaction(function () use ($allSeqIds) {
+            // 删除topic_messages数据
+            $this->topicRepository->deleteTopicMessages($allSeqIds);
+
+            // 删除messages和sequences数据
+            $this->topicRepository->deleteMessagesAndSequencesBySeqIds($allSeqIds);
+        });
     }
 }

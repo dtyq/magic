@@ -114,4 +114,33 @@ interface TopicRepositoryInterface
     public function getRunningWorkspaceIds(array $workspaceIds): array;
 
     public function getRunningProjectIds(array $projectIds): array;
+
+    // ======================= 消息回滚相关方法 =======================
+    
+    /**
+     * 根据序列ID获取magic_message_id
+     */
+    public function getMagicMessageIdBySeqId(string $seqId): ?string;
+    
+    /**
+     * 根据magic_message_id获取所有相关的seq_id（所有视角）
+     */
+    public function getAllSeqIdsByMagicMessageId(string $magicMessageId): array;
+    
+    /**
+     * 根据基础seq_ids获取当前话题当前消息以及这条消息后面的所有消息
+     * @param array $baseSeqIds 基础seq_ids
+     * @return array 所有相关的seq_ids
+     */
+    public function getAllSeqIdsFromCurrent(array $baseSeqIds): array;
+    
+    /**
+     * 删除topic_messages数据
+     */
+    public function deleteTopicMessages(array $seqIds): int;
+    
+    /**
+     * 根据seq_ids删除messages和sequences数据
+     */
+    public function deleteMessagesAndSequencesBySeqIds(array $seqIds): bool;
 }
