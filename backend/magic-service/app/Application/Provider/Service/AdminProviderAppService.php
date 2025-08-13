@@ -275,9 +275,7 @@ readonly class AdminProviderAppService
      */
     public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
     {
-        $currentPackage = '';
-
-        $models = $this->adminProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode, $currentPackage);
+        $models = $this->adminProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
 
         if (empty($models)) {
             return [];

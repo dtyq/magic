@@ -15,6 +15,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
+use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -199,37 +200,50 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         }
 
         // 缓存未命中，执行原逻辑
-        // 1. 查询组织自己的启用模型
-        $organizationModelsBuilder = $this->createProviderModelQuery()
+        // 1. 先查询组织下启用的服务商配置ID
+        $enabledConfigQuery = ProviderConfigModel::query()
             ->where('organization_code', $organizationCode)
-            ->where('status', Status::Enabled->value);
-        if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
-            // 查询普通组织自己的模型。 官方组织的模型现在 model_parent_id 等于它自己，需要洗数据。
-            $organizationModelsBuilder->where('model_parent_id', 0);
-        }
-        // 如果指定了分类，添加分类过滤条件
-        if ($category !== null) {
-            $organizationModelsBuilder->where('category', $category->value);
+            ->where('status', Status::Enabled->value)
+            ->whereNull('deleted_at')
+            ->select('id');
+        $enabledConfigIds = Db::select($enabledConfigQuery->toSql(), $enabledConfigQuery->getBindings());
+        $enabledConfigIdArray = array_column($enabledConfigIds, 'id');
+
+        // 2. 使用启用的配置ID查询组织自己的启用模型
+        $organizationModels = [];
+        if (! empty($enabledConfigIdArray)) {
+            $organizationModelsBuilder = $this->createProviderModelQuery()
+                ->where('organization_code', $organizationCode)
+                ->where('status', Status::Enabled->value)
+                ->whereIn('service_provider_config_id', $enabledConfigIdArray);
+            if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+                // 查询普通组织自己的模型。 官方组织的模型现在 model_parent_id 等于它自己，需要洗数据。
+                $organizationModelsBuilder->where('model_parent_id', 0);
+            }
+            // 如果指定了分类，添加分类过滤条件
+            if ($category !== null) {
+                $organizationModelsBuilder->where('category', $category->value);
+            }
+
+            $organizationModelsResult = Db::select($organizationModelsBuilder->toSql(), $organizationModelsBuilder->getBindings());
+            $organizationModels = ProviderModelAssembler::toEntities($organizationModelsResult);
         }
 
-        $organizationModelsResult = Db::select($organizationModelsBuilder->toSql(), $organizationModelsBuilder->getBindings());
-        $organizationModels = ProviderModelAssembler::toEntities($organizationModelsResult);
-
-        // 2. 获取Magic模型（如果不是官方组织）
+        // 3. 获取Magic模型（如果不是官方组织）
         $magicModels = [];
         if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
             $magicModels = $this->magicProviderAndModels->getMagicEnableModels($organizationCode, $category);
         }
 
-        // 3. 直接合并模型列表，不去重
+        // 4. 直接合并模型列表，不去重
         $allModels = array_merge($organizationModels, $magicModels);
 
-        // 4. 按sort降序排序
+        // 5. 按sort降序排序
         usort($allModels, static function ($a, $b) {
             return $b->getSort() <=> $a->getSort();
         });
 
-        // 5. 转为数组并缓存结果，缓存10秒
+        // 6. 转为数组并缓存结果，缓存10秒
         $modelsArray = [];
         foreach ($allModels as $model) {
             $modelsArray[] = $model->toArray();

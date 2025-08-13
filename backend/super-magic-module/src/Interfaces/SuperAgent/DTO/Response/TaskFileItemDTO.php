@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 
 class TaskFileItemDTO extends AbstractDTO
 {
@@ -95,7 +96,7 @@ class TaskFileItemDTO extends AbstractDTO
     /**
      * 从实体创建DTO.
      */
-    public static function fromEntity(TaskFileEntity $entity): self
+    public static function fromEntity(TaskFileEntity $entity, string $workDir = ''): self
     {
         $dto = new self();
         $dto->fileId = (string) $entity->getFileId();
@@ -106,7 +107,6 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileExtension = $entity->getFileExtension();
         $dto->fileKey = $entity->getFileKey();
         $dto->fileSize = $entity->getFileSize();
-        $dto->relativeFilePath = '';
         $dto->fileUrl = $entity->getExternalUrl();
         $dto->isHidden = $entity->getIsHidden();
         $dto->topicId = (string) $entity->getTopicId();
@@ -122,6 +122,15 @@ class TaskFileItemDTO extends AbstractDTO
             $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
         } else {
             $dto->metadata = null;
+        }
+        // relative_file_path
+        if (! empty($workDir)) {
+            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath(
+                $entity->getFileKey(),
+                $workDir
+            );
+        } else {
+            $dto->relativeFilePath = '';
         }
 
         return $dto;
