@@ -65,7 +65,7 @@ class ServiceProviderApi extends AbstractApi
     // 更新服务商
     public function updateServiceProviderConfig(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
+        //        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $updateProviderConfigRequest = new UpdateProviderConfigRequest($request->all());
@@ -244,7 +244,7 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
         $category = $request->input('category', 'llm');
         $serviceProviderCategory = Category::tryFrom($category);
-        $this->isInWhiteListForOrganization();
+        //        $this->isInWhiteListForOrganization();
         if (! $serviceProviderCategory) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
         }
