@@ -248,7 +248,7 @@ Router::addGroup('/api/v1/open-api/super-magic', static function () {
     Router::put('/task/status', [OpenTaskApi::class, 'updateTaskStatus']);
 
     // // 获取任务
-    // Router::get('/task/{id}', [OpenTaskApi::class, 'getOpenApiTask']);
+    Router::get('/task/{taskId}', [OpenTaskApi::class, 'getTask']);
     // // 获取任务列表
     // Router::get('/tasks', [OpenTaskApi::class, 'getOpenApiTaskList']);
 
