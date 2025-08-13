@@ -147,6 +147,21 @@ class FileServiceSimpleUpload extends SimpleUpload
         return $simpleUpload->getPreSignedUrlByCredential($credential, $objectKey, $options);
     }
 
+    /**
+     * Delete multiple objects by credential.
+     *
+     * @param array $credential Credential array
+     * @param array $objectKeys Array of object keys to delete
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     * @throws CloudFileException
+     */
+    public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        return $simpleUpload->deleteObjectsByCredential($credential, $objectKeys, $options);
+    }
+
     private function getSimpleUpload(array $credential): SimpleUpload
     {
         $platform = $credential['platform'] ?? '';

@@ -225,6 +225,24 @@ interface CloudFileRepositoryInterface
         array $options = []
     ): string;
 
+    /**
+     * Delete multiple objects by credential.
+     *
+     * @param string $prefix Prefix for the operation
+     * @param string $organizationCode Organization code for data isolation
+     * @param array $objectKeys Array of object keys to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     */
+    public function deleteObjectsByCredential(
+        string $prefix,
+        string $organizationCode,
+        array $objectKeys,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array;
+
     public function getFullPrefix(string $organizationCode): string;
 
     public function generateWorkDir(string $userId, int $projectId, string $code, string $lastPath): string;
