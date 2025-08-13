@@ -226,7 +226,7 @@ class OpenTaskApi extends AbstractApi
         return $this->workspaceAppService->getTaskAttachments($userAuthorization, (int) $id, 1, 100);
     }
 
-    //获取任务信息
+    // 获取任务信息
     public function getTask(RequestContext $requestContext, string $taskId): array
     {
         $task = $this->taskAppService->getTaskById((int) $taskId);
