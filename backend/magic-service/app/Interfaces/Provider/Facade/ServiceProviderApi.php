@@ -9,10 +9,10 @@ namespace App\Interfaces\Provider\Facade;
 
 use App\Application\Chat\Service\MagicAccountAppService;
 use App\Application\Chat\Service\MagicUserContactAppService;
+use App\Application\Provider\DTO\SuperMagicModelDTO;
 use App\Application\Provider\Service\AdminOriginModelAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
-use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\ErrorCode\UserErrorCode;
@@ -204,7 +204,7 @@ class ServiceProviderApi extends AbstractApi
 
     /**
      * Get super magic display models and Magic provider models visible to current organization.
-     * @return ProviderModelDetailDTO[]
+     * @return SuperMagicModelDTO[]
      */
     public function getSuperMagicDisplayModels(): array
     {
