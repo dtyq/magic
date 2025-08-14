@@ -79,8 +79,7 @@ class FileGetLinkBuiltInToolTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         $node->setInput($input);

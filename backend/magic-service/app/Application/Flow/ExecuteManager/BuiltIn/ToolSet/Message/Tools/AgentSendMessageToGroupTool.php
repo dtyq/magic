@@ -117,8 +117,7 @@ class AgentSendMessageToGroupTool extends AbstractBuiltInTool
         }
   
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;
