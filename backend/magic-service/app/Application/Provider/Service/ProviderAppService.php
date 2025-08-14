@@ -1,5 +1,10 @@
 <?php
 
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
 namespace app\Application\Provider\Service;
 
 use App\Application\Provider\DTO\SuperMagicModelDTO;
@@ -11,17 +16,16 @@ use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
-use App\Domain\Provider\Service\ProviderModelDomainService;
 use Hyperf\Contract\TranslatorInterface;
 
 class ProviderAppService
 {
-
-    public function __construct(protected AdminProviderDomainService $adminProviderDomainService,
-    protected ProviderConfigDomainService $providerConfigDomainService,
-                                protected FileDomainService $fileDomainService,
-                                protected TranslatorInterface $translator)
-    {
+    public function __construct(
+        protected AdminProviderDomainService $adminProviderDomainService,
+        protected ProviderConfigDomainService $providerConfigDomainService,
+        protected FileDomainService $fileDomainService,
+        protected TranslatorInterface $translator
+    ) {
     }
 
     /**
@@ -57,7 +61,7 @@ class ProviderAppService
         foreach ($models as $model) {
             // 处理模型图标
             $modelIcon = $model->getIcon();
-            if (empty($modelIcon)){
+            if (empty($modelIcon)) {
                 continue;
             }
             $iconOrganizationCode = substr($modelIcon, 0, strpos($modelIcon, '/'));
@@ -72,11 +76,11 @@ class ProviderAppService
 
             // 处理服务商图标
             $configId = $model->getServiceProviderConfigId();
-            if (!isset($providerEntities[$configId])) {
-               continue;
+            if (! isset($providerEntities[$configId])) {
+                continue;
             }
             $providerIcon = $providerEntities[$configId]->getIcon();
-            if(empty($providerIcon)){
+            if (empty($providerIcon)) {
                 continue;
             }
             $iconOrganizationCode = substr($providerIcon, 0, strpos($providerIcon, '/'));
@@ -101,8 +105,8 @@ class ProviderAppService
         // 更新服务商图标URL映射
         $providerIconUrls = [];
         foreach ($iconToProviderMap as $icon => $configIds) {
-            if (!isset($iconUrlMap[$icon])) {
-               continue;
+            if (! isset($iconUrlMap[$icon])) {
+                continue;
             }
             $fileLink = $iconUrlMap[$icon];
             if ($fileLink) {
@@ -191,5 +195,4 @@ class ProviderAppService
     {
         return $providerEntity->getProviderCode() !== ProviderCode::Official;
     }
-
 }
