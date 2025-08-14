@@ -12,6 +12,7 @@ use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Provider\DTO\SuperMagicModelDTO;
 use App\Application\Provider\Service\AdminOriginModelAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
+use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -36,6 +37,9 @@ class ServiceProviderApi extends AbstractApi
 
     #[Inject]
     protected AdminOriginModelAppService $adminOriginModelAppService;
+
+    #[Inject]
+    protected ProviderAppService $providerAppService;
 
     // 根据分类获取服务商列表
     #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
@@ -211,7 +215,7 @@ class ServiceProviderApi extends AbstractApi
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
 
-        return $this->adminProviderAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
+        return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
     }
 
     /**
