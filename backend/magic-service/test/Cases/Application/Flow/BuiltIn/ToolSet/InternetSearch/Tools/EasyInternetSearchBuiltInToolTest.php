@@ -82,8 +82,7 @@ class EasyInternetSearchBuiltInToolTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         $node->setInput($input);

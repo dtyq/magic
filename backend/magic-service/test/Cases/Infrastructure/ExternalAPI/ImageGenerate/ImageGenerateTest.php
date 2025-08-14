@@ -8,17 +8,20 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use HyperfTest\Cases\BaseTest;
@@ -178,6 +181,102 @@ class ImageGenerateTest extends BaseTest
         $this->assertStringStartsWith('http', $urls[0]);
 
         var_dump($result);
+        $this->markTestSkipped();
+    }
+
+    public function testText2ImageByQwenImage()
+    {
+        // 创建服务提供商配置
+        $providerConfig = new ProviderConfigItem();
+        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
+
+        // 创建通义千问模型实例
+        $qwenImageModel = new QwenImageModel($providerConfig);
+
+        // 创建请求实例
+        $qwenImageRequest = new QwenImageModelRequest();
+        $qwenImageRequest->setPrompt('一只可爱的小猫咪在花园里玩耍，阳光明媚，色彩丰富，高质量摄影');
+        $qwenImageRequest->setSize('1024*1024');
+        $qwenImageRequest->setGenerateNum(1);
+        $qwenImageRequest->setModel('qwen-image');
+
+        // 生成图片
+        $result = $qwenImageModel->generateImage($qwenImageRequest);
+
+        // 验证结果
+        $this->assertNotEmpty($result);
+        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
+        $urls = $result->getData();
+        $this->assertIsArray($urls);
+        $this->assertCount(1, $urls);
+        $this->assertNotEmpty($urls[0]);
+        $this->assertStringStartsWith('http', $urls[0]);
+
+        var_dump($result);
+        $this->markTestSkipped();
+    }
+
+    public function testText2ImageByQwenImageWithPromptExtend()
+    {
+        // 创建服务提供商配置
+        $providerConfig = new ProviderConfigItem();
+        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
+
+        // 创建通义千问模型实例
+        $qwenImageModel = new QwenImageModel($providerConfig);
+
+        // 创建请求实例
+        $qwenImageRequest = new QwenImageModelRequest();
+        $qwenImageRequest->setPrompt('美丽的风景画');
+        $qwenImageRequest->setPromptExtend('8k超高清，细节丰富，自然光线，专业摄影');
+        $qwenImageRequest->setSize('1328*1328');
+        $qwenImageRequest->setGenerateNum(1);
+        $qwenImageRequest->setModel('qwen-image');
+        $qwenImageRequest->setWatermark('Magic AI生成');
+
+        // 生成图片
+        $result = $qwenImageModel->generateImage($qwenImageRequest);
+
+        // 验证结果
+        $this->assertNotEmpty($result);
+        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
+        $urls = $result->getData();
+        $this->assertIsArray($urls);
+        $this->assertCount(1, $urls);
+        $this->assertNotEmpty($urls[0]);
+        $this->assertStringStartsWith('http', $urls[0]);
+
+        var_dump($result);
+        $this->markTestSkipped();
+    }
+
+    public function testText2ImageByQwenImageRaw()
+    {
+        // 创建服务提供商配置
+        $providerConfig = new ProviderConfigItem();
+        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
+
+        // 创建通义千问模型实例
+        $qwenImageModel = new QwenImageModel($providerConfig);
+
+        // 创建请求实例
+        $qwenImageRequest = new QwenImageModelRequest();
+        $qwenImageRequest->setPrompt('科幻未来城市，夜景，霓虹灯，高楼大厦');
+        $qwenImageRequest->setSize('1024*1024');
+        $qwenImageRequest->setGenerateNum(1);
+
+        // 生成图片（获取原生结果）
+        $rawResult = $qwenImageModel->generateImageRaw($qwenImageRequest);
+
+        // 验证结果
+        $this->assertIsArray($rawResult);
+        $this->assertNotEmpty($rawResult);
+        $this->assertArrayHasKey(0, $rawResult);
+        $this->assertArrayHasKey('output', $rawResult[0]);
+        $this->assertArrayHasKey('results', $rawResult[0]['output']);
+        $this->assertNotEmpty($rawResult[0]['output']['results']);
+
+        var_dump($rawResult);
         $this->markTestSkipped();
     }
 
