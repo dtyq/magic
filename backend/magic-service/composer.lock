@@ -2588,12 +2588,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "b7d645dd85d1d2a2a8167af3f82a047a37dd875e"
+                "reference": "9072441258c0961c5cb2ea0324b047155c59c78c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=b7d645dd85d1d2a2a8167af3f82a047a37dd875e",
-                "reference": "b7d645dd85d1d2a2a8167af3f82a047a37dd875e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=9072441258c0961c5cb2ea0324b047155c59c78c",
+                "reference": "9072441258c0961c5cb2ea0324b047155c59c78c",
                 "shasum": ""
             },
             "require": {
@@ -2687,7 +2687,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-14T16:58:24+08:00"
+            "time": "2025-08-14T17:50:50+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -8651,42 +8651,39 @@
         },
         {
             "name": "malkusch/lock",
-            "version": "2.3.0",
+            "version": "v2.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-lock/lock.git",
-                "reference": "66ccdccbb3b9a2cabdeba077f6aa1759dd3fbcd2"
+                "reference": "63c1b268f521a702cb8755ed92631c1fac1775e6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-lock/lock/zipball/66ccdccbb3b9a2cabdeba077f6aa1759dd3fbcd2",
-                "reference": "66ccdccbb3b9a2cabdeba077f6aa1759dd3fbcd2",
+                "url": "https://api.github.com/repos/php-lock/lock/zipball/63c1b268f521a702cb8755ed92631c1fac1775e6",
+                "reference": "63c1b268f521a702cb8755ed92631c1fac1775e6",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.4 <8.4",
-                "psr/log": "^1.0 || ^2.0 || ^3.0"
+                "php": "^7.2 || ^8.0",
+                "psr/log": "^1|^2|^3"
             },
             "require-dev": {
-                "eloquent/liberator": "^2.0 || ^3.0",
-                "ergebnis/composer-normalize": "^2.13",
-                "ergebnis/phpunit-slow-test-detector": "^2.9",
+                "eloquent/liberator": "^2.0",
                 "ext-memcached": "*",
                 "ext-pcntl": "*",
                 "ext-pdo": "*",
                 "ext-pdo_mysql": "*",
                 "ext-pdo_sqlite": "*",
                 "ext-sysvsem": "*",
-                "friendsofphp/php-cs-fixer": "^3.0",
-                "mikey179/vfsstream": "^1.6.11",
+                "friendsofphp/php-cs-fixer": "^2.16",
+                "johnkary/phpunit-speedtrap": "^3.0",
+                "mikey179/vfsstream": "^1.6.7",
                 "php-mock/php-mock-phpunit": "^2.1",
-                "phpstan/extension-installer": "^1.1",
-                "phpstan/phpstan": "^2.0",
-                "phpstan/phpstan-deprecation-rules": "^2.0",
-                "phpstan/phpstan-strict-rules": "^2.0",
-                "phpunit/phpunit": "^9.5.25 || ^10.0 || ^11.0",
-                "predis/predis": "^1.1.8",
-                "spatie/async": "^1.5"
+                "phpstan/phpstan": "^0.12.58",
+                "phpunit/phpunit": "^9.4",
+                "predis/predis": "^1.1",
+                "spatie/async": "^1.5",
+                "squizlabs/php_codesniffer": "^3.3"
             },
             "suggest": {
                 "ext-igbinary": "To use this library with PHP Redis igbinary serializer enabled.",
@@ -8699,26 +8696,24 @@
             "type": "library",
             "autoload": {
                 "psr-4": {
-                    "malkusch\\lock\\": "src/"
+                    "malkusch\\lock\\": "classes/"
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "MIT"
+                "WTFPL"
             ],
             "authors": [
                 {
                     "name": "Markus Malkusch",
                     "email": "markus@malkusch.de",
-                    "homepage": "http://markus.malkusch.de"
+                    "homepage": "http://markus.malkusch.de",
+                    "role": "Developer"
                 },
                 {
                     "name": "Willem Stuursma-Ruwen",
-                    "email": "willem@stuursma.name"
-                },
-                {
-                    "name": "Michael Voříšek",
-                    "homepage": "https://mvorisek.cz/"
+                    "email": "willem@stuursma.name",
+                    "role": "Developer"
                 }
             ],
             "description": "Mutex library for exclusive code execution.",
@@ -8739,9 +8734,9 @@
             ],
             "support": {
                 "issues": "https://github.com/php-lock/lock/issues",
-                "source": "https://github.com/php-lock/lock/tree/2.3.0"
+                "source": "https://github.com/php-lock/lock/tree/v2.2.1"
             },
-            "time": "2024-12-05T22:54:07+00:00"
+            "time": "2022-04-26T09:25:15+00:00"
         },
         {
             "name": "marc-mabe/php-enum",

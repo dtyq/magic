@@ -227,7 +227,8 @@ class HandleUserMessageAppService extends AbstractAppService
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
                 mcpConfig: [],
-                modelId: $userMessageDTO->getModelId()
+                modelId: $userMessageDTO->getModelId(),
+                messageId: $userMessageDTO->getMessageId(),
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
