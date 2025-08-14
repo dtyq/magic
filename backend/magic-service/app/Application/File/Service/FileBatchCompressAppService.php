@@ -20,8 +20,7 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
-use ZipStream\CompressionMethod;
-use ZipStream\ZipStream;
+use ZipArchive;
 
 /**
  * File batch compression application service.
@@ -216,17 +215,6 @@ class FileBatchCompressAppService extends AbstractAppService
     {
         if (! in_array($filePath, $this->tempFiles, true)) {
             $this->tempFiles[] = $filePath;
-        }
-    }
-
-    /**
-     * Register stream for cleanup.
-     * @param mixed $stream
-     */
-    private function registerStream($stream): void
-    {
-        if (is_resource($stream) && ! in_array($stream, $this->openStreams, true)) {
-            $this->openStreams[] = $stream;
         }
     }
 
@@ -477,31 +465,24 @@ class FileBatchCompressAppService extends AbstractAppService
     }
 
     /**
-     * Stream compress files using ZipStream-PHP.
+     * Compress files using PHP ZipArchive for perfect UTF-8 compatibility.
      */
     private function streamCompressFiles(string $cacheKey, string $organizationCode, array $fileLinks, string $workdir): string
     {
-        $this->logger->info('Starting streaming compression of file batch', ['cache_key' => $cacheKey, 'file_count' => count($fileLinks)]);
+        $this->logger->info('Starting ZipArchive compression of file batch', ['cache_key' => $cacheKey, 'file_count' => count($fileLinks)]);
 
         // Create compression subdirectory and generate temporary ZIP file
         $compressDir = $this->createTempDirectory($cacheKey, 'compress');
         $tempZipPath = $compressDir . '/batch_compress_' . uniqid() . '.zip';
         $this->registerTempFile($tempZipPath);
 
-        $outputStream = fopen($tempZipPath, 'w+b');
-        if (! $outputStream) {
-            throw new RuntimeException("Unable to create temporary ZIP file: {$tempZipPath}");
-        }
-        $this->registerStream($outputStream);
+        // Use ZipArchive for perfect UTF-8 compatibility
+        $zip = new ZipArchive();
+        $result = $zip->open($tempZipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
-        // Configure ZipStream to write directly to file
-        $zip = new ZipStream(
-            outputStream: $outputStream,
-            defaultCompressionMethod: CompressionMethod::DEFLATE,
-            defaultDeflateLevel: 6,
-            enableZip64: true,
-            sendHttpHeaders: false
-        );
+        if ($result !== true) {
+            throw new RuntimeException("Failed to create ZIP file: {$result}");
+        }
 
         $processedCount = 0;
         $totalFiles = count($fileLinks);
@@ -509,14 +490,14 @@ class FileBatchCompressAppService extends AbstractAppService
 
         try {
             foreach ($fileLinks as $fileId => $linkData) {
-                $this->addFileToZipStream($zip, (string) $fileId, $linkData, $cacheKey, $organizationCode, $workdir);
+                $this->addFileToZipArchive($zip, (string) $fileId, $linkData, $cacheKey, $organizationCode, $workdir);
                 ++$processedCount;
 
                 // Update progress
                 $progress = round(($processedCount / $totalFiles) * 100, 2);
                 $this->statusManager->setTaskProgress($cacheKey, $processedCount, $totalFiles, "Processing file {$processedCount}/{$totalFiles}");
 
-                $this->logger->debug('File added to ZIP stream', [
+                $this->logger->debug('File added to ZIP archive', [
                     'cache_key' => $cacheKey,
                     'file_id' => $fileId,
                     'progress' => $progress,
@@ -524,14 +505,16 @@ class FileBatchCompressAppService extends AbstractAppService
                 ]);
             }
 
+            // Set UTF-8 archive comment (standard encoding)
+            $zip->setArchiveComment('UTF-8编码的ZIP文件，支持中文文件名');
+
             // Complete compression
-            $zip->finish();
-            fclose($outputStream);
+            $zip->close();
 
             $memoryPeak = memory_get_peak_usage(true);
             $fileSize = file_exists($tempZipPath) ? filesize($tempZipPath) : 0;
 
-            $this->logger->info('Streaming compression completed', [
+            $this->logger->info('ZipArchive compression completed', [
                 'cache_key' => $cacheKey,
                 'temp_zip_path' => $tempZipPath,
                 'compressed_size' => $fileSize,
@@ -542,13 +525,11 @@ class FileBatchCompressAppService extends AbstractAppService
             return $tempZipPath;
         } catch (Throwable $e) {
             // Clean up resources
-            if (is_resource($outputStream)) {
-                fclose($outputStream);
-            }
+            $zip->close();
             if (file_exists($tempZipPath)) {
                 unlink($tempZipPath);
             }
-            $this->logger->error('Streaming compression failed', [
+            $this->logger->error('ZipArchive compression failed', [
                 'cache_key' => $cacheKey,
                 'temp_zip_path' => $tempZipPath,
                 'error' => $e->getMessage(),
@@ -560,9 +541,9 @@ class FileBatchCompressAppService extends AbstractAppService
     }
 
     /**
-     * Add file to ZIP stream.
+     * Add file to ZIP archive using ZipArchive.
      */
-    private function addFileToZipStream(ZipStream $zip, string $fileId, array $linkData, string $cacheKey, string $organizationCode, string $workdir): void
+    private function addFileToZipArchive(ZipArchive $zip, string $fileId, array $linkData, string $cacheKey, string $organizationCode, string $workdir): void
     {
         // Get original file name and related information
         $originalFileName = $linkData['file_name'] ?? '';
@@ -570,7 +551,7 @@ class FileBatchCompressAppService extends AbstractAppService
         $filePath = $linkData['path'] ?? '';
         $fileUrl = $linkData['url'];
 
-        // 🔄 NEW: Use new ZIP path generation method, supporting folder structure
+        // Generate ZIP entry name with folder structure support
         $zipEntryName = $this->generateZipRelativePath($workdir, $filePath);
 
         try {
@@ -578,16 +559,14 @@ class FileBatchCompressAppService extends AbstractAppService
                 'cache_key' => $cacheKey,
                 'file_id' => $fileId,
                 'original_file_name' => $originalFileName,
-                'download_name' => $downloadName,
-                'file_path' => $filePath,
                 'zip_entry_name' => $zipEntryName,
-                'workdir' => $workdir,
+                'utf8_check' => mb_check_encoding($zipEntryName, 'UTF-8'),
             ]);
 
-            // Use streaming download to get file content
-            $fileStream = $this->downloadFileAsStream($fileUrl, $organizationCode, $filePath);
+            // Download file content
+            $fileContent = $this->downloadFileContent($fileUrl, $organizationCode, $filePath);
 
-            if (! $fileStream) {
+            if ($fileContent === false) {
                 $this->logger->warning('File download failed, skipping', [
                     'cache_key' => $cacheKey,
                     'file_id' => $fileId,
@@ -597,24 +576,20 @@ class FileBatchCompressAppService extends AbstractAppService
                 return;
             }
 
-            // Add directly from stream to ZIP (true streaming processing)
-            $zip->addFileFromStream(
-                fileName: $zipEntryName,
-                stream: $fileStream
-            );
+            // Add file content to ZIP with UTF-8 filename (standard encoding)
+            $zip->addFromString($zipEntryName, $fileContent);
 
-            // Close stream and cleanup temporary files
-            $this->closeStreamAndCleanup($fileStream);
+            // Set UTF-8 comment for this file
+            $zip->setCommentName($zipEntryName, 'UTF-8编码文件');
 
-            $this->logger->debug('File successfully added to ZIP', [
+            $this->logger->debug('File successfully added to ZIP archive', [
                 'cache_key' => $cacheKey,
                 'file_id' => $fileId,
-                'original_name' => $originalFileName,
-                'file_path' => $filePath,
                 'zip_entry_name' => $zipEntryName,
+                'content_size' => strlen($fileContent),
             ]);
         } catch (Throwable $e) {
-            $this->logger->error('Failed to add file to ZIP stream', [
+            $this->logger->error('Failed to add file to ZIP archive', [
                 'cache_key' => $cacheKey,
                 'file_id' => $fileId,
                 'file_path' => $filePath,
@@ -704,129 +679,6 @@ class FileBatchCompressAppService extends AbstractAppService
 
         // Strategy 2: Use the last level directly (file name)
         return $count > 0 ? $pathParts[$count - 1] : 'unknown_file';
-    }
-
-    /**
-     * Stream download file - use downloadByChunks to automatically determine if chunking is needed.
-     */
-    private function downloadFileAsStream(string $fileUrl, string $organizationCode, string $filePath)
-    {
-        try {
-            // Create download subdirectory and generate temporary file path
-            $downloadDir = $this->createTempDirectory($this->getCurrentCacheKey(), 'download');
-            $tempPath = $downloadDir . '/' . uniqid('download_', true) . '_' . basename($filePath);
-            $this->registerTempFile($tempPath);
-
-            // Use downloadByChunks, which automatically determines if chunking is needed
-            // Specify custom temp_dir to solve chunk download temporary directory issue
-            $chunksDir = $this->createTempDirectory($this->getCurrentCacheKey(), 'chunks');
-            $this->fileDomainService->downloadByChunks(
-                $organizationCode,
-                $filePath,
-                $tempPath,
-                $this->storageBucketType,
-                [
-                    'chunk_size' => 2 * 1024 * 1024,  // 2MB chunks
-                    'max_concurrency' => 3,           // 3 concurrent downloads
-                    'max_retries' => 3,               // Maximum 3 retries
-                    'temp_dir' => $chunksDir,         // Specify chunk temporary directory
-                ]
-            );
-
-            // Check if file download was successful
-            if (! file_exists($tempPath)) {
-                $this->logger->error('File download failed, file does not exist', [
-                    'temp_path' => $tempPath,
-                    'file_path' => $filePath,
-                ]);
-                return $this->fallbackStreamDownload($fileUrl);
-            }
-
-            // Convert downloaded file to stream
-            $fileStream = fopen($tempPath, 'r');
-            if (! $fileStream) {
-                $this->logger->error('Unable to open downloaded file', [
-                    'temp_path' => $tempPath,
-                ]);
-                // Clean up failed temporary file
-                // @phpstan-ignore-next-line (defensive programming - double check before cleanup)
-                if (file_exists($tempPath)) {
-                    unlink($tempPath);
-                }
-                return $this->fallbackStreamDownload($fileUrl);
-            }
-
-            // Register stream resource for subsequent unified cleanup
-            $this->registerStream($fileStream);
-
-            return $fileStream;
-        } catch (Throwable $e) {
-            $this->logger->error('downloadByChunks download failed', [
-                'file_path' => $filePath,
-                'error' => $e->getMessage(),
-            ]);
-
-            // Fall back to direct streaming download
-            return $this->fallbackStreamDownload($fileUrl);
-        }
-    }
-
-    /**
-     * Fallback solution: direct streaming download.
-     */
-    private function fallbackStreamDownload(string $fileUrl)
-    {
-        try {
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'GET',
-                    'timeout' => 30,
-                    'user_agent' => 'FileBatchCompress/1.0',
-                    'follow_location' => true,
-                    'max_redirects' => 3,
-                ],
-            ]);
-
-            $stream = fopen($fileUrl, 'r', false, $context);
-
-            if (! $stream) {
-                $this->logger->error('Direct streaming download also failed', [
-                    'file_url' => $fileUrl,
-                ]);
-                return null;
-            }
-
-            $this->registerStream($stream);
-
-            return $stream;
-        } catch (Throwable $e) {
-            $this->logger->error('Fallback download failed', [
-                'file_url' => $fileUrl,
-                'error' => $e->getMessage(),
-            ]);
-            return null;
-        }
-    }
-
-    /**
-     * Close stream and cleanup temporary files.
-     * @param mixed $stream
-     */
-    private function closeStreamAndCleanup($stream): void
-    {
-        if (! $stream || ! is_resource($stream)) {
-            return;
-        }
-
-        try {
-            // Close stream
-            fclose($stream);
-            $this->logger->debug('Closed file stream');
-        } catch (Throwable $e) {
-            $this->logger->warning('Error occurred while closing stream', [
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     /**
@@ -978,6 +830,72 @@ class FileBatchCompressAppService extends AbstractAppService
                 'file_key' => $fileKey,
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Download file content from URL.
+     */
+    private function downloadFileContent(string $fileUrl, string $organizationCode, string $filePath)
+    {
+        try {
+            // Try to use downloadByChunks first for large files
+            $tempPath = $this->baseTempDir . '/download_' . uniqid();
+            $this->registerTempFile($tempPath);
+
+            $chunksDir = $this->createTempDirectory($this->getCurrentCacheKey(), 'download_chunks');
+            $this->fileDomainService->downloadByChunks(
+                $organizationCode,
+                $filePath,
+                $tempPath,
+                $this->storageBucketType,
+                [
+                    'chunk_size' => 2 * 1024 * 1024,  // 2MB chunks
+                    'max_concurrency' => 3,
+                    'max_retries' => 3,
+                    'temp_dir' => $chunksDir,
+                ]
+            );
+
+            if (file_exists($tempPath)) {
+                $content = file_get_contents($tempPath);
+                unlink($tempPath); // Clean up immediately
+                return $content;
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('downloadByChunks failed, trying direct download', [
+                'file_path' => $filePath,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Fallback to direct download
+        return $this->downloadFileContentDirect($fileUrl);
+    }
+
+    /**
+     * Download file content directly from URL.
+     */
+    private function downloadFileContentDirect(string $fileUrl)
+    {
+        try {
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'timeout' => 30,
+                    'user_agent' => 'FileBatchCompress/1.0',
+                    'follow_location' => true,
+                    'max_redirects' => 3,
+                ],
+            ]);
+
+            return file_get_contents($fileUrl, false, $context);
+        } catch (Throwable $e) {
+            $this->logger->error('Direct file download failed', [
+                'file_url' => $fileUrl,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 }
