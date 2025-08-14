@@ -103,8 +103,7 @@ class ReplyMessageTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $nodeInput;
