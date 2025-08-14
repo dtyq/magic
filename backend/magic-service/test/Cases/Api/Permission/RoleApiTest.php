@@ -144,4 +144,30 @@ class RoleApiTest extends AbstractHttpTest
         $this->assertNotEquals(1000, $detailResp['code'] ?? null);
         // === 测试删除子管理员END ===
     }
+
+    /**
+     * 测试获取用户权限树接口.
+     */
+    public function testGetUserPermissionTree(): void
+    {
+        // 调用接口
+        $response = $this->get(
+            '/api/v1/permissions/me',
+            [],
+            $this->getCommonHeaders()
+        );
+
+        // 断言基础响应结构
+        $this->assertIsArray($response);
+        $this->assertEquals(1000, $response['code'] ?? null);
+
+        // 断言 data 字段存在且为数组
+        $this->assertArrayHasKey('data', $response);
+        $this->assertIsArray($response['data']);
+
+        // 如果 data 非空，简单校验节点结构
+        if (! empty($response['data'])) {
+            $this->assertArrayHasKey('permission_key', $response['data']);
+        }
+    }
 }
