@@ -9,20 +9,16 @@ namespace App\Application\Provider\Service;
 
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Service\LLMAppService;
-use App\Application\Provider\DTO\SuperMagicModelDTO;
-use App\Application\Provider\DTO\SuperMagicProviderDTO;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
-use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
-use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AdminProviderDomainService;
@@ -39,7 +35,6 @@ use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
 use Exception;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Psr\Log\LoggerInterface;
@@ -52,7 +47,6 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private LoggerInterface $logger,
-        private TranslatorInterface $translator,
     ) {
     }
 
