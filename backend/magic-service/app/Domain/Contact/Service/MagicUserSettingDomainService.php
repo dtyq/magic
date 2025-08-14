@@ -26,6 +26,22 @@ readonly class MagicUserSettingDomainService
     }
 
     /**
+     * 获取全局配置.
+     */
+    public function getGlobal(string $key): ?MagicUserSettingEntity
+    {
+        return $this->magicUserSettingRepository->getGlobal($key);
+    }
+
+    /**
+     * 保存全局配置.
+     */
+    public function saveGlobal(MagicUserSettingEntity $savingEntity): MagicUserSettingEntity
+    {
+        return $this->magicUserSettingRepository->saveGlobal($savingEntity);
+    }
+
+    /**
      * @return array{total: int, list: array<MagicUserSettingEntity>}
      */
     public function queries(DataIsolation $dataIsolation, MagicUserSettingQuery $query, Page $page): array
