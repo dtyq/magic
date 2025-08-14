@@ -206,8 +206,7 @@ class CreateUserCrontabTool extends AbstractBuiltInTool
         }
   
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;
