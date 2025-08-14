@@ -409,6 +409,7 @@ class HandleUserMessageAppService extends AbstractAppService
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
         $taskMessageEntity->setProcessingStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
+        $this->logger->info(sprintf('Saved user message, task id: %s, message id: %s, im seq id: %d', $taskEntity->getId(), $taskMessageEntity->getId(), $taskMessageEntity->getImSeqId()));
         $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
         // Process user uploaded attachments
