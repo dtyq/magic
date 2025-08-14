@@ -13,6 +13,7 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 return new class extends Migration {
     /**
@@ -264,7 +265,7 @@ return new class extends Migration {
                 ->where('organization_code', $officialOrganizationCode)
                 ->where('model_parent_id', '!=', 0)
                 ->update(['model_parent_id' => 0]);
-            $logger->info("官方组织模型 model_parent_id 重置为 0: {$updatedCount} 条");
+            $updatedCount && $logger->info("官方组织模型 model_parent_id 重置为 0: {$updatedCount} 条");
         });
     }
 
