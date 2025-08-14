@@ -1,4 +1,4 @@
-ARG IMAGE_NAME=ghcr.io/dtyq/php-dockerfile:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswrite
+ARG IMAGE_NAME=ghcr.io/dtyq/php-dockerfile:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswriter
 
 FROM --platform=$BUILDPLATFORM ${IMAGE_NAME} AS builder
 
