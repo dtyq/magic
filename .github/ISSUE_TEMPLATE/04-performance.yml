@@ -1,5 +1,5 @@
-name: ⚡ Performance Issue
-description: Report performance issues or suggest optimizations
+name: ⚡ Performance Issue / 性能问题
+description: I found Magic's bad performance / 我发现了Magic的性能问题
 title: "[Performance]: "
 labels: ["performance", "needs-investigation"]
 assignees: []

@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\Log\Handler;
 
+use App\Infrastructure\Util\Log\Output\FastStdoutOutput;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Monolog\Level;
-use Psr\Log\LogLevel;
 use Stringable;
-use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class StdoutLogger implements StdoutLoggerInterface
@@ -26,7 +25,7 @@ class StdoutLogger implements StdoutLoggerInterface
         ?OutputInterface $output = null,
         private readonly Level $minLevel = Level::Info,
     ) {
-        $this->output = $output ?? new ConsoleOutput();
+        $this->output = $output ?? new FastStdoutOutput();
     }
 
     public function emergency($message, array $context = []): void
@@ -82,34 +81,61 @@ class StdoutLogger implements StdoutLoggerInterface
         $tags = array_intersect_key($context, array_flip($this->tags));
         $context = array_diff_key($context, $tags);
 
-        // Handle objects that are not Stringable
-        foreach ($context as $key => $value) {
-            if (is_object($value) && ! $value instanceof Stringable) {
-                $context[$key] = '<OBJECT> ' . $value::class;
-            }
-        }
+        // Fast direct message formatting - avoid expensive string operations
+        $levelName = strtoupper($level->getName());
+        $formattedMessage = $this->buildMessage((string) $message, $levelName, $tags, $context);
 
-        $search = array_map(fn ($key) => sprintf('{%s}', $key), array_keys($context));
-        $message = str_replace($search, $context, $this->getMessage((string) $message, $level->getName(), $tags));
-
-        $this->output->writeln($message);
+        $this->output->writeln($formattedMessage);
     }
 
-    protected function getMessage(string $message, string $level = LogLevel::INFO, array $tags = []): string
+    /**
+     * Optimized message building - avoids expensive sprintf and str_replace operations.
+     */
+    private function buildMessage(string $message, string $levelName, array $tags, array $context): string
     {
-        $tag = match ($level) {
-            LogLevel::EMERGENCY, LogLevel::ALERT, LogLevel::CRITICAL => 'error',
-            LogLevel::ERROR => 'fg=red',
-            LogLevel::WARNING, LogLevel::NOTICE => 'comment',
+        // Determine color tag based on log level
+        $colorTag = match ($levelName) {
+            'EMERGENCY', 'ALERT', 'CRITICAL' => 'error',
+            'ERROR' => 'fg=red',
+            'WARNING', 'NOTICE' => 'comment',
             default => 'info',
         };
 
-        $template = sprintf('<%s>[%s]</>', $tag, strtoupper($level));
-        $implodedTags = '';
+        // Build message parts using array for better performance
+        $parts = [];
+        $parts[] = '<' . $colorTag . '>[' . $levelName . ']</>';
+
+        // Add tags efficiently
         foreach ($tags as $value) {
-            $implodedTags .= (' [' . $value . ']');
+            $parts[] = '[' . $value . ']';
         }
 
-        return sprintf($template . $implodedTags . ' %s', $message);
+        $parts[] = ' ' . $message;
+
+        // Handle context variables efficiently - only if they exist in the message
+        if (! empty($context) && str_contains($message, '{')) {
+            $formattedMessage = implode('', $parts);
+
+            // Fast context replacement - only replace if placeholders exist
+            foreach ($context as $key => $value) {
+                $placeholder = '{' . $key . '}';
+                if (str_contains($formattedMessage, $placeholder)) {
+                    // Handle objects efficiently
+                    if (is_object($value) && ! $value instanceof Stringable) {
+                        $value = '<OBJECT> ' . $value::class;
+                    } elseif (is_array($value)) {
+                        $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+                    } else {
+                        $value = (string) $value;
+                    }
+
+                    $formattedMessage = str_replace($placeholder, $value, $formattedMessage);
+                }
+            }
+
+            return $formattedMessage;
+        }
+
+        return implode('', $parts);
     }
 }
