@@ -429,12 +429,15 @@ class TopicDomainService
         }
 
         // 在事务中执行删除操作
-        Db::transaction(function () use ($allSeqIds) {
+        Db::transaction(function () use ($allSeqIds, $targetSeqId) {
             // 删除topic_messages数据
             $this->topicRepository->deleteTopicMessages($allSeqIds);
 
             // 删除messages和sequences数据
             $this->topicRepository->deleteMessagesAndSequencesBySeqIds($allSeqIds);
+            
+            // 删除magic_super_agent_message表的数据
+            $this->topicRepository->deleteSuperAgentMessagesFromSeqId($targetSeqId);
         });
     }
 }

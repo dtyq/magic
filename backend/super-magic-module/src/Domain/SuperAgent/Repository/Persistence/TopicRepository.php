@@ -14,6 +14,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TopicModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\WorkspaceModel;
 use Hyperf\DbConnection\Db;
@@ -560,5 +561,31 @@ class TopicRepository implements TopicRepositoryInterface
     {
         // 处理连字符和下划线的情况
         return lcfirst(str_replace(' ', '', ucwords(str_replace(['_', '-'], ' ', $snake))));
+    }
+
+    /**
+     * 根据seq_id删除magic_super_agent_message表中对应话题的后续消息
+     */
+    public function deleteSuperAgentMessagesFromSeqId(string $seqId): int
+    {
+        // 1. 根据seq_id查询对应的消息记录
+        $targetMessage = TaskMessageModel::query()
+            ->where('seq_id', $seqId)
+            ->first(['id', 'topic_id']);
+        
+        if (!$targetMessage) {
+            return 0;
+        }
+        
+        $messageId = (int) $targetMessage->id;
+        $topicId = (int) $targetMessage->topic_id;
+        
+        // 2. 删除当前话题中 id >= messageId 的所有数据
+        $deletedCount = TaskMessageModel::query()
+            ->where('topic_id', $topicId)
+            ->where('id', '>=', $messageId)
+            ->delete();
+        
+        return $deletedCount;
     }
 }
