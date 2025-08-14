@@ -256,8 +256,7 @@ class HandleTaskMessageAppService extends AbstractAppService
 
     public function getTaskBySandboxId(string $sandboxId): TaskEntity
     {
-        $taskEntity = $this->taskDomainService->getTaskBySandboxId($sandboxId);
-        return $taskEntity;
+        return $this->taskDomainService->getTaskBySandboxId($sandboxId);
     }
 
     public function executeScriptTask(CreateScriptTaskRequestDTO $requestDTO): void

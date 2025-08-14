@@ -125,7 +125,7 @@ class OpenTaskApi extends AbstractApi
         }
         $magicUserAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
 
-        //$taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
+        // $taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
 
         // 判断话题是否存在，不存在则初始化话题
         $topicId = $requestDTO->getTopicId();
@@ -169,8 +169,6 @@ class OpenTaskApi extends AbstractApi
             } else {
                 $taskEntity = $this->handleTaskAppService->getTaskBySandboxId($sandboxId);
             }
-
-
 
             $userMessage = [
                 'chat_topic_id' => (string) $topicDTO->getChatTopicId(),
