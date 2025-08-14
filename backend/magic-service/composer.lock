@@ -2191,16 +2191,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.89",
+            "version": "0.0.90",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "4e4c37905df8af6d607f25876bbff0d4b3401740"
+                "reference": "8c3fc38134d7cd92e0ab91df54af4ec76a127d83"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4e4c37905df8af6d607f25876bbff0d4b3401740",
-                "reference": "4e4c37905df8af6d607f25876bbff0d4b3401740",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=8c3fc38134d7cd92e0ab91df54af4ec76a127d83",
+                "reference": "8c3fc38134d7cd92e0ab91df54af4ec76a127d83",
                 "shasum": ""
             },
             "require": {
@@ -2301,9 +2301,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.89"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.90"
             },
-            "time": "2025-08-13T15:30:58+00:00"
+            "time": "2025-08-14T15:08:17+00:00"
         },
         {
             "name": "dtyq/php-mcp",
