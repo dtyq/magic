@@ -37,40 +37,40 @@ ARG timezone
 ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
     SCAN_CACHEABLE=(true) \
     USE_ZEND_ALLOC=0
-RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
-    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
-    # apk安装构建工具
-    apk add --no-cache \
-        --virtual .php-buildtool \
-        git \
-        autoconf \
-        automake \
-        file \
-        gcc \
-        g++ \
-        libc-dev \
-        make \
-        pkgconf \
-        re2c \
-        libtool \
-        php83-dev
+#RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
+#    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
+#    # apk安装构建工具
+#    apk add --no-cache \
+#        --virtual .php-buildtool \
+#        git \
+#        autoconf \
+#        automake \
+#        file \
+#        gcc \
+#        g++ \
+#        libc-dev \
+#        make \
+#        pkgconf \
+#        re2c \
+#        libtool \
+#        php83-dev
 
     # 装个pcov
-RUN rm -rf /src/pcov && \
-    git clone --depth 1 https://gitee.com/codinghuang/pcov.git /src/pcov && \
-    # 构建安装
-    cd /src/pcov && \
-        phpize83 && \
-        ./configure --enable-pcov && \
-        make && \
-        make install && \
-    cd .. && \
-    # 清理
-    rm -rf /src/pcov && \
-    apk del .php-buildtool && \
-    # 显示成果
-    php -v && \
-    php -dextension=pcov --ri pcov
+#RUN rm -rf /src/pcov && \
+#    git clone --depth 1 https://gitee.com/codinghuang/pcov.git /src/pcov && \
+#    # 构建安装
+#    cd /src/pcov && \
+#        phpize83 && \
+#        ./configure --enable-pcov && \
+#        make && \
+#        make install && \
+#    cd .. && \
+#    # 清理
+#    rm -rf /src/pcov && \
+#    apk del .php-buildtool && \
+#    # 显示成果
+#    php -v && \
+#    php -dextension=pcov --ri pcov
 
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
