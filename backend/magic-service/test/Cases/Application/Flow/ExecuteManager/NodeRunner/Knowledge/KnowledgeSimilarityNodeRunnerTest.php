@@ -81,8 +81,7 @@ class KnowledgeSimilarityNodeRunnerTest extends ExecuteManagerBaseTest
     "limit": 5,
     "score": 0.4
 }
-JSON
-            ,
+JSON,
             true
         ));
         $output = new NodeOutput();
@@ -213,8 +212,7 @@ JSON, true)));
     "limit": 5,
     "score": 0.4
 }
-JSON
-            ,
+JSON,
             true
         ));
         $output = new NodeOutput();
@@ -361,8 +359,7 @@ JSON, true)));
     "limit": 5,
     "score": 0.5
 }
-JSON
-            ,
+JSON,
             true
         ));
         $output = new NodeOutput();
@@ -519,8 +516,7 @@ JSON, true)));
     "limit": 5,
     "score": 0.5
 }
-JSON
-            ,
+JSON,
             true
         ));
         $output = new NodeOutput();
@@ -668,8 +664,7 @@ JSON, true)));
     "limit": 5,
     "score": 0.5
 }
-JSON
-            ,
+JSON,
             true
         ));
         $output = new NodeOutput();
