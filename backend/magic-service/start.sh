@@ -34,4 +34,4 @@ fi
 #php "${bin}" db:seed
 
 # 开启服务
-USE_ZEND_ALLOC=0 php -dopcache.enable_cli=0 "${bin}" start
+USE_ZEND_ALLOC=0 php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 -dopcache.validate_timestamps=0 "${bin}" start

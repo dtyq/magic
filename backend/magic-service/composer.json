@@ -130,21 +130,24 @@
         ],
         "fix": [
             "Composer\\Config::disableProcessTimeout",
-            "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/php-cs-fixer fix $1"
+            "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/php-cs-fixer fix $1"
         ],
         "analyse": [
             "Composer\\Config::disableProcessTimeout",
-            "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/phpstan analyse --memory-limit 1G -c phpstan.neon ./app ./config"
+            "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/phpstan analyse --memory-limit 1G -c phpstan.neon ./app ./config"
         ],
         "test-library-with-pcov": [
             "Composer\\Config::disableProcessTimeout",
             "php -dopcache.enable_cli=0 -dextension=pcov -dpcov.enabled=1 -dpcov.directory=. -dpcov.exclude=\"~vendor~\" -d memory_limit=512M ./vendor/bin/phpunit -c phpunit.xml --colors=always"
         ],
         "start": "php bin/hyperf.php start",
-        "test": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/phpunit -c phpunit.xml --colors=always",
+        "test": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/phpunit -c phpunit.xml --colors=always",
         "rector": "rector process --clear-cache",
-        "php-accessor": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/php-accessor generate"
+        "php-accessor": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/php-accessor generate"
     },
     "repositories": [
-    ]
+    ],
+    "replace": {
+        "laminas/laminas-mime": "2.12.0"
+    }
 }
