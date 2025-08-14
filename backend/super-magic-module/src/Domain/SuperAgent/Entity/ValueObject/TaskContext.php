@@ -46,6 +46,7 @@ class TaskContext
         private string $modelId = '',
         private array $dynamicConfig = [],
         private string $workspaceId = '',
+        private string $messageId = '',
     ) {
     }
 
@@ -192,7 +193,8 @@ class TaskContext
             $this->mcpConfig,
             $this->modelId,
             $this->dynamicConfig,
-            $this->workspaceId
+            $this->workspaceId,
+            $this->messageId,
         );
     }
 
@@ -266,5 +268,22 @@ class TaskContext
     public function getWorkspaceId(): string
     {
         return $this->workspaceId;
+    }
+
+    /**
+     * 获取消息ID.
+     */
+    public function getMessageId(): string
+    {
+        return $this->messageId;
+    }
+
+    /**
+     * 设置消息ID.
+     */
+    public function setMessageId(string $messageId): self
+    {
+        $this->messageId = $messageId;
+        return $this;
     }
 }

@@ -28,7 +28,8 @@ class TaskMessageDTO
         private readonly ?array $attachments = null,
         private readonly ?array $mentions = null,
         private readonly bool $showInUi = true,
-        private readonly ?string $messageId = null
+        private readonly ?string $messageId = null,
+        private readonly ?int $imSeqId = null
     ) {
     }
 
@@ -112,6 +113,11 @@ class TaskMessageDTO
         return $this->messageId;
     }
 
+    public function getImSeqId(): ?int
+    {
+        return $this->imSeqId;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -134,7 +140,8 @@ class TaskMessageDTO
             attachments: $data['attachments'] ?? null,
             mentions: $data['mentions'] ?? null,
             showInUi: $data['show_in_ui'] ?? $data['showInUi'] ?? true,
-            messageId: $data['message_id'] ?? $data['messageId'] ?? null
+            messageId: $data['message_id'] ?? $data['messageId'] ?? null,
+            imSeqId: isset($data['im_seq_id']) ? (int) $data['im_seq_id'] : (isset($data['imSeqId']) ? (int) $data['imSeqId'] : null)
         );
     }
 
@@ -160,6 +167,7 @@ class TaskMessageDTO
             'mentions' => $this->mentions,
             'show_in_ui' => $this->showInUi,
             'message_id' => $this->messageId,
+            'im_seq_id' => $this->imSeqId,
         ];
     }
 }
