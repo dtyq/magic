@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.352.7",
+            "version": "3.353.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "26d8988376984e4684c497e71722a97b79aeef4e"
+                "reference": "73a28b9be8b465af1dd02b6a1b23fca4b145c36b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/26d8988376984e4684c497e71722a97b79aeef4e",
-                "reference": "26d8988376984e4684c497e71722a97b79aeef4e",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/73a28b9be8b465af1dd02b6a1b23fca4b145c36b",
+                "reference": "73a28b9be8b465af1dd02b6a1b23fca4b145c36b",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.352.7"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.353.0"
             },
-            "time": "2025-08-12T18:29:26+00:00"
+            "time": "2025-08-13T18:05:58+00:00"
         },
         {
             "name": "brick/math",
@@ -1985,12 +1985,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "754e1536518ff1e08ac8f107b52b27d4a40b582b"
+                "reference": "9603c5e6637851f58fe46614860995acf17cc0de"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=754e1536518ff1e08ac8f107b52b27d4a40b582b",
-                "reference": "754e1536518ff1e08ac8f107b52b27d4a40b582b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=9603c5e6637851f58fe46614860995acf17cc0de",
+                "reference": "9603c5e6637851f58fe46614860995acf17cc0de",
                 "shasum": ""
             },
             "require": {
@@ -2067,7 +2067,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
             },
-            "time": "2025-08-13T20:55:59+08:00"
+            "time": "2025-08-14T14:02:17+08:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2210,12 +2210,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "fa852e396b8ca4f0c22e985306250b6ed14d2d09"
+                "reference": "bf6d60591cea0f07a6c56f8b3d7343a43249fe94"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=fa852e396b8ca4f0c22e985306250b6ed14d2d09",
-                "reference": "fa852e396b8ca4f0c22e985306250b6ed14d2d09",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=bf6d60591cea0f07a6c56f8b3d7343a43249fe94",
+                "reference": "bf6d60591cea0f07a6c56f8b3d7343a43249fe94",
                 "shasum": ""
             },
             "require": {
@@ -2318,7 +2318,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-13T17:47:19+08:00"
+            "time": "2025-08-14T14:07:43+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2588,12 +2588,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "02286e24045f9e683753a846a174db554a475334"
+                "reference": "429a08565abdefa3db7db160ebe84f0855e984ea"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=02286e24045f9e683753a846a174db554a475334",
-                "reference": "02286e24045f9e683753a846a174db554a475334",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=429a08565abdefa3db7db160ebe84f0855e984ea",
+                "reference": "429a08565abdefa3db7db160ebe84f0855e984ea",
                 "shasum": ""
             },
             "require": {
@@ -2687,7 +2687,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-14T00:12:38+08:00"
+            "time": "2025-08-14T14:02:17+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6389,16 +6389,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.41",
+            "version": "v1.1.42",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "403a51c8b5e34b86abb9a38bb1b40b82ea82ea8e"
+                "reference": "24507763c7214d35948015a84f7e8d3ed1f2510f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=403a51c8b5e34b86abb9a38bb1b40b82ea82ea8e",
-                "reference": "403a51c8b5e34b86abb9a38bb1b40b82ea82ea8e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=24507763c7214d35948015a84f7e8d3ed1f2510f",
+                "reference": "24507763c7214d35948015a84f7e8d3ed1f2510f",
                 "shasum": ""
             },
             "require": {
@@ -6470,9 +6470,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.41"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.42"
             },
-            "time": "2025-08-13T16:33:02+08:00"
+            "time": "2025-08-14T13:57:35+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -15595,16 +15595,16 @@
         },
         {
             "name": "friendsofphp/php-cs-fixer",
-            "version": "v3.85.1",
+            "version": "v3.86.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
-                "reference": "2fb6d7f6c3398dca5786a1635b27405d73a417ba"
+                "reference": "4a952bd19dc97879b0620f495552ef09b55f7d36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/2fb6d7f6c3398dca5786a1635b27405d73a417ba",
-                "reference": "2fb6d7f6c3398dca5786a1635b27405d73a417ba",
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/4a952bd19dc97879b0620f495552ef09b55f7d36",
+                "reference": "4a952bd19dc97879b0620f495552ef09b55f7d36",
                 "shasum": ""
             },
             "require": {
@@ -15688,7 +15688,7 @@
             ],
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/issues",
-                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.85.1"
+                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.86.0"
             },
             "funding": [
                 {
@@ -15696,7 +15696,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-07-29T22:22:50+00:00"
+            "time": "2025-08-13T22:36:21+00:00"
         },
         {
             "name": "hamcrest/hamcrest-php",
@@ -17245,12 +17245,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "0479005335290f5c772337cf359599dad65bb63f"
+                "reference": "3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0479005335290f5c772337cf359599dad65bb63f",
-                "reference": "0479005335290f5c772337cf359599dad65bb63f",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc",
+                "reference": "3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc",
                 "shasum": ""
             },
             "conflict": {
@@ -17925,6 +17925,7 @@
                 "snipe/snipe-it": "<8.1",
                 "socalnick/scn-social-auth": "<1.15.2",
                 "socialiteproviders/steam": "<1.1",
+                "soosyze/soosyze": "<=2",
                 "spatie/browsershot": "<5.0.5",
                 "spatie/image-optimizer": "<1.7.3",
                 "spencer14420/sp-php-email-handler": "<1",
@@ -18199,7 +18200,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-12T21:05:30+00:00"
+            "time": "2025-08-14T00:22:26+00:00"
         },
         {
             "name": "sebastian/cli-parser",
