@@ -76,8 +76,7 @@ class CacheSetNodeRunnerTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         ));
         $node->validate();
