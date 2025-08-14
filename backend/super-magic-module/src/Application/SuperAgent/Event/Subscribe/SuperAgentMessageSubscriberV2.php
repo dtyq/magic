@@ -13,6 +13,7 @@ use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
@@ -81,6 +82,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
             $language = $userCallAgentEvent->messageEntity?->getLanguage() ?? '';
+            $messageSeqId = $userCallAgentEvent->seqEntity?->getId() ?? '';
+            $messageId = (string) IdGenerator::getSnowId();
 
             // Parameter validation
             if (empty($conversationId) || empty($chatTopicId) || empty($organizationCode)
@@ -132,6 +135,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 mcpConfig: [],
                 modelId: $superAgentExtra?->getModelId() ?? '',
                 language: $language,
+                messageId: $messageId,
+                messageSeqId: $messageSeqId,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {

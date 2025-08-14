@@ -139,6 +139,11 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected ?string $processedAt = null;
 
+    /**
+     * @var null|int IM 序列ID，用于消息顺序追踪
+     */
+    protected ?int $imSeqId = null;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -393,6 +398,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getImSeqId(): ?int
+    {
+        return $this->imSeqId;
+    }
+
+    public function setImSeqId(?int $imSeqId): self
+    {
+        $this->imSeqId = $imSeqId;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -421,6 +437,7 @@ class TaskMessageEntity extends AbstractEntity
             'error_message' => $this->errorMessage,
             'retry_count' => $this->retryCount,
             'processed_at' => $this->processedAt,
+            'im_seq_id' => $this->imSeqId,
         ];
 
         return array_filter($result, function ($value) {
@@ -451,6 +468,11 @@ class TaskMessageEntity extends AbstractEntity
         // Add message_id if provided
         if ($taskMessageDTO->getMessageId() !== null) {
             $messageData['message_id'] = $taskMessageDTO->getMessageId();
+        }
+
+        // Add im_seq_id if provided
+        if ($taskMessageDTO->getImSeqId() !== null) {
+            $messageData['im_seq_id'] = $taskMessageDTO->getImSeqId();
         }
 
         return new TaskMessageEntity($messageData);

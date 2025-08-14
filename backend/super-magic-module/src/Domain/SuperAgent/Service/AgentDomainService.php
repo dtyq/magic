@@ -208,7 +208,7 @@ class AgentDomainService
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
-            messageId: (string) IdGenerator::getSnowId(),
+            messageId: $taskContext->getMessageId(),
             userId: $dataIsolation->getCurrentUserId(),
             taskId: (string) $taskContext->getTask()->getId(),
             prompt: $taskContext->getTask()->getPrompt(),

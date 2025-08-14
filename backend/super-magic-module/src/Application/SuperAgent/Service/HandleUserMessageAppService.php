@@ -402,7 +402,8 @@ class HandleUserMessageAppService extends AbstractAppService
             attachments: $attachmentsArray,
             mentions: $mentionsArray,
             showInUi: true,
-            messageId: null
+            messageId: $userMessageDTO->getMessageId(),
+            imSeqId: (int) $userMessageDTO->getMessageSeqId()
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
