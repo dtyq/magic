@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "98ce7931e8d7270f94139e3e07046427",
+    "content-hash": "d908d7b2924bded00333aa775b6b348f",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -11945,16 +11945,16 @@
         },
         {
             "name": "swow/swow",
-            "version": "v1.6.0",
+            "version": "v1.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/swow/swow.git",
-                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810"
+                "reference": "0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/swow/swow/zipball/87305892ff5b7e82bb1daec4f9a5558ef4b28810",
-                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810",
+                "url": "https://api.github.com/repos/swow/swow/zipball/0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093",
+                "reference": "0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093",
                 "shasum": ""
             },
             "require": {
@@ -12026,9 +12026,9 @@
             ],
             "support": {
                 "issues": "https://github.com/swow/swow",
-                "source": "https://github.com/swow/swow/tree/v1.6.0"
+                "source": "https://github.com/swow/swow/tree/v1.6.1"
             },
-            "time": "2025-08-03T07:10:21+00:00"
+            "time": "2025-08-10T22:24:12+00:00"
         },
         {
             "name": "symfony/cache",
@@ -14392,16 +14392,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.154",
+            "version": "v1.0.155",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "6706998c7fc6bc8fcb7b332ca804a2969ebb8414"
+                "reference": "b70599efc34642243fe35dc03f06d151a22c9959"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/6706998c7fc6bc8fcb7b332ca804a2969ebb8414",
-                "reference": "6706998c7fc6bc8fcb7b332ca804a2969ebb8414",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/b70599efc34642243fe35dc03f06d151a22c9959",
+                "reference": "b70599efc34642243fe35dc03f06d151a22c9959",
                 "shasum": ""
             },
             "require": {
@@ -14436,9 +14436,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.154"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.155"
             },
-            "time": "2025-08-07T12:06:59+00:00"
+            "time": "2025-08-14T12:04:53+00:00"
         },
         {
             "name": "w7corp/easywechat",
