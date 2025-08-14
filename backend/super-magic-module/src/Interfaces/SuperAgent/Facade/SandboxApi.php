@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\AgentErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -259,7 +260,6 @@ class SandboxApi extends AbstractApi
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
         
-        // 从请求中创建DTO并验证参数
         $requestDTO = CheckpointRollbackRequestDTO::fromRequest($this->request);
         
         $topicId = $requestDTO->getTopicId();
@@ -273,23 +273,23 @@ class SandboxApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'target_message_id is required');
         }
         
-        // 获取话题信息以获取沙箱ID
-        $topic = $this->topicAppService->getTopicById((int) $topicId);
+        $authorization = $this->getAuthorization();
         
-        $sandboxId = $topic->getSandboxId();
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId((string) $authorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+        $dataIsolation->setLanguage(CoContext::getLanguage());
         
-        if (empty($sandboxId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required for this topic');
-        }
+        $sandboxId = $this->agentAppService->ensureSandboxInitialized($dataIsolation, (int) $topicId);
         
-        // 调用应用服务执行回滚操作
         $result = $this->agentAppService->rollbackCheckpoint($sandboxId, $targetMessageId);
         
         if (!$result->isSuccess()) {
             ExceptionBuilder::throw(AgentErrorCode::SANDBOX_NOT_FOUND, $result->getMessage());
         }
         
-        // 构建响应DTO
         $responseDTO = new CheckpointRollbackResponseDTO();
         $responseDTO->setSandboxId($sandboxId);
         $responseDTO->setTargetMessageId($targetMessageId);
