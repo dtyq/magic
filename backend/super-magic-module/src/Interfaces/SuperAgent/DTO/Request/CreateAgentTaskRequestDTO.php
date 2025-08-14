@@ -11,7 +11,7 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 
 class CreateAgentTaskRequestDTO extends AbstractRequestDTO
 {
-    protected string $taskId = '';
+    protected string $topicId = '';
 
     protected string $prompt = '';
 
@@ -25,7 +25,7 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationRules(): array
     {
         return [
-            'task_id' => 'string',
+            'topic_id' => 'string',
             'prompt' => 'required|string',
         ];
     }
@@ -33,7 +33,7 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationMessage(): array
     {
         return [
-            'task_id.string' => '任务ID不能为空',
+            'topic_id.string' => '话题ID不能为空',
             'prompt.required' => '任务提示词不能为空',
         ];
     }
@@ -44,14 +44,14 @@ class CreateAgentTaskRequestDTO extends AbstractRequestDTO
     public function attributes(): array
     {
         return [
-            'task_id' => '任务ID',
+            'topic_id' => '话题ID',
             'prompt' => '任务提示词',
         ];
     }
 
-    public function getTaskId(): string
+    public function getTopicId(): string
     {
-        return $this->taskId;
+        return $this->topicId;
     }
 
     public function getConversationId(): string

@@ -247,11 +247,16 @@ class HandleTaskMessageAppService extends AbstractAppService
     {
         $taskEntity = $this->taskDomainService->getTaskById($taskId);
 
-        var_dump($taskEntity, '=====taskEntity');
         if (empty($taskEntity)) {
             // 抛异常，任务不存在
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
         }
+        return $taskEntity;
+    }
+
+    public function getTaskBySandboxId(string $sandboxId): TaskEntity
+    {
+        $taskEntity = $this->taskDomainService->getTaskBySandboxId($sandboxId);
         return $taskEntity;
     }
 
