@@ -225,6 +225,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
+                messageId: $userMessageDTO->getMessageId(),
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
