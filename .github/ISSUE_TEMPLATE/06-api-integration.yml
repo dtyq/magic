@@ -1,5 +1,5 @@
-name: 🔌 API / Integration Issue
-description: Report issues with APIs, integrations, or third-party connections
+name: 🔌 API and Integration Issue / API集成问题
+description: Report issues with APIs, integrations, or third-party connections / 反馈API，集成或第三方链接问题
 title: "[API]: "
 labels: ["api", "integration", "needs-review"]
 assignees: []
