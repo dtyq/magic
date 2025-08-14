@@ -125,10 +125,10 @@ class OpenTaskApi extends AbstractApi
         }
         $magicUserAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
 
-        $taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
+        //$taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
 
         // 判断话题是否存在，不存在则初始化话题
-        $topicId = $taskEntity->getTopicId();
+        $topicId = $requestDTO->getTopicId();
 
         $topicDTO = $this->topicAppService->getTopic($requestContext, (int) $topicId);
 
@@ -140,10 +140,10 @@ class OpenTaskApi extends AbstractApi
         $dataIsolation->setCurrentOrganizationCode($userEntity->getOrganizationCode());
         $dataIsolation->setUserType(UserType::Human);
         //  $dataIsolation = new DataIsolation($userEntity->getId(), $userEntity->getOrganizationCode(), $userEntity->getWorkDir());
-
+        $sandboxId = $topicDTO->getSandboxId();
         try {
             // 检查容器是否正常
-            $result = $this->agentAppService->getSandboxStatus($taskEntity->getSandboxId());
+            $result = $this->agentAppService->getSandboxStatus($sandboxId);
 
             if ($result->getStatus() !== SandboxStatus::RUNNING) {
                 // 容器未正常运行，需要先运行容器
@@ -164,7 +164,13 @@ class OpenTaskApi extends AbstractApi
                 if (empty($result['sandbox_id'])) {
                     ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'the sandbox cannot running,please check the sandbox status');
                 }
+                $sandboxId = $result['sandbox_id'];
+                $taskEntity = $this->handleTaskAppService->getTask((int) $result['task_id']);
+            } else {
+                $taskEntity = $this->handleTaskAppService->getTaskBySandboxId($sandboxId);
             }
+
+
 
             $userMessage = [
                 'chat_topic_id' => (string) $topicDTO->getChatTopicId(),
@@ -184,7 +190,7 @@ class OpenTaskApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, $e->getMessage());
         }
 
-        return [];
+        return $taskEntity->toArray();
     }
 
     /**
