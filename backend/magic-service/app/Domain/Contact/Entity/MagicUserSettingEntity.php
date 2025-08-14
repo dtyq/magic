@@ -15,9 +15,9 @@ class MagicUserSettingEntity extends AbstractEntity
 
     private ?string $magicId = '';
 
-    private string $organizationCode = '';
+    private ?string $organizationCode = '';
 
-    private string $userId = '';
+    private ?string $userId = '';
 
     private string $key = '';
 
@@ -51,22 +51,22 @@ class MagicUserSettingEntity extends AbstractEntity
         $this->magicId = $magicId;
     }
 
-    public function getOrganizationCode(): string
+    public function getOrganizationCode(): ?string
     {
         return $this->organizationCode;
     }
 
-    public function setOrganizationCode(string $organizationCode): void
+    public function setOrganizationCode(?string $organizationCode): void
     {
         $this->organizationCode = $organizationCode;
     }
 
-    public function getUserId(): string
+    public function getUserId(): ?string
     {
         return $this->userId;
     }
 
-    public function setUserId(string $userId): void
+    public function setUserId(?string $userId): void
     {
         $this->userId = $userId;
     }
