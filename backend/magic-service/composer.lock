@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d908d7b2924bded00333aa775b6b348f",
+    "content-hash": "d953d1cdaacf31fe7e9c1a9c8031ff44",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1981,16 +1981,16 @@
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "dev-enterprise-master",
+            "version": "v0.1.12",
             "source": {
                 "type": "git",
-                "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "9603c5e6637851f58fe46614860995acf17cc0de"
+                "url": "https://github.com/dtyq/cloudfile.git",
+                "reference": "30c3d95e0ca7a6d1a74fc4696b91c519367a5b38"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=9603c5e6637851f58fe46614860995acf17cc0de",
-                "reference": "9603c5e6637851f58fe46614860995acf17cc0de",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/30c3d95e0ca7a6d1a74fc4696b91c519367a5b38",
+                "reference": "30c3d95e0ca7a6d1a74fc4696b91c519367a5b38",
                 "shasum": ""
             },
             "require": {
@@ -2038,22 +2038,7 @@
                     "Dtyq\\CloudFile\\": "src"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Dtyq\\CloudFile\\Tests\\": "tests"
-                }
-            },
-            "scripts": {
-                "cs-fix": [
-                    "php-cs-fixer fix $1"
-                ],
-                "test": [
-                    "./vendor/bin/phpunit"
-                ],
-                "analyse": [
-                    "phpstan analyse --memory-limit 1024M -c phpstan.neon"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "Apache-2.0"
             ],
@@ -2065,9 +2050,10 @@
             ],
             "description": "Package description here.",
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
+                "issues": "https://github.com/dtyq/cloudfile/issues",
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.12"
             },
-            "time": "2025-08-14T14:02:17+08:00"
+            "time": "2025-08-15T11:18:37+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2210,12 +2196,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "3785bc172f7e14340ebb3eb811acf0ae4489f511"
+                "reference": "b6a5a97c90d035d38befc4b6b0a9ab889e2d681d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=3785bc172f7e14340ebb3eb811acf0ae4489f511",
-                "reference": "3785bc172f7e14340ebb3eb811acf0ae4489f511",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b6a5a97c90d035d38befc4b6b0a9ab889e2d681d",
+                "reference": "b6a5a97c90d035d38befc4b6b0a9ab889e2d681d",
                 "shasum": ""
             },
             "require": {
@@ -2318,7 +2304,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-15T21:15:08+08:00"
+            "time": "2025-08-15T21:36:16+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -19461,7 +19447,6 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/cloudfile": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
