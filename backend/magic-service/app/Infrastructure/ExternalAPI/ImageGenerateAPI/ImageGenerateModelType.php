@@ -99,6 +99,6 @@ enum ImageGenerateModelType: string
 
     public static function getQwenImageModes(): array
     {
-        return [self::QwenImage->value, 'qwen-image', 'Qwen-Image'];
+        return [self::QwenImage->value, 'qwen-image', 'wan2.2-t2i-flash'];
     }
 }

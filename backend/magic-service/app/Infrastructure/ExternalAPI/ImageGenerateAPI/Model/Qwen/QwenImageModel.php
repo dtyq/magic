@@ -99,6 +99,9 @@ class QwenImageModel implements ImageGenerate
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
 
+        // 校验图片尺寸
+        $this->validateImageSize($imageGenerateRequest->getSize(), $imageGenerateRequest->getModel());
+
         $count = $imageGenerateRequest->getGenerateNum();
 
         $this->logger->info('通义千问文生图：开始生图', [
@@ -203,16 +206,10 @@ class QwenImageModel implements ImageGenerate
                 'prompt' => $prompt,
                 'size' => $request->getSize(),
                 'n' => 1, // 通义千问每次只能生成1张图片
+                'model' => $request->getModel(),
+                'watermark' => $request->isWatermark(),
+                'prompt_extend' => $request->isPromptExtend(),
             ];
-
-            // 设置可选参数
-            if ($request->getPromptExtend() !== null) {
-                $params['prompt_extend'] = $request->getPromptExtend();
-            }
-
-            if ($request->getWatermark() !== null) {
-                $params['watermark'] = $request->getWatermark();
-            }
 
             $response = $this->api->submitTask($params);
 
@@ -303,5 +300,102 @@ class QwenImageModel implements ImageGenerate
 
         $this->logger->error('通义千问文生图：任务查询超时', ['taskId' => $taskId]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    /**
+     * 校验图片尺寸是否符合通义千问模型的规格
+     */
+    private function validateImageSize(string $size, string $model): void
+    {
+        switch ($model) {
+            case 'qwen-image':
+                $this->validateQwenImageSize($size);
+                break;
+            case 'wan2.2-t2i-flash':
+                $this->validateWan22FlashSize($size);
+                break;
+            default:
+                // 其他模型暂不校验，或使用默认的qwen-image规则
+                $this->validateQwenImageSize($size);
+                break;
+        }
+
+        $this->logger->info('通义千问文生图：尺寸校验通过', ['size' => $size, 'model' => $model]);
+    }
+
+    /**
+     * 校验qwen-image模型的固定尺寸列表.
+     */
+    private function validateQwenImageSize(string $size): void
+    {
+        // qwen-image支持的固定尺寸列表
+        $supportedSizes = [
+            '1664*928',   // 16:9
+            '1472*1140',  // 4:3
+            '1328*1328',  // 1:1 (默认)
+            '1140*1472',  // 3:4
+            '928*1664',   // 9:16
+        ];
+
+        if (! in_array($size, $supportedSizes, true)) {
+            $this->logger->error('通义千问文生图：qwen-image不支持的图片尺寸', [
+                'requested_size' => $size,
+                'supported_sizes' => $supportedSizes,
+                'model' => 'qwen-image',
+            ]);
+
+            ExceptionBuilder::throw(
+                ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE,
+                'image_generate.unsupported_image_size',
+                [
+                    'size' => $size,
+                    'supported_sizes' => implode('、', $supportedSizes),
+                ]
+            );
+        }
+    }
+
+    /**
+     * 校验wan2.2-t2i-flash模型的区间尺寸.
+     */
+    private function validateWan22FlashSize(string $size): void
+    {
+        $dimensions = explode('*', $size);
+        if (count($dimensions) !== 2) {
+            $this->logger->error('通义千问文生图：wan2.2-t2i-flash尺寸格式错误', [
+                'requested_size' => $size,
+                'model' => 'wan2.2-t2i-flash',
+            ]);
+
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, '尺寸格式错误，应为"宽*高"格式');
+        }
+
+        $width = (int) $dimensions[0];
+        $height = (int) $dimensions[1];
+
+        // wan2.2-t2i-flash支持512-1440像素区间
+        $minSize = 512;
+        $maxSize = 1440;
+
+        if ($width < $minSize || $width > $maxSize || $height < $minSize || $height > $maxSize) {
+            $this->logger->error('通义千问文生图：wan2.2-t2i-flash尺寸超出支持范围', [
+                'requested_size' => $size,
+                'width' => $width,
+                'height' => $height,
+                'min_size' => $minSize,
+                'max_size' => $maxSize,
+                'model' => 'wan2.2-t2i-flash',
+            ]);
+
+            ExceptionBuilder::throw(
+                ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE_RANGE,
+                'image_generate.unsupported_image_size_range',
+                [
+                    'size' => $size,
+                    'min_size' => $minSize,
+                    'max_size' => $maxSize,
+                ]
+            );
+        }
     }
 }

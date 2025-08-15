@@ -32,6 +32,8 @@ return [
     'unsupported_image_format' => '仅支持 JPG、JPEG、BMP、PNG 格式的图片',
     'invalid_aspect_ratio' => '图生图的尺寸比例差距过大，只能相差3倍',
     'image_url_is_empty' => '图片为空',
+    'unsupported_image_size' => '不支持的图片尺寸 :size，支持的尺寸为：:supported_sizes',
+    'unsupported_image_size_range' => '图片尺寸 :size 超出支持范围，宽度和高度必须在 :min_size-:max_size 像素之间',
 
     // Azure OpenAI 相关错误消息
     'api_key_update_failed' => '更新API密钥失败',

@@ -53,7 +53,7 @@ class QwenImageAPI
         ];
 
         $body = [
-            'model' => 'qwen-vl-plus',
+            'model' => $params['model'],
             'input' => [
                 'prompt' => $params['prompt'],
             ],
