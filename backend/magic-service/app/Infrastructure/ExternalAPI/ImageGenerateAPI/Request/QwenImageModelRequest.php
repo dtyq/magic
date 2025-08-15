@@ -11,9 +11,9 @@ class QwenImageModelRequest extends ImageGenerateRequest
 {
     protected string $size = '1328*1328';
 
-    protected ?string $promptExtend = null;
+    protected bool $promptExtend = true;
 
-    protected ?string $watermark = null;
+    protected bool $watermark = true;
 
     protected string $organizationCode = '';
 
@@ -44,26 +44,6 @@ class QwenImageModelRequest extends ImageGenerateRequest
         }
     }
 
-    public function getPromptExtend(): ?string
-    {
-        return $this->promptExtend;
-    }
-
-    public function setPromptExtend(?string $promptExtend): void
-    {
-        $this->promptExtend = $promptExtend;
-    }
-
-    public function getWatermark(): ?string
-    {
-        return $this->watermark;
-    }
-
-    public function setWatermark(?string $watermark): void
-    {
-        $this->watermark = $watermark;
-    }
-
     public function getOrganizationCode(): string
     {
         return $this->organizationCode;
@@ -72,5 +52,25 @@ class QwenImageModelRequest extends ImageGenerateRequest
     public function setOrganizationCode(string $organizationCode): void
     {
         $this->organizationCode = $organizationCode;
+    }
+
+    public function isPromptExtend(): bool
+    {
+        return $this->promptExtend;
+    }
+
+    public function setPromptExtend(bool $promptExtend): void
+    {
+        $this->promptExtend = $promptExtend;
+    }
+
+    public function isWatermark(): bool
+    {
+        return $this->watermark;
+    }
+
+    public function setWatermark(bool $watermark): void
+    {
+        $this->watermark = $watermark;
     }
 }

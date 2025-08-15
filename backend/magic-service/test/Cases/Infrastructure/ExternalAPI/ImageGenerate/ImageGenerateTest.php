@@ -254,7 +254,7 @@ class ImageGenerateTest extends BaseTest
     {
         // 创建服务提供商配置
         $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
+        $providerConfig->setApiKey(env('QWEN_IMAGE_KEY')); // 请替换为真实的API Key
 
         // 创建通义千问模型实例
         $qwenImageModel = new QwenImageModel($providerConfig);
@@ -262,8 +262,9 @@ class ImageGenerateTest extends BaseTest
         // 创建请求实例
         $qwenImageRequest = new QwenImageModelRequest();
         $qwenImageRequest->setPrompt('科幻未来城市，夜景，霓虹灯，高楼大厦');
-        $qwenImageRequest->setSize('1024*1024');
+        $qwenImageRequest->setSize('1328*13232');
         $qwenImageRequest->setGenerateNum(1);
+        $qwenImageRequest->setModel('wan2.2-t2i-flash');
 
         // 生成图片（获取原生结果）
         $rawResult = $qwenImageModel->generateImageRaw($qwenImageRequest);
