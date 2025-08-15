@@ -21,9 +21,22 @@
     </testsuite>
     <testsuite name="登录测试">
       <directory suffix="Test.php">test/Cases/Api/Login</directory>
+      <directory suffix="Test.php">test/Cases/Api/Contact</directory>
     </testsuite>
     <testsuite name="聊天用户API测试">
       <directory suffix="Test.php">test/Cases/Api/Chat</directory>
+    </testsuite>
+    <testsuite name="组件测试">
+      <directory suffix="Test.php">test/Cases/Api/Kernel</directory>
+      <directory suffix="Test.php">test/Cases/Application/Kernel</directory>
+    </testsuite>
+    <testsuite name="权限测试">
+      <directory suffix="Test.php">test/Cases/Application/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Api/Permission</directory>
+    </testsuite>
+    <testsuite name="组织测试">
+      <directory suffix="Test.php">test/Cases/Domain/Organization</directory>
     </testsuite>
   </testsuites>
 
