@@ -58,8 +58,7 @@ class KnowledgeFragmentRemoveNodeRunnerTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         ));
 
