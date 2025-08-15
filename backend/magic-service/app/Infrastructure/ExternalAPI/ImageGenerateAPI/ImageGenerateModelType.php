@@ -106,6 +106,6 @@ enum ImageGenerateModelType: string
 
     public static function getQwenImageEditModes(): array
     {
-        return [self::QwenImageEdit->value, 'qwen-image-edit', 'wanx-image-edit'];
+        return [self::QwenImageEdit->value, 'wanx2.1-imageedit'];
     }
 }

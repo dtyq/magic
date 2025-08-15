@@ -9,8 +9,6 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
 
 class QwenImageModelRequest extends ImageGenerateRequest
 {
-    protected string $size = '1328*1328';
-
     protected bool $promptExtend = true;
 
     protected bool $watermark = true;
@@ -25,23 +23,6 @@ class QwenImageModelRequest extends ImageGenerateRequest
         string $model = 'qwen-image',
     ) {
         parent::__construct($width, $height, $prompt, $negativePrompt, $model);
-        $this->size = $width . '*' . $height;
-    }
-
-    public function getSize(): string
-    {
-        return $this->size;
-    }
-
-    public function setSize(string $size): void
-    {
-        $this->size = $size;
-        // 同步更新宽高
-        $dimensions = explode('*', $size);
-        if (count($dimensions) === 2) {
-            $this->width = $dimensions[0];
-            $this->height = $dimensions[1];
-        }
     }
 
     public function getOrganizationCode(): string
