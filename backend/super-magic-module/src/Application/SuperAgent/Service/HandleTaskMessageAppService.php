@@ -352,7 +352,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-        //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
+        $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;
