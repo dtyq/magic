@@ -24,6 +24,8 @@ class SuperMagicModelDTO extends AbstractDTO
 
     protected string $description = '';
 
+    protected ?int $loadBalancingWeight = null;
+
     protected ?SuperMagicProviderDTO $provider = null;
 
     public function getId(): string
@@ -104,5 +106,15 @@ class SuperMagicModelDTO extends AbstractDTO
     public function setProvider(?SuperMagicProviderDTO $provider): void
     {
         $this->provider = $provider;
+    }
+
+    public function getLoadBalancingWeight(): ?int
+    {
+        return $this->loadBalancingWeight;
+    }
+
+    public function setLoadBalancingWeight(?int $loadBalancingWeight): void
+    {
+        $this->loadBalancingWeight = $loadBalancingWeight;
     }
 }
