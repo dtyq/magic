@@ -32,7 +32,7 @@ class GlobalConfigApiTest extends AbstractHttpTest
     {
         $payload = [
             'is_maintenance' => true,
-            'maintenance_description' => '系统维护中，请稍后访问。',
+            'maintenance_description' => 'unit test maintenance',
         ];
 
         $putResponse = $this->put($this->url, $payload, $this->getCommonHeaders());

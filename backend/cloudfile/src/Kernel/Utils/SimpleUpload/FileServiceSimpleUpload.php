@@ -162,6 +162,21 @@ class FileServiceSimpleUpload extends SimpleUpload
         return $simpleUpload->deleteObjectsByCredential($credential, $objectKeys, $options);
     }
 
+    /**
+     * Set object metadata by credential.
+     *
+     * @param array $credential Credential array
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param array $options Additional options
+     * @throws CloudFileException
+     */
+    public function setHeadObjectByCredential(array $credential, string $objectKey, array $metadata, array $options = []): void
+    {
+        $simpleUpload = $this->getSimpleUpload($credential);
+        $simpleUpload->setHeadObjectByCredential($credential, $objectKey, $metadata, $options);
+    }
+
     private function getSimpleUpload(array $credential): SimpleUpload
     {
         $platform = $credential['platform'] ?? '';
