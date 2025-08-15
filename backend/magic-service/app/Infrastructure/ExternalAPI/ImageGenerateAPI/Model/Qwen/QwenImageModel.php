@@ -99,14 +99,17 @@ class QwenImageModel implements ImageGenerate
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
 
+        // 其他文生图是 x ，阿里是 * ，保持上游一致，最终传入还是 *
+        $size = $imageGenerateRequest->getWidth()."x".$imageGenerateRequest->getHeight();
+
         // 校验图片尺寸
-        $this->validateImageSize($imageGenerateRequest->getSize(), $imageGenerateRequest->getModel());
+        $this->validateImageSize($size, $imageGenerateRequest->getModel());
 
         $count = $imageGenerateRequest->getGenerateNum();
 
         $this->logger->info('通义千问文生图：开始生图', [
             'prompt' => $imageGenerateRequest->getPrompt(),
-            'size' => $imageGenerateRequest->getSize(),
+            'size' => $size,
             'count' => $count,
         ]);
 
@@ -204,7 +207,7 @@ class QwenImageModel implements ImageGenerate
         try {
             $params = [
                 'prompt' => $prompt,
-                'size' => $request->getSize(),
+                'size' => $request->getWidth().'*'.$request->getHeight(),
                 'n' => 1, // 通义千问每次只能生成1张图片
                 'model' => $request->getModel(),
                 'watermark' => $request->isWatermark(),
@@ -315,12 +318,9 @@ class QwenImageModel implements ImageGenerate
                 $this->validateWan22FlashSize($size);
                 break;
             default:
-                // 其他模型暂不校验，或使用默认的qwen-image规则
-                $this->validateQwenImageSize($size);
+                // 其他模型暂不校验
                 break;
         }
-
-        $this->logger->info('通义千问文生图：尺寸校验通过', ['size' => $size, 'model' => $model]);
     }
 
     /**
@@ -330,11 +330,11 @@ class QwenImageModel implements ImageGenerate
     {
         // qwen-image支持的固定尺寸列表
         $supportedSizes = [
-            '1664*928',   // 16:9
-            '1472*1140',  // 4:3
-            '1328*1328',  // 1:1 (默认)
-            '1140*1472',  // 3:4
-            '928*1664',   // 9:16
+            '1664x928',   // 16:9
+            '1472x1140',  // 4:3
+            '1328x1328',  // 1:1 (默认)
+            '1140x1472',  // 3:4
+            '928x1664',   // 9:16
         ];
 
         if (! in_array($size, $supportedSizes, true)) {
@@ -360,7 +360,7 @@ class QwenImageModel implements ImageGenerate
      */
     private function validateWan22FlashSize(string $size): void
     {
-        $dimensions = explode('*', $size);
+        $dimensions = explode('x', $size);
         if (count($dimensions) !== 2) {
             $this->logger->error('通义千问文生图：wan2.2-t2i-flash尺寸格式错误', [
                 'requested_size' => $size,

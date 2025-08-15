@@ -285,7 +285,7 @@ class LLMAppService extends AbstractLLMAppService
                 $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
             }
         }
-
+        $errorMessage = "";
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
@@ -296,10 +296,11 @@ class LLMAppService extends AbstractLLMAppService
                     return $generateImageRaw;
                 }
             } catch (Exception $e) {
+                $errorMessage = $e->getMessage();
                 $this->logger->warning('text generate image error:' . $e->getMessage());
             }
         }
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR,$errorMessage);
     }
 
     /**

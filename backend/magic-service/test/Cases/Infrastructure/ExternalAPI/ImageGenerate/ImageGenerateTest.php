@@ -7,8 +7,12 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
+use App\Application\Provider\Service\AdminProviderAppService;
+use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
@@ -25,6 +29,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRe
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use HyperfTest\Cases\BaseTest;
 
@@ -188,17 +193,23 @@ class ImageGenerateTest extends BaseTest
 
     public function testText2ImageByQwenImage()
     {
+        $di = di(ProviderConfigDomainService::class);
+        $magicUserAuthorization = new MagicUserAuthorization();
+        $magicUserAuthorization->setOrganizationCode("TGosRaFhvb");
+
+        $providerModelsByConfig = $di->getProviderConfig(ProviderDataIsolation::create("TGosRaFhvb"), "814826843393773568");
+        $config = $providerModelsByConfig->getConfig();
         // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
+
 
         // 创建通义千问模型实例
-        $qwenImageModel = new QwenImageModel($providerConfig);
+        $qwenImageModel = new QwenImageModel($config);
 
         // 创建请求实例
         $qwenImageRequest = new QwenImageModelRequest();
         $qwenImageRequest->setPrompt('一只可爱的小猫咪在花园里玩耍，阳光明媚，色彩丰富，高质量摄影');
-        $qwenImageRequest->setSize('1024*1024');
+        $qwenImageRequest->setHeight('1328');
+        $qwenImageRequest->setWidth('1328');
         $qwenImageRequest->setGenerateNum(1);
         $qwenImageRequest->setModel('qwen-image');
 
@@ -230,11 +241,10 @@ class ImageGenerateTest extends BaseTest
         // 创建请求实例
         $qwenImageRequest = new QwenImageModelRequest();
         $qwenImageRequest->setPrompt('美丽的风景画');
-        $qwenImageRequest->setPromptExtend('8k超高清，细节丰富，自然光线，专业摄影');
-        $qwenImageRequest->setSize('1328*1328');
+        $qwenImageRequest->setHeight('1328');
+        $qwenImageRequest->setWidth('1328');
         $qwenImageRequest->setGenerateNum(1);
         $qwenImageRequest->setModel('qwen-image');
-        $qwenImageRequest->setWatermark('Magic AI生成');
 
         // 生成图片
         $result = $qwenImageModel->generateImage($qwenImageRequest);
@@ -264,7 +274,8 @@ class ImageGenerateTest extends BaseTest
         // 创建请求实例
         $qwenImageRequest = new QwenImageModelRequest();
         $qwenImageRequest->setPrompt('科幻未来城市，夜景，霓虹灯，高楼大厦');
-        $qwenImageRequest->setSize('1328*13232');
+        $qwenImageRequest->setHeight('1328');
+        $qwenImageRequest->setWidth('1328');
         $qwenImageRequest->setGenerateNum(1);
         $qwenImageRequest->setModel('wan2.2-t2i-flash');
 
