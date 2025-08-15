@@ -201,8 +201,7 @@ class AIImageBuiltInTool extends AbstractAIImageBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;
