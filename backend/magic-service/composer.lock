@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.353.0",
+            "version": "3.354.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "73a28b9be8b465af1dd02b6a1b23fca4b145c36b"
+                "reference": "014ce3465277cf78a05e60c04ce04c9893733bf2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/73a28b9be8b465af1dd02b6a1b23fca4b145c36b",
-                "reference": "73a28b9be8b465af1dd02b6a1b23fca4b145c36b",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/014ce3465277cf78a05e60c04ce04c9893733bf2",
+                "reference": "014ce3465277cf78a05e60c04ce04c9893733bf2",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.353.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.354.0"
             },
-            "time": "2025-08-13T18:05:58+00:00"
+            "time": "2025-08-14T18:10:08+00:00"
         },
         {
             "name": "brick/math",
@@ -1888,16 +1888,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.40",
+            "version": "1.0.41",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "cc853d94cbf522939e9896a669048f957a643d8e"
+                "reference": "1f6a28b7f686c3493e3665720b5133bc1d69ade8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=cc853d94cbf522939e9896a669048f957a643d8e",
-                "reference": "cc853d94cbf522939e9896a669048f957a643d8e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=1f6a28b7f686c3493e3665720b5133bc1d69ade8",
+                "reference": "1f6a28b7f686c3493e3665720b5133bc1d69ade8",
                 "shasum": ""
             },
             "require": {
@@ -1974,9 +1974,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.40"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.41"
             },
-            "time": "2025-08-14T13:47:15+00:00"
+            "time": "2025-08-15T09:53:48+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2191,16 +2191,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.90",
+            "version": "0.0.92",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "8c3fc38134d7cd92e0ab91df54af4ec76a127d83"
+                "reference": "36971bc193964eece1d0eb656c862aaf3d1f4150"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=8c3fc38134d7cd92e0ab91df54af4ec76a127d83",
-                "reference": "8c3fc38134d7cd92e0ab91df54af4ec76a127d83",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=36971bc193964eece1d0eb656c862aaf3d1f4150",
+                "reference": "36971bc193964eece1d0eb656c862aaf3d1f4150",
                 "shasum": ""
             },
             "require": {
@@ -2301,9 +2301,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.90"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.92"
             },
-            "time": "2025-08-14T15:08:17+00:00"
+            "time": "2025-08-15T18:37:08+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -3592,23 +3592,26 @@
         },
         {
             "name": "google/protobuf",
-            "version": "v4.31.1",
+            "version": "v4.32.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/protocolbuffers/protobuf-php.git",
-                "reference": "2b028ce8876254e2acbeceea7d9b573faad41864"
+                "reference": "9a9a92ecbe9c671dc1863f6d4a91ea3ea12c8646"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/protocolbuffers/protobuf-php/zipball/2b028ce8876254e2acbeceea7d9b573faad41864",
-                "reference": "2b028ce8876254e2acbeceea7d9b573faad41864",
+                "url": "https://api.github.com/repos/protocolbuffers/protobuf-php/zipball/9a9a92ecbe9c671dc1863f6d4a91ea3ea12c8646",
+                "reference": "9a9a92ecbe9c671dc1863f6d4a91ea3ea12c8646",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.0.0"
+                "php": ">=8.1.0"
+            },
+            "provide": {
+                "ext-protobuf": "*"
             },
             "require-dev": {
-                "phpunit/phpunit": ">=5.0.0"
+                "phpunit/phpunit": ">=5.0.0 <8.5.27"
             },
             "suggest": {
                 "ext-bcmath": "Need to support JSON deserialization"
@@ -3630,9 +3633,9 @@
                 "proto"
             ],
             "support": {
-                "source": "https://github.com/protocolbuffers/protobuf-php/tree/v4.31.1"
+                "source": "https://github.com/protocolbuffers/protobuf-php/tree/v4.32.0"
             },
-            "time": "2025-05-28T18:52:35+00:00"
+            "time": "2025-08-14T20:00:33+00:00"
         },
         {
             "name": "graham-campbell/result-type",
