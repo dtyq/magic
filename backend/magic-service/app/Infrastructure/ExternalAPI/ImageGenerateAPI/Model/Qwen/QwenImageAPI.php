@@ -21,6 +21,8 @@ class QwenImageAPI
 
     private const TASK_CREATE_ENDPOINT = '/services/aigc/text2image/image-synthesis';
 
+    private const EDIT_TASK_CREATE_ENDPOINT = '/services/aigc/multimodal-generation/generation';
+
     private const TASK_QUERY_ENDPOINT = '/tasks/%s';
 
     private string $apiKey;
@@ -107,6 +109,90 @@ class QwenImageAPI
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         } catch (Exception $e) {
             $this->logger->error('通义千问文生图：提交任务异常', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
+        }
+    }
+
+    /**
+     * 提交图像编辑任务
+     */
+    public function submitEditTask(array $params): array
+    {
+        $url = self::BASE_URL . self::EDIT_TASK_CREATE_ENDPOINT;
+
+        $headers = [
+            'Authorization' => 'Bearer ' . $this->apiKey,
+            'Content-Type' => 'application/json',
+            'X-DashScope-Async' => 'enable',
+        ];
+
+        $body = [
+            'model' => $params['model'] ?? 'wanx-v1',
+            'input' => [],
+            'parameters' => [],
+        ];
+
+        // 设置输入参数
+        if (isset($params['prompt'])) {
+            $body['input']['prompt'] = $params['prompt'];
+        }
+
+        if (isset($params['image_urls']) && ! empty($params['image_urls'])) {
+            $body['input']['image_url'] = $params['image_urls'][0]; // 通义千问图像编辑通常只支持一张输入图
+        }
+
+        if (isset($params['ref_image_type'])) {
+            $body['input']['ref_image_type'] = $params['ref_image_type'];
+        }
+
+        // 设置编辑类型和参数
+        if (isset($params['edit_type'])) {
+            $body['parameters']['edit_type'] = $params['edit_type'];
+        }
+
+        if (isset($params['edit_params']) && ! empty($params['edit_params'])) {
+            $body['parameters'] = array_merge($body['parameters'], $params['edit_params']);
+        }
+
+        if (isset($params['mask_url'])) {
+            $body['input']['mask_url'] = $params['mask_url'];
+        }
+
+        try {
+            $this->logger->info('通义千问图像编辑：提交任务', [
+                'url' => $url,
+                'edit_type' => $params['edit_type'] ?? '',
+                'model' => $body['model'],
+                'parameters' => $body['parameters'],
+            ]);
+
+            $response = $this->client->post($url, [
+                'headers' => $headers,
+                'json' => $body,
+            ]);
+
+            $responseBody = $response->getBody()->getContents();
+            $result = Json::decode($responseBody, true);
+
+            $this->logger->info('通义千问图像编辑：提交任务响应', [
+                'status' => $response->getStatusCode(),
+                'response' => $result,
+            ]);
+
+            return $result;
+        } catch (GuzzleException $e) {
+            $this->logger->error('通义千问图像编辑：提交任务HTTP异常', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
+        } catch (Exception $e) {
+            $this->logger->error('通义千问图像编辑：提交任务异常', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
