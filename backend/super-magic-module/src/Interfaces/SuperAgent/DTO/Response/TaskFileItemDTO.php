@@ -50,7 +50,7 @@ class TaskFileItemDTO extends AbstractDTO
     /**
      * 文件相对路径.
      */
-    public string $relativeFilePath;
+    public string $relativeFilePath = '';
 
     /**
      * 文件大小.
@@ -65,7 +65,7 @@ class TaskFileItemDTO extends AbstractDTO
     /**
      * 是否为隐藏文件：true-是，false-否.
      */
-    public bool $isHidden;
+    public bool $isHidden = false;
 
     /**
      * 主题ID.
