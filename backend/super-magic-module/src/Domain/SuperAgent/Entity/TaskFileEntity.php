@@ -57,6 +57,10 @@ class TaskFileEntity extends AbstractEntity
 
     protected ?string $deletedAt = null;
 
+    protected ?int $latestModifiedTopicId = null;
+
+    protected ?int $latestModifiedTaskId = null;
+
     public function getFileId(): int
     {
         return $this->fileId;
@@ -288,6 +292,26 @@ class TaskFileEntity extends AbstractEntity
         $this->deletedAt = $deletedAt;
     }
 
+    public function getLatestModifiedTopicId(): ?int
+    {
+        return $this->latestModifiedTopicId;
+    }
+
+    public function setLatestModifiedTopicId(?int $latestModifiedTopicId): void
+    {
+        $this->latestModifiedTopicId = $latestModifiedTopicId;
+    }
+
+    public function getLatestModifiedTaskId(): ?int
+    {
+        return $this->latestModifiedTaskId;
+    }
+
+    public function setLatestModifiedTaskId(?int $latestModifiedTaskId): void
+    {
+        $this->latestModifiedTaskId = $latestModifiedTaskId;
+    }
+
     public function toArray(): array
     {
         return [
@@ -313,6 +337,8 @@ class TaskFileEntity extends AbstractEntity
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
+            'latest_modified_topic_id' => $this->latestModifiedTopicId,
+            'latest_modified_task_id' => $this->latestModifiedTaskId,
         ];
     }
 }

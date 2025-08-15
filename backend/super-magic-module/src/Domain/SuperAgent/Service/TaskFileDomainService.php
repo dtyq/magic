@@ -1044,6 +1044,8 @@ class TaskFileDomainService
 
             if ($existingFile !== null) {
                 // Update existing file
+                $existingFile->setLatestModifiedTopicId((int) $metadata->getChatTopicId());
+                $existingFile->setLatestModifiedTaskId((int) $metadata->getSuperMagicTaskId());
                 $taskFileEntity = $this->updateSandboxFile($existingFile, $data, $organizationCode);
             } else {
                 // Create new file
