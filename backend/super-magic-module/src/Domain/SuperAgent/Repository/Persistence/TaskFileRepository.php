@@ -303,6 +303,13 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return $entity;
     }
 
+    public function updateFileByCondition(array $condition, array $data): bool
+    {
+        return $this->model::query()
+            ->where($condition)
+            ->update($data) > 0;
+    }
+
     public function deleteById(int $id): void
     {
         $this->model::query()->where('file_id', $id)->delete();
@@ -664,5 +671,26 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return new TaskFileEntity($model->toArray());
+    }
+
+    public function lockDirectChildrenForUpdate(int $parentId): array
+    {
+        return $this->model::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('sort', 'ASC')
+            ->orderBy('file_id', 'ASC')
+            ->lockForUpdate()
+            ->get()
+            ->toArray();
+    }
+
+    public function getAllChildrenByParentId(int $parentId): array
+    {
+        return $this->model::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('sort', 'ASC')
+            ->orderBy('file_id', 'ASC')
+            ->get()
+            ->toArray();
     }
 }

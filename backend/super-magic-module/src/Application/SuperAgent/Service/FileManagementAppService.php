@@ -543,16 +543,17 @@ class FileManagementAppService extends AbstractAppService
         }
     }
 
-    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, int $preFileId = -1): array
+    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, ?int $preFileId = null): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        Db::beginTransaction();
         try {
+            // 1. Get file and project information
             $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
             $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
 
+            // 2. Handle target parent directory
             if (empty($targetParentId)) {
                 $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $projectEntity->getId(),
@@ -562,31 +563,30 @@ class FileManagementAppService extends AbstractAppService
                 );
             }
 
-            // Check if this is a same-level move BEFORE modifying the entity
-            $isSameLevelMove = ($fileEntity->getParentId() === $targetParentId);
-
-            if ($isSameLevelMove) {
-                // For same-level moves, only handle sorting logic
-                $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
-
-                // Update the entity in database (sort and updated_at)
-                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-                $this->taskFileDomainService->updateById($fileEntity);
-            } else {
-                // For cross-directory moves, handle both sorting and moving
-                $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
-                $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
+            // 3. Handle cross-directory move file path update (check BEFORE modifying parent_id)
+            $originalParentId = $fileEntity->getParentId();
+            if ($originalParentId !== $targetParentId) {
+                $this->taskFileDomainService->moveProjectFile(
+                    $dataIsolation,
+                    $fileEntity,
+                    $projectEntity->getWorkDir(),
+                    $targetParentId
+                );
             }
 
-            Db::commit();
+            // 4. Use enhanced sorting method to handle move (includes locking and rebalancing)
+            $this->taskFileDomainService->handleFileSortOnMove(
+                $fileEntity,
+                $targetParentId,
+                $preFileId
+            );
+
             return [
                 'file_id' => $fileId,
                 'target_parent_id' => $targetParentId,
                 'pre_file_id' => $preFileId,
             ];
         } catch (BusinessException $e) {
-            // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
-            Db::rollBack();
             $this->logger->warning(sprintf(
                 'Business logic error in move file: %s, File ID: %s, Target Parent ID: %s, Error Code: %d',
                 $e->getMessage(),
@@ -594,18 +594,14 @@ class FileManagementAppService extends AbstractAppService
                 $targetParentId,
                 $e->getCode()
             ));
-            // 直接重新抛出业务异常，让上层处理
             throw $e;
         } catch (Throwable $e) {
-            // 捕获其他系统异常
-            Db::rollBack();
             $this->logger->error(sprintf(
                 'System error in move project file: %s, File ID: %s, Target Parent ID: %s',
                 $e->getMessage(),
                 $fileId,
                 $targetParentId
             ));
-            // 转换为统一的系统错误
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.file_move_failed'));
         }
     }
