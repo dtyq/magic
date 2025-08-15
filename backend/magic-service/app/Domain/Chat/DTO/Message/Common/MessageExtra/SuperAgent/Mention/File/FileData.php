@@ -8,10 +8,13 @@ declare(strict_types=1);
 namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\File;
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionDataInterface;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\NormalizePathTrait;
 use App\Infrastructure\Core\AbstractDTO;
 
 final class FileData extends AbstractDTO implements MentionDataInterface
 {
+    use NormalizePathTrait;
+
     protected string $fileId;
 
     protected string $fileKey;
@@ -47,15 +50,8 @@ final class FileData extends AbstractDTO implements MentionDataInterface
         if ($filePath === null) {
             return null;
         }
-        if (str_starts_with($filePath, './')) {
-            return substr($filePath, 2);
-        }
 
-        if (str_starts_with($filePath, '/')) {
-            return substr($filePath, 1);
-        }
-
-        return $filePath;
+        return $this->normalizePath($filePath);
     }
 
     public function getFileName(): ?string

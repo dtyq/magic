@@ -9,6 +9,7 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention;
 
 enum MentionType: string
 {
+    case PROJECT_DIRECTORY = 'project_directory';
     case PROJECT_FILE = 'project_file';
 
     /**
