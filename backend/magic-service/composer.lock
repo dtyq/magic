@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.354.0",
+            "version": "3.354.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "014ce3465277cf78a05e60c04ce04c9893733bf2"
+                "reference": "6aa524596cd83416085777a3bd037d06a70b5c65"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/014ce3465277cf78a05e60c04ce04c9893733bf2",
-                "reference": "014ce3465277cf78a05e60c04ce04c9893733bf2",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6aa524596cd83416085777a3bd037d06a70b5c65",
+                "reference": "6aa524596cd83416085777a3bd037d06a70b5c65",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.354.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.354.1"
             },
-            "time": "2025-08-14T18:10:08+00:00"
+            "time": "2025-08-15T18:05:41+00:00"
         },
         {
             "name": "brick/math",
@@ -1892,12 +1892,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "ac0e409df9f4bd5fa2e40996e0d9b091d6bc58b1"
+                "reference": "032b90fc0c0085e26f0ed28bd282a5e8a7d4c81e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=ac0e409df9f4bd5fa2e40996e0d9b091d6bc58b1",
-                "reference": "ac0e409df9f4bd5fa2e40996e0d9b091d6bc58b1",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=032b90fc0c0085e26f0ed28bd282a5e8a7d4c81e",
+                "reference": "032b90fc0c0085e26f0ed28bd282a5e8a7d4c81e",
                 "shasum": ""
             },
             "require": {
@@ -1977,7 +1977,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-15T09:49:53+00:00"
+            "time": "2025-08-16T07:02:56+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2574,12 +2574,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "51e1da64787381c83b8799e7277ac80ffcb9b81a"
+                "reference": "fa5c25e67d36c6eb989ae1dc51f016998e175f41"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=51e1da64787381c83b8799e7277ac80ffcb9b81a",
-                "reference": "51e1da64787381c83b8799e7277ac80ffcb9b81a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=fa5c25e67d36c6eb989ae1dc51f016998e175f41",
+                "reference": "fa5c25e67d36c6eb989ae1dc51f016998e175f41",
                 "shasum": ""
             },
             "require": {
@@ -2673,7 +2673,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-15T22:17:19+08:00"
+            "time": "2025-08-16T00:35:33+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -16469,16 +16469,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.51",
+            "version": "10.5.52",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "ace160e31aaa317a99c411410c40c502b4be42a4"
+                "reference": "5be558244941fba07788b6bb42dc5fc84429580c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/ace160e31aaa317a99c411410c40c502b4be42a4",
-                "reference": "ace160e31aaa317a99c411410c40c502b4be42a4",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/5be558244941fba07788b6bb42dc5fc84429580c",
+                "reference": "5be558244941fba07788b6bb42dc5fc84429580c",
                 "shasum": ""
             },
             "require": {
@@ -16550,7 +16550,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.51"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.52"
             },
             "funding": [
                 {
@@ -16574,7 +16574,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-12T07:31:25+00:00"
+            "time": "2025-08-16T05:17:33+00:00"
         },
         {
             "name": "react/cache",
@@ -17108,12 +17108,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc"
+                "reference": "45efa5832686533f38dc0445a8b185f6d0649c2f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc",
-                "reference": "3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/45efa5832686533f38dc0445a8b185f6d0649c2f",
+                "reference": "45efa5832686533f38dc0445a8b185f6d0649c2f",
                 "shasum": ""
             },
             "conflict": {
@@ -17522,7 +17522,7 @@
                 "luyadev/yii-helpers": "<1.2.1",
                 "macropay-solutions/laravel-crud-wizard-free": "<3.4.17",
                 "maestroerror/php-heic-to-jpg": "<1.0.5",
-                "magento/community-edition": "<2.4.5.0-patch13|==2.4.6|>=2.4.6.0-patch1,<2.4.6.0-patch11|>=2.4.7.0-beta1,<2.4.7.0-patch6|>=2.4.8.0-beta1,<2.4.8.0-patch1",
+                "magento/community-edition": "<2.4.5.0-patch14|==2.4.6|>=2.4.6.0-patch1,<2.4.6.0-patch12|>=2.4.7.0-beta1,<2.4.7.0-patch7|>=2.4.8.0-beta1,<2.4.8.0-patch1",
                 "magento/core": "<=1.9.4.5",
                 "magento/magento1ce": "<1.9.4.3-dev",
                 "magento/magento1ee": ">=1,<1.14.4.3-dev",
@@ -18063,7 +18063,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-14T00:22:26+00:00"
+            "time": "2025-08-15T23:05:36+00:00"
         },
         {
             "name": "sebastian/cli-parser",
