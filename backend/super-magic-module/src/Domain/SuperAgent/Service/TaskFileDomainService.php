@@ -849,6 +849,16 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
 
+        if ($fileEntity->getIsDirectory()) {
+            $this->moveDirectory($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+        } else {
+            $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+        }
+
+    }
+
+    private function moveFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
+    {
         Db::beginTransaction();
         try {
             // Call cloud file service to move the file
@@ -861,6 +871,50 @@ class TaskFileDomainService
             Db::commit();
         } catch (Throwable $e) {
             Db::rollBack();
+            throw $e;
+        }
+    }
+
+    private function moveDirectory(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $targetPath, int $targetParentId): void
+    {
+        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
+        if (empty($fileEntities)) {
+            return;
+        }
+
+        $oldDirKey = $dirEntity->getFileKey();
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
+            $workDir
+        );
+        $prefix = WorkDirectoryUtil::getPrefix($workDir);
+
+        try {
+            foreach ($fileEntities as $fileEntity) {
+                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
+                    continue;
+                }
+
+                // Calculate new file key by replacing old directory path with new directory path
+                $newFileKey = str_replace($oldDirKey, $targetPath, $fileEntity->getFileKey());
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // Update entity
+                $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $newFileKey, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
+
+                // 3. Rename in cloud storage
+                try {
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to rename file in cloud storage', [
+                        'old_file_key' => $oldFileKey,
+                        'new_file_key' => $newFileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
+            }
+        } catch (Throwable $e) {
             throw $e;
         }
     }
@@ -912,9 +966,8 @@ class TaskFileDomainService
             );
         }
 
+        Db::beginTransaction();
         try {
-            Db::beginTransaction();
-
             // Lock target directory's direct children for update
             $targetChildren = $this->taskFileRepository->lockDirectChildrenForUpdate($targetParentId);
 
