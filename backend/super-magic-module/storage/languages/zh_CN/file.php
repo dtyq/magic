@@ -41,5 +41,4 @@ return [
     'convert_create_zip_failed' => '创建ZIP文件失败',
     'convert_no_converted_files' => '没有有效的转换文件用于创建ZIP',
     'convert_failed' => '文件转换失败，请重试',
-    'move_operation_busy' => '另一个文件移动操作正在进行中，请稍后重试',
 ];

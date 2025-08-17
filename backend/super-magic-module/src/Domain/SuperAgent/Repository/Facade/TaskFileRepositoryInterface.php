@@ -96,8 +96,6 @@ interface TaskFileRepositoryInterface
      */
     public function updateById(TaskFileEntity $entity): TaskFileEntity;
 
-    public function updateFileByCondition(array $condition, array $data): bool;
-
     /**
      * 删除文件.
      */
@@ -204,22 +202,4 @@ interface TaskFileRepositoryInterface
     public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
-
-    /**
-     * Lock and get direct children of a directory for update.
-     * Used for atomic file sorting operations.
-     *
-     * @param int $parentId Parent directory ID
-     * @return array array of file records with file_id, sort, etc
-     */
-    public function lockDirectChildrenForUpdate(int $parentId): array;
-
-    /**
-     * Get all children of a directory by parent ID.
-     * Used for rebalancing operations.
-     *
-     * @param int $parentId Parent directory ID
-     * @return array Array of file records
-     */
-    public function getAllChildrenByParentId(int $parentId): array;
 }

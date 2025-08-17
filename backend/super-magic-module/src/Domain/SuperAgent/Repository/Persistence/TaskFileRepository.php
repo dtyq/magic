@@ -306,8 +306,8 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     public function updateFileByCondition(array $condition, array $data): bool
     {
         return $this->model::query()
-            ->where($condition)
-            ->update($data) > 0;
+                ->where($condition)
+                ->update($data) > 0;
     }
 
     public function deleteById(int $id): void
