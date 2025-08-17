@@ -116,6 +116,12 @@ Router::addGroup(
                 // 检查批量下载状态
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
+
+            // 批量操作状态查询
+            Router::addGroup('/batch-operation', static function () {
+                // 检查批量操作状态
+                Router::get('/check', [FileApi::class, 'checkBatchOperationStatus']);
+            });
         });
 
         Router::addGroup('/sandbox', static function () {
