@@ -132,8 +132,7 @@ class LLMCallNodeRunnerTest extends ExecuteManagerBaseTest
         "temperature": 0.5
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(<<<'JSON'

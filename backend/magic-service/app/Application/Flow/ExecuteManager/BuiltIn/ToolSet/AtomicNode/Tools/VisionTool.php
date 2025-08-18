@@ -173,8 +173,7 @@ class VisionTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            , true)));
+JSON, true)));
         return $input;
     }
 
@@ -224,8 +223,7 @@ JSON
         }
     }
 }
-JSON
-            , true)));
+JSON, true)));
         return $output;
     }
 
