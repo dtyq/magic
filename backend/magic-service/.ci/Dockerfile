@@ -43,6 +43,8 @@ ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
 #    php -v && \
 #    php -dextension=pcov --ri pcov
 
+WORKDIR /opt/www
+COPY . /opt/www
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
 #    apk update && \
