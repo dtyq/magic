@@ -919,6 +919,17 @@ class MagicChatMessageAppService extends MagicSeqAppService
         return array_values($userMessages);
     }
 
+    public function getMagicSeqEntity(string $magicMessageId, ConversationType $controlMessageType): ?MagicSeqEntity
+    {
+        $seqEntities = $this->magicSeqDomainService->getSeqEntitiesByMagicMessageId($magicMessageId);
+        foreach ($seqEntities as $seqEntity) {
+            if ($seqEntity->getObjectType() === $controlMessageType) {
+                return $seqEntity;
+            }
+        }
+        return null;
+    }
+
     /**
      * Check the legality of editing a message.
      * Verify that the message to be edited meets one of the following conditions:
