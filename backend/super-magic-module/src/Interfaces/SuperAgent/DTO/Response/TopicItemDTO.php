@@ -48,6 +48,11 @@ class TopicItemDTO extends AbstractDTO
     protected string $projectId = '';
 
     /**
+     * @var string 工作区ID
+     */
+    protected string $workspaceId = '';
+
+    /**
      * @var string 话题模式
      */
     protected string $topicMode = '';
@@ -75,7 +80,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTopicName($entity->getTopicName());
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
-        $dto->setTopicMode($entity->getTopicMode()->value ?? '');
+        $dto->setWorkspaceId($entity->getWorkspaceId() ? (string) $entity->getWorkspaceId() : '');
         $dto->setTopicMode($entity->getTopicMode()->value ?? '');
         $dto->setSandboxId($entity->getSandboxId());
         $dto->setUpdatedAt($entity->getUpdatedAt());
@@ -159,6 +164,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getWorkspaceId(): string
+    {
+        return $this->workspaceId;
+    }
+
+    public function setWorkspaceId(string $workspaceId): self
+    {
+        $this->workspaceId = $workspaceId;
+        return $this;
+    }
+
     public function getTopicMode(): string
     {
         return $this->topicMode;
@@ -205,6 +221,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->topicName = $data['topic_name'] ?? $data['name'] ?? '';
         $dto->taskStatus = $data['task_status'] ?? $data['current_task_status'] ?? '';
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
+        $dto->workspaceId = isset($data['workspace_id']) ? (string) $data['workspace_id'] : '';
         $dto->topicMode = $data['topic_mode'] ?? 'general';
         $dto->sandboxId = $data['sandbox_id'] ?? '';
         $dto->updatedAt = $data['updated_at'] ?? '';
@@ -226,6 +243,7 @@ class TopicItemDTO extends AbstractDTO
             'topic_name' => $this->topicName,
             'task_status' => $this->taskStatus,
             'project_id' => $this->projectId,
+            'workspace_id' => $this->workspaceId,
             'topic_mode' => $this->topicMode,
             'sandbox_id' => $this->sandboxId,
             'updated_at' => $this->updatedAt,
