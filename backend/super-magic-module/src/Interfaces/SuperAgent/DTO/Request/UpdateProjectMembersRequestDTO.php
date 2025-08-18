@@ -51,7 +51,7 @@ class UpdateProjectMembersRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'members' => 'required|array|min:1|max:100',
+            'members' => 'nullable|array|min:0|max:500',
             'members.*.target_type' => 'required|string|in:User,Department',
             'members.*.target_id' => 'required|string|max:128',
         ];
