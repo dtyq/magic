@@ -565,6 +565,62 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     }
 
     /**
+     * Set object metadata by credential.
+     *
+     * @param string $organizationCode Organization code for data isolation
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @throws Throwable
+     */
+    public function setHeadObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        array $metadata,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        try {
+            // Security check: validate if object key belongs to organization code
+            if (! Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Set object metadata failed: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                throw new InvalidArgumentException('Object key does not belong to specified organization');
+            }
+
+            $filesystem = $this->getFilesystem($bucketType->value);
+            $credentialPolicy = new CredentialPolicy([
+                'sts' => true,
+                'role_session_name' => 'magic',
+                'dir' => '',  // No dir restriction for setting object metadata
+                'expires' => $options['expires'] ?? 3600,
+            ]);
+
+            $filesystem->setHeadObjectByCredential($credentialPolicy, $objectKey, $metadata, $this->getOptions($organizationCode, $options));
+
+            $this->logger->info('set_head_object_by_credential_success', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'metadata_count' => count($metadata),
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('set_head_object_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'object_key' => $objectKey,
+                'bucket_type' => $bucketType->value,
+                'metadata_count' => count($metadata),
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
      * Create object by credential (file or folder).
      *
      * @param string $prefix Prefix
@@ -722,11 +778,6 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'expires' => $options['expires'] ?? 3600,
             ]);
 
-            // Set default filename if not provided
-            if (! isset($options['filename'])) {
-                $options['filename'] = basename($objectKey);
-            }
-
             // Set default HTTP method
             if (! isset($options['method'])) {
                 $options['method'] = 'GET';
@@ -740,7 +791,6 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'bucket_type' => $bucketType->value,
                 'method' => $options['method'],
                 'expires' => $options['expires'] ?? 3600,
-                'filename' => $options['filename'],
                 'url_length' => strlen($preSignedUrl),
             ]);
 
