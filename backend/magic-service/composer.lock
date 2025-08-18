@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "44dd6af910ca95c9d02f0425af323283",
+    "content-hash": "956a11aef7a0997737dfc8cf5e7334e4",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1892,12 +1892,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "b0940fa93121e78bdd52687a49b7f3f3bd38390a"
+                "reference": "2f44d9fc8c54d3e26c9db91a8b48b1b0fdb56510"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=b0940fa93121e78bdd52687a49b7f3f3bd38390a",
-                "reference": "b0940fa93121e78bdd52687a49b7f3f3bd38390a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=2f44d9fc8c54d3e26c9db91a8b48b1b0fdb56510",
+                "reference": "2f44d9fc8c54d3e26c9db91a8b48b1b0fdb56510",
                 "shasum": ""
             },
             "require": {
@@ -1977,7 +1977,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-18T06:01:12+00:00"
+            "time": "2025-08-18T07:01:42+00:00"
         },
         {
             "name": "dtyq/cloudfile",
