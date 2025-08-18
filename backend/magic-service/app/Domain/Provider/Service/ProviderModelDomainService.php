@@ -111,4 +111,9 @@ readonly class ProviderModelDomainService
     {
         $this->providerModelRepository->deleteByModelParentIds($dataIsolation, $modelParentIds);
     }
+
+    public function getModelById(string $id): ?ProviderModelEntity
+    {
+        return $this->providerModelRepository->getModelByIdWithoutOrgFilter($id);
+    }
 }
