@@ -253,4 +253,19 @@ class ProviderEntity extends AbstractEntity
             $this->description = $this->translate['description'][$languages];
         }
     }
+
+    /**
+     * 获取本地化的服务商名称.
+     */
+    public function getLocalizedName(string $locale): string
+    {
+        $name = $this->translate['name'][$locale]
+            ?? $this->translate['name']['zh_CN']
+            ?? $this->translate['name']['en_US']
+            ?? $this->name;
+        if (empty($name)) {
+            $name = $this->name;
+        }
+        return $name;
+    }
 }

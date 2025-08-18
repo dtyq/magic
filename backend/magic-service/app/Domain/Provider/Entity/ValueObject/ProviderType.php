@@ -21,4 +21,9 @@ enum ProviderType: int
             self::Custom => '自定义',
         };
     }
+
+    public function isCustom(): bool
+    {
+        return $this === self::Custom;
+    }
 }
