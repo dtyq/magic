@@ -62,4 +62,6 @@ interface DataIsolationInterface
     public function setOfficialOrganizationCodes(array $officialOrganizationCodes): void;
 
     public function isOfficialOrganization(): bool;
+
+    public function getLanguage(): string;
 }
