@@ -7,8 +7,7 @@ FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.4-alp
 ARG timezone
 
 ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
-    SCAN_CACHEABLE=(true) \
-    USE_ZEND_ALLOC=0
+    SCAN_CACHEABLE=(true)
 #RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
 #    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
 #    # apk安装构建工具
