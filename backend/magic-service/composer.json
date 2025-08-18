@@ -33,7 +33,6 @@
         "dtyq/php-mcp": "0.1.*",
         "dtyq/rule-engine-core": "~0.1",
         "dtyq/sdk-base": "~0.1",
-        "dtyq/super-magic-module": "^v0.0",
         "dtyq/task-scheduler": "~0.1",
         "dtyq/tiptap": "~0.1",
         "facile-it/php-openid-client": "^0.3.5",
@@ -49,7 +48,6 @@
         "hyperf/engine-swow": "^2.12",
         "hyperf/guzzle": "~3.1.0",
         "hyperf/http-message": "~3.1.0",
-        "hyperf/laminas-mime": "^3.0",
         "hyperf/logger": "~3.1.0",
         "hyperf/migration-generator": "~3.1.0",
         "hyperf/odin": "^v1.0",
@@ -81,7 +79,6 @@
         "volcengine/volc-sdk-php": "^1.0",
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
-        "dtyq/php-mcp": "0.1.*",
         "dtyq/super-magic-module": "dev-enterprise-master",
         "dtyq/magic-enterprise-service": "dev-master"
     },
