@@ -62,6 +62,7 @@
         "hyperf/validation": "^3.1",
         "hyperf/websocket-client": "^3.1",
         "hyperf/websocket-server": "~3.1.0",
+        "hyperf/laminas-mime": "^3.0",
         "james-heinrich/getid3": "^1.9",
         "jetbrains/phpstorm-attributes": "~1.2",
         "limingxinleo/feishu": "^4.2",
