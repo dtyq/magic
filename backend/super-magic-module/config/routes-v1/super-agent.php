@@ -163,13 +163,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::put('/{id}', [SuperAgentMemoryApi::class, 'agentUpdateMemory']);
         Router::delete('/{id}', [SuperAgentMemoryApi::class, 'deleteMemory']);
     });
-
-    // 长期记忆管理（沙箱token验证已移到API层内部）
-    Router::addGroup('/memories', static function () {
-        Router::post('', [SuperAgentMemoryApi::class, 'createMemory']);
-        Router::put('/{id}', [SuperAgentMemoryApi::class, 'agentUpdateMemory']);
-        Router::delete('/{id}', [SuperAgentMemoryApi::class, 'deleteMemory']);
-    });
     // 文件相关
     Router::addGroup('/file', static function () {
         // 沙盒文件变更通知
