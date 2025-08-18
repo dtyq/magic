@@ -183,7 +183,7 @@ class SaveProviderModelDTO extends AbstractDTO
         return $this->superMagicDisplayState ?? null;
     }
 
-    public function setSuperMagicDisplayState(null|int|string $superMagicDisplayState): void
+    public function setSuperMagicDisplayState(null|bool|int|string $superMagicDisplayState): void
     {
         if ($superMagicDisplayState === null) {
             $this->superMagicDisplayState = null;
