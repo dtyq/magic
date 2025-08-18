@@ -91,13 +91,9 @@ class TopicAppService extends AbstractAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 判断工作区是否是本人
-        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail((int) $requestDTO->getWorkspaceId());
-        if ($workspaceEntity->getUserId() !== $userAuthorization->getId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
-        }
+        $this->workspaceDomainService->getWorkspaceDetail((int) $requestDTO->getWorkspaceId());
 
-        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $requestContext->getUserId(), $requestContext->getOrganizationCode());
 
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();

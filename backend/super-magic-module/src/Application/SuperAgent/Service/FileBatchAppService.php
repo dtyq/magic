@@ -67,10 +67,7 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Check topic access
-        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $userId);
-        if ($projectEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-        }
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userId, $userAuthorization->getOrganizationCode());
 
         // Permission validation: get user accessible files
         if (empty($requestDTO->getFileIds())) {

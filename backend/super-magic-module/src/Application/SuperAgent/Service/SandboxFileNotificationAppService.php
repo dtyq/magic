@@ -167,7 +167,7 @@ class SandboxFileNotificationAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'Project ID not found in metadata');
         }
 
-        return $this->projectDomainService->getProject((int) $projectId, $metadata->getUserId());
+        return $this->getAccessibleProject((int) $projectId, $metadata->getUserId(), $metadata->getOrganizationCode());
     }
 
     /**
