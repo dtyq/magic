@@ -29,6 +29,7 @@ use Tos\Model\ListObjectsInput;
 use Tos\Model\ObjectTobeDeleted;
 use Tos\Model\PreSignedURLInput;
 use Tos\Model\PutObjectInput;
+use Tos\Model\SetObjectMetaInput;
 use Tos\Model\UploadedPart;
 use Tos\Model\UploadPartInput;
 use Tos\TosClient;
@@ -1058,6 +1059,111 @@ class TosSimpleUpload extends SimpleUpload
                 'error' => $exception->getMessage(),
             ]);
             throw new CloudFileException('Delete objects failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Set object metadata by credential using TOS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param array $options Additional options
+     */
+    public function setHeadObjectByCredential(array $credential, string $objectKey, array $metadata, array $options = []): void
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create TOS SDK client
+            $tosClient = new TosClient($sdkConfig);
+
+            $this->sdkContainer->getLogger()->info('TOS setHeadObjectByCredential request', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'metadata_count' => count($metadata),
+            ]);
+
+            // Create set object meta input
+            $setMetaInput = new SetObjectMetaInput($sdkConfig['bucket'], $objectKey);
+
+            // Set standard HTTP headers if provided
+            if (isset($metadata['content_type'])) {
+                $setMetaInput->setContentType($metadata['content_type']);
+            }
+            if (isset($metadata['content_disposition'])) {
+                $setMetaInput->setContentDisposition($metadata['content_disposition']);
+            }
+            if (isset($metadata['content_encoding'])) {
+                $setMetaInput->setContentEncoding($metadata['content_encoding']);
+            }
+            if (isset($metadata['content_language'])) {
+                $setMetaInput->setContentLanguage($metadata['content_language']);
+            }
+            if (isset($metadata['cache_control'])) {
+                $setMetaInput->setCacheControl($metadata['cache_control']);
+            }
+            if (isset($metadata['expires'])) {
+                $setMetaInput->setExpires($metadata['expires']);
+            }
+
+            // Set custom metadata (x-tos-meta-* headers)
+            $customMeta = [];
+            foreach ($metadata as $key => $value) {
+                // Skip standard HTTP headers
+                if (in_array($key, ['content_type', 'content_disposition', 'content_encoding', 'content_language', 'cache_control', 'expires'])) {
+                    continue;
+                }
+                // Add custom metadata
+                $customMeta[$key] = (string) $value;
+            }
+
+            if (! empty($customMeta)) {
+                $setMetaInput->setMeta($customMeta);
+            }
+
+            // Execute set object metadata
+            $setMetaOutput = $tosClient->setObjectMeta($setMetaInput);
+
+            $this->sdkContainer->getLogger()->info('set_object_meta_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'request_id' => $setMetaOutput->getRequestId(),
+                'metadata_count' => count($metadata),
+            ]);
+        } catch (TosClientException $exception) {
+            $this->sdkContainer->getLogger()->error('set_object_meta_client_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('TOS SDK client error: ' . $exception->getMessage(), 0, $exception);
+        } catch (TosServerException $exception) {
+            $this->sdkContainer->getLogger()->error('set_object_meta_server_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'request_id' => $exception->getRequestId(),
+                'status_code' => $exception->getStatusCode(),
+                'error_code' => $exception->getErrorCode(),
+            ]);
+            throw new CloudFileException(
+                sprintf(
+                    'TOS server error: %s (RequestId: %s, StatusCode: %d)',
+                    $exception->getErrorCode(),
+                    $exception->getRequestId(),
+                    $exception->getStatusCode()
+                ),
+                0,
+                $exception
+            );
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('set_object_meta_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Set object metadata failed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 
