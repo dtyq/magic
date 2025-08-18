@@ -71,6 +71,8 @@ Router::addGroup(
             Router::post('/delete', [TopicApi::class, 'deleteTopic']);
             // 智能重命名话题
             Router::post('/rename', [TopicApi::class, 'renameTopic']);
+            // 回滚检查点
+            Router::post('/{id}/checkpoint/rollback', [TopicApi::class, 'rollbackCheckpoint']);
         });
 
         // 任务相关
@@ -123,8 +125,6 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
-            // 回滚检查点
-            Router::post('/checkpoint/rollback', [SandboxApi::class, 'rollbackCheckpoint']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
@@ -163,7 +163,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
         Router::put('/{id}', [SuperAgentMemoryApi::class, 'agentUpdateMemory']);
         Router::delete('/{id}', [SuperAgentMemoryApi::class, 'deleteMemory']);
     });
-
     // 文件相关
     Router::addGroup('/file', static function () {
         // 沙盒文件变更通知

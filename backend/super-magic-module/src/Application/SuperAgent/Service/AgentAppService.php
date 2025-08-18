@@ -7,16 +7,13 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Infrastructure\Core\Exception\BusinessException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
@@ -40,9 +37,7 @@ class AgentAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private readonly AgentDomainService $agentDomainService,
-        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TopicDomainService $topicDomainService,
-        private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
@@ -68,21 +63,6 @@ class AgentAppService
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult
     {
         return $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
-    }
-
-    /**
-     * 初始化Agent.
-     */
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
-    {
-        // user long term memory
-        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-        );
-
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
     }
 
     /**
@@ -257,6 +237,59 @@ class AgentAppService
     }
 
     /**
+     * 回滚到指定的checkpoint.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $targetMessageId 目标消息ID
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpoint(string $sandboxId, string $targetMessageId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint requested', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        // 执行沙箱回滚
+        $response = $this->agentDomainService->rollbackCheckpoint($sandboxId, $targetMessageId);
+
+        // 沙箱回滚失败，记录日志并提前返回
+        if (! $response->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Checkpoint rollback failed', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+                'code' => $response->getCode(),
+                'message' => $response->getMessage(),
+            ]);
+
+            // 沙箱回滚失败，不执行消息回滚
+            $this->logger->info('[Sandbox][App] Skipping message rollback due to sandbox rollback failure', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+            ]);
+
+            return $response;
+        }
+
+        // 沙箱回滚成功，记录日志并执行消息回滚
+        $this->logger->info('[Sandbox][App] Checkpoint rollback successful', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+            'sandbox_response' => $response->getMessage(),
+        ]);
+
+        // 执行消息回滚
+        $this->topicDomainService->rollbackMessages($targetMessageId);
+
+        $this->logger->info('[Sandbox][App] Message rollback completed successfully', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        return $response;
+    }
+
+    /**
      * 创建并初始化沙箱.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
@@ -316,58 +349,5 @@ class AgentAppService
         $this->waitForWorkspaceReady($sandboxId, 60, 2);
 
         return $sandboxId;
-    }
-
-    /**
-     * 回滚到指定的checkpoint.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @param string $targetMessageId 目标消息ID
-     * @return AgentResponse 回滚响应
-     */
-    public function rollbackCheckpoint(string $sandboxId, string $targetMessageId): AgentResponse
-    {
-        $this->logger->info('[Sandbox][App] Rollback checkpoint requested', [
-            'sandbox_id' => $sandboxId,
-            'target_message_id' => $targetMessageId,
-        ]);
-
-        // 执行沙箱回滚
-        $response = $this->agentDomainService->rollbackCheckpoint($sandboxId, $targetMessageId);
-
-        // 沙箱回滚失败，记录日志并提前返回
-        if (!$response->isSuccess()) {
-            $this->logger->error('[Sandbox][App] Checkpoint rollback failed', [
-                'sandbox_id' => $sandboxId,
-                'target_message_id' => $targetMessageId,
-                'code' => $response->getCode(),
-                'message' => $response->getMessage(),
-            ]);
-
-            // 沙箱回滚失败，不执行消息回滚
-            $this->logger->info('[Sandbox][App] Skipping message rollback due to sandbox rollback failure', [
-                'sandbox_id' => $sandboxId,
-                'target_message_id' => $targetMessageId
-            ]);
-
-            return $response;
-        }
-
-        // 沙箱回滚成功，记录日志并执行消息回滚
-        $this->logger->info('[Sandbox][App] Checkpoint rollback successful', [
-            'sandbox_id' => $sandboxId,
-            'target_message_id' => $targetMessageId,
-            'sandbox_response' => $response->getMessage()
-        ]);
-
-        // 执行消息回滚
-        $this->topicDomainService->rollbackMessages($targetMessageId);
-
-        $this->logger->info('[Sandbox][App] Message rollback completed successfully', [
-            'sandbox_id' => $sandboxId,
-            'target_message_id' => $targetMessageId
-        ]);
-
-        return $response;
     }
 }
