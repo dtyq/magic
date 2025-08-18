@@ -11,10 +11,6 @@ use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
 
 enum PermissionErrorCode: int
 {
-    // 没有权限，编码保持和 UserErrorCode::ORGANIZATION_NOT_AUTHORIZE 一致
-    #[ErrorMessage(message: 'permission.access_denied')]
-    case AccessDenied = 2185;
-
     #[ErrorMessage(message: 'permission.error')]
     case Error = 42000;
 
@@ -23,6 +19,9 @@ enum PermissionErrorCode: int
 
     #[ErrorMessage(message: 'permission.business_exception')]
     case BusinessException = 42002;
+
+    #[ErrorMessage(message: 'permission.access_denied')]
+    case AccessDenied = 42003;
 
     // 组织相关错误码
     #[ErrorMessage(message: 'permission.organization_code_required')]
