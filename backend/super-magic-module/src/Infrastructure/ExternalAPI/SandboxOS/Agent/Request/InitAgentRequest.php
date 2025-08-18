@@ -80,7 +80,21 @@ class InitAgentRequest
         string $workDir = '',
         ?string $memory = null
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $chatHistoryDir, $workDir, $memory);
+        return new self(
+            $messageId,
+            $userId,
+            $projectId,
+            $uploadConfig,
+            $messageSubscriptionConfig,
+            $stsTokenRefresh,
+            $metadata,
+            $taskMode,
+            $agentMode,
+            $magicServiceHost,
+            $chatHistoryDir,
+            $workDir,
+            $memory
+        );
     }
 
     /**

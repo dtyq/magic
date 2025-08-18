@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -57,21 +56,6 @@ class AgentAppService
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult
     {
         return $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
-    }
-
-    /**
-     * 初始化Agent.
-     */
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
-    {
-        // user long term memory
-        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-        );
-
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
     }
 
     /**
