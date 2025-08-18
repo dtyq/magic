@@ -164,8 +164,7 @@ class UserSearchTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;

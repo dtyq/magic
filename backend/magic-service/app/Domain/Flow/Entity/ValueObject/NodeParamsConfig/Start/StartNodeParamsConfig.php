@@ -455,8 +455,7 @@ JSON;
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $output;

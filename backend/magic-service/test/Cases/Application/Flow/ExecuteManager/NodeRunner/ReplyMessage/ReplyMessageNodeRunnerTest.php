@@ -49,8 +49,7 @@ class ReplyMessageNodeRunnerTest extends ExecuteManagerBaseTest
     "link": null,
     "link_desc": null
 }
-JSON
-            , true));
+JSON, true));
         $node->setDebug(true);
 
         $runner = NodeRunnerFactory::make($node);
@@ -89,8 +88,7 @@ JSON
     "link": null,
     "link_desc": null
 }
-JSON
-            , true));
+JSON, true));
         $node->setDebug(true);
 
         $runner = NodeRunnerFactory::make($node);
@@ -167,8 +165,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
         $node->setDebug(true);
 
         $runner = NodeRunnerFactory::make($node);
@@ -261,8 +258,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();
@@ -333,8 +329,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();
@@ -406,8 +401,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();
@@ -484,8 +478,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();
@@ -559,8 +552,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();
@@ -632,8 +624,7 @@ JSON
         }
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();

@@ -87,8 +87,7 @@ class VariableSetNodeRunnerTest extends ExecuteManagerBaseTest
         "page": null
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();

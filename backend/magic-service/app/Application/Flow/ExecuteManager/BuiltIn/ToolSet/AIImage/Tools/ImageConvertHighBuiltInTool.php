@@ -179,8 +179,7 @@ class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;

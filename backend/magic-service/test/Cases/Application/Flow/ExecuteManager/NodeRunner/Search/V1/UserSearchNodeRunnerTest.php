@@ -72,8 +72,7 @@ class UserSearchNodeRunnerTest extends ExecuteManagerBaseTest
     ]
 }
 
-JSON
-            , true), 'v1');
+JSON, true), 'v1');
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(
             <<<'JSON'
@@ -150,8 +149,7 @@ JSON,
     ]
 }
 
-JSON
-            , true), 'v1');
+JSON, true), 'v1');
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(
             <<<'JSON'
@@ -249,8 +247,7 @@ JSON,
     ]
 }
 
-JSON
-            , true), 'v1');
+JSON, true), 'v1');
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(
             <<<'JSON'

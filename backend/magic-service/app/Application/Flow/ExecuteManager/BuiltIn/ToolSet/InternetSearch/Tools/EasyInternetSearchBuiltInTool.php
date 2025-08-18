@@ -108,8 +108,7 @@ class EasyInternetSearchBuiltInTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;
@@ -206,8 +205,7 @@ JSON
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $output;

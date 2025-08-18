@@ -87,8 +87,7 @@ class StartNodeRunnerTest extends ExecuteManagerBaseTest
         }
     ]
 }
-JSON
-            , true));
+JSON, true));
         $operator = $this->getOperator();
         $triggerData = new TriggerData(
             triggerTime: new DateTime(),
@@ -734,8 +733,7 @@ JSON,
         }
     ]
 }
-JSON
-            , true));
+JSON, true));
 
         $runner = NodeRunnerFactory::make($node);
         $vertexResult = new VertexResult();

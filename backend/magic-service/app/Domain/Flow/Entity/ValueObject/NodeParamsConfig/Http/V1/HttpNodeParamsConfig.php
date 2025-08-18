@@ -88,8 +88,7 @@ class HttpNodeParamsConfig extends NodeParamsConfig
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         $this->node->setSystemOutput($systemOutput);

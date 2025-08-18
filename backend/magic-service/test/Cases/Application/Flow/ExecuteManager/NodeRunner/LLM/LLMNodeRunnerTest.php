@@ -59,8 +59,7 @@ class LLMNodeRunnerTest extends ExecuteManagerBaseTest
         "max_record": 10
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(<<<'JSON'
@@ -159,8 +158,7 @@ JSON, true)));
         "max_record": 10
     }
 }
-JSON
-            , true));
+JSON, true));
 
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::generateTemplate(StructureType::Form));
@@ -222,8 +220,7 @@ JSON
     },
     "max_record": 10
 }
-JSON
-            , true));
+JSON, true));
 
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(<<<'JSON'
@@ -597,8 +594,7 @@ JSON, true)));
         "max_record": 10
     }
 }
-JSON
-            , true), 'v1');
+JSON, true), 'v1');
 
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::generateTemplate(StructureType::Form));
@@ -653,8 +649,7 @@ JSON
         "max_record": 10
     }
 }
-JSON
-            , true), 'v1');
+JSON, true), 'v1');
 
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::generateTemplate(StructureType::Form));
