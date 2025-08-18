@@ -306,7 +306,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
         AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds));
-        $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+        $this->logger->info(sprintf('Dispatched task start event for , topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
     /**
@@ -419,6 +419,7 @@ class HandleUserMessageAppService extends AbstractAppService
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
         $taskMessageEntity->setProcessingStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
+        $this->logger->info(sprintf('Saved user message, task id: %s, message id: %s, im seq id: %d', $taskEntity->getId(), $taskMessageEntity->getId(), $taskMessageEntity->getImSeqId()));
         $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
         // Process user uploaded attachments

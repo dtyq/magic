@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "98ce7931e8d7270f94139e3e07046427",
+    "content-hash": "d953d1cdaacf31fe7e9c1a9c8031ff44",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.353.0",
+            "version": "3.354.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "73a28b9be8b465af1dd02b6a1b23fca4b145c36b"
+                "reference": "6aa524596cd83416085777a3bd037d06a70b5c65"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/73a28b9be8b465af1dd02b6a1b23fca4b145c36b",
-                "reference": "73a28b9be8b465af1dd02b6a1b23fca4b145c36b",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6aa524596cd83416085777a3bd037d06a70b5c65",
+                "reference": "6aa524596cd83416085777a3bd037d06a70b5c65",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.353.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.354.1"
             },
-            "time": "2025-08-13T18:05:58+00:00"
+            "time": "2025-08-15T18:05:41+00:00"
         },
         {
             "name": "brick/math",
@@ -1892,12 +1892,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "6a6adc57a67deb284ebde0a1e894be70d1f9699b"
+                "reference": "032b90fc0c0085e26f0ed28bd282a5e8a7d4c81e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=6a6adc57a67deb284ebde0a1e894be70d1f9699b",
-                "reference": "6a6adc57a67deb284ebde0a1e894be70d1f9699b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=032b90fc0c0085e26f0ed28bd282a5e8a7d4c81e",
+                "reference": "032b90fc0c0085e26f0ed28bd282a5e8a7d4c81e",
                 "shasum": ""
             },
             "require": {
@@ -1977,20 +1977,20 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-13T14:52:35+00:00"
+            "time": "2025-08-16T07:02:56+00:00"
         },
         {
             "name": "dtyq/cloudfile",
-            "version": "dev-enterprise-master",
+            "version": "v0.1.12",
             "source": {
                 "type": "git",
-                "url": "git@git.kkgroup.cn:dtyq/cloudfile.git",
-                "reference": "9603c5e6637851f58fe46614860995acf17cc0de"
+                "url": "https://github.com/dtyq/cloudfile.git",
+                "reference": "30c3d95e0ca7a6d1a74fc4696b91c519367a5b38"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fcloudfile/repository/archive.zip?sha=9603c5e6637851f58fe46614860995acf17cc0de",
-                "reference": "9603c5e6637851f58fe46614860995acf17cc0de",
+                "url": "https://api.github.com/repos/dtyq/cloudfile/zipball/30c3d95e0ca7a6d1a74fc4696b91c519367a5b38",
+                "reference": "30c3d95e0ca7a6d1a74fc4696b91c519367a5b38",
                 "shasum": ""
             },
             "require": {
@@ -2038,22 +2038,7 @@
                     "Dtyq\\CloudFile\\": "src"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Dtyq\\CloudFile\\Tests\\": "tests"
-                }
-            },
-            "scripts": {
-                "cs-fix": [
-                    "php-cs-fixer fix $1"
-                ],
-                "test": [
-                    "./vendor/bin/phpunit"
-                ],
-                "analyse": [
-                    "phpstan analyse --memory-limit 1024M -c phpstan.neon"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "Apache-2.0"
             ],
@@ -2065,9 +2050,10 @@
             ],
             "description": "Package description here.",
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/cloudfile/-/tree/enterprise-master"
+                "issues": "https://github.com/dtyq/cloudfile/issues",
+                "source": "https://github.com/dtyq/cloudfile/tree/v0.1.12"
             },
-            "time": "2025-08-14T14:02:17+08:00"
+            "time": "2025-08-15T11:18:37+00:00"
         },
         {
             "name": "dtyq/easy-dingtalk",
@@ -2210,12 +2196,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "b9cbf267376c47c75f549cfd8830a09e61e942ae"
+                "reference": "196e5d5026799cf96a2297c7b8218e1a18ec9ee8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b9cbf267376c47c75f549cfd8830a09e61e942ae",
-                "reference": "b9cbf267376c47c75f549cfd8830a09e61e942ae",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=196e5d5026799cf96a2297c7b8218e1a18ec9ee8",
+                "reference": "196e5d5026799cf96a2297c7b8218e1a18ec9ee8",
                 "shasum": ""
             },
             "require": {
@@ -2318,7 +2304,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-14T15:13:54+08:00"
+            "time": "2025-08-17T07:36:09+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2588,12 +2574,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "9072441258c0961c5cb2ea0324b047155c59c78c"
+                "reference": "fa5c25e67d36c6eb989ae1dc51f016998e175f41"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=9072441258c0961c5cb2ea0324b047155c59c78c",
-                "reference": "9072441258c0961c5cb2ea0324b047155c59c78c",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=fa5c25e67d36c6eb989ae1dc51f016998e175f41",
+                "reference": "fa5c25e67d36c6eb989ae1dc51f016998e175f41",
                 "shasum": ""
             },
             "require": {
@@ -2687,7 +2673,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-14T17:50:50+08:00"
+            "time": "2025-08-16T00:35:33+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -3607,23 +3593,26 @@
         },
         {
             "name": "google/protobuf",
-            "version": "v4.31.1",
+            "version": "v4.32.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/protocolbuffers/protobuf-php.git",
-                "reference": "2b028ce8876254e2acbeceea7d9b573faad41864"
+                "reference": "9a9a92ecbe9c671dc1863f6d4a91ea3ea12c8646"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/protocolbuffers/protobuf-php/zipball/2b028ce8876254e2acbeceea7d9b573faad41864",
-                "reference": "2b028ce8876254e2acbeceea7d9b573faad41864",
+                "url": "https://api.github.com/repos/protocolbuffers/protobuf-php/zipball/9a9a92ecbe9c671dc1863f6d4a91ea3ea12c8646",
+                "reference": "9a9a92ecbe9c671dc1863f6d4a91ea3ea12c8646",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.0.0"
+                "php": ">=8.1.0"
+            },
+            "provide": {
+                "ext-protobuf": "*"
             },
             "require-dev": {
-                "phpunit/phpunit": ">=5.0.0"
+                "phpunit/phpunit": ">=5.0.0 <8.5.27"
             },
             "suggest": {
                 "ext-bcmath": "Need to support JSON deserialization"
@@ -3645,9 +3634,9 @@
                 "proto"
             ],
             "support": {
-                "source": "https://github.com/protocolbuffers/protobuf-php/tree/v4.31.1"
+                "source": "https://github.com/protocolbuffers/protobuf-php/tree/v4.32.0"
             },
-            "time": "2025-05-28T18:52:35+00:00"
+            "time": "2025-08-14T20:00:33+00:00"
         },
         {
             "name": "graham-campbell/result-type",
@@ -11945,16 +11934,16 @@
         },
         {
             "name": "swow/swow",
-            "version": "v1.6.0",
+            "version": "v1.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/swow/swow.git",
-                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810"
+                "reference": "0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/swow/swow/zipball/87305892ff5b7e82bb1daec4f9a5558ef4b28810",
-                "reference": "87305892ff5b7e82bb1daec4f9a5558ef4b28810",
+                "url": "https://api.github.com/repos/swow/swow/zipball/0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093",
+                "reference": "0a403efcf4073b5b193a86c5c8ecd1a9f8ffe093",
                 "shasum": ""
             },
             "require": {
@@ -12026,9 +12015,9 @@
             ],
             "support": {
                 "issues": "https://github.com/swow/swow",
-                "source": "https://github.com/swow/swow/tree/v1.6.0"
+                "source": "https://github.com/swow/swow/tree/v1.6.1"
             },
-            "time": "2025-08-03T07:10:21+00:00"
+            "time": "2025-08-10T22:24:12+00:00"
         },
         {
             "name": "symfony/cache",
@@ -14392,16 +14381,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.154",
+            "version": "v1.0.155",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "6706998c7fc6bc8fcb7b332ca804a2969ebb8414"
+                "reference": "b70599efc34642243fe35dc03f06d151a22c9959"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/6706998c7fc6bc8fcb7b332ca804a2969ebb8414",
-                "reference": "6706998c7fc6bc8fcb7b332ca804a2969ebb8414",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/b70599efc34642243fe35dc03f06d151a22c9959",
+                "reference": "b70599efc34642243fe35dc03f06d151a22c9959",
                 "shasum": ""
             },
             "require": {
@@ -14436,9 +14425,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.154"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.155"
             },
-            "time": "2025-08-07T12:06:59+00:00"
+            "time": "2025-08-14T12:04:53+00:00"
         },
         {
             "name": "w7corp/easywechat",
@@ -16480,16 +16469,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.51",
+            "version": "10.5.52",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "ace160e31aaa317a99c411410c40c502b4be42a4"
+                "reference": "5be558244941fba07788b6bb42dc5fc84429580c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/ace160e31aaa317a99c411410c40c502b4be42a4",
-                "reference": "ace160e31aaa317a99c411410c40c502b4be42a4",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/5be558244941fba07788b6bb42dc5fc84429580c",
+                "reference": "5be558244941fba07788b6bb42dc5fc84429580c",
                 "shasum": ""
             },
             "require": {
@@ -16561,7 +16550,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.51"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.52"
             },
             "funding": [
                 {
@@ -16585,7 +16574,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-12T07:31:25+00:00"
+            "time": "2025-08-16T05:17:33+00:00"
         },
         {
             "name": "react/cache",
@@ -17119,12 +17108,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc"
+                "reference": "45efa5832686533f38dc0445a8b185f6d0649c2f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc",
-                "reference": "3aed1e89d8a5e2b6d350f0fdd21db0e7f49ab9dc",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/45efa5832686533f38dc0445a8b185f6d0649c2f",
+                "reference": "45efa5832686533f38dc0445a8b185f6d0649c2f",
                 "shasum": ""
             },
             "conflict": {
@@ -17533,7 +17522,7 @@
                 "luyadev/yii-helpers": "<1.2.1",
                 "macropay-solutions/laravel-crud-wizard-free": "<3.4.17",
                 "maestroerror/php-heic-to-jpg": "<1.0.5",
-                "magento/community-edition": "<2.4.5.0-patch13|==2.4.6|>=2.4.6.0-patch1,<2.4.6.0-patch11|>=2.4.7.0-beta1,<2.4.7.0-patch6|>=2.4.8.0-beta1,<2.4.8.0-patch1",
+                "magento/community-edition": "<2.4.5.0-patch14|==2.4.6|>=2.4.6.0-patch1,<2.4.6.0-patch12|>=2.4.7.0-beta1,<2.4.7.0-patch7|>=2.4.8.0-beta1,<2.4.8.0-patch1",
                 "magento/core": "<=1.9.4.5",
                 "magento/magento1ce": "<1.9.4.3-dev",
                 "magento/magento1ee": ">=1,<1.14.4.3-dev",
@@ -18074,7 +18063,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-14T00:22:26+00:00"
+            "time": "2025-08-15T23:05:36+00:00"
         },
         {
             "name": "sebastian/cli-parser",
@@ -19458,7 +19447,6 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/cloudfile": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20

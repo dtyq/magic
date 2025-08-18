@@ -1466,6 +1466,20 @@ class TaskFileDomainService
         $taskFileEntity->setCreatedAt($now);
         $taskFileEntity->setUpdatedAt($now);
 
+        // Css file need to set content type
+        if (! $taskFileEntity->getIsDirectory() && ContentTypeUtil::isSetContentType($fileName)) {
+            try {
+                $this->cloudFileRepository->setHeadObjectByCredential(
+                    $organizationCode,
+                    $fileKey,
+                    ['content_type' => ContentTypeUtil::getContentType($fileName)],
+                    StorageBucketType::SandBox
+                );
+            } catch (Throwable $e) {
+                $this->logger->error('setHeadObjectByCredential error', ['file_name' => $fileName, 'msg' => $e->getMessage()]);
+            }
+        }
+
         $this->insert($taskFileEntity);
 
         return $taskFileEntity;
