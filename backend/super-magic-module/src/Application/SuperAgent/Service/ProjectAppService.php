@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -51,6 +52,7 @@ class ProjectAppService extends AbstractAppService
     public function __construct(
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly ProjectMemberDomainService $projectMemberDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
@@ -199,8 +201,14 @@ class ProjectAppService extends AbstractAppService
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 删除话题
-        $result = $this->projectDomainService->deleteProject($projectId, $dataIsolation->getCurrentUserId());
+        $result = Db::transaction(function () use ($projectId, $dataIsolation) {
+            // 删除话题
+            $result = $this->projectDomainService->deleteProject($projectId, $dataIsolation->getCurrentUserId());
+
+            // 删除项目协作关系
+            $this->projectMemberDomainService->deleteByProjectId($projectId);
+            return $result;
+        });
 
         if ($result) {
             $this->topicDomainService->deleteTopicsByProjectId($dataIsolation, $projectId);

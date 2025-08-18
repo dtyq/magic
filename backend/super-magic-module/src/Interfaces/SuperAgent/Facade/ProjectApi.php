@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
@@ -27,7 +28,8 @@ class ProjectApi extends AbstractApi
 {
     public function __construct(
         protected RequestInterface $request,
-        private readonly ProjectAppService $projectAppService
+        private readonly ProjectAppService $projectAppService,
+        private readonly ProjectMemberAppService $projectMemberAppService
     ) {
         parent::__construct($request);
     }
@@ -98,6 +100,9 @@ class ProjectApi extends AbstractApi
 
         $requestDTO = GetProjectListRequestDTO::fromRequest($this->request);
 
+        if ($this->request->input('type') === 'collaboration') {
+            return $this->projectMemberAppService->getCollaborationProjectList($requestContext, $requestDTO);
+        }
         return $this->projectAppService->getProjectList($requestContext, $requestDTO);
     }
 

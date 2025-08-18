@@ -9,6 +9,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SuperAgentMemoryApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
@@ -55,6 +56,10 @@ Router::addGroup(
             Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
             // 获取附件列表
             Router::get('/{id}/cloud-files', [ProjectApi::class, 'getCloudFiles']);
+            // 获取项目协作成员
+            Router::get('/{id}/members', [ProjectMemberApi::class, 'getMembers']);
+            // 更新项目协作成员
+            Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
         });
 
         // 话题相关

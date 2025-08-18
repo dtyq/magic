@@ -158,6 +158,18 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.project_id_required')]
     case BATCH_PROJECT_ID_REQUIRED = 51207;
 
+    #[ErrorMessage('project.department_not_found')]
+    case DEPARTMENT_NOT_FOUND = 51208;
+
+    #[ErrorMessage('project.invalid_member_type')]
+    case INVALID_MEMBER_TYPE = 51209;
+
+    #[ErrorMessage('project.update_members_failed')]
+    case UPDATE_MEMBERS_FAILED = 51210;
+
+    #[ErrorMessage('project.member_validation_failed')]
+    case MEMBER_VALIDATION_FAILED = 51211;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;

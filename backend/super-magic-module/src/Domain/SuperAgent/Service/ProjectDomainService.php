@@ -113,7 +113,11 @@ class ProjectDomainService
 
     public function getProjectNotUserId(int $projectId): ProjectEntity
     {
-        return $this->projectRepository->findById($projectId);
+        $project = $this->projectRepository->findById($projectId);
+        if ($project === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
+        }
+        return $project;
     }
 
     /**
@@ -165,5 +169,20 @@ class ProjectDomainService
         $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $this->projectRepository->save($projectEntity);
         return true;
+    }
+
+    /**
+     * 根据项目ID数组批量获取项目信息
+     *
+     * @param array $projectIds 项目ID数组
+     * @return ProjectEntity[] 项目实体数组
+     */
+    public function getProjectsByIds(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        return $this->projectRepository->getProjectsByIds($projectIds);
     }
 }
