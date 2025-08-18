@@ -1,4 +1,4 @@
-FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.3-alpine-3.22-swow-ci-jsonpath-parle-xlswriter
+FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswriter
 
 ##
 # ---------- env settings ----------
