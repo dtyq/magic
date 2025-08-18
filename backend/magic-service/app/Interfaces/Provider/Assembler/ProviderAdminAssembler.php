@@ -101,6 +101,7 @@ class ProviderAdminAssembler
         $dto->setAlias($providerConfig->getAlias());
         $dto->setServiceProviderId($providerConfig->getServiceProviderId());
         $dto->setConfig($providerConfig->getConfig());
+        $dto->setSort($providerConfig->getSort());
 
         // 转换模型 Entity 为 DTO
         $modelDTOs = [];
