@@ -185,8 +185,5 @@
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/dtyq/billing-manager.git"
         }
-    ],
-    "replace": {
-        "laminas/laminas-mime": "2.12.0"
-    }
+    ]
 }
