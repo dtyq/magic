@@ -129,6 +129,9 @@ class ProviderConfigEntity extends AbstractEntity
             ?? $this->translate['alias']['zh_CN']
             ?? $this->translate['alias']['en_US']
             ?? $this->alias;
+        if ($alias) {
+            $alias = $this->alias;
+        }
         if (empty($alias)) {
             return $locale === 'zh_CN' ? '自定义服务商' : 'Custom Provider';
         }
