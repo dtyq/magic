@@ -71,21 +71,6 @@ class AgentAppService
     }
 
     /**
-     * 初始化Agent.
-     */
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
-    {
-        // user long term memory
-        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-        );
-
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
-    }
-
-    /**
      * 发送消息给 agent.
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void

@@ -63,6 +63,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -272,11 +273,12 @@ class HandleUserMessageAppService extends AbstractAppService
             );
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s stack: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
-                $e->getLine()
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
             $this->clientMessageAppService->sendErrorMessageToClient(
