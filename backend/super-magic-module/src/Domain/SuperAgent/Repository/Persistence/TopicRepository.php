@@ -564,13 +564,13 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
-     * 根据seq_id删除magic_super_agent_message表中对应话题的后续消息
+     * 根据im_seq_id删除magic_super_agent_message表中对应话题的后续消息
      */
     public function deleteSuperAgentMessagesFromSeqId(string $seqId): int
     {
         // 1. 根据seq_id查询对应的消息记录
         $targetMessage = TaskMessageModel::query()
-            ->where('seq_id', $seqId)
+            ->where('im_seq_id', $seqId)
             ->first(['id', 'topic_id']);
         
         if (!$targetMessage) {
