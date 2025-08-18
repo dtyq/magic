@@ -77,7 +77,8 @@ class ModelFilter
 
     public function isCheckVisibleApplication(): bool
     {
-        return $this->checkVisibleApplication;
+        // 新版使用套餐过滤器，应用可见性不需要检查了
+        return false;
     }
 
     public function setCheckVisibleApplication(bool $checkVisibleApplication): void
