@@ -50,4 +50,6 @@ interface ProviderModelRepositoryInterface
      * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和Magic模型（不去重）
      */
     public function getAvailableModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null): array;
+
+    public function getModelByIdWithoutOrgFilter(string $id): ?ProviderModelEntity;
 }
