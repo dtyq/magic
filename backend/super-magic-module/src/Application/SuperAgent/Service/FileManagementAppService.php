@@ -15,13 +15,16 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\DirectoryMovePublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
@@ -31,7 +34,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusR
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryMoveEvent;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
@@ -578,8 +581,8 @@ class FileManagementAppService extends AbstractAppService
                 // Initialize task status
                 $this->batchOperationStatusManager->initializeTask($batchKey, FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), 1);
                 // Publish move event
-                $event = new FileBatchMoveEvent($batchKey, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileId(), $projectEntity->getId(), $preFileId, $targetParentId);
-                $publisher = new FileBatchMovePublisher($event);
+                $event = new DirectoryMoveEvent($batchKey, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileId(), $projectEntity->getId(), $preFileId, $targetParentId);
+                $publisher = new DirectoryMovePublisher($event);
                 $this->producer->produce($publisher);
                 // Return asynchronous response
                 return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
@@ -702,6 +705,67 @@ class FileManagementAppService extends AbstractAppService
                 $downloadMode
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_urls_by_token_failed'));
+        }
+    }
+
+    /**
+     * Batch move files.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param BatchMoveFileRequestDTO $requestDTO Request DTO
+     * @return array Batch move result
+     */
+    public function batchMoveFile(RequestContext $requestContext, BatchMoveFileRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            // 1. Get project information
+            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+
+            // Generate batch key for tracking
+            $fileIds = $requestDTO->getFileIds();
+            sort($fileIds); // Ensure consistent hash for same file IDs
+            $fileIdsHash = md5(implode(',', $fileIds));
+            $batchKey = $this->batchOperationStatusManager->generateBatchKey(
+                FileBatchOperationStatusManager::OPERATION_MOVE, 
+                $dataIsolation->getCurrentUserId(), 
+                $fileIdsHash
+            );
+            
+            // Initialize task status
+            $fileCount = count($requestDTO->getFileIds());
+            $this->batchOperationStatusManager->initializeTask(
+                $batchKey, 
+                FileBatchOperationStatusManager::OPERATION_MOVE, 
+                $dataIsolation->getCurrentUserId(), 
+                $fileCount
+            );
+            
+            // Create and publish batch move event
+            $event = FileBatchMoveEvent::fromDTO($batchKey, $dataIsolation, $requestDTO);
+            $publisher = new FileBatchMovePublisher($event);
+            $this->producer->produce($publisher);
+            
+            // Return asynchronous response
+            return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
+            
+        } catch (BusinessException $e) {
+            $this->logger->warning('Business logic error in batch move file', [
+                'file_ids' => $requestDTO->getFileIds(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode()
+            ]);
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('System error in batch move file', [
+                'file_ids' => $requestDTO->getFileIds(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'error' => $e->getMessage()
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.batch_move_failed'));
         }
     }
 

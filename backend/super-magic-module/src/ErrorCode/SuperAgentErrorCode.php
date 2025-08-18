@@ -130,6 +130,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.convert_failed')]
     case FILE_CONVERT_FAILED = 51176;
 
+    #[ErrorMessage('file.move_operation_busy')]
+    case FILE_OPERATION_BUSY = 51177;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;
