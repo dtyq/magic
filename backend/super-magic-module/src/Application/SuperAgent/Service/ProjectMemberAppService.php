@@ -67,10 +67,8 @@ class ProjectMemberAppService extends AbstractAppService
             $memberEntities[] = $entity;
         }
 
-        // 2. 权限验证：检查用户是否有更新项目成员的权限
-        if (!$this->validateUpdatePermission($requestContext, $projectId)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-        }
+        // 2. 验证并获取可访问的项目
+        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
 
         // 3. 委托给Domain层处理业务逻辑
         $this->projectMemberDomainService->updateProjectMembers(
@@ -89,86 +87,13 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 验证用户是否有更新项目成员的权限
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param int $projectId 项目ID
-     * @return bool 是否有权限
-     */
-    private function validateUpdatePermission(RequestContext $requestContext, int $projectId): bool
-    {
-        // 1. 获取项目信息
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        if (!$project) {
-            return false;
-        }
-
-        // 2. 组织隔离检查
-        if ($project->getUserOrganizationCode() !== $requestContext->getOrganizationCode()) {
-            return false;
-        }
-
-        // 3. 检查是否为项目创建者
-        if ($project->getUserId() === $requestContext->getUserId()) {
-            return true; // 创建者有权限
-        }
-
-        // 4. 检查是否为项目成员（用户级别）
-        if ($this->isProjectMemberByUser($projectId, $requestContext->getUserId())) {
-            return true; // 用户成员有权限
-        }
-
-        // 5. 检查是否为项目成员（部门级别）
-        if ($this->isProjectMemberByDepartment($projectId, $requestContext)) {
-            return true; // 部门成员有权限
-        }
-
-        // 6. 无权限
-        return false;
-    }
-
-    /**
-     * 检查用户是否为项目的用户级成员
-     */
-    private function isProjectMemberByUser(int $projectId, string $userId): bool
-    {
-        return $this->projectMemberDomainService->isProjectMemberByUser($projectId, $userId);
-    }
-
-    /**
-     * 检查用户是否为项目的部门级成员
-     */
-    private function isProjectMemberByDepartment(int $projectId, RequestContext $requestContext): bool
-    {
-        $dataIsolation = DataIsolation::create($requestContext->getOrganizationCode(), $requestContext->getUserId());
-
-        // 获取用户所属的所有部门ID（包括父级部门）
-        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
-            $dataIsolation,
-            $requestContext->getUserId(),
-            true  // 包含所有父级部门
-        );
-
-        if (empty($departmentIds)) {
-            return false;
-        }
-
-        return $this->projectMemberDomainService->isProjectMemberByDepartments($projectId, $departmentIds);
-    }
-
-    /**
      * 获取项目成员列表
      *
-     * @param RequestContext $requestContext 请求上下文
-     * @param int $projectId 项目ID
-     * @return ProjectMembersResponseDTO 项目成员详细信息
      */
     public function getProjectMembers(RequestContext $requestContext, int $projectId): ProjectMembersResponseDTO
     {
-        // 1. 权限验证：检查用户是否有访问项目成员的权限
-        if (!$this->validateUpdatePermission($requestContext, $projectId)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-        }
+        // 1. 验证并获取可访问的项目
+        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
 
         // 2. 获取项目成员列表
         $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId);
@@ -232,11 +157,6 @@ class ProjectMemberAppService extends AbstractAppService
         return ProjectMembersResponseDTO::fromMemberData($users, $departments);
     }
 
-    /**
-     * @param DataIsolation $dataIsolation
-     * @param MagicUserEntity[] $userEntities
-     * @return void
-     */
     private function updateUserAvatarUrl(DataIsolation $dataIsolation, array $userEntities): void
     {
         $urlMapRealUrl = $this->getUserAvatarUrls($dataIsolation, $userEntities);
@@ -246,11 +166,6 @@ class ProjectMemberAppService extends AbstractAppService
         }
     }
 
-    /**
-     * @param DataIsolation $dataIsolation
-     * @param MagicUserEntity[] $userEntities
-     * @return array
-     */
     private function getUserAvatarUrls(DataIsolation $dataIsolation, array $userEntities): array
     {
         $avatarUrlMapRealUrl = [];

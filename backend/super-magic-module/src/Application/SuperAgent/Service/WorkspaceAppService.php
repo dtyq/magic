@@ -468,7 +468,7 @@ class WorkspaceAppService extends AbstractAppService
         $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
         if ($topicEntity != null) {
             $data['project_id'] = (string) $topicEntity->getProjectId();
-            $projectEntity = $this->projectDomainService->getProject($topicEntity->getProjectId(), $topicEntity->getUserId());
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $topicEntity->getUserId(), $topicEntity->getUserOrganizationCode());
             $data['project_name'] = $projectEntity->getProjectName();
         }
         return $data;
@@ -556,11 +556,7 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             // 验证文件是否属于当前用户
-            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $userAuthorization->getId());
-            if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
-                // 如果这个话题不是本人的，不处理
-                continue;
-            }
+            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $organizationCode);
 
             $downloadNames = [];
             if ($downloadMode === 'download') {

@@ -200,7 +200,7 @@ class SandboxApi extends AbstractApi
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
-            $project = $this->projectAppService->getProject((int) $projectId, $userId);
+            $project = $this->projectAppService->getProject($requestContext, (int) $projectId);
             if (empty($project->getId())) {
                 // 抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
