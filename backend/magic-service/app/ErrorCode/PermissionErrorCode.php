@@ -21,7 +21,7 @@ enum PermissionErrorCode: int
     case BusinessException = 42002;
 
     #[ErrorMessage(message: 'permission.access_denied')]
-    case AccessDenied =42003;
+    case AccessDenied = 42003;
 
     // 组织相关错误码
     #[ErrorMessage(message: 'permission.organization_code_required')]
