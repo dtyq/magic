@@ -531,13 +531,18 @@ class ModelGatewayMapper extends ModelMapper
         $implementation = $providerEntity->getProviderCode()->getImplementation();
         $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigEntity->getConfig(), $providerModelEntity->getModelVersion());
 
-        $tag = $providerEntity->getProviderCode()->value;
-        if ($providerConfigEntity->getAlias()) {
-            $alias = $providerConfigEntity->getAlias();
-            if (! $providerDataIsolation->isOfficialOrganization() && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
-                $alias = 'Magic';
-            }
-            $tag = "{$tag}「{$alias}」";
+        if ($providerEntity->getProviderType()->isCustom()) {
+            // 自定义服务商统一显示别名，如果没有别名则显示“自定义服务商”（需要考虑多语言）
+            $providerName = $providerConfigEntity->getLocalizedAlias($providerDataIsolation->getLanguage());
+        } else {
+            // 内置服务商的统一显示 服务商名称，不用显示别名（需要考虑多语言）
+            $providerName = $providerEntity->getLocalizedName($providerDataIsolation->getLanguage());
+        }
+
+        // 如果不是官方组织，但是模型是官方组织，统一显示 Magic
+        if (! $providerDataIsolation->isOfficialOrganization()
+            && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
+            $providerName = 'Magic';
         }
 
         $fileDomainService = di(FileDomainService::class);
@@ -567,7 +572,7 @@ class ModelGatewayMapper extends ModelMapper
                 name: $providerModelEntity->getModelId(),
                 label: $providerModelEntity->getName(),
                 icon: $iconUrl,
-                tags: [['type' => 1, 'value' => $tag]],
+                tags: [['type' => 1, 'value' => "{$providerName}"]],
                 createdAt: $providerEntity->getCreatedAt(),
                 owner: 'MagicAI',
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
