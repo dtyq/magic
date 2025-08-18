@@ -406,7 +406,7 @@ class TopicDomainService
     // ======================= 消息回滚相关方法 =======================
 
     /**
-     * 执行消息回滚逻辑
+     * 执行消息回滚逻辑.
      */
     public function rollbackMessages(string $targetSeqId): void
     {
@@ -435,7 +435,7 @@ class TopicDomainService
 
             // 删除messages和sequences数据
             $this->topicRepository->deleteMessagesAndSequencesBySeqIds($allSeqIds);
-            
+
             // 删除magic_super_agent_message表的数据
             $this->topicRepository->deleteSuperAgentMessagesFromSeqId($targetSeqId);
         });

@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 class CheckpointRollbackResponseDTO
 {
     protected string $targetMessageId = '';
+
     protected string $message = '';
 
     /**
