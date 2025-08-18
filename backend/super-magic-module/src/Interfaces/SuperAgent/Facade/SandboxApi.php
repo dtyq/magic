@@ -247,5 +247,4 @@ class SandboxApi extends AbstractApi
         }
         $requestDTO->setTopicId($topicId);
     }
-
 }

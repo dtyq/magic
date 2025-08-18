@@ -125,7 +125,6 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
-
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]

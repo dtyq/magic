@@ -92,7 +92,8 @@ class InitAgentRequest
             $agentMode,
             $magicServiceHost,
             $chatHistoryDir,
-            $workDir, $memory
+            $workDir,
+            $memory
         );
     }
 

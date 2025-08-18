@@ -7,25 +7,25 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
-use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Util\Context\RequestContext;
-use Dtyq\ApiResponse\Annotation\ApiResponse;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\AgentErrorCode;
 use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\CoContext;
+use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
 use Exception;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -201,41 +201,41 @@ class TopicApi extends AbstractApi
     public function rollbackCheckpoint(RequestContext $requestContext, string $id): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
-        
+
         $requestDTO = CheckpointRollbackRequestDTO::fromRequest($this->request);
-        
+
         $topicId = $id;
         $targetMessageId = $requestDTO->getTargetMessageId();
-        
+
         if (empty($topicId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
         }
-        
+
         if (empty($targetMessageId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'target_message_id is required');
         }
-        
+
         $authorization = $this->getAuthorization();
-        
+
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId((string) $authorization->getId());
         $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
         $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
         $dataIsolation->setUserType(UserType::Human);
         $dataIsolation->setLanguage(CoContext::getLanguage());
-        
+
         $sandboxId = $this->agentAppService->ensureSandboxInitialized($dataIsolation, (int) $topicId);
-        
+
         $result = $this->agentAppService->rollbackCheckpoint($sandboxId, $targetMessageId);
-        
-        if (!$result->isSuccess()) {
+
+        if (! $result->isSuccess()) {
             ExceptionBuilder::throw(AgentErrorCode::SANDBOX_NOT_FOUND, $result->getMessage());
         }
-        
+
         $responseDTO = new CheckpointRollbackResponseDTO();
         $responseDTO->setTargetMessageId($targetMessageId);
         $responseDTO->setMessage($result->getMessage());
-        
+
         return $responseDTO->toArray();
     }
 }

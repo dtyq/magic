@@ -35,5 +35,4 @@ return [
             'magic_message_id_not_found' => 'Associated message ID not found',
         ],
     ],
-
 ];
