@@ -31,6 +31,7 @@ class TaskContext
      * @param string $modelId 模型ID
      * @param array $dynamicConfig 动态配置
      * @param string $workspaceId 工作区ID
+     * @param string $messageId 消息ID
      */
     public function __construct(
         private readonly TaskEntity $task,
