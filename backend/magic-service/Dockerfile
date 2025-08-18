@@ -7,8 +7,7 @@ FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.4-alp
 ARG timezone
 
 ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
-    SCAN_CACHEABLE=(true) \
-    USE_ZEND_ALLOC=0
+    SCAN_CACHEABLE=(true)
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
