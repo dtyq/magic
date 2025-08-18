@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
+use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
+use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -36,6 +38,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 
     public function __construct(
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
+        protected readonly MagicChatMessageAppService $magicChatMessageAppService,
         protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
     ) {
@@ -82,9 +85,14 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
             $language = $userCallAgentEvent->messageEntity?->getLanguage() ?? '';
-            $messageSeqId = $userCallAgentEvent->seqEntity?->getId() ?? '';
-            $messageId = (string) IdGenerator::getSnowId();
 
+            // Get User Seq id
+            $useSeqEntity = $this->magicChatMessageAppService->getMagicSeqEntity($userCallAgentEvent->seqEntity->getMagicMessageId(), ConversationType::User);
+            if ($useSeqEntity) {
+                $messageId = $messageSeqId = $useSeqEntity->getId();
+            } else {
+                $messageId = $messageSeqId = (string) IdGenerator::getSnowId();
+            }
             // Parameter validation
             if (empty($conversationId) || empty($chatTopicId) || empty($organizationCode)
                 || empty($userId) || empty($agentUserId)) {

@@ -65,7 +65,6 @@ use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
-use Hyperf\Odin\Message\Role;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Redis\Redis;
 use Hyperf\SocketIOServer\Socket;
@@ -904,6 +903,17 @@ class MagicChatMessageAppService extends MagicSeqAppService
         // 根据 seq_id 升序排列
         ksort($userMessages);
         return array_values($userMessages);
+    }
+
+    public function getMagicSeqEntity(string $magicMessageId, ConversationType $controlMessageType): ?MagicSeqEntity
+    {
+        $seqEntities = $this->magicSeqDomainService->getSeqEntitiesByMagicMessageId($magicMessageId);
+        foreach ($seqEntities as $seqEntity) {
+            if ($seqEntity->getObjectType() === $controlMessageType) {
+                return $seqEntity;
+            }
+        }
+        return null;
     }
 
     /**
