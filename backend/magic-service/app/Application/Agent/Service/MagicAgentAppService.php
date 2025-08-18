@@ -1129,6 +1129,7 @@ class MagicAgentAppService extends AbstractAppService
     /**
      * 获取助理总数.
      * 优化：使用JOIN查询避免传入大量ID.
+     * 优化：使用JOIN查询避免传入大量ID.
      */
     private function getTotalAgentsCount(string $organizationCode, string $agentName): int
     {
