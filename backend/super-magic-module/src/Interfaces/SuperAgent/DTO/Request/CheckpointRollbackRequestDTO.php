@@ -11,7 +11,6 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 
 class CheckpointRollbackRequestDTO extends AbstractRequestDTO
 {
-    protected string $topicId = '';
     protected string $targetMessageId = '';
 
     /**
@@ -20,7 +19,6 @@ class CheckpointRollbackRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationRules(): array
     {
         return [
-            'topic_id' => 'required|string',
             'target_message_id' => 'required|string',
         ];
     }
@@ -28,7 +26,6 @@ class CheckpointRollbackRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationMessage(): array
     {
         return [
-            'topic_id.required' => '话题ID不能为空',
             'target_message_id.required' => '目标消息ID不能为空',
         ];
     }
@@ -39,19 +36,8 @@ class CheckpointRollbackRequestDTO extends AbstractRequestDTO
     public function attributes(): array
     {
         return [
-            'topic_id' => '话题ID',
             'target_message_id' => '目标消息ID',
         ];
-    }
-
-    public function getTopicId(): string
-    {
-        return $this->topicId;
-    }
-
-    public function setTopicId(string $topicId): void
-    {
-        $this->topicId = $topicId;
     }
 
     public function getTargetMessageId(): string
