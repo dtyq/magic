@@ -33,7 +33,6 @@
         "dtyq/php-mcp": "0.1.*",
         "dtyq/rule-engine-core": "~0.1",
         "dtyq/sdk-base": "~0.1",
-        "dtyq/super-magic-module": "^v0.0",
         "dtyq/task-scheduler": "~0.1",
         "dtyq/tiptap": "~0.1",
         "facile-it/php-openid-client": "^0.3.5",
@@ -49,7 +48,6 @@
         "hyperf/engine-swow": "^2.12",
         "hyperf/guzzle": "~3.1.0",
         "hyperf/http-message": "~3.1.0",
-        "hyperf/laminas-mime": "^3.0",
         "hyperf/logger": "~3.1.0",
         "hyperf/migration-generator": "~3.1.0",
         "hyperf/odin": "^v1.0",
@@ -83,8 +81,7 @@
         "wyndow/fuzzywuzzy": "^0.6.0",
         "dtyq/super-magic-module": "^v0.0",
         "dtyq/magic-enterprise-service": "^0.0",
-        "dtyq/billing-manager": "^1.0.1",
-        "dtyq/php-mcp": "0.1.*"
+        "dtyq/billing-manager": "^1.0.1"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
