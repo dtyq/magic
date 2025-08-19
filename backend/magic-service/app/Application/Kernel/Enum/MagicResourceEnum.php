@@ -28,7 +28,7 @@ enum MagicResourceEnum: string
     case CONSOLE_API = 'console.api';
 
     // ===== 三级：具体资源 (用于具体绑定接口）=====
-    case ADMIN_AI_MODEL = 'admin.ai.model_management';
+    case ADMIN_AI_MODEL = 'admin.ai.model_management'; # 模型管理
     case ADMIN_AI_IMAGE = 'admin.ai.image_generation';
     case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 安全-子管理员
     case CONSOLE_API_ASSISTANT = 'console.api.assistant';

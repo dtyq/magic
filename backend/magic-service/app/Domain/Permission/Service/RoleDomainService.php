@@ -157,7 +157,15 @@ readonly class RoleDomainService
      */
     public function getByName(PermissionDataIsolation $dataIsolation, string $name): ?RoleEntity
     {
-        return $this->roleRepository->getByName($dataIsolation->getCurrentOrganizationCode(), $name);
+        $roleEntity = $this->roleRepository->getByName($dataIsolation->getCurrentOrganizationCode(), $name);
+
+        // 补充角色关联的用户ID信息，避免调用方获取不到 userIds
+        if ($roleEntity !== null) {
+            $userIds = $this->roleRepository->getRoleUsers($dataIsolation->getCurrentOrganizationCode(), $roleEntity->getId());
+            $roleEntity->setUserIds($userIds);
+        }
+
+        return $roleEntity;
     }
 
     /**

@@ -87,6 +87,21 @@ class OrganizationAdminDomainService
      */
     public function destroy(DataIsolation $dataIsolation, OrganizationAdminEntity $organizationAdminEntity): void
     {
+        // 在删除组织管理员记录之前，先移除其在权限系统中的 role_user 关联
+        try {
+            // 创建权限隔离对象，用于操作角色服务
+            $permissionIsolation = PermissionDataIsolation::create(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId() ?? ''
+            );
+
+            $this->roleDomainService->removeOrganizationAdmin($permissionIsolation, $organizationAdminEntity->getUserId());
+        } catch (Throwable $e) {
+            // 记录日志，但不中断删除流程
+            error_log('Failed to remove organization admin role when destroying admin: ' . $e->getMessage());
+        }
+
+        // 删除组织管理员记录
         $this->organizationAdminRepository->delete($dataIsolation, $organizationAdminEntity);
     }
 

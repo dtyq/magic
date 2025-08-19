@@ -85,8 +85,6 @@ class OrganizationAdminApi extends AbstractPermissionApi
         $dataIsolation = $this->createDataIsolation($authorization);
 
         $this->organizationAdminAppService->destroy($dataIsolation, $id);
-
-        // 返回空数组触发统一的 ApiResponse 封装，前端获得 {"code":1000,"message":"请求成功","data":{}}
         return [];
     }
 

@@ -85,8 +85,14 @@ class RoleApi extends AbstractPermissionApi
         $list = [];
         foreach ($result['list'] as $index => $roleEntity) {
             $limitedIds = $roleUserIdsMap[$index] ?? [];
-            $userDetailsForRole = array_intersect_key($allUserInfo, array_flip($limitedIds));
-            $list[] = SubAdminAssembler::assembleWithUserInfo($roleEntity, $userDetailsForRole, $allUserInfo[$roleEntity->getUpdatedUid()]);
+            // Exclude the operator (updatedUid) from the user list that will be displayed
+            $displayUserIds = array_diff($limitedIds, [$roleEntity->getUpdatedUid()]);
+            $userDetailsForRole = array_intersect_key($allUserInfo, array_flip($displayUserIds));
+            $list[] = SubAdminAssembler::assembleWithUserInfo(
+                $roleEntity,
+                $userDetailsForRole,
+                $allUserInfo[$roleEntity->getUpdatedUid()] ?? null
+            );
         }
 
         return (new PageDTO($page->getPage(), $result['total'], $list))->toArray();
