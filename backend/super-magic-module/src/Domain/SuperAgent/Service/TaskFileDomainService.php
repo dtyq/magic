@@ -466,18 +466,12 @@ class TaskFileDomainService
             $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
         }
 
-        Db::beginTransaction();
-        try {
-            // Delete file record
-            $this->taskFileRepository->deleteById($fileEntity->getFileId());
-            // Delete the same file in projects
-            $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
-            Db::commit();
-            return true;
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
+        // Delete file record
+        $this->taskFileRepository->deleteById($fileEntity->getFileId());
+        // Delete the same file in projects
+        $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
+
+        return true;
     }
 
     public function deleteDirectoryFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, string $targetPath): int
@@ -848,18 +842,22 @@ class TaskFileDomainService
         if (! empty($existingTargetFile)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
-
-        if ($fileEntity->getIsDirectory()) {
-            $this->moveDirectory($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
-        } else {
-            $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+        Db::beginTransaction();
+        try {
+            if ($fileEntity->getIsDirectory()) {
+                $this->moveDirectory($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+            } else {
+                $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+            }
+            Db::commit();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf('moveProjectFile error, file_key=%s, target_id=%d', $fileEntity->getFileKey(), $targetParentId), ['err_msg' => $e->getMessage()]);
         }
-
     }
 
-    private function moveFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
+    public function moveFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
     {
-        Db::beginTransaction();
         try {
             // Call cloud file service to move the file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
@@ -867,15 +865,12 @@ class TaskFileDomainService
 
             // Update file record (parentId and sort have already been set by handleFileSortOnMove)
             $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $targetPath, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
-
-            Db::commit();
         } catch (Throwable $e) {
-            Db::rollBack();
             throw $e;
         }
     }
 
-    private function moveDirectory(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $targetPath, int $targetParentId): void
+    public function moveDirectory(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $targetPath, int $targetParentId): void
     {
         $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
         if (empty($fileEntities)) {
@@ -899,12 +894,11 @@ class TaskFileDomainService
                 $newFileKey = str_replace($oldDirKey, $targetPath, $fileEntity->getFileKey());
                 $oldFileKey = $fileEntity->getFileKey();
 
-                // Update entity
-                $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $newFileKey, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
-
                 // 3. Rename in cloud storage
                 try {
                     $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    // Update entity
+                    $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $newFileKey, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
                 } catch (Throwable $e) {
                     $this->logger->error('Failed to rename file in cloud storage', [
                         'old_file_key' => $oldFileKey,
@@ -912,7 +906,6 @@ class TaskFileDomainService
                         'error' => $e->getMessage(),
                     ]);
                 }
-
             }
         } catch (Throwable $e) {
             throw $e;
@@ -1332,6 +1325,100 @@ class TaskFileDomainService
                 trans('file.file_not_found')
             );
         }
+    }
+
+    /**
+     * @return TaskFileEntity[]
+     */
+    public function getProjectFilesByIds(int $projectId, array $fileIds): array
+    {
+        return $this->taskFileRepository->getFilesByIds($fileIds, $projectId);
+    }
+
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int
+    {
+        return $this->taskFileRepository->getSiblingCountByParentId($parentId, $projectId);
+    }
+
+    public function copyEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
+    {
+        $dirEntity = new TaskFileEntity();
+
+        // Copy all properties from old entity
+        $dirEntity->setProjectId($oldFileEntity->getProjectId());
+        $dirEntity->setUserId($oldFileEntity->getUserId());
+        $dirEntity->setOrganizationCode($oldFileEntity->getOrganizationCode());
+        $dirEntity->setFileSize($oldFileEntity->getFileSize());
+        $dirEntity->setFileType($oldFileEntity->getFileType());
+        $dirEntity->setIsDirectory($oldFileEntity->getIsDirectory());
+        $dirEntity->setParentId($parentId);
+        $dirEntity->setSource(TaskFileSource::COPY);
+        $dirEntity->setStorageType($oldFileEntity->getStorageType());
+        $dirEntity->setIsHidden($oldFileEntity->getIsHidden());
+        $dirEntity->setSort($oldFileEntity->getSort());
+        $dirEntity->setFileId(IdGenerator::getSnowId());
+        $dirEntity->setFileName($oldFileEntity->getFileName());
+        $dirEntity->setFileKey($newFileKey);
+
+        // Set current timestamp for created_at and updated_at
+        $now = date('Y-m-d H:i:s');
+        $dirEntity->setCreatedAt($now);
+        $dirEntity->setUpdatedAt($now);
+
+        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $newFileKey, StorageBucketType::SandBox);
+
+        $this->insert($dirEntity);
+
+        return $dirEntity;
+    }
+
+    /**
+     * ReBalance directory and calculate sort value.
+     */
+    public function rebalanceAndCalculateSort(int $targetParentId, ?int $preFileId): int
+    {
+        // Get all children
+        $allChildren = $this->taskFileRepository->getAllChildrenByParentId($targetParentId);
+
+        // Sort by business rules
+        $sortedChildren = $this->sortChildrenByBusinessRules($allChildren);
+
+        // Reallocate sort values
+        $updates = [];
+        $sortValue = self::DEFAULT_SORT_STEP;
+
+        foreach ($sortedChildren as $child) {
+            $updates[] = [
+                'file_id' => $child['file_id'],
+                'sort' => $sortValue,
+            ];
+            $sortValue += self::DEFAULT_SORT_STEP;
+        }
+
+        // Batch update
+        $this->taskFileRepository->batchUpdateSort($updates);
+
+        // Log rebalancing operation
+        $this->logger->info('File sort rebalance triggered', [
+            'parent_id' => $targetParentId,
+            'affected_files' => count($updates),
+            'gap_threshold' => self::MIN_GAP,
+            'timestamp' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Calculate target position sort value
+        if ($this->isToBeginning($preFileId)) {
+            return intval(self::DEFAULT_SORT_STEP / 2);
+        }
+
+        // Find preFileId's new sort value
+        foreach ($updates as $update) {
+            if ($update['file_id'] === $preFileId) {
+                return $update['sort'] + intval(self::DEFAULT_SORT_STEP / 2);
+            }
+        }
+
+        return $sortValue; // Default to end
     }
 
     /**
@@ -1765,55 +1852,6 @@ class TaskFileDomainService
 
         $gap = $nextSort - $prevSort;
         return $gap > self::MIN_GAP ? $prevSort + intval($gap / 2) : null;
-    }
-
-    /**
-     * ReBalance directory and calculate sort value.
-     */
-    private function rebalanceAndCalculateSort(int $targetParentId, ?int $preFileId): int
-    {
-        // Get all children
-        $allChildren = $this->taskFileRepository->getAllChildrenByParentId($targetParentId);
-
-        // Sort by business rules
-        $sortedChildren = $this->sortChildrenByBusinessRules($allChildren);
-
-        // Reallocate sort values
-        $updates = [];
-        $sortValue = self::DEFAULT_SORT_STEP;
-
-        foreach ($sortedChildren as $child) {
-            $updates[] = [
-                'file_id' => $child['file_id'],
-                'sort' => $sortValue,
-            ];
-            $sortValue += self::DEFAULT_SORT_STEP;
-        }
-
-        // Batch update
-        $this->taskFileRepository->batchUpdateSort($updates);
-
-        // Log rebalancing operation
-        $this->logger->info('File sort rebalance triggered', [
-            'parent_id' => $targetParentId,
-            'affected_files' => count($updates),
-            'gap_threshold' => self::MIN_GAP,
-            'timestamp' => date('Y-m-d H:i:s'),
-        ]);
-
-        // Calculate target position sort value
-        if ($this->isToBeginning($preFileId)) {
-            return intval(self::DEFAULT_SORT_STEP / 2);
-        }
-
-        // Find preFileId's new sort value
-        foreach ($updates as $update) {
-            if ($update['file_id'] === $preFileId) {
-                return $update['sort'] + intval(self::DEFAULT_SORT_STEP / 2);
-            }
-        }
-
-        return $sortValue; // Default to end
     }
 
     /**

@@ -9,7 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 /**
  * File batch operation response DTO.
- * 
+ *
  * Used for unified response format when creating batch operations (rename, delete, move, etc.)
  * Supports both synchronous and asynchronous processing results.
  */
@@ -17,7 +17,7 @@ class FileBatchOperationResponseDTO
 {
     /**
      * Constructor.
-     * 
+     *
      * @param string $batchKey Batch key (empty for sync, non-empty for async)
      * @param string $status Operation status (success|processing|failed)
      * @param mixed $files File information (object for sync result, empty object for async)
@@ -26,45 +26,41 @@ class FileBatchOperationResponseDTO
         private readonly string $batchKey,
         private readonly string $status,
         private readonly mixed $files
-    ) {}
+    ) {
+    }
 
     /**
      * Create sync response for successful operation.
-     * 
+     *
      * @param mixed $files File information result
-     * @return static
      */
-    public static function createSyncSuccess(mixed $files): static
+    public static function createSyncSuccess(mixed $files): self
     {
-        return new static('', 'success', $files);
+        return new self('', 'success', $files);
     }
 
     /**
      * Create async response for processing operation.
-     * 
+     *
      * @param string $batchKey Batch key for status tracking
-     * @return static
      */
-    public static function createAsyncProcessing(string $batchKey): static
+    public static function createAsyncProcessing(string $batchKey): self
     {
-        return new static($batchKey, 'processing', (object)[]);
+        return new self($batchKey, 'processing', (object) []);
     }
 
     /**
      * Create sync response for failed operation.
-     * 
+     *
      * @param string $errorMessage Error message
-     * @return static
      */
-    public static function createSyncFailed(string $errorMessage = ''): static
+    public static function createSyncFailed(string $errorMessage = ''): self
     {
-        return new static('', 'failed', (object)['error' => $errorMessage]);
+        return new self('', 'failed', (object) ['error' => $errorMessage]);
     }
 
     /**
      * Convert to array for API response.
-     * 
-     * @return array
      */
     public function toArray(): array
     {
@@ -77,8 +73,6 @@ class FileBatchOperationResponseDTO
 
     /**
      * Get batch key.
-     * 
-     * @return string
      */
     public function getBatchKey(): string
     {
@@ -87,8 +81,6 @@ class FileBatchOperationResponseDTO
 
     /**
      * Get operation status.
-     * 
-     * @return string
      */
     public function getStatus(): string
     {
@@ -97,8 +89,6 @@ class FileBatchOperationResponseDTO
 
     /**
      * Get files information.
-     * 
-     * @return mixed
      */
     public function getFiles(): mixed
     {
@@ -107,18 +97,14 @@ class FileBatchOperationResponseDTO
 
     /**
      * Check if this is an async operation.
-     * 
-     * @return bool
      */
     public function isAsync(): bool
     {
-        return !empty($this->batchKey);
+        return ! empty($this->batchKey);
     }
 
     /**
      * Check if this is a sync operation.
-     * 
-     * @return bool
      */
     public function isSync(): bool
     {
@@ -127,8 +113,6 @@ class FileBatchOperationResponseDTO
 
     /**
      * Check if operation was successful.
-     * 
-     * @return bool
      */
     public function isSuccess(): bool
     {
@@ -137,8 +121,6 @@ class FileBatchOperationResponseDTO
 
     /**
      * Check if operation is processing.
-     * 
-     * @return bool
      */
     public function isProcessing(): bool
     {
@@ -147,8 +129,6 @@ class FileBatchOperationResponseDTO
 
     /**
      * Check if operation failed.
-     * 
-     * @return bool
      */
     public function isFailed(): bool
     {

@@ -7,22 +7,24 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
+use InvalidArgumentException;
+
 /**
  * File batch move event.
- * 
+ *
  * Used for asynchronous batch file move operations when dealing with multiple files.
  */
 class FileBatchMoveEvent
 {
     /**
      * Constructor.
-     * 
+     *
      * @param string $batchKey Batch operation key for tracking
      * @param string $userId User ID
      * @param string $organizationCode Organization code
      * @param array $fileIds Array of file IDs to move
      * @param int $projectId Project ID
-     * @param int|null $preFileId Previous file ID for positioning (nullable)
+     * @param null|int $preFileId Previous file ID for positioning (nullable)
      * @param int $targetParentId Target parent directory ID
      */
     public function __construct(
@@ -33,12 +35,11 @@ class FileBatchMoveEvent
         private readonly int $projectId,
         private readonly ?int $preFileId,
         private readonly int $targetParentId
-    ) {}
+    ) {
+    }
 
     /**
      * Get batch key.
-     * 
-     * @return string
      */
     public function getBatchKey(): string
     {
@@ -47,8 +48,6 @@ class FileBatchMoveEvent
 
     /**
      * Get user ID.
-     * 
-     * @return string
      */
     public function getUserId(): string
     {
@@ -57,8 +56,6 @@ class FileBatchMoveEvent
 
     /**
      * Get organization code.
-     * 
-     * @return string
      */
     public function getOrganizationCode(): string
     {
@@ -67,8 +64,6 @@ class FileBatchMoveEvent
 
     /**
      * Get file IDs.
-     * 
-     * @return array
      */
     public function getFileIds(): array
     {
@@ -77,8 +72,6 @@ class FileBatchMoveEvent
 
     /**
      * Get project ID.
-     * 
-     * @return int
      */
     public function getProjectId(): int
     {
@@ -87,8 +80,6 @@ class FileBatchMoveEvent
 
     /**
      * Get previous file ID.
-     * 
-     * @return int|null
      */
     public function getPreFileId(): ?int
     {
@@ -97,8 +88,6 @@ class FileBatchMoveEvent
 
     /**
      * Get target parent directory ID.
-     * 
-     * @return int
      */
     public function getTargetParentId(): int
     {
@@ -107,14 +96,13 @@ class FileBatchMoveEvent
 
     /**
      * Create event from array data.
-     * 
+     *
      * @param array $data Event data
-     * @return static
-     * @throws \InvalidArgumentException When required data is missing
+     * @throws InvalidArgumentException When required data is missing
      */
-    public static function fromArray(array $data): static
+    public static function fromArray(array $data): self
     {
-        return new static(
+        return new self(
             $data['batch_key'] ?? '',
             $data['user_id'] ?? '',
             $data['organization_code'] ?? '',
@@ -127,8 +115,6 @@ class FileBatchMoveEvent
 
     /**
      * Convert event to array.
-     * 
-     * @return array
      */
     public function toArray(): array
     {
@@ -139,20 +125,19 @@ class FileBatchMoveEvent
             'file_ids' => $this->fileIds,
             'project_id' => $this->projectId,
             'pre_file_id' => $this->preFileId,
-            'target_parent_id' => $this->targetParentId
+            'target_parent_id' => $this->targetParentId,
         ];
     }
 
     /**
      * Create from domain objects.
-     * 
+     *
      * @param string $batchKey Batch key
      * @param mixed $dataIsolation Data isolation object
      * @param array $fileIds Array of file IDs
      * @param int $projectId Project ID
-     * @param int|null $preFileId Previous file ID
+     * @param null|int $preFileId Previous file ID
      * @param int $targetParentId Target parent ID
-     * @return static
      */
     public static function fromDomainObjects(
         string $batchKey,
@@ -161,8 +146,8 @@ class FileBatchMoveEvent
         int $projectId,
         ?int $preFileId,
         int $targetParentId
-    ): static {
-        return new static(
+    ): self {
+        return new self(
             $batchKey,
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode(),
@@ -175,24 +160,23 @@ class FileBatchMoveEvent
 
     /**
      * Create from DTO and domain objects.
-     * 
+     *
      * @param string $batchKey Batch key
      * @param mixed $dataIsolation Data isolation object
      * @param mixed $requestDTO Request DTO
-     * @return static
      */
     public static function fromDTO(
         string $batchKey,
         $dataIsolation,
         $requestDTO
-    ): static {
-        return new static(
+    ): self {
+        return new self(
             $batchKey,
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode(),
             array_map('intval', $requestDTO->getFileIds()),
             (int) $requestDTO->getProjectId(),
-            !empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null,
+            ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null,
             (int) $requestDTO->getTargetParentId()
         );
     }

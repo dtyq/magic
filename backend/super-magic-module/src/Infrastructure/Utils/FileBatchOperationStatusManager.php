@@ -7,64 +7,76 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
-use Hyperf\Redis\Redis;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
  * File batch operation status manager.
- * 
+ *
  * Provides unified interface for managing file batch processing status,
  * user permissions, and distributed locks for all file operations.
  */
 class FileBatchOperationStatusManager
 {
-    private LoggerInterface $logger;
-    
-    private const CACHE_PREFIX = 'file_batch_operation:';
-    
     // Supported operation types
     public const OPERATION_RENAME = 'rename';
-    public const OPERATION_DELETE = 'delete'; 
+
+    public const OPERATION_DELETE = 'delete';
+
     public const OPERATION_MOVE = 'move';
+
     public const OPERATION_COPY = 'copy';
-    
-    // Cache key templates
-    private const CACHE_KEY_TASK = self::CACHE_PREFIX . 'task:';
-    private const CACHE_KEY_USER = self::CACHE_PREFIX . 'user:';
-    private const CACHE_KEY_LOCK = self::CACHE_PREFIX . 'lock:';
-    
-    // TTL constants (in seconds)
-    private const TTL_TASK_STATUS = 600;      // 10 min
-    private const TTL_USER_PERMISSION = 1200; // 20 min
-    private const TTL_PROCESSING_LOCK = 600;  // 10 min
-    
+
     // Task status constants
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_SUCCESS = 'success';
+
     public const STATUS_FAILED = 'failed';
-    
+
     // Valid statuses
     public const VALID_STATUSES = [
         self::STATUS_PROCESSING,
         self::STATUS_SUCCESS,
         self::STATUS_FAILED,
     ];
-    
+
+    private const CACHE_PREFIX = 'file_batch_operation:';
+
+    // Cache key templates
+    private const CACHE_KEY_TASK = self::CACHE_PREFIX . 'task:';
+
+    private const CACHE_KEY_USER = self::CACHE_PREFIX . 'user:';
+
+    private const CACHE_KEY_LOCK = self::CACHE_PREFIX . 'lock:';
+
+    // TTL constants (in seconds)
+    private const TTL_TASK_STATUS = 600;      // 10 min
+
+    private const TTL_USER_PERMISSION = 1200; // 20 min
+
+    private const TTL_PROCESSING_LOCK = 600;  // 10 min
+
     // Default messages
     private const MSG_TASK_INITIALIZING = 'Initializing batch task';
+
     private const MSG_TASK_PROCESSING = 'Processing files';
+
     private const MSG_TASK_COMPLETED = 'Files processed successfully';
+
     private const MSG_TASK_FAILED = 'Task failed';
-    
+
+    private LoggerInterface $logger;
+
     public function __construct(
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('FileBatchOperation');
     }
-    
+
     /**
      * Initialize batch operation task.
      *
@@ -76,15 +88,15 @@ class FileBatchOperationStatusManager
      * @return bool True if successful, false otherwise
      */
     public function initializeTask(
-        string $batchKey, 
-        string $operation, 
-        string $userId, 
+        string $batchKey,
+        string $operation,
+        string $userId,
         int $totalFiles,
         array $files = []
     ): bool {
         try {
             $taskKey = $this->getTaskKey($batchKey);
-            
+
             $taskData = [
                 'status' => self::STATUS_PROCESSING,
                 'operation' => $operation,
@@ -101,17 +113,17 @@ class FileBatchOperationStatusManager
                 'created_at' => time(),
                 'updated_at' => time(),
             ];
-            
+
             $success = $this->redis->setex(
                 $taskKey,
                 self::TTL_TASK_STATUS,
                 json_encode($taskData, JSON_UNESCAPED_UNICODE)
             );
-            
+
             if ($success) {
                 // Set user permission
                 $this->setUserPermission($batchKey, $userId);
-                
+
                 $this->logger->info('Batch operation task initialized', [
                     'batch_key' => $batchKey,
                     'operation' => $operation,
@@ -119,7 +131,7 @@ class FileBatchOperationStatusManager
                     'total_files' => $totalFiles,
                 ]);
             }
-            
+
             return (bool) $success;
         } catch (Throwable $e) {
             $this->logger->error('Failed to initialize batch operation task', [
@@ -131,7 +143,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Update task progress.
      *
@@ -142,25 +154,25 @@ class FileBatchOperationStatusManager
      * @return bool True if successful, false otherwise
      */
     public function setTaskProgress(
-        string $batchKey, 
-        int $current, 
-        int $total, 
+        string $batchKey,
+        int $current,
+        int $total,
         string $message = ''
     ): bool {
         try {
             $taskKey = $this->getTaskKey($batchKey);
             $taskData = $this->getTaskData($batchKey);
-            
-            if (!$taskData) {
+
+            if (! $taskData) {
                 $this->logger->warning('Task not found when updating progress', [
                     'batch_key' => $batchKey,
                 ]);
                 return false;
             }
-            
+
             // Calculate percentage
             $percentage = $total > 0 ? round(($current / $total) * 100, 2) : 0;
-            
+
             // Update progress data
             $taskData['progress'] = [
                 'current' => $current,
@@ -169,13 +181,13 @@ class FileBatchOperationStatusManager
                 'message' => $message ?: self::MSG_TASK_PROCESSING,
             ];
             $taskData['updated_at'] = time();
-            
+
             $success = $this->redis->setex(
                 $taskKey,
                 self::TTL_TASK_STATUS,
                 json_encode($taskData, JSON_UNESCAPED_UNICODE)
             );
-            
+
             if ($success) {
                 $this->logger->debug('Task progress updated', [
                     'batch_key' => $batchKey,
@@ -184,7 +196,7 @@ class FileBatchOperationStatusManager
                     'percentage' => $percentage,
                 ]);
             }
-            
+
             return (bool) $success;
         } catch (Throwable $e) {
             $this->logger->error('Failed to update task progress', [
@@ -196,7 +208,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Mark task as completed.
      *
@@ -209,45 +221,45 @@ class FileBatchOperationStatusManager
         try {
             $taskKey = $this->getTaskKey($batchKey);
             $taskData = $this->getTaskData($batchKey);
-            
-            if (!$taskData) {
+
+            if (! $taskData) {
                 $this->logger->warning('Task not found when marking completed', [
                     'batch_key' => $batchKey,
                 ]);
                 return false;
             }
-            
+
             // Update to completed status
             $taskData['status'] = self::STATUS_SUCCESS;
             $taskData['message'] = self::MSG_TASK_COMPLETED;
             $taskData['result'] = $result;
             $taskData['error'] = null;
             $taskData['updated_at'] = time();
-            
+
             // Set progress to 100%
             if (isset($taskData['progress'])) {
                 $taskData['progress']['current'] = $taskData['progress']['total'];
                 $taskData['progress']['percentage'] = 100.0;
                 $taskData['progress']['message'] = 'Completed';
             }
-            
+
             $success = $this->redis->setex(
                 $taskKey,
                 self::TTL_TASK_STATUS,
                 json_encode($taskData, JSON_UNESCAPED_UNICODE)
             );
-            
+
             if ($success) {
                 // Release processing lock
                 $this->releaseLock($batchKey);
-                
+
                 $this->logger->info('Task completed successfully', [
                     'batch_key' => $batchKey,
                     'operation' => $taskData['operation'] ?? '',
                     'result_count' => $result['count'] ?? 0,
                 ]);
             }
-            
+
             return (bool) $success;
         } catch (Throwable $e) {
             $this->logger->error('Failed to mark task as completed', [
@@ -257,7 +269,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Mark task as failed.
      *
@@ -270,43 +282,43 @@ class FileBatchOperationStatusManager
         try {
             $taskKey = $this->getTaskKey($batchKey);
             $taskData = $this->getTaskData($batchKey);
-            
-            if (!$taskData) {
+
+            if (! $taskData) {
                 $this->logger->warning('Task not found when marking failed', [
                     'batch_key' => $batchKey,
                 ]);
                 return false;
             }
-            
+
             // Update to failed status
             $taskData['status'] = self::STATUS_FAILED;
             $taskData['message'] = self::MSG_TASK_FAILED;
             $taskData['error'] = $error;
             $taskData['result'] = null;
             $taskData['updated_at'] = time();
-            
+
             // Update progress message
             if (isset($taskData['progress'])) {
                 $taskData['progress']['message'] = 'Failed: ' . $error;
             }
-            
+
             $success = $this->redis->setex(
                 $taskKey,
                 self::TTL_TASK_STATUS,
                 json_encode($taskData, JSON_UNESCAPED_UNICODE)
             );
-            
+
             if ($success) {
                 // Release processing lock
                 $this->releaseLock($batchKey);
-                
+
                 $this->logger->error('Task marked as failed', [
                     'batch_key' => $batchKey,
                     'operation' => $taskData['operation'] ?? '',
                     'error' => $error,
                 ]);
             }
-            
+
             return (bool) $success;
         } catch (Throwable $e) {
             $this->logger->error('Failed to mark task as failed', [
@@ -317,12 +329,12 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Get task status.
      *
      * @param string $batchKey Batch key
-     * @return array|null Task data or null if not found
+     * @return null|array Task data or null if not found
      */
     public function getTaskStatus(string $batchKey): ?array
     {
@@ -336,7 +348,7 @@ class FileBatchOperationStatusManager
             return null;
         }
     }
-    
+
     /**
      * Verify user permission for batch access.
      *
@@ -349,7 +361,7 @@ class FileBatchOperationStatusManager
         try {
             $userKey = $this->getUserKey($batchKey);
             $storedUserId = $this->redis->get($userKey);
-            
+
             return $storedUserId === $userId;
         } catch (Throwable $e) {
             $this->logger->error('Failed to verify user permission', [
@@ -360,7 +372,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Generate batch key based on operation type.
      *
@@ -374,7 +386,7 @@ class FileBatchOperationStatusManager
         $data = $operation . '|' . $userId . '|' . $resourceId . '|' . time() . '|' . mt_rand(1000, 9999);
         return 'batch_' . $operation . '_' . md5($data);
     }
-    
+
     /**
      * Acquire processing lock for batch task.
      *
@@ -386,10 +398,10 @@ class FileBatchOperationStatusManager
         try {
             $lockKey = $this->getLockKey($batchKey);
             $lockValue = time() . '_' . mt_rand(1000, 9999);
-            
+
             // Use SET with NX (only if not exists) and EX (expiration)
             $result = $this->redis->set($lockKey, $lockValue, ['NX', 'EX' => self::TTL_PROCESSING_LOCK]);
-            
+
             return $result === true;
         } catch (Throwable $e) {
             $this->logger->error('Failed to acquire processing lock', [
@@ -399,7 +411,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Release processing lock for batch task.
      *
@@ -410,9 +422,9 @@ class FileBatchOperationStatusManager
     {
         try {
             $lockKey = $this->getLockKey($batchKey);
-            $result = $this->redis->del($lockKey);
-            
-            return $result > 0;
+            $this->redis->del($lockKey);
+
+            return true;
         } catch (Throwable $e) {
             $this->logger->error('Failed to release processing lock', [
                 'batch_key' => $batchKey,
@@ -421,7 +433,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Clean up all data for a batch task.
      *
@@ -436,15 +448,15 @@ class FileBatchOperationStatusManager
                 $this->getUserKey($batchKey),
                 $this->getLockKey($batchKey),
             ];
-            
+
             $deletedCount = $this->redis->del(...$keys);
-            
+
             $this->logger->info('Batch task cleaned up', [
                 'batch_key' => $batchKey,
                 'deleted_keys' => $deletedCount,
             ]);
-            
-            return $deletedCount > 0;
+
+            return true;
         } catch (Throwable $e) {
             $this->logger->error('Failed to cleanup batch task', [
                 'batch_key' => $batchKey,
@@ -453,7 +465,7 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Check if operation type is valid.
      *
@@ -469,7 +481,7 @@ class FileBatchOperationStatusManager
             self::OPERATION_COPY,
         ], true);
     }
-    
+
     /**
      * Check if status is valid.
      *
@@ -480,7 +492,7 @@ class FileBatchOperationStatusManager
     {
         return in_array($status, self::VALID_STATUSES, true);
     }
-    
+
     /**
      * Set user permission for batch access.
      *
@@ -494,7 +506,7 @@ class FileBatchOperationStatusManager
         try {
             $userKey = $this->getUserKey($batchKey);
             $success = $this->redis->setex($userKey, $ttl, $userId);
-            
+
             return (bool) $success;
         } catch (Throwable $e) {
             $this->logger->error('Failed to set user permission', [
@@ -505,23 +517,23 @@ class FileBatchOperationStatusManager
             return false;
         }
     }
-    
+
     /**
      * Get task data from Redis.
      *
      * @param string $batchKey Batch key
-     * @return array|null Task data or null if not found
+     * @return null|array Task data or null if not found
      */
     private function getTaskData(string $batchKey): ?array
     {
         try {
             $taskKey = $this->getTaskKey($batchKey);
             $data = $this->redis->get($taskKey);
-            
-            if (!$data) {
+
+            if (! $data) {
                 return null;
             }
-            
+
             $decoded = json_decode($data, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->logger->warning('Failed to decode task data JSON', [
@@ -530,7 +542,7 @@ class FileBatchOperationStatusManager
                 ]);
                 return null;
             }
-            
+
             return $decoded;
         } catch (Throwable $e) {
             $this->logger->error('Failed to get task data', [
@@ -540,7 +552,7 @@ class FileBatchOperationStatusManager
             return null;
         }
     }
-    
+
     /**
      * Generate task cache key.
      *
@@ -551,7 +563,7 @@ class FileBatchOperationStatusManager
     {
         return self::CACHE_KEY_TASK . $batchKey;
     }
-    
+
     /**
      * Generate user permission cache key.
      *
@@ -562,7 +574,7 @@ class FileBatchOperationStatusManager
     {
         return self::CACHE_KEY_USER . $batchKey;
     }
-    
+
     /**
      * Generate processing lock cache key.
      *

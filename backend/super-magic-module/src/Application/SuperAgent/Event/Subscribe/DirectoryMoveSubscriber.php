@@ -11,7 +11,6 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Hyperf\Amqp\Annotation\Consumer;
 use Hyperf\Amqp\Message\ConsumerMessage;
@@ -24,7 +23,7 @@ use Throwable;
 
 /**
  * File batch move operation subscriber.
- * 
+ *
  * Handles asynchronous file/directory move operations when dealing with large amounts of data.
  */
 #[Consumer(
@@ -36,12 +35,12 @@ use Throwable;
 class DirectoryMoveSubscriber extends ConsumerMessage
 {
     /**
-     * @var AMQPTable|array Queue arguments for setting priority etc.
+     * @var AMQPTable|array queue arguments for setting priority etc
      */
     protected AMQPTable|array $queueArguments = [];
 
     /**
-     * @var null|array QoS configuration for controlling prefetch count etc.
+     * @var null|array qoS configuration for controlling prefetch count etc
      */
     protected ?array $qos = [
         'prefetch_count' => 1, // Prefetch only 1 message at a time
@@ -65,7 +64,7 @@ class DirectoryMoveSubscriber extends ConsumerMessage
 
     /**
      * Consume move event message.
-     * 
+     *
      * @param array $data Event data containing move parameters
      * @param AMQPMessage $message AMQP message
      * @return Result Processing result
@@ -79,7 +78,7 @@ class DirectoryMoveSubscriber extends ConsumerMessage
             $this->logger->info('Received file batch move event', [
                 'batch_key' => $event->getBatchKey(),
                 'file_id' => $event->getFileId(),
-                'target_parent_id' => $event->getTargetParentId()
+                'target_parent_id' => $event->getTargetParentId(),
             ]);
 
             // Extract parameters from event
@@ -92,19 +91,19 @@ class DirectoryMoveSubscriber extends ConsumerMessage
             $targetParentId = $event->getTargetParentId();
 
             // Validate required parameters
-            if (empty($batchKey) || empty($userId) || !$fileId || !$projectId) {
+            if (empty($batchKey) || empty($userId) || ! $fileId || ! $projectId) {
                 $this->logger->error('Invalid move event data: missing required parameters', [
                     'batch_key' => $batchKey,
                     'user_id' => $userId,
                     'file_id' => $fileId,
-                    'project_id' => $projectId
+                    'project_id' => $projectId,
                 ]);
-                
+
                 // Mark task as failed if we have batch key
-                if (!empty($batchKey)) {
+                if (! empty($batchKey)) {
                     $this->statusManager->setTaskFailed($batchKey, 'Invalid move event data: missing required parameters');
                 }
-                
+
                 return Result::ACK;
             }
 
@@ -116,7 +115,7 @@ class DirectoryMoveSubscriber extends ConsumerMessage
                 'file_id' => $fileId,
                 'project_id' => $projectId,
                 'pre_file_id' => $preFileId,
-                'target_parent_id' => $targetParentId
+                'target_parent_id' => $targetParentId,
             ]);
 
             // Set task progress to started
@@ -151,25 +150,24 @@ class DirectoryMoveSubscriber extends ConsumerMessage
                 'original_parent_id' => $originalParentId,
                 'target_parent_id' => $targetParentId,
                 'operation' => 'move',
-                'message' => 'File moved successfully'
+                'message' => 'File moved successfully',
             ]);
-            
+
             $this->logger->info('File batch move event processed successfully', [
                 'batch_key' => $batchKey,
-                'file_id' => $fileId
+                'file_id' => $fileId,
             ]);
 
             return Result::ACK;
-
         } catch (Throwable $e) {
             $this->logger->error('Failed to process file batch move event', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'data' => $data
+                'data' => $data,
             ]);
 
             // Mark task as failed if we have batch key
-            if (!empty($batchKey)) {
+            if (! empty($batchKey)) {
                 $this->statusManager->setTaskFailed($batchKey, $e->getMessage());
             }
 

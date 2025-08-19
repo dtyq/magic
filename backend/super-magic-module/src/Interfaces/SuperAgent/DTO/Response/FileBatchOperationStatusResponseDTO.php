@@ -9,7 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 /**
  * File batch operation status response DTO.
- * 
+ *
  * Used for querying batch operation status and progress.
  * Supports all file batch operations (rename, delete, move, copy).
  */
@@ -17,7 +17,7 @@ class FileBatchOperationStatusResponseDTO
 {
     /**
      * Constructor.
-     * 
+     *
      * @param string $status Task status (processing|success|failed|not_found)
      * @param string $operation Operation type (rename|delete|move|copy)
      * @param int $progress Progress percentage (0-100)
@@ -34,18 +34,18 @@ class FileBatchOperationStatusResponseDTO
         private readonly int $current = 0,
         private readonly int $total = 0,
         private readonly array $files = []
-    ) {}
+    ) {
+    }
 
     /**
      * Create status response for processing task.
-     * 
+     *
      * @param string $operation Operation type
      * @param int $progress Progress percentage
      * @param string $message Progress message
      * @param int $current Current processed items
      * @param int $total Total items
      * @param array $files Operation files data
-     * @return static
      */
     public static function createProcessing(
         string $operation,
@@ -54,78 +54,72 @@ class FileBatchOperationStatusResponseDTO
         int $current = 0,
         int $total = 0,
         array $files = []
-    ): static {
-        return new static('processing', $operation, $progress, $message, $current, $total, $files);
+    ): self {
+        return new self('processing', $operation, $progress, $message, $current, $total, $files);
     }
 
     /**
      * Create status response for successful task.
-     * 
+     *
      * @param string $operation Operation type
      * @param string $message Success message
      * @param array $files Operation files data
-     * @return static
      */
     public static function createSuccess(
         string $operation,
         string $message = '',
         array $files = []
-    ): static {
-        return new static('success', $operation, 100, $message, 0, 0, $files);
+    ): self {
+        return new self('success', $operation, 100, $message, 0, 0, $files);
     }
 
     /**
      * Create status response for failed task.
-     * 
+     *
      * @param string $operation Operation type
      * @param string $message Error message
      * @param array $files Operation files data
-     * @return static
      */
     public static function createFailed(
         string $operation,
         string $message = '',
         array $files = []
-    ): static {
-        return new static('failed', $operation, 0, $message, 0, 0, $files);
+    ): self {
+        return new self('failed', $operation, 0, $message, 0, 0, $files);
     }
 
     /**
      * Create status response for not found task.
-     * 
+     *
      * @param string $message Not found message
-     * @return static
      */
-    public static function createNotFound(string $message = 'Task not found or expired'): static
+    public static function createNotFound(string $message = 'Task not found or expired'): self
     {
-        return new static('not_found', '', 0, $message, 0, 0, []);
+        return new self('not_found', '', 0, $message, 0, 0, []);
     }
 
     /**
      * Create from task status data.
-     * 
+     *
      * @param array $taskStatus Task status data from status manager
-     * @return static
      */
-    public static function fromTaskStatus(array $taskStatus): static
+    public static function fromTaskStatus(array $taskStatus): self
     {
         $progress = $taskStatus['progress'] ?? [];
-        
-        return new static(
+
+        return new self(
             $taskStatus['status'] ?? 'not_found',
             $taskStatus['operation'] ?? '',
-            (int)($progress['percentage'] ?? 0),
+            (int) ($progress['percentage'] ?? 0),
             $progress['message'] ?? $taskStatus['message'] ?? '',
-            (int)($progress['current'] ?? 0),
-            (int)($progress['total'] ?? 0),
+            (int) ($progress['current'] ?? 0),
+            (int) ($progress['total'] ?? 0),
             $taskStatus['files'] ?? []
         );
     }
 
     /**
      * Convert to array for API response.
-     * 
-     * @return array
      */
     public function toArray(): array
     {
@@ -136,7 +130,7 @@ class FileBatchOperationStatusResponseDTO
         ];
 
         // Add operation info for valid operations
-        if (!empty($this->operation)) {
+        if (! empty($this->operation)) {
             $result['operation'] = $this->operation;
         }
 
@@ -147,7 +141,7 @@ class FileBatchOperationStatusResponseDTO
         }
 
         // Add files if present
-        if (!empty($this->files)) {
+        if (! empty($this->files)) {
             $result['files'] = $this->files;
         }
 
@@ -156,8 +150,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get task status.
-     * 
-     * @return string
      */
     public function getStatus(): string
     {
@@ -166,8 +158,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get operation type.
-     * 
-     * @return string
      */
     public function getOperation(): string
     {
@@ -176,8 +166,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get progress percentage.
-     * 
-     * @return int
      */
     public function getProgress(): int
     {
@@ -186,8 +174,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get status message.
-     * 
-     * @return string
      */
     public function getMessage(): string
     {
@@ -196,8 +182,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get current processed items.
-     * 
-     * @return int
      */
     public function getCurrent(): int
     {
@@ -206,8 +190,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get total items to process.
-     * 
-     * @return int
      */
     public function getTotal(): int
     {
@@ -216,8 +198,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get operation files data.
-     * 
-     * @return array
      */
     public function getFiles(): array
     {
@@ -226,8 +206,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Check if task is processing.
-     * 
-     * @return bool
      */
     public function isProcessing(): bool
     {
@@ -236,8 +214,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Check if task is successful.
-     * 
-     * @return bool
      */
     public function isSuccess(): bool
     {
@@ -246,8 +222,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Check if task is failed.
-     * 
-     * @return bool
      */
     public function isFailed(): bool
     {
@@ -256,8 +230,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Check if task is not found.
-     * 
-     * @return bool
      */
     public function isNotFound(): bool
     {
@@ -266,8 +238,6 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Check if task is completed (success or failed).
-     * 
-     * @return bool
      */
     public function isCompleted(): bool
     {
@@ -276,15 +246,13 @@ class FileBatchOperationStatusResponseDTO
 
     /**
      * Get progress as formatted string.
-     * 
-     * @return string
      */
     public function getProgressString(): string
     {
         if ($this->total > 0) {
             return "{$this->current}/{$this->total} ({$this->progress}%)";
         }
-        
+
         return "{$this->progress}%";
     }
 }
