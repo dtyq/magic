@@ -26,7 +26,6 @@ return new class () extends Migration {
             $table->unique(['project_id', 'target_type', 'target_id'], 'uk_project_target');
 
             // 索引优化
-            $table->index('project_id', 'idx_project_id');
             $table->index('invited_by', 'idx_invited_by');
             $table->index(['target_type', 'target_id'], 'idx_target');
             $table->index('created_at', 'idx_created_at');
