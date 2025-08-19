@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Provider\Facade;
 
-use App\Application\Chat\Service\MagicAccountAppService;
-use App\Application\Chat\Service\MagicUserContactAppService;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Provider\DTO\SuperMagicModelDTO;
@@ -18,9 +16,7 @@ use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -221,15 +217,6 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
 
         return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
-    }
-
-    private function getPhone(string $userId)
-    {
-        $magicUserContactAppService = di(MagicUserContactAppService::class);
-        $user = $magicUserContactAppService->getByUserId($userId);
-        $magicAccountAppService = di(MagicAccountAppService::class);
-        $accountEntity = $magicAccountAppService->getAccountInfoByMagicId($user->getMagicId());
-        return $accountEntity->getPhone();
     }
 
     /**
