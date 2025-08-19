@@ -107,18 +107,18 @@ class ProjectMemberApiTest extends AbstractHttpTest
         // 分享话题
         $this->createTopicShare($workspaceId, $projectId, $topicId);
         // 发送消息
-//        $this->sendMessage($workspaceId, $projectId, $topicId);
+        //        $this->sendMessage($workspaceId, $projectId, $topicId);
         // 项目文件
         $file = $this->attachments($workspaceId, $projectId, $topicId);
         // 重命名项目文件
-//        $this->renameAttachments((string) $file['file_id']);
+        //        $this->renameAttachments((string) $file['file_id']);
+
         // 删除话题
         $this->deleteTopic($workspaceId, $projectId, $topicId);
 
         // 9. 清空空成员
-        $requestData = [
-            'members' => []
-        ];
+        $requestData = ['members' => []];
+
         // 发送PUT请求
         $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
