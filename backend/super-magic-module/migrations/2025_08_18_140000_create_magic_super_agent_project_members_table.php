@@ -20,17 +20,14 @@ return new class () extends Migration {
             $table->string('organization_code', 64)->comment('组织编码');
             $table->tinyInteger('status')->default(1)->comment('状态：1-激活，0-非激活');
             $table->string('invited_by', 128)->comment('邀请人用户ID');
-            $table->timestamp('created_at')->nullable()->comment('创建时间');
-            $table->timestamp('updated_at')->nullable()->comment('更新时间');
-            $table->timestamp('deleted_at')->nullable()->comment('软删除时间');
+            $table->timestamps();
 
             // 唯一约束：防止重复添加成员
-            $table->unique(['project_id', 'target_type', 'target_id', 'deleted_at'], 'uk_project_target');
+            $table->unique(['project_id', 'target_type', 'target_id'], 'uk_project_target');
 
             // 索引优化
             $table->index('project_id', 'idx_project_id');
             $table->index('invited_by', 'idx_invited_by');
-            $table->index('organization_code', 'idx_organization_code');
             $table->index(['target_type', 'target_id'], 'idx_target');
             $table->index('created_at', 'idx_created_at');
         });

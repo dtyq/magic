@@ -56,7 +56,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     {
         return $this->projectMemberModel::query()
             ->where('project_id', $projectId)
-            ->update(['deleted_at' => date('Y-m-d H:i:s')]);
+            ->delete();
     }
 
     /**
@@ -70,7 +70,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
 
         return $this->projectMemberModel::query()
             ->whereIn('id', $ids)
-            ->update(['deleted_at' => date('Y-m-d H:i:s')]);
+            ->delete();
     }
 
     /**
@@ -82,7 +82,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->where('project_id', $projectId)
             ->where('target_type', MemberType::USER->value)
             ->where('target_id', $userId)
-            ->whereNull('deleted_at')
             ->exists();
     }
 
@@ -99,7 +98,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->where('project_id', $projectId)
             ->where('target_type', MemberType::DEPARTMENT->value)
             ->whereIn('target_id', $departmentIds)
-            ->whereNull('deleted_at')
             ->exists();
     }
 
@@ -155,7 +153,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     {
         $results = $this->projectMemberModel::query()
             ->where('project_id', $projectId)
-            ->whereNull('deleted_at')
             ->get()
             ->toArray();
 
@@ -201,7 +198,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                     });
                 }
             })
-            ->whereNull('deleted_at')
             ->select('project_id')
             ->distinct();
 
@@ -231,7 +227,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         foreach ($projectIds as $projectId) {
             $totalCount = $this->projectMemberModel::query()
                 ->where('project_id', $projectId)
-                ->whereNull('deleted_at')
                 ->count();
 
             $counts[$projectId] = $totalCount;
@@ -258,7 +253,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         foreach ($projectIds as $projectId) {
             $members = $this->projectMemberModel::query()
                 ->where('project_id', $projectId)
-                ->whereNull('deleted_at')
                 ->orderBy('created_at', 'asc')
                 ->limit($limit)
                 ->get(['target_type', 'target_id'])
