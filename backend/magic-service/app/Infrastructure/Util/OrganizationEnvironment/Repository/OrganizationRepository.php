@@ -155,20 +155,6 @@ class OrganizationRepository implements OrganizationRepositoryInterface
     }
 
     /**
-     * 检查名称是否已存在.
-     */
-    public function existsByName(string $name, ?int $excludeId = null): bool
-    {
-        $query = OrganizationModel::query()->where('name', $name);
-
-        if ($excludeId) {
-            $query->where('id', '!=', $excludeId);
-        }
-
-        return $query->exists();
-    }
-
-    /**
      * 应用过滤条件.
      */
     private function applyFilters(Builder $query, ?array $filters): void
