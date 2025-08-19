@@ -99,9 +99,6 @@ class ProjectApi extends AbstractApi
 
         $requestDTO = GetProjectListRequestDTO::fromRequest($this->request);
 
-        if ($this->request->input('type') === 'collaboration') {
-            return $this->projectMemberAppService->getCollaborationProjectList($requestContext, $requestDTO);
-        }
         return $this->projectAppService->getProjectList($requestContext, $requestDTO);
     }
 
