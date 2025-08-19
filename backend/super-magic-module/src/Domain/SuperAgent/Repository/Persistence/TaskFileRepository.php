@@ -28,9 +28,15 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
-    public function getFilesByIds(array $fileIds): array
+    public function getFilesByIds(array $fileIds, int $projectId = 0): array
     {
-        $models = $this->model::query()->whereIn('file_id', $fileIds)->get();
+        $query = $this->model::query()->whereIn('file_id', $fileIds);
+
+        if ($projectId > 0) {
+            $query->where('project_id', $projectId);
+        }
+
+        $models = $query->get();
 
         $list = [];
         foreach ($models as $model) {
@@ -306,8 +312,8 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     public function updateFileByCondition(array $condition, array $data): bool
     {
         return $this->model::query()
-                ->where($condition)
-                ->update($data) > 0;
+            ->where($condition)
+            ->update($data) > 0;
     }
 
     public function deleteById(int $id): void
@@ -617,6 +623,15 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $query->orderBy($orderBy, $direction)->get()->toArray();
+    }
+
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int
+    {
+        return $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $parentId)
+            ->whereNull('deleted_at')
+            ->count();
     }
 
     /**

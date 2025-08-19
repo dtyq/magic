@@ -29,6 +29,8 @@ enum TaskFileSource: int
      */
     case AGENT = 3;
 
+    case COPY = 4;
+
     /**
      * 获取来源名称.
      */
@@ -39,19 +41,7 @@ enum TaskFileSource: int
             self::HOME => '首页',
             self::PROJECT_DIRECTORY => '项目目录',
             self::AGENT => 'Agent',
-        };
-    }
-
-    /**
-     * 获取来源描述.
-     */
-    public function getDescription(): string
-    {
-        return match ($this) {
-            self::DEFAULT => '默认来源，来源于用户上传的文件',
-            self::HOME => '来源于首页上传的文件',
-            self::PROJECT_DIRECTORY => '来源于项目目录的文件',
-            self::AGENT => '来源于Agent生成的文件',
+            self::COPY => '复制',
         };
     }
 
@@ -68,6 +58,7 @@ enum TaskFileSource: int
             1 => self::HOME,
             2 => self::PROJECT_DIRECTORY,
             3 => self::AGENT,
+            4 => self::COPY,
             default => self::DEFAULT,
         };
     }

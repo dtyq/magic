@@ -17,28 +17,28 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\DirectoryMovePublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryMoveEvent;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Amqp\Producer;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -577,7 +577,7 @@ class FileManagementAppService extends AbstractAppService
 
             // Directory move: use asynchronous processing
             if ($fileEntity->getIsDirectory()) {
-                $batchKey = $this->batchOperationStatusManager->generateBatchKey(FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), (string)$fileEntity->getFileId());
+                $batchKey = $this->batchOperationStatusManager->generateBatchKey(FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), (string) $fileEntity->getFileId());
                 // Initialize task status
                 $this->batchOperationStatusManager->initializeTask($batchKey, FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), 1);
                 // Publish move event
@@ -729,41 +729,40 @@ class FileManagementAppService extends AbstractAppService
             sort($fileIds); // Ensure consistent hash for same file IDs
             $fileIdsHash = md5(implode(',', $fileIds));
             $batchKey = $this->batchOperationStatusManager->generateBatchKey(
-                FileBatchOperationStatusManager::OPERATION_MOVE, 
-                $dataIsolation->getCurrentUserId(), 
+                FileBatchOperationStatusManager::OPERATION_MOVE,
+                $dataIsolation->getCurrentUserId(),
                 $fileIdsHash
             );
-            
+
             // Initialize task status
             $fileCount = count($requestDTO->getFileIds());
             $this->batchOperationStatusManager->initializeTask(
-                $batchKey, 
-                FileBatchOperationStatusManager::OPERATION_MOVE, 
-                $dataIsolation->getCurrentUserId(), 
+                $batchKey,
+                FileBatchOperationStatusManager::OPERATION_MOVE,
+                $dataIsolation->getCurrentUserId(),
                 $fileCount
             );
-            
+
             // Create and publish batch move event
             $event = FileBatchMoveEvent::fromDTO($batchKey, $dataIsolation, $requestDTO);
             $publisher = new FileBatchMovePublisher($event);
             $this->producer->produce($publisher);
-            
+
             // Return asynchronous response
             return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
-            
         } catch (BusinessException $e) {
             $this->logger->warning('Business logic error in batch move file', [
                 'file_ids' => $requestDTO->getFileIds(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
-                'code' => $e->getCode()
+                'code' => $e->getCode(),
             ]);
             throw $e;
         } catch (Throwable $e) {
             $this->logger->error('System error in batch move file', [
                 'file_ids' => $requestDTO->getFileIds(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.batch_move_failed'));
         }
@@ -786,10 +785,10 @@ class FileManagementAppService extends AbstractAppService
             $dataIsolation = $this->createDataIsolation($userAuthorization);
 
             // Verify user permission for this batch operation
-            if (!$this->batchOperationStatusManager->verifyUserPermission($batchKey, $dataIsolation->getCurrentUserId())) {
+            if (! $this->batchOperationStatusManager->verifyUserPermission($batchKey, $dataIsolation->getCurrentUserId())) {
                 $this->logger->warning('User permission denied for batch operation status check', [
                     'batch_key' => $batchKey,
-                    'user_id' => $dataIsolation->getCurrentUserId()
+                    'user_id' => $dataIsolation->getCurrentUserId(),
                 ]);
                 return FileBatchOperationStatusResponseDTO::createNotFound();
             }
@@ -797,10 +796,10 @@ class FileManagementAppService extends AbstractAppService
             // Get task status from Redis
             $taskStatus = $this->batchOperationStatusManager->getTaskStatus($batchKey);
 
-            if (!$taskStatus) {
+            if (! $taskStatus) {
                 $this->logger->info('Batch operation not found', [
                     'batch_key' => $batchKey,
-                    'user_id' => $dataIsolation->getCurrentUserId()
+                    'user_id' => $dataIsolation->getCurrentUserId(),
                 ]);
                 return FileBatchOperationStatusResponseDTO::createNotFound();
             }
@@ -810,24 +809,23 @@ class FileManagementAppService extends AbstractAppService
                 'batch_key' => $batchKey,
                 'status' => $taskStatus['status'] ?? 'unknown',
                 'operation' => $taskStatus['operation'] ?? 'unknown',
-                'user_id' => $dataIsolation->getCurrentUserId()
+                'user_id' => $dataIsolation->getCurrentUserId(),
             ]);
 
             // Create response DTO from task status
             return FileBatchOperationStatusResponseDTO::fromTaskStatus($taskStatus);
-
         } catch (BusinessException $e) {
             $this->logger->warning('Business logic error in checking batch operation status', [
                 'batch_key' => $requestDTO->getBatchKey(),
                 'error' => $e->getMessage(),
-                'code' => $e->getCode()
+                'code' => $e->getCode(),
             ]);
             throw $e;
         } catch (Throwable $e) {
             $this->logger->error('System error in checking batch operation status', [
                 'batch_key' => $requestDTO->getBatchKey(),
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.check_batch_status_failed'));
         }

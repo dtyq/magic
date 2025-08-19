@@ -17,7 +17,11 @@ interface TaskFileRepositoryInterface
      */
     public function getById(int $id): ?TaskFileEntity;
 
-    public function getFilesByIds(array $fileIds): array;
+    /**
+     * 根据ID批量获取文件.
+     * @return TaskFileEntity[]
+     */
+    public function getFilesByIds(array $fileIds, int $projectId = 0): array;
 
     /**
      * 根据ID批量获取文件.
@@ -156,6 +160,8 @@ interface TaskFileRepositoryInterface
      */
     public function getSiblingsByParentId(?int $parentId, int $projectId, string $orderBy = 'sort', string $direction = 'ASC'): array;
 
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int;
+
     /**
      * 批量更新排序值.
      */
@@ -202,4 +208,10 @@ interface TaskFileRepositoryInterface
     public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
+
+    public function updateFileByCondition(array $condition, array $data): bool;
+
+    public function lockDirectChildrenForUpdate(int $parentId): array;
+
+    public function getAllChildrenByParentId(int $parentId): array;
 }
