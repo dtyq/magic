@@ -32,7 +32,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
     }
 
     /**
-     * 测试更新项目成员 - 成功场景
+     * 测试更新项目成员 - 成功场景.
      */
     public function testUpdateProjectMembersSuccess(): void
     {
@@ -63,6 +63,9 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $workspaceId = '798545276362801698';
         $projectId = '816065983061213185';
 
+        $this->updateProject($workspaceId, $projectId);
+        $this->updateProject($workspaceId, $projectId);
+
         // 确保不会对原有功能造成影响
         // 创建话题
         $topicId = $this->createTopic($workspaceId, $projectId);
@@ -82,6 +85,8 @@ class ProjectMemberApiTest extends AbstractHttpTest
         // 3. 没有权限
         $this->switchUserTest2();
         $this->updateEmptyMembers($projectId, 51202);
+        $this->updateProject($workspaceId, $projectId, 51202);
+        $this->deleteProject($workspaceId, $projectId, 51202);
 
         $this->switchUserTest1();
 
@@ -142,7 +147,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
                     'target_type' => 'Department',
                     'target_id' => '727236421093691395',
                 ],
-            ]
+            ],
         ];
         // 发送PUT请求
         $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
@@ -150,11 +155,10 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals(1000, $response['code']);
     }
 
-
     public function updateEmptyMembers(string $projectId, int $code = 1000): void
     {
         $requestData = [
-            'members' => []
+            'members' => [],
         ];
         // 发送PUT请求
         $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
@@ -224,7 +228,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
             'workspace_id' => $workspaceId,
             'topic_name' => '4324234',
         ];
-        $response = $this->put('/api/v1/super-agent/topics/'.$topicId, $requestData, $this->getCommonHeaders());
+        $response = $this->put('/api/v1/super-agent/topics/' . $topicId, $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('id', $response['data']);
         return $response['data']['id'];
@@ -270,13 +274,13 @@ class ProjectMemberApiTest extends AbstractHttpTest
     {
         $requestData = [
             'file_type' => [
-                'user_upload', 'process', 'system_auto_upload', 'directory'
+                'user_upload', 'process', 'system_auto_upload', 'directory',
             ],
             'page' => 1,
             'page_size' => 999,
             'token' => '',
         ];
-        $response = $this->post('/api/v1/super-agent/projects/'.$projectId.'/attachments', $requestData, $this->getCommonHeaders());
+        $response = $this->post('/api/v1/super-agent/projects/' . $projectId . '/attachments', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertGreaterThan('1', $response['data']['total']);
         return $response['data']['tree'][0];
@@ -285,11 +289,28 @@ class ProjectMemberApiTest extends AbstractHttpTest
     public function renameAttachments(string $fileId): void
     {
         $requestData = [
-            'target_name' => 'dsadvfsdfs'
+            'target_name' => 'dsadvfsdfs',
         ];
-        $response = $this->post('/api/v1/super-agent/file/'.$fileId.'/rename', $requestData, $this->getCommonHeaders());
+        $response = $this->post('/api/v1/super-agent/file/' . $fileId . '/rename', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
+    }
+
+    public function updateProject(string $workspaceId, string $projectId, int $code = 1000): void
+    {
+        $requestData = [
+            'workspace_id' => $workspaceId,
+            'project_name' => 'test',
+            'project_description' => 'test',
+        ];
+        $response = $this->put('/api/v1/super-agent/projects/' . $projectId, $requestData, $this->getCommonHeaders());
+        $this->assertEquals($code, $response['code']);
+    }
+
+    public function deleteProject(string $workspaceId, string $projectId, int $code = 1000): void
+    {
+        $response = $this->delete('/api/v1/super-agent/projects/' . $projectId, [], $this->getCommonHeaders());
+        $this->assertEquals($code, $response['code']);
     }
 
     protected function switchUserTest1(): string
