@@ -9,15 +9,13 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
-use Hyperf\Cache\Annotation\CacheEvict;
 use Hyperf\DbConnection\Db;
 
 /**
- * 项目成员仓储实现
+ * 项目成员仓储实现.
  *
  * 负责项目成员的数据持久化操作
  */
@@ -29,7 +27,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 批量插入项目成员
+     * 批量插入项目成员.
      */
     public function insert(array $projectMemberEntities): void
     {
@@ -50,7 +48,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 根据项目ID删除所有成员
+     * 根据项目ID删除所有成员.
      */
     public function deleteByProjectId(int $projectId): int
     {
@@ -60,7 +58,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 根据ID数组批量删除成员
+     * 根据ID数组批量删除成员.
      */
     public function deleteByIds(array $ids): int
     {
@@ -74,7 +72,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 检查项目和用户的成员关系是否存在
+     * 检查项目和用户的成员关系是否存在.
      */
     public function existsByProjectAndUser(int $projectId, string $userId): bool
     {
@@ -86,7 +84,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 检查项目和部门列表的成员关系是否存在
+     * 检查项目和部门列表的成员关系是否存在.
      */
     public function existsByProjectAndDepartments(int $projectId, array $departmentIds): bool
     {
@@ -102,49 +100,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 准备批量插入的属性数组
-     */
-    private function prepareBatchInsertAttributes(array $projectMemberEntities): array
-    {
-        $attributes = [];
-
-        foreach ($projectMemberEntities as $entity) {
-            $memberAttrs = $this->entityToModelAttributes($entity);
-
-            if ($entity->getId() === 0) {
-                $snowId = IdGenerator::getSnowId();
-                $memberAttrs['id'] = $snowId;
-                $entity->setId($snowId);
-            }
-
-            $attributes[] = $memberAttrs;
-        }
-
-        return $attributes;
-    }
-
-    /**
-     * 实体转换为模型属性
-     */
-    private function entityToModelAttributes(ProjectMemberEntity $entity): array
-    {
-        $now = date('Y-m-d H:i:s');
-
-        return [
-            'id' => $entity->getId(),
-            'project_id' => $entity->getProjectId(),
-            'target_type' => $entity->getTargetType()->value,
-            'target_id' => $entity->getTargetId(),
-            'organization_code' => $entity->getOrganizationCode(),
-            'status' => $entity->getStatus()->value,
-            'invited_by' => $entity->getInvitedBy(),
-            'created_at' => $now,
-            'updated_at' => $now,
-        ];
-    }
-
-    /**
-     * 根据项目ID获取所有项目成员
+     * 根据项目ID获取所有项目成员.
      *
      * @param int $projectId 项目ID
      * @return ProjectMemberEntity[] 项目成员实体数组
@@ -165,7 +121,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 根据用户和部门获取项目ID列表及总数
+     * 根据用户和部门获取项目ID列表及总数.
      *
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
@@ -180,7 +136,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                         ->where('target_id', $userId);
                 });
 
-                if (!empty($departmentIds)) {
+                if (! empty($departmentIds)) {
                     $query->orWhere(function ($subQuery) use ($departmentIds) {
                         $subQuery->where('target_type', MemberType::DEPARTMENT->value)
                             ->whereIn('target_id', $departmentIds);
@@ -195,12 +151,12 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
 
         return [
             'total' => count($projectIds),
-            'project_ids' => $projectIds
+            'project_ids' => $projectIds,
         ];
     }
 
     /**
-     * 批量获取项目成员总数
+     * 批量获取项目成员总数.
      *
      * @param array $projectIds 项目ID数组
      * @return array [project_id => total_count]
@@ -225,7 +181,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 批量获取项目前N个成员预览
+     * 批量获取项目前N个成员预览.
      *
      * @param array $projectIds 项目ID数组
      * @param int $limit 限制数量，默认4个
@@ -253,5 +209,47 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         }
 
         return $preview;
+    }
+
+    /**
+     * 准备批量插入的属性数组.
+     */
+    private function prepareBatchInsertAttributes(array $projectMemberEntities): array
+    {
+        $attributes = [];
+
+        foreach ($projectMemberEntities as $entity) {
+            $memberAttrs = $this->entityToModelAttributes($entity);
+
+            if ($entity->getId() === 0) {
+                $snowId = IdGenerator::getSnowId();
+                $memberAttrs['id'] = $snowId;
+                $entity->setId($snowId);
+            }
+
+            $attributes[] = $memberAttrs;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * 实体转换为模型属性.
+     */
+    private function entityToModelAttributes(ProjectMemberEntity $entity): array
+    {
+        $now = date('Y-m-d H:i:s');
+
+        return [
+            'id' => $entity->getId(),
+            'project_id' => $entity->getProjectId(),
+            'target_type' => $entity->getTargetType()->value,
+            'target_id' => $entity->getTargetId(),
+            'organization_code' => $entity->getOrganizationCode(),
+            'status' => $entity->getStatus()->value,
+            'invited_by' => $entity->getInvitedBy(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 }

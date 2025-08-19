@@ -10,7 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 
 /**
- * 协作项目条目DTO (扩展自ProjectItemDTO)
+ * 协作项目条目DTO (扩展自ProjectItemDTO).
  */
 class CollaborationProjectItemDTO extends ProjectItemDTO
 {
@@ -52,7 +52,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
     }
 
     /**
-     * 从项目实体和扩展信息创建DTO
+     * 从项目实体和扩展信息创建DTO.
      */
     public static function fromEntityWithExtendedInfo(
         ProjectEntity $project,
@@ -83,7 +83,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
     }
 
     /**
-     * 转换为数组 (包含扩展字段)
+     * 转换为数组 (包含扩展字段).
      */
     public function toArray(): array
     {

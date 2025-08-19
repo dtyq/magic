@@ -52,7 +52,7 @@ class ProjectMemberItemDTO extends AbstractDTO
     protected string $type = '';
 
     /**
-     * 从用户数据创建DTO
+     * 从用户数据创建DTO.
      */
     public static function fromUserData(array $userData): self
     {
@@ -69,7 +69,7 @@ class ProjectMemberItemDTO extends AbstractDTO
     }
 
     /**
-     * 从部门数据创建DTO
+     * 从部门数据创建DTO.
      */
     public static function fromDepartmentData(array $departmentData): self
     {
@@ -87,7 +87,7 @@ class ProjectMemberItemDTO extends AbstractDTO
 
     /**
      * 转换为数组
-     * 输出保持下划线命名，以保持API兼容性
+     * 输出保持下划线命名，以保持API兼容性.
      */
     public function toArray(): array
     {

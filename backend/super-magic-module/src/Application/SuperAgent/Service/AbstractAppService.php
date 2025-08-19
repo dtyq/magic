@@ -23,8 +23,8 @@ class AbstractAppService extends AbstractKernelAppService
     use DataIsolationTrait;
 
     /**
-     * 获取用户可访问的项目实体
-     * 
+     * 获取用户可访问的项目实体.
+     *
      * @return ProjectEntity 项目实体
      * @throws BusinessException 当用户无访问权限时
      */
@@ -50,9 +50,9 @@ class AbstractAppService extends AbstractKernelAppService
 
         $dataIsolation = DataIsolation::create($organizationCode, $userId);
 
-        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId,true);
+        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
 
-        if (!empty($departmentIds)) {
+        if (! empty($departmentIds)) {
             if ($projectMemberService->isProjectMemberByDepartments($projectId, $departmentIds)) {
                 return $projectEntity;
             }
