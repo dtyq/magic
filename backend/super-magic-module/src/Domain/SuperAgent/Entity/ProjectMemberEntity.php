@@ -175,6 +175,22 @@ class ProjectMemberEntity extends AbstractEntity
         }
     }
 
+    public static function modelToEntity(array $data): ProjectMemberEntity
+    {
+        $entity = new ProjectMemberEntity();
+        $entity->setId($data['id']);
+        $entity->setProjectId($data['project_id']);
+        $entity->setTargetTypeFromString($data['target_type']);
+        $entity->setTargetId($data['target_id']);
+        $entity->setOrganizationCode($data['organization_code']);
+        $entity->setStatus(MemberStatus::from((int) $data['status'])); // 转换为MemberStatus枚举
+        $entity->setInvitedBy($data['invited_by']);
+        $entity->setCreatedAt($data['created_at']);
+        $entity->setUpdatedAt($data['updated_at']);
+
+        return $entity;
+    }
+
     /**
      * 转换为数组格式
      */

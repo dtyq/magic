@@ -117,7 +117,7 @@ class ProjectMemberDomainService
      *
      * @param array $projectIds 项目ID数组
      * @param int $limit 限制数量，默认4个
-     * @return array [project_id => [['target_type' => '', 'target_id' => ''], ...]]
+     * @return ProjectMemberEntity[][]
      */
     public function getProjectMembersPreview(array $projectIds, int $limit = 4): array
     {

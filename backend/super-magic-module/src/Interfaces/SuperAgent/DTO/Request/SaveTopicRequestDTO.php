@@ -110,7 +110,6 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     {
         return [
             'id' => 'nullable|string',
-            'workspace_id' => 'required|string',
             'topic_name' => 'present|string|max:100',
             'project_id' => 'required|string',
             'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,summary,super-magic',
@@ -123,8 +122,6 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'workspace_id.required' => 'Workspace ID cannot be empty',
-            'workspace_id.string' => 'Workspace ID must be a string',
             'topic_name.present' => 'Topic name field is required',
             'topic_name.max' => 'Topic name cannot exceed 100 characters',
             'project_id.required' => 'Project ID cannot be empty',

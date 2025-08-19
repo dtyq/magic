@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -25,6 +26,18 @@ class ProjectMemberApi extends AbstractApi
         private readonly ProjectMemberAppService $projectMemberAppService,
     ) {
         parent::__construct($request);
+    }
+
+    /**
+     * 获取协作项目列表
+     */
+    public function getCollaborationProjects(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetProjectListRequestDTO::fromRequest($this->request);
+
+        return $this->projectMemberAppService->getCollaborationProjects($requestContext, $requestDTO);
     }
 
     /**
