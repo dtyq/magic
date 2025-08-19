@@ -61,6 +61,8 @@ Router::addGroup(
             // 更新项目协作成员
             Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
         });
+        // 获取协作项目列表
+        Router::get('/collaboration-projects', [ProjectMemberApi::class, 'getCollaborationProjects']);
 
         // 话题相关
         Router::addGroup('/topics', static function () {

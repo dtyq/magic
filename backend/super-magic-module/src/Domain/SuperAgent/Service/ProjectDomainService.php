@@ -157,4 +157,31 @@ class ProjectDomainService
 
         return $this->projectRepository->updateProjectByCondition($conditions, $data);
     }
+
+    public function updateProjectMode(int $id, TopicMode $topicMode): bool
+    {
+        $projectEntity = $this->projectRepository->findById($id);
+        if (! $projectEntity || ! empty($projectEntity->getProjectMode())) {
+            return false;
+        }
+        $projectEntity->setProjectMode($topicMode->value);
+        $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $this->projectRepository->save($projectEntity);
+        return true;
+    }
+
+    /**
+     * 根据项目ID数组批量获取项目信息.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return ProjectEntity[] 项目实体数组
+     */
+    public function getProjectsByIds(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        return $this->projectRepository->getProjectsByIds($projectIds);
+    }
 }
