@@ -15,10 +15,6 @@ use Hyperf\Database\Model\SoftDeletes;
  */
 class ProjectMemberModel extends AbstractModel
 {
-    use SoftDeletes;
-
-    public const DELETED_AT = 'deleted_at';
-
     protected ?string $table = 'magic_super_agent_project_members';
 
     protected array $fillable = [
@@ -39,7 +35,6 @@ class ProjectMemberModel extends AbstractModel
         'status' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
     ];
 
     /**
