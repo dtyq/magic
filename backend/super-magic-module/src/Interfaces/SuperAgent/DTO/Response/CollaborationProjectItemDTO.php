@@ -10,7 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 
 /**
- * 协作项目条目DTO (扩展自ProjectItemDTO).
+ * 协作项目条目DTO (扩展自ProjectItemDTO)
  */
 class CollaborationProjectItemDTO extends ProjectItemDTO
 {
@@ -32,7 +32,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         // 新增字段
         public readonly ?CreatorInfoDTO $creator,
         public readonly array $members,
-        public readonly int $memberCount
+        public readonly int $memberCount,
+        public readonly string $tag
     ) {
         parent::__construct(
             $id,
@@ -51,7 +52,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
     }
 
     /**
-     * 从项目实体和扩展信息创建DTO.
+     * 从项目实体和扩展信息创建DTO
      */
     public static function fromEntityWithExtendedInfo(
         ProjectEntity $project,
@@ -76,16 +77,18 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             updatedAt: $project->getUpdatedAt(),
             creator: $creator,
             members: $members,
-            memberCount: $memberCount
+            memberCount: $memberCount,
+            tag: 'collaboration'
         );
     }
 
     /**
-     * 转换为数组 (包含扩展字段).
+     * 转换为数组 (包含扩展字段)
      */
     public function toArray(): array
     {
         return array_merge(parent::toArray(), [
+            'tag' => $this->tag,
             'creator' => $this->creator?->toArray(),
             'members' => array_map(fn ($member) => $member->toArray(), $this->members),
             'member_count' => $this->memberCount,

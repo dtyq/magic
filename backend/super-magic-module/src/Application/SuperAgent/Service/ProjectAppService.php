@@ -180,7 +180,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 获取项目信息
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getId(), $requestContext->getUserId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
         $projectEntity->setProjectName($requestDTO->getProjectName());
         $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
         $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
@@ -237,7 +237,8 @@ class ProjectAppService extends AbstractAppService
      */
     public function getProject(RequestContext $requestContext, int $projectId): ProjectEntity
     {
-        return $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $userAuthorization = $requestContext->getUserAuthorization();
+        return $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
     }
 
     /**
@@ -305,7 +306,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 验证项目权限
-        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 通过话题领域服务获取项目下的话题列表
         $result = $this->topicDomainService->getProjectTopicsWithPagination(
@@ -365,7 +366,7 @@ class ProjectAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
 
         // 验证项目存在性和所有权
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 创建基于用户的数据隔离
         $dataIsolation = $this->createDataIsolation($userAuthorization);
@@ -408,7 +409,7 @@ class ProjectAppService extends AbstractAppService
 
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        $projectEntity = $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
     }
 

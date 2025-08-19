@@ -1,27 +1,27 @@
 <?php
 
 declare(strict_types=1);
-/**
- * Copyright (c) The Magic , Distributed under the software license
- */
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Infrastructure\Util\Context\RequestContext;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreatorInfoDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectMembersResponseDTO;
+use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -43,15 +43,18 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 更新项目成员.
+     * 更新项目成员
      *
      * @param RequestContext $requestContext 请求上下文
      * @param UpdateProjectMembersRequestDTO $requestDTO 请求DTO
+     *
      */
     public function updateProjectMembers(
         RequestContext $requestContext,
         UpdateProjectMembersRequestDTO $requestDTO
     ): void {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
         // 1. DTO转换为Entity
         $projectId = (int) $requestDTO->getProjectId();
         $memberEntities = [];
@@ -60,14 +63,14 @@ class ProjectMemberAppService extends AbstractAppService
             $entity = new ProjectMemberEntity();
             $entity->setTargetTypeFromString($memberData['target_type']);
             $entity->setTargetId($memberData['target_id']);
-            $entity->setOrganizationCode($requestContext->getOrganizationCode());
-            $entity->setInvitedBy($requestContext->getUserId());
+            $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+            $entity->setInvitedBy($userAuthorization->getId());
 
             $memberEntities[] = $entity;
         }
 
         // 2. 验证并获取可访问的项目
-        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 3. 委托给Domain层处理业务逻辑
         $this->projectMemberDomainService->updateProjectMembers(
@@ -86,12 +89,15 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 获取项目成员列表.
+     * 获取项目成员列表
+     *
      */
     public function getProjectMembers(RequestContext $requestContext, int $projectId): ProjectMembersResponseDTO
     {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
         // 1. 验证并获取可访问的项目
-        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 2. 获取项目成员列表
         $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId);
@@ -117,7 +123,7 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 5. 获取用户详细信息
         $users = [];
-        if (! empty($userIds)) {
+        if (!empty($userIds)) {
             $userEntities = $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds);
             $this->updateUserAvatarUrl($dataIsolation, $userEntities);
 
@@ -129,14 +135,14 @@ class ProjectMemberAppService extends AbstractAppService
                     'i18n_name' => $userEntity->getI18nName() ?? '',
                     'organization_code' => $userEntity->getOrganizationCode(),
                     'avatar_url' => $userEntity->getAvatarUrl() ?? '',
-                    'type' => 'User',
+                    'type' => 'User'
                 ];
             }
         }
 
         // 6. 获取部门详细信息
         $departments = [];
-        if (! empty($departmentIds)) {
+        if (!empty($departmentIds)) {
             $departmentEntities = $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds);
             foreach ($departmentEntities as $departmentEntity) {
                 $departments[] = [
@@ -146,7 +152,7 @@ class ProjectMemberAppService extends AbstractAppService
                     'i18n_name' => $departmentEntity->getI18nName() ?? '',
                     'organization_code' => $requestContext->getOrganizationCode(),
                     'avatar_url' => '',
-                    'type' => 'Department',
+                    'type' => 'Department'
                 ];
             }
         }
@@ -155,11 +161,38 @@ class ProjectMemberAppService extends AbstractAppService
         return ProjectMembersResponseDTO::fromMemberData($users, $departments);
     }
 
+    private function updateUserAvatarUrl(DataIsolation $dataIsolation, array $userEntities): void
+    {
+        $urlMapRealUrl = $this->getUserAvatarUrls($dataIsolation, $userEntities);
+
+        foreach ($userEntities as $userEntity) {
+            $userEntity->setAvatarUrl($urlMapRealUrl[$userEntity->getAvatarUrl()]);
+        }
+    }
+
+    private function getUserAvatarUrls(DataIsolation $dataIsolation, array $userEntities): array
+    {
+        $avatarUrlMapRealUrl = [];
+        $urlPaths = [];
+        foreach ($userEntities as $userEntity) {
+            if (str_starts_with($userEntity->getAvatarUrl(), 'http')) {
+                $avatarUrlMapRealUrl[$userEntity->getAvatarUrl()] = $userEntity->getAvatarUrl();
+            } else {
+                $urlPaths[] = $userEntity->getAvatarUrl();
+            }
+        }
+        $urlPaths = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $urlPaths);
+        foreach ($urlPaths as $path => $urlPath) {
+            $avatarUrlMapRealUrl[$path] = $urlPath->getUrl();
+        }
+        return array_merge($urlPaths, $avatarUrlMapRealUrl);
+    }
+
     /**
      * 获取协作项目列表
-     * 根据当前用户和用户所在部门获取所有协作项目.
+     * 根据当前用户和用户所在部门获取所有协作项目
      */
-    public function getCollaborationProjectList(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
+    public function getCollaborationProjects(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
     {
         // Get user authorization information
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -203,7 +236,7 @@ class ProjectMemberAppService extends AbstractAppService
         // 5. 获取创建人信息
         $creatorUserIds = array_unique(array_map(fn ($project) => $project->getUserId(), $projects));
         $creatorInfoMap = [];
-        if (! empty($creatorUserIds)) {
+        if (!empty($creatorUserIds)) {
             $creatorUsers = $this->magicUserDomainService->getByUserIds($dataIsolation, $creatorUserIds);
             foreach ($creatorUsers as $user) {
                 $creatorInfoMap[$user->getUserId()] = CreatorInfoDTO::fromUserEntity($user);
@@ -229,16 +262,16 @@ class ProjectMemberAppService extends AbstractAppService
             $userIds = [];
             $departmentIds = [];
             foreach ($memberInfo as $member) {
-                if ($member['target_type'] === 'User') {
-                    $userIds[] = $member['target_id'];
-                } elseif ($member['target_type'] === 'Department') {
-                    $departmentIds[] = $member['target_id'];
+                if ($member->getTargetType()->isUser()) {
+                    $userIds[] = $member->getTargetId();
+                } elseif ($member->getTargetType()->isDepartment()) {
+                    $departmentIds[] = $member->getTargetId();
                 }
             }
 
             // 获取用户和部门信息
-            $userEntities = ! empty($userIds) ? $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds) : [];
-            $departmentEntities = ! empty($departmentIds) ? $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds) : [];
+            $userEntities = !empty($userIds) ? $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds) : [];
+            $departmentEntities = !empty($departmentIds) ? $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds) : [];
 
             // 直接创建CollaboratorMemberDTO数组
             $members = [];
@@ -253,7 +286,7 @@ class ProjectMemberAppService extends AbstractAppService
 
             $collaboratorsInfoMap[$projectId] = [
                 'members' => $members,
-                'member_count' => $totalCount,
+                'member_count' => $totalCount
             ];
         }
 
@@ -273,30 +306,4 @@ class ProjectMemberAppService extends AbstractAppService
         return $collaborationListResponseDTO->toArray();
     }
 
-    private function updateUserAvatarUrl(DataIsolation $dataIsolation, array $userEntities): void
-    {
-        $urlMapRealUrl = $this->getUserAvatarUrls($dataIsolation, $userEntities);
-
-        foreach ($userEntities as $userEntity) {
-            $userEntity->setAvatarUrl($urlMapRealUrl[$userEntity->getAvatarUrl()]);
-        }
-    }
-
-    private function getUserAvatarUrls(DataIsolation $dataIsolation, array $userEntities): array
-    {
-        $avatarUrlMapRealUrl = [];
-        $urlPaths = [];
-        foreach ($userEntities as $userEntity) {
-            if (str_starts_with($userEntity->getAvatarUrl(), 'http')) {
-                $avatarUrlMapRealUrl[$userEntity->getAvatarUrl()] = $userEntity->getAvatarUrl();
-            } else {
-                $urlPaths[] = $userEntity->getAvatarUrl();
-            }
-        }
-        $urlPaths = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $urlPaths);
-        foreach ($urlPaths as $path => $urlPath) {
-            $avatarUrlMapRealUrl[$path] = $urlPath->getUrl();
-        }
-        return array_merge($urlPaths, $avatarUrlMapRealUrl);
-    }
 }

@@ -10,7 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 use App\Infrastructure\Core\AbstractDTO;
 
 /**
- * 创建人信息DTO.
+ * 创建人信息DTO
  */
 class CreatorInfoDTO extends AbstractDTO
 {
@@ -30,8 +30,7 @@ class CreatorInfoDTO extends AbstractDTO
     protected string $avatarUrl = '';
 
     /**
-     * 从用户实体创建DTO.
-     * @param mixed $userEntity
+     * 从用户实体创建DTO
      */
     public static function fromUserEntity($userEntity): self
     {
@@ -44,7 +43,7 @@ class CreatorInfoDTO extends AbstractDTO
     }
 
     /**
-     * 转换为数组.
+     * 转换为数组
      */
     public function toArray(): array
     {

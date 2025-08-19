@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
+use Dtyq\SdkBase\Tests\BusinessException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
@@ -22,15 +23,14 @@ class AbstractAppService extends AbstractKernelAppService
     use DataIsolationTrait;
 
     /**
-     * 获取用户可访问的项目实体.
-     *
+     * 获取用户可访问的项目实体
+     * 
      * @return ProjectEntity 项目实体
+     * @throws BusinessException 当用户无访问权限时
      */
     protected function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
     {
         $projectDomainService = di(ProjectDomainService::class);
-        return $projectDomainService->getProjectNotUserId($projectId);
-        /*$projectDomainService = di(ProjectDomainService::class);
         $projectMemberService = di(ProjectMemberDomainService::class);
         $magicDepartmentUserDomainService = di(MagicDepartmentUserDomainService::class);
 
@@ -50,14 +50,14 @@ class AbstractAppService extends AbstractKernelAppService
 
         $dataIsolation = DataIsolation::create($organizationCode, $userId);
 
-        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
+        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId,true);
 
-        if (! empty($departmentIds)) {
+        if (!empty($departmentIds)) {
             if ($projectMemberService->isProjectMemberByDepartments($projectId, $departmentIds)) {
                 return $projectEntity;
             }
         }
 
-        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);*/
+        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
     }
 }

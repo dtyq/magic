@@ -29,7 +29,6 @@ class ProjectApi extends AbstractApi
     public function __construct(
         protected RequestInterface $request,
         private readonly ProjectAppService $projectAppService,
-        private readonly ProjectMemberAppService $projectMemberAppService
     ) {
         parent::__construct($request);
     }

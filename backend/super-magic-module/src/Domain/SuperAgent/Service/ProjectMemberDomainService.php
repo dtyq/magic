@@ -24,7 +24,7 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 更新项目成员 - 主业务方法.
+     * 更新项目成员 - 主业务方法
      *
      * @param string $organizationCode 组织编码
      * @param int $projectId 项目ID
@@ -47,14 +47,14 @@ class ProjectMemberDomainService
             $this->projectMemberRepository->deleteByProjectId($projectId);
 
             // 再批量插入新成员
-            if (! empty($memberEntities)) {
+            if (!empty($memberEntities)) {
                 $this->projectMemberRepository->insert($memberEntities);
             }
         });
     }
 
     /**
-     * 检查用户是否为项目的用户级成员.
+     * 检查用户是否为项目的用户级成员
      */
     public function isProjectMemberByUser(int $projectId, string $userId): bool
     {
@@ -62,7 +62,7 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 检查用户是否为项目的部门级成员.
+     * 检查用户是否为项目的部门级成员
      */
     public function isProjectMemberByDepartments(int $projectId, array $departmentIds): bool
     {
@@ -70,7 +70,7 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 根据项目ID获取项目成员列表.
+     * 根据项目ID获取项目成员列表
      *
      * @param int $projectId 项目ID
      * @return ProjectMemberEntity[] 项目成员实体数组
@@ -81,7 +81,8 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 根据用户和部门获取项目ID列表.
+     * 根据用户和部门获取项目ID列表
+     *
      */
     public function deleteByProjectId(int $projectId): bool
     {
@@ -89,7 +90,7 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 根据用户和部门获取项目ID列表及总数.
+     * 根据用户和部门获取项目ID列表及总数
      *
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
@@ -101,7 +102,7 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 批量获取项目成员总数.
+     * 批量获取项目成员总数
      *
      * @param array $projectIds 项目ID数组
      * @return array [project_id => total_count]
@@ -112,11 +113,11 @@ class ProjectMemberDomainService
     }
 
     /**
-     * 批量获取项目前N个成员预览.
+     * 批量获取项目前N个成员预览
      *
      * @param array $projectIds 项目ID数组
      * @param int $limit 限制数量，默认4个
-     * @return array [project_id => [['target_type' => '', 'target_id' => ''], ...]]
+     * @return ProjectMemberEntity[][]
      */
     public function getProjectMembersPreview(array $projectIds, int $limit = 4): array
     {
