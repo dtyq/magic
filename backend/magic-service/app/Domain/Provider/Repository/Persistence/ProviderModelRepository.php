@@ -256,7 +256,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     /**
      * 根据ID查询模型（不限制组织）.
      */
-    private function getModelByIdWithoutOrgFilter(string $id): ?ProviderModelEntity
+    public function getModelByIdWithoutOrgFilter(string $id): ?ProviderModelEntity
     {
         $query = $this->createProviderModelQuery()
             ->where('id', $id);
