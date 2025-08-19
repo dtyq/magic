@@ -53,6 +53,8 @@ class ProjectMemberAppService extends AbstractAppService
         RequestContext $requestContext,
         UpdateProjectMembersRequestDTO $requestDTO
     ): void {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
         // 1. DTO转换为Entity
         $projectId = (int) $requestDTO->getProjectId();
         $memberEntities = [];
@@ -61,14 +63,14 @@ class ProjectMemberAppService extends AbstractAppService
             $entity = new ProjectMemberEntity();
             $entity->setTargetTypeFromString($memberData['target_type']);
             $entity->setTargetId($memberData['target_id']);
-            $entity->setOrganizationCode($requestContext->getOrganizationCode());
-            $entity->setInvitedBy($requestContext->getUserId());
+            $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+            $entity->setInvitedBy($userAuthorization->getId());
 
             $memberEntities[] = $entity;
         }
 
         // 2. 验证并获取可访问的项目
-        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 3. 委托给Domain层处理业务逻辑
         $this->projectMemberDomainService->updateProjectMembers(
@@ -92,8 +94,10 @@ class ProjectMemberAppService extends AbstractAppService
      */
     public function getProjectMembers(RequestContext $requestContext, int $projectId): ProjectMembersResponseDTO
     {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
         // 1. 验证并获取可访问的项目
-        $this->getAccessibleProject($projectId, $requestContext->getUserId(), $requestContext->getOrganizationCode());
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 2. 获取项目成员列表
         $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId);
@@ -188,7 +192,7 @@ class ProjectMemberAppService extends AbstractAppService
      * 获取协作项目列表
      * 根据当前用户和用户所在部门获取所有协作项目
      */
-    public function getCollaborationProjectList(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
+    public function getCollaborationProjects(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
     {
         // Get user authorization information
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -258,10 +262,10 @@ class ProjectMemberAppService extends AbstractAppService
             $userIds = [];
             $departmentIds = [];
             foreach ($memberInfo as $member) {
-                if ($member['target_type'] === 'User') {
-                    $userIds[] = $member['target_id'];
-                } elseif ($member['target_type'] === 'Department') {
-                    $departmentIds[] = $member['target_id'];
+                if ($member->getTargetType()->isUser()) {
+                    $userIds[] = $member->getTargetId();
+                } elseif ($member->getTargetType()->isDepartment()) {
+                    $departmentIds[] = $member->getTargetId();
                 }
             }
 

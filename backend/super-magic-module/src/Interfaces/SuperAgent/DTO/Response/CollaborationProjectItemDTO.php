@@ -32,7 +32,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         // 新增字段
         public readonly ?CreatorInfoDTO $creator,
         public readonly array $members,
-        public readonly int $memberCount
+        public readonly int $memberCount,
+        public readonly string $tag
     ) {
         parent::__construct(
             $id,
@@ -76,7 +77,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             updatedAt: $project->getUpdatedAt(),
             creator: $creator,
             members: $members,
-            memberCount: $memberCount
+            memberCount: $memberCount,
+            tag: 'collaboration'
         );
     }
 
@@ -86,6 +88,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
     public function toArray(): array
     {
         return array_merge(parent::toArray(), [
+            'tag' => $this->tag,
             'creator' => $this->creator?->toArray(),
             'members' => array_map(fn ($member) => $member->toArray(), $this->members),
             'member_count' => $this->memberCount,

@@ -158,18 +158,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
 
         $entities = [];
         foreach ($results as $row) {
-            $entity = new ProjectMemberEntity();
-            $entity->setId($row['id']);
-            $entity->setProjectId($row['project_id']);
-            $entity->setTargetTypeFromString($row['target_type']);
-            $entity->setTargetId($row['target_id']);
-            $entity->setOrganizationCode($row['organization_code']);
-            $entity->setStatus(MemberStatus::from((int) $row['status'])); // 转换为MemberStatus枚举
-            $entity->setInvitedBy($row['invited_by']);
-            $entity->setCreatedAt($row['created_at']);
-            $entity->setUpdatedAt($row['updated_at']);
-
-            $entities[] = $entity;
+            $entities[] = ProjectMemberEntity::modelToEntity($row);
         }
 
         return $entities;
@@ -255,14 +244,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                 ->where('project_id', $projectId)
                 ->orderBy('created_at', 'asc')
                 ->limit($limit)
-                ->get(['target_type', 'target_id'])
+                ->get()
                 ->toArray();
 
             $preview[$projectId] = array_map(function ($member) {
-                return [
-                    'target_type' => $member['target_type'],
-                    'target_id' => $member['target_id']
-                ];
+                return ProjectMemberEntity::modelToEntity($member);
             }, $members);
         }
 

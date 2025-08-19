@@ -59,32 +59,34 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertSame(1000, $response['code']);
         $projectId = $response['data']['project']['id'];*/
 
+        // 话题列表
         $workspaceId = '798545276362801698';
         $projectId = '816065983061213185';
-        $requestData = ['members' => []];
-        $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
-        $this->assertEquals(1000, $response['code']);
+
+        // 确保不会对原有功能造成影响
+        // 创建话题
+        $topicId = $this->createTopic($workspaceId, $projectId);
+        // 话题列表
+        $this->topicList($workspaceId, $projectId);
+        // 更新话题
+        $this->renameTopic($workspaceId, $projectId, $topicId);
+        // 分享话题
+        $this->createTopicShare($workspaceId, $projectId, $topicId);
+        // 项目文件
+        $this->attachments($workspaceId, $projectId, $topicId);
+        // 删除话题
+        $this->deleteTopic($workspaceId, $projectId, $topicId);
+
+        $this->updateEmptyMembers($projectId);
 
         // 3. 没有权限
         $this->switchUserTest2();
-
-        // 构造有效的请求数据
-        $requestData = [
-            'members' => []
-        ];
-        // 发送PUT请求
-        $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
-        $this->assertNotEquals(1000, $response['code']);
+        $this->updateEmptyMembers($projectId, 51202);
 
         $this->switchUserTest1();
 
         // 4. 添加空成员
-        $requestData = [
-            'members' => []
-        ];
-        // 发送PUT请求
-        $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
-        $this->assertEquals(1000, $response['code']);
+        $this->updateEmptyMembers($projectId);
 
         // 5. 添加项目成员
         $this->updateMembers($projectId);
@@ -148,6 +150,17 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals(1000, $response['code']);
     }
 
+
+    public function updateEmptyMembers(string $projectId, int $code = 1000): void
+    {
+        $requestData = [
+            'members' => []
+        ];
+        // 发送PUT请求
+        $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
+        $this->assertEquals($code, $response['code']);
+    }
+
     public function projectMember(string $projectId): void
     {
         $response = $this->get(self::BASE_URI . "/{$projectId}/members", [], $this->getCommonHeaders());
@@ -161,7 +174,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
 
     public function collaborationProjects(): void
     {
-        $response = $this->client->get('/api/v1/super-agent/projects/queries?type=collaboration', [], $this->getCommonHeaders());
+        $response = $this->client->get('/api/v1/super-agent/collaboration-projects', [], $this->getCommonHeaders());
         $this->assertNotNull($response, '响应不应该为null');
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertEquals('ok', $response['message']);
@@ -175,6 +188,8 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertArrayHasKey('id', $project);
         $this->assertArrayHasKey('project_name', $project);
         $this->assertArrayHasKey('workspace_name', $project);
+        $this->assertArrayHasKey('tag', $project);
+        $this->assertEquals('collaboration', $project['tag']);
         $this->assertEquals(3, $project['member_count']);
         $this->assertEquals(3, count($project['members']));
         $this->assertEquals('usi_27229966f39dd1b62c9d1449e3f7a90d', $project['members'][0]['user_id']);
@@ -187,7 +202,6 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $requestData = [
             'project_id' => $projectId,
             'topic_name' => '',
-            'workspace_id' => $workspaceId,
         ];
 
         $response = $this->post('/api/v1/super-agent/topics', $requestData, $this->getCommonHeaders());
