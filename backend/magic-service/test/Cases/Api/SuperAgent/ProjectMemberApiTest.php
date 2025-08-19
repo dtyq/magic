@@ -32,7 +32,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
     }
 
     /**
-     * 测试更新项目成员 - 成功场景
+     * 测试更新项目成员 - 成功场景.
      */
     public function testUpdateProjectMembersSuccess(): void
     {
@@ -142,7 +142,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
                     'target_type' => 'Department',
                     'target_id' => '727236421093691395',
                 ],
-            ]
+            ],
         ];
         // 发送PUT请求
         $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
@@ -150,11 +150,10 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals(1000, $response['code']);
     }
 
-
     public function updateEmptyMembers(string $projectId, int $code = 1000): void
     {
         $requestData = [
-            'members' => []
+            'members' => [],
         ];
         // 发送PUT请求
         $response = $this->put(self::BASE_URI . "/{$projectId}/members", $requestData, $this->getCommonHeaders());
@@ -224,7 +223,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
             'workspace_id' => $workspaceId,
             'topic_name' => '4324234',
         ];
-        $response = $this->put('/api/v1/super-agent/topics/'.$topicId, $requestData, $this->getCommonHeaders());
+        $response = $this->put('/api/v1/super-agent/topics/' . $topicId, $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('id', $response['data']);
         return $response['data']['id'];
@@ -270,13 +269,13 @@ class ProjectMemberApiTest extends AbstractHttpTest
     {
         $requestData = [
             'file_type' => [
-                'user_upload', 'process', 'system_auto_upload', 'directory'
+                'user_upload', 'process', 'system_auto_upload', 'directory',
             ],
             'page' => 1,
             'page_size' => 999,
             'token' => '',
         ];
-        $response = $this->post('/api/v1/super-agent/projects/'.$projectId.'/attachments', $requestData, $this->getCommonHeaders());
+        $response = $this->post('/api/v1/super-agent/projects/' . $projectId . '/attachments', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertGreaterThan('1', $response['data']['total']);
         return $response['data']['tree'][0];
@@ -285,9 +284,9 @@ class ProjectMemberApiTest extends AbstractHttpTest
     public function renameAttachments(string $fileId): void
     {
         $requestData = [
-            'target_name' => 'dsadvfsdfs'
+            'target_name' => 'dsadvfsdfs',
         ];
-        $response = $this->post('/api/v1/super-agent/file/'.$fileId.'/rename', $requestData, $this->getCommonHeaders());
+        $response = $this->post('/api/v1/super-agent/file/' . $fileId . '/rename', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
     }
