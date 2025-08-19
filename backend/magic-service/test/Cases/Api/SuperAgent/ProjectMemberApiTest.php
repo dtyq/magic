@@ -63,6 +63,9 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $workspaceId = '798545276362801698';
         $projectId = '816065983061213185';
 
+        $this->updateProject($workspaceId, $projectId);
+        $this->updateProject($workspaceId, $projectId);
+
         // 确保不会对原有功能造成影响
         // 创建话题
         $topicId = $this->createTopic($workspaceId, $projectId);
@@ -82,6 +85,8 @@ class ProjectMemberApiTest extends AbstractHttpTest
         // 3. 没有权限
         $this->switchUserTest2();
         $this->updateEmptyMembers($projectId, 51202);
+        $this->updateProject($workspaceId, $projectId, 51202);
+        $this->deleteProject($workspaceId, $projectId, 51202);
 
         $this->switchUserTest1();
 
@@ -289,6 +294,23 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $response = $this->post('/api/v1/super-agent/file/' . $fileId . '/rename', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
+    }
+
+    public function updateProject(string $workspaceId, string $projectId, int $code = 1000): void
+    {
+        $requestData = [
+            'workspace_id' => $workspaceId,
+            'project_name' => 'test',
+            'project_description' => 'test',
+        ];
+        $response = $this->put('/api/v1/super-agent/projects/' . $projectId, $requestData, $this->getCommonHeaders());
+        $this->assertEquals($code, $response['code']);
+    }
+
+    public function deleteProject(string $workspaceId, string $projectId, int $code = 1000): void
+    {
+        $response = $this->delete('/api/v1/super-agent/projects/' . $projectId, [], $this->getCommonHeaders());
+        $this->assertEquals($code, $response['code']);
     }
 
     protected function switchUserTest1(): string
