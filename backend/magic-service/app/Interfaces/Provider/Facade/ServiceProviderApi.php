@@ -232,16 +232,6 @@ class ServiceProviderApi extends AbstractApi
         return $accountEntity->getPhone();
     }
 
-    // 判断当前用户是否在白名单中
-    private function isInWhiteListForOrganization(): void
-    {
-        $authentication = $this->getAuthorization();
-        $phone = $this->getPhone($authentication->getId());
-        if (! PermissionChecker::isOrganizationAdmin($authentication->getOrganizationCode(), $phone)) {
-            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_AUTHORIZE);
-        }
-    }
-
     /**
      * 根据分类获取服务商通用逻辑.
      * @param RequestInterface $request 请求对象
