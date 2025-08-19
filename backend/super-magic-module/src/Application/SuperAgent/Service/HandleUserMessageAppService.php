@@ -98,7 +98,7 @@ class HandleUserMessageAppService extends AbstractAppService
         // Send interrupt message directly to client
         $this->clientMessageAppService->sendInterruptMessageToClient(
             topicId: $topicEntity->getId(),
-            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+            taskId: (string) ($topicEntity->getCurrentTaskId() ?? '0'),
             chatTopicId: $dto->getChatTopicId(),
             chatConversationId: $dto->getChatConversationId(),
             interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
@@ -272,11 +272,12 @@ class HandleUserMessageAppService extends AbstractAppService
             );
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s stack: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
-                $e->getLine()
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
             $this->clientMessageAppService->sendErrorMessageToClient(

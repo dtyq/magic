@@ -373,6 +373,9 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
         if ($newConfigData->getAlias()) {
             $existingConfig->setAlias($newConfigData->getAlias());
         }
+        if ($newConfigData->getTranslate()) {
+            $existingConfig->setTranslate($newConfigData->getTranslate());
+        }
 
         $existingConfig->setUpdatedAt(new DateTime());
         $existingConfig->setSort($newConfigData->getSort());

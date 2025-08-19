@@ -38,7 +38,7 @@ use function Hyperf\Coroutine\go;
  * File Converter Application Service.
  * Coordinates the entire file conversion process, including sandbox creation, initialization, and file conversion.
  */
-class FileConverterAppService
+class FileConverterAppService extends AbstractAppService
 {
     private LoggerInterface $logger;
 
@@ -85,10 +85,7 @@ class FileConverterAppService
             $this->validateConvertRequest($fileIds);
 
             // Permission validation and file retrieval
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-            if ($projectEntity->getUserId() !== $userId) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-            }
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             $validFiles = $this->getValidFiles($fileIds, $userId);
             // Check for duplicate requests

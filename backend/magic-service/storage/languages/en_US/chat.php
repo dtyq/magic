@@ -30,5 +30,9 @@ return [
             'duration_positive' => 'Voice duration must be greater than 0 seconds, current duration: :duration seconds',
             'duration_exceeds_limit' => 'Voice duration cannot exceed :max_duration seconds, current duration: :duration seconds',
         ],
+        'rollback' => [
+            'seq_id_not_found' => 'Message sequence ID not found',
+            'magic_message_id_not_found' => 'Associated message ID not found',
+        ],
     ],
 ];

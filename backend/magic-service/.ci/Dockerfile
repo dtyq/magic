@@ -1,32 +1,4 @@
-ARG IMAGE_NAME=ghcr.io/dtyq/php-dockerfile:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswriter
-
-FROM --platform=$BUILDPLATFORM ${IMAGE_NAME}
-
-ARG timezone
-ARG TARGETPLATFORM
-
-ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
-    SCAN_CACHEABLE=(true) \
-    USE_ZEND_ALLOC=0 \
-    COMPOSER_FUND=0 \
-    PHP_MEMORY_LIMIT=-1 \
-    COMPOSER_MEMORY_LIMIT=-1 \
-    PHP_INI_MEMORY_LIMIT=-1
-
-# 设置 PHP 配置
-RUN mkdir -p /etc/php/conf.d && \
-    echo "memory_limit = -1" > /etc/php/conf.d/memory-limit.ini && \
-    echo "max_execution_time = 0" > /etc/php/conf.d/max-execution-time.ini
-
-
-
-# 安装 PostgreSQL 客户端库及其他依赖
-RUN apk add --no-cache  git openssh-client
-
-
-COPY . /opt/www
-
-WORKDIR /opt/www
+FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswriter
 
 ##
 # ---------- env settings ----------
@@ -35,8 +7,7 @@ WORKDIR /opt/www
 ARG timezone
 
 ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
-    SCAN_CACHEABLE=(true) \
-    USE_ZEND_ALLOC=0
+    SCAN_CACHEABLE=(true)
 #RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
 #    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
 #    # apk安装构建工具
@@ -72,6 +43,8 @@ ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
 #    php -v && \
 #    php -dextension=pcov --ri pcov
 
+WORKDIR /opt/www
+COPY . /opt/www
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
 #    apk update && \
