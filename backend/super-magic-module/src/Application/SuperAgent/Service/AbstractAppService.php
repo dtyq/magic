@@ -29,6 +29,8 @@ class AbstractAppService extends AbstractKernelAppService
     protected function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
     {
         $projectDomainService = di(ProjectDomainService::class);
+        return $projectDomainService->getProjectNotUserId($projectId);
+        /*$projectDomainService = di(ProjectDomainService::class);
         $projectMemberService = di(ProjectMemberDomainService::class);
         $magicDepartmentUserDomainService = di(MagicDepartmentUserDomainService::class);
 
@@ -56,6 +58,6 @@ class AbstractAppService extends AbstractKernelAppService
             }
         }
 
-        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);*/
     }
 }
