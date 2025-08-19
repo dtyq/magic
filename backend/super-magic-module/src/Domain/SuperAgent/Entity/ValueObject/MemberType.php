@@ -21,7 +21,7 @@ enum MemberType: string
     case DEPARTMENT = 'Department';
 
     /**
-     * 从字符串创建实例
+     * 从字符串创建实例.
      */
     public static function fromString(string $type): self
     {
@@ -33,7 +33,7 @@ enum MemberType: string
     }
 
     /**
-     * 从值创建实例
+     * 从值创建实例.
      */
     public static function fromValue(string $value): self
     {
@@ -49,7 +49,7 @@ enum MemberType: string
     }
 
     /**
-     * 是否为用户类型
+     * 是否为用户类型.
      */
     public function isUser(): bool
     {
@@ -57,7 +57,7 @@ enum MemberType: string
     }
 
     /**
-     * 是否为部门类型
+     * 是否为部门类型.
      */
     public function isDepartment(): bool
     {
@@ -65,7 +65,7 @@ enum MemberType: string
     }
 
     /**
-     * 获取描述
+     * 获取描述.
      */
     public function getDescription(): string
     {
