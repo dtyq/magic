@@ -18,16 +18,19 @@ export const useStyles = createStyles(
 			},
 			header: {
 				backgroundColor: token.magicColorUsages.bg[0],
-				borderBottom: `1px solid ${isDarkMode ? token.magicColorScales.grey[1] : token.colorBorder
-					}`,
+				borderBottom: `1px solid ${
+					isDarkMode ? token.magicColorScales.grey[1] : token.colorBorder
+				}`,
 			},
 			wrapper: {
 				height: `calc(100vh - ${token.titleBarHeight}px)`,
 			},
 			sider: {
+				height: "100vh",
 				backgroundColor: token.magicColorUsages.bg[0],
-				borderRight: `1px solid ${isDarkMode ? token.magicColorScales.grey[1] : token.colorBorder
-					}`,
+				borderRight: `1px solid ${
+					isDarkMode ? token.magicColorScales.grey[1] : token.colorBorder
+				}`,
 			},
 			subSider: {},
 			content: css`
