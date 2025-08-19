@@ -16,7 +16,7 @@ abstract class AbstractApi
     use MagicUserAuthorizationTrait;
 
     public function __construct(
-        protected readonly RequestInterface $request,
+        protected RequestInterface $request,
     ) {
     }
 
