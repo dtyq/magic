@@ -283,6 +283,11 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->config;
     }
 
+    public function updateConfig(ProviderConfigItem $configItem): void
+    {
+        $this->config = $configItem;
+    }
+
     public function setConfig(null|array|ProviderConfigItem|string $config): void
     {
         if ($config === null) {

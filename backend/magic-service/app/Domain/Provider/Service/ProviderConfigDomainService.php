@@ -334,7 +334,8 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
         }
 
         $existingConfig->setUpdatedAt(new DateTime());
-
+        $existingConfig->setSort($newConfigData->getSort());
+        $existingConfig->setStatus($newConfigData->getStatus());
         // 保存并返回
         return $this->serviceProviderConfigRepository->save($dataIsolation, $existingConfig);
     }

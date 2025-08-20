@@ -162,7 +162,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
                 ]);
 
                 // 从激活的模型中查找可用的服务商配置
-                return $this->findAvailableServiceProviderFromModels($models, $organizationCode);
+                return $this->findAvailableServiceProviderFromModels($models);
             }
         }
 
@@ -315,7 +315,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         }
 
         // 从激活的模型中查找可用的服务商配置
-        return $this->findAvailableServiceProviderFromModels($activeModels, $organizationCode);
+        return $this->findAvailableServiceProviderFromModels($activeModels);
     }
 
     /**
@@ -454,9 +454,8 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * 优先返回非官方配置，如果没有则返回官方配置.
      *
      * @param ProviderModelEntity[] $activeModels 激活的模型列表
-     * @param string $organizationCode 组织编码
      */
-    private function findAvailableServiceProviderFromModels(array $activeModels, string $organizationCode): ProviderConfigModelsDTO
+    private function findAvailableServiceProviderFromModels(array $activeModels): ProviderConfigModelsDTO
     {
         $serviceProviderResponse = new ProviderConfigModelsDTO();
         $officialFound = false;
@@ -467,9 +466,8 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         foreach ($activeModels as $model) {
             // 获取服务商配置
             $serviceProviderConfigId = $model->getServiceProviderConfigId();
-            $serviceProviderConfigEntity = $this->providerConfigRepository->findByIdAndOrganizationCode(
+            $serviceProviderConfigEntity = $this->providerConfigRepository->findById(
                 (string) $serviceProviderConfigId,
-                $organizationCode
             );
             if (! $serviceProviderConfigEntity) {
                 continue;
@@ -496,7 +494,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
                 // 非官方配置且已激活，优先返回
                 $serviceProviderResponse->setProviderType($providerType);
                 if ($serviceProviderConfigEntity->getConfig()) {
-                    $serviceProviderResponse->setConfig($serviceProviderConfigEntity->getConfig());
+                    $serviceProviderResponse->updateConfig($serviceProviderConfigEntity->getConfig());
                 }
                 // 注释掉 setModelConfig 调用，因为该方法已被移除
                 // if ($model->getConfig()) {

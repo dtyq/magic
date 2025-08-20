@@ -158,11 +158,10 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
         $builder->where('id', $id)->delete();
     }
 
-    public function findByIdAndOrganizationCode(string $id, string $organizationCode): ?ProviderConfigEntity
+    public function findById(string $id): ?ProviderConfigEntity
     {
         $model = $this->createConfigQuery()
             ->where('id', $id)
-            ->where('organization_code', $organizationCode)
             ->first();
         if (! $model) {
             return null;
