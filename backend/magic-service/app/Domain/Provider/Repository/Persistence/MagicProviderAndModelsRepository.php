@@ -355,41 +355,6 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
     }
 
     /**
-     * 获取官方组织下指定 ProviderCode 的服务商的所有启用模型.
-     *
-     * @param ProviderCode $providerCode 服务商代码
-     * @return array<ProviderModelEntity> 过滤后的官方模型列表
-     */
-    private function getOfficialProviderEnabledModels(ProviderCode $providerCode, Category $category): array
-    {
-        // 获取官方组织编码
-        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
-
-        // 1. 先查询官方组织下指定 ProviderCode 的启用服务商配置ID
-        $enabledConfigQuery = $this->createConfigQuery()
-            ->where('organization_code', $officialOrganizationCode)
-            ->where('status', Status::Enabled->value)
-            ->where('provider_code', $providerCode->value)
-            ->select('id');
-        $enabledConfigIds = Db::select($enabledConfigQuery->toSql(), $enabledConfigQuery->getBindings());
-        $enabledConfigIdArray = array_column($enabledConfigIds, 'id');
-
-        // 2. 使用启用的配置ID查询官方组织的启用模型
-        if (! empty($enabledConfigIdArray)) {
-            $officialBuilder = $this->createProviderModelQuery()
-                ->where('organization_code', $officialOrganizationCode)
-                ->where('status', Status::Enabled->value)
-                ->whereIn('category', $category)
-                ->whereIn('service_provider_config_id', $enabledConfigIdArray);
-
-            $officialResult = Db::select($officialBuilder->toSql(), $officialBuilder->getBindings());
-            return ProviderModelAssembler::toEntities($officialResult);
-        }
-
-        return [];
-    }
-
-    /**
      * 把官方组织的模型当做 Magic Model 写入非官方组织。
      */
     private function copyOfficeModelToOrganization(
