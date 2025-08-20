@@ -10,6 +10,7 @@ namespace App\Domain\Provider\Service;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
+use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
@@ -137,7 +138,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * @param string $modelVersion 模型版本
      * @param string $modelId 模型ID
      * @param string $organizationCode 组织编码
-     * @return ?ProviderConfigModelsDTO 服务商配置响应
+     * @return ?ProviderConfigEntity 服务商配置响应
      * @throws Exception
      */
     public function getServiceProviderConfig(
@@ -145,7 +146,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         string $modelId,
         string $organizationCode,
         bool $throw = true,
-    ): ?ProviderConfigModelsDTO {
+    ): ?ProviderConfigEntity {
         // 1. 如果提供了 modelId，走新的逻辑
         if (! empty($modelId)) {
             return $this->getServiceProviderConfigByModelId($modelId, $organizationCode, $throw);
@@ -176,7 +177,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * @param string $organizationCode 组织编码
      * @throws Exception
      */
-    public function getServiceProviderConfigByModelId(string $modelId, string $organizationCode, bool $throwModelNotExist = true): ?ProviderConfigModelsDTO
+    public function getServiceProviderConfigByModelId(string $modelId, string $organizationCode, bool $throwModelNotExist = true): ?ProviderConfigEntity
     {
         // 1. 获取模型信息
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
@@ -221,16 +222,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotActive);
         }
 
-        // 6. 构建响应
-        $providerModelsDTO = new ProviderConfigModelsDTO();
-        if ($serviceProviderConfigEntity->getConfig()) {
-            $providerModelsDTO->setConfig($serviceProviderConfigEntity->getConfig());
-        }
-        $providerModelsDTO->setProviderType($serviceProviderType);
-        $providerModelsDTO->addModel($serviceProviderModelEntity);
-        $providerModelsDTO->setProviderCode($serviceProviderEntity->getProviderCode());
-
-        return $providerModelsDTO;
+        return $serviceProviderConfigEntity;
     }
 
     public function getModelById(string $id): ProviderModelEntity
@@ -277,9 +269,9 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      *
      * @param string $modelId 模型版本
      * @param string $organizationCode 组织编码
-     * @return ProviderConfigModelsDTO 服务商配置响应
+     * @return ProviderConfigEntity 服务商配置响应
      */
-    public function getMiracleVisionServiceProviderConfig(string $modelId, string $organizationCode): ProviderConfigModelsDTO
+    public function getMiracleVisionServiceProviderConfig(string $modelId, string $organizationCode): ProviderConfigEntity
     {
         // 创建数据隔离对象
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
@@ -334,7 +326,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * 根据模型类型获取启用模型(优先取组织的).
      * @throws Exception
      */
-    public function findSelectedActiveProviderByType(string $organizationCode, ModelType $modelType): ?ProviderConfigModelsDTO
+    public function findSelectedActiveProviderByType(string $organizationCode, ModelType $modelType): ?ProviderConfigEntity
     {
         // 创建数据隔离对象
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
@@ -455,31 +447,50 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      *
      * @param ProviderModelEntity[] $activeModels 激活的模型列表
      */
-    private function findAvailableServiceProviderFromModels(array $activeModels): ProviderConfigModelsDTO
+    private function findAvailableServiceProviderFromModels(array $activeModels): ProviderConfigEntity
     {
-        $serviceProviderResponse = new ProviderConfigModelsDTO();
-        $officialFound = false;
-        $officialProviderType = null;
+        if (empty($activeModels)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotActive);
+        }
+
+        // 1. 收集所有需要查询的 serviceProviderConfigId
+        $configIds = [];
+        foreach ($activeModels as $model) {
+            $configIds[] = $model->getServiceProviderConfigId();
+        }
+        $configIds = array_unique($configIds);
+
+        // 2. 批量查询所有配置
+        $configMap = $this->providerConfigRepository->getByIdsWithoutOrganizationFilter($configIds);
+
+        // 3. 收集所有需要查询的 serviceProviderId
+        $providerIds = [];
+        foreach ($configMap as $config) {
+            $providerIds[] = $config->getServiceProviderId();
+        }
+        $providerIds = array_unique($providerIds);
+
+        // 4. 批量查询所有服务商
+        $providerMap = $this->serviceProviderRepository->getByIds($providerIds);
+
+        // 5. 重建优先级处理逻辑
         $officialConfig = null;
-        $officialModel = null;
 
         foreach ($activeModels as $model) {
-            // 获取服务商配置
-            $serviceProviderConfigId = $model->getServiceProviderConfigId();
-            $serviceProviderConfigEntity = $this->providerConfigRepository->findById(
-                (string) $serviceProviderConfigId,
-            );
-            if (! $serviceProviderConfigEntity) {
+            $configId = $model->getServiceProviderConfigId();
+
+            // 检查配置是否存在
+            if (! isset($configMap[$configId])) {
                 continue;
             }
+            $serviceProviderConfigEntity = $configMap[$configId];
 
-            // 获取服务商信息
+            // 检查服务商是否存在
             $serviceProviderId = $serviceProviderConfigEntity->getServiceProviderId();
-            $serviceProviderEntity = $this->serviceProviderRepository->findById($serviceProviderId);
-
-            if (! $serviceProviderEntity) {
+            if (! isset($providerMap[$serviceProviderId])) {
                 continue;
             }
+            $serviceProviderEntity = $providerMap[$serviceProviderId];
 
             // 获取服务商类型
             $providerType = $serviceProviderEntity->getProviderType();
@@ -490,129 +501,23 @@ class AdminProviderDomainService extends AbstractProviderDomainService
                 if ($serviceProviderConfigEntity->getStatus() !== Status::Enabled) {
                     continue;
                 }
-
-                // 非官方配置且已激活，优先返回
-                $serviceProviderResponse->setProviderType($providerType);
-                if ($serviceProviderConfigEntity->getConfig()) {
-                    $serviceProviderResponse->updateConfig($serviceProviderConfigEntity->getConfig());
-                }
-                // 注释掉 setModelConfig 调用，因为该方法已被移除
-                // if ($model->getConfig()) {
-                //     $serviceProviderResponse->setModelConfig($model->getConfig());
-                // }
-                $serviceProviderResponse->addModel($model);
-                return $serviceProviderResponse;
+                // 找到激活的非官方配置，立即返回（优先级最高）
+                return $serviceProviderConfigEntity;
             }
 
             // 如果是官方服务商配置，先保存，如果没有找到非官方的再使用
-            $officialFound = true;
-            $officialProviderType = $providerType;
-            $officialModel = $model;
-
-            // 文生图模型的特殊处理：获取官方组织下的模型配置
-            if ($model->getCategory() === Category::VLM) {
-                $officialConfig = $this->getOfficialVLMProviderConfig($model);
-            } else {
-                // 非文生图模型使用当前模型的服务商配置
-                $officialConfig = $serviceProviderConfigEntity->getConfig();
+            if ($officialConfig === null) {
+                $officialConfig = $serviceProviderConfigEntity;
             }
         }
 
         // 如果找到了官方配置，则返回
-        if ($officialFound) {
-            $serviceProviderResponse->setProviderType($officialProviderType);
-            if ($officialConfig) {
-                $serviceProviderResponse->setConfig($officialConfig);
-            }
-            // 注释掉 setModelConfig 调用，因为该方法已被移除
-            // if ($officialModelConfig) {
-            //     $serviceProviderResponse->setModelConfig($officialModelConfig);
-            // }
-            $serviceProviderResponse->addModel($officialModel);
-            return $serviceProviderResponse;
+        if ($officialConfig !== null) {
+            return $officialConfig;
         }
 
         // 如果官方和非官方都没有找到激活的配置，抛出异常
         ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotActive);
-    }
-
-    /**
-     * 获取官方组织的文生图模型服务商配置.
-     *
-     * 文生图模型因为目前不能官方组织添加，因此没有 model_parent_id，
-     * 找不到对应的 model_id 也就找不到官方服务商的配置，因此要特殊处理
-     *
-     * @param ProviderModelEntity $model 当前模型
-     * @return ProviderConfigItem 官方组织的服务商配置
-     */
-    private function getOfficialVLMProviderConfig(ProviderModelEntity $model): ProviderConfigItem
-    {
-        $officeOrganization = config('service_provider.office_organization');
-        $officeModels = $this->getModelsByVersionAndOrganization(
-            $model->getModelVersion(),
-            $officeOrganization
-        );
-
-        if (empty($officeModels)) {
-            return new ProviderConfigItem();
-        }
-
-        // 获取所有模型的服务商配置ID
-        $configIds = array_map(static function ($model) {
-            return $model->getServiceProviderConfigId();
-        }, $officeModels);
-
-        // 批量获取服务商配置
-        $dataIsolation = ProviderDataIsolation::create();
-        $configEntities = [];
-        foreach ($configIds as $configId) {
-            $configEntity = $this->providerConfigRepository->getById($dataIsolation, $configId);
-            if ($configEntity) {
-                $configEntities[] = $configEntity;
-            }
-        }
-
-        $mergedConfig = new ProviderConfigItem();
-
-        // 合并所有配置
-        foreach ($configEntities as $configEntity) {
-            $config = $configEntity->getConfig();
-            if (! $config) {
-                continue;
-            }
-
-            // 优先使用非空的配置值
-            $sk = $config->getSk();
-            if (! empty($sk)) {
-                $mergedConfig->setSk($sk);
-            }
-
-            $ak = $config->getAk();
-            if (! empty($ak)) {
-                $mergedConfig->setAk($ak);
-            }
-
-            $apiKey = $config->getApiKey();
-            if (! empty($apiKey)) {
-                $mergedConfig->setApiKey($apiKey);
-            }
-
-            $url = $config->getUrl();
-            if (! empty($url)) {
-                $mergedConfig->setUrl($url);
-            }
-
-            $apiVersion = $config->getApiVersion();
-            if (! empty($apiVersion)) {
-                $mergedConfig->setApiVersion($apiVersion);
-            }
-            $proxyUrl = $config->getProxyUrl();
-            if (! empty($proxyUrl)) {
-                $mergedConfig->setProxyUrl($proxyUrl);
-            }
-        }
-
-        return $mergedConfig;
     }
 
     /**
