@@ -28,12 +28,12 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         ?string $workspaceName,
         ?string $createdAt,
         ?string $updatedAt,
+        ?string $tag,
 
         // 新增字段
         public readonly ?CreatorInfoDTO $creator,
         public readonly array $members,
         public readonly int $memberCount,
-        public readonly string $tag
     ) {
         parent::__construct(
             $id,
@@ -47,7 +47,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             $projectMode,
             $workspaceName,
             $createdAt,
-            $updatedAt
+            $updatedAt,
+            $tag
         );
     }
 

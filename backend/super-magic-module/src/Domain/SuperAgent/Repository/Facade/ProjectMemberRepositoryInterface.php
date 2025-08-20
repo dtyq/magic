@@ -70,9 +70,10 @@ interface ProjectMemberRepositoryInterface
      *
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
+     * @param null|string $name 项目名称模糊搜索关键词
      * @return array ['total' => int, 'project_ids' => array]
      */
-    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = []): array;
+    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = [], ?string $name = null): array;
 
     /**
      * 批量获取项目成员总数.
