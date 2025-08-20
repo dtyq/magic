@@ -19,6 +19,8 @@ final class DirectoryData extends AbstractDTO implements MentionDataInterface
 
     protected ?string $directoryName;
 
+    protected ?array $directoryMetadata;
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -42,5 +44,15 @@ final class DirectoryData extends AbstractDTO implements MentionDataInterface
     public function setDirectoryName(string $directoryName): void
     {
         $this->directoryName = $directoryName;
+    }
+
+    public function setDirectoryMetadata(?array $directoryMetadata): void
+    {
+        $this->directoryMetadata = $directoryMetadata;
+    }
+
+    public function getDirectoryMetadata(): ?array
+    {
+        return $this->directoryMetadata ?? null;
     }
 }
