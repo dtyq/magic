@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace HyperfTest;
 
 use App\Application\ModelGateway\Official\MagicAccessToken;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Testing;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -215,5 +216,13 @@ abstract class HttpTestCase extends TestCase
                 }
             }
         }
+    }
+
+    /**
+     * Get the Hyperf DI container instance.
+     */
+    protected function getContainer()
+    {
+        return ApplicationContext::getContainer();
     }
 }

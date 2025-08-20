@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Permission\Facade\OperationPermissionApi;
+use App\Interfaces\Permission\Facade\PermissionApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1', static function () {
@@ -15,5 +16,9 @@ Router::addGroup('/api/v1', static function () {
         Router::get('/resource-access', [OperationPermissionApi::class, 'listResource']);
         Router::get('/organization-admin', [OperationPermissionApi::class, 'checkOrganizationAdmin']);
         Router::get('/organizations/admin', [OperationPermissionApi::class, 'getUserOrganizationAdminList']);
+    });
+
+    Router::addGroup('/permissions', static function () {
+        Router::get('/me', [PermissionApi::class, 'getUserPermissions']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

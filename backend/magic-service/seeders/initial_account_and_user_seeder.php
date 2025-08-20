@@ -14,7 +14,7 @@ class InitialAccountAndUserSeeder extends Seeder
 {
     public function run(): void
     {
-        // 定义两个指定的账号信息
+        // 定义三个指定的账号信息
         $specifiedAccounts = [
             [
                 'country_code' => '86',
@@ -22,6 +22,7 @@ class InitialAccountAndUserSeeder extends Seeder
                 'email' => 'admin@example.com',
                 'real_name' => '管理员',
                 'gender' => 1, // 男
+                'password' => 'letsmagic.ai', // 默认密码
             ],
             [
                 'country_code' => '86',
@@ -29,6 +30,15 @@ class InitialAccountAndUserSeeder extends Seeder
                 'email' => 'user@example.com',
                 'real_name' => '普通用户',
                 'gender' => 2, // 女
+                'password' => 'letsmagic.ai', // 默认密码
+            ],
+            [
+                'country_code' => '86',
+                'phone' => '13800138001',
+                'email' => 'test@example.com',
+                'real_name' => '测试用户',
+                'gender' => 1, // 男
+                'password' => '123456', // 测试密码
             ],
         ];
 
@@ -64,7 +74,7 @@ class InitialAccountAndUserSeeder extends Seeder
                         'country_code' => $accountInfo['country_code'],
                         'phone' => $accountInfo['phone'],
                         'email' => $accountInfo['email'],
-                        'password' => hash('sha256', 'letsmagic.ai'), // 默认密码
+                        'password' => hash('sha256', $accountInfo['password']), // 使用配置的密码
                         'real_name' => $accountInfo['real_name'],
                         'gender' => $accountInfo['gender'],
                         'created_at' => date('Y-m-d H:i:s'),
