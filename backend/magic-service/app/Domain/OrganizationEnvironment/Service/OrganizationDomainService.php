@@ -40,11 +40,6 @@ readonly class OrganizationDomainService
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_CODE_EXISTS);
         }
 
-        // 检查名称是否已存在
-        if ($this->organizationRepository->existsByName($organizationEntity->getName())) {
-            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NAME_EXISTS);
-        }
-
         // 检查创建者是否存在
         $creatorId = $organizationEntity->getCreatorId();
         if ($creatorId !== null) {
@@ -91,11 +86,6 @@ readonly class OrganizationDomainService
         // 检查编码是否已存在（排除当前组织）
         if ($this->organizationRepository->existsByCode($organizationEntity->getMagicOrganizationCode(), $organizationEntity->getId())) {
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_CODE_EXISTS);
-        }
-
-        // 检查名称是否已存在（排除当前组织）
-        if ($this->organizationRepository->existsByName($organizationEntity->getName(), $organizationEntity->getId())) {
-            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NAME_EXISTS);
         }
 
         $organizationEntity->prepareForModification();
