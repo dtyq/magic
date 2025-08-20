@@ -7,10 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
-use App\Application\Provider\Service\AdminProviderAppService;
-use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -19,16 +17,15 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageEditModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
+use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use HyperfTest\Cases\BaseTest;
@@ -193,262 +190,46 @@ class ImageGenerateTest extends BaseTest
 
     public function testText2ImageByQwenImage()
     {
-        $di = di(ProviderConfigDomainService::class);
-        $magicUserAuthorization = new MagicUserAuthorization();
-        $magicUserAuthorization->setOrganizationCode("TGosRaFhvb");
-
-        $providerModelsByConfig = $di->getProviderConfig(ProviderDataIsolation::create("TGosRaFhvb"), "814826843393773568");
-        $config = $providerModelsByConfig->getConfig();
-        // 创建服务提供商配置
-
-
-        // 创建通义千问模型实例
-        $qwenImageModel = new QwenImageModel($config);
-
-        // 创建请求实例
-        $qwenImageRequest = new QwenImageModelRequest();
-        $qwenImageRequest->setPrompt('一只可爱的小猫咪在花园里玩耍，阳光明媚，色彩丰富，高质量摄影');
-        $qwenImageRequest->setHeight('1328');
-        $qwenImageRequest->setWidth('1328');
-        $qwenImageRequest->setGenerateNum(1);
-        $qwenImageRequest->setModel('qwen-image');
-
-        // 生成图片
-        $result = $qwenImageModel->generateImage($qwenImageRequest);
-
-        // 验证结果
-        $this->assertNotEmpty($result);
-        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
-        $urls = $result->getData();
-        $this->assertIsArray($urls);
-        $this->assertCount(1, $urls);
-        $this->assertNotEmpty($urls[0]);
-        $this->assertStringStartsWith('http', $urls[0]);
-
-        var_dump($result);
-        $this->markTestSkipped();
+        //        $di = di(ProviderConfigDomainService::class);
+        //        $magicUserAuthorization = new MagicUserAuthorization();
+        //        $magicUserAuthorization->setOrganizationCode('TGosRaFhvb');
+        //
+        //        $providerModelsByConfig = $di->getProviderConfig(ProviderDataIsolation::create('TGosRaFhvb'), '814826843393773568');
+        //        $config = $providerModelsByConfig->getConfig();
+        //        // 创建服务提供商配置
+        //
+        //        // 创建通义千问模型实例
+        //        $qwenImageModel = new QwenImageModel($config);
+        //
+        //        // 创建请求实例
+        //        $qwenImageRequest = new QwenImageModelRequest();
+        //        $qwenImageRequest->setPrompt('一只可爱的小猫咪在花园里玩耍，阳光明媚，色彩丰富，高质量摄影');
+        //        $qwenImageRequest->setHeight('1328');
+        //        $qwenImageRequest->setWidth('1328');
+        //        $qwenImageRequest->setGenerateNum(1);
+        //        $qwenImageRequest->setModel('qwen-image');
+        //
+        //        // 生成图片
+        //        $result = $qwenImageModel->generateImage($qwenImageRequest);
+        //
+        //        // 验证结果
+        //        $this->assertNotEmpty($result);
+        //        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
+        //        $urls = $result->getData();
+        //        $this->assertIsArray($urls);
+        //        $this->assertCount(1, $urls);
+        //        $this->assertNotEmpty($urls[0]);
+        //        $this->assertStringStartsWith('http', $urls[0]);
+        //
+        //        var_dump($result);
+        //        $this->markTestSkipped();
     }
 
-    public function testText2ImageByQwenImageWithPromptExtend()
+    public function testWatermark()
     {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
-
-        // 创建通义千问模型实例
-        $qwenImageModel = new QwenImageModel($providerConfig);
-
-        // 创建请求实例
-        $qwenImageRequest = new QwenImageModelRequest();
-        $qwenImageRequest->setPrompt('美丽的风景画');
-        $qwenImageRequest->setHeight('1328');
-        $qwenImageRequest->setWidth('1328');
-        $qwenImageRequest->setGenerateNum(1);
-        $qwenImageRequest->setModel('qwen-image');
-
-        // 生成图片
-        $result = $qwenImageModel->generateImage($qwenImageRequest);
-
-        // 验证结果
-        $this->assertNotEmpty($result);
-        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
-        $urls = $result->getData();
-        $this->assertIsArray($urls);
-        $this->assertCount(1, $urls);
-        $this->assertNotEmpty($urls[0]);
-        $this->assertStringStartsWith('http', $urls[0]);
-
-        var_dump($result);
-        $this->markTestSkipped();
-    }
-
-    public function testText2ImageByQwenImageRaw()
-    {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey(env('QWEN_IMAGE_KEY')); // 请替换为真实的API Key
-
-        // 创建通义千问模型实例
-        $qwenImageModel = new QwenImageModel($providerConfig);
-
-        // 创建请求实例
-        $qwenImageRequest = new QwenImageModelRequest();
-        $qwenImageRequest->setPrompt('科幻未来城市，夜景，霓虹灯，高楼大厦');
-        $qwenImageRequest->setHeight('1328');
-        $qwenImageRequest->setWidth('1328');
-        $qwenImageRequest->setGenerateNum(1);
-        $qwenImageRequest->setModel('wan2.2-t2i-flash');
-
-        // 生成图片（获取原生结果）
-        $rawResult = $qwenImageModel->generateImageRaw($qwenImageRequest);
-
-        // 验证结果
-        $this->assertIsArray($rawResult);
-        $this->assertNotEmpty($rawResult);
-        $this->assertArrayHasKey(0, $rawResult);
-        $this->assertArrayHasKey('output', $rawResult[0]);
-        $this->assertArrayHasKey('results', $rawResult[0]['output']);
-        $this->assertNotEmpty($rawResult[0]['output']['results']);
-
-        var_dump($rawResult);
-        $this->markTestSkipped();
-    }
-
-    public function testImageEditByQwenStyleEdit()
-    {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey(env('QWEN_IMAGE_KEY')); // 请替换为真实的API Key
-
-        // 创建通义千问图像编辑模型实例
-        $qwenImageEditModel = new QwenImageEditModel($providerConfig);
-
-        // 创建图像编辑请求实例 - 风格化编辑
-        $qwenImageEditRequest = new QwenImageEditRequest();
-        $qwenImageEditRequest->setPrompt('将图片转换为油画风格');
-        $qwenImageEditRequest->setEditType('style_edit');
-        $qwenImageEditRequest->setImageUrls(['https://example.com/input-image.jpg']);
-        $qwenImageEditRequest->setModel('wanx-image-edit');
-        $qwenImageEditRequest->setStyleEditParams('oil_painting', 0.8);
-
-        // 执行图像编辑
-        $result = $qwenImageEditModel->generateImage($qwenImageEditRequest);
-
-        // 验证结果
-        $this->assertNotEmpty($result);
-        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
-        $urls = $result->getData();
-        $this->assertIsArray($urls);
-        $this->assertNotEmpty($urls[0]);
-        $this->assertStringStartsWith('http', $urls[0]);
-
-        var_dump($result);
-        $this->markTestSkipped();
-    }
-
-    public function testImageEditByQwenSuperResolution()
-    {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
-
-        // 创建通义千问图像编辑模型实例
-        $qwenImageEditModel = new QwenImageEditModel($providerConfig);
-
-        // 创建图像编辑请求实例 - 超分辨率
-        $qwenImageEditRequest = new QwenImageEditRequest();
-        $qwenImageEditRequest->setPrompt('提高图片分辨率');
-        $qwenImageEditRequest->setEditType('super_resolution');
-        $qwenImageEditRequest->setImageUrls(['https://example.com/low-res-image.jpg']);
-        $qwenImageEditRequest->setModel('wanx-image-edit');
-        $qwenImageEditRequest->setSuperResolutionParams(4); // 4倍放大
-
-        // 执行图像编辑
-        $result = $qwenImageEditModel->generateImage($qwenImageEditRequest);
-
-        // 验证结果
-        $this->assertNotEmpty($result);
-        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
-        $urls = $result->getData();
-        $this->assertIsArray($urls);
-        $this->assertNotEmpty($urls[0]);
-        $this->assertStringStartsWith('http', $urls[0]);
-
-        var_dump($result);
-        $this->markTestSkipped();
-    }
-
-    public function testImageEditByQwenWatermarkRemoval()
-    {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
-
-        // 创建通义千问图像编辑模型实例
-        $qwenImageEditModel = new QwenImageEditModel($providerConfig);
-
-        // 创建图像编辑请求实例 - 去水印
-        $qwenImageEditRequest = new QwenImageEditRequest();
-        $qwenImageEditRequest->setPrompt('去除图片中的水印');
-        $qwenImageEditRequest->setEditType('watermark_removal');
-        $qwenImageEditRequest->setImageUrls(['https://example.com/watermarked-image.jpg']);
-        $qwenImageEditRequest->setModel('wanx-image-edit');
-
-        // 执行图像编辑
-        $result = $qwenImageEditModel->generateImage($qwenImageEditRequest);
-
-        // 验证结果
-        $this->assertNotEmpty($result);
-        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
-        $urls = $result->getData();
-        $this->assertIsArray($urls);
-        $this->assertNotEmpty($urls[0]);
-        $this->assertStringStartsWith('http', $urls[0]);
-
-        var_dump($result);
-        $this->markTestSkipped();
-    }
-
-    public function testImageEditByQwenLocalEdit()
-    {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
-
-        // 创建通义千问图像编辑模型实例
-        $qwenImageEditModel = new QwenImageEditModel($providerConfig);
-
-        // 创建图像编辑请求实例 - 局部编辑
-        $qwenImageEditRequest = new QwenImageEditRequest();
-        $qwenImageEditRequest->setPrompt('将选中区域改为蓝色');
-        $qwenImageEditRequest->setEditType('local_edit');
-        $qwenImageEditRequest->setImageUrls(['https://example.com/original-image.jpg']);
-        $qwenImageEditRequest->setMaskUrl('https://example.com/mask-image.jpg'); // 遮罩图像
-        $qwenImageEditRequest->setModel('wanx-image-edit');
-
-        // 执行图像编辑
-        $result = $qwenImageEditModel->generateImage($qwenImageEditRequest);
-
-        // 验证结果
-        $this->assertNotEmpty($result);
-        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
-        $urls = $result->getData();
-        $this->assertIsArray($urls);
-        $this->assertNotEmpty($urls[0]);
-        $this->assertStringStartsWith('http', $urls[0]);
-
-        var_dump($result);
-        $this->markTestSkipped();
-    }
-
-    public function testImageEditByQwenRawResult()
-    {
-        // 创建服务提供商配置
-        $providerConfig = new ProviderConfigItem();
-        $providerConfig->setApiKey('sk-your-qwen-api-key'); // 请替换为真实的API Key
-
-        // 创建通义千问图像编辑模型实例
-        $qwenImageEditModel = new QwenImageEditModel($providerConfig);
-
-        // 创建图像编辑请求实例
-        $qwenImageEditRequest = new QwenImageEditRequest();
-        $qwenImageEditRequest->setPrompt('给图片添加艺术滤镜效果');
-        $qwenImageEditRequest->setEditType('artistic_filter');
-        $qwenImageEditRequest->setImageUrls(['https://example.com/input-image.jpg']);
-        $qwenImageEditRequest->setModel('wanx-image-edit');
-
-        // 执行图像编辑（获取原生结果）
-        $rawResult = $qwenImageEditModel->generateImageRaw($qwenImageEditRequest);
-
-        // 验证结果
-        $this->assertIsArray($rawResult);
-        $this->assertNotEmpty($rawResult);
-        $this->assertArrayHasKey(0, $rawResult);
-        $this->assertArrayHasKey('output', $rawResult[0]);
-        $this->assertArrayHasKey('results', $rawResult[0]['output']);
-        $this->assertNotEmpty($rawResult[0]['output']['results']);
-
-        var_dump($rawResult);
-        $this->markTestSkipped();
+        $di = di(ImageWatermarkProcessor::class);
+        $watermarkConfig = new WatermarkConfig('麦吉 AI ', 3, 1.0);
+        $addWatermarkToUrl = $di->addWatermarkToUrl('https://cdn.pixabay.com/photo/2025/08/04/14/58/tools-9754352_1280.jpg', $watermarkConfig);
+        var_dump($addWatermarkToUrl);
     }
 }

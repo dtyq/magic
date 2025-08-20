@@ -34,6 +34,8 @@ interface ImageGenerate
      */
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array;
 
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array;
+
     public function setAK(string $ak);
 
     public function setSK(string $sk);

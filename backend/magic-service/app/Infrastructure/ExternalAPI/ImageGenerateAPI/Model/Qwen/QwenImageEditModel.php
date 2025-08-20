@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
@@ -19,22 +21,17 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateRespon
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
-use Hyperf\Di\Annotation\Inject;
 use Hyperf\Engine\Coroutine;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Hyperf\Retry\Annotation\Retry;
-use Psr\Log\LoggerInterface;
 
-class QwenImageEditModel implements ImageGenerate
+class QwenImageEditModel extends AbstractImageGenerate
 {
     // 最大轮询重试次数
     private const MAX_RETRY_COUNT = 30;
 
     // 轮询重试间隔（秒）
     private const RETRY_INTERVAL = 2;
-
-    #[Inject]
-    protected LoggerInterface $logger;
 
     private QwenImageAPI $api;
 
@@ -45,12 +42,43 @@ class QwenImageEditModel implements ImageGenerate
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, '通义千问API Key不能为空');
         }
 
-        $this->api = new QwenImageAPI($apiKey, $this->logger);
+        $this->api = new QwenImageAPI($apiKey);
     }
 
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        return $this->generateImageRawInternal($imageGenerateRequest);
+    }
+
+    public function setAK(string $ak)
+    {
+        // 通义千问不使用AK/SK认证，此方法为空实现
+    }
+
+    public function setSK(string $sk)
+    {
+        // 通义千问不使用AK/SK认证，此方法为空实现
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        $this->api->setApiKey($apiKey);
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+
+        return $this->processQwenEditRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResults = $this->generateImageRawInternal($imageGenerateRequest);
 
         // 从原生结果中提取图片URL
         $imageUrls = [];
@@ -69,30 +97,10 @@ class QwenImageEditModel implements ImageGenerate
         return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
     }
 
-    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
-    {
-        return $this->generateImageInternal($imageGenerateRequest);
-    }
-
-    public function setAK(string $ak)
-    {
-        // 通义千问不使用AK/SK认证，此方法为空实现
-    }
-
-    public function setSK(string $sk)
-    {
-        // 通义千问不使用AK/SK认证，此方法为空实现
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        $this->api->setApiKey($apiKey);
-    }
-
     /**
      * 生成图像的核心逻辑，返回原生结果.
      */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof QwenImageEditRequest) {
             $this->logger->error('通义千问图像编辑：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
@@ -328,5 +336,38 @@ class QwenImageEditModel implements ImageGenerate
 
         $this->logger->error('通义千问图像编辑：任务查询超时', ['taskId' => $taskId]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    /**
+     * 为通义千问编辑模式原始数据添加水印.
+     */
+    private function processQwenEditRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    {
+        foreach ($rawData as $index => &$result) {
+            if (! isset($result['output']['results']) || ! is_array($result['output']['results'])) {
+                continue;
+            }
+
+            foreach ($result['output']['results'] as $resultIndex => &$resultItem) {
+                if (! isset($resultItem['url'])) {
+                    continue;
+                }
+
+                try {
+                    // 处理URL格式的图片
+                    $resultItem['url'] = $this->watermarkProcessor->addWatermarkToUrl($resultItem['url'], $watermarkConfig);
+                } catch (Exception $e) {
+                    // 水印处理失败时，记录错误但不影响图片返回
+                    $this->logger->error('通义千问图像编辑水印处理失败', [
+                        'index' => $index,
+                        'resultIndex' => $resultIndex,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // 继续处理下一张图片，当前图片保持原始状态
+                }
+            }
+        }
+
+        return $rawData;
     }
 }

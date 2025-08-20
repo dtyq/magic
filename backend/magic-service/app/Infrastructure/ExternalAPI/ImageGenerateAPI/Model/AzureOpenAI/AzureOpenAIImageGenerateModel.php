@@ -7,11 +7,12 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
@@ -19,12 +20,9 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
 use Hyperf\Retry\Annotation\Retry;
-use Psr\Log\LoggerInterface;
 
-class AzureOpenAIImageGenerateModel implements ImageGenerate
+class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 {
-    protected LoggerInterface $logger;
-
     private AzureOpenAIAPI $api;
 
     private ProviderConfigItem $config;
@@ -35,25 +33,6 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
         $baseUrl = $this->config->getUrl();
         $apiVersion = $this->config->getApiVersion();
         $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $apiVersion);
-        $this->logger = di(LoggerInterface::class);
-    }
-
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
-    {
-        try {
-            if ($imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest && ! empty($imageGenerateRequest->getReferenceImages())) {
-                return $this->generateImageWithReference($imageGenerateRequest);
-            }
-
-            $result = $this->generateImageRaw($imageGenerateRequest);
-            return $this->buildResponse($result);
-        } catch (Exception $e) {
-            $this->logger->error('Azure OpenAI图像生成：图像生成失败', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            throw $e;
-        }
     }
 
     #[Retry(
@@ -116,6 +95,35 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
         $baseUrl = $this->config->getUrl();
         $apiVersion = $this->config->getApiVersion();
         $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+
+        return $this->processAzureOpenAIRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        try {
+            if ($imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest && ! empty($imageGenerateRequest->getReferenceImages())) {
+                return $this->generateImageWithReference($imageGenerateRequest);
+            }
+
+            $result = $this->generateImageRaw($imageGenerateRequest);
+            return $this->buildResponse($result);
+        } catch (Exception $e) {
+            $this->logger->error('Azure OpenAI图像生成：图像生成失败', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     private function buildResponse(array $result): ImageGenerateResponse
@@ -219,5 +227,35 @@ class AzureOpenAIImageGenerateModel implements ImageGenerate
             ]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_image_count');
         }
+    }
+
+    /**
+     * 为Azure OpenAI原始数据添加水印.
+     */
+    private function processAzureOpenAIRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    {
+        if (! isset($rawData['data']) || ! is_array($rawData['data'])) {
+            return $rawData;
+        }
+
+        foreach ($rawData['data'] as $index => &$item) {
+            if (! isset($item['b64_json'])) {
+                continue;
+            }
+
+            try {
+                // 处理base64格式的图片
+                $item['b64_json'] = $this->watermarkProcessor->addWatermarkToBase64($item['b64_json'], $watermarkConfig);
+            } catch (Exception $e) {
+                // 水印处理失败时，记录错误但不影响图片返回
+                $this->logger->error('Azure OpenAI图片水印处理失败', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                ]);
+                // 继续处理下一张图片，当前图片保持原始状态
+            }
+        }
+
+        return $rawData;
     }
 }

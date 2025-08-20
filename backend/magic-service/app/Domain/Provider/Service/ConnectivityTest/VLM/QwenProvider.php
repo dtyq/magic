@@ -40,7 +40,7 @@ class QwenProvider implements IProvider
         }
 
         $logger = di(LoggerInterface::class);
-        $qwenAPI = new QwenImageAPI($apiKey, $logger);
+        $qwenAPI = new QwenImageAPI($apiKey);
 
         $body = [];
         // 文生图配置
