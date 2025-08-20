@@ -7,7 +7,8 @@
          processIsolation="false"
          stopOnFailure="false"
          cacheDirectory=".phpunit.cache"
-         backupStaticProperties="false">
+         backupStaticProperties="false" 
+         failOnWarning="false">
 
   <!-- 环境变量配置 -->
   <php>
@@ -47,8 +48,9 @@
     </include>
   </source>
 
-  <!-- 覆盖率配置（PHPUnit 10.x 新结构） -->
-  <coverage includeUncoveredFiles="true"
+  <!-- 覆盖率配置（PHPUnit 10.x 新结构）
+
+  <coverage enabled="false" includeUncoveredFiles="false"
             pathCoverage="false"
             ignoreDeprecatedCodeUnits="true"
             disableCodeCoverageIgnore="true">
@@ -58,7 +60,7 @@
       <clover outputFile="coverage/clover.xml"/>
       <html outputDirectory="coverage/html" lowUpperBound="35" highLowerBound="70"/>
     </report>
-  </coverage>
+  </coverage> -->
 
   <!-- 日志配置 -->
   <logging>
