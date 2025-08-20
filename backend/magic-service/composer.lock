@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.0",
+            "version": "3.356.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "d7162d154e4b9a14986e362dfc01f920442db1e8"
+                "reference": "ba92ad336ab18052a51b1294e1b1e75df601eb13"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d7162d154e4b9a14986e362dfc01f920442db1e8",
-                "reference": "d7162d154e4b9a14986e362dfc01f920442db1e8",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/ba92ad336ab18052a51b1294e1b1e75df601eb13",
+                "reference": "ba92ad336ab18052a51b1294e1b1e75df601eb13",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.1"
             },
-            "time": "2025-08-19T18:09:08+00:00"
+            "time": "2025-08-20T18:11:31+00:00"
         },
         {
             "name": "brick/math",
@@ -1888,16 +1888,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.44",
+            "version": "1.0.45",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "734b37f7bc2bfbcc99c97421c965379c970a577b"
+                "reference": "82c70ac583488b17c367f9147c2bd0968ea21cc6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=734b37f7bc2bfbcc99c97421c965379c970a577b",
-                "reference": "734b37f7bc2bfbcc99c97421c965379c970a577b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=82c70ac583488b17c367f9147c2bd0968ea21cc6",
+                "reference": "82c70ac583488b17c367f9147c2bd0968ea21cc6",
                 "shasum": ""
             },
             "require": {
@@ -1974,9 +1974,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.44"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.45"
             },
-            "time": "2025-08-17T08:39:55+00:00"
+            "time": "2025-08-20T18:29:58+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -8762,39 +8762,42 @@
         },
         {
             "name": "malkusch/lock",
-            "version": "v2.2.1",
+            "version": "2.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-lock/lock.git",
-                "reference": "63c1b268f521a702cb8755ed92631c1fac1775e6"
+                "reference": "66ccdccbb3b9a2cabdeba077f6aa1759dd3fbcd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-lock/lock/zipball/63c1b268f521a702cb8755ed92631c1fac1775e6",
-                "reference": "63c1b268f521a702cb8755ed92631c1fac1775e6",
+                "url": "https://api.github.com/repos/php-lock/lock/zipball/66ccdccbb3b9a2cabdeba077f6aa1759dd3fbcd2",
+                "reference": "66ccdccbb3b9a2cabdeba077f6aa1759dd3fbcd2",
                 "shasum": ""
             },
             "require": {
-                "php": "^7.2 || ^8.0",
-                "psr/log": "^1|^2|^3"
+                "php": ">=7.4 <8.4",
+                "psr/log": "^1.0 || ^2.0 || ^3.0"
             },
             "require-dev": {
-                "eloquent/liberator": "^2.0",
+                "eloquent/liberator": "^2.0 || ^3.0",
+                "ergebnis/composer-normalize": "^2.13",
+                "ergebnis/phpunit-slow-test-detector": "^2.9",
                 "ext-memcached": "*",
                 "ext-pcntl": "*",
                 "ext-pdo": "*",
                 "ext-pdo_mysql": "*",
                 "ext-pdo_sqlite": "*",
                 "ext-sysvsem": "*",
-                "friendsofphp/php-cs-fixer": "^2.16",
-                "johnkary/phpunit-speedtrap": "^3.0",
-                "mikey179/vfsstream": "^1.6.7",
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "mikey179/vfsstream": "^1.6.11",
                 "php-mock/php-mock-phpunit": "^2.1",
-                "phpstan/phpstan": "^0.12.58",
-                "phpunit/phpunit": "^9.4",
-                "predis/predis": "^1.1",
-                "spatie/async": "^1.5",
-                "squizlabs/php_codesniffer": "^3.3"
+                "phpstan/extension-installer": "^1.1",
+                "phpstan/phpstan": "^2.0",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^9.5.25 || ^10.0 || ^11.0",
+                "predis/predis": "^1.1.8",
+                "spatie/async": "^1.5"
             },
             "suggest": {
                 "ext-igbinary": "To use this library with PHP Redis igbinary serializer enabled.",
@@ -8807,24 +8810,26 @@
             "type": "library",
             "autoload": {
                 "psr-4": {
-                    "malkusch\\lock\\": "classes/"
+                    "malkusch\\lock\\": "src/"
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "WTFPL"
+                "MIT"
             ],
             "authors": [
                 {
                     "name": "Markus Malkusch",
                     "email": "markus@malkusch.de",
-                    "homepage": "http://markus.malkusch.de",
-                    "role": "Developer"
+                    "homepage": "http://markus.malkusch.de"
                 },
                 {
                     "name": "Willem Stuursma-Ruwen",
-                    "email": "willem@stuursma.name",
-                    "role": "Developer"
+                    "email": "willem@stuursma.name"
+                },
+                {
+                    "name": "Michael Voříšek",
+                    "homepage": "https://mvorisek.cz/"
                 }
             ],
             "description": "Mutex library for exclusive code execution.",
@@ -8845,9 +8850,9 @@
             ],
             "support": {
                 "issues": "https://github.com/php-lock/lock/issues",
-                "source": "https://github.com/php-lock/lock/tree/v2.2.1"
+                "source": "https://github.com/php-lock/lock/tree/2.3.0"
             },
-            "time": "2022-04-26T09:25:15+00:00"
+            "time": "2024-12-05T22:54:07+00:00"
         },
         {
             "name": "marc-mabe/php-enum",
@@ -16623,16 +16628,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.52",
+            "version": "10.5.53",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "5be558244941fba07788b6bb42dc5fc84429580c"
+                "reference": "32768472ebfb6969e6c7399f1c7b09009723f653"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/5be558244941fba07788b6bb42dc5fc84429580c",
-                "reference": "5be558244941fba07788b6bb42dc5fc84429580c",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/32768472ebfb6969e6c7399f1c7b09009723f653",
+                "reference": "32768472ebfb6969e6c7399f1c7b09009723f653",
                 "shasum": ""
             },
             "require": {
@@ -16704,7 +16709,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.52"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.53"
             },
             "funding": [
                 {
@@ -16728,7 +16733,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-16T05:17:33+00:00"
+            "time": "2025-08-20T14:40:06+00:00"
         },
         {
             "name": "react/cache",
