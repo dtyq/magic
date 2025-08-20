@@ -38,7 +38,7 @@ class QwenImageModel extends AbstractImageGenerate
     {
         $apiKey = $serviceProviderConfig->getApiKey();
         if (empty($apiKey)) {
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, '通义千问API Key不能为空');
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.api_call_failed');
         }
 
         $this->api = new QwenImageAPI($apiKey);
@@ -374,7 +374,7 @@ class QwenImageModel extends AbstractImageGenerate
                 'model' => 'wan2.2-t2i-flash',
             ]);
 
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, '尺寸格式错误，应为"宽*高"格式');
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_size_format');
         }
 
         $width = (int) $dimensions[0];

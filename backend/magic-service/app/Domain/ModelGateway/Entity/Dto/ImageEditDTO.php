@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -87,12 +88,12 @@ class ImageEditDTO extends AbstractRequestDTO
         $supportedModels = array_merge(
             ImageGenerateModelType::getVolcengineModes(),
             ImageGenerateModelType::getAzureOpenAIEditModes(),
+            ImageGenerateModelType::getQwenImageEditModes()
         );
 
         if (! in_array($this->model, $supportedModels)) {
             ExceptionBuilder::throw(
-                MagicApiErrorCode::ValidateFailed,
-                'Model does not support image editing functionality'
+                ImageGenerateErrorCode::MODEL_NOT_SUPPORT_EDIT
             );
         }
     }

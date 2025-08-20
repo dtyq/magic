@@ -324,7 +324,7 @@ class LLMAppService extends AbstractLLMAppService
                 $this->logger->warning('text generate image error:' . $e->getMessage());
             }
         }
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::NOT_FOUND_ERROR_CODE);
     }
 
     /**
