@@ -79,8 +79,8 @@
         "volcengine/volc-sdk-php": "^1.0",
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
-        "dtyq/super-magic-module": "^v0.0",
-        "dtyq/magic-enterprise-service": "^0.0",
+        "dtyq/super-magic-module": "dev-master",
+        "dtyq/magic-enterprise-service": "dev-master",
         "dtyq/billing-manager": "^1.0.1"
     },
     "require-dev": {
@@ -149,6 +149,14 @@
         "php-accessor": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/php-accessor generate"
     },
     "repositories": [
+        {
+            "type": "path",
+            "url": "/Users/liangpeng/Documents/kk/magic/backend/super-magic-module"
+        },
+        {
+            "type": "path",
+            "url": "/Users/liangpeng/Documents/kk/magic-enterprise-service"
+        },
         {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/brd/token-sdk.git"
