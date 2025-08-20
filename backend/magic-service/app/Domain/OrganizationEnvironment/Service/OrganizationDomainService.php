@@ -53,8 +53,9 @@ readonly class OrganizationDomainService
 
         $savedOrganization = $this->organizationRepository->save($organizationEntity);
 
-        // 为创建者添加组织管理员权限并标记为组织创建人
-        if ($creatorId !== null) {
+        if ($creatorId !== null && $savedOrganization->getType() !== 1) {
+            // 个人组织不添加组织管理员
+            // 为创建者添加组织管理员权限并标记为组织创建人
             try {
                 $dataIsolation = DataIsolation::simpleMake($savedOrganization->getMagicOrganizationCode(), (string) $creatorId);
                 $this->organizationAdminDomainService->grant(
@@ -177,5 +178,4 @@ readonly class OrganizationDomainService
     {
         return ! $this->organizationRepository->existsByCode($code, $excludeId);
     }
-
 }

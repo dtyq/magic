@@ -50,5 +50,4 @@ interface OrganizationRepositoryInterface
      * 检查编码是否已存在.
      */
     public function existsByCode(string $code, ?int $excludeId = null): bool;
-
 }
