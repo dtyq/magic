@@ -23,6 +23,7 @@ use App\Domain\ModelGateway\Service\OrganizationConfigDomainService;
 use App\Domain\ModelGateway\Service\UserConfigDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
+use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
@@ -42,8 +43,9 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected AdminProviderDomainService $serviceProviderDomainService,
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
-        protected PackageFilterInterface $packageFilter,
         protected WatermarkConfigInterface $watermarkConfig,
+        protected ImageWatermarkProcessor $imageWatermarkProcessor,
+        protected PackageFilterInterface $packageFilter,
         protected PointComponentInterface $pointComponent,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);

@@ -7,20 +7,18 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AbstractDingTalkAlert;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
-use Hyperf\Di\Annotation\Inject;
-use Psr\Log\LoggerInterface;
 
-class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
+class MidjourneyModel extends AbstractImageGenerate
 {
     // 最大重试次数
     protected const MAX_RETRIES = 20;
@@ -28,41 +26,16 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
     // 重试间隔（秒）
     protected const RETRY_INTERVAL = 10;
 
-    #[Inject]
-    protected LoggerInterface $logger;
-
     protected MidjourneyAPI $api;
 
     public function __construct(ProviderConfigItem $serviceProviderConfig)
     {
-        parent::__construct();
         $this->api = new MidjourneyAPI($serviceProviderConfig->getApiKey());
-        $this->balanceThreshold = 100;
-    }
-
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
-    {
-        $rawResult = $this->generateImageInternal($imageGenerateRequest);
-
-        // 从原生结果中提取图片URL
-        if (! empty($rawResult['data']['images']) && is_array($rawResult['data']['images'])) {
-            return new ImageGenerateResponse(ImageGenerateType::URL, $rawResult['data']['images']);
-        }
-
-        // 如果没有 images 数组，尝试使用 cdnImage
-        if (! empty($rawResult['data']['cdnImage'])) {
-            return new ImageGenerateResponse(ImageGenerateType::URL, [$rawResult['data']['cdnImage']]);
-        }
-
-        $this->logger->error('MJ文生图：未获取到图片URL', [
-            'rawResult' => $rawResult,
-        ]);
-        ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        return $this->generateImageInternal($imageGenerateRequest);
+        return $this->generateImageRawInternal($imageGenerateRequest);
     }
 
     public function setAK(string $ak)
@@ -78,6 +51,37 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
     public function setApiKey(string $apiKey)
     {
         $this->api->setApiKey($apiKey);
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+
+        return $this->processMidjourneyRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResult = $this->generateImageRawInternal($imageGenerateRequest);
+
+        // 从原生结果中提取图片URL
+        if (! empty($rawResult['data']['images']) && is_array($rawResult['data']['images'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, $rawResult['data']['images']);
+        }
+
+        // 如果没有 images 数组，尝试使用 cdnImage
+        if (! empty($rawResult['data']['cdnImage'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, [$rawResult['data']['cdnImage']]);
+        }
+
+        $this->logger->error('MJ文生图：未获取到图片URL', [
+            'rawResult' => $rawResult,
+        ]);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
     }
 
     /**
@@ -243,7 +247,7 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
     /**
      * 生成图像的核心逻辑，返回原生结果.
      */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
             $this->logger->error('MJ文生图：无效的请求类型', [
@@ -282,9 +286,6 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
                 'jobId' => $jobId,
             ]);
 
-            // 异步检查余额
-            $this->monitorBalance();
-
             return $rawResult;
         } catch (Exception $e) {
             $this->logger->error('MJ文生图：失败', [
@@ -294,5 +295,38 @@ class MidjourneyModel extends AbstractDingTalkAlert implements ImageGenerate
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * 为Midjourney原始数据添加水印.
+     */
+    private function processMidjourneyRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    {
+        if (! isset($rawData['data'])) {
+            return $rawData;
+        }
+
+        try {
+            // 处理 images 数组
+            if (! empty($rawData['data']['images']) && is_array($rawData['data']['images'])) {
+                foreach ($rawData['data']['images'] as $index => &$imageUrl) {
+                    $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $watermarkConfig);
+                }
+                unset($imageUrl);
+            }
+
+            // 处理单个 cdnImage
+            if (! empty($rawData['data']['cdnImage'])) {
+                $rawData['data']['cdnImage'] = $this->watermarkProcessor->addWatermarkToUrl($rawData['data']['cdnImage'], $watermarkConfig);
+            }
+        } catch (Exception $e) {
+            // 水印处理失败时，记录错误但不影响图片返回
+            $this->logger->error('Midjourney图片水印处理失败', [
+                'error' => $e->getMessage(),
+            ]);
+            // 返回原始数据
+        }
+
+        return $rawData;
     }
 }

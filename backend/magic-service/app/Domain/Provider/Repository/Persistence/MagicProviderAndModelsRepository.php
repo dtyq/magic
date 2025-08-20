@@ -259,6 +259,74 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
     }
 
     /**
+     * 获取指定服务商下的模型列表（用于非官方组织）.
+     */
+    public function getProviderModels(
+        string $organizationCode,
+        ProviderCode $providerCode,
+        int $serviceProviderId
+    ): array {
+        // 1. 如果是官方组织，直接返回空数组
+        if (OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+            return [];
+        }
+
+        // 2. 获取官方组织下指定 ProviderCode 的服务商的所有启用模型
+        $officialModels = $this->getOfficialProviderEnabledModels($providerCode, Category::VLM);
+
+        // 如果没有官方模型，直接返回空数组
+        if (empty($officialModels)) {
+            return [];
+        }
+
+        // 提取官方模型的ID数组
+        $officialModelIds = [];
+        foreach ($officialModels as $officialModel) {
+            $officialModelIds[] = $officialModel->getId();
+        }
+
+        // 3. 查询当前组织下指定服务商ID对应的模型配置
+        $configBuilder = $this->createProviderModelQuery();
+        $configBuilder->where('organization_code', $organizationCode)
+            ->where('service_provider_config_id', $serviceProviderId)
+            ->whereIn('model_parent_id', $officialModelIds);
+
+        $configResult = Db::select($configBuilder->toSql(), $configBuilder->getBindings());
+        $modelEntities = ProviderModelAssembler::toEntities($configResult);
+
+        // 创建配置模型的映射表，以 model_parent_id 为 key
+        $modelMap = [];
+        foreach ($modelEntities as $modelEntity) {
+            if ($modelEntity->getModelParentId()) {
+                $modelMap[$modelEntity->getModelParentId()] = $modelEntity;
+            }
+        }
+
+        // 如果配置模型映射为空，直接返回官方模型列表
+        if (empty($modelMap)) {
+            $finalModels = $officialModels;
+        } else {
+            // 处理官方模型的状态合并
+            $finalModels = [];
+            foreach ($officialModels as $officialModel) {
+                $modelId = $officialModel->getId();
+
+                // 检查是否有普通组织的引用模型
+                if (isset($modelMap[$modelId])) {
+                    $organizationModel = $modelMap[$modelId];
+
+                    // 直接用配置模型的状态替换官方模型的状态
+                    $officialModel->setStatus($organizationModel->getStatus());
+                }
+                $finalModels[] = $officialModel;
+            }
+        }
+
+        // 应用套餐过滤
+        return $this->applyPackageFilteringToModels($finalModels, $organizationCode);
+    }
+
+    /**
      * 获取官方组织下所有启用的模型（包含配置过滤）.
      *
      * @param null|Category $category 服务商类别，为空时返回所有分类模型
@@ -352,6 +420,41 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
     {
         /* @phpstan-ignore-next-line */
         return ProviderModelModel::query()->whereNull('deleted_at');
+    }
+
+    /**
+     * 获取官方组织下指定 ProviderCode 的服务商的所有启用模型.
+     *
+     * @param ProviderCode $providerCode 服务商代码
+     * @return array<ProviderModelEntity> 过滤后的官方模型列表
+     */
+    private function getOfficialProviderEnabledModels(ProviderCode $providerCode, Category $category): array
+    {
+        // 获取官方组织编码
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+
+        // 1. 先查询官方组织下指定 ProviderCode 的启用服务商配置ID
+        $enabledConfigQuery = $this->createConfigQuery()
+            ->where('organization_code', $officialOrganizationCode)
+            ->where('status', Status::Enabled->value)
+            ->where('provider_code', $providerCode->value)
+            ->select('id');
+        $enabledConfigIds = Db::select($enabledConfigQuery->toSql(), $enabledConfigQuery->getBindings());
+        $enabledConfigIdArray = array_column($enabledConfigIds, 'id');
+
+        // 2. 使用启用的配置ID查询官方组织的启用模型
+        if (! empty($enabledConfigIdArray)) {
+            $officialBuilder = $this->createProviderModelQuery()
+                ->where('organization_code', $officialOrganizationCode)
+                ->where('status', Status::Enabled->value)
+                ->whereIn('category', $category)
+                ->whereIn('service_provider_config_id', $enabledConfigIdArray);
+
+            $officialResult = Db::select($officialBuilder->toSql(), $officialBuilder->getBindings());
+            return ProviderModelAssembler::toEntities($officialResult);
+        }
+
+        return [];
     }
 
     /**

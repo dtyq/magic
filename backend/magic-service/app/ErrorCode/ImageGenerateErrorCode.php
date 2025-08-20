@@ -67,4 +67,10 @@ enum ImageGenerateErrorCode: int
 
     #[ErrorMessage(message: 'image_generate.invalid_aspect_ratio')]
     case INVALID_ASPECT_RATIO = 44017;
+
+    #[ErrorMessage(message: 'image_generate.unsupported_image_size')]
+    case UNSUPPORTED_IMAGE_SIZE = 44018;
+
+    #[ErrorMessage(message: 'image_generate.unsupported_image_size_range')]
+    case UNSUPPORTED_IMAGE_SIZE_RANGE = 44019;
 }

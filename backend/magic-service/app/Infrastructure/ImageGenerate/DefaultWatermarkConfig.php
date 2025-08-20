@@ -20,6 +20,10 @@ class DefaultWatermarkConfig implements WatermarkConfigInterface
     public function getWatermarkConfig(?string $orgCode = null): ?WatermarkConfig
     {
         // 开源版本默认不启用水印
-        return null;
+        return new WatermarkConfig(
+            logoTextContent: 'Magic AI Generated', // 默认水印文字
+            position: 3, // 右下角
+            opacity: 0.3, // 30% 透明度
+        );
     }
 }

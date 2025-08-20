@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
@@ -18,11 +19,9 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateRespon
 use App\Infrastructure\Util\FileType;
 use BadMethodCallException;
 use Exception;
-use Hyperf\Di\Annotation\Inject;
 use Hyperf\RateLimit\Annotation\RateLimit;
-use Psr\Log\LoggerInterface;
 
-class MiracleVisionModel implements ImageGenerate
+class MiracleVisionModel extends AbstractImageGenerate
 {
     private const STATUS_INIT = 0;
 
@@ -42,19 +41,11 @@ class MiracleVisionModel implements ImageGenerate
 
     private const ALLOWED_IMAGE_TYPES = ['JPG', 'JPEG', 'BMP', 'IMAGE', 'PNG'];
 
-    #[Inject]
-    protected LoggerInterface $logger;
-
     private MiracleVisionAPI $api;
 
     public function __construct(ProviderConfigItem $serviceProviderConfig)
     {
         $this->api = new MiracleVisionAPI($serviceProviderConfig->getAk(), $serviceProviderConfig->getSk());
-    }
-
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
-    {
-        throw new BadMethodCallException('该方法暂不支持');
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
@@ -159,6 +150,16 @@ class MiracleVisionModel implements ImageGenerate
 
     public function setApiKey(string $apiKey)
     {
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        throw new BadMethodCallException('该方法暂不支持');
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        throw new BadMethodCallException('该方法暂不支持');
     }
 
     private function handleTaskStatus(int $status, array $result, MiracleVisionModelResponse $response): MiracleVisionModelResponse
