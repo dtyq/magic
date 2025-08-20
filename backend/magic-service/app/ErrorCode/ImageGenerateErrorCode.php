@@ -73,4 +73,7 @@ enum ImageGenerateErrorCode: int
 
     #[ErrorMessage(message: 'image_generate.unsupported_image_size_range')]
     case UNSUPPORTED_IMAGE_SIZE_RANGE = 44019;
+
+    #[ErrorMessage(message: 'image_generate.model_not_support_edit')]
+    case MODEL_NOT_SUPPORT_EDIT = 44020;
 }
