@@ -158,17 +158,26 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.project_id_required')]
     case BATCH_PROJECT_ID_REQUIRED = 51207;
 
+    #[ErrorMessage('project.fork_already_running')]
+    case PROJECT_FORK_ALREADY_RUNNING = 51208;
+
+    #[ErrorMessage('project.fork_not_found')]
+    case PROJECT_FORK_NOT_FOUND = 51209;
+
+    #[ErrorMessage('project.fork_access_denied')]
+    case PROJECT_FORK_ACCESS_DENIED = 51210;
+
     #[ErrorMessage('project.department_not_found')]
-    case DEPARTMENT_NOT_FOUND = 51208;
+    case DEPARTMENT_NOT_FOUND = 51211;
 
     #[ErrorMessage('project.invalid_member_type')]
-    case INVALID_MEMBER_TYPE = 51209;
+    case INVALID_MEMBER_TYPE = 51212;
 
     #[ErrorMessage('project.update_members_failed')]
-    case UPDATE_MEMBERS_FAILED = 51210;
+    case UPDATE_MEMBERS_FAILED = 51213;
 
     #[ErrorMessage('project.member_validation_failed')]
-    case MEMBER_VALIDATION_FAILED = 51211;
+    case MEMBER_VALIDATION_FAILED = 51214;
 
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
