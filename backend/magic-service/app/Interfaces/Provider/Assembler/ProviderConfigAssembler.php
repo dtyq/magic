@@ -141,8 +141,10 @@ class ProviderConfigAssembler
      */
     private static function prepareServiceProviderConfig(array $serviceProviderConfig): array
     {
-        // 解码配置
-        $decodeConfig = self::decodeConfig($serviceProviderConfig['config'], (string) $serviceProviderConfig['id']);
+        $decodeConfig = $serviceProviderConfig['config'];
+        if (is_string($serviceProviderConfig['config'])) {
+            $decodeConfig = self::decodeConfig($serviceProviderConfig['config'], (string) $serviceProviderConfig['id']);
+        }
 
         // 设置默认的translate
         if (empty($serviceProviderConfig['translate'])) {
