@@ -1,4 +1,24 @@
-FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.3-alpine-3.22-swow-1.6.0-jsonpath-parle-xlswriter
+FROM kkguan-registry.cn-shenzhen.cr.aliyuncs.com/open-source/hyperf-base:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswriter
+
+ARG timezone
+
+ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
+    SCAN_CACHEABLE=(true)
+
+# 设置 PHP 配置
+RUN mkdir -p /etc/php/conf.d && \
+    echo "memory_limit = -1" > /etc/php/conf.d/memory-limit.ini && \
+    echo "max_execution_time = 0" > /etc/php/conf.d/max-execution-time.ini
+
+
+
+# 安装 PostgreSQL 客户端库及其他依赖
+RUN apk add --no-cache  git openssh-client
+
+
+COPY . /opt/www
+
+WORKDIR /opt/www
 
 ##
 # ---------- env settings ----------
@@ -9,49 +29,40 @@ ARG timezone
 ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
     SCAN_CACHEABLE=(true) \
     USE_ZEND_ALLOC=0
-RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
-    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
-    # apk安装构建工具
-    apk add --no-cache \
-        --virtual .php-buildtool \
-        git \
-        autoconf \
-        automake \
-        file \
-        gcc \
-        g++ \
-        libc-dev \
-        make \
-        pkgconf \
-        re2c \
-        libtool \
-        php83-dev
+#RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
+#    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
+#    # apk安装构建工具
+#    apk add --no-cache \
+#        --virtual .php-buildtool \
+#        git \
+#        autoconf \
+#        automake \
+#        file \
+#        gcc \
+#        g++ \
+#        libc-dev \
+#        make \
+#        pkgconf \
+#        re2c \
+#        libtool \
+#        php83-dev
 
     # 装个pcov
-RUN rm -rf /src/pcov && \
-    git clone --depth 1 https://gitee.com/codinghuang/pcov.git /src/pcov && \
-    # 构建安装
-    cd /src/pcov && \
-        phpize83 && \
-        ./configure --enable-pcov && \
-        make && \
-        make install && \
-    cd .. && \
-    # 清理
-    rm -rf /src/pcov && \
-    apk del .php-buildtool && \
-    # 显示成果
-    php -v && \
-    php -dextension=pcov --ri pcov
-
-WORKDIR /opt/www
-
-# Composer Cache
-# COPY ./composer.* /opt/www/
-# RUN composer install --no-dev --no-scripts
-
-COPY . /opt/www
-
+#RUN rm -rf /src/pcov && \
+#    git clone --depth 1 https://gitee.com/codinghuang/pcov.git /src/pcov && \
+#    # 构建安装
+#    cd /src/pcov && \
+#        phpize83 && \
+#        ./configure --enable-pcov && \
+#        make && \
+#        make install && \
+#    cd .. && \
+#    # 清理
+#    rm -rf /src/pcov && \
+#    apk del .php-buildtool && \
+#    # 显示成果
+#    php -v && \
+#    php -dextension=pcov --ri pcov
 
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
