@@ -26,7 +26,7 @@ interface MagicPermissionInterface
     /**
      * 构建权限标识.
      */
-    public function buildPermission(string $resource, ?string $operation): string;
+    public function buildPermission(string $resource, string $operation): string;
 
     /**
      * 解析权限标识.

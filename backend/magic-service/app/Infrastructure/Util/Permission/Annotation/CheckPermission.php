@@ -31,7 +31,7 @@ class CheckPermission extends AbstractAnnotation
      */
     public string $operation;
 
-    public function __construct(BackedEnum|string $resource, null|BackedEnum|string $operation = null)
+    public function __construct(BackedEnum|string $resource, BackedEnum|string $operation)
     {
         $this->resource = $resource instanceof BackedEnum ? $resource->value : $resource;
         $this->operation = $operation instanceof BackedEnum ? $operation->value : $operation;
