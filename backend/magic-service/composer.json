@@ -148,42 +148,46 @@
         "rector": "rector process --clear-cache",
         "php-accessor": "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=1255 vendor/bin/php-accessor generate"
     },
-    "repositories": [
-        {
+    "repositories": {
+        "token-sdk": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/brd/token-sdk.git"
         },
-        {
+        "user-service-sdk": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/brd/user-service-sdk.git"
         },
-        {
+        "service-sdk": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/erp-service/service-sdk.git"
         },
-        {
+        "keewood-service-open-sdk": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/brd/keewood-service-open-sdk.git"
         },
-        {
+        "magic-enterprise-service": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/magic/magic-enterprise-service.git"
         },
-        {
+        "magic-api-premium": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/magic/magic-api-premium.git"
         },
-        {
+        "odin": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/hyperf/odin.git"
         },
-        {
+        "super-magic-module": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/dtyq/super-magic-module.git"
         },
-        {
+        "billing-manager": {
             "type": "gitlab",
             "url": "https://git.kkgroup.cn/dtyq/billing-manager.git"
+        },
+        "packagist": {
+            "type": "composer",
+            "url": "https://packagist.org"
         }
-    ]
+    }
 }
