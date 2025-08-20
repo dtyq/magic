@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Kernel;
 
 use App\Application\Kernel\Contract\MagicPermissionInterface;
+use App\Application\Kernel\Enum\MagicAdminResourceEnum;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use Exception;
@@ -16,7 +17,7 @@ use InvalidArgumentException;
 class MagicPermission implements MagicPermissionInterface
 {
     // ========== 全局权限 ==========
-    public const string ALL_PERMISSIONS = 'MAGIC_ALL_PERMISSIONS';
+    public const string ALL_PERMISSIONS = MagicAdminResourceEnum::ORGANIZATION_ADMIN->value;
 
     /**
      * 获取所有操作类型.
@@ -56,8 +57,12 @@ class MagicPermission implements MagicPermissionInterface
     /**
      * 构建完整权限标识.
      */
-    public function buildPermission(string $resource, string $operation): string
+    public function buildPermission(string $resource, ?string $operation): string
     {
+        if ($resource === self::ALL_PERMISSIONS) {
+            return self::ALL_PERMISSIONS;
+        }
+
         if (! in_array($resource, $this->getResources()) || ! in_array($operation, $this->getOperations())) {
             throw new InvalidArgumentException('Invalid resource or operation type');
         }
