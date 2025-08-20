@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
@@ -31,7 +30,6 @@ class AgentAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private readonly AgentDomainService $agentDomainService,
-        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }

@@ -155,6 +155,15 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.project_id_required')]
     case BATCH_PROJECT_ID_REQUIRED = 51207;
 
+    #[ErrorMessage('project.fork_already_running')]
+    case PROJECT_FORK_ALREADY_RUNNING = 51208;
+
+    #[ErrorMessage('project.fork_not_found')]
+    case PROJECT_FORK_NOT_FOUND = 51209;
+
+    #[ErrorMessage('project.fork_access_denied')]
+    case PROJECT_FORK_ACCESS_DENIED = 51210;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
