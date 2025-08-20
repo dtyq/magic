@@ -116,7 +116,7 @@ class OrganizationAdminDomainService
     /**
      * 授予用户组织管理员权限.
      */
-    public function grant(DataIsolation $dataIsolation, string $userId, string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity
+    public function grant(DataIsolation $dataIsolation, string $userId, ?string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity
     {
         // 检查用户是否已经是组织管理员
         if ($this->isOrganizationAdmin($dataIsolation, $userId)) {
@@ -135,9 +135,9 @@ class OrganizationAdminDomainService
         try {
             $permissionIsolation = PermissionDataIsolation::create(
                 $dataIsolation->getCurrentOrganizationCode(),
-                $grantorUserId
+                $dataIsolation->getCurrentUserId() ?? ''
             );
-            $this->roleDomainService->addOrganizationAdmin($permissionIsolation, $userId);
+            $this->roleDomainService->addOrganizationAdmin($permissionIsolation, [$userId]);
         } catch (Throwable $e) {
             // 记录日志，但不影响授予流程
             error_log('Failed to add organization admin role: ' . $e->getMessage());

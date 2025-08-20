@@ -12,6 +12,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -39,6 +40,7 @@ class AgentAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }

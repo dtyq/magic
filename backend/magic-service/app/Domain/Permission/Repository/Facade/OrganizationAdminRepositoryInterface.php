@@ -47,7 +47,7 @@ interface OrganizationAdminRepositoryInterface
     /**
      * 授予用户组织管理员权限.
      */
-    public function grant(DataIsolation $dataIsolation, string $userId, string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity;
+    public function grant(DataIsolation $dataIsolation, string $userId, ?string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity;
 
     /**
      * 撤销用户组织管理员权限.

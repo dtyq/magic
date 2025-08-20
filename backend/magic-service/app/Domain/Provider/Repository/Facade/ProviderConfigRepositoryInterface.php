@@ -64,4 +64,6 @@ interface ProviderConfigRepositoryInterface
      * @return array<int, ProviderConfigEntity> 返回以id为key的配置实体数组
      */
     public function getByIdsWithoutOrganizationFilter(array $ids): array;
+
+    public function findById(string $id): ?ProviderConfigEntity;
 }

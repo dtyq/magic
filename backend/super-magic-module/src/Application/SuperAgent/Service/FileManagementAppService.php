@@ -551,7 +551,7 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             // 1. Get file and project information
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // 2. Handle target parent directory

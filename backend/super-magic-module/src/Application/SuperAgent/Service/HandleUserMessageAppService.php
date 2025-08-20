@@ -63,7 +63,6 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
-        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {

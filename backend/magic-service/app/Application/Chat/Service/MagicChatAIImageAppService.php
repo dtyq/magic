@@ -26,7 +26,6 @@ use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Service\MsgLogDomainService;
-use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
@@ -132,10 +131,7 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
 
-        if ($miracleVisionServiceProviderConfig->getServiceProviderType() === ProviderType::Normal) {
-            $imageGenerateService->setApiKey($miracleVisionServiceProviderConfig->getConfig()?->getApiKey());
-        }
-
+        $imageGenerateService->setApiKey($miracleVisionServiceProviderConfig->getConfig()->getApiKey());
         return $this->magicAIImageDomainService->imageConvertHigh($url, $imageGenerateService);
     }
 
