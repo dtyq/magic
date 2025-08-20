@@ -15,8 +15,6 @@ use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
-use App\Domain\Provider\Entity\ValueObject\ModelType;
-use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Embeddings\EmbeddingGenerator\EmbeddingGenerator;
 use App\Infrastructure\Core\Embeddings\VectorStores\VectorStoreDriver;
@@ -106,8 +104,7 @@ abstract class AbstractKnowledgeNodeRunner extends NodeRunner
         $knowledgeBaseDataIsolation = KnowledgeBaseDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $dataIsolation->getMagicId());
         if ($create && ! $knowledgeDomainService->exist($knowledgeBaseDataIsolation, $knowledgeEntity->getForceCreateCode())) {
             // 选择合适的嵌入和向量
-            $model = di(AdminProviderDomainService::class)->findSelectedActiveProviderByType($dataIsolation->getCurrentOrganizationCode(), ModelType::EMBEDDING);
-            $knowledgeEntity->setModel($knowledgeEntity->getEmbeddingConfig()['model_id'] ?? $model?->getModels()[0]->getModelId() ?? EmbeddingGenerator::defaultModel());
+            $knowledgeEntity->setModel($knowledgeEntity->getEmbeddingConfig()['model_id'] ?? EmbeddingGenerator::defaultModel());
             $knowledgeEntity->setVectorDB(VectorStoreDriver::default()->value);
             $knowledgeDomainService->save($knowledgeBaseDataIsolation, $knowledgeEntity);
         }

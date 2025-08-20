@@ -21,7 +21,6 @@ use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -163,16 +162,11 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function imageGenerate(MagicUserAuthorization $authorization, string $modelVersion, string $modelId, array $data): array
     {
-        $providerModelsDTO = $this->serviceProviderDomainService->getServiceProviderConfig($modelVersion, $modelId, $authorization->getOrganizationCode());
-        if ($providerModelsDTO === null) {
+        $providerConfigEntity = $this->serviceProviderDomainService->getServiceProviderConfig($modelVersion, $modelId, $authorization->getOrganizationCode());
+        if ($providerConfigEntity === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
-        if ($providerModelsDTO->getServiceProviderType() === ProviderType::Normal) {
-            $modelVersion = $providerModelsDTO->getModels()[0]?->getModelVersion();
-        }
-        if (empty($modelVersion)) {
-            $modelVersion = $providerModelsDTO->getModels()[0]?->getModelVersion();
-        }
+
         if (! isset($data['model'])) {
             $data['model'] = $modelVersion;
         }
@@ -194,7 +188,7 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
 
-        $providerConfigItem = $providerModelsDTO->getConfig();
+        $providerConfigItem = $providerConfigEntity->getConfig();
         if ($providerConfigItem === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
@@ -428,6 +422,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // Parse business parameters
             $contextData = $this->parseBusinessContext($dataIsolation, $accessToken, $proxyModelRequest);
+            $this->pointComponent->checkPointsSufficient($contextData['organization_code'], $contextData['user_id']);
 
             // Try to get high availability model configuration
             $orgCode = $contextData['organization_code'] ?? null;

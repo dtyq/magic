@@ -36,6 +36,8 @@ class ProviderConfigEntity extends AbstractEntity
 
     protected ?DateTime $deletedAt = null;
 
+    protected int $sort;
+
     private ?ProviderCode $providerCode = null;
 
     public function getId(): ?int
@@ -255,5 +257,15 @@ class ProviderConfigEntity extends AbstractEntity
         if (isset($this->translate['alias'][$languages])) {
             $this->alias = $this->translate['alias'][$languages];
         }
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(int $sort): void
+    {
+        $this->sort = $sort;
     }
 }
