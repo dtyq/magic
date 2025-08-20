@@ -10,7 +10,6 @@ namespace App\Domain\Provider\Repository\Facade;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
 
@@ -61,18 +60,4 @@ interface MagicProviderAndModelsInterface
         ProviderDataIsolation $dataIsolation,
         ProviderModelEntity $officialModel
     ): string;
-
-    /**
-     * 获取指定服务商下的模型列表（用于非官方组织）.
-     *
-     * @param string $organizationCode 组织编码
-     * @param ProviderCode $providerCode 服务商代码
-     * @param int $serviceProviderId 服务商ID
-     * @return array<ProviderModelEntity> 模型实体数组
-     */
-    public function getProviderModels(
-        string $organizationCode,
-        ProviderCode $providerCode,
-        int $serviceProviderId
-    ): array;
 }
