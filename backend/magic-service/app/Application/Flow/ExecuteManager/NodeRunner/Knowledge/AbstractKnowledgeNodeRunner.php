@@ -33,7 +33,7 @@ abstract class AbstractKnowledgeNodeRunner extends NodeRunner
             } elseif (is_array($vectorDatabaseId)) {
                 // 这里采用了 names 的组件形式，那么结构是一个多选
                 // 只取第一个的 id
-                $knowledgeCode = $vectorDatabaseId[0]['id'] ?? null;
+                $knowledgeCode = $vectorDatabaseId[0]['id'] ?? '';
             }
         }
         if (ConstValue::isSystemKnowledge($knowledgeCode)) {

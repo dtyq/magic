@@ -555,7 +555,6 @@ class AgentDomainService
             'memory' => $memory,
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
-            'memory' => $memory,
         ];
     }
 

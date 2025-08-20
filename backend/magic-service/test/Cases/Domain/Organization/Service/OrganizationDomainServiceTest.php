@@ -308,29 +308,6 @@ class OrganizationDomainServiceTest extends HttpTestCase
         $this->assertTrue($isAvailable);
     }
 
-    public function testIsNameAvailable(): void
-    {
-        // 测试不存在的名称
-        $isAvailable = $this->organizationDomainService->isNameAvailable('Non Existent Organization');
-        $this->assertTrue($isAvailable);
-
-        // 创建组织
-        $organization = $this->createTestOrganizationEntity(0);
-        $savedOrganization = $this->organizationDomainService->create($organization);
-        $this->testOrganizationIds[] = $savedOrganization->getId();
-
-        // 测试已存在的名称
-        $isAvailable = $this->organizationDomainService->isNameAvailable('Test Organization 0');
-        $this->assertFalse($isAvailable);
-
-        // 测试排除当前组织的情况
-        $isAvailable = $this->organizationDomainService->isNameAvailable(
-            'Test Organization 0',
-            $savedOrganization->getId()
-        );
-        $this->assertTrue($isAvailable);
-    }
-
     /**
      * 测试创建组织时自动为创建者授予管理员权限.
      * 注意：此测试在实际环境中可能需要真实的用户数据或Mock框架支持

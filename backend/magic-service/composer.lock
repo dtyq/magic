@@ -2574,12 +2574,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "c0afff4d7550155a726c4fd76fabcb534e05cc1c"
+                "reference": "0fd7fd11035f68db4045e245eef05bbc152b56ab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=c0afff4d7550155a726c4fd76fabcb534e05cc1c",
-                "reference": "c0afff4d7550155a726c4fd76fabcb534e05cc1c",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=0fd7fd11035f68db4045e245eef05bbc152b56ab",
+                "reference": "0fd7fd11035f68db4045e245eef05bbc152b56ab",
                 "shasum": ""
             },
             "require": {
@@ -2673,7 +2673,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-20T14:32:37+08:00"
+            "time": "2025-08-20T15:39:12+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6446,16 +6446,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.42",
+            "version": "v1.1.45",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "24507763c7214d35948015a84f7e8d3ed1f2510f"
+                "reference": "927543b8b4d0c1b47d8c9858e8004dcbb56af71a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=24507763c7214d35948015a84f7e8d3ed1f2510f",
-                "reference": "24507763c7214d35948015a84f7e8d3ed1f2510f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=927543b8b4d0c1b47d8c9858e8004dcbb56af71a",
+                "reference": "927543b8b4d0c1b47d8c9858e8004dcbb56af71a",
                 "shasum": ""
             },
             "require": {
@@ -6527,9 +6527,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.42"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.45"
             },
-            "time": "2025-08-14T13:57:35+08:00"
+            "time": "2025-08-20T16:55:29+08:00"
         },
         {
             "name": "hyperf/phar",
