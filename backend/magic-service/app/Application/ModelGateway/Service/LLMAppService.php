@@ -49,6 +49,7 @@ use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
@@ -370,7 +371,6 @@ class LLMAppService extends AbstractLLMAppService
 
             // Prepare cache keys for batch query (skip removeCount=0)
             $cacheKeys = [];
-            $removeCountMapping = [];
             foreach ($hashes as $removeCount => $messagesHash) {
                 // Skip removeCount=0 (full array) since we only check conversation continuation
                 if ($removeCount === 0) {
@@ -382,7 +382,6 @@ class LLMAppService extends AbstractLLMAppService
                 $endpointCacheKey = self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
 
                 $cacheKeys[] = $endpointCacheKey;
-                $removeCountMapping[$endpointCacheKey] = $removeCount;
             }
 
             // Batch query Redis for all cache keys at once
@@ -752,7 +751,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param mixed $value Value to convert
      * @return string String representation
      */
-    private function convertToString($value): string
+    private function convertToString(mixed $value): string
     {
         if (is_string($value)) {
             return $value;
@@ -767,7 +766,7 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         if (is_array($value) || is_object($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+            return Json::encode($value) ?: '';
         }
 
         if (is_scalar($value)) {
@@ -915,7 +914,7 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($accessToken->getType()->isUser()) {
             $context['user_id'] = $accessToken->getRelationId();
-            $context['source_id'] = "{$accessToken->getName()}";
+            $context['source_id'] = $accessToken->getName();
             // Personal users also have the organization they were in when creating the token
             $context['organization_code'] = $accessToken->getOrganizationCode();
         }
@@ -1128,8 +1127,8 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         // Use absolute values to ensure positive result
-        $a = abs($a);
-        $b = abs($b);
+        $a = (int) abs($a);
+        $b = (int) abs($b);
 
         // Iterative approach to avoid stack overflow for large numbers
         while ($b !== 0) {
@@ -1161,7 +1160,9 @@ class LLMAppService extends AbstractLLMAppService
                 $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Public);
 
                 $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
-
+                if ($fileLink === null) {
+                    continue;
+                }
                 $processedImages[] = $fileLink->getUrl();
             } catch (Exception $e) {
                 $this->logger->error('Failed to process base64 image', [

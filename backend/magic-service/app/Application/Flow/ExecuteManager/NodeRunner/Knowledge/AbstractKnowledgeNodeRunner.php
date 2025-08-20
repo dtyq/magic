@@ -35,7 +35,7 @@ abstract class AbstractKnowledgeNodeRunner extends NodeRunner
             } elseif (is_array($vectorDatabaseId)) {
                 // 这里采用了 names 的组件形式，那么结构是一个多选
                 // 只取第一个的 id
-                $knowledgeCode = $vectorDatabaseId[0]['id'] ?? null;
+                $knowledgeCode = $vectorDatabaseId[0]['id'] ?? '';
             }
         }
         if (ConstValue::isSystemKnowledge($knowledgeCode)) {
@@ -107,7 +107,7 @@ abstract class AbstractKnowledgeNodeRunner extends NodeRunner
         if ($create && ! $knowledgeDomainService->exist($knowledgeBaseDataIsolation, $knowledgeEntity->getForceCreateCode())) {
             // 选择合适的嵌入和向量
             $model = di(AdminProviderDomainService::class)->findSelectedActiveProviderByType($dataIsolation->getCurrentOrganizationCode(), ModelType::EMBEDDING);
-            $knowledgeEntity->setModel($knowledgeEntity->getEmbeddingConfig()['model_id'] ?? $model?->getServiceProviderModelsEntity()?->getModelId() ?? EmbeddingGenerator::defaultModel());
+            $knowledgeEntity->setModel($knowledgeEntity->getEmbeddingConfig()['model_id'] ?? $model?->getModels()[0]->getModelId() ?? EmbeddingGenerator::defaultModel());
             $knowledgeEntity->setVectorDB(VectorStoreDriver::default()->value);
             $knowledgeDomainService->save($knowledgeBaseDataIsolation, $knowledgeEntity);
         }
