@@ -178,5 +178,4 @@ readonly class OrganizationDomainService
     {
         return ! $this->organizationRepository->existsByCode($code, $excludeId);
     }
-
 }
