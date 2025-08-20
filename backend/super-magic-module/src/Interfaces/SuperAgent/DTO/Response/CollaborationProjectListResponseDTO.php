@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 /**
- * 协作项目列表响应DTO
+ * 协作项目列表响应DTO.
  */
 class CollaborationProjectListResponseDTO
 {
@@ -19,7 +19,7 @@ class CollaborationProjectListResponseDTO
     }
 
     /**
-     * 从项目数据创建响应DTO
+     * 从项目数据创建响应DTO.
      *
      * @param array $projects 项目实体数组
      * @param array $creatorInfoMap 创建人信息映射
@@ -57,7 +57,7 @@ class CollaborationProjectListResponseDTO
     }
 
     /**
-     * 转换为数组
+     * 转换为数组.
      */
     public function toArray(): array
     {

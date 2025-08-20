@@ -12,7 +12,6 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
-use Dtyq\SdkBase\Tests\BusinessException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
@@ -23,10 +22,9 @@ class AbstractAppService extends AbstractKernelAppService
     use DataIsolationTrait;
 
     /**
-     * 获取用户可访问的项目实体
-     * 
+     * 获取用户可访问的项目实体.
+     *
      * @return ProjectEntity 项目实体
-     * @throws BusinessException 当用户无访问权限时
      */
     protected function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
     {

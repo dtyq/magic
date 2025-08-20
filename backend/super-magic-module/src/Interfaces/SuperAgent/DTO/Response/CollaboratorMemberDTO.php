@@ -12,7 +12,7 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Infrastructure\Core\AbstractDTO;
 
 /**
- * 协作者成员信息DTO
+ * 协作者成员信息DTO.
  */
 class CollaboratorMemberDTO extends AbstractDTO
 {
@@ -37,7 +37,7 @@ class CollaboratorMemberDTO extends AbstractDTO
     protected string $type = '';
 
     /**
-     * 从MagicUserEntity对象创建DTO
+     * 从MagicUserEntity对象创建DTO.
      */
     public static function fromUserEntity(MagicUserEntity $userEntity): self
     {
@@ -51,7 +51,7 @@ class CollaboratorMemberDTO extends AbstractDTO
     }
 
     /**
-     * 从MagicDepartmentEntity对象创建DTO
+     * 从MagicDepartmentEntity对象创建DTO.
      */
     public static function fromDepartmentEntity(MagicDepartmentEntity $departmentEntity): self
     {
@@ -65,7 +65,7 @@ class CollaboratorMemberDTO extends AbstractDTO
     }
 
     /**
-     * 转换为数组
+     * 转换为数组.
      */
     public function toArray(): array
     {

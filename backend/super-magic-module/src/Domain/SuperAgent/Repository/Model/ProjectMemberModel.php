@@ -8,10 +8,9 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model;
 
 use App\Infrastructure\Core\AbstractModel;
-use Hyperf\Database\Model\SoftDeletes;
 
 /**
- * 项目成员模型
+ * 项目成员模型.
  */
 class ProjectMemberModel extends AbstractModel
 {
@@ -38,7 +37,7 @@ class ProjectMemberModel extends AbstractModel
     ];
 
     /**
-     * 所属项目
+     * 所属项目.
      */
     public function project()
     {
