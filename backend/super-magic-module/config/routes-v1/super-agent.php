@@ -61,6 +61,8 @@ Router::addGroup(
             // 更新项目协作成员
             Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
         });
+        // 获取协作项目列表
+        Router::get('/collaboration-projects', [ProjectMemberApi::class, 'getCollaborationProjects']);
 
         // 话题相关
         Router::addGroup('/topics', static function () {
@@ -113,6 +115,8 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 批量移动文件
+            Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件
             Router::post('/batch-delete', [FileApi::class, 'batchDeleteFiles']);
 
@@ -122,6 +126,12 @@ Router::addGroup(
                 Router::post('/create', [FileApi::class, 'createBatchDownload']);
                 // 检查批量下载状态
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
+            });
+
+            // 批量操作状态查询
+            Router::addGroup('/batch-operation', static function () {
+                // 检查批量操作状态
+                Router::get('/check', [FileApi::class, 'checkBatchOperationStatus']);
             });
         });
 

@@ -26,12 +26,14 @@ class ProjectItemDTO
         public readonly ?string $projectMode,
         public readonly ?string $workspaceName,
         public readonly ?string $createdAt,
-        public readonly ?string $updatedAt
+        public readonly ?string $updatedAt,
+        public readonly ?string $tag
     ) {
     }
 
-    public static function fromEntity(ProjectEntity $project, ?string $projectStatus = null, ?string $workspaceName = null): self
+    public static function fromEntity(ProjectEntity $project, ?string $projectStatus = null, ?string $workspaceName = null, bool $hasProjectMember = false): self
     {
+        $tag = $hasProjectMember ? 'collaboration' : '';
         return new self(
             id: (string) $project->getId(),
             workspaceId: (string) $project->getWorkspaceId(),
@@ -44,7 +46,8 @@ class ProjectItemDTO
             projectMode: $project->getProjectMode(),
             workspaceName: $workspaceName,
             createdAt: $project->getCreatedAt(),
-            updatedAt: $project->getUpdatedAt()
+            updatedAt: $project->getUpdatedAt(),
+            tag: $tag
         );
     }
 
@@ -61,6 +64,7 @@ class ProjectItemDTO
             'project_status' => $this->projectStatus,
             'project_mode' => $this->projectMode,
             'workspace_name' => $this->workspaceName,
+            'tag' => $this->tag,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

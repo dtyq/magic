@@ -93,11 +93,12 @@ class ProjectMemberDomainService
      *
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
+     * @param null|string $name 项目名称模糊搜索关键词
      * @return array ['total' => int, 'project_ids' => array]
      */
-    public function getProjectIdsByUserAndDepartmentsWithTotal(string $userId, array $departmentIds = []): array
+    public function getProjectIdsByUserAndDepartmentsWithTotal(string $userId, array $departmentIds = [], ?string $name = null): array
     {
-        return $this->projectMemberRepository->getProjectIdsByUserAndDepartments($userId, $departmentIds);
+        return $this->projectMemberRepository->getProjectIdsByUserAndDepartments($userId, $departmentIds, $name);
     }
 
     /**
@@ -116,7 +117,7 @@ class ProjectMemberDomainService
      *
      * @param array $projectIds 项目ID数组
      * @param int $limit 限制数量，默认4个
-     * @return array [project_id => [['target_type' => '', 'target_id' => ''], ...]]
+     * @return ProjectMemberEntity[][]
      */
     public function getProjectMembersPreview(array $projectIds, int $limit = 4): array
     {

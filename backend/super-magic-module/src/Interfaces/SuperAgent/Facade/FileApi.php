@@ -21,7 +21,9 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
@@ -267,6 +269,17 @@ class FileApi extends AbstractApi
         return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), (int) $requestDTO->getPreFileId());
     }
 
+    public function batchMoveFile(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request data and create DTO
+        $requestDTO = BatchMoveFileRequestDTO::fromRequest($this->request);
+
+        // Call application service
+        return $this->fileManagementAppService->batchMoveFile($requestContext, $requestDTO);
+    }
+
     /**
      * Create batch download task.
      *
@@ -309,6 +322,27 @@ class FileApi extends AbstractApi
 
         // Call application service
         $responseDTO = $this->fileBatchAppService->checkBatchDownload($requestContext, $batchKey);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * Check batch operation status.
+     *
+     * @param RequestContext $requestContext Request context
+     * @return array Query result
+     */
+    #[RateLimit(create: 30, capacity: 30, key: 'batch_operation_check')]
+    public function checkBatchOperationStatus(RequestContext $requestContext): array
+    {
+        // Set user authorization info
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request data and create DTO
+        $requestDTO = CheckBatchOperationStatusRequestDTO::fromRequest($this->request);
+
+        // Call application service
+        $responseDTO = $this->fileManagementAppService->checkBatchOperationStatus($requestContext, $requestDTO);
 
         return $responseDTO->toArray();
     }

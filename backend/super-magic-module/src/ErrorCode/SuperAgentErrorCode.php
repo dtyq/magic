@@ -97,8 +97,8 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.sandbox_save_failed')]
     case SANDBOX_SAVE_FAILED = 51164;
 
-    #[ErrorMessage('file.convert_failed')]
-    case FILE_CONVERT_FAILED = 51165;
+    #[ErrorMessage('file.multiple_projects_not_allowed')]
+    case MULTIPLE_PROJECTS_NOT_ALLOWED = 51165;
 
     #[ErrorMessage('file.file_not_found')]
     case FILE_NOT_FOUND = 51166;
@@ -126,6 +126,12 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('file.illegal_file_key')]
     case FILE_ILLEGAL_KEY = 51175;
+
+    #[ErrorMessage('file.convert_failed')]
+    case FILE_CONVERT_FAILED = 51176;
+
+    #[ErrorMessage('file.move_operation_busy')]
+    case FILE_OPERATION_BUSY = 51177;
 
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]

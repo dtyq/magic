@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
@@ -110,23 +109,13 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     {
         $results = $this->projectMemberModel::query()
             ->where('project_id', $projectId)
+            ->orderBy('id', 'asc')
             ->get()
             ->toArray();
 
         $entities = [];
         foreach ($results as $row) {
-            $entity = new ProjectMemberEntity();
-            $entity->setId($row['id']);
-            $entity->setProjectId($row['project_id']);
-            $entity->setTargetTypeFromString($row['target_type']);
-            $entity->setTargetId($row['target_id']);
-            $entity->setOrganizationCode($row['organization_code']);
-            $entity->setStatus(MemberStatus::from((int) $row['status'])); // 转换为MemberStatus枚举
-            $entity->setInvitedBy($row['invited_by']);
-            $entity->setCreatedAt($row['created_at']);
-            $entity->setUpdatedAt($row['updated_at']);
-
-            $entities[] = $entity;
+            $entities[] = ProjectMemberEntity::modelToEntity($row);
         }
 
         return $entities;
@@ -137,9 +126,10 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
      *
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
+     * @param null|string $name 项目名称模糊搜索关键词
      * @return array ['total' => int, 'project_ids' => array]
      */
-    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = []): array
+    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = [], ?string $name = null): array
     {
         $query = $this->projectMemberModel::query()
             ->where(function ($query) use ($userId, $departmentIds) {
@@ -154,11 +144,20 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                             ->whereIn('target_id', $departmentIds);
                     });
                 }
-            })
-            ->select('project_id')
+            });
+
+        // 如果有项目名称搜索条件，则需要连接项目表
+        if (! empty($name)) {
+            $query->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
+                ->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%')
+                ->whereNull('magic_super_agent_project.deleted_at'); // 确保项目未被软删除
+        }
+
+        $query->select('magic_super_agent_project_members.project_id')
             ->distinct();
 
         $results = $query->get()->toArray();
+
         $projectIds = array_map(fn ($row) => (int) $row['project_id'], $results);
 
         return [
@@ -210,16 +209,13 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         foreach ($projectIds as $projectId) {
             $members = $this->projectMemberModel::query()
                 ->where('project_id', $projectId)
-                ->orderBy('created_at', 'asc')
+                ->orderBy('id', 'asc')
                 ->limit($limit)
-                ->get(['target_type', 'target_id'])
+                ->get()
                 ->toArray();
 
             $preview[$projectId] = array_map(function ($member) {
-                return [
-                    'target_type' => $member['target_type'],
-                    'target_id' => $member['target_id'],
-                ];
+                return ProjectMemberEntity::modelToEntity($member);
             }, $members);
         }
 
