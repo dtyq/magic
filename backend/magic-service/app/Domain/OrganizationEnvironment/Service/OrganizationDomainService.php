@@ -40,11 +40,6 @@ readonly class OrganizationDomainService
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_CODE_EXISTS);
         }
 
-        // 检查名称是否已存在
-        if ($this->organizationRepository->existsByName($organizationEntity->getName())) {
-            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NAME_EXISTS);
-        }
-
         // 检查创建者是否存在
         $creatorId = $organizationEntity->getCreatorId();
         if ($creatorId !== null) {
@@ -58,8 +53,9 @@ readonly class OrganizationDomainService
 
         $savedOrganization = $this->organizationRepository->save($organizationEntity);
 
-        // 为创建者添加组织管理员权限并标记为组织创建人
-        if ($creatorId !== null) {
+        if ($creatorId !== null && $savedOrganization->getType() !== 1) {
+            // 个人组织不添加组织管理员
+            // 为创建者添加组织管理员权限并标记为组织创建人
             try {
                 $dataIsolation = DataIsolation::simpleMake($savedOrganization->getMagicOrganizationCode(), (string) $creatorId);
                 $this->organizationAdminDomainService->grant(
@@ -90,11 +86,6 @@ readonly class OrganizationDomainService
         // 检查编码是否已存在（排除当前组织）
         if ($this->organizationRepository->existsByCode($organizationEntity->getMagicOrganizationCode(), $organizationEntity->getId())) {
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_CODE_EXISTS);
-        }
-
-        // 检查名称是否已存在（排除当前组织）
-        if ($this->organizationRepository->existsByName($organizationEntity->getName(), $organizationEntity->getId())) {
-            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NAME_EXISTS);
         }
 
         $organizationEntity->prepareForModification();
@@ -186,13 +177,5 @@ readonly class OrganizationDomainService
     public function isCodeAvailable(string $code, ?int $excludeId = null): bool
     {
         return ! $this->organizationRepository->existsByCode($code, $excludeId);
-    }
-
-    /**
-     * 检查组织名称是否可用.
-     */
-    public function isNameAvailable(string $name, ?int $excludeId = null): bool
-    {
-        return ! $this->organizationRepository->existsByName($name, $excludeId);
     }
 }

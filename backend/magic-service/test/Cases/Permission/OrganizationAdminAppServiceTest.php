@@ -131,38 +131,6 @@ class OrganizationAdminAppServiceTest extends HttpTestCase
         $this->assertEquals($this->testUserId, $organizationAdminData->getUserId());
     }
 
-    public function testEnableAndDisableOrganizationAdmin(): void
-    {
-        // 先授予权限
-        $organizationAdmin = $this->organizationAdminAppService->grant(
-            $this->createDataIsolation($this->testOrganizationCode),
-            $this->testUserId,
-            $this->testGrantorUserId
-        );
-
-        $organizationAdminId = $organizationAdmin->getId();
-
-        // 禁用组织管理员
-        $this->organizationAdminAppService->disable($this->createDataIsolation($this->testOrganizationCode), $organizationAdminId);
-
-        // 验证已禁用
-        $disabledOrganizationAdmin = $this->organizationAdminAppService->getByUserId(
-            $this->createDataIsolation($this->testOrganizationCode),
-            $this->testUserId
-        );
-        $this->assertFalse($disabledOrganizationAdmin->isEnabled());
-
-        // 启用组织管理员
-        $this->organizationAdminAppService->enable($this->createDataIsolation($this->testOrganizationCode), $organizationAdminId);
-
-        // 验证已启用
-        $enabledOrganizationAdmin = $this->organizationAdminAppService->getByUserId(
-            $this->createDataIsolation($this->testOrganizationCode),
-            $this->testUserId
-        );
-        $this->assertTrue($enabledOrganizationAdmin->isEnabled());
-    }
-
     public function testDestroyOrganizationAdmin(): void
     {
         // 先授予权限

@@ -9,6 +9,7 @@ namespace App\Domain\Permission\Service;
 
 use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\MagicPermission;
+use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
 use App\Domain\Permission\Entity\RoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
@@ -26,7 +27,8 @@ readonly class RoleDomainService
 
     public function __construct(
         private RoleRepositoryInterface $roleRepository,
-        private MagicPermissionInterface $permission
+        private MagicPermissionInterface $permission,
+        private MagicUserRepositoryInterface $userRepository
     ) {
     }
 
@@ -61,6 +63,20 @@ readonly class RoleDomainService
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $savingRoleEntity->setOrganizationCode($organizationCode);
+
+        // 校验传入的用户ID是否属于当前组织
+        $inputUserIds = $savingRoleEntity->getUserIds();
+        if (! empty($inputUserIds)) {
+            $validUsers = $this->userRepository->getByUserIds($organizationCode, $inputUserIds);
+            if (count($validUsers) !== count($inputUserIds)) {
+                $invalidIds = array_diff($inputUserIds, array_keys($validUsers));
+                ExceptionBuilder::throw(
+                    PermissionErrorCode::ValidateFailed,
+                    'permission.error.user_not_in_organization',
+                    ['userIds' => implode(',', $invalidIds)]
+                );
+            }
+        }
 
         // 1. 校验权限键有效性
         // 更新 permissionTag 信息：根据权限键提取二级模块标签，用于前端展示分类
@@ -226,12 +242,12 @@ readonly class RoleDomainService
      * 1. 根据当前组织查找是否已有同名角色；
      * 2. 若不存在，则创建新的角色并赋予 MagicPermission::ALL_PERMISSIONS；
      * 3. 若存在，则确保其包含 ALL_PERMISSIONS；
-     * 4. 将用户 ID 加入角色关联用户列表；
+     * 4. 将用户 ID 列表加入角色关联用户列表；
      * 5. 保存角色。
      *
      * 异常由调用方自行处理，避免影响主流程。
      */
-    public function addOrganizationAdmin(PermissionDataIsolation $dataIsolation, string $userId): RoleEntity
+    public function addOrganizationAdmin(PermissionDataIsolation $dataIsolation, array $userIds): RoleEntity
     {
         // 获取当前组织编码
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
@@ -255,12 +271,11 @@ readonly class RoleDomainService
             $roleEntity->setPermissions($permissions);
         }
 
-        // 3. 将用户加入角色用户列表
-        $userIds = $roleEntity->getUserIds();
-        if (! in_array($userId, $userIds, true)) {
-            $userIds[] = $userId;
-            $roleEntity->setUserIds($userIds);
-        }
+        // 3. 将用户列表加入角色用户列表
+        $existingUserIds = $roleEntity->getUserIds();
+        // 合并并去重
+        $mergedUserIds = array_unique(array_merge($existingUserIds, $userIds));
+        $roleEntity->setUserIds($mergedUserIds);
 
         // 4. 保存并返回
         return $this->save($dataIsolation, $roleEntity);

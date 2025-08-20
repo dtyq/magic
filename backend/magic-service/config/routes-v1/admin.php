@@ -7,10 +7,10 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
-use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\RoleApi;
+use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 不校验管理员权限的路由组
@@ -71,10 +71,8 @@ Router::addGroup('/api/v1/admin', static function () {
     Router::addGroup('/organization-admin', static function () {
         Router::get('/list', [OrganizationAdminApi::class, 'list']);
         Router::get('/{id:\d+}', [OrganizationAdminApi::class, 'show']);
-        Router::post('/grant', [OrganizationAdminApi::class, 'grant']);
         Router::delete('/{id:\d+}', [OrganizationAdminApi::class, 'destroy']);
-        Router::put('/{id:\d+}/enable', [OrganizationAdminApi::class, 'enable']);
-        Router::put('/{id:\d+}/disable', [OrganizationAdminApi::class, 'disable']);
+        Router::post('/grant', [OrganizationAdminApi::class, 'grant']);
         Router::post('/transfer-owner', [OrganizationAdminApi::class, 'transferOwner']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 

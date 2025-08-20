@@ -161,46 +161,6 @@ class OrganizationAdminDomainServiceTest extends HttpTestCase
         $this->assertEquals($this->anotherOrganizationCode, $anotherOrgResult[0]->getOrganizationCode());
     }
 
-    public function testGetAllOrganizationAdminsIncludesDisabledAdmins(): void
-    {
-        // 创建启用的管理员
-        $enabledAdmin = $this->organizationAdminDomainService->grant(
-            $this->createDataIsolation($this->testOrganizationCode),
-            $this->testUserIds[0],
-            $this->testGrantorUserId,
-            'Enabled admin'
-        );
-
-        // 创建另一个管理员并禁用
-        $disabledAdmin = $this->organizationAdminDomainService->grant(
-            $this->createDataIsolation($this->testOrganizationCode),
-            $this->testUserIds[1],
-            $this->testGrantorUserId,
-            'Disabled admin'
-        );
-        $this->organizationAdminDomainService->disable($this->createDataIsolation($this->testOrganizationCode), $disabledAdmin->getId());
-
-        // 调用方法
-        $result = $this->organizationAdminDomainService->getAllOrganizationAdmins($this->createDataIsolation($this->testOrganizationCode));
-
-        // 验证结果包含启用和禁用的管理员
-        $this->assertIsArray($result);
-        $this->assertCount(2, $result);
-
-        $userIds = array_map(fn ($entity) => $entity->getUserId(), $result);
-        $this->assertContains($this->testUserIds[0], $userIds);
-        $this->assertContains($this->testUserIds[1], $userIds);
-
-        // 验证状态
-        foreach ($result as $entity) {
-            if ($entity->getUserId() === $this->testUserIds[0]) {
-                $this->assertTrue($entity->isEnabled(), 'First admin should be enabled');
-            } elseif ($entity->getUserId() === $this->testUserIds[1]) {
-                $this->assertFalse($entity->isEnabled(), 'Second admin should be disabled');
-            }
-        }
-    }
-
     public function testGetAllOrganizationAdminsWithEmptyOrganizationCodeReturnsEmptyArray(): void
     {
         // 创建一些管理员

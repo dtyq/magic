@@ -85,22 +85,6 @@ class OrganizationAdminAppService extends AbstractKernelAppService
     }
 
     /**
-     * 启用组织管理员.
-     */
-    public function enable(DataIsolation $dataIsolation, int $id): void
-    {
-        $this->organizationAdminDomainService->enable($dataIsolation, $id);
-    }
-
-    /**
-     * 禁用组织管理员.
-     */
-    public function disable(DataIsolation $dataIsolation, int $id): void
-    {
-        $this->organizationAdminDomainService->disable($dataIsolation, $id);
-    }
-
-    /**
      * 转让组织创建人身份.
      */
     public function transferOwnership(DataIsolation $dataIsolation, string $newOwnerUserId, string $currentOwnerUserId): void

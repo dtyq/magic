@@ -142,23 +142,12 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
     /**
      * 授予用户组织管理员权限.
      */
-    public function grant(DataIsolation $dataIsolation, string $userId, string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity
+    public function grant(DataIsolation $dataIsolation, string $userId, ?string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity
     {
         // 检查是否已存在
         $existing = $this->getByUserId($dataIsolation, $userId);
         if ($existing) {
-            // 如果已存在，更新状态和授权信息
-            $existing->grant($grantorUserId);
-            $existing->setRemarks($remarks);
-            $existing->setIsOrganizationCreator($isOrganizationCreator);
-
-            // 确保 magic_id 是最新的
-            $user = $this->userRepository->getUserById($userId);
-            if ($user) {
-                $existing->setMagicId($user->getMagicId());
-            }
-
-            return $this->save($dataIsolation, $existing);
+            return $existing;
         }
 
         // 创建新的组织管理员
