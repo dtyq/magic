@@ -413,7 +413,6 @@ $dependencies = [
     PointComponentInterface::class => PointComponent::class,
 
     FontProviderInterface::class => DefaultFontProvider::class,
-
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并
