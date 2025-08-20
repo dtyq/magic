@@ -165,7 +165,7 @@ class TopicTaskAppService extends AbstractAppService
             // Use utility class to validate status transition
             if (! TaskStatusValidator::isTransitionAllowed($currentStatus, $status)) {
                 $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
-                $this->logger->warning('Rejected status update', [
+                $this->logger->info('Rejected status update', [
                     'task_id' => $taskId,
                     'current_status' => $currentStatus->value ?? 'null',
                     'new_status' => $status->value,
@@ -177,29 +177,17 @@ class TopicTaskAppService extends AbstractAppService
 
             // Execute status update
             $this->taskDomainService->updateTaskStatus(
-                $dataIsolation,
-                $task->getTopicId(),
                 $status,
                 $task->getId(),
                 $taskId,
                 $task->getSandboxId(),
                 $errMsg
             );
-
-            // update topic status
-            // if ($task->getSandboxId()) {
             $this->topicDomainService->updateTopicStatusAndSandboxId($task->getTopicId(), $task->getId(), $status, $task->getSandboxId());
-            // Execute sandbox update
-            // $this->taskDomainService->updateTaskSandboxId($dataIsolation, $task->getId(), $task->getSandboxId());
-            // } else {
-            //     $this->topicDomainService->updateTopicStatus($task->getTopicId(), $task->getId(), $status);
-            // }
 
             $topicEntity = $this->topicDomainService->getTopicById($task->getTopicId());
-            if ($topicEntity) {
-                $this->projectDomainService->updateProjectStatus($topicEntity->getProjectId(), $topicEntity->getId(), $status);
-            }
 
+            $this->projectDomainService->updateProjectStatus($topicEntity->getProjectId(), $topicEntity->getId(), $status);
             // Log success
             $this->logger->info('Task status update completed', [
                 'task_id' => $taskId,

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Authorization\Web;
 
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Authentication\DTO\LoginCheckDTO;
 use App\Domain\Authentication\DTO\LoginResponseDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
@@ -21,6 +22,9 @@ use App\Infrastructure\Core\Contract\Session\SessionInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Qbhy\HyperfAuth\Authenticatable;
 
+/**
+ * 如果改了这个类的名称/属性/命名空间，请修改 WebUserGuard.php 的 cacheKey ，避免缓存无法还原
+ */
 class MagicUserAuthorization extends AbstractAuthorization
 {
     /**
@@ -216,7 +220,7 @@ class MagicUserAuthorization extends AbstractAuthorization
 
     public function getApplicationCode(): string
     {
-        return $this->applicationCode;
+        return $this->applicationCode ?: AppCodeEnum::SUPER_MAGIC->value;
     }
 
     public function setApplicationCode(string $applicationCode): MagicUserAuthorization

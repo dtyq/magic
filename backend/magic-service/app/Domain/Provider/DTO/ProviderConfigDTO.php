@@ -71,6 +71,8 @@ class ProviderConfigDTO extends AbstractDTO
 
     protected string $remark = '';
 
+    protected int $sort = 0;
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -248,6 +250,20 @@ class ProviderConfigDTO extends AbstractDTO
         }
     }
 
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(null|int|string $sort): void
+    {
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
+        }
+    }
+
     // ===== 配置相关字段的Getter/Setter =====
 
     public function getAlias(): string
@@ -281,6 +297,11 @@ class ProviderConfigDTO extends AbstractDTO
     public function getConfig(): ?ProviderConfigItem
     {
         return $this->config;
+    }
+
+    public function updateConfig(ProviderConfigItem $configItem): void
+    {
+        $this->config = $configItem;
     }
 
     public function setConfig(null|array|ProviderConfigItem|string $config): void

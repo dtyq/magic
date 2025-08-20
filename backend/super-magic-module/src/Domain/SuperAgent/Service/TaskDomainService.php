@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
@@ -33,8 +35,10 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Hyperf\Contract\StdoutLoggerInterface;
 use RuntimeException;
+use Throwable;
 
 class TaskDomainService
 {
@@ -44,6 +48,7 @@ class TaskDomainService
         protected TaskRepositoryInterface $taskRepository,
         protected TaskMessageRepositoryInterface $messageRepository,
         protected TaskFileRepositoryInterface $taskFileRepository,
+        protected CloudFileRepository $cloudFileRepository,
         protected StdoutLoggerInterface $logger,
         protected SandboxService $sandboxService,
         protected SandboxAgentInterface $sandboxAgent,
@@ -81,16 +86,20 @@ class TaskDomainService
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
         // Update topic's current task ID and status
-        $topicEntity->setCurrentTaskId($taskEntity->getId());
-        $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
-        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $topicEntity->setUpdatedUid($userId);
-        $topicEntity->setTaskMode($taskEntity->getTaskMode());
+        $conditions = [
+            'id' => $topicEntity->getId(),
+        ];
+        $data = [
+            'current_task_id' => $taskEntity->getId(),
+            'current_task_status' => TaskStatus::WAITING,
+            'updated_uid' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
         if (empty($topicEntity->getTopicMode())) {
             $topicEntity->setTopicMode($topicMode);
+            $data['topic_mode'] = $topicMode;
         }
-        $this->topicRepository->updateTopic($topicEntity);
-
+        $this->topicRepository->updateTopicByCondition($conditions, $data);
         return $taskEntity;
     }
 
@@ -116,18 +125,9 @@ class TaskDomainService
         return $task;
     }
 
-    public function updateTaskStatus(DataIsolation $dataIsolation, int $topicId, TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
+    public function updateTaskStatus(TaskStatus $status, int $id, string $taskId, string $sandboxId, ?string $errMsg = null): bool
     {
-        // 1. Get topic entity by topic id
-        $topicEntity = $this->topicRepository->getTopicById($topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.not_found');
-        }
-
-        // Get current user ID
-        $userId = $dataIsolation->getCurrentUserId();
-
-        // 2. Find task
+        // Find task
         $taskEntity = $this->taskRepository->getTaskById($id);
         if (! $taskEntity) {
             ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'task.not_found');
@@ -148,16 +148,7 @@ class TaskDomainService
         }
 
         $this->taskRepository->updateTask($taskEntity);
-
-        // 3. Update topic's related information
-        $topicEntity->setSandboxId($sandboxId);
-        $topicEntity->setCurrentTaskId($id);
-        $topicEntity->setCurrentTaskStatus($status);
-        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $topicEntity->setUpdatedUid($userId);
-
-        // Save topic update
-        return $this->topicRepository->updateTopic($topicEntity);
+        return true;
     }
 
     public function updateTaskSandboxId(DataIsolation $dataIsolation, int $id, string $sandboxId)
@@ -366,6 +357,20 @@ class TaskDomainService
         // Set parent_id if provided
         if ($parentId !== null) {
             $taskFileEntity->setParentId($parentId);
+        }
+
+        // Css file need to set content type
+        if (! $taskFileEntity->getIsDirectory() && ContentTypeUtil::isSetContentType($taskFileEntity->getFileName())) {
+            try {
+                $this->cloudFileRepository->setHeadObjectByCredential(
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileKey,
+                    ['content_type' => ContentTypeUtil::getContentType($taskFileEntity->getFileName())],
+                    StorageBucketType::SandBox
+                );
+            } catch (Throwable $e) {
+                $this->logger->error('setHeadObjectByCredential error', ['file_name' => $taskFileEntity->getFileName(), 'msg' => $e->getMessage()]);
+            }
         }
 
         // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity

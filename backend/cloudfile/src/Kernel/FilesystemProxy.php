@@ -340,9 +340,40 @@ class FilesystemProxy extends Filesystem
     public function getPreSignedUrlByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $options = []): string
     {
         $credentialPolicy->setSts(true);
-        $credentialPolicy->setStsType('get_presigned_url');
         $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
         return $this->getSimpleUploadInstance($this->adapterName)->getPreSignedUrlByCredential($credential, $objectKey, $options);
+    }
+
+    /**
+     * Delete multiple objects by credential.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param array $objectKeys 要删除的对象键数组
+     * @param array $options 额外选项
+     * @return array 删除结果，包含成功和错误信息
+     */
+    public function deleteObjectsByCredential(CredentialPolicy $credentialPolicy, array $objectKeys, array $options = []): array
+    {
+        $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('del_objects');
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        return $this->getSimpleUploadInstance($this->adapterName)->deleteObjectsByCredential($credential, $objectKeys, $options);
+    }
+
+    /**
+     * Set object metadata by credential.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $metadata 要设置的元数据
+     * @param array $options 额外选项
+     */
+    public function setHeadObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $metadata, array $options = []): void
+    {
+        $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('set_object_meta');
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->setHeadObjectByCredential($credential, $objectKey, $metadata, $options);
     }
 
     /**

@@ -212,6 +212,23 @@ readonly class MagicUserRepository implements MagicUserRepositoryInterface
         return array_column($results, 'organization_code');
     }
 
+    /**
+     * 根据 magicId 获取用户所属的组织列表.
+     * @return string[]
+     */
+    public function getUserOrganizationsByMagicId(string $magicId): array
+    {
+        $query = $this->userModel::query()
+            ->select('organization_code')
+            ->where('magic_id', $magicId)
+            ->where('status', AccountStatus::Normal->value)
+            ->distinct();
+
+        $results = Db::select($query->toSql(), $query->getBindings());
+
+        return array_column($results, 'organization_code');
+    }
+
     public function getUserByAiCode(string $aiCode): array
     {
         $user = $this->accountModel::query()

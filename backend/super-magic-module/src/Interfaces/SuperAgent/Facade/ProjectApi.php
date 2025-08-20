@@ -27,7 +27,7 @@ class ProjectApi extends AbstractApi
 {
     public function __construct(
         protected RequestInterface $request,
-        private readonly ProjectAppService $projectAppService
+        private readonly ProjectAppService $projectAppService,
     ) {
         parent::__construct($request);
     }
@@ -82,7 +82,8 @@ class ProjectApi extends AbstractApi
 
         $userId = $this->getAuthorization()->getId();
 
-        $project = $this->projectAppService->getProject((int) $id, $userId);
+        $project = $this->projectAppService->getProject($requestContext, (int) $id);
+
         $projectDTO = ProjectItemDTO::fromEntity($project);
 
         return $projectDTO->toArray();

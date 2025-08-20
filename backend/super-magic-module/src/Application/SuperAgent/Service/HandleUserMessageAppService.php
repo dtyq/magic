@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -54,12 +56,13 @@ class HandleUserMessageAppService extends AbstractAppService
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -95,7 +98,7 @@ class HandleUserMessageAppService extends AbstractAppService
         // Send interrupt message directly to client
         $this->clientMessageAppService->sendInterruptMessageToClient(
             topicId: $topicEntity->getId(),
-            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+            taskId: (string) ($topicEntity->getCurrentTaskId() ?? '0'),
             chatTopicId: $dto->getChatTopicId(),
             chatConversationId: $dto->getChatConversationId(),
             interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
@@ -225,6 +228,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
+                messageId: $userMessageDTO->getMessageId(),
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
@@ -252,7 +256,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 );
             }
         } catch (EventException $e) {
-            $this->logger->error(sprintf(
+            $this->logger->warning(sprintf(
                 'Initialize task, event processing failed: %s',
                 $e->getMessage()
             ));
@@ -266,18 +270,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 remind: $e->getMessage(),
                 remindEvent: $remindType
             );
-            throw new BusinessException('Initialize task, event processing failed', 500);
         } catch (Throwable $e) {
-            //            $text = json_encode([
-            //                'code' => $e->getCode(),
-            //                'message' => get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
-            //            ], JSON_THROW_ON_ERROR);
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s',
+                'handleChatMessage Error: %s, User: %s file: %s line: %s stack: %s',
                 $e->getMessage(),
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
-                $e->getLine()
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
             $this->clientMessageAppService->sendErrorMessageToClient(
@@ -287,7 +287,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 chatConversationId: $userMessageDTO->getChatConversationId(),
                 errorMessage: trans('task.initialize_error'),
             );
-            throw new BusinessException('Initialize task failed', 500);
+            throw new BusinessException('Initialize task failed', 500, $e);
         }
     }
 
@@ -307,7 +307,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
         AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds));
-        $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+        $this->logger->info(sprintf('Dispatched task start event for , topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
     /**
@@ -366,8 +366,15 @@ class HandleUserMessageAppService extends AbstractAppService
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
+        // user long term memory
+        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
+            $dataIsolation->getCurrentOrganizationCode(),
+            AppCodeEnum::SUPER_MAGIC->value,
+            $dataIsolation->getCurrentUserId(),
+        );
+
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
@@ -407,11 +414,13 @@ class HandleUserMessageAppService extends AbstractAppService
             attachments: $attachmentsArray,
             mentions: $mentionsArray,
             showInUi: true,
-            messageId: null
+            messageId: $userMessageDTO->getMessageId(),
+            imSeqId: (int) $userMessageDTO->getMessageSeqId()
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
         $taskMessageEntity->setProcessingStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
+        $this->logger->info(sprintf('Saved user message, task id: %s, message id: %s, im seq id: %d', $taskEntity->getId(), $taskMessageEntity->getId(), $taskMessageEntity->getImSeqId()));
         $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
         // Process user uploaded attachments

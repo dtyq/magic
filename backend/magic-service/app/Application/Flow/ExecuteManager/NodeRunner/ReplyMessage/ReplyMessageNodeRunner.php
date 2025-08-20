@@ -305,7 +305,6 @@ class ReplyMessageNodeRunner extends NodeRunner
             $receiveSeqDTO->setExtra($flowSeqEntity->getExtra()?->getExtraCanCopyData());
             $receiveSeqDTO->setReferMessageId($flowSeqEntity->getMessageId());
         }
-
         // 发送开始标记
         $chatAppService->agentSendMessage($receiveSeqDTO, $aiUserId, $receiveUserId, $appMessageId, receiverType: ConversationType::User);
 

@@ -859,7 +859,8 @@ class MagicChatMessageAppService extends MagicSeqAppService
         MagicUserAuthorization $userAuthorization,
         string $conversationId,
         int $limit,
-        string $topicId
+        string $topicId,
+        bool $useNicknameAsRole = true
     ): array {
         $conversationMessagesQueryDTO = new MessagesQueryDTO();
         $conversationMessagesQueryDTO->setConversationId($conversationId)->setLimit($limit)->setTopicId($topicId);
@@ -892,11 +893,23 @@ class MagicChatMessageAppService extends MagicSeqAppService
                 continue;
             }
 
-            $userMessages[$clientSeqResponseDTO->getSeq()->getSeqId()] = [
-                'role' => $magicUserEntity->getNickname(),
-                'role_description' => $magicUserEntity->getDescription(),
-                'content' => $messageContent,
-            ];
+            // 根据参数决定使用昵称还是传统的 role
+            if ($useNicknameAsRole) {
+                $userMessages[$clientSeqResponseDTO->getSeq()->getSeqId()] = [
+                    'role' => $magicUserEntity->getNickname(),
+                    'role_description' => $magicUserEntity->getDescription(),
+                    'content' => $messageContent,
+                ];
+            } else {
+                // 使用传统的 role，判断是否为 AI 用户
+                $isAiUser = $magicUserEntity->getUserType() === UserType::Ai;
+                $role = $isAiUser ? Role::Assistant : Role::User;
+
+                $userMessages[$clientSeqResponseDTO->getSeq()->getSeqId()] = [
+                    'role' => $role->value,
+                    'content' => $messageContent,
+                ];
+            }
         }
         if (empty($userMessages)) {
             return [];
@@ -904,6 +917,17 @@ class MagicChatMessageAppService extends MagicSeqAppService
         // 根据 seq_id 升序排列
         ksort($userMessages);
         return array_values($userMessages);
+    }
+
+    public function getMagicSeqEntity(string $magicMessageId, ConversationType $controlMessageType): ?MagicSeqEntity
+    {
+        $seqEntities = $this->magicSeqDomainService->getSeqEntitiesByMagicMessageId($magicMessageId);
+        foreach ($seqEntities as $seqEntity) {
+            if ($seqEntity->getObjectType() === $controlMessageType) {
+                return $seqEntity;
+            }
+        }
+        return null;
     }
 
     /**

@@ -269,49 +269,31 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
         // 获取官方组织编码
         $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
 
-        // 查询官方组织下所有启用中的模型
-        $officialBuilder = $this->createProviderModelQuery();
-        $officialBuilder->where('organization_code', $officialOrganizationCode)
-            ->where('status', Status::Enabled->value);
-
-        // 如果指定了分类，添加分类过滤条件
-        if ($category !== null) {
-            $officialBuilder->where('category', $category->value);
-        }
-
-        $officialResult = Db::select($officialBuilder->toSql(), $officialBuilder->getBindings());
-
-        // 提取 $officialResult 中所有的 serviceProviderConfigId
-        $configIds = array_values(array_unique(array_column($officialResult, 'service_provider_config_id')));
-        // 如果没有配置ID，返回空数组
-        if (empty($configIds)) {
-            return [];
-        }
-
-        // 批量查询这些配置ID在 provider_configs 表中的启用状态
-        $enabledConfigsBuilder = $this->createConfigQuery();
-        $enabledConfigsBuilder->where('organization_code', $officialOrganizationCode)
-            ->whereIn('id', $configIds)
+        // 1. 先查询官方组织下启用的服务商配置ID
+        $enabledConfigQuery = $this->createConfigQuery()
+            ->where('organization_code', $officialOrganizationCode)
             ->where('status', Status::Enabled->value)
             ->select('id');
+        $enabledConfigIds = Db::select($enabledConfigQuery->toSql(), $enabledConfigQuery->getBindings());
+        $enabledConfigIdArray = array_column($enabledConfigIds, 'id');
 
-        $enabledConfigsResult = Db::select($enabledConfigsBuilder->toSql(), $enabledConfigsBuilder->getBindings());
-        $enabledConfigIds = array_column($enabledConfigsResult, 'id');
+        // 2. 使用启用的配置ID查询官方组织的启用模型
+        if (! empty($enabledConfigIdArray)) {
+            $officialBuilder = $this->createProviderModelQuery()
+                ->where('organization_code', $officialOrganizationCode)
+                ->where('status', Status::Enabled->value)
+                ->whereIn('service_provider_config_id', $enabledConfigIdArray);
 
-        // 如果没有启用的配置，返回空数组
-        if (empty($enabledConfigIds)) {
-            return [];
-        }
-
-        // 过滤掉 provider config 未启用的模型
-        $filteredOfficialResult = [];
-        foreach ($officialResult as $model) {
-            if (in_array($model['service_provider_config_id'], $enabledConfigIds)) {
-                $filteredOfficialResult[] = $model;
+            // 如果指定了分类，添加分类过滤条件
+            if ($category !== null) {
+                $officialBuilder->where('category', $category->value);
             }
+
+            $officialResult = Db::select($officialBuilder->toSql(), $officialBuilder->getBindings());
+            return ProviderModelAssembler::toEntities($officialResult);
         }
 
-        return ProviderModelAssembler::toEntities($filteredOfficialResult);
+        return [];
     }
 
     /**

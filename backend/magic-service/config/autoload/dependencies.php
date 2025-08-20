@@ -10,6 +10,8 @@ use App\Application\Flow\ExecuteManager\NodeRunner\Code\CodeExecutor\PHPExecutor
 use App\Application\Flow\ExecuteManager\NodeRunner\Code\CodeExecutor\PythonExecutor;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\BaseMessageAttachmentHandler;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\MessageAttachmentHandlerInterface;
+use App\Application\Kernel\Contract\MagicPermissionInterface;
+use App\Application\Kernel\MagicPermission;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -30,6 +32,8 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutorInterface;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
+use App\Application\ModelGateway\Component\Points\PointComponent;
+use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
@@ -116,6 +120,7 @@ use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseBaseRepository;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseDocumentRepository;
 use App\Domain\KnowledgeBase\Repository\Persistence\KnowledgeBaseFragmentRepository;
+use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPServerRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPServerToolRepositoryInterface;
 use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
@@ -137,12 +142,15 @@ use App\Domain\ModelGateway\Repository\Persistence\UserConfigRepository;
 use App\Domain\OrganizationEnvironment\Entity\Facade\OpenPlatformConfigInterface;
 use App\Domain\OrganizationEnvironment\Entity\Item\OpenPlatformConfigItem;
 use App\Domain\OrganizationEnvironment\Repository\Facade\EnvironmentRepositoryInterface;
+use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationsEnvironmentRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationsPlatformRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\MagicEnvironmentsRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsEnvironmentRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsPlatformRepository;
 use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterface;
+use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
+use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
 use App\Domain\Permission\Repository\Persistence\OperationPermissionRepository;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
@@ -196,11 +204,15 @@ use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
 use App\Infrastructure\ImageGenerate\DefaultWatermarkConfig;
+use App\Infrastructure\Repository\LongTermMemory\MySQLLongTermMemoryRepository;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\Locker\RedisLocker;
+use App\Infrastructure\Util\OrganizationEnvironment\Repository\OrganizationRepository;
+use App\Infrastructure\Util\Permission\Repository\OrganizationAdminRepository;
+use App\Infrastructure\Util\Permission\Repository\RoleRepository;
 use App\Interfaces\MCP\Facade\HttpTransportHandler\ApiKeyProviderAuthenticator;
 use Dtyq\PhpMcp\Shared\Auth\AuthenticatorInterface;
 use Hyperf\Config\ProviderConfig;
@@ -314,6 +326,8 @@ $dependencies = [
 
     // permission
     OperationPermissionRepositoryInterface::class => OperationPermissionRepository::class,
+    RoleRepositoryInterface::class => RoleRepository::class,
+    OrganizationAdminRepositoryInterface::class => OrganizationAdminRepository::class,
 
     // system
     ClientInterface::class => SimpleClientFactory::class,
@@ -333,6 +347,9 @@ $dependencies = [
 
     EnvironmentRepositoryInterface::class => MagicEnvironmentsRepository::class,
     OrganizationsEnvironmentRepositoryInterface::class => OrganizationsEnvironmentRepository::class,
+
+    // 组织管理
+    OrganizationRepositoryInterface::class => OrganizationRepository::class,
 
     // 群组
     MagicGroupRepositoryInterface::class => MagicGroupRepository::class,
@@ -373,6 +390,7 @@ $dependencies = [
 
     // 权限
     PermissionInterface::class => Permission::class,
+    MagicPermissionInterface::class => MagicPermission::class,
 
     // broadcast
     SubscriberInterface::class => AmqpSubscriber::class,
@@ -383,8 +401,14 @@ $dependencies = [
 
     WatermarkConfigInterface::class => DefaultWatermarkConfig::class,
 
+    // long-term-memory
+    LongTermMemoryRepositoryInterface::class => MySQLLongTermMemoryRepository::class,
+
     // package filter
     PackageFilterInterface::class => DefaultPackageFilter::class,
+
+    // point-component
+    PointComponentInterface::class => PointComponent::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并

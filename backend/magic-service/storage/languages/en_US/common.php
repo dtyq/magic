@@ -16,4 +16,5 @@ return [
     'disabled' => ':label is disabled',
     'invalid_token' => 'Invalid token',
     'invalid_range' => ':label must be between :min and :max',
+    'recommended' => 'Recommended',
 ];

@@ -113,7 +113,11 @@ class ProjectDomainService
 
     public function getProjectNotUserId(int $projectId): ProjectEntity
     {
-        return $this->projectRepository->findById($projectId);
+        $project = $this->projectRepository->findById($projectId);
+        if ($project === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
+        }
+        return $project;
     }
 
     /**

@@ -76,14 +76,18 @@ class ProviderConfigAssembler
         // 无特殊声明不处理
         $preparedConfig['decryptedConfig'] = null;
 
+        $translator = di(TranslatorInterface::class);
+        $locale = $translator->getLocale();
+
         // 从 providerMap 中获取对应的 provider 信息
         $providerId = $serviceProviderConfig['service_provider_id'];
         if (isset($providerMap[$providerId])) {
             $provider = $providerMap[$providerId];
 
+            $translate = Json::decode($provider['translate']);
             // 合并 provider 信息到配置中
-            $preparedConfig['name'] = $provider['name'] ?? '';
-            $preparedConfig['description'] = $provider['description'] ?? '';
+            $preparedConfig['name'] = $translate['name'][$locale] ?? '';
+            $preparedConfig['description'] = $translate['description'][$locale] ?? '';
             $preparedConfig['icon'] = $provider['icon'] ?? '';
             $preparedConfig['provider_type'] = $provider['provider_type'] ?? null;
             $preparedConfig['category'] = $provider['category'] ?? null;
@@ -141,8 +145,10 @@ class ProviderConfigAssembler
      */
     private static function prepareServiceProviderConfig(array $serviceProviderConfig): array
     {
-        // 解码配置
-        $decodeConfig = self::decodeConfig($serviceProviderConfig['config'], (string) $serviceProviderConfig['id']);
+        $decodeConfig = $serviceProviderConfig['config'];
+        if (is_string($serviceProviderConfig['config'])) {
+            $decodeConfig = self::decodeConfig($serviceProviderConfig['config'], (string) $serviceProviderConfig['id']);
+        }
 
         // 设置默认的translate
         if (empty($serviceProviderConfig['translate'])) {

@@ -16,7 +16,6 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
@@ -38,13 +37,12 @@ use function Hyperf\Coroutine\go;
  * File Converter Application Service.
  * Coordinates the entire file conversion process, including sandbox creation, initialization, and file conversion.
  */
-class FileConverterAppService
+class FileConverterAppService extends AbstractAppService
 {
     private LoggerInterface $logger;
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,
@@ -85,10 +83,7 @@ class FileConverterAppService
             $this->validateConvertRequest($fileIds);
 
             // Permission validation and file retrieval
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-            if ($projectEntity->getUserId() !== $userId) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-            }
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             $validFiles = $this->getValidFiles($fileIds, $userId);
             // Check for duplicate requests

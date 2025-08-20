@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\DataIsolation;
 
+use App\Infrastructure\Util\Context\CoContext;
+
 class BaseDataIsolation implements DataIsolationInterface
 {
     /**
@@ -92,6 +94,7 @@ class BaseDataIsolation implements DataIsolationInterface
         $this->magicId = $parentDataIsolation->getMagicId();
         $this->envId = $parentDataIsolation->getEnvId();
         $this->enabled = $parentDataIsolation->isEnable();
+        $this->setContainOfficialOrganization(true);
 
         $this->thirdPlatformOrganizationCode = $parentDataIsolation->getThirdPlatformOrganizationCode();
         $this->thirdPlatformUserId = $parentDataIsolation->getThirdPlatformUserId();
@@ -240,5 +243,10 @@ class BaseDataIsolation implements DataIsolationInterface
     public function isOfficialOrganization(): bool
     {
         return in_array($this->currentOrganizationCode, $this->officialOrganizationCodes, true);
+    }
+
+    public function getLanguage(): string
+    {
+        return CoContext::getLanguage();
     }
 }

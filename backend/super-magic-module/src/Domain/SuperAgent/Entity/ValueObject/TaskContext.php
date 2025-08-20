@@ -28,7 +28,10 @@ class TaskContext
      * @param ChatInstruction $instruction 聊天指令
      * @param string $agentMode Agent模式
      * @param array $mcpConfig MCP配置
+     * @param string $modelId 模型ID
+     * @param array $dynamicConfig 动态配置
      * @param string $workspaceId 工作区ID
+     * @param string $messageId 消息ID
      */
     public function __construct(
         private readonly TaskEntity $task,
@@ -44,6 +47,7 @@ class TaskContext
         private string $modelId = '',
         private array $dynamicConfig = [],
         private string $workspaceId = '',
+        private string $messageId = '',
     ) {
     }
 
@@ -188,7 +192,10 @@ class TaskContext
             $this->instruction,
             $this->agentMode,
             $this->mcpConfig,
+            $this->modelId,
+            $this->dynamicConfig,
             $this->workspaceId,
+            $this->messageId,
         );
     }
 
@@ -262,5 +269,22 @@ class TaskContext
     public function getWorkspaceId(): string
     {
         return $this->workspaceId;
+    }
+
+    /**
+     * 获取消息ID.
+     */
+    public function getMessageId(): string
+    {
+        return $this->messageId;
+    }
+
+    /**
+     * 设置消息ID.
+     */
+    public function setMessageId(string $messageId): self
+    {
+        $this->messageId = $messageId;
+        return $this;
     }
 }

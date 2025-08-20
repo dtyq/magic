@@ -513,4 +513,26 @@ class ProviderModelEntity extends AbstractEntity
             $this->name = $this->translate['name'][$languages];
         }
     }
+
+    /**
+     * 获取本地化的模型名称.
+     */
+    public function getLocalizedName(string $locale): string
+    {
+        return $this->translate['name'][$locale]
+            ?? $this->translate['name']['zh_CN']
+            ?? $this->translate['name']['en_US']
+            ?? $this->name;
+    }
+
+    /**
+     * 获取本地化的模型描述.
+     */
+    public function getLocalizedDescription(string $locale): string
+    {
+        return $this->translate['description'][$locale]
+            ?? $this->translate['description']['zh_CN']
+            ?? $this->translate['description']['en_US']
+            ?? $this->description;
+    }
 }

@@ -36,9 +36,6 @@ cd magic-service
 composer install
 ```
 
-
-
-
 ### 3. 环境配置
 
 复制环境配置文件并根据需要修改：

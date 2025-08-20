@@ -13,6 +13,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
@@ -38,6 +39,15 @@ use function Hyperf\Translation\trans;
 
 class TaskFileDomainService
 {
+    // File move operation constants
+    private const FILE_MOVE_LOCK_PREFIX = 'file_move_operation';
+
+    private const LOCK_TIMEOUT = 30;
+
+    private const DEFAULT_SORT_STEP = 1024;
+
+    private const MIN_GAP = 10;
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -46,6 +56,7 @@ class TaskFileDomainService
         protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
         protected TopicRepositoryInterface $topicRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -447,24 +458,20 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
-        Db::beginTransaction();
+        // Delete cloud file
         try {
-            // Delete cloud file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
-
-            // Delete file record
-            $this->taskFileRepository->deleteById($fileEntity->getFileId());
-
-            // Delete the same file in projects
-            $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
-
-            Db::commit();
-            return true;
         } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
+            $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
         }
+
+        // Delete file record
+        $this->taskFileRepository->deleteById($fileEntity->getFileId());
+        // Delete the same file in projects
+        $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
+
+        return true;
     }
 
     public function deleteDirectoryFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, string $targetPath): int
@@ -494,15 +501,42 @@ class TaskFileDomainService
             }
 
             // 删除云存储文件（批量操作）
-            foreach ($fileKeys as $fileKey) {
+            if (! empty($fileKeys)) {
                 try {
-                    $this->cloudFileRepository->deleteObjectByCredential($prefix, $organizationCode, $fileKey, StorageBucketType::SandBox);
-                    ++$deletedCount;
+                    $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $fileKeys,
+                        StorageBucketType::SandBox
+                    );
+
+                    // 统计成功删除的文件数量
+                    $deletedCount = count($deleteResult['deleted']);
+
+                    // 记录删除失败的文件
+                    if (! empty($deleteResult['errors'])) {
+                        foreach ($deleteResult['errors'] as $error) {
+                            $this->logger->error('Failed to delete cloud file in batch', [
+                                'file_key' => $error['key'],
+                                'error_code' => $error['code'] ?? 'unknown',
+                                'error_message' => $error['message'] ?? 'unknown error',
+                            ]);
+                        }
+                    }
+
+                    $this->logger->info('Batch delete cloud files completed', [
+                        'total_files' => count($fileKeys),
+                        'deleted_count' => $deletedCount,
+                        'failed_count' => count($deleteResult['errors']),
+                    ]);
                 } catch (Throwable $e) {
-                    $this->logger->error('Failed to delete cloud file', [
-                        'file_key' => $fileKey,
+                    $this->logger->error('Failed to batch delete cloud files', [
+                        'file_count' => count($fileKeys),
                         'error' => $e->getMessage(),
                     ]);
+
+                    // 批量删除失败时，记录为0个成功删除
+                    $deletedCount = 0;
                 }
             }
 
@@ -515,6 +549,115 @@ class TaskFileDomainService
             return $deletedCount;
         } catch (Throwable $e) {
             Db::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Batch delete project files by file IDs.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $workDir Project work directory
+     * @param int $projectId Project ID
+     * @param array $fileIds Array of file IDs to delete
+     * @param bool $forceDelete Whether to force delete (optional)
+     * @return array Result with counts of deleted files
+     */
+    public function batchDeleteProjectFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, array $fileIds, bool $forceDelete = false): array
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $userId = $dataIsolation->getCurrentUserId();
+
+        try {
+            // 1. Batch get file entities by IDs (performance optimized)
+            $fileEntities = $this->taskFileRepository->getFilesByIds($fileIds);
+
+            if (empty($fileEntities)) {
+                return [
+                    'project_id' => $projectId,
+                    'total_files' => count($fileIds),
+                ];
+            }
+
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+            // 2. Validate permissions and project ownership
+            $fileKeys = [];
+            foreach ($fileEntities as $fileEntity) {
+                // Validate file ownership
+                if ($fileEntity->getUserId() !== $userId) {
+                    $this->logger->error('File ownership validation failed', [
+                        'file_id' => $fileEntity->getFileId(),
+                        'user_id' => $userId,
+                        'file_user_id' => $fileEntity->getUserId(),
+                    ]);
+                    continue; // Skip if force delete
+                }
+
+                // Validate file belongs to the project
+                if ($fileEntity->getProjectId() !== $projectId) {
+                    $this->logger->error('File project ownership validation failed', [
+                        'file_id' => $fileEntity->getFileId(),
+                        'project_id' => $projectId,
+                        'file_project_id' => $fileEntity->getProjectId(),
+                    ]);
+                    continue; // Skip if force delete
+                }
+
+                $fileKeys[] = $fileEntity->getFileKey();
+            }
+
+            // 3. Delete cloud files
+            if (! empty($fileKeys)) {
+                try {
+                    $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $fileKeys,
+                        StorageBucketType::SandBox
+                    );
+
+                    // 统计成功删除的文件数量
+                    $deletedCount = count($deleteResult['deleted']);
+
+                    // 记录删除失败的文件
+                    if (! empty($deleteResult['errors'])) {
+                        foreach ($deleteResult['errors'] as $error) {
+                            $this->logger->error('Failed to delete cloud file in batch', [
+                                'file_key' => $error['key'],
+                                'error_code' => $error['code'] ?? 'unknown',
+                                'error_message' => $error['message'] ?? 'unknown error',
+                            ]);
+                        }
+                    }
+
+                    $this->logger->info('Batch delete cloud files completed', [
+                        'total_files' => count($fileKeys),
+                        'deleted_count' => $deletedCount,
+                        'failed_count' => count($deleteResult['errors']),
+                    ]);
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to batch delete cloud files', [
+                        'file_count' => count($fileKeys),
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // 批量删除失败时，记录为0个成功删除
+                    $deletedCount = 0;
+                }
+            }
+
+            // 4. 批量删除数据库记录
+            $fileIds = array_map(fn ($entity) => $entity->getFileId(), $fileEntities);
+            // 根据文件ID批量删除数据库记录
+            $this->taskFileRepository->deleteByIds($fileIds);
+
+            return [
+                'project_id' => $projectId,
+                'total_files' => count($fileIds),
+            ];
+        } catch (Throwable $e) {
             throw $e;
         }
     }
@@ -579,6 +722,84 @@ class TaskFileDomainService
         }
     }
 
+    public function renameDirectoryFiles(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $newDirName): int
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $oldDirKey = $dirEntity->getFileKey();
+        $parentDir = dirname($oldDirKey);
+        $newDirKey = rtrim($parentDir, '/') . '/' . ltrim($newDirName, '/') . '/';
+
+        // Check if target directory name already exists
+        $targetFileEntity = $this->taskFileRepository->getByFileKey($newDirKey);
+        if ($targetFileEntity !== null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
+        }
+
+        // Validate new directory key is within work directory
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($organizationCode),
+            $workDir
+        );
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $newDirKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+        }
+
+        Db::beginTransaction();
+        try {
+            // 1. Find all files in the directory (flat query)
+            $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $oldDirKey);
+
+            if (empty($fileEntities)) {
+                Db::commit();
+                return 0;
+            }
+
+            $renamedCount = 0;
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+
+            // 2. Batch update file keys in database
+            foreach ($fileEntities as $fileEntity) {
+                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
+                    continue;
+                }
+
+                // Calculate new file key by replacing old directory path with new directory path
+                $newFileKey = str_replace($oldDirKey, $newDirKey, $fileEntity->getFileKey());
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // Update entity
+                $fileEntity->setFileKey($newFileKey);
+                if ($fileEntity->getFileId() === $dirEntity->getFileId()) {
+                    // Update directory name for the main directory entity
+                    $fileEntity->setFileName($newDirName);
+                }
+                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+                // Update in database
+                $this->taskFileRepository->updateById($fileEntity);
+
+                // 3. Rename in cloud storage
+                try {
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    ++$renamedCount;
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to rename file in cloud storage', [
+                        'old_file_key' => $oldFileKey,
+                        'new_file_key' => $newFileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            Db::commit();
+            return $renamedCount;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
+    }
+
     public function moveProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, int $targetParentId): void
     {
         if ($targetParentId <= 0) {
@@ -607,43 +828,86 @@ class TaskFileDomainService
 
         // This method now only handles cross-directory moves
         // Build full target file key
-        $targetParentPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
+        $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
             $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
             $workDir
         );
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetParentPath)) {
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetPath)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
         // Check if target file already exists
-        $existingTargetFile = $this->taskFileRepository->getByFileKey($targetParentPath);
+        $existingTargetFile = $this->taskFileRepository->getByFileKey($targetPath);
         if (! empty($existingTargetFile)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
         }
-
-        // Prevent moving directory to its subdirectory (for directories)
-        if ($fileEntity->getIsDirectory()) {
-            // Check if target is a subdirectory of the file being moved
-            if ($this->isSubdirectory($fileEntity->getFileId(), $targetParentId)) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, trans('file.cannot_move_to_subdirectory'));
-            }
-        }
-
         Db::beginTransaction();
         try {
-            // Call cloud file service to move the file
-            $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetParentPath, StorageBucketType::SandBox);
-
-            // Update file record (parentId and sort have already been set by handleFileSortOnMove)
-            $fileEntity->setFileKey($targetParentPath);
-            $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-            $this->taskFileRepository->updateById($fileEntity);
-
+            if ($fileEntity->getIsDirectory()) {
+                $this->moveDirectory($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+            } else {
+                $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+            }
             Db::commit();
         } catch (Throwable $e) {
             Db::rollBack();
+            $this->logger->error(sprintf('moveProjectFile error, file_key=%s, target_id=%d', $fileEntity->getFileKey(), $targetParentId), ['err_msg' => $e->getMessage()]);
+        }
+    }
+
+    public function moveFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
+    {
+        try {
+            // Call cloud file service to move the file
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetPath, StorageBucketType::SandBox);
+
+            // Update file record (parentId and sort have already been set by handleFileSortOnMove)
+            $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $targetPath, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
+        } catch (Throwable $e) {
+            throw $e;
+        }
+    }
+
+    public function moveDirectory(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $targetPath, int $targetParentId): void
+    {
+        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
+        if (empty($fileEntities)) {
+            return;
+        }
+
+        $oldDirKey = $dirEntity->getFileKey();
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
+            $workDir
+        );
+        $prefix = WorkDirectoryUtil::getPrefix($workDir);
+
+        try {
+            foreach ($fileEntities as $fileEntity) {
+                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
+                    continue;
+                }
+
+                // Calculate new file key by replacing old directory path with new directory path
+                $newFileKey = str_replace($oldDirKey, $targetPath, $fileEntity->getFileKey());
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // 3. Rename in cloud storage
+                try {
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    // Update entity
+                    $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $newFileKey, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
+                } catch (Throwable $e) {
+                    $this->logger->error('Failed to rename file in cloud storage', [
+                        'old_file_key' => $oldFileKey,
+                        'new_file_key' => $newFileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        } catch (Throwable $e) {
             throw $e;
         }
     }
@@ -676,25 +940,60 @@ class TaskFileDomainService
     }
 
     /**
-     * 处理移动文件时的排序（领域协调）.
+     * Handle file sorting on move with project-level locking and rebalancing.
      */
     public function handleFileSortOnMove(
         TaskFileEntity $fileEntity,
         int $targetParentId,
-        int $preFileId
+        ?int $preFileId = null
     ): void {
-        $newParentId = $targetParentId === 0 ? null : $targetParentId;
+        $projectId = $fileEntity->getProjectId();
 
-        // 计算新的排序值
-        $newSort = $this->calculateSortForNewFile(
-            $newParentId,
-            $preFileId,
-            $fileEntity->getProjectId()
-        );
+        // Acquire project-level move lock
+        [$lockAcquired, $lockKey, $lockOwner] = $this->acquireProjectMoveLock($projectId);
 
-        // 更新实体
-        $fileEntity->setSort($newSort);
-        $fileEntity->setParentId($newParentId);
+        if (! $lockAcquired) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_OPERATION_BUSY,
+                trans('file.move_operation_busy')
+            );
+        }
+
+        Db::beginTransaction();
+        try {
+            // Lock target directory's direct children for update
+            $targetChildren = $this->taskFileRepository->lockDirectChildrenForUpdate($targetParentId);
+
+            // Calculate new sort value
+            $newSort = $this->calculateSortAfterFile($targetChildren, $preFileId);
+
+            if ($newSort === null) {
+                // Gap insufficient, trigger rebalancing
+                $newSort = $this->rebalanceAndCalculateSort($targetParentId, $preFileId);
+            }
+
+            // Update entity
+            $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['sort' => $newSort, 'updated_at' => date('Y-m-d H:i:s')]);
+            Db::commit();
+
+            $this->logger->info('File move operation completed', [
+                'file_id' => $fileEntity->getFileId(),
+                'project_id' => $projectId,
+                'target_parent_id' => $targetParentId,
+                'pre_file_id' => $preFileId,
+                'new_sort' => $newSort,
+            ]);
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('File move operation failed', [
+                'file_id' => $fileEntity->getFileId(),
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        } finally {
+            $this->releaseProjectMoveLock($lockKey, $lockOwner);
+        }
     }
 
     /**
@@ -1031,6 +1330,114 @@ class TaskFileDomainService
     }
 
     /**
+     * @return TaskFileEntity[]
+     */
+    public function getProjectFilesByIds(int $projectId, array $fileIds): array
+    {
+        return $this->taskFileRepository->getFilesByIds($fileIds, $projectId);
+    }
+
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int
+    {
+        return $this->taskFileRepository->getSiblingCountByParentId($parentId, $projectId);
+    }
+
+    public function copyEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
+    {
+        $dirEntity = new TaskFileEntity();
+
+        // Copy all properties from old entity
+        $dirEntity->setProjectId($oldFileEntity->getProjectId());
+        $dirEntity->setUserId($oldFileEntity->getUserId());
+        $dirEntity->setOrganizationCode($oldFileEntity->getOrganizationCode());
+        $dirEntity->setFileSize($oldFileEntity->getFileSize());
+        $dirEntity->setFileType($oldFileEntity->getFileType());
+        $dirEntity->setIsDirectory($oldFileEntity->getIsDirectory());
+        $dirEntity->setParentId($parentId);
+        $dirEntity->setSource(TaskFileSource::COPY);
+        $dirEntity->setStorageType($oldFileEntity->getStorageType());
+        $dirEntity->setIsHidden($oldFileEntity->getIsHidden());
+        $dirEntity->setSort($oldFileEntity->getSort());
+        $dirEntity->setFileId(IdGenerator::getSnowId());
+        $dirEntity->setFileName($oldFileEntity->getFileName());
+        $dirEntity->setFileKey($newFileKey);
+
+        // Set current timestamp for created_at and updated_at
+        $now = date('Y-m-d H:i:s');
+        $dirEntity->setCreatedAt($now);
+        $dirEntity->setUpdatedAt($now);
+
+        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $newFileKey, StorageBucketType::SandBox);
+
+        $this->insert($dirEntity);
+
+        return $dirEntity;
+    }
+
+    /**
+     * ReBalance directory and calculate sort value.
+     */
+    public function rebalanceAndCalculateSort(int $targetParentId, ?int $preFileId): int
+    {
+        // Get all children
+        $allChildren = $this->taskFileRepository->getAllChildrenByParentId($targetParentId);
+
+        // Sort by business rules
+        $sortedChildren = $this->sortChildrenByBusinessRules($allChildren);
+
+        // Reallocate sort values
+        $updates = [];
+        $sortValue = self::DEFAULT_SORT_STEP;
+
+        foreach ($sortedChildren as $child) {
+            $updates[] = [
+                'file_id' => $child['file_id'],
+                'sort' => $sortValue,
+            ];
+            $sortValue += self::DEFAULT_SORT_STEP;
+        }
+
+        // Batch update
+        $this->taskFileRepository->batchUpdateSort($updates);
+
+        // Log rebalancing operation
+        $this->logger->info('File sort rebalance triggered', [
+            'parent_id' => $targetParentId,
+            'affected_files' => count($updates),
+            'gap_threshold' => self::MIN_GAP,
+            'timestamp' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Calculate target position sort value
+        if ($this->isToBeginning($preFileId)) {
+            return intval(self::DEFAULT_SORT_STEP / 2);
+        }
+
+        // Find preFileId's new sort value
+        foreach ($updates as $update) {
+            if ($update['file_id'] === $preFileId) {
+                return $update['sort'] + intval(self::DEFAULT_SORT_STEP / 2);
+            }
+        }
+
+        return $sortValue; // Default to end
+    }
+
+    public function getUserFileEntityNoUser(int $fileId): TaskFileEntity
+    {
+        $fileEntity = $this->taskFileRepository->getById($fileId);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+
+        if ($fileEntity->getProjectId() <= 0) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        return $fileEntity;
+    }
+
+    /**
      * Ensure the complete directory path exists, creating missing directories.
      *
      * @param int $projectId Project ID
@@ -1252,6 +1659,20 @@ class TaskFileDomainService
         $taskFileEntity->setCreatedAt($now);
         $taskFileEntity->setUpdatedAt($now);
 
+        // Css file need to set content type
+        if (! $taskFileEntity->getIsDirectory() && ContentTypeUtil::isSetContentType($fileName)) {
+            try {
+                $this->cloudFileRepository->setHeadObjectByCredential(
+                    $organizationCode,
+                    $fileKey,
+                    ['content_type' => ContentTypeUtil::getContentType($fileName)],
+                    StorageBucketType::SandBox
+                );
+            } catch (Throwable $e) {
+                $this->logger->error('setHeadObjectByCredential error', ['file_name' => $fileName, 'msg' => $e->getMessage()]);
+            }
+        }
+
         $this->insert($taskFileEntity);
 
         return $taskFileEntity;
@@ -1281,43 +1702,19 @@ class TaskFileDomainService
             ];
         } catch (Throwable $e) {
             // File not found or other cloud storage error
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+            $this->logger->warning(
+                'Failed to get file info from cloud storage',
+                [
+                    'file_key' => $fileKey,
+                    'organization_code' => $organizationCode,
+                    'error' => $e->getMessage(),
+                ]
+            );
+            return [
+                'size' => 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
         }
-    }
-
-    /**
-     * Check if a target directory is a subdirectory of the file being moved.
-     * This prevents circular directory moves (e.g., moving a parent directory into its own child).
-     *
-     * @param int $fileId The ID of the file being moved (should be a directory)
-     * @param int $targetParentId The ID of the target parent directory
-     * @return bool True if the target is a subdirectory of the file being moved, false otherwise
-     */
-    private function isSubdirectory(int $fileId, int $targetParentId): bool
-    {
-        // Use parent-child relationship traversal instead of string comparison
-        // Start from target parent and traverse up to see if we reach the file being moved
-        $currentParentId = $targetParentId;
-        $visitedIds = []; // Prevent infinite loops
-
-        while ($currentParentId !== null && ! in_array($currentParentId, $visitedIds, true)) {
-            $visitedIds[] = $currentParentId;
-
-            // If we reach the file being moved, it means target is a subdirectory
-            if ($currentParentId === $fileId) {
-                return true;
-            }
-
-            // Get the parent of current directory
-            $currentEntity = $this->taskFileRepository->getById($currentParentId);
-            if ($currentEntity === null) {
-                break;
-            }
-
-            $currentParentId = $currentEntity->getParentId();
-        }
-
-        return false;
     }
 
     /**
@@ -1415,5 +1812,103 @@ class TaskFileDomainService
         }
 
         return false; // It's not a hidden file
+    }
+
+    /**
+     * Acquire project-level move lock.
+     */
+    private function acquireProjectMoveLock(int $projectId): array
+    {
+        $lockKey = self::FILE_MOVE_LOCK_PREFIX . ':project:' . $projectId;
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, self::LOCK_TIMEOUT);
+
+        return [$lockAcquired, $lockKey, $lockOwner];
+    }
+
+    /**
+     * Release project-level move lock.
+     */
+    private function releaseProjectMoveLock(string $lockKey, string $lockOwner): void
+    {
+        if (! $this->locker->release($lockKey, $lockOwner)) {
+            $this->logger->error('Failed to release file move lock', [
+                'lock_key' => $lockKey,
+                'lock_owner' => $lockOwner,
+            ]);
+        }
+    }
+
+    /**
+     * Check if file should be moved to beginning.
+     */
+    private function isToBeginning(?int $preFileId): bool
+    {
+        return $preFileId === null || $preFileId === 0 || $preFileId === -1;
+    }
+
+    /**
+     * Calculate sort value after a specific file.
+     */
+    private function calculateSortAfterFile(array $children, ?int $preFileId): ?int
+    {
+        if (empty($children)) {
+            return self::DEFAULT_SORT_STEP;
+        }
+
+        // Sort by sort value
+        usort($children, fn ($a, $b) => $a['sort'] <=> $b['sort']);
+
+        // Move to beginning
+        if ($this->isToBeginning($preFileId)) {
+            $firstSort = $children[0]['sort'] ?? self::DEFAULT_SORT_STEP;
+            return $firstSort > self::MIN_GAP ? intval($firstSort / 2) : null;
+        }
+
+        // Move after specific file
+        $preFileIndex = array_search($preFileId, array_column($children, 'file_id'));
+
+        if ($preFileIndex === false) {
+            // Move to end
+            $lastSort = end($children)['sort'] ?? 0;
+            return $lastSort + self::DEFAULT_SORT_STEP;
+        }
+
+        // Calculate insertion position
+        $prevSort = $children[$preFileIndex]['sort'];
+        $nextSort = isset($children[$preFileIndex + 1])
+            ? $children[$preFileIndex + 1]['sort']
+            : $prevSort + self::DEFAULT_SORT_STEP * 2;
+
+        $gap = $nextSort - $prevSort;
+        return $gap > self::MIN_GAP ? $prevSort + intval($gap / 2) : null;
+    }
+
+    /**
+     * Sort children by business rules.
+     */
+    private function sortChildrenByBusinessRules(array $children): array
+    {
+        usort($children, function ($a, $b) {
+            // Files with sort value have priority
+            if (($a['sort'] > 0) !== ($b['sort'] > 0)) {
+                return ($b['sort'] > 0) <=> ($a['sort'] > 0);
+            }
+
+            // If both have sort values, sort by sort value
+            if ($a['sort'] > 0 && $b['sort'] > 0) {
+                return $a['sort'] <=> $b['sort'];
+            }
+
+            // Directories have priority
+            if ($a['is_directory'] !== $b['is_directory']) {
+                return $b['is_directory'] <=> $a['is_directory'];
+            }
+
+            // Sort by creation time
+            return $b['created_at'] <=> $a['created_at'];
+        });
+
+        return $children;
     }
 }

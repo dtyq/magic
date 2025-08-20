@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -28,6 +29,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordReposito
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
@@ -93,6 +95,7 @@ class ConfigProvider
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
                 ProjectRepositoryInterface::class => ProjectRepository::class,
                 SandboxInterface::class => SandboxService::class,
+                ProjectMemberRepositoryInterface::class => ProjectMemberRepository::class,
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,

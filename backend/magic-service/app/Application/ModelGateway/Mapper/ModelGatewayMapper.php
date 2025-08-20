@@ -21,9 +21,9 @@ use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
-use App\Infrastructure\Util\OfficialOrganizationUtil;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
@@ -32,7 +32,6 @@ use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\ModelOptions;
 use Hyperf\Odin\ModelMapper;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 
 /**
  * 集合项目本身多套的 ModelGatewayMapper - 最终全部转换为 odin model 参数格式.
@@ -50,8 +49,9 @@ class ModelGatewayMapper extends ModelMapper
      */
     protected array $rerank = [];
 
-    public function __construct(protected ConfigInterface $config, protected LoggerInterface $logger)
+    public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
     {
+        $logger = $loggerFactory->get('ModelGatewayMapper', 'debug');
         $this->models['chat'] = [];
         $this->models['embedding'] = [];
         parent::__construct($config, $logger);
@@ -229,42 +229,6 @@ class ModelGatewayMapper extends ModelMapper
         }
     }
 
-    protected function createModel(string $model, array $item): EmbeddingInterface|ModelInterface
-    {
-        $implementation = $item['implementation'] ?? '';
-        if (! class_exists($implementation)) {
-            throw new InvalidArgumentException(sprintf('Implementation %s is not defined.', $implementation));
-        }
-
-        // 获取全局模型配置和API配置
-        $generalModelOptions = $this->config->get('odin.llm.general_model_options', []);
-        $generalApiOptions = $this->config->get('odin.llm.general_api_options', []);
-
-        // 全局配置可以被模型配置覆盖
-        $modelOptionsArray = array_merge($generalModelOptions, $item['model_options'] ?? []);
-        $apiOptionsArray = array_merge($generalApiOptions, $item['api_options'] ?? []);
-
-        // 创建选项对象
-        $modelOptions = new ModelOptions($modelOptionsArray);
-        $apiOptions = new ApiOptions($apiOptionsArray);
-
-        // 获取配置
-        $config = $item['config'] ?? [];
-
-        // 获取实际的端点名称，优先使用模型配置中的model字段
-        $endpoint = empty($item['model']) ? $model : $item['model'];
-
-        // 使用ModelFactory创建模型实例
-        return ModelFactory::create(
-            $implementation,
-            $endpoint,
-            $config,
-            $modelOptions,
-            $apiOptions,
-            $this->logger
-        );
-    }
-
     /**
      * 获取当前组织下指定类型的所有可用模型.
      * @param string $organizationCode 组织代码
@@ -428,13 +392,18 @@ class ModelGatewayMapper extends ModelMapper
         $implementation = $providerEntity->getProviderCode()->getImplementation();
         $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigEntity->getConfig(), $providerModelEntity->getModelVersion());
 
-        $tag = $providerEntity->getProviderCode()->value;
-        if ($providerConfigEntity->getAlias()) {
-            $alias = $providerConfigEntity->getAlias();
-            if (! $providerDataIsolation->isOfficialOrganization() && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
-                $alias = 'Magic';
-            }
-            $tag = "{$tag}「{$alias}」";
+        if ($providerEntity->getProviderType()->isCustom()) {
+            // 自定义服务商统一显示别名，如果没有别名则显示“自定义服务商”（需要考虑多语言）
+            $providerName = $providerConfigEntity->getLocalizedAlias($providerDataIsolation->getLanguage());
+        } else {
+            // 内置服务商的统一显示 服务商名称，不用显示别名（需要考虑多语言）
+            $providerName = $providerEntity->getLocalizedName($providerDataIsolation->getLanguage());
+        }
+
+        // 如果不是官方组织，但是模型是官方组织，统一显示 Magic
+        if (! $providerDataIsolation->isOfficialOrganization()
+            && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
+            $providerName = 'Magic';
         }
 
         $fileDomainService = di(FileDomainService::class);
@@ -464,7 +433,7 @@ class ModelGatewayMapper extends ModelMapper
                 name: $providerModelEntity->getModelId(),
                 label: $providerModelEntity->getName(),
                 icon: $iconUrl,
-                tags: [['type' => 1, 'value' => $tag]],
+                tags: [['type' => 1, 'value' => "{$providerName}"]],
                 createdAt: $providerEntity->getCreatedAt(),
                 owner: 'MagicAI',
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
@@ -520,97 +489,7 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
 
-        return $this->createModelByProviderWithoutPackageFilter($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity, $filter);
-    }
-
-    private function createModelByProviderWithoutPackageFilter(
-        ProviderDataIsolation $providerDataIsolation,
-        ProviderModelEntity $providerModelEntity,
-        ProviderConfigEntity $providerConfigEntity,
-        ProviderEntity $providerEntity,
-        ModelFilter $filter
-    ): ?OdinModel {
-        $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
-
-        // 如果是官方组织的数据隔离，则不需要检查可见性
-        if ($providerDataIsolation->isOfficialOrganization()) {
-            $checkVisibleApplication = false;
-        }
-
-        // 只检查应用可见性（套餐可见性已在仓储层过滤）
-        $hasVisibleApplications = $checkVisibleApplication && $providerModelEntity->getVisibleApplications();
-
-        // 如果配置了应用可见性检查
-        if ($hasVisibleApplications) {
-            $applicationMatched = in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true);
-            if (! $applicationMatched) {
-                return null;
-            }
-        }
-
-        $chat = false;
-        $functionCall = false;
-        $multiModal = false;
-        $embedding = false;
-        $vectorSize = 0;
-        if ($providerModelEntity->getModelType()->isLLM()) {
-            $chat = true;
-            $functionCall = $providerModelEntity->getConfig()?->isSupportFunction();
-            $multiModal = $providerModelEntity->getConfig()?->isSupportMultiModal();
-        } elseif ($providerModelEntity->getModelType()->isEmbedding()) {
-            $embedding = true;
-            $vectorSize = $providerModelEntity->getConfig()?->getVectorSize();
-        }
-
-        $key = $providerModelEntity->getModelId();
-
-        $implementation = $providerEntity->getProviderCode()->getImplementation();
-        $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigEntity->getConfig(), $providerModelEntity->getModelVersion());
-
-        $tag = $providerEntity->getProviderCode()->value;
-        if ($providerConfigEntity->getAlias()) {
-            $alias = $providerConfigEntity->getAlias();
-            if (! $providerDataIsolation->isOfficialOrganization() && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
-                $alias = 'Magic';
-            }
-            $tag = "{$tag}「{$alias}」";
-        }
-
-        $fileDomainService = di(FileDomainService::class);
-        // 如果是官方组织的 icon，切换官方组织
-        if (OfficialOrganizationUtil::isOfficialOrganization($providerModelEntity->getOrganizationCode())) {
-            $iconUrl = $fileDomainService->getLink(OfficialOrganizationUtil::getOfficialOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
-        } else {
-            $iconUrl = $fileDomainService->getLink($providerModelEntity->getOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
-        }
-
-        return new OdinModel(
-            key: $key,
-            model: $this->createModel($providerModelEntity->getModelVersion(), [
-                'model' => $providerModelEntity->getModelVersion(),
-                'implementation' => $implementation,
-                'config' => $implementationConfig,
-                'model_options' => [
-                    'chat' => $chat,
-                    'function_call' => $functionCall,
-                    'embedding' => $embedding,
-                    'multi_modal' => $multiModal,
-                    'vector_size' => $vectorSize,
-                ],
-            ]),
-            attributes: new OdinModelAttributes(
-                key: $key,
-                name: $providerModelEntity->getModelId(),
-                label: $providerModelEntity->getName(),
-                icon: $iconUrl,
-                tags: [['type' => 1, 'value' => $tag]],
-                createdAt: $providerEntity->getCreatedAt(),
-                owner: 'MagicAI',
-                providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
-                providerModelId: (string) $providerModelEntity->getId(),
-                providerId: (string) $providerConfigEntity->getId(),
-            )
-        );
+        return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity, $filter);
     }
 
     private function createProxy(string $model, ModelOptions $modelOptions, ApiOptions $apiOptions): MagicAILocalModel

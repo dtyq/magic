@@ -286,8 +286,9 @@ class VolcengineModel implements ImageGenerate
     )]
     private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
+        $model = $imageGenerateRequest->getModel();
         $organizationCode = $imageGenerateRequest->getOrganizationCode();
-        $reqKey = $imageGenerateRequest->getModel();
+        $reqKey = $model;
         $retryCount = 0;
 
         $reqJson = ['return_url' => true];

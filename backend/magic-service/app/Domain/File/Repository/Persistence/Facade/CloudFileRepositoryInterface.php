@@ -141,6 +141,23 @@ interface CloudFileRepositoryInterface
     ): array;
 
     /**
+     * Set object metadata by credential.
+     *
+     * @param string $organizationCode Organization code for data isolation
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     */
+    public function setHeadObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        array $metadata,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
      * Create object by credential (file or folder).
      *
      * @param string $organizationCode Organization code
@@ -224,6 +241,24 @@ interface CloudFileRepositoryInterface
         StorageBucketType $bucketType = StorageBucketType::Private,
         array $options = []
     ): string;
+
+    /**
+     * Delete multiple objects by credential.
+     *
+     * @param string $prefix Prefix for the operation
+     * @param string $organizationCode Organization code for data isolation
+     * @param array $objectKeys Array of object keys to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     */
+    public function deleteObjectsByCredential(
+        string $prefix,
+        string $organizationCode,
+        array $objectKeys,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array;
 
     public function getFullPrefix(string $organizationCode): string;
 

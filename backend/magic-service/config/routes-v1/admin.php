@@ -7,6 +7,9 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
+use App\Interfaces\Permission\Facade\OrganizationAdminApi;
+use App\Interfaces\Permission\Facade\PermissionApi;
+use App\Interfaces\Permission\Facade\RoleApi;
 use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -53,5 +56,26 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('/creators', [AdminAgentApi::class, 'getOrganizationAgentsCreators']);
         Router::get('/{agentId}', [AdminAgentApi::class, 'getAgentDetail']);
         Router::delete('/{agentId}', [AdminAgentApi::class, 'deleteAgent']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    // 组织管理员
+    Router::addGroup('/organization-admin', static function () {
+        Router::get('/list', [OrganizationAdminApi::class, 'list']);
+        Router::get('/{id:\d+}', [OrganizationAdminApi::class, 'show']);
+        Router::post('/grant', [OrganizationAdminApi::class, 'grant']);
+        Router::delete('/{id:\d+}', [OrganizationAdminApi::class, 'destroy']);
+        Router::put('/{id:\d+}/enable', [OrganizationAdminApi::class, 'enable']);
+        Router::put('/{id:\d+}/disable', [OrganizationAdminApi::class, 'disable']);
+        Router::post('/transfer-owner', [OrganizationAdminApi::class, 'transferOwner']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    // 角色权限相关（权限树）
+    Router::addGroup('/roles', static function () {
+        Router::get('/permissions/tree', [PermissionApi::class, 'getPermissionTree']);
+        Router::get('/sub-admins', [RoleApi::class, 'getSubAdminList']);
+        Router::post('/sub-admins', [RoleApi::class, 'createSubAdmin']);
+        Router::put('/sub-admins/{id}', [RoleApi::class, 'updateSubAdmin']);
+        Router::delete('/sub-admins/{id}', [RoleApi::class, 'deleteSubAdmin']);
+        Router::get('/sub-admins/{id}', [RoleApi::class, 'getSubAdminById']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });

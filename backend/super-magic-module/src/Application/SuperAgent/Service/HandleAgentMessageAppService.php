@@ -82,7 +82,7 @@ class HandleAgentMessageAppService extends AbstractAppService
      */
     public function handleAgentMessage(TopicTaskMessageDTO $messageDTO): void
     {
-        $this->logger->info(sprintf(
+        $this->logger->debug(sprintf(
             'Starting to process topic task message, task_id: %s, message content: %s',
             $messageDTO->getPayload()->getTaskId() ?? '',
             json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -896,6 +896,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             remindEvent: $remindType
         );
 
+        TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
+
         // Get sandbox status, if sandbox is running, send interrupt command
         try {
             $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
@@ -906,8 +908,6 @@ class HandleAgentMessageAppService extends AbstractAppService
                     (string) $taskContext->getTask()->getId(),
                     trans('task.agent_stopped')
                 );
-            } else {
-                TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
             }
         } catch (SandboxOperationException $e) {
             // ignore

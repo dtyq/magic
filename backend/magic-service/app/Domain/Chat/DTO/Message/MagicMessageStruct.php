@@ -12,6 +12,7 @@ use App\Domain\Chat\DTO\Message\Common\MessageExtra\MessageExtra;
 use App\Domain\Chat\Entity\AbstractEntity;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
+use App\Domain\Chat\Entity\ValueObject\MessageType\IntermediateMessageType;
 use Hyperf\Codec\Json;
 
 /**
@@ -30,6 +31,8 @@ abstract class MagicMessageStruct extends AbstractEntity implements MessageInter
 
     protected ControlMessageType $controlMessageType;
 
+    protected IntermediateMessageType $intermediateMessageType;
+
     public function __construct(?array $messageStruct = null)
     {
         $this->setMessageType();
@@ -43,7 +46,7 @@ abstract class MagicMessageStruct extends AbstractEntity implements MessageInter
             $data = array_filter($data, static fn ($value) => $value !== null);
         }
         // 去掉 message_type 字段
-        unset($data['control_message_type'], $data['chat_message_type']);
+        unset($data['control_message_type'], $data['chat_message_type'], $data['intermediate_message_type']);
         // 如果数据为空，则去掉为每条消息附近的 attachments 和 instructs
         foreach (['attachments', 'instructs'] as $field) {
             if (empty($data[$field])) {
@@ -53,9 +56,9 @@ abstract class MagicMessageStruct extends AbstractEntity implements MessageInter
         return $data;
     }
 
-    public function getMessageTypeEnum(): ChatMessageType|ControlMessageType
+    public function getMessageTypeEnum(): ChatMessageType|ControlMessageType|IntermediateMessageType
     {
-        return $this->controlMessageType ?? $this->chatMessageType;
+        return $this->intermediateMessageType ?? $this->controlMessageType ?? $this->chatMessageType;
     }
 
     /**

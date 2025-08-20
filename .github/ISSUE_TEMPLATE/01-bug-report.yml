@@ -1,5 +1,5 @@
-name: 🐛 Bug Report
-description: Report a bug or unexpected behavior in Magic
+name: 🐛 Bug Report / BUG反馈
+description: I've encountered a BUG or unexpected behavior / 我遇到了BUG或奇怪的行为
 title: "[Bug]: "
 labels: ["bug", "needs-triage"]
 assignees: []
@@ -7,36 +7,24 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out this form as completely as possible.
-        
-        **Before submitting a bug report:**
-        - Check if the issue has already been reported in [existing issues](https://github.com/dtyq/magic/issues)
-        - Read our [documentation](https://docs.letsmagic.cn/en)
-        - Try reproducing the issue with the latest version
+        Thanks for taking the time to report a bug! Please fill out the following form.
+        感谢您花时间反馈bug！请填写以下的表单
+
+        **Before submitting a bug report, you may**
+        - Check if the issue has already been reported in [existing issues](https://github.com/dtyq/magic/issues), you may find a way to fix it
+        - Read our [documentation](https://docs.letsmagic.cn/en), there are some FAQs
+        - Try reproducing the issue with the latest version, maybe the bug you've encountered have already been fixed
+
+        **在提交bug report前您可以**
+        - 看看[issues](https://github.com/dtyq/magic/issues)里是不是已经有了同样的问题，或许能快速找到想要的解决方法
+        - 查一下文档[文档](https://docs.letsmagic.cn/zh)，有一些常见问题已经列出来了
+        - 试一下最新版本，或许遇到的bug已经修了
 
   - type: dropdown
-    id: component
+    id: deployment-type
     attributes:
-      label: Component
-      description: Which component/module is affected?
-      options:
-        - Super Magic (Super Magic)
-        - Magic IM (Chat System)
-        - Magic Flow (AI Workflow)
-        - Magic Service (Backend API)
-        - Magic Web (Frontend)
-        - Magic Gateway
-        - Documentation
-        - Deployment/Installation
-        - Other
-    validations:
-      required: true
-
-  - type: dropdown
-    id: deployment
-    attributes:
-      label: Deployment Type
-      description: How are you running Magic?
+      label: Deployment Type / 部署类型
+      description: How do you run Magic? / 你是怎么运行magic的？
       options:
         - Self-hosted (Docker)
         - Self-hosted (Source)
@@ -49,87 +37,54 @@ body:
   - type: textarea
     id: bug-description
     attributes:
-      label: Bug Description
-      description: A clear and concise description of what the bug is
-      placeholder: Describe what happened and what you expected to happen
+      label: Bug Description / Bug 描述
+      description: |
+        What I want and what I've got / 我想要什么结果和实际上我遇到了什么问题
+      placeholder: |
+        For example: I want to log in after installed (what I'm expecting), but it failed with error 404 (what I've got)
+        例如：我期望能够部署后登录（想要的样子），但部署后登录总是报错404失败（实际遇到的情况）
     validations:
       required: true
 
   - type: textarea
     id: reproduction-steps
     attributes:
-      label: Steps to Reproduce
-      description: Detailed steps to reproduce the behavior
+      label: Steps to Reproduce / 复现步骤
+      description: |
+        Detailed steps to reproduce the behavior / 具体怎么复现这个问题
+        Please tell us your environment here / 请在这里告诉我们你的运行环境以方便复现修复BUG
       placeholder: |
-        1. Go to '...'
-        2. Click on '...'
-        3. Scroll down to '...'
-        4. See error
+        For example：
+        On my macbookPro M4, macOS 16.0 (the enviroment)
+        1. Start the service
+        2. Goto page xxx
+        3. Click xxx
+        例如
+        在我的macbookPro M4机器上 macOS 16.0上 （环境信息）
+        1. 启动服务
+        2. 打开xx页面
+        3. 点击xx
     validations:
       required: true
-
-  - type: textarea
-    id: expected-behavior
-    attributes:
-      label: Expected Behavior
-      description: A clear and concise description of what you expected to happen
-      placeholder: What should have happened instead?
-    validations:
-      required: true
-
-  - type: textarea
-    id: actual-behavior
-    attributes:
-      label: Actual Behavior
-      description: What actually happened?
-      placeholder: Describe the actual behavior or error message
-    validations:
-      required: true
-
-  - type: textarea
-    id: environment
-    attributes:
-      label: Environment
-      description: Please provide environment details
-      placeholder: |
-        - OS: [e.g. macOS 14.0, Ubuntu 22.04, Windows 11]
-        - Docker Version: [e.g. 24.0.7]
-        - Magic Version: [e.g. v1.0.0]
-        - Browser: [e.g. Chrome 119.0, Safari 17.0] (if frontend related)
-        - Model Provider: [e.g. OpenAI GPT-4, Claude, Local LLM] (if AI related)
-    validations:
-      required: true
-
-  - type: textarea
-    id: logs
-    attributes:
-      label: Logs and Error Messages
-      description: Please include relevant logs, error messages, or screenshots
-      placeholder: |
-        ```
-        Paste logs here...
-        ```
-    validations:
-      required: false
 
   - type: textarea
     id: additional-context
     attributes:
-      label: Additional Context
-      description: Add any other context about the problem here
-      placeholder: Any additional information that might help us understand the issue
+      label: Logs and Additional Context / 日志和额外的上下文
+      description: |
+        Logs and Add any other contexts / 日志和额外要提及的信息
+      placeholder: |
+        If you want to put log here, remember to wrap it with ```, or your log will be a mess
+        要添加日志的话，记得前后加上```，要么你的日志会乱七八糟的
+
+        ```
+        2025-01-01 DEBUG just like this 就像这样
+        2025-01-01 DEBUG add a line contains only ``` before and after the logs 在日志前后加上只有```的一行就行
+        ```
+
+        Other contexts, for example:
+        When I use another macbook running macOS 15, it works well
+        其他的信息，例如：
+        当我用另一台跑着macOS 15的macbook，功能是正常的
     validations:
       required: false
-
-  - type: checkboxes
-    id: terms
-    attributes:
-      label: Checklist
-      description: Please confirm the following
-      options:
-        - label: I have searched for existing issues before creating this report
-          required: true
-        - label: I have provided all the required information above
-          required: true
-        - label: This issue is reproducible
-          required: true 

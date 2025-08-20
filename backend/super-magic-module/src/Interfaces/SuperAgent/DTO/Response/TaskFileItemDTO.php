@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 
 class TaskFileItemDTO extends AbstractDTO
 {
@@ -93,9 +94,14 @@ class TaskFileItemDTO extends AbstractDTO
     public int $sort = 0;
 
     /**
+     * 父级文件ID.
+     */
+    public int $parentId = 0;
+
+    /**
      * 从实体创建DTO.
      */
-    public static function fromEntity(TaskFileEntity $entity): self
+    public static function fromEntity(TaskFileEntity $entity, string $workDir = ''): self
     {
         $dto = new self();
         $dto->fileId = (string) $entity->getFileId();
@@ -106,13 +112,12 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileExtension = $entity->getFileExtension();
         $dto->fileKey = $entity->getFileKey();
         $dto->fileSize = $entity->getFileSize();
-        $dto->relativeFilePath = '';
         $dto->fileUrl = $entity->getExternalUrl();
         $dto->isHidden = $entity->getIsHidden();
         $dto->topicId = (string) $entity->getTopicId();
-        $dto->updatedAt = (string) $entity->getUpdatedAt();
         $dto->isDirectory = $entity->getIsDirectory();
         $dto->sort = $entity->getSort();
+        $dto->parentId = $entity->getParentId();
         $dto->updatedAt = (string) $entity->getUpdatedAt();
 
         // Handle metadata JSON decoding
@@ -122,6 +127,15 @@ class TaskFileItemDTO extends AbstractDTO
             $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
         } else {
             $dto->metadata = null;
+        }
+        // relative_file_path
+        if (! empty($workDir)) {
+            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath(
+                $entity->getFileKey(),
+                $workDir
+            );
+        } else {
+            $dto->relativeFilePath = '';
         }
 
         return $dto;
@@ -145,9 +159,10 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
         $dto->isHidden = $data['is_hidden'] ?? false;
         $dto->topicId = (string) ($data['topic_id'] ?? '');
-        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->sort = $data['sort'] ?? 0;
+        $dto->parentId = $data['parent_id'] ?? 0;
+        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
 
         // Handle metadata - could be string (JSON) or array
         $metadata = $data['metadata'] ?? null;
@@ -186,10 +201,11 @@ class TaskFileItemDTO extends AbstractDTO
             'file_url' => $this->fileUrl,
             'is_hidden' => $this->isHidden,
             'topic_id' => $this->topicId,
-            'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
+            'updated_at' => $this->updatedAt,
             'metadata' => $this->metadata,
             'sort' => $this->sort,
+            'parent_id' => $this->parentId,
         ];
     }
 }

@@ -81,8 +81,7 @@ class IfNodeRunnerTest extends ExecuteManagerBaseTest
         }
     ]
 }
-JSON
-            , true));
+JSON, true));
         $node->validate();
 
         $runner = NodeRunnerFactory::make($node);
@@ -153,8 +152,7 @@ JSON
         }
     ]
 }
-JSON
-            , true));
+JSON, true));
         $node->validate();
 
         $runner = NodeRunnerFactory::make($node);
