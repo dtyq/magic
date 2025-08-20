@@ -194,32 +194,6 @@ class OrganizationAdminDomainService
     }
 
     /**
-     * 启用组织管理员.
-     */
-    public function enable(DataIsolation $dataIsolation, int $id): void
-    {
-        $organizationAdmin = $this->show($dataIsolation, $id);
-        $organizationAdmin->enable();
-        $this->organizationAdminRepository->save($dataIsolation, $organizationAdmin);
-    }
-
-    /**
-     * 禁用组织管理员.
-     */
-    public function disable(DataIsolation $dataIsolation, int $id): void
-    {
-        $organizationAdmin = $this->show($dataIsolation, $id);
-
-        // 组织创建人不可禁用
-        if ($organizationAdmin->isOrganizationCreator()) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.error.organization_creator_cannot_be_disabled', ['id' => $id]);
-        }
-
-        $organizationAdmin->disable();
-        $this->organizationAdminRepository->save($dataIsolation, $organizationAdmin);
-    }
-
-    /**
      * 转让组织创建人身份.
      */
     public function transferOrganizationCreator(DataIsolation $dataIsolation, string $currentCreatorUserId, string $newCreatorUserId, string $operatorUserId): void

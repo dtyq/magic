@@ -62,10 +62,8 @@ Router::addGroup('/api/v1/admin', static function () {
     Router::addGroup('/organization-admin', static function () {
         Router::get('/list', [OrganizationAdminApi::class, 'list']);
         Router::get('/{id:\d+}', [OrganizationAdminApi::class, 'show']);
-        Router::post('/grant', [OrganizationAdminApi::class, 'grant']);
         Router::delete('/{id:\d+}', [OrganizationAdminApi::class, 'destroy']);
-        Router::put('/{id:\d+}/enable', [OrganizationAdminApi::class, 'enable']);
-        Router::put('/{id:\d+}/disable', [OrganizationAdminApi::class, 'disable']);
+        Router::post('/grant', [OrganizationAdminApi::class, 'grant']);
         Router::post('/transfer-owner', [OrganizationAdminApi::class, 'transferOwner']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
