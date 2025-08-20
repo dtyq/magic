@@ -28,6 +28,8 @@ enum ResourceType: int
     case Form = 9;              // 表单
     case MindMap = 10;          // 思维导图
     case Website = 11;          // 网站
+    case Project = 12;          // 项目
+    case File = 13;             // 文件
 
     /**
      * 获取资源类型的业务名称.
@@ -46,6 +48,8 @@ enum ResourceType: int
             self::Form => 'form',
             self::MindMap => 'mindmap',
             self::Website => 'website',
+            self::Project => 'project',
+            self::File => 'file',
         };
     }
 

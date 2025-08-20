@@ -209,6 +209,36 @@ interface TaskFileRepositoryInterface
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
 
+    /**
+     * Count files by project ID.
+     *
+     * @param int $projectId Project ID
+     * @return int Total count of files in the project
+     */
+    public function countFilesByProjectId(int $projectId): int;
+
+    /**
+     * Get files by project ID with resume support.
+     * Used for fork migration with pagination and resume capability.
+     *
+     * @param int $projectId Project ID
+     * @param null|int $lastFileId Last processed file ID for resume
+     * @param int $limit Number of files to fetch
+     * @return TaskFileEntity[] Array of file entities
+     */
+    public function getFilesByProjectIdWithResume(int $projectId, ?int $lastFileId, int $limit): array;
+
+    /**
+     * Batch update parent_id for multiple files.
+     * Used for fixing parent relationships during fork operations.
+     *
+     * @param array $fileIds Array of file IDs to update
+     * @param int $parentId New parent ID to set
+     * @param string $userId User performing the update
+     * @return int Number of affected rows
+     */
+    public function batchUpdateParentId(array $fileIds, int $parentId, string $userId): int;
+
     public function updateFileByCondition(array $condition, array $data): bool;
 
     public function lockDirectChildrenForUpdate(int $parentId): array;

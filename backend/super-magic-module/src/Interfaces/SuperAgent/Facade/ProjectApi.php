@@ -12,6 +12,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
@@ -155,5 +156,29 @@ class ProjectApi extends AbstractApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         return $this->projectAppService->getCloudFiles($requestContext, (int) $id);
+    }
+
+    /**
+     * Fork project.
+     */
+    public function fork(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = ForkProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->forkProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Check fork project status.
+     */
+    public function forkStatus(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->projectAppService->checkForkProjectStatus($requestContext, (int) $id);
     }
 }

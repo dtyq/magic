@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
 
@@ -686,6 +687,68 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return new TaskFileEntity($model->toArray());
+    }
+
+    /**
+     * Count files by project ID.
+     */
+    public function countFilesByProjectId(int $projectId): int
+    {
+        return $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('storage_type', StorageType::WORKSPACE->value)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at')
+            ->count();
+    }
+
+    /**
+     * Get files by project ID with resume support.
+     * Used for fork migration with pagination and resume capability.
+     */
+    public function getFilesByProjectIdWithResume(int $projectId, ?int $lastFileId, int $limit): array
+    {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('storage_type', StorageType::WORKSPACE->value)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at')
+            ->orderBy('file_id', 'asc')
+            ->limit($limit);
+
+        // Support resume from last file ID
+        if ($lastFileId !== null) {
+            $query->where('file_id', '>', $lastFileId);
+        }
+
+        $models = $query->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
+    /**
+     * Batch update parent_id for multiple files.
+     * Used for fixing parent relationships during fork operations.
+     */
+    public function batchUpdateParentId(array $fileIds, int $parentId, string $userId): int
+    {
+        if (empty($fileIds)) {
+            return 0;
+        }
+
+        return $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->update([
+                'parent_id' => $parentId,
+                'updated_uid' => $userId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
     }
 
     public function lockDirectChildrenForUpdate(int $parentId): array

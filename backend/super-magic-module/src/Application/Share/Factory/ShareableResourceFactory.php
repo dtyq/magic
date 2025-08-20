@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Share\Factory;
 
+use Dtyq\SuperMagic\Application\Share\Adapter\FileShareableResource;
+use Dtyq\SuperMagic\Application\Share\Adapter\ProjectShareableResource;
 use Dtyq\SuperMagic\Application\Share\Adapter\TopicShareableResource;
 use Dtyq\SuperMagic\Application\Share\Factory\Facade\ResourceFactoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
@@ -29,6 +31,8 @@ class ShareableResourceFactory
         // 根据资源类型返回对应的实现
         $implementation = match ($resourceType) {
             ResourceType::Topic => TopicShareableResource::class,
+            ResourceType::Project => ProjectShareableResource::class,
+            ResourceType::File => FileShareableResource::class,
             // 可以添加更多资源类型的映射
             // ResourceType::Document => DocumentShareableResource::class,
             // ResourceType::Knowledge => KnowledgeShareableResource::class,

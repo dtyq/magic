@@ -11,27 +11,37 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectForkEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkProjectResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
@@ -41,6 +51,8 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
+use function Hyperf\Translation\trans;
 
 /**
  * 项目应用服务
@@ -57,6 +69,8 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
+        private readonly ResourceShareDomainService $resourceShareDomainService,
+        private readonly ProjectForkRepositoryInterface $projectForkRepository,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -244,7 +258,7 @@ class ProjectAppService extends AbstractAppService
     /**
      * 获取项目详情.
      */
-    public function getProjectNotUserId(int $projectId): ProjectEntity
+    public function getProjectNotUserId(int $projectId): ?ProjectEntity
     {
         return $this->projectDomainService->getProjectNotUserId($projectId);
     }
@@ -427,6 +441,170 @@ class ProjectAppService extends AbstractAppService
         $projectIdMapMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts([$projectId]);
 
         return (bool) ($projectIdMapMemberCounts[$projectId] ?? 0) > 0;
+    }
+
+    /**
+     * Fork project.
+     */
+    public function forkProject(RequestContext $requestContext, ForkProjectRequestDTO $requestDTO): array
+    {
+        $this->logger->info('Starting project fork process');
+        // Check resource is allow fork
+        $resourceShareEntity = $this->resourceShareDomainService->getShareByResourceId($requestDTO->sourceProjectId);
+        if (empty($resourceShareEntity) || $resourceShareEntity->getResourceType() != ResourceType::Project->value) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, trans('share.resource_not_found'));
+        }
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // Validate target workspace exists
+        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getTargetWorkspaceId());
+        if (empty($workspaceEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, trans('workspace.workspace_not_found'));
+        }
+
+        // Validate target workspace belongs to user
+        if ($workspaceEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, trans('workspace.workspace_access_denied'));
+        }
+
+        Db::beginTransaction();
+        try {
+            // Create fork record and project
+            /**
+             * @var ProjectEntity $forkProjectEntity
+             * @var ProjectForkEntity $forkProjectRecordEntity
+             */
+            [$forkProjectEntity, $forkProjectRecordEntity] = $this->projectDomainService->forkProject(
+                $requestDTO->getSourceProjectId(),
+                $requestDTO->getTargetWorkspaceId(),
+                $requestDTO->getTargetProjectName(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
+            $this->logger->info(sprintf(
+                'Created fork record, fork project ID: %d, fork record ID: %d',
+                $forkProjectEntity->getId(),
+                $forkProjectRecordEntity->getId()
+            ));
+
+            $this->logger->info(sprintf('创建默认项目, projectId=%s', $forkProjectEntity->getId()));
+            $workDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $forkProjectEntity->getId());
+
+            // Initialize Magic Chat Conversation
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+
+            // Step 4: Create default topic
+            $this->logger->info('开始创建默认话题');
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                $workspaceEntity->getId(),
+                $forkProjectEntity->getId(),
+                $chatConversationId,
+                $chatConversationTopicId,
+                '',
+                $workDir
+            );
+            $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
+
+            // 设置工作区信息
+            $workspaceEntity->setCurrentTopicId($topicEntity->getId());
+            $workspaceEntity->setCurrentProjectId($forkProjectEntity->getId());
+            $this->workspaceDomainService->saveWorkspaceEntity($workspaceEntity);
+            $this->logger->info(sprintf('工作区%s已设置当前话题%s', $workspaceEntity->getId(), $topicEntity->getId()));
+
+            $forkProjectEntity->setCurrentTopicId($topicEntity->getId());
+            $forkProjectEntity->setWorkspaceId($workspaceEntity->getId());
+            $forkProjectEntity->setWorkDir($workDir);
+            $this->projectDomainService->saveProjectEntity($forkProjectEntity);
+            $this->logger->info(sprintf('项目%s已设置当前话题%s', $forkProjectEntity->getId(), $topicEntity->getId()));
+
+            // Publish fork event for file migration
+            $event = new ProjectForkEvent(
+                $requestDTO->getSourceProjectId(),
+                $forkProjectEntity->getId(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $forkProjectRecordEntity->getId()
+            );
+            $publisher = new ProjectForkPublisher($event);
+            $this->producer->produce($publisher);
+
+            $this->logger->info(sprintf(
+                'Published fork event, event ID: %s',
+                $event->getEventId()
+            ));
+
+            Db::commit();
+
+            return ForkProjectResponseDTO::fromEntity($forkProjectRecordEntity)->toArray();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Fork project failed, error: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Check fork project status.
+     */
+    public function checkForkProjectStatus(RequestContext $requestContext, int $projectId): array
+    {
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Find fork record by fork project ID
+        $projectFork = $this->projectForkRepository->findByForkProjectId($projectId);
+        if (! $projectFork) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        // Check if user has access to this fork
+        if ($projectFork->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+        }
+
+        return ForkStatusResponseDTO::fromEntity($projectFork)->toArray();
+    }
+
+    /**
+     * Migrate project file (called by subscriber).
+     */
+    public function migrateProjectFile(ProjectForkEvent $event): void
+    {
+        $this->logger->info(sprintf(
+            'Starting file migration for fork record ID: %d',
+            $event->getForkRecordId()
+        ));
+
+        try {
+            // Call file domain service to handle file migration
+            $dataIsolation = DataIsolation::simpleMake($event->getOrganizationCode(), $event->getUserId());
+
+            $sourceProjectEntity = $this->projectDomainService->getProjectNotUserId($event->getSourceProjectId());
+
+            $forkProjectEntity = $this->projectDomainService->getProjectNotUserId($event->getForkProjectId());
+
+            $forkProjectRecordEntity = $this->projectDomainService->getForkProjectRecordById($event->getForkRecordId());
+
+            $this->taskFileDomainService->migrateProjectFile($dataIsolation, $sourceProjectEntity, $forkProjectEntity, $forkProjectRecordEntity);
+
+            $this->logger->info(sprintf(
+                'File migration batch completed for fork record ID: %d',
+                $event->getForkRecordId()
+            ));
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'File migration failed for fork record ID: %d, error: %s',
+                $event->getForkRecordId(),
+                $e->getMessage()
+            ));
+            throw $e;
+        }
     }
 
     /**

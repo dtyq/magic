@@ -15,12 +15,15 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -56,6 +59,7 @@ class TaskFileDomainService
         protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
         protected TopicRepositoryInterface $topicRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected ProjectForkRepositoryInterface $projectForkRepository,
         protected LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
@@ -1300,6 +1304,129 @@ class TaskFileDomainService
     }
 
     /**
+     * Migrate project files for fork operation.
+     *
+     * @throws Throwable
+     */
+    public function migrateProjectFile(DataIsolation $dataIsolation, ProjectEntity $sourceProjectEntity, ProjectEntity $forkProjectEntity, ProjectForkEntity $projectForkRecordEntity): void
+    {
+        $this->logger->info(sprintf(
+            'Starting file migration for fork event, source_project_id: %d, fork_project_id: %d',
+            $sourceProjectEntity->getId(),
+            $forkProjectEntity->getId()
+        ));
+
+        // Ensure the fork process is still running
+        if (! $projectForkRecordEntity->getStatus()->isRunning()) {
+            $this->logger->warning(sprintf('Fork process %d is not in running status, current status: %s. Skipping file migration.', $projectForkRecordEntity->getId(), $projectForkRecordEntity->getStatus()->value));
+            return;
+        }
+
+        $pageSize = 50; // Process 50 files at a time
+        $lastFileId = $projectForkRecordEntity->getCurrentFileId();
+        $forkRecordId = $projectForkRecordEntity->getId();
+        $processedCount = $projectForkRecordEntity->getProcessedFiles();
+        $totalFiles = $projectForkRecordEntity->getTotalFiles();
+        $userId = $dataIsolation->getCurrentUserId();
+        $sourceToNewIdMap = [];
+        $needFixFileIds = [];
+
+        // 根节点单独处理
+        $sourceRootFileId = $this->findOrCreateProjectRootDirectory($sourceProjectEntity->getId(), $sourceProjectEntity->getWorkDir(), $sourceProjectEntity->getUserId(), $sourceProjectEntity->getUserOrganizationCode());
+        $forkRootFileId = $this->findOrCreateProjectRootDirectory($forkProjectEntity->getId(), $forkProjectEntity->getWorkDir(), $forkProjectEntity->getUserId(), $forkProjectEntity->getUserOrganizationCode());
+        $sourceToNewIdMap[$sourceRootFileId] = $forkRootFileId;
+
+        try {
+            while (true) {
+                $sourceFiles = $this->taskFileRepository->getFilesByProjectIdWithResume($sourceProjectEntity->getId(), $lastFileId, $pageSize);
+
+                if (empty($sourceFiles)) {
+                    break; // No more files to process
+                }
+
+                foreach ($sourceFiles as $sourceFile) {
+                    // Generate new file_key for the forked project
+                    $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
+
+                    $existingFileEntity = $this->taskFileRepository->getByFileKey($newFileKey);
+                    if ($existingFileEntity) {
+                        continue; // File already exists
+                    }
+
+                    // Copy file in cloud storage
+                    try {
+                        $this->cloudFileRepository->copyObjectByCredential(
+                            '',
+                            $dataIsolation->getCurrentOrganizationCode(),
+                            $sourceFile->getFileKey(),
+                            $newFileKey,
+                            StorageBucketType::SandBox
+                        );
+
+                        // get parent id
+                        $parentId = $sourceToNewIdMap[$sourceFile->getParentId()] ?? null;
+
+                        // Create new TaskFileEntity for the forked project
+                        $newTaskFile = $this->copyTaskFileEntity(
+                            $sourceFile,
+                            $userId,
+                            $dataIsolation->getCurrentOrganizationCode(),
+                            $forkProjectEntity->getId(),
+                            $forkProjectEntity->getCurrentTopicId(),
+                            $newFileKey,
+                            $parentId,
+                        );
+                        $this->taskFileRepository->insert($newTaskFile);
+                        $sourceToNewIdMap[$sourceFile->getFileId()] = $newTaskFile->getFileId();
+                        if (is_null($newTaskFile->getParentId())) {
+                            $needFixFileIds[] = [
+                                'new_id' => $newTaskFile->getFileId(),
+                                'old_parent_id' => $sourceFile->getParentId(),
+                            ];
+                        }
+                    } catch (Throwable $e) {
+                        $this->logger->error(
+                            'Failed to copy file',
+                            [
+                                'exception' => $e,
+                                'file' => $sourceFile,
+                                'newFileKey' => $newFileKey,
+                            ]
+                        );
+                    }
+
+                    $lastFileId = $sourceFile->getFileId();
+                    ++$processedCount;
+                }
+
+                // Update progress in DB
+                $progress = $totalFiles > 0 ? (int) round(($processedCount / $totalFiles) * 100) : 0;
+                $this->projectForkRepository->updateProgress($forkRecordId, $processedCount, $progress);
+
+                $this->logger->info(sprintf('Fork record %d: Processed %d/%d files, progress: %d%%', $forkRecordId, $processedCount, $totalFiles, $progress));
+
+                if (count($sourceFiles) < $pageSize) {
+                    break; // Less than page size, means it's the last batch
+                }
+            }
+
+            // 兜底逻辑：修复那些parent_id为null的文件
+            if (count($needFixFileIds) > 0) {
+                $this->batchFixParentIds($needFixFileIds, $sourceToNewIdMap, $userId);
+                $this->logger->info(sprintf('Fixed parent_id for %d files in fork record %d', count($needFixFileIds), $forkRecordId));
+            }
+
+            // Mark as finished
+            $this->projectForkRepository->updateStatus($forkRecordId, ForkStatus::FINISHED->value, 100, '');
+            $this->logger->info(sprintf('File migration finished for fork record %d.', $forkRecordId));
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('File migration failed for fork record %d: %s', $forkRecordId, $e->getMessage()));
+            $this->projectForkRepository->updateStatus($forkRecordId, ForkStatus::FAILED->value, 0, 'File migration failed');
+            throw $e;
+        }
+    }
+
+    /**
      * @return TaskFileEntity[]
      */
     public function getProjectFilesByIds(int $projectId, array $fileIds): array
@@ -1782,6 +1909,87 @@ class TaskFileDomainService
         }
 
         return false; // It's not a hidden file
+    }
+
+    /**
+     * Helper to copy TaskFileEntity properties for forking.
+     *
+     * @param TaskFileEntity $sourceFile Source file entity
+     * @param string $userId User ID creating the file
+     * @param string $organizationCode Organization code
+     * @param int $projectId New project ID for the fork
+     * @param int $topicId New topic ID for the fork
+     * @param string $newFileKey New file key for the fork
+     * @param null|int $parentId Parent ID for the new file (null to keep original mapping logic)
+     * @return TaskFileEntity New task file entity
+     */
+    private function copyTaskFileEntity(
+        TaskFileEntity $sourceFile,
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        int $topicId,
+        string $newFileKey,
+        ?int $parentId = null
+    ): TaskFileEntity {
+        $newTaskFile = new TaskFileEntity();
+        $newTaskFile->setFileId(IdGenerator::getSnowId());
+        $newTaskFile->setProjectId($projectId);
+        $newTaskFile->setTopicId($topicId);
+        $newTaskFile->setFileType($sourceFile->getFileType());
+        $newTaskFile->setFileName($sourceFile->getFileName());
+        $newTaskFile->setFileExtension($sourceFile->getFileExtension());
+        $newTaskFile->setFileKey($newFileKey);
+        $newTaskFile->setFileSize($sourceFile->getFileSize());
+        $newTaskFile->setIsHidden($sourceFile->getIsHidden());
+        $newTaskFile->setIsDirectory($sourceFile->getIsDirectory());
+
+        // Use provided parentId or fall back to source file's parentId
+        $newTaskFile->setParentId($parentId);
+
+        $newTaskFile->setSort($sourceFile->getSort());
+        $newTaskFile->setStorageType($sourceFile->getStorageType());
+        $newTaskFile->setMetadata($sourceFile->getMetadata());
+        $newTaskFile->setUserId($userId);
+        $newTaskFile->setOrganizationCode($organizationCode);
+        $newTaskFile->setSource(TaskFileSource::DEFAULT->value);
+        $newTaskFile->setCreatedAt(date('Y-m-d H:i:s'));
+        $newTaskFile->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        return $newTaskFile;
+    }
+
+    /**
+     * Batch fix parent_id for files that couldn't be resolved during initial processing.
+     *
+     * @param array $needFixFileIds Array of files needing parent_id fixes
+     * @param array $sourceToNewIdMap Mapping from source file ID to new file ID
+     * @param string $userId User performing the update
+     */
+    private function batchFixParentIds(array $needFixFileIds, array $sourceToNewIdMap, string $userId): void
+    {
+        // Group files by their old parent_id for batch processing
+        $parentGroups = [];
+        foreach ($needFixFileIds as $fixInfo) {
+            $oldParentId = $fixInfo['old_parent_id'];
+            $newFileId = $fixInfo['new_id'];
+
+            if (isset($sourceToNewIdMap[$oldParentId])) {
+                $newParentId = $sourceToNewIdMap[$oldParentId];
+                $parentGroups[$newParentId][] = $newFileId;
+            }
+        }
+
+        // Batch update files by parent_id groups using repository
+        foreach ($parentGroups as $newParentId => $fileIds) {
+            $updatedCount = $this->taskFileRepository->batchUpdateParentId($fileIds, $newParentId, $userId);
+            $this->logger->debug(sprintf(
+                'Updated parent_id to %d for %d files (affected: %d)',
+                $newParentId,
+                count($fileIds),
+                $updatedCount
+            ));
+        }
     }
 
     /**
