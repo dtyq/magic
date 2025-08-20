@@ -55,13 +55,16 @@ class ResponseMiddleware implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // 提前记录请求日志、请求 url、请求头
-        $this->logger->info('请求跟踪开始', [
-            'url' => $request->getRequestTarget(),
-            'method' => $request->getMethod(),
-            'headers' => $this->desensitizeRequestHeaders($request->getHeaders()),
-            'remote_addr' => $request->getServerParams()['remote_addr'] ?? '',
-        ]);
+        $path = $request->getUri()->getPath();
+        if (! in_array($path, $this->ignoreUris, true)) {
+            // 提前记录请求日志、请求 url、请求头
+            $this->logger->info('请求跟踪开始', [
+                'url' => $request->getRequestTarget(),
+                'method' => $request->getMethod(),
+                'headers' => $this->desensitizeRequestHeaders($request->getHeaders()),
+                'remote_addr' => $request->getServerParams()['remote_addr'] ?? '',
+            ]);
+        }
 
         $startTime = microtime(true);
         try {
