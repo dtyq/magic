@@ -9,6 +9,7 @@ namespace App\Application\Flow\Service;
 
 use App\Application\Flow\ExecuteManager\Attachment\AttachmentUtil;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
+use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionDataUtil;
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionType;
 use App\Application\Flow\ExecuteManager\ExecutionData\Operator;
 use App\Application\Flow\ExecuteManager\ExecutionData\TriggerData;
@@ -111,6 +112,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         if ($flowData['agent_version']) {
             $executionData->setInstructionConfigs($flowData['agent_version']->getInstructs());
         }
+        ExecutionDataUtil::appendTriggerTopInfo($flowData, $executionData);
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
         $executor->execute();
 
@@ -170,6 +172,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             $executionData->setInstructionConfigs($flowData['agent_version']->getInstructs());
         }
         $executionData->setStream($apiChatDTO->isStream(), $apiChatDTO->getVersion());
+        ExecutionDataUtil::appendTriggerTopInfo($flowData, $executionData);
         $executor = new MagicFlowExecutor($magicFlow, $executionData, async: $apiChatDTO->isAsync());
         if ($apiChatDTO->isStream()) {
             FlowEventStreamManager::get();
@@ -232,6 +235,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             originConversationId: $originConversationId,
             executionType: ExecutionType::SKApi,
         );
+        ExecutionDataUtil::appendTriggerTopInfo($flowData, $executionData);
         $executor = new MagicFlowExecutor($magicFlow, $executionData, async: $apiChatDTO->isAsync());
         $executor->execute();
         if ($apiChatDTO->isAsync()) {
@@ -297,6 +301,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         if ($flowData['agent_version']) {
             $executionData->setInstructionConfigs($flowData['agent_version']->getInstructs());
         }
+        ExecutionDataUtil::appendTriggerTopInfo($flowData, $executionData);
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
         $executor->execute();
 
@@ -349,6 +354,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             originConversationId: $originConversationId,
             executionType: ExecutionType::SKApi,
         );
+        ExecutionDataUtil::appendTriggerTopInfo($flowData, $executionData);
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
         $executor->execute();
         return [
@@ -425,6 +431,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
                 $magicFlow->setAgentId($agent->getId());
             }
         }
+        ExecutionDataUtil::appendTriggerTopInfo(['flow' => $magicFlow], $executionData);
         $executor = new MagicFlowExecutor($magicFlow, $executionData);
 
         $executor->execute();
@@ -448,6 +455,10 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             $magicAgentEntity = $this->magicAgentDomainService->getByFlowCode($magicFlowEntity->getCode());
             $magicFlowEntity->setAgentId($magicAgentEntity->getId());
         }
+        $flowData = [
+            'flow' => $magicFlowEntity,
+            'agent' => $magicAgentEntity ?? null,
+        ];
 
         $triggerType = TriggerType::tryFrom($triggerConfig['trigger_type'] ?? 0);
         if ($triggerType === null) {
@@ -502,6 +513,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         $executionData->setTopicId($topicId);
         $executionData->setAgentId($magicFlowEntity->getAgentId());
         $executionData->setDebug((bool) ($triggerConfig['debug'] ?? false));
+        ExecutionDataUtil::appendTriggerTopInfo($flowData, $executionData);
         // 运行流程图，检测是否可以运行
         $executor = new MagicFlowExecutor($magicFlowEntity, $executionData);
         $executor->execute();

@@ -16,6 +16,10 @@ return [
         'callback_host' => \Hyperf\Support\env('APP_HOST', ''),
         'deployment_id' => \Hyperf\Support\env('DEPLOYMENT_ID', ''),
     ],
+    'magic-gateway' => [
+        'magic_api_key' => \Hyperf\Support\env('MAGIC_API_KEY', ''),
+        'api_url' => \Hyperf\Support\env('MAGIC_API_SERVICE_BASE_URL', ''),
+    ],
     'share' => [
         'encrypt_key' => \Hyperf\Support\env('SHARE_ENCRYPT_KEY', ''),
         'encrypt_iv' => \Hyperf\Support\env('SHARE_ENCRYPT_IV', ''),

@@ -220,7 +220,7 @@ return [
                 'read' => 300.0,      // 读取超时（秒）
                 'total' => 350.0,     // 总体超时（秒）
                 'thinking' => 120.0,  // 思考超时（秒）
-                'stream_chunk' => 30.0, // 流式块间超时（秒）
+                'stream_chunk' => 60.0, // 流式块间超时（秒）
                 'stream_first' => 60.0, // 首个流式块超时（秒）
             ],
             'custom_error_mapping_rules' => [],

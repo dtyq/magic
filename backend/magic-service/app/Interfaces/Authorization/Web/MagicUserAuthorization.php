@@ -22,6 +22,9 @@ use App\Infrastructure\Core\Contract\Session\SessionInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Qbhy\HyperfAuth\Authenticatable;
 
+/**
+ * 如果改了这个类的名称/属性/命名空间，请修改 WebUserGuard.php 的 cacheKey ，避免缓存无法还原
+ */
 class MagicUserAuthorization extends AbstractAuthorization
 {
     /**

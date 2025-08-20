@@ -144,6 +144,15 @@ class TosSimpleUpload extends SimpleUpload
         $appendUploadFile->setPosition($appendUploadFile->getPosition() + $appendUploadFile->getSize());
     }
 
+    public function destroyByCredential(array $credential, string $fileKey): void
+    {
+        // 转换credential格式为SDK配置
+        $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+        // 创建TOS官方SDK客户端
+        $tosClient = new TosClient($sdkConfig);
+    }
+
     /**
      * 使用STS token进行简单上传（适用于小文件）.
      *

@@ -56,13 +56,13 @@ class HandleUserMessageAppService extends AbstractAppService
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -76,6 +76,10 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         // Get topic information
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getChatTopicId());
+
+        // 检查项目是否有权限
+        $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
         if (is_null($topicEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
@@ -98,7 +102,7 @@ class HandleUserMessageAppService extends AbstractAppService
         // Send interrupt message directly to client
         $this->clientMessageAppService->sendInterruptMessageToClient(
             topicId: $topicEntity->getId(),
-            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+            taskId: (string) ($topicEntity->getCurrentTaskId() ?? '0'),
             chatTopicId: $dto->getChatTopicId(),
             chatConversationId: $dto->getChatConversationId(),
             interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
@@ -176,6 +180,9 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $topicId = $topicEntity->getId();
 
+            // 检查项目是否有权限
+            $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
 
@@ -228,6 +235,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
+                messageId: $userMessageDTO->getMessageId(),
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
@@ -286,7 +294,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 chatConversationId: $userMessageDTO->getChatConversationId(),
                 errorMessage: trans('task.initialize_error'),
             );
-            throw new BusinessException('Initialize task failed', 500);
+            throw new BusinessException('Initialize task failed', 500, $e);
         }
     }
 
@@ -306,7 +314,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
         AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds));
-        $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+        $this->logger->info(sprintf('Dispatched task start event for , topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
     /**
@@ -413,11 +421,13 @@ class HandleUserMessageAppService extends AbstractAppService
             attachments: $attachmentsArray,
             mentions: $mentionsArray,
             showInUi: true,
-            messageId: null
+            messageId: $userMessageDTO->getMessageId(),
+            imSeqId: (int) $userMessageDTO->getMessageSeqId()
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
         $taskMessageEntity->setProcessingStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
+        $this->logger->info(sprintf('Saved user message, task id: %s, message id: %s, im seq id: %d', $taskEntity->getId(), $taskMessageEntity->getId(), $taskMessageEntity->getImSeqId()));
         $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
         // Process user uploaded attachments

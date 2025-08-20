@@ -121,11 +121,11 @@ class ResponseMiddleware implements MiddlewareInterface
             'parsed_body' => $parsedBody,
         ];
         $responseBody = $errorResponse ?? $response;
-        // 大于 50K 的数据不记录
-        if (strlen($responseBody) > 50 * 1024) {
+        // 大于 5K 的数据不记录
+        if (strlen($responseBody) > 5 * 1024) {
             $responseBody = 'ResponseBodyIsTooLarge';
         }
-        if (strlen(serialize($requestBody)) > 50 * 1024) {
+        if (strlen(serialize($requestBody)) > 5 * 1024) {
             $requestBody = 'RequestBodyIsTooLarge';
         }
 

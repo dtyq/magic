@@ -48,6 +48,8 @@ class TokenUsageTracker:
         self._lock = threading.Lock()
         # 报告管理器
         self._report_manager: Optional['TokenUsageReport'] = None
+        # 存储最近一次记录的TokenUsage
+        self._last_recorded_usage: Optional[TokenUsage] = None
 
     def add_usage(self, model_id: str, token_usage: TokenUsage) -> None:
         """添加token使用记录
@@ -123,6 +125,15 @@ class TokenUsageTracker:
 
         # 记录解析后的token_usage对象
         logger.debug(f"记录LLM使用量 - 解析后的token_usage: {token_usage.to_dict()}, model_id={model_id}")
+
+        # token_usage.model_id = 配置文件中的 name 字段的值
+        # token_usage.model_name = 配置键
+        token_usage.model_id = model_name if model_name else model_id 
+        token_usage.model_name = model_id
+
+        # 存储最近一次的TokenUsage
+        with self._lock: # 确保线程安全地更新 _last_recorded_usage
+            self._last_recorded_usage = token_usage
 
         # 添加使用记录到跟踪器
         self.add_usage(model_id, token_usage)
@@ -226,6 +237,17 @@ class TokenUsageTracker:
             self._usage.clear()
             logger.info("TokenUsageTracker已重置")
 
+    def get_last_recorded_usage(self) -> Optional[TokenUsage]:
+        """获取最近一次通过 record_llm_usage 记录的 TokenUsage 对象。
+
+        Returns:
+            Optional[TokenUsage]: 最近一次记录的TokenUsage，如果还没有记录则为None。
+        """
+        with self._lock: # 确保线程安全地读取
+            # 可以返回一个深拷贝以防止外部修改，如果 TokenUsage 对象是可变的
+            # 但如果 TokenUsage 是 Pydantic 模型（通常是不可变的或推荐视为不可变），直接返回也可
+            return copy.deepcopy(self._last_recorded_usage) if self._last_recorded_usage else None
+
     def get_formatted_report(self) -> str:
         """获取格式化的报告（一步到位）
 
@@ -259,3 +281,46 @@ class TokenUsageTracker:
             # 使用报告管理器生成完整报告
             cost_report = self._report_manager.get_cost_report()
             return self._report_manager.format_report(cost_report)
+        
+    def get_usage_report(self) -> 'TokenUsageReport':
+        """获取token使用报告（汇总格式）
+        
+        优先从内存中获取数据，如果内存为空则从报告管理器的文件中获取
+        
+        Returns:
+            TokenUsageReport: 包含所有模型token使用统计的汇总报告
+            如果没有使用记录，返回空的汇总报告
+        """
+        from agentlang.llms.token_usage.models import TokenUsageReport, TokenUsage
+        
+        usages = []
+        
+        # 首先尝试从内存中获取数据
+        with self._lock:
+            if self._usage:
+                # 内存中有数据，直接使用
+                for model_id, usage in self._usage.items():
+                    # 复制并设置模型ID和名称
+                    model_usage = TokenUsage(
+                        input_tokens=usage.input_tokens,
+                        output_tokens=usage.output_tokens,
+                        total_tokens=usage.total_tokens,
+                        input_tokens_details=usage.input_tokens_details,
+                        output_tokens_details=usage.output_tokens_details,
+                        model_id=model_id,
+                        model_name=model_id
+                    )
+                    usages.append(model_usage)
+        
+        # 如果内存中没有数据，但有报告管理器，则从文件中获取
+        if not usages and self._report_manager:
+            try:
+                cost_report = self._report_manager.get_cost_report()
+                # 将CostReport转换为TokenUsageReport
+                return TokenUsageReport.from_cost_report(cost_report)
+            except Exception as e:
+                logger.warning(f"从报告管理器获取数据失败: {e}")
+        
+        # 创建汇总报告
+        return TokenUsageReport.create_summary_report(usages)
+

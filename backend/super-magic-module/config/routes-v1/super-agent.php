@@ -7,8 +7,10 @@ declare(strict_types=1);
 use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\RequestContextMiddlewareV2;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SuperAgentMemoryApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
@@ -55,7 +57,13 @@ Router::addGroup(
             Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
             // 获取附件列表
             Router::get('/{id}/cloud-files', [ProjectApi::class, 'getCloudFiles']);
+            // 获取项目协作成员
+            Router::get('/{id}/members', [ProjectMemberApi::class, 'getMembers']);
+            // 更新项目协作成员
+            Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
         });
+        // 获取协作项目列表
+        Router::get('/collaboration-projects', [ProjectMemberApi::class, 'getCollaborationProjects']);
 
         // 话题相关
         Router::addGroup('/topics', static function () {
@@ -71,6 +79,8 @@ Router::addGroup(
             Router::post('/delete', [TopicApi::class, 'deleteTopic']);
             // 智能重命名话题
             Router::post('/rename', [TopicApi::class, 'renameTopic']);
+            // 回滚检查点
+            Router::post('/{id}/checkpoint/rollback', [TopicApi::class, 'rollbackCheckpoint']);
         });
 
         // 任务相关
@@ -106,6 +116,8 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 批量移动文件
+            Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件
             Router::post('/batch-delete', [FileApi::class, 'batchDeleteFiles']);
 
@@ -116,6 +128,20 @@ Router::addGroup(
                 // 检查批量下载状态
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
+
+            // 批量操作状态查询
+            Router::addGroup('/batch-operation', static function () {
+                // 检查批量操作状态
+                Router::get('/check', [FileApi::class, 'checkBatchOperationStatus']);
+            });
+
+            // 文件编辑状态管理
+            // 加入编辑
+            Router::post('/{fileId}/join-editing', [FileEditingApi::class, 'joinEditing']);
+            // 离开编辑
+            Router::post('/{fileId}/leave-editing', [FileEditingApi::class, 'leaveEditing']);
+            // 获取编辑用户数量
+            Router::get('/{fileId}/editing-users', [FileEditingApi::class, 'getEditingUsers']);
         });
 
         Router::addGroup('/sandbox', static function () {
@@ -142,6 +168,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
 
     // 获取任务附件 （需要替换一下这个名称）
     Router::post('/tasks/get-file-url', [FileApi::class, 'getFileUrls']);
+    // 批量转换文件为 PDF
+    Router::post('/tasks/pdf/conversions', [TaskApi::class, 'convertFilesToPdf']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
@@ -193,7 +221,7 @@ Router::addGroup('/api/v1/open-api/super-magic', static function () {
     Router::put('/task/status', [OpenTaskApi::class, 'updateTaskStatus']);
 
     // // 获取任务
-    // Router::get('/task/{id}', [OpenTaskApi::class, 'getOpenApiTask']);
+    Router::get('/task/{taskId}', [OpenTaskApi::class, 'getTask']);
     // // 获取任务列表
     // Router::get('/tasks', [OpenTaskApi::class, 'getOpenApiTaskList']);
 

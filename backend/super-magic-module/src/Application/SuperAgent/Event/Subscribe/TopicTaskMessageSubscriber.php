@@ -139,9 +139,8 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                     date('Y-m-d H:i:s', $actualOriginalTimestamp),
                     $messageDTO->getPayload()?->getMessageId()
                 ));
-                return Result::REQUEUE;
+                return Result::ACK;
             }
-
             $this->logger->info(sprintf(
                 '已获取sandbox %s的锁，持有者: %s，开始处理消息，原始接收秒级时间: %d (%s), message_id: %s',
                 $sandboxId,
@@ -190,7 +189,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
 
     public function acquireLock(string $lockKey, string $lockOwner, int $lockExpireSeconds): bool
     {
-        return $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+        return $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
     }
 
     /**

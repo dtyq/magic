@@ -36,6 +36,8 @@ class ProviderConfigEntity extends AbstractEntity
 
     protected ?DateTime $deletedAt = null;
 
+    protected int $sort = 0;
+
     private ?ProviderCode $providerCode = null;
 
     public function getId(): ?int
@@ -248,6 +250,20 @@ class ProviderConfigEntity extends AbstractEntity
     public function disable(): void
     {
         $this->status = Status::Disabled;
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(null|int|string $sort): void
+    {
+        if ($sort === null) {
+            $this->sort = 0;
+        } else {
+            $this->sort = (int) $sort;
+        }
     }
 
     public function i18n(string $languages): void

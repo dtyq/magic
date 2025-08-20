@@ -27,7 +27,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\InitSandboxRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UserInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InitSandboxResponseDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -89,7 +88,10 @@ class SandboxApi extends AbstractApi
         }
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
-        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, '');
+        // 判断请求头是否存在magic-user-id
+        $magicUserId = $this->request->header('magic-user-id', '');
+
+        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, $magicUserId);
 
         if (empty($userEntity)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_found');
@@ -200,7 +202,7 @@ class SandboxApi extends AbstractApi
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
-            $project = $this->projectAppService->getProject((int) $projectId, $userId);
+            $project = $this->projectAppService->getProject($requestContext, (int) $projectId);
             if (empty($project->getId())) {
                 // 抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');

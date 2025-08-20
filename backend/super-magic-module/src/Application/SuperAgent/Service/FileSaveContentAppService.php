@@ -10,7 +10,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SuperMagicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
@@ -31,7 +30,6 @@ class FileSaveContentAppService extends AbstractAppService
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly AgentDomainService $agentDomainService,
         private readonly SuperMagicDomainService $superMagicDomainService,
@@ -68,7 +66,7 @@ class FileSaveContentAppService extends AbstractAppService
                 return [];
             }
             $projectId = $fileDataList[0]['project_id'];
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userAuth->getId());
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuth->getId(), $userAuth->getOrganizationCode());
 
             // 3. 根据项目创建一个沙箱
             $projectId = (string) $projectId;
@@ -82,6 +80,7 @@ class FileSaveContentAppService extends AbstractAppService
             $this->agentDomainService->waitForSandboxReady($sandboxId);
 
             // 5, 调用文件接口
+
             $result = $this->superMagicDomainService->saveFileData($sandboxId, $fileDataList, $projectEntity->getWorkDir());
             $this->logger->info('[SandboxFileEdit] File save completed', [
                 'user_id' => $userAuth->getId(),

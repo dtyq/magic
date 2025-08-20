@@ -1,0 +1,211 @@
+services:
+  - mysql
+
+stages:
+  - build
+  - quality  # 代码质量检测
+#  - test
+#  - coverage
+#  - deploy
+
+build-job:
+  stage: build
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+  before_script:
+    - |
+      sh backend/magic-service/.ci/clear_containers.sh
+  script:
+    # 先构建个镜像
+    - |
+      docker buildx build \
+        --progress plain \
+        --force-rm \
+        -f backend/magic-service/.ci/Dockerfile \
+        --build-arg CI_JOB_TOKEN=$CI_JOB_TOKEN \
+        --secret id=composer,src="$COMPOSER_AUTH_JSON" \
+        -t brd/magic-service-test:$CI_COMMIT_SHA \
+        backend/magic-service/
+  interruptible: true
+
+analyse-job:
+  stage: quality
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+  needs: ["build-job"]
+  script:
+    # 检查 DOT_ENV 是否存在且为文件
+    - |
+      if [ ! -f "$DOT_ENV" ]; then
+        echo "错误: DOT_ENV 变量指向的文件不存在或不是文件: $DOT_ENV"
+        echo "请检查 GitLab CI/CD 变量配置"
+        exit 1
+      fi
+    # 再运行它
+    # 设置下容器名字防止多个实例一起跑，可以去掉--name那个参数来允许并行
+    - |
+      docker run \
+        --rm \
+        -v "$DOT_ENV":/opt/www/.env:ro,z \
+        -v /tmp/phpstan-magic-service:/tmp/phpstan:rw,z \
+        brd/magic-service-test:$CI_COMMIT_SHA \
+        sh -c 'php bin/hyperf.php && composer analyse'
+  interruptible: true
+
+cs-fix-job:
+  stage: quality
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+  needs: ["build-job"]
+  script:
+    # 检查 DOT_ENV 是否存在且为文件
+    - |
+      if [ ! -f "$DOT_ENV" ]; then
+        echo "错误: DOT_ENV 变量指向的文件不存在或不是文件: $DOT_ENV"
+        echo "请检查 GitLab CI/CD 变量配置"
+        exit 1
+      fi
+    # 再运行它
+    # 设置下容器名字防止多个实例一起跑，可以去掉--name那个参数来允许并行
+    - |
+      docker run \
+          --rm \
+          -v "$DOT_ENV":/opt/www/.env:ro,z \
+          -v /tmp/cs-fix-magic-service:/root/.php-cs-fixer/cache:rw,z \
+          brd/magic-service-test:$CI_COMMIT_SHA \
+          php vendor/bin/php-cs-fixer fix --dry-run -vvv --using-cache=yes
+  interruptible: true
+
+test-job:
+  stage: test
+  needs:
+    - "analyse-job"
+    - "cs-fix-job"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+  before_script:
+    - |
+      docker rm -f magic-service-test-$CI_COMMIT_SHA || true
+    - docker rm -f magic-service-mysql-$CI_COMMIT_SHA || true
+    - docker rm -f magic-service-rabbitmq-$CI_COMMIT_SHA || true
+    - docker rm -f magic-service-redis-$CI_COMMIT_SHA || true
+  script:
+    # 检查 DOT_ENV 是否存在且为文件
+    - |
+      if [ ! -f "$DOT_ENV" ]; then
+        echo "错误: DOT_ENV 变量指向的文件不存在或不是文件: $DOT_ENV"
+        echo "请检查 GitLab CI/CD 变量配置"
+        exit 1
+      fi
+    # 启动mysql容器 - 使用AWS ECR公共镜像
+    - |
+      docker run \
+      --name magic-service-mysql-$CI_COMMIT_SHA \
+      -e MYSQL_ROOT_PASSWORD=magic -e MYSQL_DATABASE=magic \
+      -d public.ecr.aws/docker/library/mysql:8.0.32
+    # 启动rabbitmq容器 - 使用AWS ECR公共镜像
+    - |
+      docker run \
+      --name magic-service-rabbitmq-$CI_COMMIT_SHA \
+      -e RABBITMQ_DEFAULT_USER=guest \
+      -e RABBITMQ_DEFAULT_PASS=guest \
+      -d public.ecr.aws/docker/library/rabbitmq:3-management
+    # 启动redis容器 - 使用AWS ECR公共镜像
+    - |
+      docker run \
+      --name magic-service-redis-$CI_COMMIT_SHA \
+      -d public.ecr.aws/docker/library/redis:6.2.5
+    # 等待mysql启动
+    - sleep 15
+    # 检查容器状态
+    - docker ps | grep magic-service-mysql-$CI_COMMIT_SHA
+    - docker ps | grep magic-service-rabbitmq-$CI_COMMIT_SHA
+    - docker ps | grep magic-service-redis-$CI_COMMIT_SHA
+    # 执行迁移
+    - |
+      docker run \
+      --rm \
+      --link magic-service-mysql-$CI_COMMIT_SHA:magic-service-mysql \
+      --link magic-service-rabbitmq-$CI_COMMIT_SHA:magic-service-rabbitmq \
+      --link magic-service-redis-$CI_COMMIT_SHA:magic-service-redis \
+      -v "$DOT_ENV":/opt/www/.env:ro,z \
+      brd/magic-service-test:$CI_COMMIT_SHA \
+      sh -c 'php bin/hyperf.php migrate'
+    - |
+      docker run \
+      --name magic-service-test-$CI_COMMIT_SHA \
+      --link magic-service-mysql-$CI_COMMIT_SHA:magic-service-mysql \
+      --link magic-service-rabbitmq-$CI_COMMIT_SHA:magic-service-rabbitmq \
+      --link magic-service-redis-$CI_COMMIT_SHA:magic-service-redis \
+      -v "$DOT_ENV":/opt/www/.env:ro,z \
+      brd/magic-service-test:$CI_COMMIT_SHA \
+      sh -c 'php bin/hyperf.php start & sleep 2; php bin/hyperf.php init-magic:data; exec php -dextension=pcov -dopcache.enable_cli=0 `which composer` test-library-with-pcov'
+  after_script:
+    - |
+      docker cp magic-service-test-$CI_COMMIT_SHA:/opt/www/coverage $(pwd)/coverage
+    - |
+      docker rm -f magic-service-test-$CI_COMMIT_SHA || true
+    - docker rm -f magic-service-mysql-$CI_COMMIT_SHA || true
+    - docker rm -f magic-service-rabbitmq-$CI_COMMIT_SHA || true
+    - docker rm -f magic-service-redis-$CI_COMMIT_SHA || true
+  artifacts:
+    paths:
+      - coverage
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura.xml
+    expire_in: 2h
+  interruptible: true
+
+coverage-job:
+  stage: coverage
+  needs: ["test-job"]
+  coverage: '/^\s*Lines:\s*\d+.\d+\%/'
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+  script:
+    - cat coverage/text.txt
+  interruptible: true
+
+page-job:
+  stage: deploy
+  needs: ["test-job"]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(enterprise-master|enterprise-pre-release|enterprise-released)$/'
+      changes:
+        - "backend/magic-service/**/*"
+  script:
+    - mv coverage/html/ public/
+  artifacts:
+    paths:
+      - public
+    expire_in: 2h
