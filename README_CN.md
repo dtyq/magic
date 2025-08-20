@@ -3,8 +3,7 @@
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
 </div>
 
-
-![麦吉开源产品矩阵](https://public-cdn.letsmagic.cn/static/img/super-magic-publish-header.png?v=20250515)
+![麦吉开源产品矩阵](https://public-cdn.letsmagic.ai/static/img/super-magic-publish-header.png?v=20250819)
 
 # 🔥 麦吉 - 首个开源一站式 AI 生产力平台
 
@@ -37,7 +36,7 @@
 
 麦吉是首个 **"开源的一站式 AI 生产力平台"**，它不是一个单一的 AI 产品，而是一个涵盖了丰富能力的全面的产品矩阵。
 
-![产品矩阵](https://public-cdn.letsmagic.cn/static/img/super-magic-open-source-projects.png?v=20250515)
+![产品矩阵](https://public-cdn.letsmagic.ai/static/img/super-magic-open-source-projects.png?v=20250819)
 
 - **[超级麦吉 Super Magic](https://github.com/dtyq/super-magic)** - 一个专为复杂任务场景设计的 **通用型 AI Agent**
 - **[麦吉聊天 Magic IM](https://github.com/dtyq/magic)** - 企业级的即时通讯系统，融合 AI Agent 对话与企业内部沟通
@@ -56,7 +55,7 @@
 
 一个强大的**通用型 AI Agent**，专门面向复杂任务场景设计。通过多 Agent 设计体系以及丰富的工具能力支持，超级麦吉支持**自主任务理解**、**自主任务规划**、**自主行动**、**自主纠错**等智能的能力。它能够理解自然语言指令，执行各类业务流程，并交付最终的目标结果。作为麦吉产品矩阵的旗舰产品，超级麦吉通过开源的方式提供了强大的二次开发能力，让企业能够快速构建和部署符合特定业务需求的智能助手，大幅提升决策效率和决策质量。
 
-![Super Magic](https://public-cdn.letsmagic.cn/static/img/super-magic-buffett.gif)
+![Super Magic](https://public-cdn.letsmagic.ai/static/img/super-magic-buffett.gif)
 
 #### 超级麦吉部分案例
 - [巴菲特 2025 年股东大会投资启示解析](https://www.letsmagic.cn/share/777665156986277889)
@@ -77,11 +76,11 @@
 - **自定义扩展**：支持自定义工具节点开发，满足特定业务场景的专属需求。
 - **实时调试监控**：提供完善的调试和监控功能，帮助快速识别和解决工作流中的问题，确保 AI 应用稳定运行。
 
-![Magic Flow](https://public-cdn.letsmagic.cn/static/img/magic-flow.png)
+![Magic Flow](https://public-cdn.letsmagic.ai/static/img/magic-flow.png)
 
 作为麦吉产品矩阵的重要组成部分，神奇流程可与其他麦吉产品无缝集成，打造完整的企业级 AI 应用生态。
 
-![Magic Multi-Agents and Events](https://public-cdn.letsmagic.cn/static/img/super-magic-multi-agents-and-events.png?v=20250515)
+![Magic Multi-Agents and Events](https://public-cdn.letsmagic.ai/static/img/super-magic-multi-agents-and-events.png?v=20250819)
 
 ### 麦吉对话 Magic IM
 
@@ -95,7 +94,7 @@
 - **多组织架构**：支持多组织部署和严格的组织数据隔离，每个组织拥有独立的数据空间和访问权限。
 - **数据安全**：严格的数据隔离和访问控制机制，多层次权限管理，保障企业敏感信息安全，确保组织间数据不互相泄露。
 
-![Magic IM](https://public-cdn.letsmagic.cn/static/img/magic-im-group-chat.png?v=20250515)
+![Magic IM](https://public-cdn.letsmagic.ai/static/img/magic-im-group-chat.png?v=20250819)
 
 ## 天书办公协同系统 Teamshare OS
 

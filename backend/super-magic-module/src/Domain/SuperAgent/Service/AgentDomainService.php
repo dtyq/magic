@@ -552,6 +552,7 @@ class AgentDomainService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'memory' => $memory,
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
             'memory' => $memory,
