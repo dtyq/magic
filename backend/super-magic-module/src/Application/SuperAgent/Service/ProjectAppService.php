@@ -288,8 +288,17 @@ class ProjectAppService extends AbstractAppService
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
+        $projectIds = [];
+        foreach ($result['list'] as $projectEntity) {
+            $projectIds[] = $projectEntity->getId();
+        }
+
+        // 新增方法，根据$projectIds，判断是否存在数据，如果存在则返回存在的projectIds
+        $projectMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIds);
+        $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
+
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap);
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember);
 
         return $listResponseDTO->toArray();
     }

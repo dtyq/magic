@@ -9,12 +9,12 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 
 /**
- * 项目成员实体
+ * 项目成员实体.
  *
  * 表示项目中的成员，支持用户和部门两种类型
  */
@@ -83,7 +83,7 @@ class ProjectMemberEntity extends AbstractEntity
     }
 
     /**
-     * 从字符串设置成员类型
+     * 从字符串设置成员类型.
      */
     public function setTargetTypeFromString(string $targetType): void
     {
@@ -160,21 +160,6 @@ class ProjectMemberEntity extends AbstractEntity
         $this->deletedAt = $deletedAt;
     }
 
-    /**
-     * 验证实体数据完整性
-     */
-    private function validateEntity(): void
-    {
-        if (empty($this->targetId)) {
-            return; // 允许初始化时为空
-        }
-
-        // 基本验证：确保targetId有值
-        if (empty(trim($this->targetId))) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::MEMBER_VALIDATION_FAILED);
-        }
-    }
-
     public static function modelToEntity(array $data): ProjectMemberEntity
     {
         $entity = new ProjectMemberEntity();
@@ -192,7 +177,7 @@ class ProjectMemberEntity extends AbstractEntity
     }
 
     /**
-     * 转换为数组格式
+     * 转换为数组格式.
      */
     public function toArray(): array
     {
@@ -208,5 +193,20 @@ class ProjectMemberEntity extends AbstractEntity
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
         ];
+    }
+
+    /**
+     * 验证实体数据完整性.
+     */
+    private function validateEntity(): void
+    {
+        if (empty($this->targetId)) {
+            return; // 允许初始化时为空
+        }
+
+        // 基本验证：确保targetId有值
+        if (empty(trim($this->targetId))) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::MEMBER_VALIDATION_FAILED);
+        }
     }
 }

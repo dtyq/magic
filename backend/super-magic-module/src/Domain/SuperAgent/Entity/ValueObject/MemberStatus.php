@@ -34,7 +34,7 @@ enum MemberStatus: int
     }
 
     /**
-     * 获取描述
+     * 获取描述.
      */
     public function getDescription(): string
     {

@@ -31,6 +31,11 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
     public string $workspaceId = '';
 
     /**
+     * name.
+     */
+    public string $name = '';
+
+    /**
      * Get page number.
      */
     public function getPage(): int
@@ -76,6 +81,16 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
     public function getWorkspaceId(): ?int
     {
         return $this->workspaceId ? (int) $this->workspaceId : null;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): void
+    {
+        $this->name = $name;
     }
 
     /**
