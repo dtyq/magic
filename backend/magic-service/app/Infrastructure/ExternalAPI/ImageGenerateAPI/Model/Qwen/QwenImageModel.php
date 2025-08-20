@@ -7,10 +7,11 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
@@ -19,22 +20,17 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateRespon
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
-use Hyperf\Di\Annotation\Inject;
 use Hyperf\Engine\Coroutine;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Hyperf\Retry\Annotation\Retry;
-use Psr\Log\LoggerInterface;
 
-class QwenImageModel implements ImageGenerate
+class QwenImageModel extends AbstractImageGenerate
 {
     // 最大轮询重试次数
     private const MAX_RETRY_COUNT = 30;
 
     // 轮询重试间隔（秒）
     private const RETRY_INTERVAL = 2;
-
-    #[Inject]
-    protected LoggerInterface $logger;
 
     private QwenImageAPI $api;
 
@@ -45,12 +41,43 @@ class QwenImageModel implements ImageGenerate
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, '通义千问API Key不能为空');
         }
 
-        $this->api = new QwenImageAPI($apiKey, $this->logger);
+        $this->api = new QwenImageAPI($apiKey);
     }
 
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        return $this->generateImageRawInternal($imageGenerateRequest);
+    }
+
+    public function setAK(string $ak)
+    {
+        // 通义千问不使用AK/SK认证，此方法为空实现
+    }
+
+    public function setSK(string $sk)
+    {
+        // 通义千问不使用AK/SK认证，此方法为空实现
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        $this->api->setApiKey($apiKey);
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+
+        return $this->processQwenRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResults = $this->generateImageRawInternal($imageGenerateRequest);
 
         // 从原生结果中提取图片URL
         $imageUrls = [];
@@ -69,30 +96,10 @@ class QwenImageModel implements ImageGenerate
         return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
     }
 
-    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
-    {
-        return $this->generateImageInternal($imageGenerateRequest);
-    }
-
-    public function setAK(string $ak)
-    {
-        // 通义千问不使用AK/SK认证，此方法为空实现
-    }
-
-    public function setSK(string $sk)
-    {
-        // 通义千问不使用AK/SK认证，此方法为空实现
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        $this->api->setApiKey($apiKey);
-    }
-
     /**
      * 生成图像的核心逻辑，返回原生结果.
      */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof QwenImageModelRequest) {
             $this->logger->error('通义千问文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
@@ -100,7 +107,7 @@ class QwenImageModel implements ImageGenerate
         }
 
         // 其他文生图是 x ，阿里是 * ，保持上游一致，最终传入还是 *
-        $size = $imageGenerateRequest->getWidth()."x".$imageGenerateRequest->getHeight();
+        $size = $imageGenerateRequest->getWidth() . 'x' . $imageGenerateRequest->getHeight();
 
         // 校验图片尺寸
         $this->validateImageSize($size, $imageGenerateRequest->getModel());
@@ -199,7 +206,7 @@ class QwenImageModel implements ImageGenerate
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
     )]
-    #[RateLimit(create: 4, consume: 1, capacity: 0, key: ImageGenerate::IMAGE_GENERATE_KEY_PREFIX . ImageGenerate::IMAGE_GENERATE_SUBMIT_KEY_PREFIX . ImageGenerateModelType::QwenImage->value, waitTimeout: 60)]
+    #[RateLimit(create: 4, consume: 1, capacity: 0, key: self::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_SUBMIT_KEY_PREFIX . ImageGenerateModelType::QwenImage->value, waitTimeout: 60)]
     private function submitAsyncTask(QwenImageModelRequest $request): string
     {
         $prompt = $request->getPrompt();
@@ -207,10 +214,10 @@ class QwenImageModel implements ImageGenerate
         try {
             $params = [
                 'prompt' => $prompt,
-                'size' => $request->getWidth().'*'.$request->getHeight(),
+                'size' => $request->getWidth() . '*' . $request->getHeight(),
                 'n' => 1, // 通义千问每次只能生成1张图片
                 'model' => $request->getModel(),
-                'watermark' => $request->isWatermark(),
+                'watermark' => false, // 关闭API水印，使用统一PHP水印
                 'prompt_extend' => $request->isPromptExtend(),
             ];
 
@@ -240,7 +247,7 @@ class QwenImageModel implements ImageGenerate
         }
     }
 
-    #[RateLimit(create: 18, consume: 1, capacity: 0, key: ImageGenerate::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::QwenImage->value, waitTimeout: 60)]
+    #[RateLimit(create: 18, consume: 1, capacity: 0, key: self::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::QwenImage->value, waitTimeout: 60)]
     #[Retry(
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
@@ -397,5 +404,36 @@ class QwenImageModel implements ImageGenerate
                 ]
             );
         }
+    }
+
+    /**
+     * 为通义千问原始数据添加水印.
+     */
+    private function processQwenRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    {
+        foreach ($rawData as $index => &$result) {
+            if (! isset($result['output']['results'])) {
+                continue;
+            }
+
+            try {
+                // 处理 results 数组中的图片URL
+                foreach ($result['output']['results'] as $i => &$resultItem) {
+                    if (! empty($resultItem['url'])) {
+                        $resultItem['url'] = $this->watermarkProcessor->addWatermarkToUrl($resultItem['url'], $watermarkConfig);
+                    }
+                }
+                unset($resultItem);
+            } catch (Exception $e) {
+                // 水印处理失败时，记录错误但不影响图片返回
+                $this->logger->error('通义千问图片水印处理失败', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                ]);
+                // 继续处理下一张图片，当前图片保持原始状态
+            }
+        }
+
+        return $rawData;
     }
 }

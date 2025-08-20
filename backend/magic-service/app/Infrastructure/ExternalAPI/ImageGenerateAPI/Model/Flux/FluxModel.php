@@ -7,46 +7,69 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AbstractDingTalkAlert;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
-use Hyperf\Di\Annotation\Inject;
 use Hyperf\Engine\Coroutine;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Hyperf\Retry\Annotation\Retry;
-use Psr\Log\LoggerInterface;
 
-class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
+class FluxModel extends AbstractImageGenerate
 {
     protected const MAX_RETRIES = 20;
 
     protected const RETRY_INTERVAL = 10;
 
-    #[Inject]
-    protected LoggerInterface $logger;
-
     protected FluxAPI $api;
 
     public function __construct(ProviderConfigItem $serviceProviderConfig)
     {
-        parent::__construct();
         $this->api = new FluxAPI($serviceProviderConfig->getApiKey());
-        $this->balanceThreshold = 100;
     }
 
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        return $this->generateImageRawInternal($imageGenerateRequest);
+    }
+
+    public function setAK(string $ak)
+    {
+        // TODO: Implement setAK() method.
+    }
+
+    public function setSK(string $sk)
+    {
+        // TODO: Implement setSK() method.
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        $this->api->setApiKey($apiKey);
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+        return $this->processFluxRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResults = $this->generateImageRawInternal($imageGenerateRequest);
 
         // 从原生结果中提取图片URL
         $imageUrls = [];
@@ -74,30 +97,10 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
         return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
     }
 
-    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
-    {
-        return $this->generateImageInternal($imageGenerateRequest);
-    }
-
-    public function setAK(string $ak)
-    {
-        // TODO: Implement setAK() method.
-    }
-
-    public function setSK(string $sk)
-    {
-        // TODO: Implement setSK() method.
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        $this->api->setApiKey($apiKey);
-    }
-
     /**
      * 请求生成图片并返回任务ID.
      */
-    #[RateLimit(create: 20, consume: 1, capacity: 0, key: ImageGenerate::IMAGE_GENERATE_KEY_PREFIX . ImageGenerate::IMAGE_GENERATE_SUBMIT_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
+    #[RateLimit(create: 20, consume: 1, capacity: 0, key: self::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_SUBMIT_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
     #[Retry(
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
@@ -140,7 +143,7 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
     /**
      * 轮询任务结果.
      */
-    #[RateLimit(create: 40, consume: 1, capacity: 40, key: ImageGenerate::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
+    #[RateLimit(create: 40, consume: 1, capacity: 40, key: self::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
     #[Retry(
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
@@ -160,7 +163,7 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
     /**
      * 轮询任务结果并返回原生数据.
      */
-    #[RateLimit(create: 40, consume: 1, capacity: 40, key: ImageGenerate::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
+    #[RateLimit(create: 40, consume: 1, capacity: 40, key: self::IMAGE_GENERATE_KEY_PREFIX . self::IMAGE_GENERATE_POLL_KEY_PREFIX . ImageGenerateModelType::Flux->value, waitTimeout: 60)]
     #[Retry(
         maxAttempts: self::GENERATE_RETRY_COUNT,
         base: self::GENERATE_RETRY_TIME
@@ -226,7 +229,7 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
     /**
      * 生成图像的核心逻辑，返回原生结果.
      */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof FluxModelRequest) {
             $this->logger->error('Flux文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
@@ -286,11 +289,32 @@ class FluxModel extends AbstractDingTalkAlert implements ImageGenerate
 
         // 按索引排序结果
         ksort($rawResults);
-        $rawResults = array_values($rawResults);
+        return array_values($rawResults);
+    }
 
-        // 异步检查余额
-        $this->monitorBalance();
+    /**
+     * 为Flux原始数据添加水印.
+     */
+    private function processFluxRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    {
+        foreach ($rawData as $index => &$result) {
+            if (! isset($result['data']['imageUrl'])) {
+                continue;
+            }
 
-        return $rawResults;
+            try {
+                // 处理图片URL
+                $result['data']['imageUrl'] = $this->watermarkProcessor->addWatermarkToUrl($result['data']['imageUrl'], $watermarkConfig);
+            } catch (Exception $e) {
+                // 水印处理失败时，记录错误但不影响图片返回
+                $this->logger->error('Flux图片水印处理失败', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                ]);
+                // 继续处理下一张图片，当前图片保持原始状态
+            }
+        }
+
+        return $rawData;
     }
 }

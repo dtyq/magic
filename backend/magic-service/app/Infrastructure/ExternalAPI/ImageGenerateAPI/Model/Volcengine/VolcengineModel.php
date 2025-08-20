@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
@@ -21,13 +23,11 @@ use App\Infrastructure\Util\SSRF\SSRFUtil;
 use Exception;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
-use Hyperf\Di\Annotation\Inject;
 use Hyperf\Engine\Coroutine;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Hyperf\Retry\Annotation\Retry;
-use Psr\Log\LoggerInterface;
 
-class VolcengineModel implements ImageGenerate
+class VolcengineModel extends AbstractImageGenerate
 {
     // 最大轮询重试次数
     private const MAX_RETRY_COUNT = 30;
@@ -37,9 +37,6 @@ class VolcengineModel implements ImageGenerate
 
     // 图生图数量限制
     private const IMAGE_TO_IMAGE_IMAGE_COUNT = 1;
-
-    #[Inject]
-    protected LoggerInterface $logger;
 
     private VolcengineAPI $api;
 
@@ -55,27 +52,9 @@ class VolcengineModel implements ImageGenerate
         $this->api = new VolcengineAPI($serviceProviderConfig->getAk(), $serviceProviderConfig->getSk());
     }
 
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
-    {
-        $rawResults = $this->generateImageInternal($imageGenerateRequest);
-
-        // 从原生结果中提取图片URL
-        $imageUrls = [];
-        foreach ($rawResults as $index => $result) {
-            $data = $result['data'];
-            if (! empty($data['binary_data_base64'])) {
-                $imageUrls[$index] = $data['binary_data_base64'][0];
-            } elseif (! empty($data['image_urls'])) {
-                $imageUrls[$index] = $data['image_urls'][0];
-            }
-        }
-
-        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
-    }
-
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        return $this->generateImageInternal($imageGenerateRequest);
+        return $this->generateImageRawInternal($imageGenerateRequest);
     }
 
     public function setAK(string $ak)
@@ -93,10 +72,21 @@ class VolcengineModel implements ImageGenerate
         // TODO: Implement setApiKey() method.
     }
 
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+
+        return $this->processVolcengineRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+    }
+
     /**
-     * 生成图像的核心逻辑，返回原生结果.
+     * 生成图像的核心逻辑，返回 ImageGenerateResponse.
      */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
             $this->logger->error('火山文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
@@ -196,6 +186,114 @@ class VolcengineModel implements ImageGenerate
             '图片数量' => $count,
         ]);
 
+        // 从原生结果中提取图片URL
+        $imageUrls = [];
+        foreach ($rawResults as $index => $result) {
+            $data = $result['data'];
+            if (! empty($data['binary_data_base64'])) {
+                $imageUrls[$index] = $data['binary_data_base64'][0];
+            } elseif (! empty($data['image_urls'])) {
+                $imageUrls[$index] = $data['image_urls'][0];
+            }
+        }
+
+        return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
+    }
+
+    /**
+     * 生成图像的核心逻辑，返回原生结果.
+     */
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
+            $this->logger->error('火山文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        }
+
+        // 判断是图生图还是文生图
+        $isImageToImage = ! empty($imageGenerateRequest->getReferenceImage());
+        $count = $isImageToImage ? self::IMAGE_TO_IMAGE_IMAGE_COUNT : $imageGenerateRequest->getGenerateNum();
+
+        $this->logger->info('火山文生图：开始生图', [
+            'prompt' => $imageGenerateRequest->getPrompt(),
+            'negativePrompt' => $imageGenerateRequest->getNegativePrompt(),
+            'width' => $imageGenerateRequest->getWidth(),
+            'height' => $imageGenerateRequest->getHeight(),
+            'req_key' => $imageGenerateRequest->getModel(),
+            'textToImageModelVersion' => $this->textToImageModelVersion,
+            'textToImageReqScheduleConf' => $this->textToImageReqScheduleConf,
+        ]);
+
+        // 使用 Parallel 并行处理
+        $parallel = new Parallel();
+        for ($i = 0; $i < $count; ++$i) {
+            $fromCoroutineId = Coroutine::id();
+            $parallel->add(function () use ($imageGenerateRequest, $isImageToImage, $i, $fromCoroutineId) {
+                CoContext::copy($fromCoroutineId);
+                try {
+                    // 提交任务（带重试）
+                    $taskId = $this->submitAsyncTask($imageGenerateRequest, $isImageToImage);
+                    // 轮询结果（带重试）
+                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest);
+
+                    return [
+                        'success' => true,
+                        'data' => $result['data'],
+                        'index' => $i,
+                    ];
+                } catch (Exception $e) {
+                    $this->logger->error('火山文生图：失败', [
+                        'error' => $e->getMessage(),
+                        'index' => $i,
+                    ]);
+                    return [
+                        'success' => false,
+                        'error_code' => $e->getCode(),
+                        'error_msg' => $e->getMessage(),
+                        'index' => $i,
+                    ];
+                }
+            });
+        }
+
+        $results = $parallel->wait();
+
+        // 检查结果
+        $rawResults = [];
+        $errors = [];
+        $finalErrorCode = ImageGenerateErrorCode::GENERAL_ERROR;
+        $finalErrorMsg = '图片生成失败';
+
+        foreach ($results as $result) {
+            if ($result['success'] === true) {
+                $rawResults[$result['index']] = $result;
+            } else {
+                $errors[] = [
+                    'index' => $result['index'],
+                    'code' => $result['error_code'],
+                    'message' => $result['error_msg'],
+                ];
+                if (! empty($result['error_code'])) {
+                    $finalErrorCode = $result['error_code'];
+                    $finalErrorMsg = $result['error_msg'];
+                }
+            }
+        }
+
+        // 检查是否有成功的图片生成
+        if (empty($rawResults)) {
+            $this->logger->error('火山文生图：所有图片生成均失败', ['errors' => $errors]);
+            ExceptionBuilder::throw($finalErrorCode, $finalErrorMsg);
+        }
+
+        // 按索引排序结果
+        ksort($rawResults);
+        $rawResults = array_values($rawResults);
+
+        $this->logger->info('火山文生图：生成结束', [
+            '图片数量' => count($rawResults),
+        ]);
+
         return $rawResults;
     }
 
@@ -286,22 +384,11 @@ class VolcengineModel implements ImageGenerate
     )]
     private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
-        $organizationCode = $imageGenerateRequest->getOrganizationCode();
-        $reqKey = $imageGenerateRequest->getModel();
+        $model = $imageGenerateRequest->getModel();
+        $reqKey = $model;
         $retryCount = 0;
 
         $reqJson = ['return_url' => true];
-
-        // 从请求对象中获取水印配置
-        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-
-        if ($watermarkConfig !== null) {
-            $reqJson['logo_info'] = $watermarkConfig;
-            $this->logger->info('火山文生图：添加水印配置', [
-                'orgCode' => $organizationCode,
-                'logo_info' => $watermarkConfig,
-            ]);
-        }
 
         $reqJsonString = Json::encode($reqJson);
 
@@ -458,5 +545,46 @@ class VolcengineModel implements ImageGenerate
             ]);
             return null;
         }
+    }
+
+    /**
+     * 为火山引擎原始数据添加水印.
+     */
+    private function processVolcengineRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    {
+        foreach ($rawData as $index => &$result) {
+            if (! isset($result['data'])) {
+                continue;
+            }
+
+            $data = &$result['data'];
+
+            try {
+                // 处理 base64 格式图片
+                if (! empty($data['binary_data_base64'])) {
+                    foreach ($data['binary_data_base64'] as $i => &$base64Image) {
+                        $base64Image = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $watermarkConfig);
+                    }
+                    unset($base64Image);
+                }
+
+                // 处理 URL 格式图片
+                if (! empty($data['image_urls'])) {
+                    foreach ($data['image_urls'] as $i => &$imageUrl) {
+                        $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $watermarkConfig);
+                    }
+                    unset($imageUrl);
+                }
+            } catch (Exception $e) {
+                // 水印处理失败时，记录错误但不影响图片返回
+                $this->logger->error('火山引擎图片水印处理失败', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                ]);
+                // 继续处理下一张图片，当前图片保持原始状态
+            }
+        }
+
+        return $rawData;
     }
 }

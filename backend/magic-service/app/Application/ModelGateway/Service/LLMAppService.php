@@ -10,6 +10,7 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -39,6 +40,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleV
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
+use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
@@ -180,14 +182,6 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
         $imageGenerateRequest->setGenerateNum($data['generate_num'] ?? 4);
 
-        // 只有火山模型才处理水印配置
-        if ($imageGenerateType === ImageGenerateModelType::Volcengine || $imageGenerateType === ImageGenerateModelType::VolcengineImageGenerateV3) {
-            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($authorization->getOrganizationCode());
-            if ($watermarkConfig !== null) {
-                $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
-            }
-        }
-
         $providerConfigItem = $providerConfigEntity->getConfig();
         if ($providerConfigItem === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -203,6 +197,9 @@ class LLMAppService extends AbstractLLMAppService
         ];
 
         $this->logger->info('Image generation service configuration', $configInfo);
+
+        $watermarkConfig = new WatermarkConfig(ImageWatermarkProcessor::WATERMARK_TEXT, 9, 0.3);
+        $imageGenerateRequest->setWatermarkConfig($watermarkConfig);
 
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
@@ -279,20 +276,15 @@ class LLMAppService extends AbstractLLMAppService
 
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
 
-        if ($imageGenerateType === ImageGenerateModelType::Volcengine || $imageGenerateType === ImageGenerateModelType::VolcengineImageGenerateV3) {
-            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($organizationCode);
-            if ($watermarkConfig !== null) {
-                $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
-            }
-        }
-        $errorMessage = "";
+        $imageGenerateRequest->setWatermarkConfig($textGenerateImageDTO->getWatermark());
+
+        $errorMessage = '';
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
-
                     return $generateImageRaw;
                 }
             } catch (Exception $e) {
@@ -300,7 +292,7 @@ class LLMAppService extends AbstractLLMAppService
                 $this->logger->warning('text generate image error:' . $e->getMessage());
             }
         }
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR,$errorMessage);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $errorMessage);
     }
 
     /**

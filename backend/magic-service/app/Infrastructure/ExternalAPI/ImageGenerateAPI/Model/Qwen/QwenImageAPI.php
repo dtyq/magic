@@ -13,7 +13,6 @@ use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Hyperf\Codec\Json;
-use Psr\Log\LoggerInterface;
 
 class QwenImageAPI
 {
@@ -29,12 +28,9 @@ class QwenImageAPI
 
     private Client $client;
 
-    private LoggerInterface $logger;
-
-    public function __construct(string $apiKey, LoggerInterface $logger)
+    public function __construct(string $apiKey)
     {
         $this->apiKey = $apiKey;
-        $this->logger = $logger;
         $this->client = new Client([
             'timeout' => 30,
             'verify' => false,
@@ -75,44 +71,17 @@ class QwenImageAPI
             $body['parameters']['prompt_extend'] = $params['prompt_extend'];
         }
 
-        if (isset($params['watermark'])) {
-            $body['parameters']['watermark'] = $params['watermark'];
-        }
-
         try {
-            $this->logger->info('通义千问文生图：提交任务', [
-                'url' => $url,
-                'prompt' => $params['prompt'],
-                'parameters' => $body['parameters'],
-            ]);
-
             $response = $this->client->post($url, [
                 'headers' => $headers,
                 'json' => $body,
             ]);
 
             $responseBody = $response->getBody()->getContents();
-            $result = Json::decode($responseBody, true);
-
-            $this->logger->info('通义千问文生图：提交任务响应', [
-                'status' => $response->getStatusCode(),
-                'response' => $result,
-            ]);
-
-            return $result;
+            return Json::decode($responseBody, true);
         } catch (GuzzleException $e) {
-            $this->logger->error('通义千问文生图：提交任务HTTP异常', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         } catch (Exception $e) {
-            $this->logger->error('通义千问文生图：提交任务异常', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         }
     }
@@ -163,40 +132,16 @@ class QwenImageAPI
         }
 
         try {
-            $this->logger->info('通义千问图像编辑：提交任务', [
-                'url' => $url,
-                'edit_type' => $params['edit_type'] ?? '',
-                'model' => $body['model'],
-                'parameters' => $body['parameters'],
-            ]);
-
             $response = $this->client->post($url, [
                 'headers' => $headers,
                 'json' => $body,
             ]);
 
             $responseBody = $response->getBody()->getContents();
-            $result = Json::decode($responseBody, true);
-
-            $this->logger->info('通义千问图像编辑：提交任务响应', [
-                'status' => $response->getStatusCode(),
-                'response' => $result,
-            ]);
-
-            return $result;
+            return Json::decode($responseBody, true);
         } catch (GuzzleException $e) {
-            $this->logger->error('通义千问图像编辑：提交任务HTTP异常', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         } catch (Exception $e) {
-            $this->logger->error('通义千问图像编辑：提交任务异常', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         }
     }
@@ -213,40 +158,15 @@ class QwenImageAPI
         ];
 
         try {
-            $this->logger->info('通义千问文生图：查询任务结果', [
-                'url' => $url,
-                'task_id' => $taskId,
-            ]);
-
             $response = $this->client->get($url, [
                 'headers' => $headers,
             ]);
 
             $responseBody = $response->getBody()->getContents();
-            $result = Json::decode($responseBody, true);
-
-            $this->logger->info('通义千问文生图：查询任务结果响应', [
-                'status' => $response->getStatusCode(),
-                'task_id' => $taskId,
-                'response' => $result,
-            ]);
-
-            return $result;
+            return Json::decode($responseBody, true);
         } catch (GuzzleException $e) {
-            $this->logger->error('通义千问文生图：查询任务HTTP异常', [
-                'task_id' => $taskId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         } catch (Exception $e) {
-            $this->logger->error('通义千问文生图：查询任务异常', [
-                'task_id' => $taskId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         }
     }
