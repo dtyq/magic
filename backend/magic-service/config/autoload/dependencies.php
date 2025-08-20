@@ -388,9 +388,6 @@ $dependencies = [
     // package filter
     PackageFilterInterface::class => DefaultPackageFilter::class,
 
-    // point-component
-    PointComponentInterface::class => PointComponent::class,
-
     FontProviderInterface::class => DefaultFontProvider::class,
 ];
 
