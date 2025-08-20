@@ -57,10 +57,10 @@ class MagicPermission implements MagicPermissionInterface
     /**
      * 构建完整权限标识.
      */
-    public function buildPermission(string $resource, ?string $operation): string
+    public function buildPermission(string $resource, string $operation): string
     {
         if ($resource === self::ALL_PERMISSIONS) {
-            return self::ALL_PERMISSIONS;
+            return self::ALL_PERMISSIONS . '.' . $operation;
         }
 
         if (! in_array($resource, $this->getResources()) || ! in_array($operation, $this->getOperations())) {
@@ -76,7 +76,7 @@ class MagicPermission implements MagicPermissionInterface
     public function parsePermission(string $permissionKey): array
     {
         $parts = explode('.', $permissionKey);
-        if (count($parts) < 4) {
+        if (count($parts) < 2) {
             throw new InvalidArgumentException('Invalid permission key format');
         }
 
