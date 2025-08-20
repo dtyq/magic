@@ -178,7 +178,7 @@ class ProjectMemberAppService extends AbstractAppService
         );
 
         // 2. 获取协作项目ID列表及总数
-        $collaborationResult = $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal($userId, $departmentIds);
+        $collaborationResult = $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal($userId, $departmentIds, $requestDTO->getName());
         $projectIds = $collaborationResult['project_ids'] ?? [];
         $totalCollaborationProjects = $collaborationResult['total'] ?? 0;
 
@@ -282,7 +282,7 @@ class ProjectMemberAppService extends AbstractAppService
         $urlMapRealUrl = $this->getUserAvatarUrls($dataIsolation, $userEntities);
 
         foreach ($userEntities as $userEntity) {
-            $userEntity->setAvatarUrl($urlMapRealUrl[$userEntity->getAvatarUrl()]);
+            $userEntity->setAvatarUrl($urlMapRealUrl[$userEntity->getAvatarUrl()] ?? '');
         }
     }
 

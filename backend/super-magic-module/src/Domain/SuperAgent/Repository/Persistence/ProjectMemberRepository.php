@@ -109,6 +109,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     {
         $results = $this->projectMemberModel::query()
             ->where('project_id', $projectId)
+            ->orderBy('id', 'asc')
             ->get()
             ->toArray();
 
@@ -125,9 +126,10 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
      *
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
+     * @param null|string $name 项目名称模糊搜索关键词
      * @return array ['total' => int, 'project_ids' => array]
      */
-    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = []): array
+    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = [], ?string $name = null): array
     {
         $query = $this->projectMemberModel::query()
             ->where(function ($query) use ($userId, $departmentIds) {
@@ -142,11 +144,20 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                             ->whereIn('target_id', $departmentIds);
                     });
                 }
-            })
-            ->select('project_id')
+            });
+
+        // 如果有项目名称搜索条件，则需要连接项目表
+        if (! empty($name)) {
+            $query->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
+                ->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%')
+                ->whereNull('magic_super_agent_project.deleted_at'); // 确保项目未被软删除
+        }
+
+        $query->select('magic_super_agent_project_members.project_id')
             ->distinct();
 
         $results = $query->get()->toArray();
+
         $projectIds = array_map(fn ($row) => (int) $row['project_id'], $results);
 
         return [
@@ -198,7 +209,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         foreach ($projectIds as $projectId) {
             $members = $this->projectMemberModel::query()
                 ->where('project_id', $projectId)
-                ->orderBy('created_at', 'asc')
+                ->orderBy('id', 'asc')
                 ->limit($limit)
                 ->get()
                 ->toArray();
