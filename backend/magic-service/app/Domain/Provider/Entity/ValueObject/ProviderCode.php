@@ -54,6 +54,9 @@ enum ProviderCode: string
             default => [
                 'api_key' => $config->getApiKey(),
                 'base_url' => $config->getUrl(),
+                'auto_cache_config' => [
+                    'auto_enabled' => true,  // 启用自动缓存
+                ],
             ],
         };
     }
