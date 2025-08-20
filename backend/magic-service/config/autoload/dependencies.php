@@ -30,6 +30,8 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutorInterface;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
+use App\Application\ModelGateway\Component\Points\PointComponent;
+use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
@@ -387,6 +389,7 @@ $dependencies = [
     LongTermMemoryRepositoryInterface::class => MySQLLongTermMemoryRepository::class,
 
     WatermarkConfigInterface::class => DefaultWatermarkConfig::class,
+    PointComponentInterface::class => PointComponent::class,
 
     // package filter
     PackageFilterInterface::class => DefaultPackageFilter::class,
