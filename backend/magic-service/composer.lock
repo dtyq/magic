@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "132bf53b256d4297cef99bb58557153c",
+    "content-hash": "502858bdfd75c9ef99cd1aa4cad00498",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2191,11 +2191,17 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "dev-master",
+            "version": "0.0.96",
+            "source": {
+                "type": "git",
+                "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
+                "reference": "c09ed00cbdc92b16ea954fb758ca3e657fd96851"
+            },
             "dist": {
-                "type": "path",
-                "url": "/Users/liangpeng/Documents/kk/magic-enterprise-service",
-                "reference": "45011a39cba2590dfcd60bda4ff0cc6352cf84d8"
+                "type": "zip",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c09ed00cbdc92b16ea954fb758ca3e657fd96851",
+                "reference": "c09ed00cbdc92b16ea954fb758ca3e657fd96851",
+                "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
@@ -2294,9 +2300,10 @@
                     "email": "team@dtyq.com"
                 }
             ],
-            "transport-options": {
-                "relative": false
-            }
+            "support": {
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.96"
+            },
+            "time": "2025-08-19T19:59:05+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2562,11 +2569,17 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "dev-master",
+            "version": "v0.0.78",
+            "source": {
+                "type": "git",
+                "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
+                "reference": "bd8cb7ccfac67ee7c9b10dec0fbbe92c30736c11"
+            },
             "dist": {
-                "type": "path",
-                "url": "/Users/liangpeng/Documents/kk/magic/backend/super-magic-module",
-                "reference": "3f6d161fcc7155d98dceecb29f48e071856ed0e7"
+                "type": "zip",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=bd8cb7ccfac67ee7c9b10dec0fbbe92c30736c11",
+                "reference": "bd8cb7ccfac67ee7c9b10dec0fbbe92c30736c11",
+                "shasum": ""
             },
             "require": {
                 "96qbhy/hyperf-auth": "^3.1",
@@ -2656,9 +2669,10 @@
                     "email": "team@dtyq.com"
                 }
             ],
-            "transport-options": {
-                "relative": false
-            }
+            "support": {
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/v0.0.78"
+            },
+            "time": "2025-08-20T16:56:17+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -19587,8 +19601,6 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/magic-enterprise-service": 20,
-        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
