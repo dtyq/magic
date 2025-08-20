@@ -15,7 +15,7 @@ use HyperfTest\Cases\Api\AbstractHttpTest;
  */
 class PermissionApiTest extends AbstractHttpTest
 {
-    public const string API = '/api/v1/roles/permissions/tree';
+    public const string API = '/api/v1/admin/roles/permissions/tree';
 
     public function testGetPermissionTree(): void
     {
