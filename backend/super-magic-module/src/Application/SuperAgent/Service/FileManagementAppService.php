@@ -541,7 +541,7 @@ class FileManagementAppService extends AbstractAppService
 
         Db::beginTransaction();
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             if (empty($targetParentId)) {

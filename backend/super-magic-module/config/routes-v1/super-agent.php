@@ -7,6 +7,7 @@ declare(strict_types=1);
 use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\RequestContextMiddlewareV2;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
@@ -123,6 +124,14 @@ Router::addGroup(
                 // 检查批量下载状态
                 Router::get('/check', [FileApi::class, 'checkBatchDownload']);
             });
+
+            // 文件编辑状态管理
+            // 加入编辑
+            Router::post('/{fileId}/join-editing', [FileEditingApi::class, 'joinEditing']);
+            // 离开编辑
+            Router::post('/{fileId}/leave-editing', [FileEditingApi::class, 'leaveEditing']);
+            // 获取编辑用户数量
+            Router::get('/{fileId}/editing-users', [FileEditingApi::class, 'getEditingUsers']);
         });
 
         Router::addGroup('/sandbox', static function () {
