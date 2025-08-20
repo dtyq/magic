@@ -32,7 +32,7 @@ class QwenImageAPI
     {
         $this->apiKey = $apiKey;
         $this->client = new Client([
-            'timeout' => 30,
+            'timeout' => 120,
             'verify' => false,
         ]);
     }
@@ -87,7 +87,7 @@ class QwenImageAPI
     }
 
     /**
-     * 提交图像编辑任务
+     * 提交图像编辑任务 - 同步调用.
      */
     public function submitEditTask(array $params): array
     {
@@ -96,39 +96,37 @@ class QwenImageAPI
         $headers = [
             'Authorization' => 'Bearer ' . $this->apiKey,
             'Content-Type' => 'application/json',
-            'X-DashScope-Async' => 'enable',
         ];
 
+        // 构建符合阿里云API文档的请求格式
         $body = [
-            'model' => $params['model'] ?? 'wanx-v1',
-            'input' => [],
-            'parameters' => [],
+            'model' => $params['model'] ?? 'qwen-image-edit',
+            'input' => [
+                'messages' => [
+                    [
+                        'role' => 'user',
+                        'content' => [],
+                    ],
+                ],
+            ],
+            'parameters' => [
+                'negative_prompt' => '',
+                'watermark' => false,
+            ],
         ];
 
-        // 设置输入参数
-        if (isset($params['prompt'])) {
-            $body['input']['prompt'] = $params['prompt'];
-        }
-
+        // 添加图像到content中（只取第一张图片）
         if (isset($params['image_urls']) && ! empty($params['image_urls'])) {
-            $body['input']['image_url'] = $params['image_urls'][0]; // 通义千问图像编辑通常只支持一张输入图
+            $body['input']['messages'][0]['content'][] = [
+                'image' => $params['image_urls'][0],
+            ];
         }
 
-        if (isset($params['ref_image_type'])) {
-            $body['input']['ref_image_type'] = $params['ref_image_type'];
-        }
-
-        // 设置编辑类型和参数
-        if (isset($params['edit_type'])) {
-            $body['parameters']['edit_type'] = $params['edit_type'];
-        }
-
-        if (isset($params['edit_params']) && ! empty($params['edit_params'])) {
-            $body['parameters'] = array_merge($body['parameters'], $params['edit_params']);
-        }
-
-        if (isset($params['mask_url'])) {
-            $body['input']['mask_url'] = $params['mask_url'];
+        // 添加文本提示
+        if (isset($params['prompt']) && ! empty($params['prompt'])) {
+            $body['input']['messages'][0]['content'][] = [
+                'text' => $params['prompt'],
+            ];
         }
 
         try {

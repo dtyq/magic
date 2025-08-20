@@ -50,4 +50,6 @@ return [
     'request_conversion_failed' => '请求格式转换失败',
     'invalid_size_format' => '无效的尺寸格式，应为WIDTHxHEIGHT格式',
     'invalid_quality_parameter' => '无效的质量参数，有效选项为: standard, hd',
+
+    'model_not_support_edit' => '模型不支持图像编辑',
 ];

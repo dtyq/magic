@@ -231,30 +231,15 @@ class ImageGenerateFactory
     {
         $request = new QwenImageEditRequest(
             $data['user_prompt'] ?? $data['prompt'] ?? '',
-            $data['edit_type'] ?? '',
             $data['image_urls'] ?? [],
-            $data['model'] ?? 'wanx-image-edit'
+            $data['model'] ?? 'qwen-image-edit'
         );
-
-        if (isset($data['mask_url'])) {
-            $request->setMaskUrl($data['mask_url']);
-        }
-
-        if (isset($data['edit_params']) && is_array($data['edit_params'])) {
-            $request->setEditParams($data['edit_params']);
-        }
-
-        if (isset($data['ref_image_type'])) {
-            $request->setRefImageType($data['ref_image_type']);
-        }
-
-        if (isset($data['organization_code'])) {
-            $request->setOrganizationCode($data['organization_code']);
-        }
 
         if (isset($data['generate_num'])) {
             $request->setGenerateNum($data['generate_num']);
         }
+
+        $request->setImageUrls($data['reference_images']);
 
         return $request;
     }

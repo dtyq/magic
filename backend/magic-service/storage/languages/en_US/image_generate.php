@@ -49,4 +49,6 @@ return [
     'request_conversion_failed' => 'Failed to convert request format',
     'invalid_size_format' => 'Invalid size format, should be WIDTHxHEIGHT format',
     'invalid_quality_parameter' => 'Invalid quality parameter, valid options are: standard, hd',
+
+    'model_not_support_edit' => 'The model does not support image editing',
 ];
