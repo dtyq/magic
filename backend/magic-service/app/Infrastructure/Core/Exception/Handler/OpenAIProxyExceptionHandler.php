@@ -34,6 +34,10 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
             $statusCode = 400;
             $errorCode = 400;
             $errorMessage = $previous->getMessage();
+        } elseif ($throwable instanceof BusinessException) {
+            $statusCode = 400;
+            $errorCode = 400;
+            $errorMessage = $throwable->getMessage();
         }
 
         $errorMessage = preg_replace('/https?:\/\/[^\s]+/', '', $errorMessage);
