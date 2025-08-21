@@ -39,7 +39,7 @@ stages:
   # 配置Git仓库URL环境变量
   - |
     if [ -z "$GIT_REPO_URL" ]; then
-      export GIT_REPO_URL="https://git.kkgroup.cn/dtyq/magic.git"
+      export GIT_REPO_URL="https://git.kkgroup.cn/dtyq"
     fi
     if [ -z "$GIT_REPO_TOKEN" ]; then
       export GIT_REPO_TOKEN="${GITHUB_TOKEN}"
