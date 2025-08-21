@@ -75,7 +75,7 @@ class TextGenerateImageDTO extends AbstractRequestDTO
         }
     }
 
-    public function getWatermark(): WatermarkConfig
+    public function getWatermark(): ?WatermarkConfig
     {
         return $this->watermark;
     }
