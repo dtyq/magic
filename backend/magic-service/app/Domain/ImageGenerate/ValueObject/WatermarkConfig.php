@@ -20,11 +20,14 @@ class WatermarkConfig
 
     protected float $opacity = 0.3; // 透明度
 
-    public function __construct(string $logoTextContent, int $position, float $opacity, int $language)
+    protected int $language = 0;
+
+    public function __construct(string $logoTextContent, int $position, float $opacity, int $language = 0)
     {
         $this->logoTextContent = $logoTextContent;
         $this->position = $position;
         $this->opacity = $opacity;
+        $this->language = $language;
     }
 
     public function isAddLogo(): bool

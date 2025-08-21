@@ -23,7 +23,7 @@ class DefaultWatermarkConfig implements WatermarkConfigInterface
         return new WatermarkConfig(
             logoTextContent: 'Magic AI Generated', // 默认水印文字
             position: 3, // 右下角
-            opacity: 0.3, // 30% 透明度
+            opacity: 0.3, // 30% 透明度,
         );
     }
 }
