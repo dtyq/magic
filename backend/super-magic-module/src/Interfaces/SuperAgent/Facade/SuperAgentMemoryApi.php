@@ -48,17 +48,36 @@ class SuperAgentMemoryApi extends AbstractApi
             'memory' => 'required|string',
             'tags' => 'array',
             'metadata' => 'required|array',
+            'immediate_effect' => 'boolean|nullable',
         ];
 
         $validatedParams = $this->checkParams($requestData, $rules);
         $metadata = $this->parseMetadata($validatedParams['metadata']);
 
+        // 根据 immediate_effect 参数决定记忆状态和内容设置
+        $immediateEffect = (bool) ($validatedParams['immediate_effect'] ?? false);
+
+        if ($immediateEffect) {
+            // 立即生效：记忆内容直接放入content，状态为active
+            $content = $validatedParams['memory'];
+            $pendingContent = null;
+            $status = MemoryStatus::ACTIVE->value;
+            $enabled = true; // active状态的记忆默认启用
+        } else {
+            // 默认行为：记忆内容放入pendingContent，状态为pending
+            $content = '';
+            $pendingContent = $validatedParams['memory'];
+            $status = MemoryStatus::PENDING->value;
+            $enabled = false; // pending状态的记忆默认不启用
+        }
+
         $dto = new CreateMemoryDTO([
-            'content' => '',
-            'pendingContent' => $validatedParams['memory'],
+            'content' => $content,
+            'pendingContent' => $pendingContent,
             'explanation' => $validatedParams['explanation'],
             'memoryType' => MemoryType::MANUAL_INPUT->value,
-            'status' => MemoryStatus::PENDING->value,
+            'status' => $status,
+            'enabled' => $enabled,
             'tags' => $validatedParams['tags'] ?? [],
             'orgId' => $metadata->getOrganizationCode(),
             'appId' => AgentConstant::SUPER_MAGIC_CODE,

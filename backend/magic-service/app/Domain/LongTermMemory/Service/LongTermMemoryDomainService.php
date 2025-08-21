@@ -13,7 +13,6 @@ use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
-use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\ErrorCode\LongTermMemoryErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -28,21 +27,13 @@ use function Hyperf\Translation\trans;
 /**
  * 长期记忆领域服务
  */
-class LongTermMemoryDomainService
+readonly class LongTermMemoryDomainService
 {
     public function __construct(
-        private readonly LongTermMemoryRepositoryInterface $repository,
-        private readonly LoggerInterface $logger,
-        private readonly LockerInterface $locker
+        private LongTermMemoryRepositoryInterface $repository,
+        private LoggerInterface $logger,
+        private LockerInterface $locker
     ) {
-    }
-
-    /**
-     * 执行记忆强化.
-     */
-    public function reinforceMemory(string $memoryId): void
-    {
-        $this->reinforceMemories([$memoryId]);
     }
 
     /**
@@ -106,7 +97,7 @@ class LongTermMemoryDomainService
 
         // 生成锁名称和所有者（基于记忆ID排序后生成唯一锁名）
         sort($memoryIds);
-        $lockName = "memory:batch:{$action}:" . md5(implode(',', $memoryIds));
+        $lockName = sprintf('memory:batch:%s:%s', $action, md5(implode(',', $memoryIds)));
         $lockOwner = getmypid() . '_' . microtime(true);
 
         // 获取互斥锁
@@ -170,14 +161,14 @@ class LongTermMemoryDomainService
     {
         $memory = $this->repository->findById($memoryId);
         if (! $memory) {
-            $this->logger->debug("Memory not found for access tracking: {$memoryId}");
+            $this->logger->debug(sprintf('Memory not found for access tracking: %s', $memoryId));
             return;
         }
 
         $memory->access();
 
         if (! $this->repository->update($memory)) {
-            $this->logger->error("Failed to update access stats for memory: {$memoryId}");
+            $this->logger->error(sprintf('Failed to update access stats for memory: %s', $memoryId));
         }
     }
 
@@ -212,7 +203,7 @@ class LongTermMemoryDomainService
     public function create(CreateMemoryDTO $dto): string
     {
         // 生成锁名称和所有者
-        $lockName = "memory:create:{$dto->orgId}:{$dto->appId}:{$dto->userId}";
+        $lockName = sprintf('memory:create:%s:%s:%s', $dto->orgId, $dto->appId, $dto->userId);
         $lockOwner = getmypid() . '_' . microtime(true);
 
         // 获取互斥锁
@@ -227,7 +218,7 @@ class LongTermMemoryDomainService
         try {
             // 验证用户记忆数量限制
             $count = $this->countByUser($dto->orgId, $dto->appId, $dto->userId);
-            if ($count >= 20) {
+            if ($count >= 40) {
                 throw new InvalidArgumentException(trans('long_term_memory.entity.user_memory_limit_exceeded'));
             }
 
@@ -266,7 +257,7 @@ class LongTermMemoryDomainService
     public function updateMemory(string $memoryId, UpdateMemoryDTO $dto): void
     {
         // 生成锁名称和所有者
-        $lockName = "memory:update:{$memoryId}";
+        $lockName = sprintf('memory:update:%s', $memoryId);
         $lockOwner = getmypid() . '_' . microtime(true);
 
         // 获取互斥锁
@@ -305,7 +296,7 @@ class LongTermMemoryDomainService
     public function deleteMemory(string $memoryId): void
     {
         // 生成锁名称和所有者
-        $lockName = "memory:delete:{$memoryId}";
+        $lockName = sprintf('memory:delete:%s', $memoryId);
         $lockOwner = getmypid() . '_' . microtime(true);
 
         // 获取互斥锁
@@ -348,7 +339,7 @@ class LongTermMemoryDomainService
         });
 
         // 按有效分数排序
-        usort($validMemories, function ($a, $b) {
+        usort($validMemories, static function ($a, $b) {
             return $b->getEffectiveScore() <=> $a->getEffectiveScore();
         });
 
@@ -373,7 +364,7 @@ class LongTermMemoryDomainService
         ]);
 
         // 记录访问
-        $memoryIds = array_map(fn ($memory) => $memory->getId(), $selectedMemories);
+        $memoryIds = array_map(static fn ($memory) => $memory->getId(), $selectedMemories);
         $this->accessMemories($memoryIds);
 
         // 构建记忆提示词字符串
@@ -386,7 +377,7 @@ class LongTermMemoryDomainService
         foreach ($selectedMemories as $memory) {
             $memoryId = $memory->getId();
             $memoryText = $memory->getContent();
-            $prompt .= "\n[记忆ID: {$memoryId}] {$memoryText}";
+            $prompt .= sprintf("\n[记忆ID: %s] %s", $memoryId, $memoryText);
         }
 
         $prompt .= "\n</用户长期记忆>";
@@ -412,7 +403,7 @@ class LongTermMemoryDomainService
             'total_size' => $totalSize,
             'evictable_count' => count($memoriesToEvict),
             'compressible_count' => count($memoriesToCompress),
-            'average_size' => $totalCount > 0 ? intval($totalSize / $totalCount) : 0,
+            'average_size' => $totalCount > 0 ? (int) ($totalSize / $totalCount) : 0,
         ];
     }
 
@@ -442,43 +433,11 @@ class LongTermMemoryDomainService
     }
 
     /**
-     * 查找用户记忆.
-     */
-    public function findByUser(string $orgId, string $appId, string $userId, ?string $status = null): array
-    {
-        return $this->repository->findByUser($orgId, $appId, $userId, $status);
-    }
-
-    /**
      * 统计用户记忆数量.
      */
     public function countByUser(string $orgId, string $appId, string $userId): int
     {
         return $this->repository->countByUser($orgId, $appId, $userId);
-    }
-
-    /**
-     * 查找 by type.
-     */
-    public function findByType(string $orgId, string $appId, string $userId, MemoryType $type, ?string $status = null): array
-    {
-        return $this->repository->findByType($orgId, $appId, $userId, $type, $status);
-    }
-
-    /**
-     * 查找 by tags.
-     */
-    public function findByTags(string $orgId, string $appId, string $userId, array $tags, ?string $status = null): array
-    {
-        return $this->repository->findByTags($orgId, $appId, $userId, $tags, $status);
-    }
-
-    /**
-     * 搜索 by content.
-     */
-    public function searchByContent(string $orgId, string $appId, string $userId, string $keyword, ?string $status = null): array
-    {
-        return $this->repository->searchByContent($orgId, $appId, $userId, $keyword, $status);
     }
 
     /**
@@ -508,7 +467,7 @@ class LongTermMemoryDomainService
         // 生成锁名称和所有者（基于记忆ID排序后生成唯一锁名）
         sort($memoryIds);
         $enabledStatus = $enabled ? 'enable' : 'disable';
-        $lockName = "memory:batch:{$enabledStatus}:" . md5(implode(',', $memoryIds));
+        $lockName = sprintf('memory:batch:%s:%s', $enabledStatus, md5(implode(',', $memoryIds)));
         $lockOwner = getmypid() . '_' . microtime(true);
 
         // 获取互斥锁
@@ -571,7 +530,7 @@ class LongTermMemoryDomainService
 
         // 长时间未访问且重要性很低
         if ($memory->getLastAccessedAt() && $memory->getImportance() < 0.2) {
-            $daysSinceLastAccess = (new DateTime())->diff($memory->getLastAccessedAt())->days;
+            $daysSinceLastAccess = new DateTime()->diff($memory->getLastAccessedAt())->days;
             if ($daysSinceLastAccess > 30) {
                 return true;
             }
@@ -586,13 +545,13 @@ class LongTermMemoryDomainService
     public function shouldMemoryBeCompressed(LongTermMemoryEntity $memory): bool
     {
         // 内容过长但重要性不高
-        if (strlen($memory->getContent()) > 1000 && $memory->getImportance() < 0.6) {
+        if ($memory->getImportance() < 0.6 || strlen($memory->getContent()) > 1000) {
             return true;
         }
 
         // 长时间未访问但不应该被淘汰
         if ($memory->getLastAccessedAt() && ! $this->shouldMemoryBeEvicted($memory)) {
-            $daysSinceLastAccess = (new DateTime())->diff($memory->getLastAccessedAt())->days;
+            $daysSinceLastAccess = new DateTime()->diff($memory->getLastAccessedAt())->days;
             if ($daysSinceLastAccess > 7) {
                 return true;
             }
@@ -626,15 +585,10 @@ class LongTermMemoryDomainService
         // 状态转换矩阵
         return match ([$currentStatus, $hasPendingContent]) {
             // pending_content为空时的状态转换
-            [MemoryStatus::PENDING_REVISION, false] => MemoryStatus::ACTIVE,        // 修订完成 → 生效
-            [MemoryStatus::PENDING, false] => MemoryStatus::PENDING,                 // 待接受状态保持不变
-            [MemoryStatus::ACTIVE, false] => MemoryStatus::ACTIVE,                   // 已生效状态保持不变
-
+            [MemoryStatus::PENDING_REVISION, false], [MemoryStatus::ACTIVE, false] => MemoryStatus::ACTIVE,        // 修订完成 → 生效
+            [MemoryStatus::PENDING, false], [MemoryStatus::PENDING, true] => MemoryStatus::PENDING,                 // 待接受状态保持不变
             // pending_content不为空时的状态转换
-            [MemoryStatus::ACTIVE, true] => MemoryStatus::PENDING_REVISION,         // 生效记忆有修订 → 待修订
-            [MemoryStatus::PENDING, true] => MemoryStatus::PENDING,                 // 待接受记忆更新内容，状态不变
-            [MemoryStatus::PENDING_REVISION, true] => MemoryStatus::PENDING_REVISION, // 待修订记忆再次修订，状态不变
-
+            [MemoryStatus::ACTIVE, true], [MemoryStatus::PENDING_REVISION, true] => MemoryStatus::PENDING_REVISION,         // 生效记忆有修订 → 待修订
             // 默认情况（不应该到达这里）
             default => $currentStatus,
         };
