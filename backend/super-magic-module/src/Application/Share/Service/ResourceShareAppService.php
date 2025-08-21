@@ -179,7 +179,7 @@ class ResourceShareAppService extends AbstractShareAppService
         return [
             'resource_type' => $resourceType,
             'resource_name' => $shareEntity->getResourceName(),
-            'temporary_token' => AccessTokenUtil::generate($shareEntity->getResourceId(), $shareEntity->getOrganizationCode()),
+            'temporary_token' => AccessTokenUtil::generate((string) $shareEntity->getId(), $shareEntity->getOrganizationCode()),
             'data' => $factory->getResourceContent(
                 $shareEntity->getResourceId(),
                 $shareEntity->getCreatedUid(),

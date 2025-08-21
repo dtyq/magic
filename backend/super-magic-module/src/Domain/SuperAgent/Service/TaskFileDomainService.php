@@ -29,7 +29,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -1186,54 +1185,28 @@ class TaskFileDomainService
     }
 
     /**
-     * Get file URLs by access token.
-     *
-     * @param array $fileIds Array of file IDs
-     * @param string $token Access token
-     * @param string $downloadMode Download mode
-     * @return array Array of file URLs
+     * getFileUrls for project id.
      */
-    public function getFileUrlsByAccessToken(array $fileIds, string $token, string $downloadMode): array
+    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode): array
     {
-        // 从缓存里获取数据
-        if (! AccessTokenUtil::validate($token)) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
-        }
-
         // 从token获取内容
-        $topicId = AccessTokenUtil::getResource($token);
-        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
-        $result = [];
-
-        // 获取 topic 详情
-        $topicEntity = $this->topicRepository->getTopicById((int) $topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+        $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
+        if (empty($fileEntities)) {
+            return [];
         }
 
-        foreach ($fileIds as $fileId) {
-            $fileEntity = $this->taskFileRepository->getById((int) $fileId);
-            $isBelongTopic = ((string) $fileEntity?->getTopicId()) === $topicId;
-            $isBelongProject = ((string) $fileEntity?->getProjectId()) == $topicEntity->getProjectId();
-            if (empty($fileEntity) || (! $isBelongTopic && ! $isBelongProject)) {
-                // 如果文件不存在或既不属于该话题也不属于该项目，跳过
-                continue;
-            }
-
+        $result = [];
+        foreach ($fileEntities as $fileEntity) {
             // 跳过目录
             if ($fileEntity->getIsDirectory()) {
                 continue;
             }
 
             try {
-                // 创建临时的数据隔离对象用于生成URL
-                $dataIsolation = new DataIsolation();
-                $dataIsolation->setCurrentUserId($fileEntity->getUserId());
-                $dataIsolation->setCurrentOrganizationCode($organizationCode);
-
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
             } catch (Throwable $e) {
                 // 如果获取URL失败，跳过
+                $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
                 continue;
             }
         }
@@ -1260,16 +1233,6 @@ class TaskFileDomainService
         TaskFileEntity $fileEntity,
         array $options = []
     ): string {
-        // Permission check: ensure file belongs to current user
-        if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
-        }
-
-        // Permission check: ensure file belongs to current organization
-        if ($fileEntity->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
-        }
-
         // Cannot generate URL for directories
         if ($fileEntity->getIsDirectory()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.cannot_generate_url_for_directory'));

@@ -25,7 +25,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\UserDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTaskFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -137,41 +136,6 @@ class TaskApi extends AbstractApi
             $dto->getId(),
             $dto->getPage(),
             $dto->getPageSize()
-        );
-    }
-
-    /**
-     * 获取文件URL列表.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @return array 文件URL列表
-     * @throws BusinessException 如果参数无效则抛出异常
-     */
-    public function getFileUrls(RequestContext $requestContext): array
-    {
-        // 获取请求DTO
-        $dto = GetFileUrlsRequestDTO::fromRequest($this->request);
-        if (! empty($dto->getToken())) {
-            // 走令牌校验逻辑
-            return $this->workspaceAppService->getFileUrlsByAccessToken($dto->getFileIds(), $dto->getToken(), $dto->getDownloadMode());
-        }
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 构建options参数
-        $options = [];
-        //        if (! $dto->getCache()) {
-        //            $options['cache'] = false;
-        //        }
-        $options['cache'] = false;
-
-        // 调用应用服务
-        return $this->workspaceAppService->getFileUrls(
-            $userAuthorization,
-            $dto->getFileIds(),
-            $dto->getDownloadMode(),
-            $options
         );
     }
 

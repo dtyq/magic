@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -15,13 +16,17 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
+use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
@@ -51,6 +56,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
@@ -685,11 +691,38 @@ class FileManagementAppService extends AbstractAppService
     public function getFileUrlsByAccessToken(array $fileIds, string $accessToken, string $downloadMode): array
     {
         try {
-            return $this->taskFileDomainService->getFileUrlsByAccessToken(
-                $fileIds,
-                $accessToken,
-                $downloadMode
-            );
+            // 从缓存里获取数据
+            if (! AccessTokenUtil::validate($accessToken)) {
+                ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
+            }
+
+            // 从token获取内容
+            $shareId = AccessTokenUtil::getShareId($accessToken);
+            $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+            if (! $shareEntity) {
+                ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
+            }
+
+            $projectId = 0;
+            switch ($shareEntity->getResourceType()) {
+                case ResourceType::Topic->value:
+                    $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $shareEntity->getResourceId());
+                    if (empty($topicEntity)) {
+                        ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+                    }
+                    $projectId = $topicEntity->getProjectId();
+                    break;
+                case ResourceType::Project->value:
+                    $projectId = (int) $shareEntity->getResourceId();
+                    break;
+                default:
+                    ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+            }
+
+            $organizationCode = AccessTokenUtil::getOrganizationCode($accessToken);
+            $dataIsolation = DataIsolation::simpleMake($organizationCode);
+
+            return $this->taskFileDomainService->getFileUrlsByProjectId($dataIsolation, $fileIds, $projectId, $downloadMode);
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
                 'Business logic error in get file URLs by token: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
