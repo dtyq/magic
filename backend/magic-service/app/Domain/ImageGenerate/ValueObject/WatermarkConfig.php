@@ -20,7 +20,7 @@ class WatermarkConfig
 
     protected float $opacity = 0.3; // 透明度
 
-    public function __construct(string $logoTextContent, int $position, float $opacity)
+    public function __construct(string $logoTextContent, int $position, float $opacity, int $language)
     {
         $this->logoTextContent = $logoTextContent;
         $this->position = $position;
