@@ -22,7 +22,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectForkEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -70,7 +69,6 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
-        private readonly ProjectForkRepositoryInterface $projectForkRepository,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -261,6 +259,11 @@ class ProjectAppService extends AbstractAppService
     public function getProjectNotUserId(int $projectId): ?ProjectEntity
     {
         return $this->projectDomainService->getProjectNotUserId($projectId);
+    }
+
+    public function getProjectForkCount(int $projectId): int
+    {
+        return $this->projectDomainService->getProjectForkCount($projectId);
     }
 
     /**
@@ -581,7 +584,7 @@ class ProjectAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
 
         // Find fork record by fork project ID
-        $projectFork = $this->projectForkRepository->findByForkProjectId($projectId);
+        $projectFork = $this->projectDomainService->findByForkProjectId($projectId);
         if (! $projectFork) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
         }

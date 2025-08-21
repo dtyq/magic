@@ -84,4 +84,6 @@ interface ProjectForkRepositoryInterface
      * Get fork statistics by user.
      */
     public function getForkStatsByUser(string $userId): array;
+
+    public function getForkCountByProjectId(int $projectId): int;
 }
