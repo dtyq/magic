@@ -62,7 +62,13 @@ class ScheduleUsageRecordSubscriber implements ListenerInterface
 
         // Set cache-related token information
         $msgLog->setCacheWriteTokens($usage->getCacheWriteInputTokens());
-        $msgLog->setCacheReadTokens($usage->getCacheReadInputTokens());
+
+        // Priority: getCacheReadInputTokens, fallback to getCachedTokens if zero
+        $cacheReadTokens = $usage->getCacheReadInputTokens();
+        if ($cacheReadTokens === 0) {
+            $cacheReadTokens = $usage->getCachedTokens();
+        }
+        $msgLog->setCacheReadTokens($cacheReadTokens);
 
         $msgLog->setModel($modelUsageEvent->getModelId());
         $msgLog->setUserId($modelUsageEvent->getUserId());
