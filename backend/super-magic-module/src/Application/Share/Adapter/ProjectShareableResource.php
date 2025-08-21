@@ -53,7 +53,7 @@ class ProjectShareableResource implements ResourceFactoryInterface
 
             // Get project basic info
             $projectInfo = [
-                'project_id' => $projectEntity->getId(),
+                'project_id' => (string) $projectEntity->getId(),
                 'project_name' => $projectEntity->getProjectName(),
                 'description' => $projectEntity->getProjectDescription(),
                 'creator' => $creator,
