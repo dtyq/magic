@@ -844,11 +844,7 @@ class TaskFileDomainService
         }
         Db::beginTransaction();
         try {
-            if ($fileEntity->getIsDirectory()) {
-                $this->moveDirectory($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
-            } else {
-                $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
-            }
+            $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
             Db::commit();
         } catch (Throwable $e) {
             Db::rollBack();
@@ -870,46 +866,18 @@ class TaskFileDomainService
         }
     }
 
-    public function moveDirectory(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $targetPath, int $targetParentId): void
+    public function getDirectoryFileIds(DataIsolation $dataIsolation, TaskFileEntity $dirEntity): array
     {
-        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
+        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), rtrim($dirEntity->getFileKey(), '/'));
         if (empty($fileEntities)) {
-            return;
+            return [];
         }
 
-        $oldDirKey = $dirEntity->getFileKey();
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
-            $workDir
-        );
-        $prefix = WorkDirectoryUtil::getPrefix($workDir);
-
-        try {
-            foreach ($fileEntities as $fileEntity) {
-                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
-                    continue;
-                }
-
-                // Calculate new file key by replacing old directory path with new directory path
-                $newFileKey = str_replace($oldDirKey, $targetPath, $fileEntity->getFileKey());
-                $oldFileKey = $fileEntity->getFileKey();
-
-                // 3. Rename in cloud storage
-                try {
-                    $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
-                    // Update entity
-                    $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $newFileKey, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
-                } catch (Throwable $e) {
-                    $this->logger->error('Failed to rename file in cloud storage', [
-                        'old_file_key' => $oldFileKey,
-                        'new_file_key' => $newFileKey,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        } catch (Throwable $e) {
-            throw $e;
+        $fileIds = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileIds[] = $fileEntity->getFileId();
         }
+        return $fileIds;
     }
 
     public function getUserFileEntity(DataIsolation $dataIsolation, int $fileId): TaskFileEntity
@@ -1340,7 +1308,7 @@ class TaskFileDomainService
         return $this->taskFileRepository->getSiblingCountByParentId($parentId, $projectId);
     }
 
-    public function copyEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
+    public function createFolderFromFileEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
     {
         $dirEntity = new TaskFileEntity();
 
@@ -1365,11 +1333,35 @@ class TaskFileDomainService
         $dirEntity->setCreatedAt($now);
         $dirEntity->setUpdatedAt($now);
 
-        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $newFileKey, StorageBucketType::SandBox);
+        try {
+            $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $newFileKey, StorageBucketType::SandBox);
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('createFolderFromFileEntity err, new_file_key:%s', $newFileKey), ['err' => $e->getMessage()]);
+        }
 
         $this->insert($dirEntity);
 
         return $dirEntity;
+    }
+
+    public function renameFolderFromFileEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
+    {
+        $oldFileKey = $oldFileEntity->getFileKey();
+        $oldFileEntity->setParentId($parentId);
+        $oldFileEntity->setFileKey($newFileKey);
+        $now = date('Y-m-d H:i:s');
+        $oldFileEntity->setUpdatedAt($now);
+
+        // 重命名文件夹
+        try {
+            $this->cloudFileRepository->renameObjectByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('renameFolderFromFileEntity, old_file_key: %s, new_file_key:%s', $oldFileKey, $newFileKey), ['err' => $e->getMessage()]);
+        }
+
+        $this->taskFileRepository->updateFileByCondition(['file_id' => $oldFileEntity->getFileId()], ['parent_id' => $parentId, 'file_key' => $newFileKey, 'updated_at' => $now]);
+
+        return $oldFileEntity;
     }
 
     /**
