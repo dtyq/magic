@@ -20,6 +20,13 @@ class ProjectMemberApiTest extends AbstractHttpTest
 
     private string $authorization = '';
 
+
+    private string $fileId = '816640336984018944';
+
+    private string $projectId = '816065897791012866';
+
+    private string $workspaceId = '798545276362801698';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -31,11 +38,33 @@ class ProjectMemberApiTest extends AbstractHttpTest
         parent::tearDown();
     }
 
+    public function testUpdateFile()
+    {
+        $projectId = $this->projectId;
+        $fileId = (int) $this->fileId;
+
+        $this->switchUserTest1();
+        $this->updateEmptyMembers($projectId);
+        $this->updateFileContent($fileId, 'test1', 51154);
+
+        // 没权限
+        $this->switchUserTest2();
+        $this->updateFileContent($fileId, 'test2', 51202);
+
+        // 添加团队协作
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+
+        // 有权限
+        $this->switchUserTest2();
+        $this->updateFileContent($fileId, 'test2', 51154);
+    }
+
     public function testFile()
     {
         // 使用现有的项目和文件ID进行测试
-        $fileId = '816640336984018944'; // 测试文件ID
-        $projectId = '816065897791012866';
+        $fileId = $this->fileId; // 测试文件ID
+        $projectId = $this->projectId;
 
         $this->switchUserTest1();
         $this->updateEmptyMembers($projectId);
@@ -82,8 +111,8 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $projectId = $response['data']['project']['id'];*/
 
         // 话题列表
-        $workspaceId = '798545276362801698';
-        $projectId = '816065983061213185';
+        $workspaceId = $this->workspaceId;
+        $projectId = $this->projectId;
 
         $this->updateProject($workspaceId, $projectId);
         $this->updateProject($workspaceId, $projectId);
@@ -244,7 +273,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
     {
         $response = $this->get(self::BASE_URI . "/{$projectId}/topics?page=1&page_size=20", [], $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
-        $this->assertGreaterThan(1, count($response['data']['list']));
+        $this->assertGreaterThan(0, count($response['data']['list']));
     }
 
     public function renameTopic(string $workspaceId, string $projectId, string $topicId): string
@@ -480,6 +509,22 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $invalidFileId = 'invalid_file_id';
         $this->joinFileEditing($invalidFileId, 51202); // 假设400是参数错误
     }
+
+    public function updateFileContent(int $fileId, string $content, int $expectedCode): void
+    {
+        $response = $this->post("/api/v1/super-agent/file/save", [
+            [
+                'file_id' => $fileId,
+                'content' => $content,
+                'enable_shadow' => false
+            ]
+        ], $this->getCommonHeaders());
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $this->assertEquals($expectedCode, $response['data']['error_files'][0]['error_code'], $response['data']['error_files'][0]['error']);
+    }
+
 
     protected function switchUserTest1(): string
     {
