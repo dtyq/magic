@@ -15,7 +15,6 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -40,7 +39,6 @@ class FileManagementAppService extends AbstractAppService
 
     public function __construct(
         private readonly FileAppService $fileAppService,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         LoggerFactory $loggerFactory
@@ -605,19 +603,23 @@ class FileManagementAppService extends AbstractAppService
      * Get file URLs for multiple files.
      *
      * @param RequestContext $requestContext Request context
+     * @param string $projectId Project ID
      * @param array $fileIds Array of file IDs
      * @param string $downloadMode Download mode (download, preview)
      * @param array $options Additional options
      * @return array File URLs
      */
-    public function getFileUrls(RequestContext $requestContext, array $fileIds, string $downloadMode, array $options = []): array
+    public function getFileUrls(RequestContext $requestContext, string $projectId, array $fileIds, string $downloadMode, array $options = []): array
     {
         try {
             $userAuthorization = $requestContext->getUserAuthorization();
             $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
             return $this->taskFileDomainService->getFileUrls(
                 $dataIsolation,
+                $projectEntity->getId(),
                 $fileIds,
                 $downloadMode,
                 $options
