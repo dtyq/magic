@@ -462,6 +462,13 @@ class ProjectAppService extends AbstractAppService
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
     }
 
+    public function hasProjectMember(int $projectId): bool
+    {
+        $projectIdMapMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts([$projectId]);
+
+        return (bool) ($projectIdMapMemberCounts[$projectId] ?? 0) > 0;
+    }
+
     /**
      * Fork project.
      */
