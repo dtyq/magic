@@ -29,7 +29,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -848,11 +847,7 @@ class TaskFileDomainService
         }
         Db::beginTransaction();
         try {
-            if ($fileEntity->getIsDirectory()) {
-                $this->moveDirectory($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
-            } else {
-                $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
-            }
+            $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
             Db::commit();
         } catch (Throwable $e) {
             Db::rollBack();
@@ -874,46 +869,18 @@ class TaskFileDomainService
         }
     }
 
-    public function moveDirectory(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $targetPath, int $targetParentId): void
+    public function getDirectoryFileIds(DataIsolation $dataIsolation, TaskFileEntity $dirEntity): array
     {
-        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
+        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), rtrim($dirEntity->getFileKey(), '/'));
         if (empty($fileEntities)) {
-            return;
+            return [];
         }
 
-        $oldDirKey = $dirEntity->getFileKey();
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
-            $workDir
-        );
-        $prefix = WorkDirectoryUtil::getPrefix($workDir);
-
-        try {
-            foreach ($fileEntities as $fileEntity) {
-                if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
-                    continue;
-                }
-
-                // Calculate new file key by replacing old directory path with new directory path
-                $newFileKey = str_replace($oldDirKey, $targetPath, $fileEntity->getFileKey());
-                $oldFileKey = $fileEntity->getFileKey();
-
-                // 3. Rename in cloud storage
-                try {
-                    $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
-                    // Update entity
-                    $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $newFileKey, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
-                } catch (Throwable $e) {
-                    $this->logger->error('Failed to rename file in cloud storage', [
-                        'old_file_key' => $oldFileKey,
-                        'new_file_key' => $newFileKey,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        } catch (Throwable $e) {
-            throw $e;
+        $fileIds = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileIds[] = $fileEntity->getFileId();
         }
+        return $fileIds;
     }
 
     public function getUserFileEntity(DataIsolation $dataIsolation, int $fileId): TaskFileEntity
@@ -1207,54 +1174,28 @@ class TaskFileDomainService
     }
 
     /**
-     * Get file URLs by access token.
-     *
-     * @param array $fileIds Array of file IDs
-     * @param string $token Access token
-     * @param string $downloadMode Download mode
-     * @return array Array of file URLs
+     * getFileUrls for project id.
      */
-    public function getFileUrlsByAccessToken(array $fileIds, string $token, string $downloadMode): array
+    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode): array
     {
-        // 从缓存里获取数据
-        if (! AccessTokenUtil::validate($token)) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
-        }
-
         // 从token获取内容
-        $topicId = AccessTokenUtil::getResource($token);
-        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
-        $result = [];
-
-        // 获取 topic 详情
-        $topicEntity = $this->topicRepository->getTopicById((int) $topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+        $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
+        if (empty($fileEntities)) {
+            return [];
         }
 
-        foreach ($fileIds as $fileId) {
-            $fileEntity = $this->taskFileRepository->getById((int) $fileId);
-            $isBelongTopic = ((string) $fileEntity?->getTopicId()) === $topicId;
-            $isBelongProject = ((string) $fileEntity?->getProjectId()) == $topicEntity->getProjectId();
-            if (empty($fileEntity) || (! $isBelongTopic && ! $isBelongProject)) {
-                // 如果文件不存在或既不属于该话题也不属于该项目，跳过
-                continue;
-            }
-
+        $result = [];
+        foreach ($fileEntities as $fileEntity) {
             // 跳过目录
             if ($fileEntity->getIsDirectory()) {
                 continue;
             }
 
             try {
-                // 创建临时的数据隔离对象用于生成URL
-                $dataIsolation = new DataIsolation();
-                $dataIsolation->setCurrentUserId($fileEntity->getUserId());
-                $dataIsolation->setCurrentOrganizationCode($organizationCode);
-
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
             } catch (Throwable $e) {
                 // 如果获取URL失败，跳过
+                $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
                 continue;
             }
         }
@@ -1281,6 +1222,11 @@ class TaskFileDomainService
         TaskFileEntity $fileEntity,
         array $options = []
     ): string {
+        // Cannot generate URL for directories
+        if ($fileEntity->getIsDirectory()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.cannot_generate_url_for_directory'));
+        }
+
         // Set default filename if not provided
         if (! isset($options['filename'])) {
             $options['filename'] = $fileEntity->getFileName();
@@ -1336,7 +1282,7 @@ class TaskFileDomainService
         return $this->taskFileRepository->getSiblingCountByParentId($parentId, $projectId);
     }
 
-    public function copyEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
+    public function createFolderFromFileEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
     {
         $dirEntity = new TaskFileEntity();
 
@@ -1361,11 +1307,35 @@ class TaskFileDomainService
         $dirEntity->setCreatedAt($now);
         $dirEntity->setUpdatedAt($now);
 
-        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $newFileKey, StorageBucketType::SandBox);
+        try {
+            $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $newFileKey, StorageBucketType::SandBox);
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('createFolderFromFileEntity err, new_file_key:%s', $newFileKey), ['err' => $e->getMessage()]);
+        }
 
         $this->insert($dirEntity);
 
         return $dirEntity;
+    }
+
+    public function renameFolderFromFileEntity(TaskFileEntity $oldFileEntity, int $parentId, string $newFileKey, string $workDir): TaskFileEntity
+    {
+        $oldFileKey = $oldFileEntity->getFileKey();
+        $oldFileEntity->setParentId($parentId);
+        $oldFileEntity->setFileKey($newFileKey);
+        $now = date('Y-m-d H:i:s');
+        $oldFileEntity->setUpdatedAt($now);
+
+        // 重命名文件夹
+        try {
+            $this->cloudFileRepository->renameObjectByCredential(WorkDirectoryUtil::getPrefix($workDir), $oldFileEntity->getOrganizationCode(), $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf('renameFolderFromFileEntity, old_file_key: %s, new_file_key:%s', $oldFileKey, $newFileKey), ['err' => $e->getMessage()]);
+        }
+
+        $this->taskFileRepository->updateFileByCondition(['file_id' => $oldFileEntity->getFileId()], ['parent_id' => $parentId, 'file_key' => $newFileKey, 'updated_at' => $now]);
+
+        return $oldFileEntity;
     }
 
     /**

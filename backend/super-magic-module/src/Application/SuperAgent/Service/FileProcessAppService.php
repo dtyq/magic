@@ -1004,10 +1004,12 @@ class FileProcessAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
         }
 
-        // Check if current user is the file owner
+        /*// Check if current user is the file owner
         if ($taskFileEntity->getUserId() !== $authorization->getId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
-        }
+        }*/
+
+        $this->getAccessibleProject($taskFileEntity->getProjectId(), $authorization->getId(), $authorization->getOrganizationCode());
 
         return $taskFileEntity;
     }

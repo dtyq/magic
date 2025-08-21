@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -15,13 +16,15 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\DirectoryMovePublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryMoveEvent;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
@@ -51,6 +54,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
@@ -356,7 +360,7 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
@@ -505,7 +509,7 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             if ($fileEntity->getIsDirectory()) {
@@ -570,8 +574,17 @@ class FileManagementAppService extends AbstractAppService
                 // Initialize task status
                 $this->batchOperationStatusManager->initializeTask($batchKey, FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), 1);
                 // Publish move event
-                $event = new DirectoryMoveEvent($batchKey, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileId(), $projectEntity->getId(), $preFileId, $targetParentId);
-                $publisher = new DirectoryMovePublisher($event);
+                $fileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
+                $event = FileBatchMoveEvent::fromDTO(
+                    $batchKey,
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileIds,
+                    $projectEntity->getId(),
+                    $preFileId,
+                    $targetParentId
+                );
+                $publisher = new FileBatchMovePublisher($event);
                 $this->producer->produce($publisher);
                 // Return asynchronous response
                 return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
@@ -676,11 +689,38 @@ class FileManagementAppService extends AbstractAppService
     public function getFileUrlsByAccessToken(array $fileIds, string $accessToken, string $downloadMode): array
     {
         try {
-            return $this->taskFileDomainService->getFileUrlsByAccessToken(
-                $fileIds,
-                $accessToken,
-                $downloadMode
-            );
+            // 从缓存里获取数据
+            if (! AccessTokenUtil::validate($accessToken)) {
+                ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
+            }
+
+            // 从token获取内容
+            $shareId = AccessTokenUtil::getShareId($accessToken);
+            $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+            if (! $shareEntity) {
+                ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
+            }
+
+            $projectId = 0;
+            switch ($shareEntity->getResourceType()) {
+                case ResourceType::Topic->value:
+                    $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $shareEntity->getResourceId());
+                    if (empty($topicEntity)) {
+                        ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+                    }
+                    $projectId = $topicEntity->getProjectId();
+                    break;
+                case ResourceType::Project->value:
+                    $projectId = (int) $shareEntity->getResourceId();
+                    break;
+                default:
+                    ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+            }
+
+            $organizationCode = AccessTokenUtil::getOrganizationCode($accessToken);
+            $dataIsolation = DataIsolation::simpleMake($organizationCode);
+
+            return $this->taskFileDomainService->getFileUrlsByProjectId($dataIsolation, $fileIds, $projectId, $downloadMode);
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
                 'Business logic error in get file URLs by token: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
@@ -737,7 +777,21 @@ class FileManagementAppService extends AbstractAppService
             );
 
             // Create and publish batch move event
-            $event = FileBatchMoveEvent::fromDTO($batchKey, $dataIsolation, $requestDTO);
+            $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
+            if (empty($requestDTO->getTargetParentId())) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory($projectEntity->getId(), $projectEntity->getWorkDir(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            } else {
+                $targetParentId = (int) $requestDTO->getTargetParentId();
+            }
+            $event = FileBatchMoveEvent::fromDTO(
+                $batchKey,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $requestDTO->getFileIds(),
+                $projectEntity->getId(),
+                $preFileId,
+                $targetParentId
+            );
             $publisher = new FileBatchMovePublisher($event);
             $this->producer->produce($publisher);
 

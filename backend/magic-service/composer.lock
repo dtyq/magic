@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "de26a92344220578b80b1fde57c98d30",
+    "content-hash": "5369eeebc366aa1c7fe7f553b0be8e2d",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2192,12 +2192,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "6b688ad40e4b78002fe15255aeca5ff807b199ae"
+                "reference": "f2874b159250326aa909ca19f38ff4a179312165"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=6b688ad40e4b78002fe15255aeca5ff807b199ae",
-                "reference": "6b688ad40e4b78002fe15255aeca5ff807b199ae",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f2874b159250326aa909ca19f38ff4a179312165",
+                "reference": "f2874b159250326aa909ca19f38ff4a179312165",
                 "shasum": ""
             },
             "require": {
@@ -2300,7 +2300,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-21T14:05:03+08:00"
+            "time": "2025-08-21T21:32:26+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2570,12 +2570,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "15cb1cf80d9b992a035cb35c01c26e2df1eed39b"
+                "reference": "de09418ad36d886e87ec53eec420c83f758c9f68"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=15cb1cf80d9b992a035cb35c01c26e2df1eed39b",
-                "reference": "15cb1cf80d9b992a035cb35c01c26e2df1eed39b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=de09418ad36d886e87ec53eec420c83f758c9f68",
+                "reference": "de09418ad36d886e87ec53eec420c83f758c9f68",
                 "shasum": ""
             },
             "require": {
@@ -2669,7 +2669,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-21T11:58:57+08:00"
+            "time": "2025-08-21T20:47:45+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6442,16 +6442,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.45",
+            "version": "v1.1.46",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "927543b8b4d0c1b47d8c9858e8004dcbb56af71a"
+                "reference": "5b374670da682b7bb8df35f7e8212b3063492990"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=927543b8b4d0c1b47d8c9858e8004dcbb56af71a",
-                "reference": "927543b8b4d0c1b47d8c9858e8004dcbb56af71a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=5b374670da682b7bb8df35f7e8212b3063492990",
+                "reference": "5b374670da682b7bb8df35f7e8212b3063492990",
                 "shasum": ""
             },
             "require": {
@@ -6523,9 +6523,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.45"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.46"
             },
-            "time": "2025-08-20T16:55:29+08:00"
+            "time": "2025-08-21T18:26:39+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -10486,16 +10486,16 @@
         },
         {
             "name": "phpoption/phpoption",
-            "version": "1.9.3",
+            "version": "1.9.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/schmittjoh/php-option.git",
-                "reference": "e3fac8b24f56113f7cb96af14958c0dd16330f54"
+                "reference": "638a154f8d4ee6a5cfa96d6a34dfbe0cffa9566d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/schmittjoh/php-option/zipball/e3fac8b24f56113f7cb96af14958c0dd16330f54",
-                "reference": "e3fac8b24f56113f7cb96af14958c0dd16330f54",
+                "url": "https://api.github.com/repos/schmittjoh/php-option/zipball/638a154f8d4ee6a5cfa96d6a34dfbe0cffa9566d",
+                "reference": "638a154f8d4ee6a5cfa96d6a34dfbe0cffa9566d",
                 "shasum": ""
             },
             "require": {
@@ -10503,7 +10503,7 @@
             },
             "require-dev": {
                 "bamarni/composer-bin-plugin": "^1.8.2",
-                "phpunit/phpunit": "^8.5.39 || ^9.6.20 || ^10.5.28"
+                "phpunit/phpunit": "^8.5.44 || ^9.6.25 || ^10.5.53 || ^11.5.34"
             },
             "type": "library",
             "extra": {
@@ -10545,7 +10545,7 @@
             ],
             "support": {
                 "issues": "https://github.com/schmittjoh/php-option/issues",
-                "source": "https://github.com/schmittjoh/php-option/tree/1.9.3"
+                "source": "https://github.com/schmittjoh/php-option/tree/1.9.4"
             },
             "funding": [
                 {
@@ -10557,7 +10557,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-07-20T21:41:07+00:00"
+            "time": "2025-08-21T11:53:16+00:00"
         },
         {
             "name": "phpseclib/phpseclib",
@@ -14536,16 +14536,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.155",
+            "version": "v1.0.156",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "b70599efc34642243fe35dc03f06d151a22c9959"
+                "reference": "a5bfb45ac52b0a61a43ccb16936846132a33ba13"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/b70599efc34642243fe35dc03f06d151a22c9959",
-                "reference": "b70599efc34642243fe35dc03f06d151a22c9959",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/a5bfb45ac52b0a61a43ccb16936846132a33ba13",
+                "reference": "a5bfb45ac52b0a61a43ccb16936846132a33ba13",
                 "shasum": ""
             },
             "require": {
@@ -14580,9 +14580,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.155"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.156"
             },
-            "time": "2025-08-14T12:04:53+00:00"
+            "time": "2025-08-21T11:20:14+00:00"
         },
         {
             "name": "w7corp/easywechat",
@@ -19610,7 +19610,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.3",
+        "php": ">=8.4",
         "ext-bcmath": "*",
         "ext-curl": "*",
         "ext-fileinfo": "*",

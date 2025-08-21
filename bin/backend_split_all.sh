@@ -82,10 +82,17 @@ function split()
 function remote()
 {
     # 检查远程仓库是否已存在
+    REPO_URL="$GIT_REPO_URL/$1.git"
+
+    # 如果是 HTTPS URL 且包含认证信息，添加 GitLab token
+    if [[ $REPO_URL == https://* ]] && [[ ! $REPO_URL == *oauth2* ]] && [ -n "$GITLAB_TOKEN" ]; then
+        REPO_URL=$(echo "$REPO_URL" | sed "s|https://|https://oauth2:${GITLAB_TOKEN}@|")
+    fi
+
     if ! git remote | grep -q "^$1$"; then
-        git remote add $1 "$GIT_REPO_URL/$1.git" || true
+        git remote add $1 "$REPO_URL" || true
     else
-        git remote set-url $1 "$GIT_REPO_URL/$1.git" || true
+        git remote set-url $1 "$REPO_URL" || true
     fi
 }
 
@@ -125,5 +132,3 @@ fi
 if remote "magic-web"; then
     split "frontend/magic-web" "magic-web"
 fi
-
-

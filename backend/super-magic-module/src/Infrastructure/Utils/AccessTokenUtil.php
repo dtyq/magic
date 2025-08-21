@@ -29,24 +29,24 @@ class AccessTokenUtil
     /**
      * 生成临时访问令牌.
      *
-     * @param string $resourceId 资源ID
+     * @param string $shareId 分享ID
      * @param string $organizationCode 组织代码
      * @param string $scope 权限范围(如：read, write, full)
      * @param null|int $ttl 过期时间(秒)，不指定则使用默认值
      * @param null|array $metadata 附加元数据
      * @return string 生成的令牌
      */
-    public static function generate(string $resourceId, string $organizationCode = '', string $scope = 'read', ?int $ttl = null, ?array $metadata = null): string
+    public static function generate(string $shareId, string $organizationCode = '', string $scope = 'read', ?int $ttl = null, ?array $metadata = null): string
     {
         $redis = self::getRedis();
         $actualTtl = $ttl ?? self::$defaultTtl;
 
-        // 基于资源ID和作用域生成确定性的令牌 + php时间戳获取
-        $token = md5($resourceId . ':' . $scope . ':' . $organizationCode . ':' . time());
+        // 基于分享ID和作用域生成确定性的令牌 + php时间戳获取
+        $token = md5($shareId . ':' . $scope . ':' . $organizationCode . ':' . time());
 
         // 构建令牌数据
         $tokenData = [
-            'resource_id' => $resourceId,
+            'share_id' => $shareId,
             'scope' => $scope,
             'created_at' => time(),
             'expires_at' => time() + $actualTtl,
@@ -130,15 +130,15 @@ class AccessTokenUtil
     }
 
     /**
-     * 获取令牌关联资源.
+     * 获取令牌关联的分享ID.
      *
      * @param string $token 访问令牌
-     * @return null|string 资源ID，无效令牌返回null
+     * @return null|string 分享ID，无效令牌返回null
      */
-    public static function getResource(string $token): ?string
+    public static function getShareId(string $token): ?string
     {
         $data = self::getTokenData($token);
-        return $data['resource_id'] ?? null;
+        return $data['share_id'] ?? null;
     }
 
     public static function getOrganizationCode(string $token): ?string

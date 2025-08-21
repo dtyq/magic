@@ -407,23 +407,46 @@ class ProjectAppService extends AbstractAppService
 
         // 从缓存里获取数据
         if (! AccessTokenUtil::validate($token)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
+            ExceptionBuilder::throw(ShareErrorCode::PARAMETER_CHECK_FAILURE, 'share.parameter_check_failure');
         }
 
-        $topicId = AccessTokenUtil::getResource($token);
-        $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        $shareId = AccessTokenUtil::getShareId($token);
+        $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
         }
 
+        // 由于前端当前的分享话题也会获取项目列表的接口，所以这里需要兼容分享类型是话题的情况，否则直接处理 ResourceType::Project 即可
+        $projectId = '';
+        $workDir = '';
+        switch ($shareEntity->getResourceType()) {
+            case ResourceType::Topic->value:
+                $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $shareEntity->getResourceId());
+                if (empty($topicEntity)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+                }
+                $projectId = (string) $topicEntity->getProjectId();
+                $workDir = $topicEntity->getWorkDir();
+                break;
+            case ResourceType::Project->value:
+                $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $shareEntity->getResourceId());
+                if (empty($projectEntity)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+                }
+                $projectId = (string) $projectEntity->getId();
+                $workDir = $projectEntity->getWorkDir();
+                break;
+            default:
+                ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+        }
+
+        $requestDto->setProjectId($projectId);
         $organizationCode = AccessTokenUtil::getOrganizationCode($token);
-        $requestDto->setProjectId((string) $topicEntity->getProjectId());
-
         // 创建DataIsolation
         $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
 
         // 令牌模式不需要workDir处理，传空字符串
-        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $topicEntity->getWorkDir());
+        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $workDir);
     }
 
     public function getCloudFiles(RequestContext $requestContext, int $projectId): array
