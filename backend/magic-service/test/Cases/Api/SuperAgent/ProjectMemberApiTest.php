@@ -20,7 +20,6 @@ class ProjectMemberApiTest extends AbstractHttpTest
 
     private string $authorization = '';
 
-
     private string $fileId = '816640336984018944';
 
     private string $projectId = '816065897791012866';
