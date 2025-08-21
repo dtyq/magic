@@ -13,7 +13,6 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
-use Throwable;
 
 return new class extends Migration {
     /**
