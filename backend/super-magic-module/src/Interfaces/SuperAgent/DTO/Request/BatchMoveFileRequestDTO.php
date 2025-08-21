@@ -57,7 +57,7 @@ class BatchMoveFileRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'target_parent_id' => 'required|string',
+            'target_parent_id' => 'nullable|string',
             'pre_file_id' => 'nullable|string',
             'file_ids' => 'required|array|min:1',
             'file_ids.*' => 'required|string',
@@ -71,7 +71,6 @@ class BatchMoveFileRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'target_parent_id.required' => 'Target parent ID is required',
             'target_parent_id.string' => 'Target parent ID must be a string',
             'pre_file_id.string' => 'Pre file ID must be a string',
             'file_ids.required' => 'File IDs are required',
