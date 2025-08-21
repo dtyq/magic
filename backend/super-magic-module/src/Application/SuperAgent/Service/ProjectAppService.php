@@ -422,6 +422,13 @@ class ProjectAppService extends AbstractAppService
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
     }
 
+    public function hasProjectMember(int $projectId): bool
+    {
+        $projectIdMapMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts([$projectId]);
+
+        return (bool) ($projectIdMapMemberCounts[$projectId] ?? 0) > 0;
+    }
+
     /**
      * 获取项目附件列表的核心逻辑.
      */
