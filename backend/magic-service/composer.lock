@@ -1884,16 +1884,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.46",
+            "version": "1.0.47",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "76608c41cd277b16cf0ee62d1d8406a4abcabd21"
+                "reference": "e9e3da5da8346e5cab821c000b2437df3f1c75a3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=76608c41cd277b16cf0ee62d1d8406a4abcabd21",
-                "reference": "76608c41cd277b16cf0ee62d1d8406a4abcabd21",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e9e3da5da8346e5cab821c000b2437df3f1c75a3",
+                "reference": "e9e3da5da8346e5cab821c000b2437df3f1c75a3",
                 "shasum": ""
             },
             "require": {
@@ -1970,9 +1970,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.46"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.47"
             },
-            "time": "2025-08-20T20:04:26+00:00"
+            "time": "2025-08-20T20:16:30+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2187,16 +2187,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.98",
+            "version": "0.0.99",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "2b27b2bbb5da42855ea8a162095e5c2022a9ec05"
+                "reference": "a9eca74a1a07e53045207965b8a3b66a1f0229d2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=2b27b2bbb5da42855ea8a162095e5c2022a9ec05",
-                "reference": "2b27b2bbb5da42855ea8a162095e5c2022a9ec05",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=a9eca74a1a07e53045207965b8a3b66a1f0229d2",
+                "reference": "a9eca74a1a07e53045207965b8a3b66a1f0229d2",
                 "shasum": ""
             },
             "require": {
@@ -2297,9 +2297,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.98"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.99"
             },
-            "time": "2025-08-20T19:34:56+00:00"
+            "time": "2025-08-21T07:00:48+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -9735,16 +9735,16 @@
         },
         {
             "name": "overtrue/socialite",
-            "version": "4.11.2",
+            "version": "4.12.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/overtrue/socialite.git",
-                "reference": "83dd537a88b30cd9204ee2c46a5b2e181bc1fa66"
+                "reference": "b32353d0ee21e3e52f43ff2ddf26e8c6661eddd6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/overtrue/socialite/zipball/83dd537a88b30cd9204ee2c46a5b2e181bc1fa66",
-                "reference": "83dd537a88b30cd9204ee2c46a5b2e181bc1fa66",
+                "url": "https://api.github.com/repos/overtrue/socialite/zipball/b32353d0ee21e3e52f43ff2ddf26e8c6661eddd6",
+                "reference": "b32353d0ee21e3e52f43ff2ddf26e8c6661eddd6",
                 "shasum": ""
             },
             "require": {
@@ -9794,7 +9794,7 @@
             ],
             "support": {
                 "issues": "https://github.com/overtrue/socialite/issues",
-                "source": "https://github.com/overtrue/socialite/tree/4.11.2"
+                "source": "https://github.com/overtrue/socialite/tree/4.12.0"
             },
             "funding": [
                 {
@@ -9802,7 +9802,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-10-08T16:23:14+00:00"
+            "time": "2025-08-20T22:55:33+00:00"
         },
         {
             "name": "paragonie/constant_time_encoding",
