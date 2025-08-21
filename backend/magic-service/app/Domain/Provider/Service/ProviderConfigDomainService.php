@@ -150,7 +150,7 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
      * - 模板ID（格式：providerCode_category）
      * - 常规数据库配置ID.
      */
-    protected function getProviderConfig(ProviderDataIsolation $dataIsolation, string $configId): ?ProviderConfigEntity
+    public function getProviderConfig(ProviderDataIsolation $dataIsolation, string $configId): ?ProviderConfigEntity
     {
         // 1. 检查是否为服务商模板ID（格式：providerCode_category）
         if (ProviderConfigIdAssembler::isAnyProviderTemplate($configId)) {

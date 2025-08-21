@@ -31,6 +31,8 @@ return [
     'not_found_error_code' => 'Unknown error code',
     'invalid_aspect_ratio' => 'The difference in size ratio of Tucson diagram is too large, and can only be 3 times different',
     'image_url_is_empty' => 'Image url is empty',
+    'unsupported_image_size' => 'Unsupported image size :size, supported sizes are: :supported_sizes',
+    'unsupported_image_size_range' => 'Image size :size is out of supported range, width and height must be between :min_size-:max_size pixels',
 
     // Azure OpenAI related error messages
     'api_key_update_failed' => 'Failed to update API key',
@@ -47,4 +49,6 @@ return [
     'request_conversion_failed' => 'Failed to convert request format',
     'invalid_size_format' => 'Invalid size format, should be WIDTHxHEIGHT format',
     'invalid_quality_parameter' => 'Invalid quality parameter, valid options are: standard, hd',
+
+    'model_not_support_edit' => 'The model does not support image editing',
 ];

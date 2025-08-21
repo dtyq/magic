@@ -16,6 +16,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageEditModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineImageGenerateV3Model;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
@@ -24,6 +26,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use InvalidArgumentException;
 
@@ -40,6 +44,8 @@ class ImageGenerateFactory
             ImageGenerateModelType::TTAPIGPT4o => new GPT4oModel($serviceProviderConfig),
             ImageGenerateModelType::AzureOpenAIImageGenerate => new AzureOpenAIImageGenerateModel($serviceProviderConfig),
             ImageGenerateModelType::AzureOpenAIImageEdit => new AzureOpenAIImageEditModel($serviceProviderConfig),
+            ImageGenerateModelType::QwenImage => new QwenImageModel($serviceProviderConfig),
+            ImageGenerateModelType::QwenImageEdit => new QwenImageEditModel($serviceProviderConfig),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -54,6 +60,8 @@ class ImageGenerateFactory
             ImageGenerateModelType::TTAPIGPT4o => self::createGPT4oRequest($data),
             ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageGenerateRequest($data),
             ImageGenerateModelType::AzureOpenAIImageEdit => self::createAzureOpenAIImageEditRequest($data),
+            ImageGenerateModelType::QwenImage => self::createQwenImageRequest($data),
+            ImageGenerateModelType::QwenImageEdit => self::createQwenImageEditRequest($data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -186,6 +194,52 @@ class ImageGenerateFactory
         } elseif (isset($data['n'])) {
             $request->setN((int) $data['n']);
         }
+
+        return $request;
+    }
+
+    private static function createQwenImageRequest(array $data): QwenImageModelRequest
+    {
+        $request = new QwenImageModelRequest(
+            (string) $data['width'],
+            (string) $data['height'],
+            $data['user_prompt'],
+            $data['negative_prompt'] ?? '',
+            $data['model'] ?? 'qwen-image'
+        );
+
+        if (isset($data['generate_num'])) {
+            $request->setGenerateNum($data['generate_num']);
+        }
+
+        if (isset($data['prompt_extend'])) {
+            $request->setPromptExtend($data['prompt_extend']);
+        }
+
+        if (isset($data['watermark'])) {
+            $request->setWatermark($data['watermark']);
+        }
+
+        if (isset($data['organization_code'])) {
+            $request->setOrganizationCode($data['organization_code']);
+        }
+
+        return $request;
+    }
+
+    private static function createQwenImageEditRequest(array $data): QwenImageEditRequest
+    {
+        $request = new QwenImageEditRequest(
+            $data['user_prompt'] ?? $data['prompt'] ?? '',
+            $data['image_urls'] ?? [],
+            $data['model'] ?? 'qwen-image-edit'
+        );
+
+        if (isset($data['generate_num'])) {
+            $request->setGenerateNum($data['generate_num']);
+        }
+
+        $request->setImageUrls($data['reference_images']);
 
         return $request;
     }

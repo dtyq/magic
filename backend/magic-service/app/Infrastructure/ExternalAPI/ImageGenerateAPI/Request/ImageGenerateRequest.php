@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
+
 class ImageGenerateRequest
 {
     protected string $width;
@@ -24,7 +26,7 @@ class ImageGenerateRequest
 
     protected string $model;
 
-    protected ?array $watermarkConfig = null;
+    protected ?WatermarkConfig $watermarkConfig = null;
 
     public function __construct(
         string $width = '',
@@ -105,12 +107,12 @@ class ImageGenerateRequest
         $this->model = $model;
     }
 
-    public function getWatermarkConfig(): ?array
+    public function getWatermarkConfig(): ?WatermarkConfig
     {
         return $this->watermarkConfig;
     }
 
-    public function setWatermarkConfig(?array $watermarkConfig): void
+    public function setWatermarkConfig(?WatermarkConfig $watermarkConfig): void
     {
         $this->watermarkConfig = $watermarkConfig;
     }

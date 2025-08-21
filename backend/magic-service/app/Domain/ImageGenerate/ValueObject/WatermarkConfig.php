@@ -12,19 +12,42 @@ namespace App\Domain\ImageGenerate\ValueObject;
  */
 class WatermarkConfig
 {
-    private bool $addLogo = true;
+    protected bool $addLogo = true;
 
-    public function __construct(
-        private string $logoTextContent,
-        private int $position = 3,
-        private float $opacity = 0.3,
-        private int $language = 0,
-    ) {
+    protected string $logoTextContent = '';
+
+    protected int $position = 3;
+
+    protected float $opacity = 0.3; // 透明度
+
+    protected int $language = 0;
+
+    public function __construct(string $logoTextContent, int $position, float $opacity, int $language = 0)
+    {
+        $this->logoTextContent = $logoTextContent;
+        $this->position = $position;
+        $this->opacity = $opacity;
+        $this->language = $language;
     }
 
-    public function getLogotextContent(): string
+    public function isAddLogo(): bool
+    {
+        return $this->addLogo;
+    }
+
+    public function setAddLogo(bool $addLogo): void
+    {
+        $this->addLogo = $addLogo;
+    }
+
+    public function getLogoTextContent(): string
     {
         return $this->logoTextContent;
+    }
+
+    public function setLogoTextContent(string $logoTextContent): void
+    {
+        $this->logoTextContent = $logoTextContent;
     }
 
     public function getPosition(): int
@@ -32,39 +55,18 @@ class WatermarkConfig
         return $this->position;
     }
 
+    public function setPosition(int $position): void
+    {
+        $this->position = $position;
+    }
+
     public function getOpacity(): float
     {
         return $this->opacity;
     }
 
-    public function getLanguage(): int
+    public function setOpacity(float $opacity): void
     {
-        return $this->language;
-    }
-
-    /**
-     * 转换为火山引擎提交任务API所需的数组格式.
-     */
-    public function toVolcengineSubmitArray(): array
-    {
-        return [
-            'content' => $this->logoTextContent,
-            'position' => $this->position,
-            'opacity' => $this->opacity,
-            'language' => $this->language,
-        ];
-    }
-
-    /**
-     * 转换为火山引擎查询任务API所需的数组格式.
-     */
-    public function toArray(): array
-    {
-        return [
-            'add_logo' => $this->addLogo,
-            'logo_text_content' => $this->logoTextContent,
-            'position' => $this->position,
-            'language' => $this->language,
-        ];
+        $this->opacity = $opacity;
     }
 }
