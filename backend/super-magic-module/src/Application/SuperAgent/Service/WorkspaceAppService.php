@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -74,7 +75,8 @@ class WorkspaceAppService extends AbstractAppService
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
         protected Producer $producer,
-        LoggerFactory $loggerFactory,
+        protected LoggerFactory $loggerFactory,
+        protected FileCleanupAppService $fileCleanupAppService,
         protected FileDomainService $fileDomainService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -148,7 +150,7 @@ class WorkspaceAppService extends AbstractAppService
 
         // 获取工作区详情
         $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
-        if (empty($workspaceEntity)) {
+        if ($workspaceEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
         }
 
@@ -275,7 +277,7 @@ class WorkspaceAppService extends AbstractAppService
     {
         // 获取当前话题的创建者
         $topicEntity = $this->workspaceDomainService->getTopicById((int) $requestDto->getTopicId());
-        if (empty($topicEntity)) {
+        if ($topicEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         if ($topicEntity->getCreatedUid() != $userAuthorization->getId()) {
@@ -616,7 +618,7 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             $downloadNames = [];
-            if ($downloadMode == 'download') {
+            if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames);
@@ -739,6 +741,42 @@ class WorkspaceAppService extends AbstractAppService
             'tree' => $tree,
             'total' => $result['total'],
         ];
+    }
+
+    /**
+     * 注册转换后的PDF文件以供定时清理.
+     */
+    public function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
+    {
+        if (empty($convertedFiles)) {
+            return;
+        }
+
+        $filesForCleanup = [];
+        foreach ($convertedFiles as $file) {
+            if (empty($file['oss_key']) || empty($file['filename'])) {
+                continue;
+            }
+
+            $filesForCleanup[] = [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'file_key' => $file['oss_key'],
+                'file_name' => $file['filename'],
+                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
+                'source_type' => 'pdf_conversion',
+                'source_id' => $file['batch_id'] ?? null,
+                'expire_after_seconds' => 7200, // 2 小时后过期
+                'bucket_type' => 'private',
+            ];
+        }
+
+        if (! empty($filesForCleanup)) {
+            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
+            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
+                'user_id' => $userAuthorization->getId(),
+                'files_count' => count($filesForCleanup),
+            ]);
+        }
     }
 
     /**

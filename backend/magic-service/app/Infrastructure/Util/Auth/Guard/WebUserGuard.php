@@ -11,9 +11,9 @@ use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Codec\Json;
-use Hyperf\Context\Context;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\Authenticatable;
 use Qbhy\HyperfAuth\Guard\AbstractAuthGuard;
@@ -24,7 +24,10 @@ class WebUserGuard extends AbstractAuthGuard
     #[Inject]
     protected LoggerInterface $logger;
 
-    public function login(Authenticatable $user)
+    #[Inject]
+    protected Redis $redis;
+
+    public function login(Authenticatable $user): void
     {
     }
 
@@ -45,17 +48,13 @@ class WebUserGuard extends AbstractAuthGuard
         if (empty($organizationCode)) {
             ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_EXIST);
         }
-        $contextKey = md5("{$authorization}@{$organizationCode}");
-
-        if ($result = Context::get($contextKey)) {
-            if ($result instanceof Throwable) {
-                throw $result;
+        $cacheKey = 'auth_user:' . md5($authorization . $organizationCode);
+        $cachedResult = $this->redis->get($cacheKey);
+        if ($cachedResult) {
+            $user = unserialize($cachedResult, ['allowed_classes' => [MagicUserAuthorization::class]]);
+            if ($user instanceof MagicUserAuthorization) {
+                return $user;
             }
-            if ($result instanceof Authenticatable) {
-                /* @phpstan-ignore-next-line */
-                return $result;
-            }
-            return null;
         }
 
         try {
@@ -71,8 +70,9 @@ class WebUserGuard extends AbstractAuthGuard
             if (empty($user->getOrganizationCode())) {
                 ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_EXIST);
             }
-
-            Context::set($contextKey, $user);
+            if ($user instanceof MagicUserAuthorization) {
+                $this->redis->setex($cacheKey, 60, serialize($user));
+            }
             $logger->info('WebUserGuard UserAuthorization', ['uid' => $user->getId(), 'name' => $user->getRealName(), 'organization' => $user->getOrganizationCode(), 'env' => $user->getMagicEnvId()]);
             return $user;
         } catch (Throwable $exception) {
@@ -88,7 +88,7 @@ class WebUserGuard extends AbstractAuthGuard
         }
     }
 
-    public function logout()
+    public function logout(): void
     {
     }
 

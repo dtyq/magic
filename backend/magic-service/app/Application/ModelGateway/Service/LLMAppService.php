@@ -111,13 +111,12 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelConfigEntity = new ModelConfigEntity();
 
-            // Determine object type based on model type
+            // Determine object type based on model class name
             $isImageModel = $model instanceof ImageGenerationModel;
             $objectType = $isImageModel ? 'image' : 'model';
 
             // Set common fields
             $modelConfigEntity->setModel($model->getModelName());
-            // Model type
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());

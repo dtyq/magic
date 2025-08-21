@@ -23,6 +23,7 @@ use App\Infrastructure\Core\Model\ImageGenerationModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
@@ -31,7 +32,6 @@ use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\ModelOptions;
 use Hyperf\Odin\ModelMapper;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 
 /**
  * 集合项目本身多套的 ModelGatewayMapper - 最终全部转换为 odin model 参数格式.
@@ -49,8 +49,9 @@ class ModelGatewayMapper extends ModelMapper
      */
     protected array $rerank = [];
 
-    public function __construct(protected ConfigInterface $config, protected LoggerInterface $logger)
+    public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
     {
+        $logger = $loggerFactory->get('ModelGatewayMapper');
         $this->models['chat'] = [];
         $this->models['embedding'] = [];
         parent::__construct($config, $logger);

@@ -187,7 +187,7 @@ class MagicFlowExportImportAppService
         // 遍历所有节点检查依赖
         foreach ($flow->getNodes() as $node) {
             // 检查子流程节点
-            if ($node->getNodeType() === NodeType::Sub) {
+            if ($node->getNodeType() === NodeType::Sub->value) {
                 $subFlowId = $node->getParams()['sub_flow_id'] ?? '';
                 if ($subFlowId && $this->checkCircularDependency($dataIsolation, $subFlowId, $visited)) {
                     return true; // 子流程中存在循环依赖
@@ -195,7 +195,7 @@ class MagicFlowExportImportAppService
             }
 
             // 检查LLM节点中的工具引用
-            if ($node->getNodeType() === NodeType::LLM || $node->getNodeType() === NodeType::Tool) {
+            if ($node->getNodeType() === NodeType::LLM->value || $node->getNodeType() === NodeType::Tool->value) {
                 $params = $node->getParams();
                 if (isset($params['option_tools']) && is_array($params['option_tools'])) {
                     foreach ($params['option_tools'] as $optionTool) {
@@ -498,6 +498,15 @@ class MagicFlowExportImportAppService
                     }
                 }
 
+                // 处理类型26的工具节点直接引用
+                if ($nodeType === NodeType::Tool->value) {
+                    if (isset($nodeData['params']['tool_id'])) {
+                        $oldToolId = $nodeData['params']['tool_id'];
+                        $newToolId = $idMapping['flows'][$oldToolId] ?? $oldToolId;
+                        $nodeData['params']['tool_id'] = $newToolId;
+                    }
+                }
+
                 // 工具节点或LLM节点
                 if ($nodeType === NodeType::Tool->value || $nodeType === NodeType::LLM->value) {
                     // 更新工具引用
@@ -517,6 +526,16 @@ class MagicFlowExportImportAppService
 
                 // 处理参数中的表达式
                 $this->updateExpressionReferences($nodeData['params'], $idMapping);
+            }
+
+            // 通用处理 input 字段 (如果存在且为数组)
+            if (isset($nodeData['input']) && is_array($nodeData['input'])) {
+                $this->processSpecialNodeFieldValue($nodeData['input'], $idMapping);
+            }
+
+            // 通用处理 output 字段 (如果存在且为数组)
+            if (isset($nodeData['output']) && is_array($nodeData['output'])) {
+                $this->processSpecialNodeFieldValue($nodeData['output'], $idMapping);
             }
 
             // 更新前置节点引用
@@ -565,9 +584,8 @@ class MagicFlowExportImportAppService
                         $newIdStr = (string) $newId;
 
                         // 使用正则表达式确保只替换完整的ID
-                        // 确保将$oldId转换为字符串
-                        if (preg_match('/^' . preg_quote((string) $oldId, '/') . '_/', $edge['sourceHandle'])) {
-                            $edge['sourceHandle'] = preg_replace('/^' . preg_quote((string) $oldId, '/') . '/', $newId, $edge['sourceHandle']);
+                        if (preg_match('/^' . preg_quote($oldIdStr, '/') . '_/', $edge['sourceHandle'])) {
+                            $edge['sourceHandle'] = preg_replace('/^' . preg_quote($oldIdStr, '/') . '/', $newIdStr, $edge['sourceHandle']);
                         }
                     }
                 }
@@ -586,49 +604,50 @@ class MagicFlowExportImportAppService
      */
     private function updateExpressionReferences(array &$data, array $idMapping): void
     {
-        // 检查是否是表达式结构
-        if (isset($data['type']) && $data['type'] === 'expression'
-            && isset($data['expression_value']) && is_array($data['expression_value'])) {
-            $this->processExpressionValue($data['expression_value'], $idMapping);
-        }
-
-        // 检查是否包含structure字段且是表达式类型
-        if (isset($data['structure']) && is_array($data['structure'])) {
-            if (isset($data['structure']['type']) && $data['structure']['type'] === 'expression') {
-                if (isset($data['structure']['expression_value']) && is_array($data['structure']['expression_value'])) {
-                    $this->processExpressionValue($data['structure']['expression_value'], $idMapping);
+        foreach ($data as &$item) {
+            if (is_array($item)) {
+                // 递归处理嵌套数组
+                $this->updateExpressionReferences($item, $idMapping);
+            } elseif (is_string($item)) {
+                // 跳过指令引用（instructions.*）
+                if (strpos($item, 'instructions.') === 0) {
+                    continue;
                 }
-            } else {
-                // 递归处理structure
-                $this->updateExpressionReferences($data['structure'], $idMapping);
+
+                // 检查是否包含节点ID引用（格式如：nodeId.fieldName）
+                foreach ($idMapping['nodes'] as $oldNodeId => $newNodeId) {
+                    // 确保ID是字符串类型
+                    $oldNodeIdStr = (string) $oldNodeId;
+                    $newNodeIdStr = (string) $newNodeId;
+
+                    // 使用正则表达式确保只替换完整的节点ID
+                    if (preg_match('/^' . preg_quote($oldNodeIdStr, '/') . '\./', $item)) {
+                        $fieldName = substr($item, strlen($oldNodeIdStr));
+                        $item = $newNodeIdStr . $fieldName;
+                        break; // 找到匹配后退出循环
+                    }
+                }
             }
         }
 
-        // 遍历处理其他字段
-        foreach ($data as $key => &$value) {
-            if (is_array($value)) {
-                // 递归处理嵌套数组
-                $this->updateExpressionReferences($value, $idMapping);
-            } elseif (is_string($value)) {
-                // 检查是否是可能包含节点引用的字段
-                if (is_string($key) && (in_array($key, ['value', 'expression', 'reference']) || strpos($key, '_value') !== false)) {
-                    // 跳过指令引用（instructions.*）
-                    if (strpos($value, 'instructions.') === 0) {
-                        continue;
-                    }
+        // 处理对象形式的表达式值（如form结构中的field）
+        if (isset($data['field'])) {
+            $field = $data['field'];
+            if (is_string($field)) {
+                // 跳过指令引用
+                if (strpos($field, 'instructions.') === 0) {
+                    return;
+                }
 
-                    // 检查是否包含节点ID引用（格式如：nodeId.fieldName）
-                    foreach ($idMapping['nodes'] as $oldNodeId => $newNodeId) {
-                        // 确保oldNodeId是字符串类型
-                        $oldNodeIdStr = (string) $oldNodeId;
-                        $newNodeIdStr = (string) $newNodeId;
+                // 检查是否包含节点ID引用
+                foreach ($idMapping['nodes'] as $oldNodeId => $newNodeId) {
+                    $oldNodeIdStr = (string) $oldNodeId;
+                    $newNodeIdStr = (string) $newNodeId;
 
-                        // 使用正则表达式确保只替换完整的节点ID
-                        if (preg_match('/^' . preg_quote($oldNodeIdStr, '/') . '\./', $value)) {
-                            $fieldName = substr($value, strlen($oldNodeIdStr));
-                            $value = $newNodeIdStr . $fieldName;
-                            break; // 找到匹配后退出循环
-                        }
+                    if (preg_match('/^' . preg_quote($oldNodeIdStr, '/') . '\./', $field)) {
+                        $fieldName = substr($field, strlen($oldNodeIdStr));
+                        $data['field'] = $newNodeIdStr . $fieldName;
+                        break;
                     }
                 }
             }
@@ -636,28 +655,168 @@ class MagicFlowExportImportAppService
     }
 
     /**
-     * 处理表达式值数组
-     * 专门处理expression_value数组中的表达式项.
+     * 判断是否为内置工具
+     * 内置工具不需要重新创建，可以直接使用.
+     */
+    private function isBuiltInTool(string $toolId, string $toolSetId): bool
+    {
+        // 常见的内置工具集前缀
+        $builtInToolSetPrefixes = [
+            'file_box',      // 文件盒工具集
+            'search_engine', // 搜索引擎工具集
+            'web_browse',    // 网页浏览工具集
+            'system',        // 系统工具集
+            'knowledge',     // 知识库工具集
+        ];
+
+        // 判断是否属于内置工具集
+        foreach ($builtInToolSetPrefixes as $prefix) {
+            if ($toolSetId === $prefix || strpos($toolSetId, $prefix . '_') === 0) {
+                return true;
+            }
+        }
+
+        // 判断工具ID是否以工具集ID开头，这是内置工具的常见模式
+        if (! empty($toolSetId) && strpos($toolId, $toolSetId . '_') === 0) {
+            return true;
+        }
+
+        // 获取配置中的内置工具列表（如果有）
+        $builtInTools = $this->config->get('flow.built_in_tools', []);
+        if (in_array($toolId, $builtInTools)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 关联流程与助理
+     * 在导入流程后将其与指定的助理关联.
+     */
+    private function associateFlowWithAgent(FlowDataIsolation $dataIsolation, string $flowCode, string $agentId): void
+    {
+        if (empty($agentId) || empty($flowCode)) {
+            return;
+        }
+
+        $agentDomainService = di(MagicAgentDomainService::class);
+        // 设置流程代码并保存助理
+        $agentDomainService->associateFlowWithAgent($agentId, $flowCode);
+    }
+
+    /**
+     * 处理特殊的表达式值字段.
+     */
+    private function processSpecialNodeFieldValue(array &$value, array $idMapping): void
+    {
+        foreach ($value as $key => &$item) {
+            if (is_array($item)) {
+                // 递归处理嵌套数组
+                $this->processSpecialNodeFieldValue($item, $idMapping);
+            } elseif (is_string($item)) {
+                // 处理字符串中的节点ID引用
+                $this->updateStringNodeReference($item, $idMapping);
+            }
+        }
+
+        // 特殊处理const_value数组中的对象
+        if (isset($value['const_value']) && is_array($value['const_value'])) {
+            foreach ($value['const_value'] as &$constItem) {
+                if (is_array($constItem)) {
+                    // 处理对象形式的const_value项
+                    if (isset($constItem['value']) && is_string($constItem['value'])) {
+                        $this->updateStringNodeReference($constItem['value'], $idMapping);
+                    }
+                    // 递归处理其他字段
+                    $this->processSpecialNodeFieldValue($constItem, $idMapping);
+                } elseif (is_string($constItem)) {
+                    // 处理字符串形式的const_value项
+                    $this->updateStringNodeReference($constItem, $idMapping);
+                }
+            }
+        }
+
+        // 处理expression_value中的引用
+        if (isset($value['expression_value']) && is_array($value['expression_value'])) {
+            $this->processExpressionValue($value['expression_value'], $idMapping);
+        }
+    }
+
+    /**
+     * 更新字符串中的节点ID引用.
+     */
+    private function updateStringNodeReference(string &$str, array $idMapping): void
+    {
+        // 跳过指令引用（instructions.*）
+        if (strpos($str, 'instructions.') === 0) {
+            return;
+        }
+
+        // 检查是否包含节点ID引用（格式如：nodeId.fieldName）
+        foreach ($idMapping['nodes'] as $oldNodeId => $newNodeId) {
+            $oldNodeIdStr = (string) $oldNodeId;
+            $newNodeIdStr = (string) $newNodeId;
+
+            // 使用正则表达式确保只替换完整的节点ID
+            if (preg_match('/^' . preg_quote($oldNodeIdStr, '/') . '\./', $str)) {
+                $fieldName = substr($str, strlen($oldNodeIdStr));
+                $str = $newNodeIdStr . $fieldName;
+                break; // 找到匹配后退出循环
+            }
+        }
+    }
+
+    /**
+     * 处理表达式值中的节点引用.
      */
     private function processExpressionValue(array &$expressionValue, array $idMapping): void
     {
-        foreach ($expressionValue as &$exprItem) {
-            if (isset($exprItem['type']) && $exprItem['type'] === 'fields' && isset($exprItem['value']) && is_string($exprItem['value'])) {
-                // 处理fields类型的表达式引用
-                foreach ($idMapping['nodes'] as $oldNodeId => $newNodeId) {
-                    // 确保oldNodeId是字符串类型
-                    $oldNodeIdStr = (string) $oldNodeId;
-                    $newNodeIdStr = (string) $newNodeId;
+        foreach ($expressionValue as &$item) {
+            if (is_array($item)) {
+                // 递归处理嵌套数组
+                $this->processExpressionValue($item, $idMapping);
+            } elseif (is_string($item)) {
+                // 处理字符串中的节点ID引用
+                $this->updateStringNodeReference($item, $idMapping);
+            }
+        }
 
-                    if (preg_match('/^' . preg_quote($oldNodeIdStr, '/') . '\./', $exprItem['value'])) {
-                        $fieldName = substr($exprItem['value'], strlen($oldNodeIdStr));
-                        $exprItem['value'] = $newNodeIdStr . $fieldName;
-                        break; // 找到匹配后退出循环
-                    }
+        // 处理对象形式的表达式值（如form结构中的field）
+        if (isset($expressionValue['field'])) {
+            $field = $expressionValue['field'];
+            if (is_string($field)) {
+                $this->updateStringNodeReference($field, $idMapping);
+                $expressionValue['field'] = $field;
+            }
+        }
+
+        // 处理嵌套的value字段
+        if (isset($expressionValue['value']) && is_array($expressionValue['value'])) {
+            $this->processExpressionValue($expressionValue['value'], $idMapping);
+        }
+
+        // 处理const_value类型的嵌套结构
+        if (isset($expressionValue['const_value']) && is_array($expressionValue['const_value'])) {
+            $this->processExpressionValue($expressionValue['const_value'], $idMapping);
+        }
+
+        // 处理expression_value类型的嵌套结构
+        if (isset($expressionValue['expression_value']) && is_array($expressionValue['expression_value'])) {
+            $this->processExpressionValue($expressionValue['expression_value'], $idMapping);
+        }
+
+        // 处理form结构中的field数组
+        if (isset($expressionValue['form']) && is_array($expressionValue['form'])) {
+            foreach ($expressionValue['form'] as &$formItem) {
+                if (isset($formItem['field']) && is_string($formItem['field'])) {
+                    $this->updateStringNodeReference($formItem['field'], $idMapping);
                 }
-            } elseif (is_array($exprItem)) {
-                // 递归处理可能嵌套的表达式项
-                $this->updateExpressionReferences($exprItem, $idMapping);
+
+                // 递归处理formItem中的其他可能字段
+                if (is_array($formItem)) {
+                    $this->updateExpressionReferences($formItem, $idMapping);
+                }
             }
         }
     }
@@ -755,6 +914,31 @@ class MagicFlowExportImportAppService
         array &$processedToolSetIds
     ): void {
         foreach ($flow->getNodes() as $node) {
+            // 处理节点类型26（直接在params中有tool_id的工具节点）
+            if ($node->getNodeType() === NodeType::Tool->value) {
+                $params = $node->getParams();
+                $toolId = $params['tool_id'] ?? '';
+
+                if (! $toolId || in_array($toolId, $processedFlowCodes)) {
+                    continue;
+                }
+
+                // 获取工具流程
+                $toolFlow = $this->magicFlowDomainService->getByCode($dataIsolation, $toolId);
+                if (! $toolFlow) {
+                    continue;
+                }
+
+                // 标记为已处理
+                $processedFlowCodes[] = $toolId;
+
+                // 添加到导出数据中
+                $exportData['tool_flows'][$toolId] = $toolFlow->toArray();
+
+                // 递归处理
+                $this->processFlowForExport($dataIsolation, $toolFlow, $exportData, $processedFlowCodes, $processedToolSetIds);
+            }
+
             // 主要检查LLM和Tool节点
             if ($node->getNodeType() === NodeType::LLM->value || $node->getNodeType() === NodeType::Tool->value) {
                 $params = $node->getParams();
@@ -799,56 +983,5 @@ class MagicFlowExportImportAppService
                 }
             }
         }
-    }
-
-    /**
-     * 判断是否为内置工具
-     * 内置工具不需要重新创建，可以直接使用.
-     */
-    private function isBuiltInTool(string $toolId, string $toolSetId): bool
-    {
-        // 常见的内置工具集前缀
-        $builtInToolSetPrefixes = [
-            'file_box',      // 文件盒工具集
-            'search_engine', // 搜索引擎工具集
-            'web_browse',    // 网页浏览工具集
-            'system',        // 系统工具集
-            'knowledge',     // 知识库工具集
-        ];
-
-        // 判断是否属于内置工具集
-        foreach ($builtInToolSetPrefixes as $prefix) {
-            if ($toolSetId === $prefix || strpos($toolSetId, $prefix . '_') === 0) {
-                return true;
-            }
-        }
-
-        // 判断工具ID是否以工具集ID开头，这是内置工具的常见模式
-        if (! empty($toolSetId) && strpos($toolId, $toolSetId . '_') === 0) {
-            return true;
-        }
-
-        // 获取配置中的内置工具列表（如果有）
-        $builtInTools = $this->config->get('flow.built_in_tools', []);
-        if (in_array($toolId, $builtInTools)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * 关联流程与助理
-     * 在导入流程后将其与指定的助理关联.
-     */
-    private function associateFlowWithAgent(FlowDataIsolation $dataIsolation, string $flowCode, string $agentId): void
-    {
-        if (empty($agentId) || empty($flowCode)) {
-            return;
-        }
-
-        $agentDomainService = di(MagicAgentDomainService::class);
-        // 设置流程代码并保存助理
-        $agentDomainService->associateFlowWithAgent($agentId, $flowCode);
     }
 }
