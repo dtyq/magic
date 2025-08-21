@@ -160,24 +160,24 @@ class FileBatchMoveEvent
 
     /**
      * Create from DTO and domain objects.
-     *
-     * @param string $batchKey Batch key
-     * @param mixed $dataIsolation Data isolation object
-     * @param mixed $requestDTO Request DTO
      */
     public static function fromDTO(
         string $batchKey,
-        $dataIsolation,
-        $requestDTO
+        string $userId,
+        string $organizationCode,
+        array $fileIds,
+        int $projectId,
+        ?int $preFileId,
+        int $targetParentId
     ): self {
         return new self(
             $batchKey,
-            $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getCurrentOrganizationCode(),
-            array_map('intval', $requestDTO->getFileIds()),
-            (int) $requestDTO->getProjectId(),
-            ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null,
-            (int) $requestDTO->getTargetParentId()
+            $userId,
+            $organizationCode,
+            array_map('intval', $fileIds),
+            $projectId,
+            $preFileId ?? null,
+            $targetParentId
         );
     }
 }
