@@ -84,7 +84,9 @@ class ProjectApi extends AbstractApi
 
         $project = $this->projectAppService->getProject($requestContext, (int) $id);
 
-        $projectDTO = ProjectItemDTO::fromEntity($project);
+        $hasProjectMember = $this->projectAppService->hasProjectMember($project->getId());
+
+        $projectDTO = ProjectItemDTO::fromEntity($project, null, null, $hasProjectMember);
 
         return $projectDTO->toArray();
     }

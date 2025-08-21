@@ -206,9 +206,9 @@ class FileManagementAppService extends AbstractAppService
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_name_required'));
             }
 
-            if ($requestDTO->getFileSize() <= 0) {
+            /*if ($requestDTO->getFileSize() <= 0) {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_size_required'));
-            }
+            }*/
 
             // 校验项目归属权限 - 确保用户只能保存到自己的项目
             $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
