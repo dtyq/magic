@@ -2187,16 +2187,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.99",
+            "version": "0.0.100",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "a9eca74a1a07e53045207965b8a3b66a1f0229d2"
+                "reference": "b18f5a2092bc7c2e31ee39438270d3fe6002ca33"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=a9eca74a1a07e53045207965b8a3b66a1f0229d2",
-                "reference": "a9eca74a1a07e53045207965b8a3b66a1f0229d2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b18f5a2092bc7c2e31ee39438270d3fe6002ca33",
+                "reference": "b18f5a2092bc7c2e31ee39438270d3fe6002ca33",
                 "shasum": ""
             },
             "require": {
@@ -2297,9 +2297,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.99"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.100"
             },
-            "time": "2025-08-21T07:00:48+00:00"
+            "time": "2025-08-21T21:35:29+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -10481,16 +10481,16 @@
         },
         {
             "name": "phpoption/phpoption",
-            "version": "1.9.3",
+            "version": "1.9.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/schmittjoh/php-option.git",
-                "reference": "e3fac8b24f56113f7cb96af14958c0dd16330f54"
+                "reference": "638a154f8d4ee6a5cfa96d6a34dfbe0cffa9566d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/schmittjoh/php-option/zipball/e3fac8b24f56113f7cb96af14958c0dd16330f54",
-                "reference": "e3fac8b24f56113f7cb96af14958c0dd16330f54",
+                "url": "https://api.github.com/repos/schmittjoh/php-option/zipball/638a154f8d4ee6a5cfa96d6a34dfbe0cffa9566d",
+                "reference": "638a154f8d4ee6a5cfa96d6a34dfbe0cffa9566d",
                 "shasum": ""
             },
             "require": {
@@ -10498,7 +10498,7 @@
             },
             "require-dev": {
                 "bamarni/composer-bin-plugin": "^1.8.2",
-                "phpunit/phpunit": "^8.5.39 || ^9.6.20 || ^10.5.28"
+                "phpunit/phpunit": "^8.5.44 || ^9.6.25 || ^10.5.53 || ^11.5.34"
             },
             "type": "library",
             "extra": {
@@ -10540,7 +10540,7 @@
             ],
             "support": {
                 "issues": "https://github.com/schmittjoh/php-option/issues",
-                "source": "https://github.com/schmittjoh/php-option/tree/1.9.3"
+                "source": "https://github.com/schmittjoh/php-option/tree/1.9.4"
             },
             "funding": [
                 {
@@ -10552,7 +10552,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-07-20T21:41:07+00:00"
+            "time": "2025-08-21T11:53:16+00:00"
         },
         {
             "name": "phpseclib/phpseclib",
@@ -14531,16 +14531,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.155",
+            "version": "v1.0.156",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "b70599efc34642243fe35dc03f06d151a22c9959"
+                "reference": "a5bfb45ac52b0a61a43ccb16936846132a33ba13"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/b70599efc34642243fe35dc03f06d151a22c9959",
-                "reference": "b70599efc34642243fe35dc03f06d151a22c9959",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/a5bfb45ac52b0a61a43ccb16936846132a33ba13",
+                "reference": "a5bfb45ac52b0a61a43ccb16936846132a33ba13",
                 "shasum": ""
             },
             "require": {
@@ -14575,9 +14575,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.155"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.156"
             },
-            "time": "2025-08-14T12:04:53+00:00"
+            "time": "2025-08-21T11:20:14+00:00"
         },
         {
             "name": "w7corp/easywechat",
