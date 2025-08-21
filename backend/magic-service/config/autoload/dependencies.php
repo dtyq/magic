@@ -401,8 +401,6 @@ $dependencies = [
     // high-availability
     EndpointProviderInterface::class => ModelGatewayEndpointProvider::class,
 
-    WatermarkConfigInterface::class => DefaultWatermarkConfig::class,
-
     // long-term-memory
     LongTermMemoryRepositoryInterface::class => MySQLLongTermMemoryRepository::class,
 
