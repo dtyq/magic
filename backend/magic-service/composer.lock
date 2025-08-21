@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.0",
+            "version": "3.356.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "d7162d154e4b9a14986e362dfc01f920442db1e8"
+                "reference": "ba92ad336ab18052a51b1294e1b1e75df601eb13"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d7162d154e4b9a14986e362dfc01f920442db1e8",
-                "reference": "d7162d154e4b9a14986e362dfc01f920442db1e8",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/ba92ad336ab18052a51b1294e1b1e75df601eb13",
+                "reference": "ba92ad336ab18052a51b1294e1b1e75df601eb13",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.0"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.1"
             },
-            "time": "2025-08-19T18:09:08+00:00"
+            "time": "2025-08-20T18:11:31+00:00"
         },
         {
             "name": "brick/math",
@@ -966,16 +966,16 @@
         },
         {
             "name": "composer/semver",
-            "version": "3.4.3",
+            "version": "3.4.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/composer/semver.git",
-                "reference": "4313d26ada5e0c4edfbd1dc481a92ff7bff91f12"
+                "reference": "198166618906cb2de69b95d7d47e5fa8aa1b2b95"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/composer/semver/zipball/4313d26ada5e0c4edfbd1dc481a92ff7bff91f12",
-                "reference": "4313d26ada5e0c4edfbd1dc481a92ff7bff91f12",
+                "url": "https://api.github.com/repos/composer/semver/zipball/198166618906cb2de69b95d7d47e5fa8aa1b2b95",
+                "reference": "198166618906cb2de69b95d7d47e5fa8aa1b2b95",
                 "shasum": ""
             },
             "require": {
@@ -1027,7 +1027,7 @@
             "support": {
                 "irc": "ircs://irc.libera.chat:6697/composer",
                 "issues": "https://github.com/composer/semver/issues",
-                "source": "https://github.com/composer/semver/tree/3.4.3"
+                "source": "https://github.com/composer/semver/tree/3.4.4"
             },
             "funding": [
                 {
@@ -1037,13 +1037,9 @@
                 {
                     "url": "https://github.com/composer",
                     "type": "github"
-                },
-                {
-                    "url": "https://tidelift.com/funding/github/packagist/composer/composer",
-                    "type": "tidelift"
                 }
             ],
-            "time": "2024-09-19T14:15:21+00:00"
+            "time": "2025-08-20T19:15:30+00:00"
         },
         {
             "name": "doctrine/annotations",
@@ -1892,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "1a57ecda8e893f70fbb464a154254d465d38ea2e"
+                "reference": "45d7a63f21e4d73a5a205f53318608c1eca96231"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=1a57ecda8e893f70fbb464a154254d465d38ea2e",
-                "reference": "1a57ecda8e893f70fbb464a154254d465d38ea2e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=45d7a63f21e4d73a5a205f53318608c1eca96231",
+                "reference": "45d7a63f21e4d73a5a205f53318608c1eca96231",
                 "shasum": ""
             },
             "require": {
@@ -1977,7 +1973,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-19T16:23:51+00:00"
+            "time": "2025-08-20T15:51:12+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2196,12 +2192,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "f29cdea86286db560ec7ccd1fd2b566af3cd4457"
+                "reference": "4493f7f0057e989c7556b60f1ca3d9b7d7233455"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f29cdea86286db560ec7ccd1fd2b566af3cd4457",
-                "reference": "f29cdea86286db560ec7ccd1fd2b566af3cd4457",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=4493f7f0057e989c7556b60f1ca3d9b7d7233455",
+                "reference": "4493f7f0057e989c7556b60f1ca3d9b7d7233455",
                 "shasum": ""
             },
             "require": {
@@ -2304,7 +2300,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-20T11:02:02+00:00"
+            "time": "2025-08-21T03:38:02+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -9744,16 +9740,16 @@
         },
         {
             "name": "overtrue/socialite",
-            "version": "4.11.2",
+            "version": "4.12.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/overtrue/socialite.git",
-                "reference": "83dd537a88b30cd9204ee2c46a5b2e181bc1fa66"
+                "reference": "b32353d0ee21e3e52f43ff2ddf26e8c6661eddd6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/overtrue/socialite/zipball/83dd537a88b30cd9204ee2c46a5b2e181bc1fa66",
-                "reference": "83dd537a88b30cd9204ee2c46a5b2e181bc1fa66",
+                "url": "https://api.github.com/repos/overtrue/socialite/zipball/b32353d0ee21e3e52f43ff2ddf26e8c6661eddd6",
+                "reference": "b32353d0ee21e3e52f43ff2ddf26e8c6661eddd6",
                 "shasum": ""
             },
             "require": {
@@ -9803,7 +9799,7 @@
             ],
             "support": {
                 "issues": "https://github.com/overtrue/socialite/issues",
-                "source": "https://github.com/overtrue/socialite/tree/4.11.2"
+                "source": "https://github.com/overtrue/socialite/tree/4.12.0"
             },
             "funding": [
                 {
@@ -9811,7 +9807,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-10-08T16:23:14+00:00"
+            "time": "2025-08-20T22:55:33+00:00"
         },
         {
             "name": "paragonie/constant_time_encoding",
@@ -16628,16 +16624,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.52",
+            "version": "10.5.53",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "5be558244941fba07788b6bb42dc5fc84429580c"
+                "reference": "32768472ebfb6969e6c7399f1c7b09009723f653"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/5be558244941fba07788b6bb42dc5fc84429580c",
-                "reference": "5be558244941fba07788b6bb42dc5fc84429580c",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/32768472ebfb6969e6c7399f1c7b09009723f653",
+                "reference": "32768472ebfb6969e6c7399f1c7b09009723f653",
                 "shasum": ""
             },
             "require": {
@@ -16709,7 +16705,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.52"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.53"
             },
             "funding": [
                 {
@@ -16733,7 +16729,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-16T05:17:33+00:00"
+            "time": "2025-08-20T14:40:06+00:00"
         },
         {
             "name": "react/cache",
@@ -17267,12 +17263,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "aba5d69a31ad55e7f105fe6d6caffba529d56c2c"
+                "reference": "fca3081453f67915439c330713fed6676b995a81"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/aba5d69a31ad55e7f105fe6d6caffba529d56c2c",
-                "reference": "aba5d69a31ad55e7f105fe6d6caffba529d56c2c",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/fca3081453f67915439c330713fed6676b995a81",
+                "reference": "fca3081453f67915439c330713fed6676b995a81",
                 "shasum": ""
             },
             "conflict": {
@@ -17725,6 +17721,7 @@
                 "mongodb/mongodb": ">=1,<1.9.2",
                 "monolog/monolog": ">=1.8,<1.12",
                 "moodle/moodle": "<4.3.12|>=4.4,<4.4.8|>=4.5.0.0-beta,<4.5.4",
+                "moonshine/moonshine": "<=3.12.5",
                 "mos/cimage": "<0.7.19",
                 "movim/moxl": ">=0.8,<=0.10",
                 "movingbytes/social-network": "<=1.2.1",
@@ -18222,7 +18219,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-19T21:05:31+00:00"
+            "time": "2025-08-20T19:04:41+00:00"
         },
         {
             "name": "sebastian/cli-parser",
