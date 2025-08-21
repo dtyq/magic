@@ -32,6 +32,7 @@ use Hyperf\Odin\Model\AbstractModel;
 use Hyperf\Odin\Model\ModelOptions;
 use Hyperf\Odin\ModelMapper;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * 集合项目本身多套的 ModelGatewayMapper - 最终全部转换为 odin model 参数格式.
@@ -406,12 +407,16 @@ class ModelGatewayMapper extends ModelMapper
             $providerName = 'Magic';
         }
 
-        $fileDomainService = di(FileDomainService::class);
-        // 如果是官方组织的 icon，切换官方组织
-        if ($providerModelEntity->isOffice()) {
-            $iconUrl = $fileDomainService->getLink($providerDataIsolation->getOfficialOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
-        } else {
-            $iconUrl = $fileDomainService->getLink($providerModelEntity->getOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+        try {
+            $fileDomainService = di(FileDomainService::class);
+            // 如果是官方组织的 icon，切换官方组织
+            if ($providerModelEntity->isOffice()) {
+                $iconUrl = $fileDomainService->getLink($providerDataIsolation->getOfficialOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+            } else {
+                $iconUrl = $fileDomainService->getLink($providerModelEntity->getOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+            }
+        } catch (Throwable $e) {
+            $iconUrl = '';
         }
 
         return new OdinModel(

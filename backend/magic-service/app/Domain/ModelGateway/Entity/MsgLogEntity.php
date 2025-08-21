@@ -38,6 +38,14 @@ class MsgLogEntity extends AbstractEntity
 
     protected string $providerModelId = '';
 
+    protected int $promptTokens = 0;
+
+    protected int $completionTokens = 0;
+
+    protected int $cacheWriteTokens = 0;
+
+    protected int $cacheReadTokens = 0;
+
     protected DateTime $createdAt;
 
     public function getId(): ?int
@@ -178,5 +186,45 @@ class MsgLogEntity extends AbstractEntity
     public function setProviderModelId(int|string $providerModelId): void
     {
         $this->providerModelId = (string) $providerModelId;
+    }
+
+    public function getPromptTokens(): int
+    {
+        return $this->promptTokens;
+    }
+
+    public function setPromptTokens(int $promptTokens): void
+    {
+        $this->promptTokens = $promptTokens;
+    }
+
+    public function getCompletionTokens(): int
+    {
+        return $this->completionTokens;
+    }
+
+    public function setCompletionTokens(int $completionTokens): void
+    {
+        $this->completionTokens = $completionTokens;
+    }
+
+    public function getCacheWriteTokens(): int
+    {
+        return $this->cacheWriteTokens;
+    }
+
+    public function setCacheWriteTokens(int $cacheWriteTokens): void
+    {
+        $this->cacheWriteTokens = $cacheWriteTokens;
+    }
+
+    public function getCacheReadTokens(): int
+    {
+        return $this->cacheReadTokens;
+    }
+
+    public function setCacheReadTokens(int $cacheReadTokens): void
+    {
+        $this->cacheReadTokens = $cacheReadTokens;
     }
 }

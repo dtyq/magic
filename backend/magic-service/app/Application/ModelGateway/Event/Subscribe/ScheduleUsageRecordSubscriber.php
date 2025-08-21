@@ -50,9 +50,20 @@ class ScheduleUsageRecordSubscriber implements ListenerInterface
      */
     private function recordMessageLog(LLMDataIsolation $dataIsolation, ModelUsageEvent $modelUsageEvent): void
     {
+        $usage = $modelUsageEvent->getUsage();
+
         $msgLog = new MsgLogEntity();
         $msgLog->setUseAmount(0);
-        $msgLog->setUseToken($modelUsageEvent->getUsage()->getTotalTokens());
+        $msgLog->setUseToken($usage->getTotalTokens());
+
+        // Set basic token information
+        $msgLog->setPromptTokens($usage->getPromptTokens());
+        $msgLog->setCompletionTokens($usage->getCompletionTokens());
+
+        // Set cache-related token information
+        $msgLog->setCacheWriteTokens($usage->getCacheWriteInputTokens());
+        $msgLog->setCacheReadTokens($usage->getCacheReadInputTokens());
+
         $msgLog->setModel($modelUsageEvent->getModelId());
         $msgLog->setUserId($modelUsageEvent->getUserId());
         $msgLog->setAppCode($modelUsageEvent->getAppId());
