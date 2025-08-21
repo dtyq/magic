@@ -230,6 +230,7 @@ readonly class LongTermMemoryDomainService
             $memory->setUserId($dto->userId);
             $memory->setMemoryType($dto->memoryType);
             $memory->setStatus($dto->status);
+            $memory->setEnabledInternal($dto->enabled);
             $memory->setContent($dto->content);
             $memory->setPendingContent($dto->pendingContent);
             $memory->setExplanation($dto->explanation);
@@ -246,7 +247,6 @@ readonly class LongTermMemoryDomainService
                 ExceptionBuilder::throw(LongTermMemoryErrorCode::CREATION_FAILED);
             }
 
-            $this->logger->info('Memory created successfully: {id}', ['id' => $memory->getId()]);
             return $memory->getId();
         } finally {
             // 确保释放锁
