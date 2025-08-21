@@ -58,8 +58,8 @@ class ProjectShareableResource implements ResourceFactoryInterface
                 'extended' => [
                     'description' => $projectEntity->getProjectDescription(),
                     'creator' => $creator,
-                    'fork_num' => $this->projectAppService->getProjectForkCount($projectEntity->getId())
-                ]
+                    'fork_num' => $this->projectAppService->getProjectForkCount($projectEntity->getId()),
+                ],
             ];
 
             return [
