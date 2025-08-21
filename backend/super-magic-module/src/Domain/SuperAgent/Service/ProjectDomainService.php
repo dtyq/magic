@@ -175,6 +175,16 @@ class ProjectDomainService
         return true;
     }
 
+    public function getProjectForkCount(int $projectId): int
+    {
+        return $this->projectForkRepository->getForkCountByProjectId($projectId);
+    }
+
+    public function findByForkProjectId(int $forkProjectId): ?ProjectForkEntity
+    {
+        return $this->projectForkRepository->findByForkProjectId($forkProjectId);
+    }
+
     /**
      * Fork project.
      */
