@@ -14,7 +14,7 @@ use Hyperf\Amqp\Message\ProducerMessage;
 /**
  * File batch move message publisher.
  */
-#[Producer(exchange: 'file.batch.move', routingKey: 'file.batch.move')]
+#[Producer(exchange: 'super_magic_file_batch_move', routingKey: 'super_magic_file_batch_move')]
 class FileBatchMovePublisher extends ProducerMessage
 {
     public function __construct(FileBatchMoveEvent $event)

@@ -15,9 +15,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\DirectoryMovePublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -581,8 +579,17 @@ class FileManagementAppService extends AbstractAppService
                 // Initialize task status
                 $this->batchOperationStatusManager->initializeTask($batchKey, FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), 1);
                 // Publish move event
-                $event = new DirectoryMoveEvent($batchKey, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileId(), $projectEntity->getId(), $preFileId, $targetParentId);
-                $publisher = new DirectoryMovePublisher($event);
+                $fileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
+                $event = FileBatchMoveEvent::fromDTO(
+                    $batchKey,
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileIds,
+                    $projectEntity->getId(),
+                    $preFileId,
+                    $targetParentId
+                );
+                $publisher = new FileBatchMovePublisher($event);
                 $this->producer->produce($publisher);
                 // Return asynchronous response
                 return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
@@ -744,7 +751,21 @@ class FileManagementAppService extends AbstractAppService
             );
 
             // Create and publish batch move event
-            $event = FileBatchMoveEvent::fromDTO($batchKey, $dataIsolation, $requestDTO);
+            $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
+            if (empty($requestDTO->getTargetParentId())) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory($projectEntity->getId(), $projectEntity->getWorkDir(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            } else {
+                $targetParentId = (int) $requestDTO->getTargetParentId();
+            }
+            $event = FileBatchMoveEvent::fromDTO(
+                $batchKey,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $requestDTO->getFileIds(),
+                $projectEntity->getId(),
+                $preFileId,
+                $targetParentId
+            );
             $publisher = new FileBatchMovePublisher($event);
             $this->producer->produce($publisher);
 
