@@ -356,7 +356,7 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
@@ -505,7 +505,7 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             if ($fileEntity->getIsDirectory()) {
