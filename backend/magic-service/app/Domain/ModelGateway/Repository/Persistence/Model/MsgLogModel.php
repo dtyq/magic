@@ -43,6 +43,10 @@ class MsgLogModel extends Model
         'created_at',
         'provider_id',
         'provider_model_id',
+        'prompt_tokens',
+        'completion_tokens',
+        'cache_write_tokens',
+        'cache_read_tokens',
     ];
 
     protected array $casts = [
@@ -60,5 +64,9 @@ class MsgLogModel extends Model
         'created_at' => 'datetime',
         'provider_id' => 'string',
         'provider_model_id' => 'string',
+        'prompt_tokens' => 'int',
+        'completion_tokens' => 'int',
+        'cache_write_tokens' => 'int',
+        'cache_read_tokens' => 'int',
     ];
 }
