@@ -267,6 +267,11 @@ class ProjectForkRepository extends AbstractRepository implements ProjectForkRep
         ];
     }
 
+    public function getForkCountByProjectId(int $projectId): int
+    {
+        return $this->projectForkModel::query()->where('source_project_id', $projectId)->where('status', 'finished')->count();
+    }
+
     /**
      * Convert model to entity.
      */
