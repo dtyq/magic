@@ -27,7 +27,7 @@ interface TaskFileRepositoryInterface
      * 根据ID批量获取文件.
      * @return TaskFileEntity[]
      */
-    public function getTaskFilesByIds(array $ids): array;
+    public function getTaskFilesByIds(array $ids, int $projectId = 0): array;
 
     /**
      * 根据fileKey获取文件.
