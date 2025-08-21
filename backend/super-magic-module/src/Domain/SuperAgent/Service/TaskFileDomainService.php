@@ -1180,32 +1180,23 @@ class TaskFileDomainService
      * @param array $options Additional options
      * @return array Array of file URLs
      */
-    public function getFileUrls(DataIsolation $dataIsolation, array $fileIds, string $downloadMode, array $options = []): array
+    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = []): array
     {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $result = [];
 
-        foreach ($fileIds as $fileId) {
-            // 获取文件实体
-            $fileEntity = $this->taskFileRepository->getById((int) $fileId);
-            if (empty($fileEntity)) {
-                // 如果文件不存在，跳过
-                continue;
-            }
+        $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
+        if (empty($fileEntities)) {
+            return $result;
+        }
 
-            // 验证文件是否属于当前用户
-            if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-                // 如果这个文件不是本人的，不处理
-                continue;
-            }
-
+        foreach ($fileEntities as $fileEntity) {
             // 跳过目录
             if ($fileEntity->getIsDirectory()) {
                 continue;
             }
 
             try {
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
             } catch (Throwable $e) {
                 // 如果获取URL失败，跳过
                 continue;
@@ -1290,21 +1281,6 @@ class TaskFileDomainService
         TaskFileEntity $fileEntity,
         array $options = []
     ): string {
-        // Permission check: ensure file belongs to current user
-        if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
-        }
-
-        // Permission check: ensure file belongs to current organization
-        if ($fileEntity->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
-        }
-
-        // Cannot generate URL for directories
-        if ($fileEntity->getIsDirectory()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.cannot_generate_url_for_directory'));
-        }
-
         // Set default filename if not provided
         if (! isset($options['filename'])) {
             $options['filename'] = $fileEntity->getFileName();
@@ -1331,6 +1307,20 @@ class TaskFileDomainService
                 trans('file.file_not_found')
             );
         }
+    }
+
+    public function getUserFileEntityNoUser(int $fileId): TaskFileEntity
+    {
+        $fileEntity = $this->taskFileRepository->getById($fileId);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+
+        if ($fileEntity->getProjectId() <= 0) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        return $fileEntity;
     }
 
     /**
@@ -1425,20 +1415,6 @@ class TaskFileDomainService
         }
 
         return $sortValue; // Default to end
-    }
-
-    public function getUserFileEntityNoUser(int $fileId): TaskFileEntity
-    {
-        $fileEntity = $this->taskFileRepository->getById($fileId);
-        if ($fileEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
-        }
-
-        if ($fileEntity->getProjectId() <= 0) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
-        }
-
-        return $fileEntity;
     }
 
     /**
