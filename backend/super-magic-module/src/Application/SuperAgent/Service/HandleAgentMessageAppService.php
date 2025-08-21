@@ -82,7 +82,7 @@ class HandleAgentMessageAppService extends AbstractAppService
      */
     public function handleAgentMessage(TopicTaskMessageDTO $messageDTO): void
     {
-        $this->logger->info(sprintf(
+        $this->logger->debug(sprintf(
             'Starting to process topic task message, task_id: %s, message content: %s',
             $messageDTO->getPayload()->getTaskId() ?? '',
             json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)

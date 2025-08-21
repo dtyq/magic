@@ -1,0 +1,99 @@
+# GitLab CI/CD 配置文件，用于从GitHub同步代码
+
+# 包含子项目的CI配置
+include:
+  - local: 'backend/magic-service/.ci/.gitlab-ci.yml'
+
+stages:
+  - build
+  - quality  # 代码质量检测
+  - test
+  - coverage
+  - deploy
+  - sync
+
+# 公共变量配置
+.sync-vars:
+  stage: sync
+  variables:
+    GIT_STRATEGY: none  # 不自动克隆，我们将手动操作
+
+# 公共前置脚本
+.common-before-script: &common-before-script
+  # 检查必要工具是否安装
+  - which git || echo "Git is required"
+  - which bc || echo "BC is required for time calculation"
+  
+  # 配置Git
+  - git config --global user.name "GitLab CI"
+  - git config --global user.email "gitlab-ci@example.com"
+  
+  # 配置Git仓库URL环境变量
+  - |
+    if [ -z "$GIT_REPO_URL" ]; then
+      export GIT_REPO_URL="https://git.kkgroup.cn/dtyq/magic.git"
+    fi
+    if [ -z "$GIT_REPO_TOKEN" ]; then
+      export GIT_REPO_TOKEN="${GITHUB_TOKEN}"
+    fi
+    if [ -z "$GIT_REPO_DOMAIN" ]; then
+      export GIT_REPO_DOMAIN="github.com"
+    fi
+  
+  # 初始化通用变量
+  - NOW=$(date +%s)
+  - CURRENT_BRANCH=$CI_COMMIT_REF_NAME
+  - echo "当前分支"
+  - echo $CURRENT_BRANCH
+  
+
+# 同步到子仓库
+sync-to-sub-repos:
+  extends: 
+    - .sync-vars
+  needs:
+    - job: "analyse-job"
+      optional: true
+    - job: "cs-fix-job"
+      optional: true
+  rules:
+    # master分支：任何变更都触发同步，但如果有magic-service变更则必须等待代码质量检测成功
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+      when: always
+    # enterprise分支：只有magic-service变更才触发，且必须代码质量检测成功
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-master"
+      changes:
+        - "backend/magic-service/**/*"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-pre-release"
+      changes:
+        - "backend/magic-service/**/*"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "enterprise-released"
+      changes:
+        - "backend/magic-service/**/*"
+      when: on_success
+  before_script: *common-before-script
+  script:
+    # 创建工作目录并清理已存在的git配置
+    - MAIN_DIR="/tmp/magic-sync"
+    - rm -rf $MAIN_DIR
+    - mkdir -p $MAIN_DIR
+    - cd $MAIN_DIR
+    
+    # 克隆源仓库
+    - git clone https://oauth2:${GITLAB_TOKEN}@${GITLAB_DOMAIN}/dtyq/magic.git
+    - ls -la
+    - cd magic
+    - git checkout $CURRENT_BRANCH
+    - export GIT_REPO_URL="${GIT_REPO_URL}"
+
+    # 下载 splitsh-lite 工具
+    - mkdir -p bin
+    - curl -L https://cdn.letsmagic.cn/static/bin/linux/splitsh-lite -o bin/splitsh-lite
+    - chmod +x bin/splitsh-lite
+
+    # 同步代码
+    - chmod +x ./bin/backend_split_all.sh
+    - ./bin/backend_split_all.sh
+

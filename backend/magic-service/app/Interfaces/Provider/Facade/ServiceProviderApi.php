@@ -244,7 +244,6 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
         $category = $request->input('category', 'llm');
         $serviceProviderCategory = Category::tryFrom($category);
-        $this->isInWhiteListForOrganization();
         if (! $serviceProviderCategory) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
         }

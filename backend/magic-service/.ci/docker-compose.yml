@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.0.32
+    container_name: magic-service-mysql
+    ports:
+      - "13306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: magic
+      MYSQL_DATABASE: magic
+  redis:
+    image: redis:6.2.5
+    container_name: magic-service-redis
+    ports:
+      - "16379:6379"
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: magic-service-rabbitmq
+    ports:
+      - "15672:15672" # 管理界面
+      - "5672:5672"   # 默认消息队列通信端口
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest

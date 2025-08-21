@@ -45,13 +45,13 @@ class TaskApi extends AbstractApi
         protected TopicTaskAppService $topicTaskAppService,
         protected HandleTaskMessageAppService $handleTaskAppService,
         protected TaskAppService $taskAppService,
+        protected FileConverterAppService $fileConverterAppService,
+        LoggerFactory $loggerFactory,
         protected ProjectAppService $projectAppService,
         protected TopicAppService $topicAppService,
         protected UserDomainService $userDomainService,
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
-        protected FileConverterAppService $fileConverterAppService,
-        LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
         parent::__construct($request);

@@ -221,9 +221,22 @@ class MagicChatAISearchV2AppService extends AbstractAppService
     ): void {
         $start = microtime(true);
         $parallel = new Parallel(5);
-        foreach ($associateQuestions as $associateQuestion) {
+        $associateQuestions = array_values($associateQuestions);
+
+        // --- Start of new chunking logic ---
+        $chunkedContexts = $this->chunkContexts($associateQuestions, $noRepeatSearchContexts);
+        // --- End of new chunking logic ---
+
+        foreach ($associateQuestions as $index => $associateQuestion) {
             $questionId = $associateQuestion->getQuestionId();
-            $parallel->add(function () use ($noRepeatSearchContexts, $questionId, $associateQuestion, $dto) {
+            $currentContextChunk = $chunkedContexts[$index] ?? [];
+
+            $parallel->add(function () use (
+                $questionId,
+                $associateQuestion,
+                $dto,
+                $currentContextChunk // Use this chunk
+            ) {
                 $start = microtime(true);
                 CoContext::setRequestId($dto->getRequestId());
                 // 已生成关联问题，准备发送搜索结果
@@ -231,7 +244,7 @@ class MagicChatAISearchV2AppService extends AbstractAppService
                 $pageCount = random_int(30, 60);
                 $webSearchItem = new QuestionSearchResult([
                     'question_id' => $questionId,
-                    'search' => array_slice($noRepeatSearchContexts, 0, 5),
+                    'search' => $currentContextChunk, // Use the pre-calculated chunk
                     'page_count' => $pageCount,
                     'match_count' => random_int(1000, 5000),
                     'total_words' => $pageCount * random_int(50, 200),
@@ -262,34 +275,48 @@ class MagicChatAISearchV2AppService extends AbstractAppService
     ): void {
         $start = microtime(true);
         $parallel = new Parallel(5);
-        foreach ($associateQuestions as $associateQuestion) {
+        $associateQuestions = array_values($associateQuestions);
+
+        // --- Start of new chunking logic ---
+        $chunkedContexts = $this->chunkContexts($associateQuestions, $noRepeatSearchContexts);
+        // --- End of new chunking logic ---
+
+        foreach ($associateQuestions as $index => $associateQuestion) { // $associateQuestion is QuestionItem
             $questionId = $associateQuestion->getQuestionId();
-            $parallel->add(function () use ($questionId, $associateQuestion, $dto, $noRepeatSearchContexts) {
+            $currentContextChunk = $chunkedContexts[$index] ?? []; // Get the pre-calculated chunk for this question
+
+            $parallel->add(function () use (
+                $questionId,
+                $associateQuestion,
+                $dto,
+                $noRepeatSearchContexts, // Still needed for getAssociateQuestionsQueryVo
+                $currentContextChunk     // New chunk for 'search'
+            ) {
                 CoContext::setRequestId($dto->getRequestId());
                 $start = microtime(true);
+                // Uses $noRepeatSearchContexts (the full list)
                 $associateQuestionsQueryVo = $this->getAssociateQuestionsQueryVo($dto, $noRepeatSearchContexts, $associateQuestion->getQuestion());
                 $associateQuestionsQueryVo->setMessageHistory(new MessageHistory());
-                $relatedQuestions = $this->magicLLMDomainService->getRelatedQuestions($associateQuestionsQueryVo, 2, 3);
-                // 由于这里是对所有维度汇总后再精读，因此丢失了每个维度的数量，只能随机生成。
+                // 获取子问题
+                $associateSubQuestions = $this->magicLLMDomainService->getRelatedQuestions($associateQuestionsQueryVo, 2, 3);
                 $pageCount = random_int(30, 60);
+                $onePageWords = random_int(200, 2000);
+                $totalWords = $pageCount * $onePageWords;
+                // todo 由于这里是对所有维度汇总后再精读，因此丢失了每个维度的数量，只能随机生成。
                 $webSearchItem = new QuestionSearchResult([
                     'question_id' => $questionId,
-                    'search' => array_slice($noRepeatSearchContexts, 0, 5),
+                    'search_keywords' => $associateSubQuestions,
+                    'search' => $currentContextChunk, // Use the pre-calculated chunk
                     'page_count' => $pageCount,
                     'match_count' => random_int(1000, 5000),
-                    'total_words' => $pageCount * random_int(50, 200),
+                    'total_words' => $totalWords,
                 ]);
-                // 发送问题的字问题，可能后续用于继续根据子问题往下搜索
-                // 流式推送关联问题
-                $parentQuestionId = $questionId;
-                $associateQuestions = $this->buildAssociateQuestions($relatedQuestions, $parentQuestionId);
-                $this->sendAssociateQuestions($dto, $associateQuestions, $parentQuestionId);
-                // 发送问题的网页搜索结果
                 $this->streamSendSearchWebPages($dto, $webSearchItem);
+
                 $this->logger->info(sprintf(
                     'getSearchResults 关联问题：%s 的子问题 %s 生成并推送完毕 结束计时，耗时 %s 秒',
                     $associateQuestion->getQuestion(),
-                    Json::encode($relatedQuestions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                    Json::encode($associateSubQuestions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                     TimeUtil::getMillisecondDiffFromNow($start) / 1000
                 ));
             });
@@ -755,7 +782,6 @@ class MagicChatAISearchV2AppService extends AbstractAppService
     }
 
     /**
-     * @param QuestionItem[] $associateQuestions
      * @param SearchDetailItem[] $noRepeatSearchContexts
      */
     private function getSearchPageDetails(array $noRepeatSearchContexts, array $associateQuestions, Channel $readPagesDetailChannel): void
@@ -895,5 +921,25 @@ class MagicChatAISearchV2AppService extends AbstractAppService
         $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $modelName);
         // 获取模型代理
         return di(ModelGatewayMapper::class)->getChatModelProxy($modelName, $orgCode);
+    }
+
+    /**
+     * @param QuestionItem[] $associateQuestions
+     * @param SearchDetailItem[] $noRepeatSearchContexts
+     */
+    private function chunkContexts(array $associateQuestions, array $noRepeatSearchContexts): array
+    {
+        $numAssociateQuestions = count($associateQuestions);
+        $numTotalContexts = count($noRepeatSearchContexts);
+        $chunkedContexts = [];
+
+        if ($numAssociateQuestions > 0) {
+            if ($numTotalContexts > 0) {
+                $chunkSize = (int) ceil($numTotalContexts / $numAssociateQuestions);
+                $chunkSize = min($chunkSize, 5);
+                $chunkedContexts = array_chunk($noRepeatSearchContexts, $chunkSize);
+            }
+        }
+        return $chunkedContexts;
     }
 }
