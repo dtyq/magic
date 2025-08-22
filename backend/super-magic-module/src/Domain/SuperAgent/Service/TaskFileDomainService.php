@@ -837,14 +837,19 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
+        if ($fileEntity->getFileKey() === $targetPath) {
+            return;
+        }
+
         // Check if target file already exists
         $existingTargetFile = $this->taskFileRepository->getByFileKey($targetPath);
-        if (! empty($existingTargetFile)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
-        }
+
         Db::beginTransaction();
         try {
             $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+            if (! empty($existingTargetFile)) {
+                $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
+            }
             Db::commit();
         } catch (Throwable $e) {
             Db::rollBack();
