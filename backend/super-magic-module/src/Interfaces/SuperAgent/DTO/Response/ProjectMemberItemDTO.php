@@ -52,6 +52,12 @@ class ProjectMemberItemDTO extends AbstractDTO
     protected string $type = '';
 
     /**
+     * 用户在多个部门时的部门信息，不包含完整路径。
+     */
+    protected array $pathNodes = [];
+
+
+    /**
      * 从用户数据创建DTO.
      */
     public static function fromUserData(array $userData): self
@@ -64,6 +70,7 @@ class ProjectMemberItemDTO extends AbstractDTO
         $dto->setOrganizationCode($userData['organization_code'] ?? '');
         $dto->setAvatarUrl($userData['avatar_url'] ?? '');
         $dto->setType('User');
+        $dto->setPathNodes($userData['path_nodes'] ?? []);
 
         return $dto;
     }
@@ -81,6 +88,7 @@ class ProjectMemberItemDTO extends AbstractDTO
         $dto->setOrganizationCode($departmentData['organization_code'] ?? '');
         $dto->setAvatarUrl(''); // 部门通常没有头像
         $dto->setType('Department');
+        $dto->setPathNodes($departmentData['path_nodes'] ?? []);
 
         return $dto;
     }
@@ -98,6 +106,7 @@ class ProjectMemberItemDTO extends AbstractDTO
             'organization_code' => $this->organizationCode,
             'avatar_url' => $this->avatarUrl,
             'type' => $this->type,
+            'path_nodes' => $this->pathNodes,
         ];
 
         // 根据类型添加特定字段
@@ -198,4 +207,16 @@ class ProjectMemberItemDTO extends AbstractDTO
         $this->type = $type;
         return $this;
     }
+
+    public function getPathNodes(): array
+    {
+        return $this->pathNodes;
+    }
+
+    public function setPathNodes(array $pathNodes): void
+    {
+        $this->pathNodes = $pathNodes;
+    }
+
+
 }

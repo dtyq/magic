@@ -229,6 +229,7 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals('usi_27229966f39dd1b62c9d1449e3f7a90d', $response['data']['members'][0]['user_id']);
         $this->assertEquals('usi_d131724ae038b5a94f7fd6637f11ef2f', $response['data']['members'][1]['user_id']);
         $this->assertEquals('727236421093691395', $response['data']['members'][3]['department_id']);
+        $this->assertArrayHasKey('path_nodes', $response['data']['members'][0]);
     }
 
     public function collaborationProjects(): void

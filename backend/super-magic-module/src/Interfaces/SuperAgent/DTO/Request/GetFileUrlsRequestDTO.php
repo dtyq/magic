@@ -88,6 +88,11 @@ class GetFileUrlsRequestDTO
         return $this->cache;
     }
 
+    public function setProjectId(string $projectId)
+    {
+        $this->projectId = $projectId;
+    }
+
     /**
      * 验证请求数据.
      *
@@ -98,6 +103,10 @@ class GetFileUrlsRequestDTO
     {
         if (empty($this->fileIds)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_ids.required');
+        }
+
+        if (empty($this->projectId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id.required');
         }
     }
 }
