@@ -20,7 +20,6 @@ class ProjectMemberApiTest extends AbstractHttpTest
 
     private string $authorization = '';
 
-
     private string $fileId = '816640336984018944';
 
     private string $projectId = '816065897791012866';
@@ -513,19 +512,18 @@ class ProjectMemberApiTest extends AbstractHttpTest
 
     public function updateFileContent(int $fileId, string $content, int $expectedCode): void
     {
-        $response = $this->post("/api/v1/super-agent/file/save", [
+        $response = $this->post('/api/v1/super-agent/file/save', [
             [
                 'file_id' => $fileId,
                 'content' => $content,
-                'enable_shadow' => false
-            ]
+                'enable_shadow' => false,
+            ],
         ], $this->getCommonHeaders());
 
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
 
         $this->assertEquals($expectedCode, $response['data']['error_files'][0]['error_code'], $response['data']['error_files'][0]['error']);
     }
-
 
     protected function switchUserTest1(): string
     {

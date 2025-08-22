@@ -4,12 +4,11 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
 
-return new class () extends Migration {
+return new class extends Migration {
     public function up(): void
     {
         Schema::create('magic_super_agent_project_members', function (Blueprint $table) {
