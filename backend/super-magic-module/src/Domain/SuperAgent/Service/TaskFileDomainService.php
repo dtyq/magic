@@ -868,7 +868,7 @@ class TaskFileDomainService
 
     public function getDirectoryFileIds(DataIsolation $dataIsolation, TaskFileEntity $dirEntity): array
     {
-        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), rtrim($dirEntity->getFileKey(), '/'));
+        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
         if (empty($fileEntities)) {
             return [];
         }
