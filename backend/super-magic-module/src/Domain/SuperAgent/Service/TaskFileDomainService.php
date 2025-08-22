@@ -855,6 +855,10 @@ class TaskFileDomainService
     public function moveFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
     {
         try {
+            if ($fileEntity->getFileKey() === $targetPath) {
+                return;
+            }
+
             // Call cloud file service to move the file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetPath, StorageBucketType::SandBox);
@@ -1351,6 +1355,10 @@ class TaskFileDomainService
         $oldFileEntity->setFileKey($newFileKey);
         $now = date('Y-m-d H:i:s');
         $oldFileEntity->setUpdatedAt($now);
+
+        if ($oldFileKey === $newFileKey) {
+            return $oldFileEntity;
+        }
 
         // 重命名文件夹
         try {
