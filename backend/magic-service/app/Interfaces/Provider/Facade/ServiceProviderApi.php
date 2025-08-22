@@ -14,6 +14,7 @@ use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\Status;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -212,6 +213,14 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
 
         return $this->adminProviderAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
+    }
+
+    public function getModelsForOrganization(RequestInterface $request): array
+    {
+        $authenticatable = $this->getAuthorization();
+        $category = $request->input('category', Category::LLM->value);
+        $status = $request->input('status');
+        return $this->adminProviderAppService->getModelsForOrganization($authenticatable, Category::from($category), $status === null ? null : Status::tryFrom($status));
     }
 
     private function getPhone(string $userId)

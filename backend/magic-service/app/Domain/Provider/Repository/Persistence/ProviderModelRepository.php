@@ -178,7 +178,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
      * @param null|Category $category 模型分类，为空时返回所有分类模型
      * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和Magic模型（不去重）
      */
-    public function getAvailableModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null): array
+    public function getModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null, ?Status $status = Status::Enabled): array
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
 
@@ -251,6 +251,29 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         $redis->setex($cacheKey, 10, Json::encode($modelsArray));
 
         return $allModels;
+    }
+
+    public function getByIds(ProviderDataIsolation $dataIsolation, array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $builder = $this->createProviderModelQuery()
+            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
+            ->whereIn('id', $ids);
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        $entities = ProviderModelAssembler::toEntities($result);
+
+        // 转换为以ID为键的数组
+        $modelsById = [];
+        foreach ($entities as $entity) {
+            $modelsById[(string) $entity->getId()] = $entity;
+        }
+
+        return $modelsById;
     }
 
     /**

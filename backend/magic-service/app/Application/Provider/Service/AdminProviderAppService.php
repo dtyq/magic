@@ -16,6 +16,7 @@ use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ProviderEntity;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
@@ -326,6 +327,19 @@ readonly class AdminProviderAppService
         }
 
         return $modelDTOs;
+    }
+
+    /**
+     * 获取官方组织下的所有可用模型.
+     * @return ProviderModelEntity[]
+     */
+    public function getModelsForOrganization(MagicUserAuthorization $authorization, Category $category, ?Status $status = Status::Enabled): array
+    {
+        $dataIsolation = ProviderDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+        );
+        return $this->adminProviderDomainService->getModelsForOrganization($dataIsolation, $category, $status);
     }
 
     /**
