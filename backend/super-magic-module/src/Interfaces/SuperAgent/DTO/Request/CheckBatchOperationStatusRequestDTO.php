@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
 use App\ErrorCode\GenericErrorCode;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -48,11 +47,6 @@ class CheckBatchOperationStatusRequestDTO
         return $this->batchKey;
     }
 
-    /**
-     * Validate request data.
-     *
-     * @throws BusinessException If validation fails
-     */
     private function validate(): void
     {
         if (empty($this->batchKey)) {
