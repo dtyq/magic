@@ -13,9 +13,6 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 
 WORKDIR /opt/www
 
-# Composer Cache
-# COPY ./composer.* /opt/www/
-# RUN composer install --no-dev --no-scripts
 
 COPY . /opt/www
 
