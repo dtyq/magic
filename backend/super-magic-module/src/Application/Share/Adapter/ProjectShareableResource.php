@@ -52,18 +52,14 @@ class ProjectShareableResource implements ResourceFactoryInterface
             }
 
             // Get project basic info
-            $projectInfo = [
+            return [
                 'project_id' => (string) $projectEntity->getId(),
                 'project_name' => $projectEntity->getProjectName(),
                 'extended' => [
                     'description' => $projectEntity->getProjectDescription(),
                     'creator' => $creator,
-                    'fork_num' => $this->projectAppService->getProjectForkCount($projectEntity->getId())
-                ]
-            ];
-
-            return [
-                'data' => $projectInfo,
+                    'fork_num' => $this->projectAppService->getProjectForkCount($projectEntity->getId()),
+                ],
             ];
         } catch (Exception $e) {
             $this->logger->error('Failed to get project content: ' . $e->getMessage());
