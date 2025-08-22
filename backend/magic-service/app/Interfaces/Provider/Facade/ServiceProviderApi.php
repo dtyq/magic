@@ -15,6 +15,7 @@ use App\Application\Provider\Service\AdminProviderAppService;
 use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\Status;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -216,6 +217,14 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
 
         return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
+    }
+
+    public function getModelsForOrganization(RequestInterface $request): array
+    {
+        $authenticatable = $this->getAuthorization();
+        $category = $request->input('category', Category::LLM->value);
+        $status = $request->input('status');
+        return $this->adminProviderAppService->getModelsForOrganization($authenticatable, Category::from($category), $status === null ? null : Status::tryFrom($status));
     }
 
     /**

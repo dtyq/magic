@@ -16,6 +16,7 @@ use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ProviderEntity;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
@@ -266,6 +267,79 @@ readonly class AdminProviderAppService
         $this->processServiceProviderEntityListIcons($serviceProviders, $organizationCode);
 
         return $serviceProviders;
+    }
+
+    /**
+     * Get super magic display models and Magic provider models visible to current organization.
+     * @param string $organizationCode Organization code
+     * @return ProviderModelDetailDTO[]
+     */
+    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
+    {
+        $models = $this->adminProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
+
+        if (empty($models)) {
+            return [];
+        }
+
+        // 收集所有图标路径按组织编码分组
+        $iconsByOrg = [];
+        $iconToModelMap = [];
+
+        foreach ($models as $model) {
+            $icon = $model->getIcon();
+            if (! empty($icon)) {
+                $iconOrganizationCode = substr($icon, 0, strpos($icon, '/'));
+
+                if (! isset($iconsByOrg[$iconOrganizationCode])) {
+                    $iconsByOrg[$iconOrganizationCode] = [];
+                }
+                $iconsByOrg[$iconOrganizationCode][] = $icon;
+
+                if (! isset($iconToModelMap[$icon])) {
+                    $iconToModelMap[$icon] = [];
+                }
+                $iconToModelMap[$icon][] = $model;
+            }
+        }
+
+        // 批量获取图标URL
+        $iconUrlMap = [];
+        foreach ($iconsByOrg as $iconOrganizationCode => $icons) {
+            $links = $this->fileDomainService->getLinks($iconOrganizationCode, array_unique($icons));
+            $iconUrlMap[] = $links;
+        }
+        ! empty($iconUrlMap) && $iconUrlMap = array_merge(...$iconUrlMap);
+        // 创建DTO并设置图标URL
+        $modelDTOs = [];
+        foreach ($models as $model) {
+            $modelDTO = new ProviderModelDetailDTO($model->toArray());
+
+            $icon = $model->getIcon();
+            if (! empty($icon) && isset($iconUrlMap[$icon])) {
+                $fileLink = $iconUrlMap[$icon];
+                if ($fileLink) {
+                    $modelDTO->setIcon($fileLink->getUrl());
+                }
+            }
+
+            $modelDTOs[] = $modelDTO;
+        }
+
+        return $modelDTOs;
+    }
+
+    /**
+     * 获取官方组织下的所有可用模型.
+     * @return ProviderModelEntity[]
+     */
+    public function getModelsForOrganization(MagicUserAuthorization $authorization, Category $category, ?Status $status = Status::Enabled): array
+    {
+        $dataIsolation = ProviderDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+        );
+        return $this->adminProviderDomainService->getModelsForOrganization($dataIsolation, $category, $status);
     }
 
     /**
