@@ -687,6 +687,7 @@ class ProjectAppService extends AbstractAppService
             // 设置排序字段
             $dto->sort = $entity->getSort();
             $dto->fileUrl = '';
+            $dto->parentId = $entity->getParentId();
 
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
