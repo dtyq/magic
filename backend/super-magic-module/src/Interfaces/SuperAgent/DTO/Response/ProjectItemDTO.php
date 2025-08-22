@@ -27,7 +27,8 @@ class ProjectItemDTO
         public readonly ?string $workspaceName,
         public readonly ?string $createdAt,
         public readonly ?string $updatedAt,
-        public readonly ?string $tag
+        public readonly ?string $tag,
+        public readonly ?string $userId
     ) {
     }
 
@@ -47,7 +48,8 @@ class ProjectItemDTO
             workspaceName: $workspaceName,
             createdAt: $project->getCreatedAt(),
             updatedAt: $project->getUpdatedAt(),
-            tag: $tag
+            tag: $tag,
+            userId: $project->getUserId(),
         );
     }
 

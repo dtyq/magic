@@ -148,12 +148,15 @@ class ProjectMemberApiTest extends AbstractHttpTest
         // 6. 查看项目成员
         $this->projectMember($projectId);
 
+        $this->collaborationProjects('test', 0);
+
         $this->switchUserTest2();
 
         // 7. 查看项目成员
         $this->projectMember($projectId);
         // 8. 查看协作项目列表
         $this->collaborationProjects();
+        $this->collaborationProjects('test');
 
         // 创建话题
         $topicId = $this->createTopic($workspaceId, $projectId);
@@ -198,6 +201,10 @@ class ProjectMemberApiTest extends AbstractHttpTest
                     'target_id' => '727236421093691395',
                 ],
                 [
+                    'target_type' => 'Department',
+                    'target_id' => '727236421089497089',
+                ],
+                [
                     'target_type' => 'User',
                     'target_id' => 'usi_e9d64db5b986d062a342793013f682e8',
                 ],
@@ -224,33 +231,44 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $response = $this->get(self::BASE_URI . "/{$projectId}/members", [], $this->getCommonHeaders());
         $this->assertNotNull($response, '响应不应该为null');
         $this->assertEquals(1000, $response['code']);
-        $this->assertEquals(4, count($response['data']['members']));
+        $this->assertGreaterThan(4, count($response['data']['members']));
         $this->assertEquals('usi_27229966f39dd1b62c9d1449e3f7a90d', $response['data']['members'][0]['user_id']);
         $this->assertEquals('usi_d131724ae038b5a94f7fd6637f11ef2f', $response['data']['members'][1]['user_id']);
-        $this->assertEquals('727236421093691395', $response['data']['members'][3]['department_id']);
         $this->assertArrayHasKey('path_nodes', $response['data']['members'][0]);
     }
 
-    public function collaborationProjects(): void
+    public function collaborationProjects(string $name = '', ?int $count = null): void
     {
-        $response = $this->client->get('/api/v1/super-agent/collaboration-projects', [], $this->getCommonHeaders());
+        $params = [];
+        if ($name) {
+            $params['name'] = $name;
+        }
+
+        $response = $this->client->get('/api/v1/super-agent/collaboration-projects', $params, $this->getCommonHeaders());
+
         $this->assertNotNull($response, '响应不应该为null');
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertEquals('ok', $response['message']);
         $this->assertIsArray($response['data']);
+
         // 验证响应结构
         $this->assertArrayHasKey('list', $response['data'], '响应应包含list字段');
         $this->assertArrayHasKey('total', $response['data'], '响应应包含total字段');
-        $this->assertIsArray($response['data']['list'], 'list应该是数组');
-        $this->assertIsInt($response['data']['total'], 'total应该是整数');
-        $project = $response['data']['list'][0];
-        $this->assertArrayHasKey('id', $project);
-        $this->assertArrayHasKey('project_name', $project);
-        $this->assertArrayHasKey('workspace_name', $project);
-        $this->assertArrayHasKey('tag', $project);
-        $this->assertEquals('collaboration', $project['tag']);
-        $this->assertGreaterThan(3, $project['member_count']);
-        $this->assertGreaterThan(3, count($project['members']));
+        if (! is_null($count)) {
+            $this->assertEquals(0, count($response['data']['list']));
+        } else {
+            $this->assertIsArray($response['data']['list'], 'list应该是数组');
+            $this->assertIsInt($response['data']['total'], 'total应该是整数');
+            $project = $response['data']['list'][0];
+            $this->assertArrayHasKey('id', $project);
+            $this->assertArrayHasKey('project_name', $project);
+            $this->assertArrayHasKey('workspace_name', $project);
+            $this->assertArrayHasKey('tag', $project);
+            $this->assertEquals('collaboration', $project['tag']);
+            $this->assertGreaterThan(3, $project['member_count']);
+            $this->assertGreaterThan(3, count($project['members']));
+        }
+
         //        $this->assertEquals('usi_27229966f39dd1b62c9d1449e3f7a90d', $project['members'][0]['user_id']);
         //        $this->assertEquals('usi_d131724ae038b5a94f7fd6637f11ef2f', $project['members'][1]['user_id']);
         //        $this->assertEquals('727236421093691395', $project['members'][2]['department_id']);

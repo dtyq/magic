@@ -29,6 +29,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         ?string $createdAt,
         ?string $updatedAt,
         ?string $tag,
+        ?string $userId,
 
         // 新增字段
         public readonly ?CreatorInfoDTO $creator,
@@ -48,7 +49,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             $workspaceName,
             $createdAt,
             $updatedAt,
-            $tag
+            $tag,
+            $userId
         );
     }
 
@@ -79,7 +81,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             creator: $creator,
             members: $members,
             memberCount: $memberCount,
-            tag: 'collaboration'
+            tag: 'collaboration',
+            userId: $project->getUserId(),
         );
     }
 

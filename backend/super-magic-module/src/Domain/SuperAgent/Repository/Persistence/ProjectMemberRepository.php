@@ -146,11 +146,13 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                 }
             });
 
-        // 如果有项目名称搜索条件，则需要连接项目表
+        $query->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
+            ->where('magic_super_agent_project.user_id', '!=', $userId)
+            ->whereNull('magic_super_agent_project.deleted_at');
+
         if (! empty($name)) {
-            $query->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
-                ->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%')
-                ->whereNull('magic_super_agent_project.deleted_at'); // 确保项目未被软删除
+            // 如果有项目名称搜索条件，则需要连接项目表
+            $query->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%');
         }
 
         $query->select('magic_super_agent_project_members.project_id')
