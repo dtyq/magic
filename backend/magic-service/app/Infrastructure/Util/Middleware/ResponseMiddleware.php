@@ -27,6 +27,7 @@ class ResponseMiddleware implements MiddlewareInterface
     private array $desensitizeHeaders = [
         'token',
         'authorization',
+        'magic-authorization',
         'api-key',
     ];
 
