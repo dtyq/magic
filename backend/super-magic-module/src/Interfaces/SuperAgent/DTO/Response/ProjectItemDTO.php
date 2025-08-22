@@ -69,6 +69,7 @@ class ProjectItemDTO
             'tag' => $this->tag,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'user_id' => $this->userId,
         ];
     }
 }
