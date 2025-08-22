@@ -46,8 +46,6 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-use function Hyperf\Translation\trans;
-
 /**
  * File Process Application Service
  * Responsible for cross-domain file operations, including checking file existence and updating/creating files.

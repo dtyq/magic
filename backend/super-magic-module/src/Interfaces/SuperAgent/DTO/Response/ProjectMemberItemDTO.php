@@ -56,7 +56,6 @@ class ProjectMemberItemDTO extends AbstractDTO
      */
     protected array $pathNodes = [];
 
-
     /**
      * 从用户数据创建DTO.
      */
@@ -217,6 +216,4 @@ class ProjectMemberItemDTO extends AbstractDTO
     {
         $this->pathNodes = $pathNodes;
     }
-
-
 }

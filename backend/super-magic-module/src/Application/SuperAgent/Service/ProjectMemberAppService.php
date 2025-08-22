@@ -136,7 +136,6 @@ class ProjectMemberAppService extends AbstractAppService
             $this->updateUserAvatarUrl($dataIsolation, $userEntities);
 
             foreach ($userEntities as $userEntity) {
-
                 $pathNodes = [];
                 if (isset($userIdMapDepartmentIds[$userEntity->getUserId()])) {
                     foreach ($depIdMapDepartmentsInfos[$userIdMapDepartmentIds[$userEntity->getUserId()]] ?? [] as $departmentInfo) {
@@ -162,7 +161,6 @@ class ProjectMemberAppService extends AbstractAppService
         if (! empty($departmentIds)) {
             $departmentEntities = $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds);
             foreach ($departmentEntities as $departmentEntity) {
-
                 $pathNodes = [];
                 foreach ($depIdMapDepartmentsInfos[$departmentEntity->getDepartmentId()] ?? [] as $departmentInfo) {
                     $pathNodes[] = $this->assemblePathNodeByDepartmentInfo($departmentInfo);

@@ -461,7 +461,7 @@ class FileApi extends AbstractApi
         $dto = GetFileUrlsRequestDTO::fromRequest($this->request);
 
         if (empty($this->request->input('project_id'))) {
-            $dto->setProjectId((string) $this->fileManagementAppService->getProjectIdByFileId((int)$dto->getFileIds()[0]));
+            $dto->setProjectId((string) $this->fileManagementAppService->getProjectIdByFileId((int) $dto->getFileIds()[0]));
         }
 
         if (! empty($dto->getToken())) {
