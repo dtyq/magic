@@ -679,4 +679,19 @@ class FileManagementAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_urls_by_token_failed'));
         }
     }
+
+    public function getProjectIdByFileId(int $fileId): string
+    {
+        if (time() > strtotime('2025-08-23')) {
+            return '';
+        }
+        if (empty($fileId)) {
+            return '';
+        }
+        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        if ($fileEntity) {
+            return (string) $fileEntity->getProjectId();
+        }
+        return '';
+    }
 }

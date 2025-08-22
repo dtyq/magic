@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Entity\ValueObject\DepartmentOption;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -119,6 +121,14 @@ class ProjectMemberAppService extends AbstractAppService
         // 4. 创建数据隔离对象
         $dataIsolation = $requestContext->getDataIsolation();
 
+        // 获取用户所属部门
+        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds($userIds, $dataIsolation);
+        $userIdMapDepartmentIds = array_column($departmentUsers, 'department_id', 'userId');
+        $allDepartmentIds = array_merge($departmentIds, array_values($userIdMapDepartmentIds));
+
+        // 获取部门详情
+        $depIdMapDepartmentsInfos = $this->departmentDomainService->getDepartmentFullPathByIds($dataIsolation, array_values($allDepartmentIds));
+
         // 5. 获取用户详细信息
         $users = [];
         if (! empty($userIds)) {
@@ -126,6 +136,14 @@ class ProjectMemberAppService extends AbstractAppService
             $this->updateUserAvatarUrl($dataIsolation, $userEntities);
 
             foreach ($userEntities as $userEntity) {
+
+                $pathNodes = [];
+                if (isset($userIdMapDepartmentIds[$userEntity->getUserId()])) {
+                    foreach ($depIdMapDepartmentsInfos[$userIdMapDepartmentIds[$userEntity->getUserId()]] ?? [] as $departmentInfo) {
+                        $pathNodes[] = $this->assemblePathNodeByDepartmentInfo($departmentInfo);
+                    }
+                }
+
                 $users[] = [
                     'id' => (string) $userEntity->getId(),
                     'user_id' => $userEntity->getUserId(),
@@ -134,6 +152,7 @@ class ProjectMemberAppService extends AbstractAppService
                     'organization_code' => $userEntity->getOrganizationCode(),
                     'avatar_url' => $userEntity->getAvatarUrl() ?? '',
                     'type' => 'User',
+                    'path_nodes' => $pathNodes,
                 ];
             }
         }
@@ -143,6 +162,11 @@ class ProjectMemberAppService extends AbstractAppService
         if (! empty($departmentIds)) {
             $departmentEntities = $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds);
             foreach ($departmentEntities as $departmentEntity) {
+
+                $pathNodes = [];
+                foreach ($depIdMapDepartmentsInfos[$departmentEntity->getDepartmentId()] ?? [] as $departmentInfo) {
+                    $pathNodes[] = $this->assemblePathNodeByDepartmentInfo($departmentInfo);
+                }
                 $departments[] = [
                     'id' => (string) $departmentEntity->getId(),
                     'department_id' => $departmentEntity->getDepartmentId(),
@@ -151,6 +175,7 @@ class ProjectMemberAppService extends AbstractAppService
                     'organization_code' => $requestContext->getOrganizationCode(),
                     'avatar_url' => '',
                     'type' => 'Department',
+                    'path_nodes' => $pathNodes,
                 ];
             }
         }
@@ -302,5 +327,21 @@ class ProjectMemberAppService extends AbstractAppService
             $avatarUrlMapRealUrl[$path] = $urlPath->getUrl();
         }
         return array_merge($urlPaths, $avatarUrlMapRealUrl);
+    }
+
+    private function assemblePathNodeByDepartmentInfo(MagicDepartmentEntity $departmentInfo): array
+    {
+        return [
+            // 部门名称
+            'department_name' => $departmentInfo->getName(),
+            // 部门id
+            'department_id' => $departmentInfo->getDepartmentId(),
+            'parent_department_id' => $departmentInfo->getParentDepartmentId(),
+            // 部门路径
+            'path' => $departmentInfo->getPath(),
+            // 可见性
+            'visible' => ! ($departmentInfo->getOption() === DepartmentOption::Hidden),
+            'option' => $departmentInfo->getOption(),
+        ];
     }
 }
