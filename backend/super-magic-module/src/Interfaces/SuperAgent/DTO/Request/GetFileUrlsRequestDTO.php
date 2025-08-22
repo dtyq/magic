@@ -88,6 +88,11 @@ class GetFileUrlsRequestDTO
         return $this->cache;
     }
 
+    public function setProjectId(string $projectId)
+    {
+        $this->projectId = $projectId;
+    }
+
     /**
      * 验证请求数据.
      *
