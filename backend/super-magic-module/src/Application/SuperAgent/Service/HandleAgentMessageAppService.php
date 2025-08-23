@@ -647,7 +647,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             event: $messageData['event'],
             steps: $messageData['steps'],
             tool: $messageData['tool'],
-            attachments: $messageData['attachments']
+            attachments: $messageData['attachments'],
+            correlationId: $messageData['correlationId'] ?? null
         );
     }
 
