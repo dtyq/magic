@@ -140,7 +140,8 @@ class MessageBuilderDomainService
         string $event,
         ?array $steps = null,
         ?array $tool = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        ?string $correlationId = null
     ): SuperAgentMessage {
         $message = new SuperAgentMessage();
         $message->setMessageId((string) IdGenerator::getSnowId());
@@ -173,6 +174,11 @@ class MessageBuilderDomainService
         if ($steps !== null) {
             $message->setSteps($steps);
         }
+        
+        if ($correlationId !== null) {
+            $message->setCorrelationId($correlationId);
+        }
+        
         return $message;
     }
 }
