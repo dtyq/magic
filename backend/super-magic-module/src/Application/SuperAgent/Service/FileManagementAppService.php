@@ -589,6 +589,11 @@ class FileManagementAppService extends AbstractAppService
                     $preFileId,
                     $targetParentId
                 );
+                $this->logger->info(sprintf('Move file request data, batchKey: %s', $batchKey), [
+                    'file_ids' => $fileIds,
+                    'target_parent_id' => $targetParentId,
+                    'pre_file_id' => $preFileId,
+                ]);
                 $publisher = new FileBatchMovePublisher($event);
                 $this->producer->produce($publisher);
                 // Return asynchronous response
@@ -749,6 +754,13 @@ class FileManagementAppService extends AbstractAppService
                 $dataIsolation->getCurrentUserId(),
                 $fileCount
             );
+
+            // Print request data
+            $this->logger->info(sprintf('Batch move file request data, batchKey: %s', $batchKey), [
+                'file_ids' => $requestDTO->getFileIds(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'pre_file_id' => $requestDTO->getPreFileId(),
+            ]);
 
             // Create and publish batch move event
             $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
