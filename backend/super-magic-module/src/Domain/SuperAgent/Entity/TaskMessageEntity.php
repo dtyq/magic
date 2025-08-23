@@ -470,6 +470,11 @@ class TaskMessageEntity extends AbstractEntity
             $messageData['message_id'] = $taskMessageDTO->getMessageId();
         }
 
+        // Add correlation_id if provided
+        if ($taskMessageDTO->getCorrelationId() !== null) {
+            $messageData['correlation_id'] = $taskMessageDTO->getCorrelationId();
+        }
+
         return new TaskMessageEntity($messageData);
     }
 }
