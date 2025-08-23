@@ -444,6 +444,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         $attachments = $payload->getAttachments() ?? [];
         $showInUi = $payload->getShowInUi() ?? true;
         $messageId = $payload->getMessageId();
+        $correlationId = $payload->getCorrelationId();
 
         // Validate message type
         if (! MessageType::isValid($messageType)) {
@@ -464,6 +465,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             'attachments' => $attachments,
             'showInUi' => $showInUi,
             'messageId' => $messageId,
+            'correlationId' => $correlationId,
         ];
     }
 

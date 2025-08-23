@@ -78,7 +78,8 @@ class ClientMessageAppService extends AbstractAppService
         string $event = '',
         array $steps = [],
         ?array $tool = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        ?string $correlationId = null,
     ): void {
         try {
             $message = $this->createSuperAgentMessage(
@@ -90,7 +91,8 @@ class ClientMessageAppService extends AbstractAppService
                 $event,
                 $steps,
                 $tool,
-                $attachments
+                $attachments,
+                $correlationId
             );
 
             $this->doSendMessage($message, $chatTopicId, $chatConversationId);
@@ -267,7 +269,8 @@ class ClientMessageAppService extends AbstractAppService
         string $event,
         ?array $steps = null,
         ?array $tool = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        ?string $correlationId = null,
     ): SuperAgentMessage {
         $message = new SuperAgentMessage();
         $message->setMessageId((string) IdGenerator::getSnowId());
@@ -300,6 +303,11 @@ class ClientMessageAppService extends AbstractAppService
         if ($steps !== null) {
             $message->setSteps($steps);
         }
+
+        if ($correlationId !== null) {
+            $message->setCorrelationId($correlationId);
+        }
+
         return $message;
     }
 }
