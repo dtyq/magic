@@ -910,6 +910,7 @@ class TaskAppService extends AbstractAppService
         $projectArchive = $payload->getProjectArchive() ?? [];
         $showInUi = $payload->getShowInUi() ?? true;
         $messageId = $payload->getMessageId();
+        $correlationId = $payload->getCorrelationId();
 
         // 2. 处理未知消息类型
         if (! MessageType::isValid($messageType)) {
@@ -968,7 +969,8 @@ class TaskAppService extends AbstractAppService
                 attachments: $attachments,
                 mentions: null,
                 showInUi: $showInUi,
-                messageId: $messageId
+                messageId: $messageId,
+                correlationId: $correlationId,
             );
 
             $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
@@ -988,7 +990,8 @@ class TaskAppService extends AbstractAppService
                     event: $event,
                     steps: $steps,
                     tool: $tool,
-                    attachments: $attachments
+                    attachments: $attachments,
+                    correlationId: $correlationId,
                 );
             }
             return true;
@@ -1025,7 +1028,8 @@ class TaskAppService extends AbstractAppService
             event: '',
             steps: [],
             tool: [],
-            attachments: []
+            attachments: [],
+            correlationId: null,
         );
     }
 
@@ -1055,7 +1059,8 @@ class TaskAppService extends AbstractAppService
         string $event,
         ?array $steps = null,
         ?array $tool = null,
-        ?array $attachments = null
+        ?array $attachments = null,
+        ?string $correlationId = null,
     ): void {
         // 创建消息对象
         $message = $this->messageBuilder->createSuperAgentMessage(
@@ -1067,7 +1072,8 @@ class TaskAppService extends AbstractAppService
             $event,
             $steps,
             $tool,
-            $attachments
+            $attachments,
+            $correlationId,
         );
 
         // 创建序列实体
