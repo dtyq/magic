@@ -29,6 +29,7 @@ class MessagePayload
      * @param bool $showInUi 是否在UI中显示
      * @param string $remark 备注
      * @param int $seqId 序列ID
+     * @param null|string $correlationId 关联ID
      */
     public function __construct(
         private string $messageId = '',
@@ -45,6 +46,7 @@ class MessagePayload
         private bool $showInUi = true,
         private string $remark = '',
         private int $seqId = 0,
+        private ?string $correlationId = null
     ) {
     }
 
@@ -70,6 +72,7 @@ class MessagePayload
             $data['show_in_ui'] ?? true,
             $data['remark'] ?? '',
             $data['seq_id'] ?? 0,
+            $data['correlation_id'] ?? null,
         );
     }
 
@@ -95,6 +98,7 @@ class MessagePayload
             'show_in_ui' => $this->showInUi,
             'remark' => $this->remark,
             'seq_id' => $this->seqId,
+            'correlation_id' => $this->correlationId,
         ];
     }
 
@@ -272,5 +276,15 @@ class MessagePayload
         $clone = clone $this;
         $clone->seqId = $seqId;
         return $clone;
+    }
+
+    public function getCorrelationId(): ?string
+    {
+        return $this->correlationId;
+    }
+
+    public function setCorrelationId(?string $correlationId): void
+    {
+        $this->correlationId = $correlationId;
     }
 }
