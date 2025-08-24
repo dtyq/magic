@@ -174,11 +174,11 @@ class MessageBuilderDomainService
         if ($steps !== null) {
             $message->setSteps($steps);
         }
-        
+
         if ($correlationId !== null) {
             $message->setCorrelationId($correlationId);
         }
-        
+
         return $message;
     }
 }
