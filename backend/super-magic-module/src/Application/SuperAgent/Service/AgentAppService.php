@@ -298,6 +298,119 @@ class AgentAppService
     }
 
     /**
+     * 开始回滚到指定的checkpoint（仅标记消息状态）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @param string $targetMessageId 目标消息ID
+     * @return string 操作结果消息
+     */
+    public function rollbackCheckpointStart(DataIsolation $dataIsolation, int $topicId, string $targetMessageId): string
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint start requested', [
+            'topic_id' => $topicId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 执行消息状态标记
+        $this->topicDomainService->rollbackMessagesStart($targetMessageId);
+
+        $this->logger->info('[Sandbox][App] Message rollback start completed successfully', [
+            'topic_id' => $topicId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        return 'Messages marked as revoked successfully';
+    }
+
+    /**
+     * 提交回滚到指定的checkpoint（物理删除撤回状态的消息）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @return string 操作结果消息
+     */
+    public function rollbackCheckpointCommit(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint commit requested', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 执行物理删除撤回状态的消息
+        $this->topicDomainService->rollbackMessagesCommit($topicId, $dataIsolation->getCurrentUserId());
+
+        $this->logger->info('[Sandbox][App] Message rollback commit completed successfully', [
+            'topic_id' => $topicId,
+        ]);
+
+        return 'Revoked messages deleted successfully';
+    }
+
+    /**
+     * 撤销回滚操作（将撤回状态的消息恢复为正常状态）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @return string 操作结果消息
+     */
+    public function rollbackCheckpointUndo(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint undo requested', [
+            'topic_id' => $topicId,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            $this->logger->error('[Sandbox][App] Topic not found for undo', [
+                'topic_id' => $topicId,
+                'user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            $this->logger->error('[Sandbox][App] Access denied for topic undo', [
+                'topic_id' => $topicId,
+                'topic_user_id' => $topicEntity->getUserId(),
+                'current_user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 执行消息撤回撤销操作（恢复为正常状态）
+        $this->topicDomainService->rollbackMessagesUndo($topicId, $dataIsolation->getCurrentUserId());
+
+        $this->logger->info('[Sandbox][App] Message rollback undo completed successfully', [
+            'topic_id' => $topicId,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+        ]);
+
+        return 'Revoked messages restored to normal state successfully';
+    }
+
+    /**
      * 创建并初始化沙箱.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文

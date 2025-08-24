@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackStartRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
@@ -235,6 +236,127 @@ class TopicApi extends AbstractApi
         $responseDTO = new CheckpointRollbackResponseDTO();
         $responseDTO->setTargetMessageId($targetMessageId);
         $responseDTO->setMessage($result->getMessage());
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 开始回滚沙箱到指定的checkpoint（标记状态而非删除）.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 话题ID
+     * @return array 回滚结果
+     */
+    #[ApiResponse('low_code')]
+    public function rollbackCheckpointStart(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = CheckpointRollbackStartRequestDTO::fromRequest($this->request);
+
+        $topicId = $id;
+        $targetMessageId = $requestDTO->getTargetMessageId();
+
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        if (empty($targetMessageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'target_message_id is required');
+        }
+
+        $authorization = $this->getAuthorization();
+
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId((string) $authorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+        $dataIsolation->setLanguage(CoContext::getLanguage());
+
+        // 调用应用服务层的rollbackCheckpointStart方法
+        $result = $this->agentAppService->rollbackCheckpointStart($dataIsolation, (int) $topicId, $targetMessageId);
+
+        // 构建响应
+        $responseDTO = new CheckpointRollbackResponseDTO();
+        $responseDTO->setTargetMessageId($targetMessageId);
+        $responseDTO->setMessage($result);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 提交回滚沙箱到指定的checkpoint（物理删除撤回状态的消息）.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 话题ID
+     * @return array 提交结果
+     */
+    #[ApiResponse('low_code')]
+    public function rollbackCheckpointCommit(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $topicId = $id;
+
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        $authorization = $this->getAuthorization();
+
+        // 创建数据隔离对象
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId((string) $authorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+        $dataIsolation->setLanguage(CoContext::getLanguage());
+
+        // 调用应用服务层的rollbackCheckpointCommit方法
+        $result = $this->agentAppService->rollbackCheckpointCommit($dataIsolation, (int) $topicId);
+
+        // 构建响应
+        $responseDTO = new CheckpointRollbackResponseDTO();
+        $responseDTO->setMessage($result);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 撤销回滚沙箱checkpoint（将撤回状态的消息恢复为正常状态）.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 话题ID
+     * @return array 撤销结果
+     */
+    #[ApiResponse('low_code')]
+    public function rollbackCheckpointUndo(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $topicId = $id;
+
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        $authorization = $this->getAuthorization();
+
+        // 创建数据隔离对象
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId((string) $authorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+        $dataIsolation->setLanguage(CoContext::getLanguage());
+
+        // 调用应用服务层的rollbackCheckpointUndo方法
+        $result = $this->agentAppService->rollbackCheckpointUndo($dataIsolation, (int) $topicId);
+
+        // 构建响应
+        $responseDTO = new CheckpointRollbackResponseDTO();
+        $responseDTO->setMessage($result);
 
         return $responseDTO->toArray();
     }

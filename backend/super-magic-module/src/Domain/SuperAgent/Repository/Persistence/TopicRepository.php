@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatSequenceModel;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatTopicMessageModel;
 use App\Domain\Chat\Repository\Persistence\Model\MagicMessageModel;
@@ -556,6 +557,74 @@ class TopicRepository implements TopicRepositoryInterface
             ->where('topic_id', $topicId)
             ->where('id', '>=', $messageId)
             ->delete();
+    }
+
+    /**
+     * 批量更新magic_chat_sequences表的status字段.
+     */
+    public function batchUpdateSeqStatus(array $seqIds, MagicMessageStatus $status): bool
+    {
+        if (empty($seqIds)) {
+            return true;
+        }
+
+        return (bool) $this->magicChatSequenceModel::query()
+            ->whereIn('id', $seqIds)
+            ->update(['status' => $status->value]);
+    }
+
+    /**
+     * 根据基础seq_ids获取当前话题中小于指定seq_id的所有消息.
+     */
+    public function getAllSeqIdsBeforeCurrent(array $baseSeqIds): array
+    {
+        if (empty($baseSeqIds)) {
+            return [];
+        }
+
+        // 批量查询所有baseSeqIds对应的conversation_id和topic_id
+        $topicInfos = $this->magicChatTopicMessageModel::query()
+            ->select(['seq_id', 'conversation_id', 'topic_id'])
+            ->whereIn('seq_id', $baseSeqIds)
+            ->get()
+            ->keyBy('seq_id');
+
+        if ($topicInfos->isEmpty()) {
+            return [];
+        }
+
+        $allSeqIds = [];
+
+        // 遍历查询到的topicInfo，获取每个话题下小于该seq_id的所有消息
+        foreach ($topicInfos as $topicInfo) {
+            // 查询该话题下小于该seq_id的所有消息
+            $seqIds = $this->magicChatTopicMessageModel::query()
+                ->where('conversation_id', $topicInfo->conversation_id)
+                ->where('topic_id', $topicInfo->topic_id)
+                ->where('seq_id', '<', $topicInfo->seq_id)
+                ->pluck('seq_id')
+                ->toArray();
+
+            $allSeqIds = array_merge($allSeqIds, $seqIds);
+        }
+
+        return array_unique($allSeqIds);
+    }
+
+    /**
+     * 根据话题ID获取所有撤回状态的消息seq_ids.
+     */
+    public function getRevokedSeqIdsByTopicId(int $topicId, string $userId): array
+    {
+        // 查询该话题下所有撤回状态的消息
+        return $this->magicChatTopicMessageModel::query()
+            ->join('magic_chat_sequences', 'magic_chat_topic_messages.seq_id', '=', 'magic_chat_sequences.id')
+            ->join('magic_chat_conversations', 'magic_chat_topic_messages.conversation_id', '=', 'magic_chat_conversations.id')
+            ->where('magic_chat_topic_messages.topic_id', $topicId)
+            ->where('magic_chat_conversations.user_id', $userId) // 确保是用户自己的话题
+            ->where('magic_chat_sequences.status', MagicMessageStatus::Revoked->value)
+            ->pluck('magic_chat_topic_messages.seq_id')
+            ->toArray();
     }
 
     /**
