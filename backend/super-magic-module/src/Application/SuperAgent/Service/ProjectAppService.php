@@ -468,7 +468,8 @@ class ProjectAppService extends AbstractAppService
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             // 判断file key是否重复，如果重复，则跳过
-            if (in_array($fileKey, $fileKeys)) {
+            // 如果根目录，也跳过
+            if (in_array($fileKey, $fileKeys) || empty($entity->getParentId())) {
                 continue;
             }
             $fileKeys[] = $fileKey;
@@ -476,7 +477,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 构建树状结构（登录用户模式特有功能）
-        $tree = FileTreeUtil::assembleFilesTree($list);
+        $tree = FileTreeUtil::assembleFilesTreeByParentId($list);
 
         return [
             'total' => $result['total'],
