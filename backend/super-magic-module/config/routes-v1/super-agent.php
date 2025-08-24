@@ -70,14 +70,20 @@ Router::addGroup(
             Router::post('/delete', [TopicApi::class, 'deleteTopic']);
             // 智能重命名话题
             Router::post('/rename', [TopicApi::class, 'renameTopic']);
-            // 回滚检查点
-            Router::post('/{id}/checkpoint/rollback', [TopicApi::class, 'rollbackCheckpoint']);
-            // 开始回滚检查点（标记状态而非删除）
-            Router::post('/{id}/checkpoint/rollback-start', [TopicApi::class, 'rollbackCheckpointStart']);
-            // 提交回滚检查点（物理删除撤回状态的消息）
-            Router::post('/{id}/checkpoint/rollback-commit', [TopicApi::class, 'rollbackCheckpointCommit']);
-            // 撤销回滚检查点（将撤回状态的消息恢复为正常状态）
-            Router::post('/{id}/checkpoint/rollback-undo', [TopicApi::class, 'rollbackCheckpointUndo']);
+            // Checkpoint 回滚管理
+            Router::addGroup('/{id}/checkpoints', static function () {
+                // 直接回滚检查点
+                Router::post('/rollback', [TopicApi::class, 'rollbackCheckpoint']);
+
+                Router::addGroup('/rollback', static function () {
+                    // 开始回滚检查点（标记状态而非删除）
+                    Router::post('/start', [TopicApi::class, 'rollbackCheckpointStart']);
+                    // 提交回滚检查点（物理删除撤回状态的消息）
+                    Router::post('/commit', [TopicApi::class, 'rollbackCheckpointCommit']);
+                    // 撤销回滚检查点（将撤回状态的消息恢复为正常状态）
+                    Router::post('/undo', [TopicApi::class, 'rollbackCheckpointUndo']);
+                });
+            });
         });
 
         // 任务相关
@@ -130,7 +136,6 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
-
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]

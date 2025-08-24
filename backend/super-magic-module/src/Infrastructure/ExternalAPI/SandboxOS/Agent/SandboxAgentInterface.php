@@ -8,7 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackStartRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackUndoRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
@@ -82,4 +85,31 @@ interface SandboxAgentInterface
      * @return AgentResponse 回滚响应
      */
     public function rollbackCheckpoint(string $sandboxId, CheckpointRollbackRequest $request): AgentResponse;
+
+    /**
+     * 开始回滚到指定的checkpoint（标记状态而非删除）.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param CheckpointRollbackStartRequest $request checkpoint回滚开始请求
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpointStart(string $sandboxId, CheckpointRollbackStartRequest $request): AgentResponse;
+
+    /**
+     * 提交回滚到指定的checkpoint（物理删除撤回状态的消息）.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param CheckpointRollbackCommitRequest $request checkpoint回滚提交请求
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpointCommit(string $sandboxId, CheckpointRollbackCommitRequest $request): AgentResponse;
+
+    /**
+     * 撤销回滚沙箱checkpoint（将撤回状态的消息恢复为正常状态）.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param CheckpointRollbackUndoRequest $request checkpoint回滚撤销请求
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpointUndo(string $sandboxId, CheckpointRollbackUndoRequest $request): AgentResponse;
 }
