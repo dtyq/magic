@@ -136,5 +136,11 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
         if (isset($headerConfigs['business_id'])) {
             $this->businessParams['business_id'] = $headerConfigs['business_id'];
         }
+        if (isset($headerConfigs['magic-topic-id'])) {
+            $this->businessParams['magic_topic-id'] = $headerConfigs['magic-topic-id'];
+        }
+        if (isset($headerConfigs['magic-task-id'])) {
+            $this->businessParams['magic_task_id'] = $headerConfigs['magic-task-id'];
+        }
     }
 }
