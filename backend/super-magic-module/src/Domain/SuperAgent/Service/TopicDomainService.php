@@ -476,9 +476,9 @@ class TopicDomainService
 
         // 在事务中执行状态更新操作
         Db::transaction(function () use ($allSeqIdsFromCurrent, $allSeqIdsBeforeCurrent) {
-            // 1. 将小于target_message_id的所有消息设置为未读状态（正常状态）
+            // 1. 将小于target_message_id的所有消息设置为已查看状态（正常状态）
             if (! empty($allSeqIdsBeforeCurrent)) {
-                $this->topicRepository->batchUpdateSeqStatus($allSeqIdsBeforeCurrent, MagicMessageStatus::Unread);
+                $this->topicRepository->batchUpdateSeqStatus($allSeqIdsBeforeCurrent, MagicMessageStatus::Read);
             }
 
             // 2. 标记大于等于target_message_id的消息为撤回状态
@@ -493,7 +493,7 @@ class TopicDomainService
     {
         // 获取该话题中所有撤回状态的消息seq_ids
         $revokedSeqIds = $this->topicRepository->getRevokedSeqIdsByTopicId($topicId, $userId);
-
+        
         if (empty($revokedSeqIds)) {
             // 没有撤回状态的消息，直接返回
             return;
@@ -521,6 +521,7 @@ class TopicDomainService
      *
      * @param int $topicId 话题ID
      * @param string $userId 用户ID（权限验证）
+     * @return void
      */
     public function rollbackMessagesUndo(int $topicId, string $userId): void
     {
@@ -531,7 +532,7 @@ class TopicDomainService
 
         // 获取该话题中所有撤回状态的消息seq_ids
         $revokedSeqIds = $this->topicRepository->getRevokedSeqIdsByTopicId($topicId, $userId);
-
+        
         if (empty($revokedSeqIds)) {
             $this->logger->info('[TopicDomain] No revoked messages found for undo', [
                 'topic_id' => $topicId,
@@ -547,10 +548,10 @@ class TopicDomainService
             'revoked_seq_ids_count' => count($revokedSeqIds),
         ]);
 
-        // 在事务中执行状态更新操作（将撤回状态恢复为未读状态）
+        // 在事务中执行状态更新操作（将撤回状态恢复为已查看状态）
         Db::transaction(function () use ($revokedSeqIds) {
-            // 将撤回状态的消息恢复为未读状态
-            $this->topicRepository->batchUpdateSeqStatus($revokedSeqIds, MagicMessageStatus::Unread);
+            // 将撤回状态的消息恢复为已查看状态
+            $this->topicRepository->batchUpdateSeqStatus($revokedSeqIds, MagicMessageStatus::Read);
         });
 
         $this->logger->info('[TopicDomain] Message rollback undo completed successfully', [
