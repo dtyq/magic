@@ -230,14 +230,14 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             $projectId = $member['project_id'];
 
             // 初始化计数器
-            if (!isset($memberCounts[$projectId])) {
+            if (! isset($memberCounts[$projectId])) {
                 $memberCounts[$projectId] = 0;
             }
 
             // 如果未达到限制数量，则添加到结果中
             if ($memberCounts[$projectId] < $limit) {
                 $preview[$projectId][] = ProjectMemberEntity::modelToEntity($member);
-                $memberCounts[$projectId]++;
+                ++$memberCounts[$projectId];
             }
         }
 

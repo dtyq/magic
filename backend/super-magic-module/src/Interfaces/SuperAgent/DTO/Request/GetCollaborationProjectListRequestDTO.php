@@ -32,7 +32,7 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
 
     /**
      * received
-     * shared
+     * shared.
      */
     public string $type = '';
 

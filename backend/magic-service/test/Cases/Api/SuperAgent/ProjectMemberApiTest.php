@@ -275,7 +275,6 @@ class ProjectMemberApiTest extends AbstractHttpTest
         //        $this->assertEquals('727236421093691395', $project['members'][2]['department_id']);
     }
 
-
     public function shareCollaborationProjects(string $name = '', ?int $count = null): void
     {
         $params = [];
