@@ -7,16 +7,21 @@ declare(strict_types=1);
 
 namespace App\Application\Chat\Service;
 
+use App\Domain\Chat\DTO\Message\StreamMessageInterface;
 use App\Domain\Chat\DTO\Request\ChatRequest;
+use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicConversationEntity;
+use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
-use App\Domain\Chat\Entity\ValueObject\ConversationType;
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\IntermediateMessageType;
+use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Chat\Service\MagicIntermediateDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Throwable;
@@ -51,6 +56,28 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         // 消息鉴权
         $this->checkSendMessageAuth($conversationEntity, $dataIsolation);
+
+        $messageContent = $messageDTO->getContent();
+        if ($messageContent instanceof StreamMessageInterface) {
+            $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
+
+            // 构建消息
+            $seqEntity = new MagicSeqEntity();
+            $seqEntity->setSeqType(ChatMessageType::Text);
+            $seqEntity->setContent($messageDTO->getContent());
+            $seqEntity->setConversationId($chatRequest->getData()->getConversationId());
+            $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
+            $seqEntity->setExtra(new SeqExtra([
+                'topic_id' => $messageDTO->getTopicId(),
+                'language' => $chatRequest->getContext()->getLanguage(),
+            ]));
+            $seqEntity->setOrganizationCode($chatRequest->getContext()->getOrganizationCode());
+            $seqEntity->setCreatedAt($messageDTO->getCreatedAt());
+            $pushData = $seqEntity->toArray();
+            SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
+            return null;
+        }
+
         match ($messageDTO->getMessageType()) {
             IntermediateMessageType::SuperMagicInstruction => $this->magicIntermediateDomainService->handleSuperMagicInstructionMessage(
                 $messageDTO,
@@ -66,10 +93,6 @@ class MagicIntermediateMessageAppService extends AbstractAppService
     {
         // 检查会话 id所属组织，与当前传入组织编码的一致性
         if ($conversationEntity->getUserOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
-            ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
-        }
-        // 判断会话的发起者是否是当前用户,并且不是助理
-        if ($conversationEntity->getReceiveType() !== ConversationType::Ai && $conversationEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
         }
         // 会话是否已被删除

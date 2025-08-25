@@ -96,6 +96,21 @@ class MagicUserAuthorization extends AbstractAuthorization
         $accountDomainService = di(MagicAccountDomainService::class);
         $magicEnvDomainService = di(MagicOrganizationEnvDomainService::class);
         $sessionInterface = di(SessionInterface::class);
+
+        $superMagicAgentUserId = $key['superMagicAgentUserId'] ?? '';
+        if ($superMagicAgentUserId) {
+            // 处理超级麦吉的 agent 用户
+            $sandboxToken = config('super-magic.sandbox.token', '');
+            if (empty($sandboxToken) || $sandboxToken !== $authorization) {
+                ExceptionBuilder::throw(UserErrorCode::TOKEN_NOT_FOUND, 'token error');
+            }
+            $magicUserId = $superMagicAgentUserId;
+            $magicEnvEntity = null;
+            $loginResponseDTO = null;
+            // 直接登录
+            goto create_user;
+        }
+
         // 多环境下 $authorization 可能重复，会有问题（概率趋近无穷小）
         $magicEnvEntity = $magicEnvDomainService->getEnvironmentEntityByAuthorization($authorization);
         if ($magicEnvEntity === null) {
@@ -119,6 +134,8 @@ class MagicUserAuthorization extends AbstractAuthorization
         if (empty($magicUserId)) {
             ExceptionBuilder::throw(ChatErrorCode::LOGIN_FAILED);
         }
+
+        create_user:
         $userEntity = $userDomainService->getUserById($magicUserId);
         if ($userEntity === null) {
             ExceptionBuilder::throw(ChatErrorCode::LOGIN_FAILED);
@@ -134,13 +151,13 @@ class MagicUserAuthorization extends AbstractAuthorization
         $magicUserInfo->setStatus((string) $userEntity->getStatus()->value);
         $magicUserInfo->setOrganizationCode($userEntity->getOrganizationCode());
         $magicUserInfo->setMagicId($userEntity->getMagicId());
-        $magicUserInfo->setMagicEnvId($magicEnvEntity->getId());
+        $magicUserInfo->setMagicEnvId($magicEnvEntity?->getId() ?? 0);
         $magicUserInfo->setMobile($magicAccountEntity->getPhone());
         $magicUserInfo->setCountryCode($magicAccountEntity->getCountryCode());
         $magicUserInfo->setRealName($magicAccountEntity->getRealName());
         $magicUserInfo->setUserType($userEntity->getUserType());
-        $magicUserInfo->setThirdPlatformUserId($loginResponseDTO->getThirdPlatformUserId());
-        $magicUserInfo->setThirdPlatformOrganizationCode($loginResponseDTO->getThirdPlatformOrganizationCode());
+        $magicUserInfo->setThirdPlatformUserId($loginResponseDTO?->getThirdPlatformUserId() ?? '');
+        $magicUserInfo->setThirdPlatformOrganizationCode($loginResponseDTO?->getThirdPlatformOrganizationCode() ?? '');
         return $magicUserInfo;
     }
 
