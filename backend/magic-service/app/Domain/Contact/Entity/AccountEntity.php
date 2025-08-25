@@ -115,6 +115,10 @@ class AccountEntity extends AbstractEntity
     {
         $phone = $this->phone ?? '';
         if ($desensitization) {
+            // +881 is a virtual phone
+            if (self::getStateCode() === '+881') {
+                return '';
+            }
             $front = substr($phone, 0, 3);
             $back = substr($phone, -3);
             return $front . '****' . $back;
