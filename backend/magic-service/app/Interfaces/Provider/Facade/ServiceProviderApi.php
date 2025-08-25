@@ -42,22 +42,21 @@ class ServiceProviderApi extends AbstractApi
     protected ProviderAppService $providerAppService;
 
     // 根据分类获取服务商列表
-
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getServiceProviders(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
     // 根据分类获取服务商列表
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getOrganizationProvidersByCategory(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
     // 获取服务商和模型列表
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getServiceProviderConfigModels(RequestInterface $request, ?string $serviceProviderConfigId = null)
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
@@ -69,7 +68,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 更新服务商
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function updateServiceProviderConfig(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -79,7 +78,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 修改模型状态
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function updateModelStatus(RequestInterface $request, ?string $modelId = null)
     {
         $modelId = $modelId ?? $request->input('model_id') ?? '';
@@ -100,7 +99,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 保存模型
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function saveModelToServiceProvider(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
@@ -112,7 +111,7 @@ class ServiceProviderApi extends AbstractApi
      * 连通性测试.
      * @throws Exception
      */
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function connectivityTest(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -128,7 +127,7 @@ class ServiceProviderApi extends AbstractApi
     /**
      * @throws Exception
      */
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteModel(RequestInterface $request, ?string $modelId = null)
     {
         $modelId = $modelId ?? $request->input('model_id') ?? '';
@@ -137,7 +136,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 获取原始模型id
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function listOriginalModels()
     {
         $authenticatable = $this->getAuthorization();
@@ -145,7 +144,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 增加原始模型id
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function addOriginalModel(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
@@ -155,7 +154,7 @@ class ServiceProviderApi extends AbstractApi
 
     // 组织添加服务商
     #[Deprecated]
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function addServiceProviderForOrganization(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -165,7 +164,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 删除服务商
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteServiceProviderForOrganization(RequestInterface $request, ?string $serviceProviderConfigId = null)
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
@@ -175,7 +174,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 组织添加模型标识
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function addModelIdForOrganization(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -185,7 +184,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 组织删除模型标识
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteModelIdForOrganization(RequestInterface $request, ?string $modelId = null)
     {
         $modelId = $modelId ?? $request->input('model_id') ?? '';
@@ -199,7 +198,7 @@ class ServiceProviderApi extends AbstractApi
      * 直接从数据库中查询category为llm且provider_type不为OFFICIAL的服务商
      * 不依赖于当前组织，适用于需要添加服务商的场景.
      */
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL, MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getNonOfficialLlmProviders()
     {
         $authenticatable = $this->getAuthorization();

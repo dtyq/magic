@@ -275,14 +275,9 @@ class TopicApi extends AbstractApi
         $dataIsolation->setLanguage(CoContext::getLanguage());
 
         // 调用应用服务层的rollbackCheckpointStart方法
-        $result = $this->agentAppService->rollbackCheckpointStart($dataIsolation, (int) $topicId, $targetMessageId);
+        $this->agentAppService->rollbackCheckpointStart($dataIsolation, (int) $topicId, $targetMessageId);
 
-        // 构建响应
-        $responseDTO = new CheckpointRollbackResponseDTO();
-        $responseDTO->setTargetMessageId($targetMessageId);
-        $responseDTO->setMessage($result);
-
-        return $responseDTO->toArray();
+        return [];
     }
 
     /**
@@ -314,13 +309,9 @@ class TopicApi extends AbstractApi
         $dataIsolation->setLanguage(CoContext::getLanguage());
 
         // 调用应用服务层的rollbackCheckpointCommit方法
-        $result = $this->agentAppService->rollbackCheckpointCommit($dataIsolation, (int) $topicId);
+        $this->agentAppService->rollbackCheckpointCommit($dataIsolation, (int) $topicId);
 
-        // 构建响应
-        $responseDTO = new CheckpointRollbackResponseDTO();
-        $responseDTO->setMessage($result);
-
-        return $responseDTO->toArray();
+        return [];
     }
 
     /**
@@ -352,12 +343,8 @@ class TopicApi extends AbstractApi
         $dataIsolation->setLanguage(CoContext::getLanguage());
 
         // 调用应用服务层的rollbackCheckpointUndo方法
-        $result = $this->agentAppService->rollbackCheckpointUndo($dataIsolation, (int) $topicId);
+        $this->agentAppService->rollbackCheckpointUndo($dataIsolation, (int) $topicId);
 
-        // 构建响应
-        $responseDTO = new CheckpointRollbackResponseDTO();
-        $responseDTO->setMessage($result);
-
-        return $responseDTO->toArray();
+        return [];
     }
 }

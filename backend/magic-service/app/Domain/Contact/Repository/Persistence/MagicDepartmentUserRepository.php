@@ -82,7 +82,7 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
         $cache = di(CacheInterface::class);
         $key = 'MagicDepartmentUser:' . md5('department_ids_by_user_ids_' . implode('_', $userIds) . '_' . $dataIsolation->getCurrentOrganizationCode() . '_' . ($withAllParentIds ? 'all' : 'direct'));
         if ($cache->has($key)) {
-            return $cache->get($key);
+            return (array) $cache->get($key);
         }
         $builder = DepartmentUserModel::query();
         $builder->whereIn('user_id', $userIds);

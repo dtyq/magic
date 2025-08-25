@@ -109,10 +109,7 @@ class UserAssembler
                 continue;
             }
             // 如果存在手机号，将手机号的中间四位替换为*
-            $phone = $account->getPhone();
-            if (! empty($phone)) {
-                $phone = substr_replace($phone, '****', 3, 4);
-            }
+            $phone = $account->getPhone(true);
             $userDetailAdd = [
                 'country_code' => $account->getCountryCode(),
                 'phone' => $phone,
