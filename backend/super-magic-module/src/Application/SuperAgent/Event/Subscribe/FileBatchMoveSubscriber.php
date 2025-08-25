@@ -230,7 +230,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 }
             }
 
-            $this->logger->debug('Moving file', [
+            $this->logger->info('Moving file', [
                 'file_id' => $fileId,
                 'old_file_key' => $oldFileKey,
                 'new_file_key' => $newFileKey,
@@ -336,7 +336,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         // Initialize progress tracking
         $this->currentBatchKey = $batchKey;
 
-        $this->logger->debug('Processing batch move business logic', [
+        $this->logger->info('Processing batch move business logic', [
             'batch_key' => $batchKey,
             'user_id' => $userId,
             'organization_code' => $organizationCode,
@@ -362,12 +362,19 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         // 通过 file_entity 的 parent_id 构建层级的结构
         $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
         $files = [];
+        $fileDebugArr = [];
         foreach ($fileEntities as $fileEntity) {
             // set cache
             $this->fileEntitiesCache[$fileEntity->getFileId()] = $fileEntity;
             $files[] = TaskFileItemDTO::fromEntity($fileEntity, $projectEntity->getWorkDir())->toArray();
+            $fileDebugArr[] = [
+                'id' => $fileEntity->getFileId(),
+                'key' => $fileEntity->getFileKey(),
+                'p_id' => $fileEntity->getParentId(),
+            ];
         }
         $fileTree = FileTreeUtil::assembleFilesTreeByParentId($files);
+        $this->logger->info(sprintf('recordOldFile, %s', $batchKey), ['data' => $fileDebugArr]);
 
         // File moving phase (10% - 90%)
         $this->updateProgress(10, 'Starting file move operations');
@@ -488,7 +495,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 $message
             );
 
-            $this->logger->debug('Progress updated', [
+            $this->logger->info('Progress updated', [
                 'batch_key' => $this->currentBatchKey,
                 'percentage' => $percentage,
                 'message' => $message,
@@ -524,7 +531,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 $message
             );
 
-            $this->logger->debug('File moving progress updated', [
+            $this->logger->info('File moving progress updated', [
                 'batch_key' => $this->currentBatchKey,
                 'processed' => $this->processedTopLevelFiles,
                 'total' => $this->totalTopLevelFiles,

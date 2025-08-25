@@ -290,6 +290,165 @@ class AgentAppService
     }
 
     /**
+     * 开始回滚到指定的checkpoint（调用沙箱网关并标记消息状态）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @param string $targetMessageId 目标消息ID
+     * @return string 操作结果消息
+     */
+    public function rollbackCheckpointStart(DataIsolation $dataIsolation, int $topicId, string $targetMessageId): string
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint start requested', [
+            'topic_id' => $topicId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 确保沙箱已初始化并获取沙箱ID
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+
+        // 调用沙箱网关开始回滚
+        $sandboxResponse = $this->agentDomainService->rollbackCheckpointStart($sandboxId, $targetMessageId);
+
+        if (! $sandboxResponse->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Sandbox rollback start failed', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+                'error' => $sandboxResponse->getMessage(),
+            ]);
+            throw new BusinessException('Sandbox rollback start failed: ' . $sandboxResponse->getMessage());
+        }
+
+        // 沙箱操作成功后，执行消息状态标记
+        $this->topicDomainService->rollbackMessagesStart($targetMessageId);
+
+        $this->logger->info('[Sandbox][App] Message rollback start completed successfully', [
+            'topic_id' => $topicId,
+            'target_message_id' => $targetMessageId,
+            'sandbox_response' => $sandboxResponse->getMessage(),
+        ]);
+
+        return 'Sandbox and messages rollback started successfully';
+    }
+
+    /**
+     * 提交回滚到指定的checkpoint（调用沙箱网关并物理删除撤回状态的消息）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @return string 操作结果消息
+     */
+    public function rollbackCheckpointCommit(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint commit requested', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 确保沙箱已初始化并获取沙箱ID
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+
+        // 调用沙箱网关提交回滚
+        $sandboxResponse = $this->agentDomainService->rollbackCheckpointCommit($sandboxId);
+
+        if (! $sandboxResponse->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Sandbox rollback commit failed', [
+                'sandbox_id' => $sandboxId,
+                'error' => $sandboxResponse->getMessage(),
+            ]);
+            throw new BusinessException('Sandbox rollback commit failed: ' . $sandboxResponse->getMessage());
+        }
+
+        // 沙箱操作成功后，执行物理删除撤回状态的消息
+        $this->topicDomainService->rollbackMessagesCommit($topicId, $dataIsolation->getCurrentUserId());
+
+        $this->logger->info('[Sandbox][App] Message rollback commit completed successfully', [
+            'topic_id' => $topicId,
+            'sandbox_response' => $sandboxResponse->getMessage(),
+        ]);
+
+        return 'Sandbox and messages rollback committed successfully';
+    }
+
+    /**
+     * 撤销回滚操作（调用沙箱网关并将撤回状态的消息恢复为正常状态）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @return string 操作结果消息
+     */
+    public function rollbackCheckpointUndo(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint undo requested', [
+            'topic_id' => $topicId,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            $this->logger->error('[Sandbox][App] Topic not found for undo', [
+                'topic_id' => $topicId,
+                'user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            $this->logger->error('[Sandbox][App] Access denied for topic undo', [
+                'topic_id' => $topicId,
+                'topic_user_id' => $topicEntity->getUserId(),
+                'current_user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 确保沙箱已初始化并获取沙箱ID
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+
+        // 调用沙箱网关撤销回滚
+        $sandboxResponse = $this->agentDomainService->rollbackCheckpointUndo($sandboxId);
+
+        if (! $sandboxResponse->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Sandbox rollback undo failed', [
+                'sandbox_id' => $sandboxId,
+                'error' => $sandboxResponse->getMessage(),
+            ]);
+            throw new BusinessException('Sandbox rollback undo failed: ' . $sandboxResponse->getMessage());
+        }
+
+        // 沙箱操作成功后，执行消息撤回撤销操作（恢复为正常状态）
+        $this->topicDomainService->rollbackMessagesUndo($topicId, $dataIsolation->getCurrentUserId());
+
+        $this->logger->info('[Sandbox][App] Message rollback undo completed successfully', [
+            'topic_id' => $topicId,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'sandbox_response' => $sandboxResponse->getMessage(),
+        ]);
+
+        return 'Sandbox and messages rollback undone successfully';
+    }
+
+    /**
      * 创建并初始化沙箱.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
