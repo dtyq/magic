@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SuperAgentMemoryApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\TopicApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\WorkspaceApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\MessageApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup(
@@ -98,6 +99,20 @@ Router::addGroup(
         Router::addGroup('/accounts', static function () {
             // 初始化超级麦吉账号
             Router::post('/init', [AccountApi::class, 'initAccount']);
+        });
+
+        // 消息队列管理
+        Router::addGroup('/message-queue', static function () {
+            // 创建消息队列
+            Router::post('', [MessageApi::class, 'createMessageQueue']);
+            // 修改消息队列
+            Router::put('/{id}', [MessageApi::class, 'updateMessageQueue']);
+            // 删除消息队列
+            Router::delete('/{id}', [MessageApi::class, 'deleteMessageQueue']);
+            // 查询消息队列
+            Router::post('/queries', [MessageApi::class, 'queryMessageQueues']);
+            // 消费消息
+            Router::post('/{id}/consume', [MessageApi::class, 'consumeMessageQueue']);
         });
 
         Router::addGroup('/file', static function () {
