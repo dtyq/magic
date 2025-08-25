@@ -17,7 +17,6 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -48,7 +47,6 @@ class FileManagementAppService extends AbstractAppService
 
     public function __construct(
         private readonly FileAppService $fileAppService,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
@@ -728,7 +726,7 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             // 1. Get project information
-            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+            $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // Generate batch key for tracking
             $fileIds = $requestDTO->getFileIds();
