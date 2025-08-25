@@ -86,6 +86,8 @@ class ProjectMemberApiTest extends AbstractHttpTest
      */
     public function testUpdateProjectMembersSuccess(): void
     {
+        $this->projectDetail((int) $this->projectId);
+
         $this->switchUserTest1();
 
         /*$requestData = [
@@ -578,6 +580,15 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
 
         $this->assertEquals($expectedCode, $response['data']['error_files'][0]['error_code'], $response['data']['error_files'][0]['error']);
+    }
+
+    public function projectDetail(int $projectId): void
+    {
+        $response = $this->get('/api/v1/open-api/super-magic/projects/' . $projectId, [], []);
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $this->assertEquals('test', $response['data']['project_name']);
     }
 
     protected function switchUserTest1(): string
