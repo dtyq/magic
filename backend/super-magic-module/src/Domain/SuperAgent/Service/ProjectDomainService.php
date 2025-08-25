@@ -210,11 +210,6 @@ class ProjectDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
         }
 
-        // Check if user has access to source project
-        if ($sourceProject->getUserId() !== $userId) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-        }
-
         $currentTime = date('Y-m-d H:i:s');
 
         // Create forked project entity
