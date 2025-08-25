@@ -91,4 +91,11 @@ interface ProjectMemberRepositoryInterface
      * @return array [project_id => [['target_type' => '', 'target_id' => ''], ...]]
      */
     public function getProjectMembersPreview(array $projectIds, int $limit = 4): array;
+
+    /**
+     * 获取用户创建的且有成员的项目ID列表及总数.
+     *
+     * @return array ['total' => int, 'project_ids' => array]
+     */
+    public function getSharedProjectIdsByUser(string $userId, string $organizationCode, ?string $name = null, int $page = 1, int $pageSize = 10): array;
 }

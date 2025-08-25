@@ -444,7 +444,7 @@ class TopicDomainService
             $this->topicRepository->deleteMessagesAndSequencesBySeqIds($allSeqIds);
 
             // 删除magic_super_agent_message表的数据
-            $this->topicRepository->deleteSuperAgentMessagesFromSeqId($targetSeqId);
+            $this->topicRepository->deleteSuperAgentMessagesFromSeqId((int) $targetSeqId);
         });
     }
 

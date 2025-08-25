@@ -152,10 +152,10 @@ interface TopicRepositoryInterface
      * 1. 根据im_seq_id查询magic_super_agent_message表，获取对应的主键id和topic_id
      * 2. 删除当前话题中id >= 查询到的主键id的所有数据
      *
-     * @param string $seqId IM消息的序列ID
+     * @param int $seqId IM消息的序列ID
      * @return int 删除的记录数
      */
-    public function deleteSuperAgentMessagesFromSeqId(string $seqId): int;
+    public function deleteSuperAgentMessagesFromSeqId(int $seqId): int;
 
     /**
      * 批量更新magic_chat_sequences表的status字段.
