@@ -10,7 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -35,7 +35,7 @@ class ProjectMemberApi extends AbstractApi
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $requestDTO = GetProjectListRequestDTO::fromRequest($this->request);
+        $requestDTO = GetCollaborationProjectListRequestDTO::fromRequest($this->request);
 
         return $this->projectMemberAppService->getCollaborationProjects($requestContext, $requestDTO);
     }

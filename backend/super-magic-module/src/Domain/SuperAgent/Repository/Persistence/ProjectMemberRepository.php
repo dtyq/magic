@@ -180,14 +180,19 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             return [];
         }
 
+        // 使用单次查询优化N+1问题
+        $results = $this->projectMemberModel::query()
+            ->whereIn('project_id', $projectIds)
+            ->groupBy('project_id')
+            ->selectRaw('project_id, COUNT(*) as total_count')
+            ->get()
+            ->keyBy('project_id')
+            ->toArray();
+
+        // 确保所有项目ID都有返回值，没有成员的项目返回0
         $counts = [];
-
         foreach ($projectIds as $projectId) {
-            $totalCount = $this->projectMemberModel::query()
-                ->where('project_id', $projectId)
-                ->count();
-
-            $counts[$projectId] = $totalCount;
+            $counts[$projectId] = (int) ($results[$projectId]['total_count'] ?? 0);
         }
 
         return $counts;
@@ -198,7 +203,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
      *
      * @param array $projectIds 项目ID数组
      * @param int $limit 限制数量，默认4个
-     * @return array [project_id => [['target_type' => '', 'target_id' => ''], ...]]
+     * @return array [project_id => [ProjectMemberEntity[], ...]]
      */
     public function getProjectMembersPreview(array $projectIds, int $limit = 4): array
     {
@@ -206,22 +211,77 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             return [];
         }
 
+        // 使用Eloquent查询，批量获取所有相关项目的成员
+        $results = $this->projectMemberModel::query()
+            ->whereIn('project_id', $projectIds)
+            ->orderBy('id', 'asc')
+            ->get()
+            ->toArray();
+
+        // 初始化结果数组
         $preview = [];
-
         foreach ($projectIds as $projectId) {
-            $members = $this->projectMemberModel::query()
-                ->where('project_id', $projectId)
-                ->orderBy('id', 'asc')
-                ->limit($limit)
-                ->get()
-                ->toArray();
+            $preview[$projectId] = [];
+        }
 
-            $preview[$projectId] = array_map(function ($member) {
-                return ProjectMemberEntity::modelToEntity($member);
-            }, $members);
+        // 按项目分组并限制每个项目的成员数量
+        $memberCounts = [];
+        foreach ($results as $member) {
+            $projectId = $member['project_id'];
+
+            // 初始化计数器
+            if (!isset($memberCounts[$projectId])) {
+                $memberCounts[$projectId] = 0;
+            }
+
+            // 如果未达到限制数量，则添加到结果中
+            if ($memberCounts[$projectId] < $limit) {
+                $preview[$projectId][] = ProjectMemberEntity::modelToEntity($member);
+                $memberCounts[$projectId]++;
+            }
         }
 
         return $preview;
+    }
+
+    /**
+     * 获取用户创建的且有成员的项目ID列表及总数.
+     *
+     * @return array ['total' => int, 'project_ids' => array]
+     */
+    public function getSharedProjectIdsByUser(string $userId, string $organizationCode, ?string $name = null, int $page = 1, int $pageSize = 10): array
+    {
+        // 构建基础查询：查找用户创建的且有成员的项目
+        $query = $this->projectMemberModel::query()
+            ->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
+            ->where('magic_super_agent_project.user_id', '=', $userId)
+            ->where('magic_super_agent_project.user_organization_code', '=', $organizationCode)
+            ->whereNull('magic_super_agent_project.deleted_at');
+
+        // 如果有项目名称搜索条件
+        if (! empty($name)) {
+            $query->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%');
+        }
+
+        // 获取总数
+        $totalQuery = clone $query;
+        $total = $totalQuery->select('magic_super_agent_project_members.project_id')->distinct()->count();
+
+        // 分页查询项目ID（包含排序字段以兼容DISTINCT）
+        $projectIds = $query->select('magic_super_agent_project_members.project_id', 'magic_super_agent_project.updated_at')
+            ->distinct()
+            ->orderBy('magic_super_agent_project.updated_at', 'desc')
+            ->offset(($page - 1) * $pageSize)
+            ->limit($pageSize)
+            ->get()
+            ->pluck('project_id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+
+        return [
+            'total' => $total,
+            'project_ids' => $projectIds,
+        ];
     }
 
     /**
