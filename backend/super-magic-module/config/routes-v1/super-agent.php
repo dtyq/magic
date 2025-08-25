@@ -8,6 +8,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\RequestContextMiddlewareV2;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
@@ -225,5 +226,11 @@ Router::addGroup('/api/v1/open-api/super-magic', static function () {
     Router::addGroup('/task', static function () {
         // 获取任务下的附件列表
         Router::get('/attachments/{id}', [OpenTaskApi::class, 'getOpenApiTaskAttachments']);
+    });
+
+    // 项目相关 - 公开接口
+    Router::addGroup('/projects', static function () {
+        // 获取项目基本信息（项目名称等）- 无需登录
+        Router::get('/{id}', [OpenProjectApi::class, 'show']);
     });
 });

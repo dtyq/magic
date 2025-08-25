@@ -204,7 +204,6 @@ class ProjectMemberAppService extends AbstractAppService
         $projectIds = $collaborationResult['project_ids'] ?? [];
         $totalCount = $collaborationResult['total'] ?? 0;
 
-
         if (empty($projectIds)) {
             return CollaborationProjectListResponseDTO::fromProjectData([], [], [], [], $totalCount)->toArray();
         }
@@ -220,6 +219,7 @@ class ProjectMemberAppService extends AbstractAppService
 
     /**
      * 获取他人分享给我的项目ID列表.
+     * @param mixed $dataIsolation
      */
     private function getReceivedProjectIds(string $userId, $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
     {
@@ -255,6 +255,7 @@ class ProjectMemberAppService extends AbstractAppService
 
     /**
      * 构建协作项目响应数据.
+     * @param mixed $dataIsolation
      */
     private function buildCollaborationProjectResponse($dataIsolation, array $projects, int $totalCount): array
     {
