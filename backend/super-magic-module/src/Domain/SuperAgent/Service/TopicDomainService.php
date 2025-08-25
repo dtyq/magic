@@ -521,7 +521,6 @@ class TopicDomainService
      *
      * @param int $topicId 话题ID
      * @param string $userId 用户ID（权限验证）
-     * @return void
      */
     public function rollbackMessagesUndo(int $topicId, string $userId): void
     {
