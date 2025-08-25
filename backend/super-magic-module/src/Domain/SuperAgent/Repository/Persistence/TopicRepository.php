@@ -538,7 +538,7 @@ class TopicRepository implements TopicRepositoryInterface
     /**
      * 根据im_seq_id删除magic_super_agent_message表中对应话题的后续消息.
      */
-    public function deleteSuperAgentMessagesFromSeqId(string $seqId): int
+    public function deleteSuperAgentMessagesFromSeqId(int $seqId): int
     {
         // 1. 根据seq_id查询对应的消息记录
         $targetMessage = TaskMessageModel::query()
@@ -616,12 +616,22 @@ class TopicRepository implements TopicRepositoryInterface
      */
     public function getRevokedSeqIdsByTopicId(int $topicId, string $userId): array
     {
-        // 查询该话题下所有撤回状态的消息
+        // 先获取SuperAgent话题实体
+        $topic = $this->getTopicById($topicId);
+        if (! $topic) {
+            return [];
+        }
+
+        // 获取对应的聊天话题ID
+        $chatTopicId = $topic->getChatTopicId();
+        if (empty($chatTopicId)) {
+            return [];
+        }
+
+        // 使用聊天话题ID查询该话题下所有撤回状态的消息
         return $this->magicChatTopicMessageModel::query()
             ->join('magic_chat_sequences', 'magic_chat_topic_messages.seq_id', '=', 'magic_chat_sequences.id')
-            ->join('magic_chat_conversations', 'magic_chat_topic_messages.conversation_id', '=', 'magic_chat_conversations.id')
-            ->where('magic_chat_topic_messages.topic_id', $topicId)
-            ->where('magic_chat_conversations.user_id', $userId) // 确保是用户自己的话题
+            ->where('magic_chat_topic_messages.topic_id', $chatTopicId)
             ->where('magic_chat_sequences.status', MagicMessageStatus::Revoked->value)
             ->pluck('magic_chat_topic_messages.seq_id')
             ->toArray();
