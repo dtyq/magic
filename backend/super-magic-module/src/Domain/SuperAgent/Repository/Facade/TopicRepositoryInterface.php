@@ -155,7 +155,7 @@ interface TopicRepositoryInterface
      * @param string $seqId IM消息的序列ID
      * @return int 删除的记录数
      */
-    public function deleteSuperAgentMessagesFromSeqId(string $seqId): int;
+    public function deleteSuperAgentMessagesFromSeqId(int $seqId): int;
 
     /**
      * 批量更新magic_chat_sequences表的status字段.
