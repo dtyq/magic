@@ -714,21 +714,6 @@ class FileManagementAppService extends AbstractAppService
         }
     }
 
-    public function getProjectIdByFileId(int $fileId): string
-    {
-        if (time() > strtotime('2025-08-30')) {
-            return '';
-        }
-        if (empty($fileId)) {
-            return '';
-        }
-        $fileEntity = $this->taskFileDomainService->getById($fileId);
-        if ($fileEntity) {
-            return (string) $fileEntity->getProjectId();
-        }
-        return '';
-    }
-
     /**
      * Batch move files.
      *
