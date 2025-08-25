@@ -28,9 +28,15 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
-    public function getFilesByIds(array $fileIds): array
+    public function getFilesByIds(array $fileIds, int $projectId = 0): array
     {
-        $models = $this->model::query()->whereIn('file_id', $fileIds)->get();
+        $query = $this->model::query()->whereIn('file_id', $fileIds);
+
+        if ($projectId > 0) {
+            $query->where('project_id', $projectId);
+        }
+
+        $models = $query->get();
 
         $list = [];
         foreach ($models as $model) {
@@ -308,6 +314,13 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->update($entityArray);
 
         return $entity;
+    }
+
+    public function updateFileByCondition(array $condition, array $data): bool
+    {
+        return $this->model::query()
+            ->where($condition)
+            ->update($data) > 0;
     }
 
     public function deleteById(int $id): void
@@ -619,6 +632,15 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return $query->orderBy($orderBy, $direction)->get()->toArray();
     }
 
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int
+    {
+        return $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $parentId)
+            ->whereNull('deleted_at')
+            ->count();
+    }
+
     /**
      * 批量更新排序值.
      */
@@ -671,5 +693,26 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return new TaskFileEntity($model->toArray());
+    }
+
+    public function lockDirectChildrenForUpdate(int $parentId): array
+    {
+        return $this->model::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('sort', 'ASC')
+            ->orderBy('file_id', 'ASC')
+            ->lockForUpdate()
+            ->get()
+            ->toArray();
+    }
+
+    public function getAllChildrenByParentId(int $parentId): array
+    {
+        return $this->model::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('sort', 'ASC')
+            ->orderBy('file_id', 'ASC')
+            ->get()
+            ->toArray();
     }
 }

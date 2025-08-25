@@ -231,6 +231,67 @@ class FileTreeUtil
     }
 
     /**
+     * 基于 parent_id 构建文件树，支持多根节点场景.
+     *
+     * 当选中文件都是平级时（相同 parent_id），但父目录未被选中时，
+     * 该方法能自动识别这些文件为根节点，解决树构建问题。
+     *
+     * @param array $files 文件列表，必须包含 file_id 和 parent_id 字段
+     * @return array 与 assembleFilesTree 相同格式的树结构
+     */
+    public static function assembleFilesTreeByParentId(array $files): array
+    {
+        if (empty($files)) {
+            return [];
+        }
+
+        // 1. 收集所有存在的 file_id 和构建文件映射
+        $existingFileIds = [];
+        $fileMap = [];
+
+        foreach ($files as $file) {
+            $fileId = $file['file_id'] ?? 0;
+            if ($fileId > 0) {
+                $existingFileIds[] = $fileId;
+                $fileMap[$fileId] = $file;
+            }
+        }
+
+        // 2. 按 parent_id 分组，识别根节点和子节点
+        $parentChildMap = [];  // parent_id => [child_files]
+        $rootNodes = [];       // 根节点（parent_id 不在现有文件中）
+
+        foreach ($files as $file) {
+            $fileId = $file['file_id'] ?? 0;
+            $parentId = $file['parent_id'] ?? 0;
+
+            if ($parentId <= 0 || ! in_array($parentId, $existingFileIds)) {
+                // 父节点不存在于当前文件列表中，视为根节点
+                $rootNodes[] = $file;
+            } else {
+                // 父节点存在，加入父子映射
+                if (! isset($parentChildMap[$parentId])) {
+                    $parentChildMap[$parentId] = [];
+                }
+                $parentChildMap[$parentId][] = $file;
+            }
+        }
+
+        // 3. 递归构建树结构
+        $result = [];
+
+        // 处理根节点
+        foreach ($rootNodes as $rootFile) {
+            $result[] = self::buildNodeWithChildren($rootFile, $parentChildMap);
+        }
+
+        // 4. 对根节点进行排序
+        self::sortNodeChildrenArray($result);
+
+        return $result;
+    }
+
+    /**
      * 判断目录名是否为隐藏目录
      * 隐藏目录的判断规则：目录名以 . 开头.
      *
@@ -389,5 +450,78 @@ class FileTreeUtil
                 self::sortAllDirectoryChildren($child);
             }
         }
+    }
+
+    /**
+     * 递归构建节点及其子节点.
+     *
+     * @param array $file 文件数据
+     * @param array $parentChildMap 父子关系映射 [parent_id => [children]]
+     * @return array 标准化的节点数据
+     */
+    private static function buildNodeWithChildren(array $file, array $parentChildMap): array
+    {
+        // 标准化节点格式，与 assembleFilesTree 保持一致
+        $node = $file;
+        $node['type'] = ($file['is_directory'] ?? false) ? 'directory' : 'file';
+        $node['children'] = [];
+
+        // 确保必要字段存在
+        if (! isset($node['name'])) {
+            $node['name'] = $node['file_name'] ?? '';
+        }
+
+        // 如果有子节点，递归构建
+        $fileId = $file['file_id'] ?? 0;
+        if (isset($parentChildMap[$fileId]) && ! empty($parentChildMap[$fileId])) {
+            foreach ($parentChildMap[$fileId] as $childFile) {
+                $node['children'][] = self::buildNodeWithChildren($childFile, $parentChildMap);
+            }
+
+            // 对子节点排序
+            self::sortNodeChildrenArray($node['children']);
+        }
+
+        return $node;
+    }
+
+    /**
+     * 对节点数组进行排序.
+     *
+     * 排序规则与 sortAllDirectoryChildren 保持一致：
+     * 1. 目录优先于文件
+     * 2. 按 sort 字段排序
+     * 3. sort 相同时按 file_id 排序
+     *
+     * @param array &$nodes 节点数组的引用
+     */
+    private static function sortNodeChildrenArray(array &$nodes): void
+    {
+        if (empty($nodes)) {
+            return;
+        }
+
+        usort($nodes, function ($a, $b) {
+            // 目录优先于文件
+            $aIsDir = $a['is_directory'] ?? false;
+            $bIsDir = $b['is_directory'] ?? false;
+
+            if ($aIsDir !== $bIsDir) {
+                return $bIsDir <=> $aIsDir; // 目录在前
+            }
+
+            // 按排序值排序
+            $aSort = $a['sort'] ?? 0;
+            $bSort = $b['sort'] ?? 0;
+
+            if ($aSort === $bSort) {
+                // 排序值相同时按 file_id 排序
+                $aFileId = $a['file_id'] ?? 0;
+                $bFileId = $b['file_id'] ?? 0;
+                return $aFileId <=> $bFileId;
+            }
+
+            return $aSort <=> $bSort;
+        });
     }
 }
