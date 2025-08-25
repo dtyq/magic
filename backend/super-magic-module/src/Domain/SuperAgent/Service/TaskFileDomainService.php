@@ -1454,10 +1454,11 @@ class TaskFileDomainService
                     try {
                         $this->cloudFileRepository->copyObjectByCredential(
                             '',
-                            $dataIsolation->getCurrentOrganizationCode(),
+                            $projectForkRecordEntity->getUserOrganizationCode(),
                             $sourceFile->getFileKey(),
                             $newFileKey,
-                            StorageBucketType::SandBox
+                            StorageBucketType::SandBox,
+                            ['allow_cross_organization' => true]
                         );
 
                         // get parent id
