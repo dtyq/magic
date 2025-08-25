@@ -682,7 +682,7 @@ class FileManagementAppService extends AbstractAppService
 
     public function getProjectIdByFileId(int $fileId): string
     {
-        if (time() > strtotime('2025-08-23')) {
+        if (time() > strtotime('2025-08-30')) {
             return '';
         }
         if (empty($fileId)) {
