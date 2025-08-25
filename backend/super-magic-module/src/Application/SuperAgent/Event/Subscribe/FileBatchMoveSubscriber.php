@@ -360,7 +360,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         $fileEntities = $this->taskFileDomainService->getProjectFilesByIds($projectId, $fileIds);
 
         // 通过 file_entity 的 parent_id 构建层级的结构
-        $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
         $files = [];
         $fileDebugArr = [];
         foreach ($fileEntities as $fileEntity) {
