@@ -18,7 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
@@ -184,50 +184,81 @@ class ProjectMemberAppService extends AbstractAppService
 
     /**
      * 获取协作项目列表
-     * 根据当前用户和用户所在部门获取所有协作项目.
+     * 根据type参数获取不同类型的协作项目：
+     * - received: 他人分享给我的协作项目
+     * - shared: 我分享给他人的协作项目.
      */
-    public function getCollaborationProjects(RequestContext $requestContext, GetProjectListRequestDTO $requestDTO): array
+    public function getCollaborationProjects(RequestContext $requestContext, GetCollaborationProjectListRequestDTO $requestDTO): array
     {
-        // Get user authorization information
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $userId = $dataIsolation->getCurrentUserId();
+        $type = $requestDTO->getType() ?: 'received';
 
-        // 1. 获取用户所在的所有部门（包含父级部门）
+        // 根据类型获取项目ID列表
+        $collaborationResult = match ($type) {
+            'shared' => $this->getSharedProjectIds($userId, $dataIsolation->getCurrentOrganizationCode(), $requestDTO),
+            default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO),
+        };
+
+        $projectIds = $collaborationResult['project_ids'] ?? [];
+        $totalCount = $collaborationResult['total'] ?? 0;
+
+
+        if (empty($projectIds)) {
+            return CollaborationProjectListResponseDTO::fromProjectData([], [], [], [], $totalCount)->toArray();
+        }
+
+        $result = $this->projectDomainService->getProjectsByConditions(
+            ['project_ids' => $projectIds],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize()
+        );
+
+        return $this->buildCollaborationProjectResponse($dataIsolation, $result['list'], $totalCount);
+    }
+
+    /**
+     * 获取他人分享给我的项目ID列表.
+     */
+    private function getReceivedProjectIds(string $userId, $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
+    {
+        // 获取用户所在的所有部门（包含父级部门）
         $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
             $dataIsolation,
             $userId,
             true // 包含父级部门
         );
 
-        // 2. 获取协作项目ID列表及总数
-        $collaborationResult = $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal($userId, $departmentIds, $requestDTO->getName());
-        $projectIds = $collaborationResult['project_ids'] ?? [];
-        $totalCollaborationProjects = $collaborationResult['total'] ?? 0;
-
-        if (empty($projectIds)) {
-            return CollaborationProjectListResponseDTO::fromProjectData([], [], [], [], $totalCollaborationProjects)->toArray();
-        }
-
-        // 3. 设置查询条件，复用getProjectList逻辑
-        $conditions = [
-            'project_ids' => $projectIds, // 传递项目ID数组
-        ];
-
-        // 4. 调用Domain层获取项目详情（复用现有逻辑）
-        $result = $this->projectDomainService->getProjectsByConditions(
-            $conditions,
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
+        // 获取协作项目ID列表及总数
+        return $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal(
+            $userId,
+            $departmentIds,
+            $requestDTO->getName()
         );
+    }
 
-        if (empty($result['list'])) {
-            return CollaborationProjectListResponseDTO::fromProjectData([], [], [], [], $totalCollaborationProjects)->toArray();
-        }
+    /**
+     * 获取我分享给他人的项目ID列表.
+     */
+    private function getSharedProjectIds(string $userId, string $organizationCode, GetCollaborationProjectListRequestDTO $requestDTO): array
+    {
+        // 直接调用优化后的Repository方法，在数据库层面就完成分页和过滤
+        return $this->projectMemberDomainService->getSharedProjectIdsByUserWithTotal(
+            $userId,
+            $organizationCode,
+            $requestDTO->getName(),
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize()
+        );
+    }
 
-        $projects = $result['list'];
-
-        // 5. 获取创建人信息
+    /**
+     * 构建协作项目响应数据.
+     */
+    private function buildCollaborationProjectResponse($dataIsolation, array $projects, int $totalCount): array
+    {
+        // 1. 获取创建人信息
         $creatorUserIds = array_unique(array_map(fn ($project) => $project->getUserId(), $projects));
         $creatorInfoMap = [];
         if (! empty($creatorUserIds)) {
@@ -237,20 +268,20 @@ class ProjectMemberAppService extends AbstractAppService
             }
         }
 
-        // 6. 分别获取协作者信息（拆分接口）
+        // 2. 分别获取协作者信息（拆分接口）
         $projectIdsFromResult = array_map(fn ($project) => $project->getId(), $projects);
 
-        // 6.1 获取项目成员总数
+        // 2.1 获取项目成员总数
         $memberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIdsFromResult);
 
-        // 6.2 获取项目前4个成员预览
+        // 2.2 获取项目前4个成员预览
         $membersPreview = $this->projectMemberDomainService->getProjectMembersPreview($projectIdsFromResult, 4);
 
         $collaboratorsInfoMap = [];
 
         foreach ($projectIdsFromResult as $projectId) {
             $memberInfo = $membersPreview[$projectId] ?? [];
-            $totalCount = $memberCounts[$projectId] ?? 0;
+            $memberCount = $memberCounts[$projectId] ?? 0;
 
             // 分离用户和部门
             $userIds = [];
@@ -280,21 +311,21 @@ class ProjectMemberAppService extends AbstractAppService
 
             $collaboratorsInfoMap[$projectId] = [
                 'members' => $members,
-                'member_count' => $totalCount,
+                'member_count' => $memberCount,
             ];
         }
 
-        // 7. 提取工作区ID并获取名称
+        // 3. 提取工作区ID并获取名称
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $projects));
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
-        // 8. 创建协作项目列表响应DTO（使用真正的协作项目总数）
+        // 4. 创建协作项目列表响应DTO
         $collaborationListResponseDTO = CollaborationProjectListResponseDTO::fromProjectData(
             $projects,
             $creatorInfoMap,
             $collaboratorsInfoMap,
             $workspaceNameMap,
-            $totalCollaborationProjects
+            $totalCount
         );
 
         return $collaborationListResponseDTO->toArray();

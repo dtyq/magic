@@ -44,7 +44,6 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
         protected WatermarkConfigInterface $watermarkConfig,
-        protected ImageWatermarkProcessor $imageWatermarkProcessor,
         protected PointComponentInterface $pointComponent,
         protected PackageFilterInterface $packageFilter,
     ) {
