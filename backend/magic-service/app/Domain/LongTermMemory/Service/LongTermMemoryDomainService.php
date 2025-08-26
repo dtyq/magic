@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\LongTermMemory\Service;
 
+use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\LongTermMemory\Assembler\LongTermMemoryAssembler;
 use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
@@ -19,8 +20,13 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use DateTime;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\MemoryOperation;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 use function Hyperf\Translation\trans;
 
@@ -32,7 +38,8 @@ readonly class LongTermMemoryDomainService
     public function __construct(
         private LongTermMemoryRepositoryInterface $repository,
         private LoggerInterface $logger,
-        private LockerInterface $locker
+        private LockerInterface $locker,
+        private MagicMessageRepositoryInterface $messageRepository,
     ) {
     }
 
@@ -56,7 +63,7 @@ readonly class LongTermMemoryDomainService
                 'lock_name' => $lockName,
                 'memory_ids' => $memoryIds,
             ]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取批量强化记忆锁失败');
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
         }
 
         try {
@@ -89,29 +96,36 @@ readonly class LongTermMemoryDomainService
     /**
      * 批量处理记忆建议（接受/拒绝）.
      */
-    public function batchProcessMemorySuggestions(array $memoryIds, string $action): void
+    public function batchProcessMemorySuggestions(array $memoryIds, MemoryOperationAction $action, MemoryOperationScenario $scenario = MemoryOperationScenario::ADMIN_PANEL, ?string $magicMessageId = null): void
     {
         if (empty($memoryIds)) {
             return;
         }
 
+        // 验证当 scenario 是 memory_card_quick 时，magicMessageId 必须提供
+        if ($scenario === MemoryOperationScenario::MEMORY_CARD_QUICK && empty($magicMessageId)) {
+            throw new InvalidArgumentException('magic_message_id is required when scenario is memory_card_quick');
+        }
+
         // 生成锁名称和所有者（基于记忆ID排序后生成唯一锁名）
         sort($memoryIds);
-        $lockName = sprintf('memory:batch:%s:%s', $action, md5(implode(',', $memoryIds)));
+        $lockName = sprintf('memory:batch:%s:%s:%s', $action->value, $scenario->value, md5(implode(',', $memoryIds)));
         $lockOwner = getmypid() . '_' . microtime(true);
 
         // 获取互斥锁
         if (! $this->locker->mutexLock($lockName, $lockOwner, 60)) {
             $this->logger->error('Failed to acquire lock for batch memory suggestions processing', [
                 'lock_name' => $lockName,
-                'action' => $action,
+                'action' => $action->value,
+                'scenario' => $scenario->value,
                 'memory_ids' => $memoryIds,
+                'magic_message_id' => $magicMessageId,
             ]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取批量处理记忆建议锁失败');
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
         }
 
         try {
-            if ($action === 'accept') {
+            if ($action === MemoryOperationAction::ACCEPT) {
                 // 批量查询记忆
                 $memories = $this->repository->findByIds($memoryIds);
 
@@ -134,19 +148,39 @@ readonly class LongTermMemoryDomainService
 
                 // 批量保存更新
                 if (! $this->repository->updateBatch($memories)) {
-                    $this->logger->error('Failed to batch accept memory suggestions', ['memory_ids' => $memoryIds]);
+                    $this->logger->error('Failed to batch accept memory suggestions', [
+                        'memory_ids' => $memoryIds,
+                        'scenario' => $scenario->value,
+                    ]);
                     ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
                 }
 
-                $this->logger->info('Batch accepted memory suggestions successfully', ['count' => count($memories)]);
-            } elseif ($action === 'reject') {
+                $this->logger->info('Batch accepted memory suggestions successfully', [
+                    'count' => count($memories),
+                    'scenario' => $scenario->value,
+                    'magic_message_id' => $magicMessageId,
+                ]);
+            } elseif ($action === MemoryOperationAction::REJECT) {
                 // 批量拒绝记忆建议：直接删除记忆
                 if (! $this->repository->deleteBatch($memoryIds)) {
-                    $this->logger->error('Failed to batch reject memory suggestions', ['memory_ids' => $memoryIds]);
+                    $this->logger->error('Failed to batch reject memory suggestions', [
+                        'memory_ids' => $memoryIds,
+                        'scenario' => $scenario->value,
+                        'magic_message_id' => $magicMessageId,
+                    ]);
                     ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
                 }
 
-                $this->logger->info('Batch rejected and deleted memory suggestions successfully', ['count' => count($memoryIds)]);
+                $this->logger->info('Batch rejected and deleted memory suggestions successfully', [
+                    'count' => count($memoryIds),
+                    'scenario' => $scenario->value,
+                    'magic_message_id' => $magicMessageId,
+                ]);
+            }
+
+            // 如果是 memory_card_quick 场景，需要更新对应的消息内容
+            if ($scenario === MemoryOperationScenario::MEMORY_CARD_QUICK && ! empty($magicMessageId)) {
+                $this->updateMessageWithMemoryOperation($magicMessageId, $action, $memoryIds);
             }
         } finally {
             // 确保释放锁
@@ -212,7 +246,7 @@ readonly class LongTermMemoryDomainService
                 'lock_name' => $lockName,
                 'user_id' => $dto->userId,
             ]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::CREATION_FAILED, '获取记忆创建锁失败');
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::CREATION_FAILED);
         }
 
         try {
@@ -266,7 +300,7 @@ readonly class LongTermMemoryDomainService
                 'lock_name' => $lockName,
                 'memory_id' => $memoryId,
             ]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取记忆更新锁失败');
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
         }
 
         try {
@@ -305,7 +339,7 @@ readonly class LongTermMemoryDomainService
                 'lock_name' => $lockName,
                 'memory_id' => $memoryId,
             ]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED, '获取记忆删除锁失败');
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
         }
 
         try {
@@ -540,27 +574,6 @@ readonly class LongTermMemoryDomainService
     }
 
     /**
-     * 判断记忆是否需要压缩.
-     */
-    public function shouldMemoryBeCompressed(LongTermMemoryEntity $memory): bool
-    {
-        // 内容过长但重要性不高
-        if ($memory->getImportance() < 0.6 || strlen($memory->getContent()) > 1000) {
-            return true;
-        }
-
-        // 长时间未访问但不应该被淘汰
-        if ($memory->getLastAccessedAt() && ! $this->shouldMemoryBeEvicted($memory)) {
-            $daysSinceLastAccess = new DateTime()->diff($memory->getLastAccessedAt())->days;
-            if ($daysSinceLastAccess > 7) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * 根据pending_content的变化调整记忆状态.
      */
     private function adjustMemoryStatusBasedOnPendingContent(LongTermMemoryEntity $memory, ?string $pendingContent): void
@@ -592,5 +605,49 @@ readonly class LongTermMemoryDomainService
             // 默认情况（不应该到达这里）
             default => $currentStatus,
         };
+    }
+
+    /**
+     * 更新消息内容，设置记忆操作信息.
+     */
+    private function updateMessageWithMemoryOperation(string $magicMessageId, MemoryOperationAction $action, array $memoryIds): void
+    {
+        try {
+            // 根据 magic_message_id 查询消息数据
+            $messageEntity = $this->messageRepository->getMessageByMagicMessageId($magicMessageId);
+
+            if (! $messageEntity) {
+                $this->logger->warning('Message not found for memory operation update', [
+                    'magic_message_id' => $magicMessageId,
+                    'action' => $action->value,
+                    'memory_ids' => $memoryIds,
+                ]);
+                return;
+            }
+
+            $superAgentMessage = $messageEntity->getContent();
+            if (! $superAgentMessage instanceof SuperAgentMessage) {
+                return;
+            }
+
+            // 设置 MemoryOperation
+            $superAgentMessage->setMemoryOperation([
+                'action' => $action->value,
+                'memory_id' => $memoryIds[0] ?? null,
+                'scenario' => MemoryOperationScenario::MEMORY_CARD_QUICK->value,
+            ]);
+
+            // 更新消息内容
+            $updatedContent = $superAgentMessage->toArray();
+            $this->messageRepository->updateMessageContent($magicMessageId, $updatedContent);
+        } catch (Throwable $e) {
+            // 静默处理更新失败，不影响主要流程
+            $this->logger->warning('Failed to update message with memory operation', [
+                'magic_message_id' => $magicMessageId,
+                'action' => $action->value,
+                'memory_ids' => $memoryIds,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

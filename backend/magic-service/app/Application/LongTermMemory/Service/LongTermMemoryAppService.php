@@ -26,6 +26,8 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\LLMParse\LLMResponseParseUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
 use Hyperf\Odin\Message\SystemMessage;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -180,9 +182,9 @@ class LongTermMemoryAppService
     /**
      * 批量处理记忆建议（接受/拒绝）.
      */
-    public function batchProcessMemorySuggestions(array $memoryIds, string $action): void
+    public function batchProcessMemorySuggestions(array $memoryIds, MemoryOperationAction $action, MemoryOperationScenario $scenario = MemoryOperationScenario::ADMIN_PANEL, ?string $magicMessageId = null): void
     {
-        $this->longTermMemoryDomainService->batchProcessMemorySuggestions($memoryIds, $action);
+        $this->longTermMemoryDomainService->batchProcessMemorySuggestions($memoryIds, $action, $scenario, $magicMessageId);
     }
 
     /**
