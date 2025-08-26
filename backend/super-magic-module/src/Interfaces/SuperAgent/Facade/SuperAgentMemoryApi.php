@@ -51,7 +51,7 @@ class SuperAgentMemoryApi extends AbstractApi
             'tags' => 'array',
             'metadata' => 'required|array',
             'immediate_effect' => 'boolean|nullable',
-            'project_id' => 'nullable|string',
+            'project_id' => 'nullable|integer|string',
         ];
 
         $validatedParams = $this->checkParams($requestData, $rules);
@@ -84,7 +84,7 @@ class SuperAgentMemoryApi extends AbstractApi
             'tags' => $validatedParams['tags'] ?? [],
             'orgId' => $metadata->getOrganizationCode(),
             'appId' => AgentConstant::SUPER_MAGIC_CODE,
-            'projectId' => $validatedParams['project_id'] ?? $metadata->getProjectId() ?: null,
+            'projectId' => isset($validatedParams['project_id']) ? (string) $validatedParams['project_id'] : ($metadata->getProjectId() ?: null),
             'userId' => $metadata->getUserId(),
             'expiresAt' => null,
         ]);
