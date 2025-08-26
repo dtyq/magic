@@ -139,10 +139,8 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
                 // 如果不是有效的 JSON 字符串，可以选择抛出异常或忽略
                 $this->tool = null;
             }
-        } elseif (is_array($tool)) {
-            $this->tool = new SuperAgentTool($tool);
         } else {
-            $this->tool = null;
+            $this->tool = new SuperAgentTool($tool);
         }
         return $this;
     }
@@ -267,10 +265,8 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
                 // 如果不是有效的 JSON 字符串，可以选择抛出异常或忽略
                 $this->memoryOperation = null;
             }
-        } elseif (is_array($memoryOperation)) {
-            $this->memoryOperation = new MemoryOperation($memoryOperation);
         } else {
-            $this->memoryOperation = null;
+            $this->memoryOperation = new MemoryOperation($memoryOperation);
         }
         return $this;
     }
