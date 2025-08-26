@@ -1311,14 +1311,24 @@ class TaskFileDomainService
                     break; // No more files to process
                 }
 
-                // 过滤掉已存在的文件, 需要优化一次性获取
+                // 收集所有需要检查的新文件键
+                $newFileKeys = [];
+                $sourceFileMapping = [];
                 foreach ($sourceFiles as $sourceFile) {
                     $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
-                    $existingFileEntity = $this->taskFileRepository->getByFileKey($newFileKey);
-                    if (! $existingFileEntity) {
+                    $newFileKeys[] = $newFileKey;
+                    $sourceFileMapping[$newFileKey] = $sourceFile;
+                    $lastFileId = $sourceFile->getFileId();
+                }
+
+                // 批量查询已存在的文件
+                $existingFiles = $this->taskFileRepository->getByFileKeys($newFileKeys);
+
+                // 过滤掉已存在的文件
+                foreach ($sourceFileMapping as $newFileKey => $sourceFile) {
+                    if (! isset($existingFiles[$newFileKey])) {
                         $allSourceFiles[] = $sourceFile;
                     }
-                    $lastFileId = $sourceFile->getFileId();
                 }
 
                 if (count($sourceFiles) < $pageSize) {
@@ -2001,7 +2011,9 @@ class TaskFileDomainService
         foreach ($sourceFiles as $sourceFile) {
             if ($sourceFile->getIsDirectory()) {
                 // 目录需要提前创建好
-                $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
+                $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
+                $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
+                $newFileKey = str_replace($sourceFullWorkDir, $targetFullWorkDir, $sourceFile->getFileKey());
                 $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
                 $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($forkProjectEntity->getWorkDir()), $forkProjectEntity->getUserOrganizationCode(), $newFileKey, StorageBucketType::SandBox, ['metadata' => $metadata]);
             } else {

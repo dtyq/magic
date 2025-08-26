@@ -35,6 +35,14 @@ interface TaskFileRepositoryInterface
     public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity;
 
     /**
+     * 根据fileKey数组批量获取文件.
+     *
+     * @param array $fileKeys 文件Key数组
+     * @return TaskFileEntity[] 文件实体数组，以file_key为键
+     */
+    public function getByFileKeys(array $fileKeys): array;
+
+    /**
      * 根据项目ID和fileKey获取文件.
      */
     public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity;
