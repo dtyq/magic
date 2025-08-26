@@ -46,13 +46,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return $list;
     }
 
-    public function getTaskFilesByIds(array $ids): array
+    /**
+     * @return TaskFileEntity[]
+     */
+    public function getTaskFilesByIds(array $ids, int $projectId = 0): array
     {
         if (empty($ids)) {
             return [];
         }
 
-        $models = $this->model::query()->whereIn('file_id', $ids)->get();
+        $query = $this->model::query()->whereIn('file_id', $ids);
+        if ($projectId > 0) {
+            $query = $query->where('project_id', $projectId);
+        }
+        $models = $query->get();
 
         $entities = [];
         foreach ($models as $model) {
@@ -394,6 +401,26 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->whereNull('deleted_at') // 过滤已删除的文件
             ->orderBy('file_id', 'desc')
             ->limit(1000)
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
+    /**
+     * @return array|TaskFileEntity[]
+     */
+    public function findFilesByProjectIdAndIds(int $projectId, array $fileIds): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
             ->get();
 
         $entities = [];

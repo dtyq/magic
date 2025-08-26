@@ -10,7 +10,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SuperMagicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
@@ -31,7 +30,6 @@ class FileSaveContentAppService extends AbstractAppService
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly AgentDomainService $agentDomainService,
         private readonly SuperMagicDomainService $superMagicDomainService,
