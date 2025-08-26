@@ -22,6 +22,8 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use InvalidArgumentException;
 
+use function Hyperf\Translation\trans;
+
 #[ApiResponse('low_code')]
 class SuperAgentMemoryApi extends AbstractApi
 {
@@ -49,6 +51,7 @@ class SuperAgentMemoryApi extends AbstractApi
             'tags' => 'array',
             'metadata' => 'required|array',
             'immediate_effect' => 'boolean|nullable',
+            'project_id' => 'nullable|string',
         ];
 
         $validatedParams = $this->checkParams($requestData, $rules);
@@ -81,7 +84,7 @@ class SuperAgentMemoryApi extends AbstractApi
             'tags' => $validatedParams['tags'] ?? [],
             'orgId' => $metadata->getOrganizationCode(),
             'appId' => AgentConstant::SUPER_MAGIC_CODE,
-            'projectId' => $metadata->getProjectId() ?: null,
+            'projectId' => $validatedParams['project_id'] ?? $metadata->getProjectId() ?: null,
             'userId' => $metadata->getUserId(),
             'expiresAt' => null,
         ]);
@@ -151,7 +154,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         return [
             'success' => true,
-            'message' => '记忆删除成功',
+            'message' => trans('long_term_memory.api.memory_deleted_successfully'),
         ];
     }
 
@@ -165,7 +168,7 @@ class SuperAgentMemoryApi extends AbstractApi
         $validator = $this->validator->make($params, $rules);
 
         if ($validator->fails()) {
-            throw new InvalidArgumentException('参数验证失败: ' . implode(', ', $validator->errors()->all()));
+            throw new InvalidArgumentException(trans('long_term_memory.api.parameter_validation_failed', ['errors' => implode(', ', $validator->errors()->all())]));
         }
 
         return $validator->validated();
@@ -206,7 +209,7 @@ class SuperAgentMemoryApi extends AbstractApi
             AgentConstant::SUPER_MAGIC_CODE,
             $metadata->getUserId()
         )) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, '记忆不存在或无权限访问');
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, trans('long_term_memory.api.memory_not_belong_to_user'));
         }
     }
 }

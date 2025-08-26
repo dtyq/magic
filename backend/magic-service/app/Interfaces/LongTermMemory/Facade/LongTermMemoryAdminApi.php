@@ -20,6 +20,8 @@ use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Infrastructure\Core\AbstractApi;
 use App\Infrastructure\Core\Traits\MagicUserAuthorizationTrait;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
 use Exception;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -63,6 +65,7 @@ class LongTermMemoryAdminApi extends AbstractApi
             'content' => 'required|string|max:65535',
             'status' => ['string', Rule::enum(MemoryStatus::class)],
             'tags' => 'array',
+            'project_id' => 'nullable|string',
         ];
 
         $validatedParams = $this->checkParams($params, $rules);
@@ -90,7 +93,7 @@ class LongTermMemoryAdminApi extends AbstractApi
             'metadata' => [],
             'orgId' => $authorization->getOrganizationCode(),
             'appId' => $authorization->getApplicationCode(),
-            'projectId' => null,
+            'projectId' => $validatedParams['project_id'] ?? null,
             'userId' => $authorization->getId(),
             'expiresAt' => null,
         ]);
@@ -98,7 +101,7 @@ class LongTermMemoryAdminApi extends AbstractApi
 
         return [
             'memory_id' => $memoryId,
-            'message' => '记忆创建成功',
+            'message' => trans('long_term_memory.api.memory_created_successfully'),
             'content' => $validatedParams['content'],
         ];
     }
@@ -130,7 +133,7 @@ class LongTermMemoryAdminApi extends AbstractApi
 
         return [
             'success' => true,
-            'message' => '记忆更新成功',
+            'message' => trans('long_term_memory.api.memory_updated_successfully'),
         ];
     }
 
@@ -158,7 +161,7 @@ class LongTermMemoryAdminApi extends AbstractApi
 
         return [
             'success' => true,
-            'message' => '记忆删除成功',
+            'message' => trans('long_term_memory.api.memory_deleted_successfully'),
         ];
     }
 
@@ -315,7 +318,7 @@ class LongTermMemoryAdminApi extends AbstractApi
 
         return [
             'success' => true,
-            'message' => '记忆强化成功',
+            'message' => trans('long_term_memory.api.memory_reinforced_successfully'),
         ];
     }
 
@@ -345,7 +348,7 @@ class LongTermMemoryAdminApi extends AbstractApi
         if (! $allMemoriesBelongToUser) {
             return [
                 'success' => false,
-                'message' => '部分记忆不存在或无权限访问',
+                'message' => trans('long_term_memory.api.partial_memory_not_belong_to_user'),
             ];
         }
 
@@ -353,7 +356,7 @@ class LongTermMemoryAdminApi extends AbstractApi
 
         return [
             'success' => true,
-            'message' => '记忆批量强化成功',
+            'message' => trans('long_term_memory.api.memories_batch_reinforced_successfully'),
         ];
     }
 
@@ -367,6 +370,8 @@ class LongTermMemoryAdminApi extends AbstractApi
             'memory_ids' => 'required|array|min:1',
             'memory_ids.*' => 'required|string',
             'action' => 'required|string|in:accept,reject',
+            'scenario' => 'nullable|string|in:admin_panel,memory_card_quick',
+            'magic_message_id' => 'nullable|string',
         ];
 
         $validatedParams = $this->checkParams($params, $rules);
@@ -384,46 +389,61 @@ class LongTermMemoryAdminApi extends AbstractApi
         if (! $allMemoriesBelongToUser) {
             return [
                 'success' => false,
-                'message' => '部分记忆不存在或无权限访问',
+                'message' => trans('long_term_memory.api.partial_memory_not_belong_to_user'),
+            ];
+        }
+
+        $action = $validatedParams['action'];
+        $memoryIds = $validatedParams['memory_ids'];
+        $scenarioString = $validatedParams['scenario'] ?? 'admin_panel'; // 默认为管理后台
+        $scenario = MemoryOperationScenario::from($scenarioString);
+
+        // 验证当 scenario 是 memory_card_quick 时，magic_message_id 必须提供
+        if ($scenarioString === 'memory_card_quick' && empty($validatedParams['magic_message_id'])) {
+            return [
+                'success' => false,
+                'message' => trans('long_term_memory.api.magic_message_id_required_for_memory_card_quick'),
             ];
         }
 
         try {
-            $action = $validatedParams['action'];
-            $memoryIds = $validatedParams['memory_ids'];
-
             if ($action === 'accept') {
                 // 批量接受记忆建议：status 改为 accept，enabled 为 true
-                $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, 'accept');
+                $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, MemoryOperationAction::ACCEPT, $scenario, $validatedParams['magic_message_id'] ?? null);
 
                 return [
                     'success' => true,
-                    'message' => '成功接受 ' . count($memoryIds) . ' 条记忆建议',
+                    'message' => trans('long_term_memory.api.memories_accepted_successfully', ['count' => count($memoryIds)]),
                     'processed_count' => count($memoryIds),
                     'action' => 'accept',
+                    'scenario' => $scenario->value,
                 ];
             }
             // 批量拒绝记忆建议：删除记忆
-            $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, 'reject');
+            $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, MemoryOperationAction::REJECT, $scenario, $validatedParams['magic_message_id'] ?? null);
 
             return [
                 'success' => true,
-                'message' => '成功拒绝并删除 ' . count($memoryIds) . ' 条记忆建议',
+                'message' => trans('long_term_memory.api.memories_rejected_successfully', ['count' => count($memoryIds)]),
                 'processed_count' => count($memoryIds),
                 'action' => 'reject',
+                'scenario' => $scenario->value,
             ];
         } catch (Exception $e) {
-            $actionText = $validatedParams['action'] === 'accept' ? '接受' : '拒绝';
-            $this->logger->error('批量处理记忆建议失败', [
+            $actionText = $validatedParams['action'] === 'accept'
+                ? trans('long_term_memory.api.action_accept')
+                : trans('long_term_memory.api.action_reject');
+            $this->logger->error(trans('long_term_memory.api.batch_process_memories_failed'), [
                 'memory_ids' => $validatedParams['memory_ids'],
                 'action' => $validatedParams['action'],
+                'scenario' => $scenario->value,
                 'user_id' => $authorization->getId(),
                 'error' => $e->getMessage(),
             ]);
 
             return [
                 'success' => false,
-                'message' => '批量' . $actionText . '记忆建议失败：' . $e->getMessage(),
+                'message' => trans('long_term_memory.api.batch_action_memories_failed', ['action' => $actionText, 'error' => $e->getMessage()]),
             ];
         }
     }
@@ -615,7 +635,7 @@ class LongTermMemoryAdminApi extends AbstractApi
     {
         return [
             'content' => $content,
-            'explanation' => '用户手动修改记忆内容',
+            'explanation' => trans('long_term_memory.api.user_manual_edit_explanation'),
             'originText' => null,
             'tags' => null,
         ];
@@ -653,7 +673,7 @@ class LongTermMemoryAdminApi extends AbstractApi
         // LLM不建议记忆：自动压缩
         return [
             'content' => mb_substr($content, 0, 100) . '...[已压缩]',
-            'explanation' => '内容过长，已自动压缩',
+            'explanation' => trans('long_term_memory.api.content_auto_compressed_explanation'),
             'originText' => $content,
             'tags' => null,
         ];
