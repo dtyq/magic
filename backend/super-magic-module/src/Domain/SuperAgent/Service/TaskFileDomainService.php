@@ -1315,7 +1315,9 @@ class TaskFileDomainService
                 $newFileKeys = [];
                 $sourceFileMapping = [];
                 foreach ($sourceFiles as $sourceFile) {
-                    $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
+                    $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
+                    $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
+                    $newFileKey = str_replace($sourceFullWorkDir, $targetFullWorkDir, $sourceFile->getFileKey());
                     $newFileKeys[] = $newFileKey;
                     $sourceFileMapping[$newFileKey] = $sourceFile;
                     $lastFileId = $sourceFile->getFileId();
@@ -1360,7 +1362,9 @@ class TaskFileDomainService
             // 创建数据库记录和父子关系
             foreach ($allSourceFiles as $sourceFile) {
                 // Generate new file_key for the forked project
-                $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
+                $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
+                $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
+                $newFileKey = str_replace($sourceFullWorkDir, $targetFullWorkDir, $sourceFile->getFileKey());
                 try {
                     // get parent id
                     $parentId = $sourceToNewIdMap[$sourceFile->getParentId()] ?? null;
