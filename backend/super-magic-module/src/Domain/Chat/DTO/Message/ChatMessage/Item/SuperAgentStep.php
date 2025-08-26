@@ -28,7 +28,7 @@ class SuperAgentStep extends AbstractEntity
 
     public function __construct(array $step)
     {
-        $this->initProperty($step);
+        parent::__construct($step);
     }
 
     public function setId(string $id): void
