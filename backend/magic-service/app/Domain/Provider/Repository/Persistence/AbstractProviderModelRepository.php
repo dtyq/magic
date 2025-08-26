@@ -43,9 +43,8 @@ abstract class AbstractProviderModelRepository
             $modelEntity->setUpdatedAt(new DateTime());
             $modelEntity->setDeletedAt(null);
         }
-        $entityArray = $this->serializeEntityToArray($modelEntity);
         // 创建新记录
-        ProviderModelModel::query()->create($entityArray);
+        ProviderModelModel::query()->create($modelEntity->toArray());
         return $modelEntity;
     }
 

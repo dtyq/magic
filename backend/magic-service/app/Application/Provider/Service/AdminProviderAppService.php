@@ -269,66 +269,6 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * Get super magic display models and Magic provider models visible to current organization.
-     * @param string $organizationCode Organization code
-     * @return ProviderModelDetailDTO[]
-     */
-    public function getSuperMagicDisplayModelsForOrganization(string $organizationCode): array
-    {
-        $models = $this->adminProviderDomainService->getSuperMagicDisplayModelsForOrganization($organizationCode);
-
-        if (empty($models)) {
-            return [];
-        }
-
-        // 收集所有图标路径按组织编码分组
-        $iconsByOrg = [];
-        $iconToModelMap = [];
-
-        foreach ($models as $model) {
-            $icon = $model->getIcon();
-            if (! empty($icon)) {
-                $iconOrganizationCode = substr($icon, 0, strpos($icon, '/'));
-
-                if (! isset($iconsByOrg[$iconOrganizationCode])) {
-                    $iconsByOrg[$iconOrganizationCode] = [];
-                }
-                $iconsByOrg[$iconOrganizationCode][] = $icon;
-
-                if (! isset($iconToModelMap[$icon])) {
-                    $iconToModelMap[$icon] = [];
-                }
-                $iconToModelMap[$icon][] = $model;
-            }
-        }
-
-        // 批量获取图标URL
-        $iconUrlMap = [];
-        foreach ($iconsByOrg as $iconOrganizationCode => $icons) {
-            $links = $this->fileDomainService->getLinks($iconOrganizationCode, array_unique($icons));
-            $iconUrlMap[] = $links;
-        }
-        ! empty($iconUrlMap) && $iconUrlMap = array_merge(...$iconUrlMap);
-        // 创建DTO并设置图标URL
-        $modelDTOs = [];
-        foreach ($models as $model) {
-            $modelDTO = new ProviderModelDetailDTO($model->toArray());
-
-            $icon = $model->getIcon();
-            if (! empty($icon) && isset($iconUrlMap[$icon])) {
-                $fileLink = $iconUrlMap[$icon];
-                if ($fileLink) {
-                    $modelDTO->setIcon($fileLink->getUrl());
-                }
-            }
-
-            $modelDTOs[] = $modelDTO;
-        }
-
-        return $modelDTOs;
-    }
-
-    /**
      * 填充 provider 信息并处理 icon.
      */
     private function fillProviderInfoAndIcon(
