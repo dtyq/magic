@@ -142,8 +142,22 @@ class LongTermMemoryAppService
             'nextPageToken' => $nextPageToken,
         ];
 
-        $data = array_map(function (LongTermMemoryEntity $memory) {
-            return $memory->toArray();
+        // 收集项目 ID 并批量查询项目名称
+        $projectIds = [];
+        foreach ($result['data'] as $memory) {
+            $projectId = $memory->getProjectId();
+            if ($projectId && ! in_array($projectId, $projectIds)) {
+                $projectIds[] = $projectId;
+            }
+        }
+
+        $projectNames = $this->longTermMemoryDomainService->getProjectNamesBatch($projectIds);
+
+        $data = array_map(function (LongTermMemoryEntity $memory) use ($projectNames) {
+            $memoryArray = $memory->toArray();
+            $projectId = $memory->getProjectId();
+            $memoryArray['project_name'] = $projectId && isset($projectNames[$projectId]) ? $projectNames[$projectId] : null;
+            return $memoryArray;
         }, $result['data']);
 
         return [
@@ -153,6 +167,14 @@ class LongTermMemoryAppService
             'next_page_token' => $result['nextPageToken'],
             'total' => $total,
         ];
+    }
+
+    /**
+     * 根据项目ID获取项目名称.
+     */
+    public function getProjectNameById(?string $projectId): ?string
+    {
+        return $this->longTermMemoryDomainService->getProjectNameById($projectId);
     }
 
     /**
@@ -216,6 +238,32 @@ class LongTermMemoryAppService
         $this->longTermMemoryDomainService->accessMemories($memoryIds);
 
         return $memories;
+    }
+
+    /**
+     * 搜索记忆（包含项目名称）.
+     */
+    public function searchMemoriesWithProjectNames(string $orgId, string $appId, string $userId, string $keyword): array
+    {
+        $memories = $this->searchMemories($orgId, $appId, $userId, $keyword);
+
+        // 收集项目 ID 并批量查询项目名称
+        $projectIds = [];
+        foreach ($memories as $memory) {
+            $projectId = $memory->getProjectId();
+            if ($projectId && ! in_array($projectId, $projectIds)) {
+                $projectIds[] = $projectId;
+            }
+        }
+
+        $projectNames = $this->longTermMemoryDomainService->getProjectNamesBatch($projectIds);
+
+        return array_map(function (LongTermMemoryEntity $memory) use ($projectNames) {
+            $memoryArray = $memory->toArray();
+            $projectId = $memory->getProjectId();
+            $memoryArray['project_name'] = $projectId && isset($projectNames[$projectId]) ? $projectNames[$projectId] : null;
+            return $memoryArray;
+        }, $memories);
     }
 
     /**

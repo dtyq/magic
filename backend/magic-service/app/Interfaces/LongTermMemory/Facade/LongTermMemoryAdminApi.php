@@ -65,7 +65,7 @@ class LongTermMemoryAdminApi extends AbstractApi
             'content' => 'required|string|max:65535',
             'status' => ['string', Rule::enum(MemoryStatus::class)],
             'tags' => 'array',
-            'project_id' => 'nullable|string',
+            'project_id' => 'nullable|integer|string',
         ];
 
         $validatedParams = $this->checkParams($params, $rules);
@@ -93,7 +93,7 @@ class LongTermMemoryAdminApi extends AbstractApi
             'metadata' => [],
             'orgId' => $authorization->getOrganizationCode(),
             'appId' => $authorization->getApplicationCode(),
-            'projectId' => $validatedParams['project_id'] ?? null,
+            'projectId' => isset($validatedParams['project_id']) ? (string) $validatedParams['project_id'] : null,
             'userId' => $authorization->getId(),
             'expiresAt' => null,
         ]);
@@ -187,6 +187,12 @@ class LongTermMemoryAdminApi extends AbstractApi
 
         $memory = $this->longTermMemoryAppService->getMemory($memoryId);
 
+        // 获取项目名称
+        $projectName = null;
+        if ($memory->getProjectId()) {
+            $projectName = $this->longTermMemoryAppService->getProjectNameById($memory->getProjectId());
+        }
+
         return [
             'success' => true,
             'data' => [
@@ -198,6 +204,7 @@ class LongTermMemoryAdminApi extends AbstractApi
                 'status' => $memory->getStatus()->value,
                 'status_description' => $memory->getStatus()->getDescription(),
                 'project_id' => $memory->getProjectId(),
+                'project_name' => $projectName,
                 'confidence' => $memory->getConfidence(),
                 'importance' => $memory->getImportance(),
                 'access_count' => $memory->getAccessCount(),
@@ -262,28 +269,12 @@ class LongTermMemoryAdminApi extends AbstractApi
         $validatedParams = $this->checkParams($params, $rules);
         $authorization = $this->getAuthorization();
 
-        $memories = $this->longTermMemoryAppService->searchMemories(
+        $data = $this->longTermMemoryAppService->searchMemoriesWithProjectNames(
             $authorization->getOrganizationCode(),
             $authorization->getApplicationCode(),
             $authorization->getId(),
             $validatedParams['keyword']
         );
-
-        $data = array_map(function ($memory) {
-            return [
-                'id' => $memory->getId(),
-                'content' => $memory->getContent(),
-                'pending_content' => $memory->getPendingContent(),
-                'origin_text' => $memory->getOriginText(),
-                'memory_type' => $memory->getMemoryType()->value,
-                'status' => $memory->getStatus()->value,
-                'status_description' => $memory->getStatus()->getDescription(),
-                'project_id' => $memory->getProjectId(),
-                'last_accessed_at' => $memory->getLastAccessedAt()?->format('Y-m-d H:i:s'),
-                'created_at' => $memory->getCreatedAt()?->format('Y-m-d H:i:s'),
-                'effective_score' => $memory->getEffectiveScore(),
-            ];
-        }, $memories);
 
         return [
             'success' => true,
