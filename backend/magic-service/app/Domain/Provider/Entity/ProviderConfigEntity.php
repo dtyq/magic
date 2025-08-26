@@ -122,6 +122,24 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->alias;
     }
 
+    /**
+     * 获取本地化的服务商名称.
+     */
+    public function getLocalizedAlias(string $locale): string
+    {
+        $alias = $this->translate['alias'][$locale]
+            ?? $this->translate['alias']['zh_CN']
+            ?? $this->translate['alias']['en_US']
+            ?? $this->alias;
+        if ($alias) {
+            $alias = $this->alias;
+        }
+        if (empty($alias)) {
+            return $locale === 'zh_CN' ? '自定义服务商' : 'Custom Provider';
+        }
+        return $alias;
+    }
+
     public function setAlias(null|int|string $alias): void
     {
         if ($alias === null) {
