@@ -228,11 +228,13 @@ readonly class RoleDomainService
 
     /**
      * 获取权限资源树结构.
+     *
+     * @param bool $isPlatformOrganization 是否平台组织
      */
-    public function getPermissionTree(): array
+    public function getPermissionTree(bool $isPlatformOrganization = false): array
     {
         $permissionEnum = di(MagicPermissionInterface::class);
-        return $permissionEnum->getPermissionTree();
+        return $permissionEnum->getPermissionTree($isPlatformOrganization);
     }
 
     /**

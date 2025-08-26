@@ -17,7 +17,7 @@ class PermissionApiTest extends AbstractHttpTest
 {
     public const string API = '/api/v1/admin/roles/permissions/tree';
 
-    public function testGetPermissionTree(): void
+    public function testAPIGetPermissionTree(): void
     {
         $response = $this->get(self::API, [], $this->getCommonHeaders());
         var_dump(Json::encode($response));
