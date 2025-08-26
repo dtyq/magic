@@ -9,10 +9,12 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\JobStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\JobResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Exception;
 use GuzzleHttp\Exception\ConnectException;
@@ -337,6 +339,195 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'code' => 2000,
                 'message' => 'HTTP request failed after retries: ' . $e->getMessage(),
                 'data' => [],
+            ]);
+        }
+    }
+
+    /**
+     * 创建文件复制任务.
+     */
+    public function createFileCopyJob(string $taskId, string $sourceOssProjectPath, string $targetOssProjectPath, array $files): JobResult
+    {
+        $requestData = [
+            'task_id' => $taskId,
+            'source_oss_project_path' => $sourceOssProjectPath,
+            'target_oss_project_path' => $targetOssProjectPath,
+            'files' => $files,
+        ];
+
+        $this->logger->info('[Sandbox][Gateway] Creating file copy job', [
+            'task_id' => $taskId,
+            'source_path' => $sourceOssProjectPath,
+            'target_path' => $targetOssProjectPath,
+            'files_count' => count($files),
+            'max_retries' => 3,
+        ]);
+
+        try {
+            return retry(3, function () use ($requestData, $taskId) {
+                try {
+                    $response = $this->getClient()->post($this->buildApiPath('api/v1/jobs'), [
+                        'headers' => $this->getAuthHeaders(),
+                        'json' => $requestData,
+                        'timeout' => 30,
+                    ]);
+
+                    $responseData = json_decode($response->getBody()->getContents(), true);
+
+                    $this->logger->info('[Sandbox][Gateway] Raw API response for create job', [
+                        'task_id' => $taskId,
+                        'response_data' => $responseData,
+                        'json_last_error' => json_last_error(),
+                        'json_last_error_msg' => json_last_error_msg(),
+                    ]);
+
+                    $result = JobResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] File copy job created successfully', [
+                            'task_id' => $taskId,
+                            'status' => $result->getStatusDescription(),
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to create file copy job', [
+                            'task_id' => $taskId,
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when creating file copy job', [
+                        'task_id' => $taskId,
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+
+                    // Only retry for retryable errors
+                    if (! $isRetryableError) {
+                        return JobResult::fromApiResponse([
+                            'code' => 2000,
+                            'message' => 'HTTP request failed: ' . $e->getMessage(),
+                            'data' => ['task_id' => $taskId],
+                        ]);
+                    }
+
+                    // Re-throw for retry mechanism to handle
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when creating file copy job', [
+                        'task_id' => $taskId,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    return JobResult::fromApiResponse([
+                        'code' => 2000,
+                        'message' => 'Unexpected error: ' . $e->getMessage(),
+                        'data' => ['task_id' => $taskId],
+                    ]);
+                }
+            }, 1000); // Start with 1 second delay between retries
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for creating file copy job', [
+                'task_id' => $taskId,
+                'error' => $e->getMessage(),
+            ]);
+            return JobResult::fromApiResponse([
+                'code' => 2000,
+                'message' => 'HTTP request failed after retries: ' . $e->getMessage(),
+                'data' => ['task_id' => $taskId],
+            ]);
+        }
+    }
+
+    /**
+     * 查询文件复制任务状态.
+     */
+    public function getFileCopyJobStatus(string $taskId): JobResult
+    {
+        $this->logger->info('[Sandbox][Gateway] Getting file copy job status', [
+            'task_id' => $taskId,
+            'max_retries' => 3,
+        ]);
+
+        try {
+            return retry(3, function () use ($taskId) {
+                try {
+                    $response = $this->getClient()->get($this->buildApiPath("api/v1/jobs/{$taskId}/status"), [
+                        'headers' => $this->getAuthHeaders(),
+                        'timeout' => 15,
+                    ]);
+
+                    $responseData = json_decode($response->getBody()->getContents(), true);
+
+                    if (empty($responseData)) {
+                        throw new Exception('Job status response is empty');
+                    }
+
+                    $result = JobResult::fromApiResponse($responseData);
+
+                    $this->logger->info('[Sandbox][Gateway] File copy job status retrieved', [
+                        'task_id' => $taskId,
+                        'status' => $result->getStatusDescription(),
+                        'success' => $result->isSuccess(),
+                        'is_completed' => $result->isCompleted(),
+                        'is_job_succeeded' => $result->isJobSucceeded(),
+                        'is_job_failed' => $result->isJobFailed(),
+                    ]);
+
+                    // 如果任务未找到，设置相应的状态
+                    if ($result->getCode() === ResponseCode::NOT_FOUND) {
+                        $result->setStatus(JobStatus::NOT_FOUND);
+                        $result->setTaskId($taskId);
+                    }
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when getting job status', [
+                        'task_id' => $taskId,
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+
+                    // Only retry for retryable errors
+                    if (! $isRetryableError) {
+                        return JobResult::fromApiResponse([
+                            'code' => 2000,
+                            'message' => 'HTTP request failed: ' . $e->getMessage(),
+                            'data' => ['task_id' => $taskId],
+                        ]);
+                    }
+
+                    // Re-throw for retry mechanism to handle
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when getting job status', [
+                        'task_id' => $taskId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return JobResult::fromApiResponse([
+                        'code' => 2000,
+                        'message' => 'Unexpected error: ' . $e->getMessage(),
+                        'data' => ['task_id' => $taskId],
+                    ]);
+                }
+            }, 1000); // Start with 1 second delay
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for getting job status', [
+                'task_id' => $taskId,
+                'error' => $e->getMessage(),
+            ]);
+            return JobResult::fromApiResponse([
+                'code' => 2000,
+                'message' => 'HTTP request failed after retries: ' . $e->getMessage(),
+                'data' => ['task_id' => $taskId],
             ]);
         }
     }
