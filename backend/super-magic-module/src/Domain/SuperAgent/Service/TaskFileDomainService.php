@@ -115,6 +115,14 @@ class TaskFileDomainService
     /**
      * @return TaskFileEntity[] User file list
      */
+    public function findFilesByProjectIdAndIds(int $projectId, array $fileIds): array
+    {
+        return $this->taskFileRepository->findFilesByProjectIdAndIds($projectId, $fileIds);
+    }
+
+    /**
+     * @return TaskFileEntity[] User file list
+     */
     public function findUserFilesByTopicId(string $topicId): array
     {
         return $this->taskFileRepository->findUserFilesByTopicId($topicId);

@@ -435,6 +435,26 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * @return array|TaskFileEntity[]
+     */
+    public function findFilesByProjectIdAndIds(int $projectId, array $fileIds): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at') // 过滤已删除的文件
+            ->orderBy('file_id', 'desc')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
+    /**
      * 根据项目ID获取所有文件的file_key列表（高性能查询）.
      */
     public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array

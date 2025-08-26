@@ -85,7 +85,7 @@ class FileConverterAppService extends AbstractAppService
             // Permission validation and file retrieval
             $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
-            $validFiles = $this->getValidFiles($fileIds, $userId);
+            $validFiles = $this->getValidFiles($fileIds, $projectEntity->getId());
             // Check for duplicate requests
             $taskKey = $this->handleDuplicateRequest($userAuthorization, $fileIds, $convertType, $userId);
             if (is_array($taskKey)) {
@@ -602,12 +602,11 @@ class FileConverterAppService extends AbstractAppService
      * Retrieves valid files to which the user has permission.
      *
      * @param array $fileIds array of file IDs
-     * @param string $userId the user ID
      * @return TaskFileEntity[] list of user files
      */
-    private function getValidFiles(array $fileIds, string $userId): array
+    private function getValidFiles(array $fileIds, int $projectId): array
     {
-        $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
+        $userFiles = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectId, $fileIds);
 
         if (empty($userFiles)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
