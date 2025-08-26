@@ -17,6 +17,7 @@ use App\ErrorCode\LongTermMemoryErrorCode;
 use App\ErrorCode\MagicAccountErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\MCPErrorCode;
+use App\ErrorCode\ModeErrorCode;
 use App\ErrorCode\PermissionErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\ErrorCode\TokenErrorCode;
@@ -37,7 +38,8 @@ return [
         TokenErrorCode::class => [9000, 10000],
         FlowErrorCode::class => [31000, 31999],
         AgentErrorCode::class => [32000, 32999],
-        AuthenticationErrorCode::class => [33000, 40999],
+        AuthenticationErrorCode::class => [33000, 33999],
+        ModeErrorCode::class => [34000, 34999],
         PermissionErrorCode::class => [42000, 42999],
         ImageGenerateErrorCode::class => [44000, 44999],
         AsrErrorCode::class => [43000, 43999],
