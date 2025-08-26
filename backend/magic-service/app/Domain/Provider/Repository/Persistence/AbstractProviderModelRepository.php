@@ -11,6 +11,7 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use App\Infrastructure\Core\AbstractQuery;
+use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\DataIsolation\DataIsolationFilter;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -19,7 +20,7 @@ use Hyperf\Codec\Json;
 use Hyperf\Database\Model\Collection;
 use Hyperf\Database\Query\Builder;
 
-abstract class AbstractProviderModelRepository
+abstract class AbstractProviderModelRepository extends AbstractRepository
 {
     use DataIsolationFilter;
 
@@ -66,7 +67,7 @@ abstract class AbstractProviderModelRepository
     /**
      * @return array{total: int, list: array|Collection}
      */
-    protected function getByPage(Builder $builder, Page $page, ?AbstractQuery $query = null): array
+    protected function getByPage(Builder|\Hyperf\Database\Model\Builder $builder, Page $page, ?AbstractQuery $query = null): array
     {
         if ($query) {
             foreach ($query->getOrder() as $column => $order) {
