@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.3",
+            "version": "3.356.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "9c61b26408664c76d51101381bb64feda9bcfe2e"
+                "reference": "7bdc3c73897ae576f7d137dad70bddcd03bd4bd6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/9c61b26408664c76d51101381bb64feda9bcfe2e",
-                "reference": "9c61b26408664c76d51101381bb64feda9bcfe2e",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/7bdc3c73897ae576f7d137dad70bddcd03bd4bd6",
+                "reference": "7bdc3c73897ae576f7d137dad70bddcd03bd4bd6",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.3"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.4"
             },
-            "time": "2025-08-22T18:13:45+00:00"
+            "time": "2025-08-25T18:21:17+00:00"
         },
         {
             "name": "brick/math",
@@ -2187,16 +2187,16 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.107",
+            "version": "0.0.108",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "3affa5655efdde7b66a3a47f7520341afb0ca859"
+                "reference": "2cf4dd6403f018b2b21e58a4eecaf05d8cbb50f4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=3affa5655efdde7b66a3a47f7520341afb0ca859",
-                "reference": "3affa5655efdde7b66a3a47f7520341afb0ca859",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=2cf4dd6403f018b2b21e58a4eecaf05d8cbb50f4",
+                "reference": "2cf4dd6403f018b2b21e58a4eecaf05d8cbb50f4",
                 "shasum": ""
             },
             "require": {
@@ -2297,9 +2297,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.107"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.108"
             },
-            "time": "2025-08-25T16:18:06+00:00"
+            "time": "2025-08-26T06:09:19+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -17258,12 +17258,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "bd3eabf3e06106fe2786fa6d5f60014c5948684d"
+                "reference": "5e3e764a48c5ae5ac4e19f49434a7ac27e66929c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/bd3eabf3e06106fe2786fa6d5f60014c5948684d",
-                "reference": "bd3eabf3e06106fe2786fa6d5f60014c5948684d",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/5e3e764a48c5ae5ac4e19f49434a7ac27e66929c",
+                "reference": "5e3e764a48c5ae5ac4e19f49434a7ac27e66929c",
                 "shasum": ""
             },
             "conflict": {
@@ -17392,7 +17392,7 @@
                 "corveda/phpsandbox": "<1.3.5",
                 "cosenary/instagram": "<=2.3",
                 "couleurcitron/tarteaucitron-wp": "<0.3",
-                "craftcms/cms": "<4.16.3|>=5,<5.8.4",
+                "craftcms/cms": "<=4.16.5|>=5,<=5.8.6",
                 "croogo/croogo": "<4",
                 "cuyz/valinor": "<0.12",
                 "czim/file-handling": "<1.5|>=2,<2.3",
@@ -17548,7 +17548,7 @@
                 "globalpayments/php-sdk": "<2",
                 "goalgorilla/open_social": "<12.3.11|>=12.4,<12.4.10|>=13.0.0.0-alpha1,<13.0.0.0-alpha11",
                 "gogentooss/samlbase": "<1.2.7",
-                "google/protobuf": "<3.15",
+                "google/protobuf": "<3.4",
                 "gos/web-socket-bundle": "<1.10.4|>=2,<2.6.1|>=3,<3.3",
                 "gree/jose": "<2.2.1",
                 "gregwar/rst": "<1.0.3",
@@ -18086,7 +18086,7 @@
                 "vertexvaar/falsftp": "<0.2.6",
                 "villagedefrance/opencart-overclocked": "<=1.11.1",
                 "vova07/yii2-fileapi-widget": "<0.1.9",
-                "vrana/adminer": "<4.8.1",
+                "vrana/adminer": "<=4.8.1",
                 "vufind/vufind": ">=2,<9.1.1",
                 "waldhacker/hcaptcha": "<2.1.2",
                 "wallabag/tcpdf": "<6.2.22",
@@ -18214,7 +18214,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-25T15:05:37+00:00"
+            "time": "2025-08-25T23:05:33+00:00"
         },
         {
             "name": "sebastian/cli-parser",
