@@ -253,4 +253,10 @@ Router::addGroup('/api/v1/open-api/super-magic', static function () {
         // 获取项目基本信息（项目名称等）- 无需登录
         Router::get('/{id}', [OpenProjectApi::class, 'show']);
     });
+
+    // 项目相关 - 公开接口
+    Router::addGroup('/projects', static function () {
+        // 获取项目基本信息（项目名称等）- 无需登录
+        Router::get('/{id}', [OpenProjectApi::class, 'show']);
+    });
 });
