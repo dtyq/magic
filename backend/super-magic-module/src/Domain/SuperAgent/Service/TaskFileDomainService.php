@@ -1311,7 +1311,7 @@ class TaskFileDomainService
                     break; // No more files to process
                 }
 
-                // 过滤掉已存在的文件
+                // 过滤掉已存在的文件, 需要优化一次性获取
                 foreach ($sourceFiles as $sourceFile) {
                     $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
                     $existingFileEntity = $this->taskFileRepository->getByFileKey($newFileKey);
@@ -1979,7 +1979,7 @@ class TaskFileDomainService
      * 异步批量复制文件
      * 使用沙箱任务API进行文件复制，支持轮询状态直到完成.
      *
-     * @param array $sourceFiles 源文件数组
+     * @param TaskFileEntity[] $sourceFiles 源文件数组
      * @param ProjectEntity $sourceProjectEntity 源项目实体
      * @param ProjectEntity $forkProjectEntity 目标项目实体
      * @param ProjectForkEntity $projectForkRecordEntity Fork记录实体
@@ -1999,7 +1999,14 @@ class TaskFileDomainService
         // 构建文件列表（只包含文件路径）
         $files = [];
         foreach ($sourceFiles as $sourceFile) {
-            $files[] = $sourceFile->getFileKey();
+            if ($sourceFile->getIsDirectory()) {
+                // 目录需要提前创建好
+                $newFileKey = str_replace($sourceProjectEntity->getWorkDir(), $forkProjectEntity->getWorkDir(), $sourceFile->getFileKey());
+                $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
+                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($forkProjectEntity->getWorkDir()), $forkProjectEntity->getUserOrganizationCode(), $newFileKey, StorageBucketType::SandBox, ['metadata' => $metadata]);
+            } else {
+                $files[] = WorkDirectoryUtil::getRelativeFilePath($sourceFile->getFileKey(), $sourceProjectEntity->getWorkDir());
+            }
         }
 
         // 生成任务ID
@@ -2021,10 +2028,12 @@ class TaskFileDomainService
             );
 
             // 创建文件复制任务
+            $targetFullPrefix = $this->getFullPrefix($projectForkRecordEntity->getUserOrganizationCode());
+            $sourceFullPrefix = $this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode());
             $createResult = $this->sandboxGateway->createFileCopyJob(
                 $taskId,
-                $sourceProjectEntity->getWorkDir(),
-                $forkProjectEntity->getWorkDir(),
+                WorkDirectoryUtil::getFullWorkdir($sourceFullPrefix, $sourceProjectEntity->getWorkDir()),
+                WorkDirectoryUtil::getFullWorkdir($targetFullPrefix, $forkProjectEntity->getWorkDir()),
                 $files
             );
 
