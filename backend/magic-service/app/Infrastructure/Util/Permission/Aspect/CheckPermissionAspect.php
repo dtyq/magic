@@ -49,8 +49,10 @@ class CheckPermissionAspect extends AbstractAspect
             ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');
         }
 
-        // 构建权限键
-        $permissionKey = $permissionAnnotation->getPermissionKey();
+        // 构建权限键（支持多个，任一满足即通过）
+        $permissionKeys = method_exists($permissionAnnotation, 'getPermissionKeys')
+            ? $permissionAnnotation->getPermissionKeys()
+            : [$permissionAnnotation->getPermissionKey()];
 
         // 构建数据隔离上下文
         $dataIsolation = PermissionDataIsolation::create(
@@ -58,12 +60,14 @@ class CheckPermissionAspect extends AbstractAspect
             $authorization->getId()
         );
 
-        // 执行权限校验
-        $hasPermission = $this->roleAppService->hasPermission(
-            $dataIsolation,
-            $authorization->getId(),
-            $permissionKey
-        );
+        // 执行权限校验：任意一个权限键通过则放行
+        $hasPermission = false;
+        foreach ($permissionKeys as $permissionKey) {
+            if ($this->roleAppService->hasPermission($dataIsolation, $authorization->getId(), $permissionKey)) {
+                $hasPermission = true;
+                break;
+            }
+        }
 
         if (! $hasPermission) {
             ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');

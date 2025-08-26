@@ -104,8 +104,7 @@ class GetFileUrlsRequestDTO
         if (empty($this->fileIds)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_ids.required');
         }
-
-        if (time() > strtotime('2025-08-23')) {
+        if (time() > strtotime('2025-08-30')) {
             if (empty($this->projectId)) {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id.required');
             }

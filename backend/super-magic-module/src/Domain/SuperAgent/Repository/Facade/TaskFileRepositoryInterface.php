@@ -17,7 +17,11 @@ interface TaskFileRepositoryInterface
      */
     public function getById(int $id): ?TaskFileEntity;
 
-    public function getFilesByIds(array $fileIds): array;
+    /**
+     * 根据ID批量获取文件.
+     * @return TaskFileEntity[]
+     */
+    public function getFilesByIds(array $fileIds, int $projectId = 0): array;
 
     /**
      * 根据ID批量获取文件.
@@ -117,6 +121,11 @@ interface TaskFileRepositoryInterface
     public function findUserFilesByProjectId(string $projectId): array;
 
     /**
+     * @return TaskFileEntity[] 用户文件列表
+     */
+    public function findFilesByProjectIdAndIds(int $projectId, array $fileIds): array;
+
+    /**
      * 根据项目ID获取所有文件的file_key列表（高性能查询）.
      */
     public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array;
@@ -155,6 +164,8 @@ interface TaskFileRepositoryInterface
      * 获取同一父目录下的所有兄弟节点.
      */
     public function getSiblingsByParentId(?int $parentId, int $projectId, string $orderBy = 'sort', string $direction = 'ASC'): array;
+
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int;
 
     /**
      * 批量更新排序值.
@@ -202,4 +213,10 @@ interface TaskFileRepositoryInterface
     public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
+
+    public function updateFileByCondition(array $condition, array $data): bool;
+
+    public function lockDirectChildrenForUpdate(int $parentId): array;
+
+    public function getAllChildrenByParentId(int $parentId): array;
 }

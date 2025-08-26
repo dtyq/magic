@@ -33,7 +33,7 @@ class ProviderConfigModel extends AbstractModel
 
     protected array $fillable = [
         'id', 'service_provider_id', 'organization_code', 'config', 'status', 'category',
-        'created_at', 'updated_at', 'deleted_at', 'alias', 'translate',
+        'created_at', 'updated_at', 'deleted_at', 'alias', 'translate', 'sort',
     ];
 
     protected array $casts = [
@@ -48,6 +48,7 @@ class ProviderConfigModel extends AbstractModel
         'deleted_at' => 'datetime',
         'alias' => 'string',
         'translate' => 'json',
+        'sort' => 'integer',
     ];
 
     /**

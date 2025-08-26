@@ -76,6 +76,50 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
         return $this->serviceProviderConfigRepository->getByIds($dataIsolation, $ids);
     }
 
+    /**
+     * 批量获取服务商实体，通过服务商配置ID映射.
+     * @param array<int> $configIds 服务商配置ID数组
+     * @return array<int, ProviderEntity> 配置ID到服务商实体的映射
+     */
+    public function getProviderEntitiesByConfigIds(ProviderDataIsolation $dataIsolation, array $configIds): array
+    {
+        if (empty($configIds)) {
+            return [];
+        }
+
+        // 批量获取配置实体（不需要组织编码过滤）
+        $configEntities = $this->serviceProviderConfigRepository->getByIdsWithoutOrganizationFilter($configIds);
+        if (empty($configEntities)) {
+            return [];
+        }
+
+        // 提取服务商ID
+        // $configEntities 现在是以 config_id 为 key 的数组
+        $providerIds = [];
+        foreach ($configEntities as $configId => $config) {
+            $providerIds[] = $config->getServiceProviderId();
+        }
+        $providerIds = array_unique($providerIds);
+
+        // 批量获取服务商实体（不需要组织编码过滤）
+        $providerEntities = $this->providerRepository->getByIdsWithoutOrganizationFilter($providerIds);
+        if (empty($providerEntities)) {
+            return [];
+        }
+
+        // 建立配置ID到服务商实体的映射
+        // 两个数组都是以 id 为 key，可以直接访问
+        $configToProviderMap = [];
+        foreach ($configEntities as $configId => $config) {
+            $providerId = $config->getServiceProviderId();
+            if (isset($providerEntities[$providerId])) {
+                $configToProviderMap[$configId] = $providerEntities[$providerId];
+            }
+        }
+
+        return $configToProviderMap;
+    }
+
     public function updateProviderConfig(ProviderDataIsolation $dataIsolation, ProviderConfigEntity $providerConfigEntity): ProviderConfigEntity
     {
         $configId = $providerConfigEntity->getId();

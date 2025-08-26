@@ -22,18 +22,22 @@ use Hyperf\Di\Annotation\AbstractAnnotation;
 class CheckPermission extends AbstractAnnotation
 {
     /**
-     * 资源标识.
+     * 资源标识（支持单个或多个）。
      */
-    public string $resource;
+    public array|string $resource;
 
     /**
-     * 操作标识.
+     * 操作标识（仅支持单个）。
      */
     public string $operation;
 
-    public function __construct(BackedEnum|string $resource, BackedEnum|string $operation)
+    /**
+     * @param array|BackedEnum|string $resource 资源，字符串/枚举或其数组
+     * @param BackedEnum|string $operation 操作，仅字符串或枚举
+     */
+    public function __construct(array|BackedEnum|string $resource, BackedEnum|string $operation)
     {
-        $this->resource = $resource instanceof BackedEnum ? $resource->value : $resource;
+        $this->resource = $this->normalizeToValues($resource);
         $this->operation = $operation instanceof BackedEnum ? $operation->value : $operation;
     }
 
@@ -42,7 +46,49 @@ class CheckPermission extends AbstractAnnotation
      */
     public function getPermissionKey(): string
     {
+        // 为了兼容旧逻辑，返回第一个组合键
+        $keys = $this->getPermissionKeys();
+        return $keys[0] ?? '';
+    }
+
+    /**
+     * 返回所有权限键组合（resources x operations 的笛卡尔积）。
+     * 当声明了多个资源或多个操作时，权限通过任意一个键即可。
+     *
+     * @return array<string>
+     */
+    public function getPermissionKeys(): array
+    {
         $permission = di(MagicPermissionInterface::class);
-        return $permission->buildPermission($this->resource, $this->operation);
+
+        $resources = is_array($this->resource) ? $this->resource : [$this->resource];
+
+        $keys = [];
+        foreach ($resources as $res) {
+            $keys[] = $permission->buildPermission($res, $this->operation);
+        }
+
+        return $keys;
+    }
+
+    /**
+     * 将字符串/枚举或其数组统一为字符串数组。
+     * @return array<string>
+     */
+    private function normalizeToValues(array|BackedEnum|string $input): array
+    {
+        $toValue = static function ($item) {
+            return $item instanceof BackedEnum ? $item->value : $item;
+        };
+
+        if (is_array($input)) {
+            $values = [];
+            foreach ($input as $item) {
+                $values[] = $toValue($item);
+            }
+            return $values;
+        }
+
+        return [$toValue($input)];
     }
 }
