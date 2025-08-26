@@ -15,7 +15,6 @@ use App\Application\Provider\Service\AdminProviderAppService;
 use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\Status;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
