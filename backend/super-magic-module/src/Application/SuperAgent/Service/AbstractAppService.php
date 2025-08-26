@@ -48,9 +48,9 @@ class AbstractAppService extends AbstractKernelAppService
 
         $dataIsolation = DataIsolation::create($organizationCode, $userId);
 
-        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId,true);
+        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
 
-        if (!empty($departmentIds)) {
+        if (! empty($departmentIds)) {
             if ($projectMemberService->isProjectMemberByDepartments($projectId, $departmentIds)) {
                 return $projectEntity;
             }
