@@ -38,9 +38,8 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
     {
-        $builder = $this->createProviderModelQuery()
-            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
-            ->where('id', $id);
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->whereNull('deleted_at')->where('id', $id);
 
         $result = Db::select($builder->toSql(), $builder->getBindings());
         if (empty($result)) {
