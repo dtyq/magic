@@ -61,7 +61,7 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         if ($messageContent instanceof StreamMessageInterface) {
             $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
 
-            // 构建消息
+            // 构建消息。仅推送 text 文本
             $seqEntity = new MagicSeqEntity();
             $seqEntity->setSeqType(ChatMessageType::Text);
             $seqEntity->setContent($messageDTO->getContent());
@@ -74,6 +74,7 @@ class MagicIntermediateMessageAppService extends AbstractAppService
             $seqEntity->setOrganizationCode($chatRequest->getContext()->getOrganizationCode());
             $seqEntity->setCreatedAt($messageDTO->getCreatedAt());
             $pushData = $seqEntity->toArray();
+            $pushData = array_filter($pushData);
             SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
             return null;
         }
