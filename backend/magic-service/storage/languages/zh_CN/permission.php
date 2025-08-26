@@ -15,6 +15,9 @@ return [
         'console' => '控制台',
         'api' => '接口',
         'api_assistant' => '接口助手',
+        'platform' => '平台管理',
+        'platform_setting' => '系统设置',
+        'platform_setting_maintenance' => '维护管理',
     ],
     'operation' => [
         'query' => '查询',
