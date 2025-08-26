@@ -775,7 +775,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->whereNull('deleted_at')
             ->update([
                 'parent_id' => $parentId,
-                'updated_uid' => $userId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
     }
