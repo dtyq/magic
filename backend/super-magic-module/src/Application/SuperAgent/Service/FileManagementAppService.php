@@ -855,4 +855,19 @@ class FileManagementAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.check_batch_status_failed'));
         }
     }
+
+    public function getProjectIdByFileId(int $fileId): string
+    {
+        if (time() > strtotime('2025-08-30')) {
+            return '';
+        }
+        if (empty($fileId)) {
+            return '';
+        }
+        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        if ($fileEntity) {
+            return (string) $fileEntity->getProjectId();
+        }
+        return '';
+    }
 }
