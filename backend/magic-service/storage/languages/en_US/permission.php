@@ -15,6 +15,9 @@ return [
         'console' => 'Console',
         'api' => 'API',
         'api_assistant' => 'API Assistant',
+        'platform' => 'Platform',
+        'platform_setting' => 'System Settings',
+        'platform_setting_maintenance' => 'Maintenance',
     ],
     'operation' => [
         'query' => 'Query',

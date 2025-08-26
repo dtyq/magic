@@ -96,9 +96,11 @@ class RoleAppService extends AbstractKernelAppService
 
     /**
      * 获取权限资源树结构.
+     *
+     * @param bool $isPlatformOrganization 是否平台组织
      */
-    public function getPermissionTree(): array
+    public function getPermissionTree(bool $isPlatformOrganization = false): array
     {
-        return $this->roleDomainService->getPermissionTree();
+        return $this->roleDomainService->getPermissionTree($isPlatformOrganization);
     }
 }
