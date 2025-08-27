@@ -9,6 +9,7 @@ namespace App\Infrastructure\Repository\LongTermMemory;
 
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
+use App\Domain\LongTermMemory\Entity\ValueObject\MemoryCategory;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
@@ -206,9 +207,9 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
     /**
      * 根据组织、应用、用户查找有效记忆（按分数排序）.
      */
-    public function findEffectiveMemoriesByUser(string $orgId, string $appId, string $userId, int $limit = 50): array
+    public function findEffectiveMemoriesByUser(string $orgId, string $appId, string $userId, string $projectId, int $limit = 50): array
     {
-        $data = $this->query()
+        $query = $this->query()
             ->where('org_id', $orgId)
             ->where('app_id', $appId)
             ->where('user_id', $userId)
@@ -218,8 +219,18 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->where(function (Builder $query) {
                 $query->whereNull('expires_at')
                     ->orWhere('expires_at', '>', date('Y-m-d H:i:s'));
-            })
-            ->get();
+            });
+
+        // 根据 projectId 过滤记忆
+        if (empty($projectId)) {
+            // 获取没有项目ID的记忆（全局记忆）
+            $query->whereNull('project_id');
+        } else {
+            // 获取指定项目ID的记忆
+            $query->where('project_id', $projectId);
+        }
+
+        $data = $query->get();
 
         // Convert to entities
         $entities = $this->entitiesFromArray($data->toArray());
@@ -571,6 +582,39 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
             ->update([
                 'enabled' => $enabled ? 1 : 0,
             ]);
+    }
+
+    /**
+     * 获取指定分类的已启用记忆数量.
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @param MemoryCategory $category 记忆分类
+     * @return int 记忆数量
+     */
+    public function getEnabledMemoryCountByCategory(string $orgId, string $appId, string $userId, MemoryCategory $category): int
+    {
+        $query = $this->query()
+            ->where('org_id', $orgId)
+            ->where('app_id', $appId)
+            ->where('user_id', $userId)
+            ->where('enabled', 1)
+            ->where('status', MemoryStatus::ACTIVE->value)
+            ->whereNull('deleted_at');
+
+        if ($category === MemoryCategory::PROJECT) {
+            // 项目记忆：project_id 不为空且不为空字符串
+            $query->whereNotNull('project_id')
+                ->where('project_id', '!=', '');
+        } else {
+            // 全局记忆：project_id 为空或为空字符串
+            $query->where(function ($subQuery) {
+                $subQuery->whereNull('project_id')
+                    ->orWhere('project_id', '');
+            });
+        }
+
+        return $query->count();
     }
 
     /**

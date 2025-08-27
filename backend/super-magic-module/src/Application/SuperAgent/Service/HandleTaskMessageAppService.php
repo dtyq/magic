@@ -100,6 +100,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 'prompt' => $userMessageDTO->getPrompt(),
                 'attachments' => $userMessageDTO->getAttachments(),
                 'mentions' => $userMessageDTO->getMentions(),
+                'model_id' => $userMessageDTO->getModelId(),
                 'task_status' => TaskStatus::WAITING->value,
                 'work_dir' => $topicEntity->getWorkDir() ?? '',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -130,6 +131,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $userMessageDTO->getTopicMode()->value,
+                modelId: $userMessageDTO->getModelId(),
             );
             $sandboxID = $this->createAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -342,6 +344,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             $dataIsolation->getCurrentOrganizationCode(),
             AppCodeEnum::SUPER_MAGIC->value,
             $dataIsolation->getCurrentUserId(),
+            (string) $taskContext->getProjectId(),
         );
 
         // Initialize agent

@@ -90,6 +90,8 @@ Router::addGroup(
                 Router::post('/rollback', [TopicApi::class, 'rollbackCheckpoint']);
 
                 Router::addGroup('/rollback', static function () {
+                    // 检查回滚检查点的可行性
+                    Router::post('/check', [TopicApi::class, 'rollbackCheckpointCheck']);
                     // 开始回滚检查点（标记状态而非删除）
                     Router::post('/start', [TopicApi::class, 'rollbackCheckpointStart']);
                     // 提交回滚检查点（物理删除撤回状态的消息）
@@ -123,6 +125,8 @@ Router::addGroup(
             Router::post('', [FileApi::class, 'createFile']);
             // 保存附件关系
             Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
+            // 批量保存附件关系
+            Router::post('/project/batch-save', [FileApi::class, 'batchSaveProjectFiles']);
             // 保存文件内容
             Router::post('/save', [FileApi::class, 'saveFileContent']);
             // 删除附件

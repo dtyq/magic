@@ -40,8 +40,10 @@ interface MagicPermissionInterface
 
     /**
      * 获取权限树结构.
+     *
+     * @param bool $isPlatformOrganization 是否平台组织，平台组织下才包含 platform 平台的资源树
      */
-    public function getPermissionTree(): array;
+    public function getPermissionTree(bool $isPlatformOrganization = false): array;
 
     /**
      * 检查权限键是否有效.
