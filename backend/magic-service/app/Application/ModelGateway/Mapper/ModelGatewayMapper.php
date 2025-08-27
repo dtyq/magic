@@ -95,6 +95,12 @@ class ModelGatewayMapper extends ModelMapper
     {
         /** @var AbstractModel $odinModel */
         $odinModel = $this->getOrganizationEmbeddingModel($model, $orgCode);
+        if ($odinModel instanceof OdinModel) {
+            $odinModel = $odinModel->getModel();
+        }
+        if (! $odinModel instanceof AbstractModel) {
+            throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
+        }
         // 转换为代理
         return $this->createProxy($model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
     }
@@ -118,11 +124,11 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 模型名称 预期是管理后台的 model_id，过度阶段接受 model_version
      */
-    public function getOrganizationEmbeddingModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): EmbeddingInterface
+    public function getOrganizationEmbeddingModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): EmbeddingInterface|OdinModel
     {
         $odinModel = $this->getByAdmin($model, $orgCode, $filter);
         if ($odinModel) {
-            return $odinModel->getModel();
+            return $odinModel;
         }
         return $this->getEmbeddingModel($model);
     }
@@ -268,7 +274,7 @@ class ModelGatewayMapper extends ModelMapper
 
         // 加载 provider 配置的所有模型
         $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
-        $allModels = di(ProviderModelRepositoryInterface::class)->getAvailableModelsForOrganization($providerDataIsolation, Category::LLM);
+        $allModels = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, Category::LLM);
 
         // 按模型类型过滤（如果指定了类型）
         $providerModelData = [];
@@ -462,7 +468,7 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         // 直接调用仓储层获取所有可用模型（已包含套餐可见性过滤）
-        $allModels = di(ProviderModelRepositoryInterface::class)->getAvailableModelsForOrganization($providerDataIsolation, Category::LLM);
+        $allModels = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, Category::LLM);
         // 在可用模型中查找指定模型
         $providerModelEntity = null;
         foreach ($allModels as $availableModel) {
