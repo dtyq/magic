@@ -15,7 +15,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
 #[ApiResponse('low_code')]
-class ModeGroupApi extends AbstractApi
+class AdminModeGroupApi extends AbstractApi
 {
     public function __construct(
         RequestInterface $request,

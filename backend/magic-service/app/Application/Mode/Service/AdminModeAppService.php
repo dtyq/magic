@@ -7,14 +7,9 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\Service;
 
-use App\Application\Mode\Assembler\ModeAssembler;
-use App\Application\Mode\DTO\AdminModeAggregateDTO;
-use App\Application\Mode\DTO\AdminModeDTO;
-use App\Application\Mode\DTO\ModeAggregateDTO;
-use App\Domain\File\Service\FileDomainService;
-use App\Domain\Mode\Service\ModeDomainService;
-use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Service\ProviderModelDomainService;
+use App\Application\Mode\Assembler\AdminModeAssembler;
+use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
+use App\Application\Mode\DTO\Admin\AdminModeDTO;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
@@ -22,19 +17,9 @@ use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 
 class AdminModeAppService extends AbstractModeAppService
 {
-    public function __construct(
-        private ModeDomainService $modeDomainService,
-        private ProviderModelDomainService $providerModelDomainService,
-        FileDomainService $fileDomainService,
-        private LoggerInterface $logger
-    ) {
-        $this->fileDomainService = $fileDomainService;
-    }
-
     /**
      * 获取模式列表 (管理后台用，包含完整i18n字段).
      */
@@ -45,7 +30,7 @@ class AdminModeAppService extends AbstractModeAppService
 
         return [
             'total' => $result['total'],
-            'list' => ModeAssembler::entitiesToAdminDTOs($result['list']),
+            'list' => AdminModeAssembler::entitiesToAdminDTOs($result['list']),
         ];
     }
 
@@ -61,23 +46,10 @@ class AdminModeAppService extends AbstractModeAppService
             throw new InvalidArgumentException('Mode not found');
         }
 
-        // 获取所有模型ID
-        $allModelIds = [];
-        foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
-            foreach ($groupAggregate->getRelations() as $relation) {
-                $allModelIds[] = (string) $relation->getModelId();
-            }
-        }
-
-        // 批量获取模型信息
-        $providerModels = [];
-        if (! empty($allModelIds)) {
-            $providerDataIsolation = new ProviderDataIsolation($authorization->getOrganizationCode());
-            $providerModels = $this->providerModelDomainService->getModelsByIds($providerDataIsolation, $allModelIds);
-        }
+        $providerModels = $this->getModels($modeAggregate);
 
         // 转换为DTO
-        $modeAggregateDTO = ModeAssembler::aggregateToDTO($modeAggregate, $providerModels);
+        $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
 
         // 处理icon
         $this->processModeAggregateIcons($authorization, $modeAggregateDTO);
@@ -94,7 +66,7 @@ class AdminModeAppService extends AbstractModeAppService
 
         Db::beginTransaction();
         try {
-            $modeEntity = ModeAssembler::createModeRequestToEntity(
+            $modeEntity = AdminModeAssembler::createModeRequestToEntity(
                 $request
             );
             $savedMode = $this->modeDomainService->createMode($dataIsolation, $modeEntity);
@@ -102,7 +74,7 @@ class AdminModeAppService extends AbstractModeAppService
             Db::commit();
 
             $modeEntity = $this->modeDomainService->getModeById($dataIsolation, $savedMode->getId());
-            return ModeAssembler::modeToAdminDTO($modeEntity);
+            return AdminModeAssembler::modeToAdminDTO($modeEntity);
         } catch (Exception $exception) {
             $this->logger->warning('Create mode failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -120,7 +92,7 @@ class AdminModeAppService extends AbstractModeAppService
         Db::beginTransaction();
         try {
             // 从请求对象直接转换为实体
-            $modeEntity = ModeAssembler::updateModeRequestToEntity($request);
+            $modeEntity = AdminModeAssembler::updateModeRequestToEntity($request);
             $modeEntity->setId($modeId);
 
             $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $modeEntity);
@@ -129,7 +101,7 @@ class AdminModeAppService extends AbstractModeAppService
 
             // 重新获取聚合根信息
             $updatedModeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $updatedMode->getId());
-            return ModeAssembler::aggregateToDTO($updatedModeAggregate);
+            return AdminModeAssembler::aggregateToAdminDTO($updatedModeAggregate);
         } catch (Exception $exception) {
             $this->logger->warning('Update mode failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -160,26 +132,26 @@ class AdminModeAppService extends AbstractModeAppService
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
 
-        return $defaultModeAggregate ? ModeAssembler::aggregateToDTO($defaultModeAggregate) : null;
+        return $defaultModeAggregate ? AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate) : null;
     }
 
     /**
      * 保存模式配置.
      */
-    public function saveModeConfig(MagicUserAuthorization $authorization, ModeAggregateDTO $modeAggregateDTO): AdminModeAggregateDTO
+    public function saveModeConfig(MagicUserAuthorization $authorization, AdminModeAggregateDTO $modeAggregateDTO): AdminModeAggregateDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
         Db::beginTransaction();
         try {
             // 将DTO转换为领域对象
-            $modeAggregateEntity = ModeAssembler::aggregateDTOToEntity($modeAggregateDTO);
+            $modeAggregateEntity = AdminModeAssembler::aggregateDTOToEntity($modeAggregateDTO);
 
             $modeAggregate = $this->modeDomainService->saveModeConfig($dataIsolation, $modeAggregateEntity);
 
             Db::commit();
 
-            return ModeAssembler::aggregateToDTO($modeAggregate);
+            return AdminModeAssembler::aggregateToAdminDTO($modeAggregate);
         } catch (Exception $exception) {
             $this->logger->warning('Save mode config failed: ' . $exception->getMessage());
             Db::rollBack();

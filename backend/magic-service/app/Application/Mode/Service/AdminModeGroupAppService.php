@@ -7,28 +7,17 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\Service;
 
-use App\Application\Mode\Assembler\ModeAssembler;
-use App\Application\Mode\DTO\AdminModeGroupDTO;
-use App\Domain\File\Service\FileDomainService;
-use App\Domain\Mode\Service\ModeGroupDomainService;
+use App\Application\Mode\Assembler\AdminModeAssembler;
+use App\Application\Mode\DTO\Admin\AdminModeGroupDTO;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Mode\DTO\Request\CreateModeGroupRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeGroupRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 
 class AdminModeGroupAppService extends AbstractModeAppService
 {
-    public function __construct(
-        private ModeGroupDomainService $groupDomainService,
-        FileDomainService $fileDomainService,
-        private LoggerInterface $logger
-    ) {
-        $this->fileDomainService = $fileDomainService;
-    }
-
     /**
      * 根据模式ID获取分组列表 (管理后台用，包含完整i18n字段).
      */
@@ -37,7 +26,7 @@ class AdminModeGroupAppService extends AbstractModeAppService
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $groups = $this->groupDomainService->getGroupsByModeId($dataIsolation, $modeId);
 
-        $groupDTOs = ModeAssembler::groupEntitiesToAdminDTOs($groups);
+        $groupDTOs = AdminModeAssembler::groupEntitiesToAdminDTOs($groups);
 
         // 处理分组图标
         $this->processGroupIcons($authorization, $groupDTOs);
@@ -58,8 +47,8 @@ class AdminModeGroupAppService extends AbstractModeAppService
         }
 
         $models = $this->groupDomainService->getGroupModels($dataIsolation, $groupId);
-        $groupDTO = ModeAssembler::groupEntityToAdminDTO($group);
-        $relationDTOs = ModeAssembler::relationEntitiesToDTOs($models);
+        $groupDTO = AdminModeAssembler::groupEntityToAdminDTO($group);
+        $relationDTOs = AdminModeAssembler::relationEntitiesToDTOs($models);
 
         return [
             'group' => $groupDTO->toArray(),
@@ -76,7 +65,7 @@ class AdminModeGroupAppService extends AbstractModeAppService
 
         Db::beginTransaction();
         try {
-            $groupEntity = ModeAssembler::createModeGroupRequestToEntity(
+            $groupEntity = AdminModeAssembler::createModeGroupRequestToEntity(
                 $request
             );
 
@@ -84,7 +73,7 @@ class AdminModeGroupAppService extends AbstractModeAppService
 
             Db::commit();
 
-            return ModeAssembler::groupEntityToAdminDTO($savedGroup);
+            return AdminModeAssembler::groupEntityToAdminDTO($savedGroup);
         } catch (Exception $exception) {
             $this->logger->warning('Create mode group failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -102,13 +91,13 @@ class AdminModeGroupAppService extends AbstractModeAppService
         Db::beginTransaction();
         try {
             // 从请求对象直接转换为实体
-            $groupEntity = ModeAssembler::updateModeGroupRequestToEntity($request, $groupId);
+            $groupEntity = AdminModeAssembler::updateModeGroupRequestToEntity($request, $groupId);
 
             $updatedGroup = $this->groupDomainService->updateGroup($dataIsolation, $groupEntity);
 
             Db::commit();
 
-            return ModeAssembler::groupEntityToAdminDTO($updatedGroup)->toArray();
+            return AdminModeAssembler::groupEntityToAdminDTO($updatedGroup)->toArray();
         } catch (Exception $exception) {
             $this->logger->warning('Update mode group failed: ' . $exception->getMessage());
             Db::rollBack();

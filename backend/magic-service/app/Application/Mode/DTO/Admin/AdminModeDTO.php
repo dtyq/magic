@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Application\Mode\DTO;
+namespace App\Application\Mode\DTO\Admin;
 
 use App\Domain\Mode\Entity\DistributionTypeEnum;
 use App\Infrastructure\Core\AbstractDTO;
@@ -46,12 +46,12 @@ class AdminModeDTO extends AbstractDTO
         $this->id = (string) $id;
     }
 
-    public function getNameI18N(): array
+    public function getNameI18n(): array
     {
         return $this->nameI18n;
     }
 
-    public function setNameI18N(array $nameI18n): void
+    public function setNameI18n(array $nameI18n): void
     {
         $this->nameI18n = $nameI18n;
     }

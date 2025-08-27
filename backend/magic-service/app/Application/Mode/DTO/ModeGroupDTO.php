@@ -9,13 +9,13 @@ namespace App\Application\Mode\DTO;
 
 use App\Infrastructure\Core\AbstractDTO;
 
-class AdminModeGroupDTO extends AbstractDTO
+class ModeGroupDTO extends AbstractDTO
 {
     protected string $id;
 
     protected string $modeId;
 
-    protected array $nameI18n;
+    protected string $name;
 
     protected ?string $icon = null;
 
@@ -49,14 +49,14 @@ class AdminModeGroupDTO extends AbstractDTO
         $this->modeId = (string) $modeId;
     }
 
-    public function getNameI18n(): array
+    public function getName(): string
     {
-        return $this->nameI18n;
+        return $this->name;
     }
 
-    public function setNameI18n(array $nameI18n): void
+    public function setName(string $name): void
     {
-        $this->nameI18n = $nameI18n;
+        $this->name = $name;
     }
 
     public function getIcon(): ?string

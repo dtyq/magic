@@ -11,21 +11,21 @@ use App\Infrastructure\Core\AbstractDTO;
 
 class ModeAggregateDTO extends AbstractDTO
 {
-    protected AdminModeDTO $mode;
+    protected ModeDTO $mode;
 
     /**
      * @var ModeGroupAggregateDTO[] 分组聚合根数组
      */
     protected array $groups = [];
 
-    public function getMode(): AdminModeDTO
+    public function getMode(): ModeDTO
     {
         return $this->mode;
     }
 
-    public function setMode(AdminModeDTO|array $mode): void
+    public function setMode(array|ModeDTO $mode): void
     {
-        $this->mode = $mode instanceof AdminModeDTO ? $mode : new AdminModeDTO($mode);
+        $this->mode = $mode instanceof ModeDTO ? $mode : new ModeDTO($mode);
     }
 
     /**
