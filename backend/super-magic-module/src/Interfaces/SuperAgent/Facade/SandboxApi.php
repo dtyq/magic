@@ -164,10 +164,12 @@ class SandboxApi extends AbstractApi
             'attachments' => null,
             'mentions' => null,
             'agent_user_id' => (string) $magicUserAuthorization->getId(),
-            'agent_mode' => '',
+            'agent_mode' => $requestDTO->getProjectMode(),
             'task_mode' => '',
+            'model_id' => $requestDTO->getModelId(),
         ];
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
+
         // $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
         // $userMessageDTO->setAgentMode($requestDTO->getProjectMode());
         $result = $this->handleTaskMessageAppService->initSandbox($dataIsolation, $userMessageDTO);
