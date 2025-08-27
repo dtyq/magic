@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
@@ -20,6 +21,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ForkProjectStartEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectForkEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -499,6 +501,17 @@ class ProjectAppService extends AbstractAppService
 
         Db::beginTransaction();
         try {
+            // Trigger fork start check event
+            AsyncEventUtil::dispatch(new ForkProjectStartEvent(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            ));
+            $this->logger->info(sprintf(
+                'Dispatched fork project start event, organization: %s, user: %s',
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            ));
+
             // Create fork record and project
             /**
              * @var ProjectEntity $forkProjectEntity
