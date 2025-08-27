@@ -10,11 +10,11 @@ namespace App\Application\Mode\DTO;
 use App\Domain\Mode\Entity\DistributionTypeEnum;
 use App\Infrastructure\Core\AbstractDTO;
 
-class ModeDTO extends AbstractDTO
+class AdminModeDTO extends AbstractDTO
 {
     protected string $id;
 
-    protected string $name;
+    protected array $nameI18n;
 
     protected string $identifier;
 
@@ -46,14 +46,14 @@ class ModeDTO extends AbstractDTO
         $this->id = (string) $id;
     }
 
-    public function getName(): string
+    public function getNameI18N(): array
     {
-        return $this->name;
+        return $this->nameI18n;
     }
 
-    public function setName(string $name): void
+    public function setNameI18N(array $nameI18n): void
     {
-        $this->name = $name;
+        $this->nameI18n = $nameI18n;
     }
 
     public function getIdentifier(): string

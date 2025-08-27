@@ -6,7 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Mode\Facade\AdminModeApi;
-use App\Interfaces\ModeGroup\Facade\ModeGroupApi;
+use App\Interfaces\Mode\Facade\ModeGroupApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/official/admin', static function () {

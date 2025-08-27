@@ -14,11 +14,11 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        if (Schema::hasTable('magic_model_group_relations')) {
+        if (Schema::hasTable('magic_mode_group_relations')) {
             return;
         }
 
-        Schema::create('magic_model_group_relations', function (Blueprint $table) {
+        Schema::create('magic_mode_group_relations', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->bigInteger('mode_id')->unsigned()->default(0)->comment('模式ID');
             $table->bigInteger('group_id')->unsigned()->default(0)->comment('分组ID');

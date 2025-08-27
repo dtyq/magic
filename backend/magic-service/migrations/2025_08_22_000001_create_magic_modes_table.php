@@ -4,6 +4,7 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
@@ -21,9 +22,9 @@ return new class extends Migration {
             return;
         }
 
-        Schema::create('magic_model_modes', function (Blueprint $table) {
+        Schema::create('magic_modes', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->string('name', 100)->default('')->comment('模式名称');
+            $table->json('name_i18n')->comment('模式名称国际化');
             $table->string('identifier', 50)->default('')->comment('模式标识，唯一');
             $table->string('icon', 255)->default('')->comment('模式图标');
             $table->string('color', 10)->default('')->comment('模式颜色');
@@ -52,7 +53,11 @@ return new class extends Migration {
     private function insertDefaultModeData(): void
     {
         $defaultModeData = [
-            'name' => '默认模式',
+            'id' => IdGenerator::getSnowId(),
+            'name_i18n' => json_encode([
+                'zh_CN' => '默认模式',
+                'en_US' => 'Default Mode',
+            ]),
             'identifier' => 'default',
             'icon' => '',
             'color' => '#6366f1',
@@ -68,6 +73,6 @@ return new class extends Migration {
             'updated_at' => now(),
         ];
 
-        Db::table('magic_model_modes')->insert($defaultModeData);
+        Db::table('magic_modes')->insert($defaultModeData);
     }
 };

@@ -9,13 +9,13 @@ namespace App\Application\Mode\DTO;
 
 use App\Infrastructure\Core\AbstractDTO;
 
-class ModeGroupDTO extends AbstractDTO
+class AdminModeGroupDTO extends AbstractDTO
 {
     protected string $id;
 
     protected string $modeId;
 
-    protected string $name;
+    protected array $nameI18n;
 
     protected ?string $icon = null;
 
@@ -28,11 +28,6 @@ class ModeGroupDTO extends AbstractDTO
     protected bool $status;
 
     protected ?string $createdAt = null;
-
-    /**
-     * 分组下的模型关联（可选）.
-     */
-    protected array $models = [];
 
     public function getId(): string
     {
@@ -54,14 +49,14 @@ class ModeGroupDTO extends AbstractDTO
         $this->modeId = (string) $modeId;
     }
 
-    public function getName(): string
+    public function getNameI18n(): array
     {
-        return $this->name;
+        return $this->nameI18n;
     }
 
-    public function setName(string $name): void
+    public function setNameI18n(array $nameI18n): void
     {
-        $this->name = $name;
+        $this->nameI18n = $nameI18n;
     }
 
     public function getIcon(): ?string
@@ -122,15 +117,5 @@ class ModeGroupDTO extends AbstractDTO
     public function setCreatedAt(?string $createdAt): void
     {
         $this->createdAt = $createdAt;
-    }
-
-    public function getModels(): array
-    {
-        return $this->models;
-    }
-
-    public function setModels(array $models): void
-    {
-        $this->models = $models;
     }
 }

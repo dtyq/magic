@@ -189,7 +189,7 @@ class ModeDomainService
     private function buildModeAggregate(ModeDataIsolation $dataIsolation, ModeEntity $mode): ModeAggregate
     {
         // 获取分组和关联关系
-        $groups = $this->groupRepository->findEnabledByModeId($dataIsolation, $mode->getId());
+        $groups = $this->groupRepository->findByModeId($dataIsolation, $mode->getId());
         $relations = $this->relationRepository->findByModeId($dataIsolation, $mode->getId());
 
         // 构建分组聚合根数组

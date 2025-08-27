@@ -15,7 +15,7 @@ class ModeGroupEntity extends AbstractEntity
 
     protected int $modeId = 0;
 
-    protected string $name = '';
+    protected array $nameI18n = [];
 
     protected string $icon = '';
 
@@ -59,14 +59,24 @@ class ModeGroupEntity extends AbstractEntity
         return $this;
     }
 
-    public function getName(): string
+    public function getNameI18n(): array
     {
-        return $this->name;
+        return $this->nameI18n;
     }
 
-    public function setName(string $name): void
+    public function setNameI18n(array $nameI18n): void
     {
-        $this->name = $name;
+        $this->nameI18n = $nameI18n;
+    }
+
+    public function getZHName(): string
+    {
+        return $this->nameI18n['zh_CN'] ?? '';
+    }
+
+    public function getENName(): string
+    {
+        return $this->nameI18n['en_US'] ?? '';
     }
 
     public function getIcon(): string
