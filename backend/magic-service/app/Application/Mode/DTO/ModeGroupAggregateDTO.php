@@ -11,7 +11,7 @@ use App\Infrastructure\Core\AbstractDTO;
 
 class ModeGroupAggregateDTO extends AbstractDTO
 {
-    protected AdminModeGroupDTO $group;
+    protected ModeGroupDTO $group;
 
     /**
      * @var ModeGroupModelDTO[] 该分组对应的模型详细信息数组
@@ -23,14 +23,14 @@ class ModeGroupAggregateDTO extends AbstractDTO
         parent::__construct($data);
     }
 
-    public function getGroup(): AdminModeGroupDTO
+    public function getGroup(): ModeGroupDTO
     {
         return $this->group;
     }
 
-    public function setGroup(AdminModeGroupDTO|array $group): void
+    public function setGroup(array|ModeGroupDTO $group): void
     {
-        $this->group = $group instanceof AdminModeGroupDTO ? $group : new AdminModeGroupDTO($group);
+        $this->group = $group instanceof ModeGroupDTO ? $group : new ModeGroupDTO($group);
     }
 
     /**

@@ -67,9 +67,20 @@ class ModeDomainService
     /**
      * 根据标识符获取模式.
      */
-    public function getModeByIdentifier(ModeDataIsolation $dataIsolation, string $identifier): ?ModeEntity
+    public function getModeDetailByIdentifier(ModeDataIsolation $dataIsolation, string $identifier): ?ModeAggregate
     {
-        return $this->modeRepository->findByIdentifier($dataIsolation, $identifier);
+        $mode = $this->modeRepository->findByIdentifier($dataIsolation, $identifier);
+        if (! $mode) {
+            return null;
+        }
+
+        // 如果是跟随模式，递归获取被跟随模式的配置
+        if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
+            return $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+        }
+
+        // 构建聚合根
+        return $this->buildModeAggregate($dataIsolation, $mode);
     }
 
     /**

@@ -7,9 +7,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Mode\Facade;
 
-use App\Application\Mode\DTO\ModeAggregateDTO;
+use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\Service\AdminModeAppService;
-use App\Domain\Mode\Entity\DistributionTypeEnum;
 use App\Infrastructure\Core\AbstractApi;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
@@ -88,18 +87,10 @@ class AdminModeApi extends AbstractApi
         return $this->adminModeAppService->getDefaultMode($authorization);
     }
 
-    /**
-     * 获取分配类型选项.
-     */
-    public function getDistributionTypes(): array
-    {
-        return DistributionTypeEnum::getOptions();
-    }
-
     public function saveModeConfig(RequestInterface $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        $modeAggregateDTO = new ModeAggregateDTO($request->all());
+        $modeAggregateDTO = new AdminModeAggregateDTO($request->all());
         $modeAggregateDTO->getMode()->setId($id);
         return $this->adminModeAppService->saveModeConfig($authorization, $modeAggregateDTO);
     }

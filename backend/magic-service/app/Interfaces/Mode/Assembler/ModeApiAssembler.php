@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Mode\Assembler;
 
-use App\Application\Mode\DTO\AdminModeDTO;
+use App\Application\Mode\DTO\Admin\AdminModeDTO;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 
