@@ -15,6 +15,7 @@ use App\Domain\Chat\DTO\Message\ChatMessage\FilesMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\ImageConvertHighCardMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\ImagesMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\MarkdownMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\RawMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextFormMessage;
@@ -216,6 +217,7 @@ class MessageAssembler
             ChatMessageType::Voice => new VoiceMessage($messageStructArray),
             ChatMessageType::SuperAgentCard => make(SuperAgentMessageInterface::class, ['messageStruct' => $messageStructArray]),
             ChatMessageType::TextForm => new TextFormMessage($messageStructArray),
+            ChatMessageType::Raw => new RawMessage(['raw' => $messageStructArray]),
             default => new UnknowChatMessage()
         };
     }
