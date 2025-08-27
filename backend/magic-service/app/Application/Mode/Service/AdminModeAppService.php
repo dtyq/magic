@@ -8,20 +8,23 @@ declare(strict_types=1);
 namespace App\Application\Mode\Service;
 
 use App\Application\Mode\Assembler\ModeAssembler;
+use App\Application\Mode\DTO\AdminModeAggregateDTO;
+use App\Application\Mode\DTO\AdminModeDTO;
 use App\Application\Mode\DTO\ModeAggregateDTO;
-use App\Application\Mode\DTO\ModeDTO;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
+use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
-class ModeAppService extends AbstractModeAppService
+class AdminModeAppService extends AbstractModeAppService
 {
     public function __construct(
         private ModeDomainService $modeDomainService,
@@ -33,7 +36,7 @@ class ModeAppService extends AbstractModeAppService
     }
 
     /**
-     * 获取模式列表.
+     * 获取模式列表 (管理后台用，包含完整i18n字段).
      */
     public function getModes(MagicUserAuthorization $authorization, Page $page): array
     {
@@ -42,14 +45,14 @@ class ModeAppService extends AbstractModeAppService
 
         return [
             'total' => $result['total'],
-            'list' => array_map(fn ($mode) => ModeAssembler::modeToDTO($mode), $result['list']),
+            'list' => ModeAssembler::entitiesToAdminDTOs($result['list']),
         ];
     }
 
     /**
      * 根据ID获取模式聚合根（包含模式详情、分组、模型关系）.
      */
-    public function getModeById(MagicUserAuthorization $authorization, string $id): ModeAggregateDTO
+    public function getModeById(MagicUserAuthorization $authorization, string $id): AdminModeAggregateDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $modeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $id);
@@ -83,21 +86,23 @@ class ModeAppService extends AbstractModeAppService
     }
 
     /**
-     * 创建模式.
+     * 创建模式 (管理后台用).
      */
-    public function createMode(MagicUserAuthorization $authorization, ModeDTO $modeDTO): ModeDTO
+    public function createMode(MagicUserAuthorization $authorization, CreateModeRequest $request): AdminModeDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
         Db::beginTransaction();
         try {
-            $modeEntity = ModeAssembler::modelDTOToEntity($modeDTO);
+            $modeEntity = ModeAssembler::createModeRequestToEntity(
+                $request
+            );
             $savedMode = $this->modeDomainService->createMode($dataIsolation, $modeEntity);
 
             Db::commit();
 
             $modeEntity = $this->modeDomainService->getModeById($dataIsolation, $savedMode->getId());
-            return ModeAssembler::modeToDTO($modeEntity);
+            return ModeAssembler::modeToAdminDTO($modeEntity);
         } catch (Exception $exception) {
             $this->logger->warning('Create mode failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -108,19 +113,17 @@ class ModeAppService extends AbstractModeAppService
     /**
      * 更新模式.
      */
-    public function updateMode(MagicUserAuthorization $authorization, ModeDTO $modeDTO): ModeAggregateDTO
+    public function updateMode(MagicUserAuthorization $authorization, string $modeId, UpdateModeRequest $request): AdminModeAggregateDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
         Db::beginTransaction();
         try {
-            $modeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $modeDTO->getId());
-            if (! $modeAggregate) {
-                throw new InvalidArgumentException('Mode not found');
-            }
+            // 从请求对象直接转换为实体
+            $modeEntity = ModeAssembler::updateModeRequestToEntity($request);
+            $modeEntity->setId($modeId);
 
-            $updatedEntity = ModeAssembler::modelDTOToEntity($modeDTO);
-            $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $updatedEntity);
+            $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $modeEntity);
 
             Db::commit();
 
@@ -152,7 +155,7 @@ class ModeAppService extends AbstractModeAppService
     /**
      * 获取默认模式.
      */
-    public function getDefaultMode(MagicUserAuthorization $authorization): ?ModeAggregateDTO
+    public function getDefaultMode(MagicUserAuthorization $authorization): ?AdminModeAggregateDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
@@ -161,22 +164,9 @@ class ModeAppService extends AbstractModeAppService
     }
 
     /**
-     * 获取启用的模式列表.
-     */
-    public function getEnabledModes(MagicUserAuthorization $authorization): array
-    {
-        $dataIsolation = $this->getModeDataIsolation($authorization);
-        $modes = $this->modeDomainService->getModes($dataIsolation, new Page(1, 100))['list'];
-
-        $enabledModes = array_filter($modes, fn ($mode) => $mode->isEnabled());
-
-        return array_map(fn ($mode) => ModeAssembler::modeToDTO($mode), $enabledModes);
-    }
-
-    /**
      * 保存模式配置.
      */
-    public function saveModeConfig(MagicUserAuthorization $authorization, ModeAggregateDTO $modeAggregateDTO): ModeAggregateDTO
+    public function saveModeConfig(MagicUserAuthorization $authorization, ModeAggregateDTO $modeAggregateDTO): AdminModeAggregateDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 

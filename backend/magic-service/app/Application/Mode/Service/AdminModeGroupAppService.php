@@ -8,16 +8,18 @@ declare(strict_types=1);
 namespace App\Application\Mode\Service;
 
 use App\Application\Mode\Assembler\ModeAssembler;
-use App\Application\Mode\DTO\ModeGroupDTO;
+use App\Application\Mode\DTO\AdminModeGroupDTO;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Mode\Service\ModeGroupDomainService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Interfaces\Mode\DTO\Request\CreateModeGroupRequest;
+use App\Interfaces\Mode\DTO\Request\UpdateModeGroupRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
-class ModeGroupAppService extends AbstractModeAppService
+class AdminModeGroupAppService extends AbstractModeAppService
 {
     public function __construct(
         private ModeGroupDomainService $groupDomainService,
@@ -28,14 +30,14 @@ class ModeGroupAppService extends AbstractModeAppService
     }
 
     /**
-     * 根据模式ID获取分组列表.
+     * 根据模式ID获取分组列表 (管理后台用，包含完整i18n字段).
      */
     public function getGroupsByModeId(MagicUserAuthorization $authorization, string $modeId): array
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $groups = $this->groupDomainService->getGroupsByModeId($dataIsolation, $modeId);
 
-        $groupDTOs = ModeAssembler::groupEntitiesToDTOs($groups);
+        $groupDTOs = ModeAssembler::groupEntitiesToAdminDTOs($groups);
 
         // 处理分组图标
         $this->processGroupIcons($authorization, $groupDTOs);
@@ -44,7 +46,7 @@ class ModeGroupAppService extends AbstractModeAppService
     }
 
     /**
-     * 获取分组详情.
+     * 获取分组详情 (管理后台用).
      */
     public function getGroupById(MagicUserAuthorization $authorization, string $groupId): ?array
     {
@@ -56,7 +58,7 @@ class ModeGroupAppService extends AbstractModeAppService
         }
 
         $models = $this->groupDomainService->getGroupModels($dataIsolation, $groupId);
-        $groupDTO = ModeAssembler::groupEntityToDTO($group);
+        $groupDTO = ModeAssembler::groupEntityToAdminDTO($group);
         $relationDTOs = ModeAssembler::relationEntitiesToDTOs($models);
 
         return [
@@ -66,23 +68,23 @@ class ModeGroupAppService extends AbstractModeAppService
     }
 
     /**
-     * 创建分组.
+     * 创建分组 (管理后台用).
      */
-    public function createGroup(MagicUserAuthorization $authorization, ModeGroupDTO $groupDTO): array
+    public function createGroup(MagicUserAuthorization $authorization, CreateModeGroupRequest $request): AdminModeGroupDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
         Db::beginTransaction();
         try {
-            $groupEntity = ModeAssembler::groupDTOToEntity($groupDTO);
-            $groupEntity->setOrganizationCode($authorization->getOrganizationCode());
-            $groupEntity->setCreatorId($authorization->getId());
+            $groupEntity = ModeAssembler::createModeGroupRequestToEntity(
+                $request
+            );
 
             $savedGroup = $this->groupDomainService->createGroup($dataIsolation, $groupEntity);
 
             Db::commit();
 
-            return ModeAssembler::groupEntityToDTO($savedGroup)->toArray();
+            return ModeAssembler::groupEntityToAdminDTO($savedGroup);
         } catch (Exception $exception) {
             $this->logger->warning('Create mode group failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -91,33 +93,22 @@ class ModeGroupAppService extends AbstractModeAppService
     }
 
     /**
-     * 更新分组.
+     * 更新分组 (管理后台用).
      */
-    public function updateGroup(MagicUserAuthorization $authorization, ModeGroupDTO $groupDTO): array
+    public function updateGroup(MagicUserAuthorization $authorization, string $groupId, UpdateModeGroupRequest $request): array
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
         Db::beginTransaction();
         try {
-            // 先获取现有分组
-            $existingGroup = $this->groupDomainService->getGroupById($dataIsolation, $groupDTO->getId());
-            if (! $existingGroup) {
-                throw new InvalidArgumentException('Group not found');
-            }
+            // 从请求对象直接转换为实体
+            $groupEntity = ModeAssembler::updateModeGroupRequestToEntity($request, $groupId);
 
-            // 只更新允许修改的字段
-            $existingGroup->setName($groupDTO->getName());
-            $existingGroup->setIcon($groupDTO->getIcon() ?? '');
-            $existingGroup->setColor($groupDTO->getColor() ?? '');
-            $existingGroup->setDescription($groupDTO->getDescription() ?? '');
-            $existingGroup->setSort($groupDTO->getSort());
-            $existingGroup->setStatus($groupDTO->getStatus());
-
-            $updatedGroup = $this->groupDomainService->updateGroup($dataIsolation, $existingGroup);
+            $updatedGroup = $this->groupDomainService->updateGroup($dataIsolation, $groupEntity);
 
             Db::commit();
 
-            return ModeAssembler::groupEntityToDTO($updatedGroup)->toArray();
+            return ModeAssembler::groupEntityToAdminDTO($updatedGroup)->toArray();
         } catch (Exception $exception) {
             $this->logger->warning('Update mode group failed: ' . $exception->getMessage());
             Db::rollBack();

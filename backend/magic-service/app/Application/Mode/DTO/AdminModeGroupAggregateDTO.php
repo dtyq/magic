@@ -9,7 +9,7 @@ namespace App\Application\Mode\DTO;
 
 use App\Infrastructure\Core\AbstractDTO;
 
-class ModeGroupAggregateDTO extends AbstractDTO
+class AdminModeGroupAggregateDTO extends AbstractDTO
 {
     protected AdminModeGroupDTO $group;
 

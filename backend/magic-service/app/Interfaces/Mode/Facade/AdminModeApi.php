@@ -8,12 +8,10 @@ declare(strict_types=1);
 namespace App\Interfaces\Mode\Facade;
 
 use App\Application\Mode\DTO\ModeAggregateDTO;
-use App\Application\Mode\Service\ModeAppService;
-use App\Application\Mode\Service\ModeGroupAppService;
+use App\Application\Mode\Service\AdminModeAppService;
 use App\Domain\Mode\Entity\DistributionTypeEnum;
 use App\Infrastructure\Core\AbstractApi;
 use App\Infrastructure\Core\ValueObject\Page;
-use App\Interfaces\Mode\Assembler\ModeApiAssembler;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -23,8 +21,7 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 class AdminModeApi extends AbstractApi
 {
     public function __construct(
-        private ModeAppService $modeAppService,
-        private ModeGroupAppService $groupAppService
+        private AdminModeAppService $adminModeAppService
     ) {
     }
 
@@ -39,7 +36,7 @@ class AdminModeApi extends AbstractApi
             (int) $request->input('page_size', 20)
         );
 
-        return $this->modeAppService->getModes($authorization, $page);
+        return $this->adminModeAppService->getModes($authorization, $page);
     }
 
     /**
@@ -48,7 +45,7 @@ class AdminModeApi extends AbstractApi
     public function getMode(RequestInterface $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        return $this->modeAppService->getModeById($authorization, $id);
+        return $this->adminModeAppService->getModeById($authorization, $id);
     }
 
     /**
@@ -58,8 +55,7 @@ class AdminModeApi extends AbstractApi
     {
         $authorization = $this->getAuthorization();
         $request->validated();
-        $modeDTO = ModeApiAssembler::createRequestToModeDTO($request);
-        return $this->modeAppService->createMode($authorization, $modeDTO);
+        return $this->adminModeAppService->createMode($authorization, $request);
     }
 
     /**
@@ -69,9 +65,7 @@ class AdminModeApi extends AbstractApi
     {
         $authorization = $this->getAuthorization();
         $request->validated();
-        $modeDTO = ModeApiAssembler::updateRequestToModeDTO($request);
-        $modeDTO->setId($id);
-        return $this->modeAppService->updateMode($authorization, $modeDTO);
+        return $this->adminModeAppService->updateMode($authorization, $id, $request);
     }
 
     /**
@@ -82,7 +76,7 @@ class AdminModeApi extends AbstractApi
         $authorization = $this->getAuthorization();
         $status = (bool) $request->input('status', 1);
 
-        $this->modeAppService->updateModeStatus($authorization, $id, $status);
+        $this->adminModeAppService->updateModeStatus($authorization, $id, $status);
     }
 
     /**
@@ -91,18 +85,7 @@ class AdminModeApi extends AbstractApi
     public function getDefaultMode()
     {
         $authorization = $this->getAuthorization();
-        return $this->modeAppService->getDefaultMode($authorization);
-    }
-
-    /**
-     * 获取分组详情.
-     */
-    public function getGroupDetail(string $groupId): array
-    {
-        $authorization = $this->getAuthorization();
-        $group = $this->groupAppService->getGroupById($authorization, $groupId);
-
-        return $group ?: [];
+        return $this->adminModeAppService->getDefaultMode($authorization);
     }
 
     /**
@@ -118,6 +101,6 @@ class AdminModeApi extends AbstractApi
         $authorization = $this->getAuthorization();
         $modeAggregateDTO = new ModeAggregateDTO($request->all());
         $modeAggregateDTO->getMode()->setId($id);
-        return $this->modeAppService->saveModeConfig($authorization, $modeAggregateDTO);
+        return $this->adminModeAppService->saveModeConfig($authorization, $modeAggregateDTO);
     }
 }
