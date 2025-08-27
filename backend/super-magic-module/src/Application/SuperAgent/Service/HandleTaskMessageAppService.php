@@ -344,6 +344,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             $dataIsolation->getCurrentOrganizationCode(),
             AppCodeEnum::SUPER_MAGIC->value,
             $dataIsolation->getCurrentUserId(),
+            (string) $taskContext->getProjectId(),
         );
 
         // Initialize agent

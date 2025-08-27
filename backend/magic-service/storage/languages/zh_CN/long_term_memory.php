@@ -11,6 +11,8 @@ return [
     'creation_failed' => '记忆创建失败',
     'update_failed' => '记忆更新失败',
     'deletion_failed' => '记忆删除失败',
+    'enabled_memory_limit_exceeded' => '启用记忆数量超过限制',
+    'memory_category_limit_exceeded' => ':category最多只能启用 :limit 个',
     'evaluation' => [
         'llm_request_failed' => '记忆评估请求失败',
         'llm_response_parse_failed' => '记忆评估响应解析失败',

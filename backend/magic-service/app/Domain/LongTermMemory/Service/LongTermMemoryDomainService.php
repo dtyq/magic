@@ -13,9 +13,11 @@ use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
+use App\Domain\LongTermMemory\Entity\ValueObject\MemoryCategory;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
 use App\Domain\LongTermMemory\Repository\LongTermMemoryRepositoryInterface;
 use App\ErrorCode\LongTermMemoryErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -363,10 +365,18 @@ readonly class LongTermMemoryDomainService
     /**
      * 获取用户的有效记忆并构建提示词字符串.
      */
-    public function getEffectiveMemoriesForPrompt(string $orgId, string $appId, string $userId, int $maxLength = 4000): string
+    public function getEffectiveMemoriesForPrompt(string $orgId, string $appId, string $userId, ?string $projectId, int $maxLength = 4000): string
     {
-        // 获取有效记忆，按分数排序
-        $memories = $this->repository->findEffectiveMemoriesByUser($orgId, $appId, $userId, 100);
+        // 获取用户全局记忆（没有项目ID的记忆）
+        $generalMemoryLimit = MemoryCategory::GENERAL->getEnabledLimit();
+        $generalMemories = $this->repository->findEffectiveMemoriesByUser($orgId, $appId, $userId, '', $generalMemoryLimit);
+
+        // 获取项目相关记忆
+        $projectMemoryLimit = MemoryCategory::PROJECT->getEnabledLimit();
+        $projectMemories = $this->repository->findEffectiveMemoriesByUser($orgId, $appId, $userId, $projectId ?? '', $projectMemoryLimit);
+
+        // 合并记忆，按分数排序
+        $memories = array_merge($generalMemories, $projectMemories);
 
         // 过滤掉应该被淘汰的记忆
         $validMemories = array_filter($memories, function ($memory) {
@@ -383,7 +393,7 @@ readonly class LongTermMemoryDomainService
         $totalLength = 0;
 
         foreach ($validMemories as $memory) {
-            $memoryLength = strlen($memory->getContent());
+            $memoryLength = mb_strlen($memory->getContent());
 
             if ($totalLength + $memoryLength <= $maxLength) {
                 $selectedMemories[] = $memory;
@@ -507,41 +517,23 @@ readonly class LongTermMemoryDomainService
 
         // 获取互斥锁
         if (! $this->locker->mutexLock($lockName, $lockOwner, 60)) {
-            $this->logger->error('Failed to acquire lock for batch memory enable/disable', [
-                'lock_name' => $lockName,
-                'enabled' => $enabled,
-                'memory_ids' => $memoryIds,
-            ]);
-            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED, '获取批量启用/禁用记忆锁失败');
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
         }
 
         try {
             // 验证记忆ID的有效性和所属权
             $validMemoryIds = $this->repository->filterMemoriesByUser($memoryIds, $orgId, $appId, $userId);
             if (empty($validMemoryIds)) {
-                $this->logger->warning('No valid memory IDs found for user', [
-                    'org_id' => $orgId,
-                    'app_id' => $appId,
-                    'user_id' => $userId,
-                    'provided_ids' => $memoryIds,
-                ]);
                 return 0;
             }
 
+            // 如果是启用记忆，进行数量限制检查
+            if ($enabled) {
+                $this->validateMemoryEnablementLimits($validMemoryIds, $orgId, $appId, $userId);
+            }
+
             // 执行批量更新
-            $updatedCount = $this->repository->batchUpdateEnabled($validMemoryIds, $enabled, $orgId, $appId, $userId);
-
-            $this->logger->info('Batch updated memory enabled status', [
-                'org_id' => $orgId,
-                'app_id' => $appId,
-                'user_id' => $userId,
-                'enabled' => $enabled,
-                'requested_count' => count($memoryIds),
-                'valid_count' => count($validMemoryIds),
-                'updated_count' => $updatedCount,
-            ]);
-
-            return $updatedCount;
+            return $this->repository->batchUpdateEnabled($validMemoryIds, $enabled, $orgId, $appId, $userId);
         } finally {
             // 确保释放锁
             $this->locker->release($lockName, $lockOwner);
@@ -613,6 +605,58 @@ readonly class LongTermMemoryDomainService
         $project = $this->projectRepository->findById((int) $projectId);
 
         return $project?->getProjectName();
+    }
+
+    /**
+     * 验证记忆启用数量限制.
+     * @param array $memoryIds 要启用的记忆ID列表
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @throws BusinessException 当启用数量超过限制时抛出异常
+     */
+    private function validateMemoryEnablementLimits(array $memoryIds, string $orgId, string $appId, string $userId): void
+    {
+        // 获取要启用的记忆实体
+        $memoriesToEnable = $this->repository->findByIds($memoryIds);
+
+        // 获取当前项目记忆和全局记忆的启用数量
+        $currentProjectCount = $this->repository->getEnabledMemoryCountByCategory($orgId, $appId, $userId, MemoryCategory::PROJECT);
+        $currentGeneralCount = $this->repository->getEnabledMemoryCountByCategory($orgId, $appId, $userId, MemoryCategory::GENERAL);
+
+        $currentEnabledCounts = [
+            MemoryCategory::PROJECT->value => $currentProjectCount,
+            MemoryCategory::GENERAL->value => $currentGeneralCount,
+        ];
+
+        // 计算启用后各类别的数量
+        $projectedCounts = $currentEnabledCounts;
+
+        foreach ($memoriesToEnable as $memory) {
+            $projectId = $memory->getProjectId();
+            $category = MemoryCategory::fromProjectId($projectId);
+            $categoryKey = $category->value;
+
+            if (! isset($projectedCounts[$categoryKey])) {
+                $projectedCounts[$categoryKey] = 0;
+            }
+
+            // 只有当前未启用的记忆才会增加计数
+            if (! $memory->isEnabled()) {
+                ++$projectedCounts[$categoryKey];
+            }
+        }
+
+        // 检查是否超过限制
+        foreach ($projectedCounts as $categoryKey => $projectedCount) {
+            $category = MemoryCategory::from($categoryKey);
+            $limit = $category->getEnabledLimit();
+
+            if ($projectedCount > $limit) {
+                $categoryName = $category->getDisplayName();
+                ExceptionBuilder::throw(LongTermMemoryErrorCode::ENABLED_MEMORY_LIMIT_EXCEEDED, trans('long_term_memory.memory_category_limit_exceeded', ['category' => $categoryName, 'limit' => $limit]));
+            }
+        }
     }
 
     /**

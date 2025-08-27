@@ -11,6 +11,8 @@ return [
     'creation_failed' => 'Failed to create memory',
     'update_failed' => 'Failed to update memory',
     'deletion_failed' => 'Failed to delete memory',
+    'enabled_memory_limit_exceeded' => 'Enabled memory limit exceeded',
+    'memory_category_limit_exceeded' => 'Maximum :limit :category can be enabled',
     'evaluation' => [
         'llm_request_failed' => 'Memory evaluation request failed',
         'llm_response_parse_failed' => 'Failed to parse memory evaluation response',
