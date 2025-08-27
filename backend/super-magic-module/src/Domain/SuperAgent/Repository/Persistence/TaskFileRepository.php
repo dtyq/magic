@@ -88,6 +88,28 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * 根据fileKey数组批量获取文件.
+     */
+    public function getByFileKeys(array $fileKeys): array
+    {
+        if (empty($fileKeys)) {
+            return [];
+        }
+
+        $models = $this->model::query()
+            ->whereIn('file_key', $fileKeys)
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entity = new TaskFileEntity($model->toArray());
+            $entities[$entity->getFileKey()] = $entity;
+        }
+
+        return $entities;
+    }
+
+    /**
      * 根据项目ID和fileKey获取文件.
      */
     public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity
@@ -774,7 +796,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->whereNull('deleted_at')
             ->update([
                 'parent_id' => $parentId,
-                'updated_uid' => $userId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
     }
