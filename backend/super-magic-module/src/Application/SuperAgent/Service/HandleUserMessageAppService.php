@@ -374,6 +374,7 @@ class HandleUserMessageAppService extends AbstractAppService
         $taskContext->setSandboxId($sandboxId);
 
         // user long term memory
+        $this->logger->info(sprintf('getEffectiveMemoriesForPrompt User long term  org: %s, user: %s, project: %s', $dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $taskContext->getProjectId()));
         $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
             $dataIsolation->getCurrentOrganizationCode(),
             AppCodeEnum::SUPER_MAGIC->value,
