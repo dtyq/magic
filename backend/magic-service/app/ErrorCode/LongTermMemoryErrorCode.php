@@ -40,4 +40,7 @@ enum LongTermMemoryErrorCode: int
 
     #[ErrorMessage('long_term_memory.deletion_failed')]
     case DELETION_FAILED = 45013;
+
+    #[ErrorMessage('long_term_memory.enabled_memory_limit_exceeded')]
+    case ENABLED_MEMORY_LIMIT_EXCEEDED = 45014;
 }

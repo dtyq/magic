@@ -491,6 +491,7 @@ class LongTermMemoryAdminApi extends AbstractApi
         $params = $request->all();
         $rules = [
             'max_length' => 'integer|min:100|max:8000',
+            'project_id' => 'string|max:36',
         ];
         $validatedParams = $this->checkParams($params, $rules);
         $authorization = $this->getAuthorization();
@@ -499,9 +500,9 @@ class LongTermMemoryAdminApi extends AbstractApi
             $authorization->getOrganizationCode(),
             $authorization->getApplicationCode(),
             $authorization->getId(),
+            $validatedParams['project_id'] ?? null,
             $validatedParams['max_length'] ?? 4000
         );
-
         return [
             'success' => true,
             'data' => [

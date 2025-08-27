@@ -180,9 +180,9 @@ class LongTermMemoryAppService
     /**
      * 获取有效记忆用于系统提示词.
      */
-    public function getEffectiveMemoriesForPrompt(string $orgId, string $appId, string $userId, int $maxLength = 4000): string
+    public function getEffectiveMemoriesForPrompt(string $orgId, string $appId, string $userId, ?string $projectId, int $maxLength = 4000): string
     {
-        return $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt($orgId, $appId, $userId, $maxLength);
+        return $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt($orgId, $appId, $userId, $projectId, $maxLength);
     }
 
     /**
@@ -269,9 +269,9 @@ class LongTermMemoryAppService
     /**
      * 构建记忆提示词内容.
      */
-    public function buildMemoryPrompt(string $orgId, string $appId, string $userId, int $maxLength = 4000): string
+    public function buildMemoryPrompt(string $orgId, string $appId, string $userId, ?string $projectId, int $maxLength = 4000): string
     {
-        return $this->getEffectiveMemoriesForPrompt($orgId, $appId, $userId, $maxLength);
+        return $this->getEffectiveMemoriesForPrompt($orgId, $appId, $userId, $projectId, $maxLength);
     }
 
     /**

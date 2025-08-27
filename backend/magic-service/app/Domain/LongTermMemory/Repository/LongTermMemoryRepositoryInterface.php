@@ -9,6 +9,7 @@ namespace App\Domain\LongTermMemory\Repository;
 
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
+use App\Domain\LongTermMemory\Entity\ValueObject\MemoryCategory;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 
 /**
@@ -47,7 +48,7 @@ interface LongTermMemoryRepositoryInterface
     /**
      * 根据组织、应用、用户查找有效记忆（按分数排序）.
      */
-    public function findEffectiveMemoriesByUser(string $orgId, string $appId, string $userId, int $limit = 50): array;
+    public function findEffectiveMemoriesByUser(string $orgId, string $appId, string $userId, string $projectId, int $limit = 50): array;
 
     /**
      * 根据标签查找记忆.
@@ -146,4 +147,14 @@ interface LongTermMemoryRepositoryInterface
      * @return int 更新的记录数量
      */
     public function batchUpdateEnabled(array $memoryIds, bool $enabled, string $orgId, string $appId, string $userId): int;
+
+    /**
+     * 获取指定分类的已启用记忆数量.
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @param MemoryCategory $category 记忆分类
+     * @return int 记忆数量
+     */
+    public function getEnabledMemoryCountByCategory(string $orgId, string $appId, string $userId, MemoryCategory $category): int;
 }
