@@ -258,9 +258,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (empty($ids)) {
             return [];
         }
-
-        $builder = $this->createProviderModelQuery()
-            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query())
             ->whereIn('id', $ids);
 
         $result = Db::select($builder->toSql(), $builder->getBindings());
