@@ -5,13 +5,12 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Interfaces\ModeGroup\Facade;
+namespace App\Interfaces\Mode\Facade;
 
-use App\Application\Mode\Service\ModeGroupAppService;
+use App\Application\Mode\Service\AdminModeGroupAppService;
 use App\Infrastructure\Core\AbstractApi;
-use App\Interfaces\ModeGroup\Assembler\ModeGroupApiAssembler;
-use App\Interfaces\ModeGroup\DTO\Request\CreateModeGroupRequest;
-use App\Interfaces\ModeGroup\DTO\Request\UpdateModeGroupRequest;
+use App\Interfaces\Mode\DTO\Request\CreateModeGroupRequest;
+use App\Interfaces\Mode\DTO\Request\UpdateModeGroupRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -20,7 +19,7 @@ class ModeGroupApi extends AbstractApi
 {
     public function __construct(
         RequestInterface $request,
-        private ModeGroupAppService $modeGroupAppService
+        private AdminModeGroupAppService $modeGroupAppService
     ) {
         parent::__construct($request);
     }
@@ -52,12 +51,11 @@ class ModeGroupApi extends AbstractApi
     /**
      * 创建分组.
      */
-    public function createGroup(CreateModeGroupRequest $request): array
+    public function createGroup(CreateModeGroupRequest $request)
     {
         $authorization = $this->getAuthorization();
         $request->validated();
-        $groupDTO = ModeGroupApiAssembler::createRequestToModeGroupDTO($request);
-        return $this->modeGroupAppService->createGroup($authorization, $groupDTO);
+        return $this->modeGroupAppService->createGroup($authorization, $request);
     }
 
     /**
@@ -66,9 +64,8 @@ class ModeGroupApi extends AbstractApi
     public function updateGroup(UpdateModeGroupRequest $request, string $groupId): array
     {
         $authorization = $this->getAuthorization();
-        $groupDTO = ModeGroupApiAssembler::updateRequestToModeGroupDTO($request);
-        $groupDTO->setId($groupId);
-        return $this->modeGroupAppService->updateGroup($authorization, $groupDTO);
+        $request->validated();
+        return $this->modeGroupAppService->updateGroup($authorization, $groupId, $request);
     }
 
     /**

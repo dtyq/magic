@@ -21,13 +21,15 @@ class CreateModeGroupRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'mode_id' => 'required|integer|min:1',
-            'name' => 'required|string|max:100',
+            'mode_id' => 'required|integer',
+            'name_i18n' => 'required|array',
+            'name_i18n.zh_CN' => 'required|string|max:100',
+            'name_i18n.en_US' => 'required|string|max:100',
             'icon' => 'nullable|string|max:255',
-            'color' => 'nullable|string|max:10|regex:/^#[0-9a-fA-F]{6}$/',
-            'description' => 'nullable|string|max:1000',
+            'color' => 'nullable|string|max:20',
+            'description' => 'nullable|string|max:500',
             'sort' => 'nullable|integer|min:0',
-            'status' => 'nullable|integer|in:0,1',
+            'status' => 'nullable|boolean',
         ];
     }
 
@@ -37,16 +39,19 @@ class CreateModeGroupRequest extends FormRequest
             'mode_id.required' => __('mode.mode_id_required'),
             'mode_id.integer' => __('mode.mode_id_integer'),
             'mode_id.min' => __('mode.mode_id_min'),
-            'name.required' => __('mode.group_name_required'),
-            'name.max' => __('mode.group_name_max'),
+            'name_i18n.required' => __('mode.name_i18n_required'),
+            'name_i18n.array' => __('mode.name_i18n_array'),
+            'name_i18n.zh_CN.required' => __('mode.name_zh_cn_required'),
+            'name_i18n.zh_CN.max' => __('mode.name_zh_cn_max'),
+            'name_i18n.en_US.required' => __('mode.name_en_us_required'),
+            'name_i18n.en_US.max' => __('mode.name_en_us_max'),
             'icon.max' => __('mode.icon_max'),
             'color.max' => __('mode.color_max'),
             'color.regex' => __('mode.color_regex'),
             'description.max' => __('mode.description_max'),
             'sort.integer' => __('mode.sort_integer'),
             'sort.min' => __('mode.sort_min'),
-            'status.integer' => __('mode.status_integer'),
-            'status.in' => __('mode.status_in'),
+            'status.boolean' => __('mode.status_boolean'),
         ];
     }
 
@@ -57,22 +62,22 @@ class CreateModeGroupRequest extends FormRequest
 
     public function getName(): string
     {
-        return $this->input('name');
+        return (string) $this->input('name');
     }
 
-    public function getIcon(): string
+    public function getIcon(): ?string
     {
-        return $this->input('icon', '');
+        return $this->input('icon');
     }
 
-    public function getColor(): string
+    public function getColor(): ?string
     {
-        return $this->input('color', '');
+        return $this->input('color');
     }
 
-    public function getDescription(): string
+    public function getDescription(): ?string
     {
-        return $this->input('description', '');
+        return $this->input('description');
     }
 
     public function getSort(): int

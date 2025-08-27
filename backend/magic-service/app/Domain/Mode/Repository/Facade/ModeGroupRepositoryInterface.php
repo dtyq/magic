@@ -34,11 +34,6 @@ interface ModeGroupRepositoryInterface
     public function update(ModeDataIsolation $dataIsolation, ModeGroupEntity $groupEntity): ModeGroupEntity;
 
     /**
-     * 检查分组名称在模式下是否唯一
-     */
-    public function isNameUniqueInMode(ModeDataIsolation $dataIsolation, int|string $modeId, string $name, null|int|string $excludeId = null): bool;
-
-    /**
      * 获取模式下启用的分组列表.
      * @return ModeGroupEntity[]
      */

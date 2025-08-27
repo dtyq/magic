@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\Service;
 
-use App\Application\Mode\DTO\ModeAggregateDTO;
-use App\Application\Mode\DTO\ModeGroupDTO;
+use App\Application\Mode\DTO\AdminModeAggregateDTO;
+use App\Application\Mode\DTO\AdminModeGroupDTO;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -21,7 +21,7 @@ abstract class AbstractModeAppService
     /**
      * 处理分组DTO数组中的图标，将路径转换为完整的URL.
      *
-     * @param ModeGroupDTO[] $groups
+     * @param AdminModeGroupDTO[] $groups
      */
     protected function processGroupIcons(MagicUserAuthorization $authorization, array $groups): void
     {
@@ -62,7 +62,7 @@ abstract class AbstractModeAppService
     /**
      * 处理模式聚合根中的图标，将路径转换为完整的URL.
      */
-    protected function processModeAggregateIcons(MagicUserAuthorization $authorization, ModeAggregateDTO $modeAggregateDTO): void
+    protected function processModeAggregateIcons(MagicUserAuthorization $authorization, AdminModeAggregateDTO $modeAggregateDTO): void
     {
         // 收集所有需要处理的icon路径
         $iconPaths = [];

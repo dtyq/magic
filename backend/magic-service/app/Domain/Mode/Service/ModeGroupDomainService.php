@@ -38,7 +38,6 @@ class ModeGroupDomainService
     public function createGroup(ModeDataIsolation $dataIsolation, ModeGroupEntity $groupEntity): ModeGroupEntity
     {
         $this->validateModeExists($dataIsolation, $groupEntity->getModeId());
-        $this->validateGroupNameUnique($dataIsolation, $groupEntity->getModeId(), $groupEntity->getName());
 
         return $this->groupRepository->save($dataIsolation, $groupEntity);
     }
@@ -49,7 +48,6 @@ class ModeGroupDomainService
     public function updateGroup(ModeDataIsolation $dataIsolation, ModeGroupEntity $groupEntity): ModeGroupEntity
     {
         $this->validateModeExists($dataIsolation, $groupEntity->getModeId());
-        $this->validateGroupNameUnique($dataIsolation, $groupEntity->getModeId(), $groupEntity->getName(), $groupEntity->getId());
 
         return $this->groupRepository->update($dataIsolation, $groupEntity);
     }
@@ -95,16 +93,6 @@ class ModeGroupDomainService
         $mode = $this->modeRepository->findById($dataIsolation, $modeId);
         if (! $mode) {
             ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
-        }
-    }
-
-    /**
-     * 验证分组名称在模式下是否唯一.
-     */
-    private function validateGroupNameUnique(ModeDataIsolation $dataIsolation, int $modeId, string $name, ?int $excludeId = null): void
-    {
-        if (! $this->groupRepository->isNameUniqueInMode($dataIsolation, $modeId, $name, $excludeId)) {
-            ExceptionBuilder::throw(ModeErrorCode::GROUP_NAME_ALREADY_EXISTS);
         }
     }
 }

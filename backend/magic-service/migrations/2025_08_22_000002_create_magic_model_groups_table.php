@@ -14,14 +14,14 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        if (Schema::hasTable('magic_model_groups')) {
+        if (Schema::hasTable('magic_mode_groups')) {
             return;
         }
 
-        Schema::create('magic_model_groups', function (Blueprint $table) {
+        Schema::create('magic_mode_groups', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->bigInteger('mode_id')->unsigned()->default(0)->comment('模式ID');
-            $table->string('name', 100)->default('')->comment('分组名称');
+            $table->json('name_i18n')->comment('分组名称国际化');
             $table->string('icon', 255)->default('')->comment('分组图标');
             $table->string('color', 10)->default('')->comment('分组颜色');
             $table->text('description')->comment('分组描述');

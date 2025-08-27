@@ -82,19 +82,6 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         return $groupEntity;
     }
 
-    public function isNameUniqueInMode(ModeDataIsolation $dataIsolation, int|string $modeId, string $name, null|int|string $excludeId = null): bool
-    {
-        $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
-        $query = $builder->where('mode_id', $modeId)
-            ->where('name', $name);
-
-        if ($excludeId) {
-            $query->where('id', '!=', $excludeId);
-        }
-
-        return ! $query->exists();
-    }
-
     /**
      * @return ModeGroupEntity[]
      */

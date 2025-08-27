@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Interfaces\ModeGroup\DTO\Request;
+namespace App\Interfaces\Mode\DTO\Request;
 
 use Hyperf\Validation\Request\FormRequest;
 
@@ -21,33 +21,45 @@ class UpdateModeGroupRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:100',
+            'name_i18n' => 'required|array',
+            'name_i18n.zh_CN' => 'required|string|max:100',
+            'name_i18n.en_US' => 'required|string|max:100',
             'icon' => 'nullable|string|max:255',
             'color' => 'nullable|string|max:20',
             'description' => 'nullable|string|max:500',
             'sort' => 'nullable|integer|min:0',
-            'status' => 'nullable|integer|in:0,1',
+            'status' => 'nullable|boolean',
         ];
     }
 
     public function messages(): array
     {
         return [
-            'name.required' => __('mode.group_name_required'),
-            'name.max' => __('mode.group_name_max'),
+            'name_i18n.required' => __('mode.name_i18n_required'),
+            'name_i18n.array' => __('mode.name_i18n_array'),
+            'name_i18n.zh_CN.required' => __('mode.group_name_zh_cn_required'),
+            'name_i18n.zh_CN.max' => __('mode.group_name_zh_cn_max'),
+            'name_i18n.en_US.required' => __('mode.group_name_en_us_required'),
+            'name_i18n.en_US.max' => __('mode.group_name_en_us_max'),
             'icon.max' => __('mode.icon_max'),
             'color.max' => __('mode.color_max'),
             'description.max' => __('mode.description_max'),
             'sort.integer' => __('mode.sort_integer'),
             'sort.min' => __('mode.sort_min'),
-            'status.integer' => __('mode.status_integer'),
-            'status.in' => __('mode.status_in'),
+            'status.boolean' => __('mode.status_boolean'),
         ];
+    }
+
+    public function getNameI18n(): array
+    {
+        return $this->input('name_i18n', []);
     }
 
     public function getName(): string
     {
-        return (string) $this->input('name');
+        // 为了兼容性，返回中文名称
+        $nameI18n = $this->getNameI18n();
+        return $nameI18n['zh_CN'] ?? '';
     }
 
     public function getIcon(): ?string
@@ -70,8 +82,8 @@ class UpdateModeGroupRequest extends FormRequest
         return (int) $this->input('sort', 0);
     }
 
-    public function getStatus(): int
+    public function getStatus(): bool
     {
-        return (int) $this->input('status', 1);
+        return (bool) $this->input('status', true);
     }
 }
