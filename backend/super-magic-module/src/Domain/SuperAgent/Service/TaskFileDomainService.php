@@ -33,7 +33,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayI
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
-use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -1276,10 +1275,22 @@ class TaskFileDomainService
      */
     public function migrateProjectFile(DataIsolation $dataIsolation, ProjectEntity $sourceProjectEntity, ProjectEntity $forkProjectEntity, ProjectForkEntity $projectForkRecordEntity): void
     {
+        // 初始化基本参数
+        $pageSize = 200; // Process 200 files at a time
+        $lastFileId = $projectForkRecordEntity->getCurrentFileId();
+        $forkRecordId = $projectForkRecordEntity->getId();
+        $processedCount = $projectForkRecordEntity->getProcessedFiles();
+        $totalCount = $projectForkRecordEntity->getTotalFiles();
+        $userId = $dataIsolation->getCurrentUserId();
+        $sourceToNewIdMap = [];
+        $needFixFileIds = [];
+
         $this->logger->info(sprintf(
-            'Starting file migration for fork event, source_project_id: %d, fork_project_id: %d',
+            'Starting file migration for fork event, source_project_id: %d, fork_project_id: %d, total_files: %d, processed_files: %d',
             $sourceProjectEntity->getId(),
-            $forkProjectEntity->getId()
+            $forkProjectEntity->getId(),
+            $totalCount,
+            $processedCount
         ));
 
         // Ensure the fork process is still running
@@ -1288,13 +1299,16 @@ class TaskFileDomainService
             return;
         }
 
-        $pageSize = 50; // Process 50 files at a time
-        $lastFileId = $projectForkRecordEntity->getCurrentFileId();
-        $forkRecordId = $projectForkRecordEntity->getId();
-        $processedCount = $projectForkRecordEntity->getProcessedFiles();
-        $userId = $dataIsolation->getCurrentUserId();
-        $sourceToNewIdMap = [];
-        $needFixFileIds = [];
+        // 预计算工作目录路径（避免重复计算）
+        $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
+        $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
+        $targetWorkDirPrefix = WorkDirectoryUtil::getPrefix($forkProjectEntity->getWorkDir());
+
+        // 设置用户上下文
+        $this->sandboxGateway->setUserContext(
+            $forkProjectEntity->getUserId(),
+            $forkProjectEntity->getUserOrganizationCode()
+        );
 
         // 根节点单独处理
         $sourceRootFileId = $this->findOrCreateProjectRootDirectory($sourceProjectEntity->getId(), $sourceProjectEntity->getWorkDir(), $sourceProjectEntity->getUserId(), $sourceProjectEntity->getUserOrganizationCode());
@@ -1302,110 +1316,128 @@ class TaskFileDomainService
         $sourceToNewIdMap[$sourceRootFileId] = $forkRootFileId;
 
         try {
-            // 获取所有源文件（分批获取但一次性处理）
-            $allSourceFiles = [];
+            // 检查是否已经处理完所有文件
+            if ($totalCount > 0 && $processedCount >= $totalCount) {
+                $this->logger->info(sprintf('Fork record %d: All %d files already processed, skipping migration', $forkRecordId, $totalCount));
+                $this->projectForkRepository->updateStatus($forkRecordId, ForkStatus::FINISHED->value, 100, '');
+                return;
+            }
+
+            // 分批获取和处理文件
             while (true) {
                 $sourceFiles = $this->taskFileRepository->getFilesByProjectIdWithResume($sourceProjectEntity->getId(), $lastFileId, $pageSize);
-
                 if (empty($sourceFiles)) {
                     break; // No more files to process
                 }
-
-                // 收集所有需要检查的新文件键
-                $newFileKeys = [];
-                $sourceFileMapping = [];
                 foreach ($sourceFiles as $sourceFile) {
-                    $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
-                    $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
                     $newFileKey = str_replace($sourceFullWorkDir, $targetFullWorkDir, $sourceFile->getFileKey());
-                    $newFileKeys[] = $newFileKey;
-                    $sourceFileMapping[$newFileKey] = $sourceFile;
-                    $lastFileId = $sourceFile->getFileId();
-                }
+                    $lastFileId = $sourceFile->getFileId(); // 更新分页游标
 
-                // 批量查询已存在的文件
-                $existingFiles = $this->taskFileRepository->getByFileKeys($newFileKeys);
+                    // 1. 检查文件是否存在，如果存在则跳过
+                    $existingFileEntity = $this->taskFileRepository->getByFileKey($newFileKey);
+                    if (! empty($existingFileEntity)) {
+                        continue;
+                    }
 
-                // 过滤掉已存在的文件
-                foreach ($sourceFileMapping as $newFileKey => $sourceFile) {
-                    if (! isset($existingFiles[$newFileKey])) {
-                        $allSourceFiles[] = $sourceFile;
+                    try {
+                        // 2. 处理远端附件
+                        if ($sourceFile->getIsDirectory()) {
+                            // 目录可以直接使用 cloud file 处理
+                            $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
+                            $this->cloudFileRepository->createFolderByCredential(
+                                $targetWorkDirPrefix,
+                                $forkProjectEntity->getUserOrganizationCode(),
+                                $newFileKey,
+                                StorageBucketType::SandBox,
+                                ['metadata' => $metadata]
+                            );
+                        } else {
+                            // 文件拷贝需要通过远程沙箱处理
+                            // 处理文件：调用新的沙箱 copy 接口
+                            $copyResult = $this->sandboxGateway->copyFiles([
+                                [
+                                    'source_oss_path' => $sourceFile->getFileKey(),
+                                    'target_oss_path' => $newFileKey,
+                                ],
+                            ]);
+
+                            if (! $copyResult->isSuccess()) {
+                                $this->logger->error(sprintf(
+                                    'Sandbox Copy File Failed to copy file %s to %s',
+                                    $sourceFile->getFileKey(),
+                                    $newFileKey
+                                ));
+                                continue;
+                            }
+                        }
+
+                        // 3. 保存数据库记录
+                        $parentId = $sourceToNewIdMap[$sourceFile->getParentId()] ?? null;
+                        // Create new TaskFileEntity for the forked project
+                        $newTaskFile = $this->copyTaskFileEntity(
+                            $sourceFile,
+                            $userId,
+                            $dataIsolation->getCurrentOrganizationCode(),
+                            $forkProjectEntity->getId(),
+                            $forkProjectEntity->getCurrentTopicId(),
+                            $newFileKey,
+                            $parentId,
+                        );
+                        $this->taskFileRepository->insert($newTaskFile);
+                        // 由于新的目标文件没有 parent_id，所以需要处理，为了提高处理效率，存储一下关系
+                        $sourceToNewIdMap[$sourceFile->getFileId()] = $newTaskFile->getFileId();
+                        if (is_null($newTaskFile->getParentId())) {
+                            $needFixFileIds[] = [
+                                'new_id' => $newTaskFile->getFileId(),
+                                'old_parent_id' => $sourceFile->getParentId(),
+                            ];
+                        }
+
+                        ++$processedCount; // 成功处理一个文件，计数器递增
+                    } catch (Throwable $e) {
+                        $this->logger->error(
+                            'Failed to process file during fork migration',
+                            [
+                                'exception' => $e->getMessage(),
+                                'file_name' => $sourceFile->getFileName(),
+                                'file_key' => $sourceFile->getFileKey(),
+                                'new_file_key' => $newFileKey,
+                                'is_directory' => $sourceFile->getIsDirectory(),
+                                'processed_count' => $processedCount,
+                            ]
+                        );
+                        // 继续处理下一个文件，不中断整个流程
                     }
                 }
 
+                // 批次级别更新进度 (基于总文件数的准确进度计算)
+                if ($totalCount > 0) {
+                    // 使用准确的总文件数计算进度，文件迁移阶段占总进度的90%
+                    $progress = min(90, max(1, intval(($processedCount / $totalCount) * 90)));
+                } else {
+                    // 如果总文件数为0，设置默认进度
+                    $progress = 50;
+                }
+
+                $this->projectForkRepository->updateProgress($forkRecordId, $processedCount, $progress);
+
+                $this->logger->info(sprintf(
+                    'Completed batch: processed %d/%d files (fork record %d, progress: %d%%)',
+                    $processedCount,
+                    $totalCount,
+                    $forkRecordId,
+                    $progress
+                ));
+
+                // 检查是否为最后一批
                 if (count($sourceFiles) < $pageSize) {
                     break; // Less than page size, means it's the last batch
                 }
             }
 
-            $this->logger->info(sprintf('Found %d files to copy for fork record %d', count($allSourceFiles), $forkRecordId));
-
-            // 使用异步API批量复制文件
-            if (! empty($allSourceFiles)) {
-                $copySuccess = $this->copyFilesAsync(
-                    $allSourceFiles,
-                    $sourceProjectEntity,
-                    $forkProjectEntity,
-                    $projectForkRecordEntity
-                );
-
-                if (! $copySuccess) {
-                    throw new Exception('Async file copy failed');
-                }
-
-                $this->logger->info(sprintf('Async file copy completed successfully for fork record %d', $forkRecordId));
-
-                // 更新进度到50%（文件复制完成）
-                $this->projectForkRepository->updateProgress($forkRecordId, count($allSourceFiles), 50);
-            }
-
-            // 创建数据库记录和父子关系
-            foreach ($allSourceFiles as $sourceFile) {
-                // Generate new file_key for the forked project
-                $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
-                $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
-                $newFileKey = str_replace($sourceFullWorkDir, $targetFullWorkDir, $sourceFile->getFileKey());
-                try {
-                    // get parent id
-                    $parentId = $sourceToNewIdMap[$sourceFile->getParentId()] ?? null;
-
-                    // Create new TaskFileEntity for the forked project
-                    $newTaskFile = $this->copyTaskFileEntity(
-                        $sourceFile,
-                        $userId,
-                        $dataIsolation->getCurrentOrganizationCode(),
-                        $forkProjectEntity->getId(),
-                        $forkProjectEntity->getCurrentTopicId(),
-                        $newFileKey,
-                        $parentId,
-                    );
-                    $this->taskFileRepository->insert($newTaskFile);
-                    $sourceToNewIdMap[$sourceFile->getFileId()] = $newTaskFile->getFileId();
-                    if (is_null($newTaskFile->getParentId())) {
-                        $needFixFileIds[] = [
-                            'new_id' => $newTaskFile->getFileId(),
-                            'old_parent_id' => $sourceFile->getParentId(),
-                        ];
-                    }
-
-                    ++$processedCount;
-                } catch (Throwable $e) {
-                    $this->logger->error(
-                        'Failed to create database record for file',
-                        [
-                            'exception' => $e,
-                            'file' => $sourceFile,
-                            'newFileKey' => $newFileKey,
-                        ]
-                    );
-                }
-            }
-
-            // 最终更新进度到90%（数据库记录创建完成）
-            $progress = 90;
-            $this->projectForkRepository->updateProgress($forkRecordId, $processedCount, $progress);
-
-            $this->logger->info(sprintf('Fork record %d: Created %d database records, progress: %d%%', $forkRecordId, $processedCount, $progress));
+            // 最终更新进度到90%
+            $this->projectForkRepository->updateProgress($forkRecordId, $processedCount, 90);
+            $this->logger->info(sprintf('Fork record %d: Successfully processed %d/%d files', $forkRecordId, $processedCount, $totalCount));
 
             // 兜底逻辑：修复那些parent_id为null的文件
             if (count($needFixFileIds) > 0) {
@@ -1420,6 +1452,9 @@ class TaskFileDomainService
             $this->logger->error(sprintf('File migration failed for fork record %d: %s', $forkRecordId, $e->getMessage()));
             $this->projectForkRepository->updateStatus($forkRecordId, ForkStatus::FAILED->value, 0, 'File migration failed');
             throw $e;
+        } finally {
+            // 确保用户上下文总是被清理
+            $this->sandboxGateway->clearUserContext();
         }
     }
 
@@ -1986,155 +2021,6 @@ class TaskFileDomainService
                 count($fileIds),
                 $updatedCount
             ));
-        }
-    }
-
-    /**
-     * 异步批量复制文件
-     * 使用沙箱任务API进行文件复制，支持轮询状态直到完成.
-     *
-     * @param TaskFileEntity[] $sourceFiles 源文件数组
-     * @param ProjectEntity $sourceProjectEntity 源项目实体
-     * @param ProjectEntity $forkProjectEntity 目标项目实体
-     * @param ProjectForkEntity $projectForkRecordEntity Fork记录实体
-     * @return bool 复制是否成功
-     * @throws Throwable
-     */
-    private function copyFilesAsync(
-        array $sourceFiles,
-        ProjectEntity $sourceProjectEntity,
-        ProjectEntity $forkProjectEntity,
-        ProjectForkEntity $projectForkRecordEntity
-    ): bool {
-        if (empty($sourceFiles)) {
-            return true;
-        }
-
-        // 构建文件列表（只包含文件路径）
-        $files = [];
-        foreach ($sourceFiles as $sourceFile) {
-            if ($sourceFile->getIsDirectory()) {
-                // 目录需要提前创建好
-                $sourceFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode()), $sourceProjectEntity->getWorkDir());
-                $targetFullWorkDir = WorkDirectoryUtil::getFullWorkdir($this->getFullPrefix($forkProjectEntity->getUserOrganizationCode()), $forkProjectEntity->getWorkDir());
-                $newFileKey = str_replace($sourceFullWorkDir, $targetFullWorkDir, $sourceFile->getFileKey());
-                $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
-                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($forkProjectEntity->getWorkDir()), $forkProjectEntity->getUserOrganizationCode(), $newFileKey, StorageBucketType::SandBox, ['metadata' => $metadata]);
-            } else {
-                $files[] = WorkDirectoryUtil::getRelativeFilePath($sourceFile->getFileKey(), $sourceProjectEntity->getWorkDir());
-            }
-        }
-
-        // 生成任务ID
-        $taskId = (string) $projectForkRecordEntity->getId();
-
-        $this->logger->info('Creating async file copy job', [
-            'task_id' => $taskId,
-            'fork_record_id' => $projectForkRecordEntity->getId(),
-            'source_project_id' => $sourceProjectEntity->getId(),
-            'fork_project_id' => $forkProjectEntity->getId(),
-            'files_count' => count($files),
-        ]);
-
-        try {
-            // 设置用户上下文
-            $this->sandboxGateway->setUserContext(
-                $forkProjectEntity->getUserId(),
-                $forkProjectEntity->getUserOrganizationCode()
-            );
-
-            // 创建文件复制任务
-            $targetFullPrefix = $this->getFullPrefix($projectForkRecordEntity->getUserOrganizationCode());
-            $sourceFullPrefix = $this->getFullPrefix($sourceProjectEntity->getUserOrganizationCode());
-            $createResult = $this->sandboxGateway->createFileCopyJob(
-                $taskId,
-                WorkDirectoryUtil::getFullWorkdir($sourceFullPrefix, $sourceProjectEntity->getWorkDir()),
-                WorkDirectoryUtil::getFullWorkdir($targetFullPrefix, $forkProjectEntity->getWorkDir()),
-                $files
-            );
-
-            if (! $createResult->isSuccess()) {
-                $this->logger->error('Failed to create file copy job', [
-                    'task_id' => $taskId,
-                    'error_code' => $createResult->getCode(),
-                    'error_message' => $createResult->getMessage(),
-                ]);
-                return false;
-            }
-
-            $this->logger->info('File copy job created successfully', [
-                'task_id' => $taskId,
-                'fork_record_id' => $projectForkRecordEntity->getId(),
-            ]);
-
-            // 轮询任务状态
-            $maxRetries = 450; // 15分钟 = 900秒，每2秒一次 = 450次
-            $retryCount = 0;
-            $pollInterval = 2; // 2秒
-
-            while ($retryCount < $maxRetries) {
-                sleep($pollInterval);
-                ++$retryCount;
-
-                $statusResult = $this->sandboxGateway->getFileCopyJobStatus($taskId);
-
-                if (! $statusResult->isSuccess()) {
-                    $this->logger->warning('Failed to get job status, continuing...', [
-                        'task_id' => $taskId,
-                        'retry_count' => $retryCount,
-                        'error_code' => $statusResult->getCode(),
-                        'error_message' => $statusResult->getMessage(),
-                    ]);
-                    continue;
-                }
-
-                $jobStatus = $statusResult->getStatus();
-                $this->logger->debug('Polling job status', [
-                    'task_id' => $taskId,
-                    'status' => $statusResult->getStatusDescription(),
-                    'retry_count' => $retryCount,
-                    'elapsed_time' => $retryCount * $pollInterval . 's',
-                ]);
-
-                // 检查任务是否完成
-                if ($statusResult->isCompleted()) {
-                    if ($statusResult->isJobSucceeded()) {
-                        $this->logger->info('File copy job completed successfully', [
-                            'task_id' => $taskId,
-                            'total_polling_time' => $retryCount * $pollInterval . 's',
-                            'fork_record_id' => $projectForkRecordEntity->getId(),
-                        ]);
-                        return true;
-                    }
-                    $this->logger->error('File copy job failed', [
-                        'task_id' => $taskId,
-                        'error_message' => $statusResult->getErrorMessage(),
-                        'total_polling_time' => $retryCount * $pollInterval . 's',
-                        'fork_record_id' => $projectForkRecordEntity->getId(),
-                    ]);
-                    return false;
-                }
-
-                // 任务仍在进行中，继续轮询
-            }
-
-            // 超时
-            $this->logger->error('File copy job polling timeout', [
-                'task_id' => $taskId,
-                'max_timeout' => $maxRetries * $pollInterval . 's',
-                'fork_record_id' => $projectForkRecordEntity->getId(),
-            ]);
-            return false;
-        } catch (Throwable $e) {
-            $this->logger->error('Exception during async file copy', [
-                'task_id' => $taskId,
-                'exception' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return false;
-        } finally {
-            // 清理用户上下文
-            $this->sandboxGateway->clearUserContext();
         }
     }
 

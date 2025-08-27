@@ -15,6 +15,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
@@ -29,6 +30,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
@@ -42,6 +44,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -58,6 +61,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
+        private readonly LockerInterface $locker,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -200,10 +204,31 @@ class FileManagementAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        // 构建锁名称 - 基于项目ID和相对目录路径
+        $projectId = $requestDTO->getProjectId();
+        $fileKey = $requestDTO->getFileKey();
+
+        // 校验项目归属权限并获取工作目录 - 需要先获取项目信息
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+
+        // 计算相对目录路径（与 findOrCreateDirectoryAndGetParentId 逻辑一致）
+        $relativePath = WorkDirectoryUtil::getRelativeFilePath($fileKey, $projectEntity->getWorkDir());
+        $relativeDirectoryPath = dirname($relativePath);
+
+        $lockName = "file_directory_create:{$projectId}:" . md5($relativeDirectoryPath);
+        $lockOwner = getmypid() . '_' . microtime(true);
+
+        // 获取自旋锁（30秒超时）
+        if (! $this->locker->spinLock($lockName, $lockOwner, 30)) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_SAVE_FAILED,
+                trans('file.directory_creation_locked')
+            );
+        }
+
         Db::beginTransaction();
         try {
-            $projectId = $requestDTO->getProjectId();
-
             if (empty($requestDTO->getFileKey())) {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_key_required'));
             }
@@ -216,9 +241,6 @@ class FileManagementAppService extends AbstractAppService
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_size_required'));
             }*/
 
-            // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
-
             if (empty($requestDTO->getParentId())) {
                 $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
                     projectId: (int) $projectId,
@@ -227,7 +249,7 @@ class FileManagementAppService extends AbstractAppService
                     fullFileKey: $requestDTO->getFileKey(),
                     workDir: $projectEntity->getWorkDir()
                 );
-                $requestDTO->setParentId($parentId);
+                $requestDTO->setParentId((string) $parentId);
             } else {
                 $parentFileEntity = $this->taskFileDomainService->getById((int) $requestDTO->getParentId());
                 if (empty($parentFileEntity) || $parentFileEntity->getProjectId() != (int) $projectId) {
@@ -240,8 +262,8 @@ class FileManagementAppService extends AbstractAppService
 
             // 通过领域服务计算排序值
             $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
-                $requestDTO->getParentId(),
-                $requestDTO->getPreFileId(),
+                ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : null,
+                (int) $requestDTO->getPreFileId(),
                 (int) $requestDTO->getProjectId()
             );
 
@@ -279,6 +301,129 @@ class FileManagementAppService extends AbstractAppService
                 $requestDTO->getFileKey()
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, trans('file.file_save_failed'));
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
+        }
+    }
+
+    /**
+     * 批量保存项目文件（同一目录下）.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param BatchSaveProjectFilesRequestDTO $requestDTO Batch save request DTO
+     * @return array 批量保存结果，返回文件ID数组
+     */
+    public function batchSaveFiles(RequestContext $requestContext, BatchSaveProjectFilesRequestDTO $requestDTO): array
+    {
+        $files = $requestDTO->getFiles();
+
+        if (empty($files)) {
+            return [];
+        }
+
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $projectId = (int) $requestDTO->getProjectId();
+
+        // 项目级别锁
+        $lockName = "batch_save_files:{$projectId}";
+        $lockOwner = $userAuthorization->getId();
+
+        // 获取项目级别的锁（30秒超时）
+        if (! $this->locker->spinLock($lockName, $lockOwner, 30)) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_SAVE_FAILED,
+                trans('file.batch_save_locked')
+            );
+        }
+
+        Db::beginTransaction();
+        try {
+            // 1. 验证项目权限
+            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            }
+
+            // 2. 确定父目录ID
+            $parentIdStr = $requestDTO->getParentId();
+            if (empty($parentIdStr)) {
+                // 使用根目录
+                $parentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    $projectId,
+                    $projectEntity->getWorkDir(),
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+            } else {
+                // 验证指定的parentId是否属于当前项目
+                $parentFileEntity = $this->taskFileDomainService->getById((int) $parentIdStr);
+                if (empty($parentFileEntity) || $parentFileEntity->getProjectId() != $projectId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.parent_not_found'));
+                }
+                $parentId = (int) $parentIdStr; // 转换为int类型
+            }
+
+            // 3. 批量保存文件
+            $savedFileIds = [];
+            foreach ($files as $fileData) {
+                try {
+                    // 基础参数验证
+                    if (empty($fileData['file_key'])) {
+                        throw new InvalidArgumentException('file_key is required');
+                    }
+                    if (empty($fileData['file_name'])) {
+                        throw new InvalidArgumentException('file_name is required');
+                    }
+
+                    // 创建 SaveProjectFileRequestDTO
+                    $fileData['project_id'] = (string) $projectEntity->getId();
+                    $fileData['parent_id'] = (string) $parentId;
+                    $requestDTO = SaveProjectFileRequestDTO::fromRequest($fileData);
+
+                    // 创建文件实体
+                    $taskFileEntity = $requestDTO->toEntity();
+
+                    // 保存文件（不设置排序值）
+                    $savedEntity = $this->taskFileDomainService->saveProjectFile(
+                        $dataIsolation,
+                        $taskFileEntity
+                    );
+
+                    $savedFileIds[] = TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir());
+                } catch (Throwable $e) {
+                    $this->logger->warning(sprintf(
+                        'Single file save failed in batch: %s, File: %s, Error: %s',
+                        $fileData['file_key'] ?? 'unknown',
+                        $fileData['file_name'] ?? 'unknown',
+                        $e->getMessage()
+                    ));
+                    // 单个文件失败不影响其他文件，继续处理下一个
+                }
+            }
+            Db::commit();
+            return $savedFileIds;
+        } catch (BusinessException $e) {
+            Db::rollBack();
+            $this->logger->warning(sprintf(
+                'Business logic error in batch save files: %s, Project ID: %s, Error Code: %d',
+                $e->getMessage(),
+                $projectId,
+                $e->getCode()
+            ));
+            throw $e;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf(
+                'System error in batch save files: %s, Project ID: %s',
+                $e->getMessage(),
+                $projectId
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, trans('file.batch_save_failed'));
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
         }
     }
 
@@ -297,7 +442,7 @@ class FileManagementAppService extends AbstractAppService
         Db::beginTransaction();
         try {
             $projectId = (int) $requestDTO->getProjectId();
-            $parentId = (int) $requestDTO->getParentId();
+            $parentId = ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : 0;
 
             // 校验项目归属权限 - 确保用户只能在自己的项目中创建文件
             $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
@@ -315,7 +460,7 @@ class FileManagementAppService extends AbstractAppService
             // 通过领域服务计算排序值
             $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
                 $parentId === 0 ? null : $parentId,
-                $requestDTO->getPreFileId(),
+                (int) $requestDTO->getPreFileId(),
                 $projectId
             );
 

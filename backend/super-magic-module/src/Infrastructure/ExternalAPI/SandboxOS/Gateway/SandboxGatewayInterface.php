@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\JobResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 
 /**
@@ -96,21 +95,10 @@ interface SandboxGatewayInterface
     public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult;
 
     /**
-     * 创建文件复制任务.
+     * 复制文件（同步操作）.
      *
-     * @param string $taskId 任务ID
-     * @param string $sourceOssProjectPath 源OSS项目路径
-     * @param string $targetOssProjectPath 目标OSS项目路径
-     * @param array $files 文件列表
-     * @return JobResult 创建结果
+     * @param array $files 文件复制项目数组，格式：[['source_oss_path' => 'xxx', 'target_oss_path' => 'xxx'], ...]
+     * @return GatewayResult 复制结果
      */
-    public function createFileCopyJob(string $taskId, string $sourceOssProjectPath, string $targetOssProjectPath, array $files): JobResult;
-
-    /**
-     * 查询文件复制任务状态.
-     *
-     * @param string $taskId 任务ID
-     * @return JobResult 任务状态结果
-     */
-    public function getFileCopyJobStatus(string $taskId): JobResult;
+    public function copyFiles(array $files): GatewayResult;
 }

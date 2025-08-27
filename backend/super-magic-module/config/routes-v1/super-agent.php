@@ -109,6 +109,8 @@ Router::addGroup(
             Router::post('', [FileApi::class, 'createFile']);
             // 保存附件关系
             Router::post('/project/save', [FileApi::class, 'saveProjectFile']);
+            // 批量保存附件关系
+            Router::post('/project/batch-save', [FileApi::class, 'batchSaveProjectFiles']);
             // 保存文件内容
             Router::post('/save', [FileApi::class, 'saveFileContent']);
             // 删除附件
