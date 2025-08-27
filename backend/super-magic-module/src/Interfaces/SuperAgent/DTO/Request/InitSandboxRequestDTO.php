@@ -47,7 +47,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             // 'agent_name' => 'required_if:task_type,agent|string',//如果是agent模式，则需要传入agent_name
             // 'tool_name' => 'required_if:task_type,tool|string',//如果是tool模式，则需要传入tool_name
             // 'custom_name' => 'required_if:task_type,custom|string',//如果是custom模式，则需要传入custom_name
-            // 'model_id' => 'string',//模型ID
+            'model_id' => 'string', // 模型ID
             'workspace_id' => 'string', // 工作区ID
             'project_id' => 'string', // 项目ID
             'project_mode' => 'string', // 项目模式
@@ -64,7 +64,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             // 'agent_name.required_if' => 'agent名称不能为空',
             // 'tool_name.required_if' => 'tool名称不能为空',
             // 'custom_name.required_if' => 'custom名称不能为空',
-            // 'model_id.string' => '模型ID不能为空',
+            'model_id.string' => '模型ID不能为空',
             'workspace_id.integer' => '工作区ID不能为空',
             'project_id.integer' => '项目ID不能为空',
             'project_mode.string' => '项目模式不能为空',

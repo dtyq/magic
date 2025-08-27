@@ -45,7 +45,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             'user_id' => $request->getUserId(),
             'task_mode' => $request->getTaskMode(),
             'agent_mode' => $request->getAgentMode(),
-            'data' => $request->toArray(),
+            'model_id' => $request->getModelId(),
         ]);
 
         try {
@@ -98,6 +98,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             'user_id' => $request->getUserId(),
             'task_id' => $request->getTaskId(),
             'prompt_length' => strlen($request->getPrompt()),
+            'model_id' => $request->getModelId(),
         ]);
 
         try {
