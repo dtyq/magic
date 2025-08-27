@@ -71,10 +71,11 @@ class MagicIntermediateMessageAppService extends AbstractAppService
                 'topic_id' => $messageDTO->getTopicId(),
                 'language' => $chatRequest->getContext()->getLanguage(),
             ]));
-            $seqEntity->setOrganizationCode($chatRequest->getContext()->getOrganizationCode());
-            $seqEntity->setCreatedAt($messageDTO->getCreatedAt());
             $pushData = $seqEntity->toArray();
             $pushData = array_filter($pushData);
+            if (isset($pushData['extra'])) {
+                $pushData['extra'] = array_filter($pushData['extra']);
+            }
             SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
             return null;
         }
