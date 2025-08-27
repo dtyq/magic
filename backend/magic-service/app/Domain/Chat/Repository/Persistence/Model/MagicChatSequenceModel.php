@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Repository\Persistence\Model;
 
+use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\DbConnection\Model\Model;
 
 /**
@@ -28,9 +29,12 @@ use Hyperf\DbConnection\Model\Model;
  * @property string $created_at
  * @property string $updated_at
  * @property string $app_message_id
+ * @property string $deleted_at
  */
 class MagicChatSequenceModel extends Model
 {
+    use SoftDeletes;
+
     /**
      * The table associated with the model.
      */
@@ -63,6 +67,7 @@ class MagicChatSequenceModel extends Model
         'created_at',
         'updated_at',
         'app_message_id',
+        'deleted_at',
     ];
 
     /**
