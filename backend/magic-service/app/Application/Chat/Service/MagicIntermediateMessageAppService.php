@@ -37,6 +37,7 @@ class MagicIntermediateMessageAppService extends AbstractAppService
     public function __construct(
         protected readonly MagicIntermediateDomainService $magicIntermediateDomainService,
         protected readonly MagicChatDomainService $magicChatDomainService,
+        protected int $count = 0,
     ) {
     }
 
@@ -103,7 +104,7 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         $seqEntity->setExtra(new SeqExtra(['topic_id' => $messageDTO->getTopicId()]));
         $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
         $clientSeqStruct = SeqAssembler::getClientSeqStruct($seqEntity, $messageEntity);
-        $pushData = $clientSeqStruct->toArray(true);
+        $pushData = $clientSeqStruct->toArray();
         SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
     }
 }
