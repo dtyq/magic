@@ -27,6 +27,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\Guard\WebsocketChatUserGuard;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
@@ -264,6 +265,13 @@ class MagicChatWebSocketApi extends BaseNamespace
     public function onIntermediateMessage(Socket $socket, array $params)
     {
         try {
+            // 查看是否混淆
+            $isConfusion = $params['obfuscated'] ?? false;
+            if ($isConfusion) {
+                $rawData = ShadowCode::unShadow($params['shadow'] ?? '');
+                $params = json_decode($rawData, true);
+            }
+
             $appendRules = [
                 'data.conversation_id' => 'required|string',
                 'data.refer_message_id' => 'string',
