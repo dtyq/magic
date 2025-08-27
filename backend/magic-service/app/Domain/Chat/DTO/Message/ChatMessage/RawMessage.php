@@ -19,7 +19,7 @@ class RawMessage extends MagicMessageStruct implements StreamMessageInterface
 {
     use StreamMessageTrait;
 
-    protected array $raw = [];
+    protected array $rawData = [];
 
     protected function setMessageType(): void
     {
