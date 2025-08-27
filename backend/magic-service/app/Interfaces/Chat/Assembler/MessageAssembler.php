@@ -217,7 +217,7 @@ class MessageAssembler
             ChatMessageType::Voice => new VoiceMessage($messageStructArray),
             ChatMessageType::SuperAgentCard => make(SuperAgentMessageInterface::class, ['messageStruct' => $messageStructArray]),
             ChatMessageType::TextForm => new TextFormMessage($messageStructArray),
-            ChatMessageType::Raw => new RawMessage(['raw' => $messageStructArray]),
+            ChatMessageType::Raw => new RawMessage($messageStructArray),
             default => new UnknowChatMessage()
         };
     }

@@ -7,9 +7,12 @@ declare(strict_types=1);
 
 namespace App\Application\Chat\Service;
 
+use App\Domain\Chat\DTO\MagicMessageDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\RawMessage;
 use App\Domain\Chat\DTO\Request\ChatRequest;
+use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicConversationEntity;
+use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -23,6 +26,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
+use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Throwable;
 
 /**
@@ -59,6 +63,7 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         $messageContent = $messageDTO->getContent();
         if ($messageContent instanceof RawMessage) {
             $this->handleRawMessage($messageDTO, $conversationEntity, $chatRequest);
+            return null;
         }
 
         match ($messageDTO->getMessageType()) {
@@ -84,16 +89,21 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         }
     }
 
-    private function handleRawMessage($messageDTO, $conversationEntity, $chatRequest): void
+    private function handleRawMessage(MagicMessageDTO $messageDTO, MagicConversationEntity $conversationEntity, ChatRequest $chatRequest): void
     {
         $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
+
+        $messageEntity = new MagicMessageEntity();
+        $messageEntity->setMessageType(ChatMessageType::Raw);
+        $messageEntity->setContent($messageDTO->getContent());
         $seqEntity = new MagicSeqEntity();
         $seqEntity->setSeqType(ChatMessageType::Raw);
         $seqEntity->setContent($messageDTO->getContent());
         $seqEntity->setConversationId($chatRequest->getData()->getConversationId());
+        $seqEntity->setExtra(new SeqExtra(['topic_id' => $messageDTO->getTopicId()]));
         $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
-        $pushData = $seqEntity->toArray();
-        $pushData = array_filter($pushData);
+        $clientSeqStruct = SeqAssembler::getClientSeqStruct($seqEntity, $messageEntity);
+        $pushData = $clientSeqStruct->toArray(true);
         SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
     }
 }
