@@ -19,12 +19,14 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackCheckRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackStartRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackCheckResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
 use Exception;
@@ -346,5 +348,51 @@ class TopicApi extends AbstractApi
         $this->agentAppService->rollbackCheckpointUndo($dataIsolation, (int) $topicId);
 
         return [];
+    }
+
+    /**
+     * 检查回滚沙箱到指定checkpoint的可行性.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 话题ID
+     * @return array 检查结果
+     */
+    #[ApiResponse('low_code')]
+    public function rollbackCheckpointCheck(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = CheckpointRollbackCheckRequestDTO::fromRequest($this->request);
+
+        $topicId = $id;
+        $targetMessageId = $requestDTO->getTargetMessageId();
+
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        if (empty($targetMessageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'target_message_id is required');
+        }
+
+        $authorization = $this->getAuthorization();
+
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId((string) $authorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+        $dataIsolation->setLanguage(CoContext::getLanguage());
+
+        $result = $this->agentAppService->rollbackCheckpointCheck($dataIsolation, (int) $topicId, $targetMessageId);
+
+        if (! $result->isSuccess()) {
+            ExceptionBuilder::throw(AgentErrorCode::SANDBOX_NOT_FOUND, $result->getMessage());
+        }
+
+        $responseDTO = new CheckpointRollbackCheckResponseDTO();
+        $responseDTO->setCanRollback((bool) $result->getDataValue('can_rollback', false));
+
+        return $responseDTO->toArray();
     }
 }
