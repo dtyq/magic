@@ -510,6 +510,7 @@ class AgentDomainService
             'memory' => $memory,
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
+            'model_id' => $taskContext->getModelId(),
         ];
     }
 
