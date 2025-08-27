@@ -457,6 +457,64 @@ class AgentAppService
     }
 
     /**
+     * 检查回滚到指定checkpoint的可行性.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID
+     * @param string $targetMessageId 目标消息ID
+     * @return AgentResponse 检查结果响应
+     */
+    public function rollbackCheckpointCheck(DataIsolation $dataIsolation, int $topicId, string $targetMessageId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][App] Rollback checkpoint check requested', [
+            'topic_id' => $topicId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        // 验证话题存在且属于当前用户
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (is_null($topicEntity)) {
+            $this->logger->error('[Sandbox][App] Topic not found for rollback check', [
+                'topic_id' => $topicId,
+                'user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+            throw new BusinessException('Topic not found for ID: ' . $topicId);
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            $this->logger->error('[Sandbox][App] Access denied for topic rollback check', [
+                'topic_id' => $topicId,
+                'topic_user_id' => $topicEntity->getUserId(),
+                'current_user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+            throw new BusinessException('Access denied for topic ID: ' . $topicId);
+        }
+
+        // 确保沙箱已初始化并获取沙箱ID
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+
+        // 调用领域服务检查回滚可行性
+        $response = $this->agentDomainService->rollbackCheckpointCheck($sandboxId, $targetMessageId);
+
+        // 记录检查结果
+        if ($response->isSuccess()) {
+            $this->logger->info('[Sandbox][App] Checkpoint rollback check completed successfully', [
+                'topic_id' => $topicId,
+                'target_message_id' => $targetMessageId,
+                'can_rollback' => $response->getDataValue('can_rollback'),
+            ]);
+        } else {
+            $this->logger->warning('[Sandbox][App] Checkpoint rollback check failed', [
+                'topic_id' => $topicId,
+                'target_message_id' => $targetMessageId,
+                'error' => $response->getMessage(),
+            ]);
+        }
+
+        return $response;
+    }
+
+    /**
      * 创建并初始化沙箱.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
