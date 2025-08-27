@@ -207,10 +207,7 @@ class FileManagementAppService extends AbstractAppService
         $fileKey = $requestDTO->getFileKey();
 
         // 校验项目归属权限并获取工作目录 - 需要先获取项目信息
-        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $dataIsolation->getCurrentUserId());
-        if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-        }
+        $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $userAuthorization->getOrganizationCode());
 
         // 计算相对目录路径（与 findOrCreateDirectoryAndGetParentId 逻辑一致）
         $relativePath = WorkDirectoryUtil::getRelativeFilePath($fileKey, $projectEntity->getWorkDir());
@@ -344,10 +341,7 @@ class FileManagementAppService extends AbstractAppService
         Db::beginTransaction();
         try {
             // 1. 验证项目权限
-            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
-            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-            }
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $userAuthorization->getOrganizationCode());
 
             // 2. 确定父目录ID
             $parentIdStr = $requestDTO->getParentId();
