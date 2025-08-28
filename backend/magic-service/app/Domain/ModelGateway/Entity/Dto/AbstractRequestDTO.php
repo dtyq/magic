@@ -134,18 +134,28 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     private function formatHeaderBusinessParams(array $headerConfigs): void
     {
-        // 处理非magic开头的特殊参数
-        if (isset($headerConfigs['business_id'])) {
-            $this->businessParams['business_id'] = $headerConfigs['business_id'];
-        }
+          // 需要显式映射的键
+            $explicitMap = [
+                'magic-organization-id'   => 'organization_id',
+                'magic-organization-code' => 'organization_id',
+                'magic-user-id'           => 'user_id',
+                'business_id'             => 'business_id',
+                'magic-topic-id'          => 'magic_topic_id',
+                'magic-task-id'           => 'magic_task_id',
+            ];
 
-        // 通用处理所有magic开头的headerConfigs
-        foreach ($headerConfigs as $key => $value) {
-            if (str_starts_with($key, 'magic-')) {
-                // 去掉 "magic-" 前缀，并将中划线转换为下划线
-                $businessKey = str_replace('-', '_', substr($key, 6)); // 6 是 "magic-" 的长度
-                $this->businessParams[$businessKey] = $value;
+            foreach ($explicitMap as $headerKey => $paramKey) {
+                if (isset($headerConfigs[$headerKey])) {
+                    $this->businessParams[$paramKey] = $headerConfigs[$headerKey];
+                }
             }
-        }
+
+            // 其余 magic- 开头的统一处理，跳过已显式处理的键
+            foreach ($headerConfigs as $key => $value) {
+                if (str_starts_with($key, 'magic-') && !array_key_exists($key, $explicitMap)) {
+                    $businessKey = str_replace('-', '_', substr($key, 6));
+                    $this->businessParams[$businessKey] = $value;
+                }
+            }
     }
 }
