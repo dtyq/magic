@@ -23,7 +23,6 @@ class ModeGroupFactory
         $entity->setModeId((string) $model->mode_id);
         $entity->setNameI18n($model->name_i18n);
         $entity->setIcon($model->icon);
-        $entity->setColor($model->color);
         $entity->setDescription($model->description);
         $entity->setSort($model->sort);
         $entity->setStatus((bool) $model->status);

@@ -19,8 +19,6 @@ class ModeGroupEntity extends AbstractEntity
 
     protected string $icon = '';
 
-    protected string $color = '';
-
     protected string $description = '';
 
     protected int $sort = 0;
@@ -87,16 +85,6 @@ class ModeGroupEntity extends AbstractEntity
     public function setIcon(string $icon): void
     {
         $this->icon = $icon;
-    }
-
-    public function getColor(): string
-    {
-        return $this->color;
-    }
-
-    public function setColor(string $color): void
-    {
-        $this->color = $color;
     }
 
     public function getDescription(): string

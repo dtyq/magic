@@ -81,16 +81,12 @@ class AdminModeAssembler
 
         $models = [];
         foreach ($groupAggregate->getRelations() as $relation) {
-            $modelDTO = new ModeGroupModelDTO();
-            $modelDTO->setId($relation->getId());
-            $modelDTO->setGroupId($relation->getGroupId());
-            $modelDTO->setModelId((string) $relation->getModelId());
-            $modelDTO->setSort($relation->getSort());
+            $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
             // 如果提供了模型信息，则填充模型名称和图标
-            $modelId = (string) $relation->getModelId();
-            if (isset($providerModels[$modelId])) {
-                $providerModel = $providerModels[$modelId];
+            $providerModelId = $relation->getProviderModelId();
+            if (isset($providerModels[$providerModelId])) {
+                $providerModel = $providerModels[$providerModelId];
                 $modelDTO->setModelName($providerModel->getName());
                 $modelDTO->setModelIcon($providerModel->getIcon());
             }
@@ -150,27 +146,26 @@ class AdminModeAssembler
     /**
      * ModeGroupAggregateDTO转换为ModeGroupAggregate实体.
      */
-    public static function groupAggregateDTOToEntity(AdminModeGroupAggregateDTO $dto): AdminModeGroupAggregateDTO
+    public static function groupAggregateDTOToEntity(AdminModeGroupAggregateDTO $dto): ModeGroupAggregate
     {
         $group = self::groupDTOToEntity($dto->getGroup());
         $relations = [];
-        foreach ($dto->getModels() as $index => $modelId) {
-            $relation = new ModeGroupRelationEntity();
+        foreach ($dto->getModels() as $model) {
+            $relation = new ModeGroupRelationEntity($model);
             $relation->setModeId($group->getModeId());
             $relation->setGroupId($group->getId());
-            $relation->setSort($index);
             $relations[] = $relation;
         }
 
-        return new AdminModeGroupAggregateDTO($group, $relations);
+        return new ModeGroupAggregate($group, $relations);
     }
 
     /**
      * ModeGroupDTO转换为ModeGroupEntity实体.
      */
-    public static function groupDTOToEntity(AdminModeGroupDTO $dto): AdminModeGroupDTO
+    public static function groupDTOToEntity(AdminModeGroupDTO $dto): ModeGroupEntity
     {
-        return new AdminModeGroupDTO($dto->toArray());
+        return new ModeGroupEntity($dto->toArray());
     }
 
     /**

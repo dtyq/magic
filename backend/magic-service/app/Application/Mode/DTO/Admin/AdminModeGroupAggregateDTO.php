@@ -19,9 +19,11 @@ class AdminModeGroupAggregateDTO extends AbstractDTO
      */
     protected array $models = [];
 
-    public function __construct(?AdminModeGroupDTO $group = null, array $models = [])
+    public function __construct(null|AdminModeGroupDTO|array $group = null, array $models = [])
     {
-        $this->group = $group;
+        if (! is_null($group)) {
+            $this->group = $group instanceof AdminModeGroupDTO ? $group : new AdminModeGroupDTO($group);
+        }
         $this->models = $models;
     }
 
@@ -36,7 +38,7 @@ class AdminModeGroupAggregateDTO extends AbstractDTO
     }
 
     /**
-     * @return ModeGroupModelDTO[]
+     * @return array[]|ModeGroupModelDTO[]
      */
     public function getModels(): array
     {

@@ -15,9 +15,11 @@ class ModeGroupRelationEntity extends AbstractEntity
 
     protected int $modeId = 0;
 
+    protected int $providerModelId = 0;
+
     protected int $groupId = 0;
 
-    protected int $modelId = 0;
+    protected string $modelId = '';
 
     protected int $sort = 0;
 
@@ -60,14 +62,14 @@ class ModeGroupRelationEntity extends AbstractEntity
         return $this;
     }
 
-    public function getModelId(): int
+    public function getModelId(): string
     {
         return $this->modelId;
     }
 
-    public function setModelId(int|string $modelId): self
+    public function setModelId(string $modelId): self
     {
-        $this->modelId = (int) $modelId;
+        $this->modelId = $modelId;
         return $this;
     }
 
@@ -109,5 +111,15 @@ class ModeGroupRelationEntity extends AbstractEntity
     public function setUpdatedAt(?string $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function getProviderModelId(): int
+    {
+        return $this->providerModelId;
+    }
+
+    public function setProviderModelId(int|string $providerModelId): void
+    {
+        $this->providerModelId = (int) $providerModelId;
     }
 }

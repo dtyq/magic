@@ -147,11 +147,11 @@ class AdminModeAppService extends AbstractModeAppService
             // 将DTO转换为领域对象
             $modeAggregateEntity = AdminModeAssembler::aggregateDTOToEntity($modeAggregateDTO);
 
-            $modeAggregate = $this->modeDomainService->saveModeConfig($dataIsolation, $modeAggregateEntity);
+            $this->modeDomainService->saveModeConfig($dataIsolation, $modeAggregateEntity);
 
             Db::commit();
 
-            return AdminModeAssembler::aggregateToAdminDTO($modeAggregate);
+            return $this->getModeById($authorization, $modeAggregateDTO->getMode()->getId());
         } catch (Exception $exception) {
             $this->logger->warning('Save mode config failed: ' . $exception->getMessage());
             Db::rollBack();
