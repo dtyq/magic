@@ -252,5 +252,4 @@ interface TaskFileRepositoryInterface
     public function lockDirectChildrenForUpdate(int $parentId): array;
 
     public function getAllChildrenByParentId(int $parentId): array;
-
 }
