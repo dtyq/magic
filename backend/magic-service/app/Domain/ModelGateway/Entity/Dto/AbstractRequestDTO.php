@@ -134,28 +134,28 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     private function formatHeaderBusinessParams(array $headerConfigs): void
     {
-          // 需要显式映射的键
-            $explicitMap = [
-                'magic-organization-id'   => 'organization_id',
-                'magic-organization-code' => 'organization_id',
-                'magic-user-id'           => 'user_id',
-                'business_id'             => 'business_id',
-                'magic-topic-id'          => 'magic_topic_id',
-                'magic-task-id'           => 'magic_task_id',
-            ];
+        // 需要显式映射的键
+        $explicitMap = [
+            'magic-organization-id' => 'organization_id',
+            'magic-organization-code' => 'organization_id',
+            'magic-user-id' => 'user_id',
+            'business_id' => 'business_id',
+            'magic-topic-id' => 'magic_topic_id',
+            'magic-task-id' => 'magic_task_id',
+        ];
 
-            foreach ($explicitMap as $headerKey => $paramKey) {
-                if (isset($headerConfigs[$headerKey])) {
-                    $this->businessParams[$paramKey] = $headerConfigs[$headerKey];
-                }
+        foreach ($explicitMap as $headerKey => $paramKey) {
+            if (isset($headerConfigs[$headerKey])) {
+                $this->businessParams[$paramKey] = $headerConfigs[$headerKey];
             }
+        }
 
-            // 其余 magic- 开头的统一处理，跳过已显式处理的键
-            foreach ($headerConfigs as $key => $value) {
-                if (str_starts_with($key, 'magic-') && !array_key_exists($key, $explicitMap)) {
-                    $businessKey = str_replace('-', '_', substr($key, 6));
-                    $this->businessParams[$businessKey] = $value;
-                }
+        // 其余 magic- 开头的统一处理，跳过已显式处理的键
+        foreach ($headerConfigs as $key => $value) {
+            if (str_starts_with($key, 'magic-') && ! array_key_exists($key, $explicitMap)) {
+                $businessKey = str_replace('-', '_', substr($key, 6));
+                $this->businessParams[$businessKey] = $value;
             }
+        }
     }
 }
