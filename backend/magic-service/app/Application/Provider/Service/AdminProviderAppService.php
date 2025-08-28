@@ -21,6 +21,7 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
@@ -333,13 +334,13 @@ readonly class AdminProviderAppService
      * 获取官方组织下的所有可用模型.
      * @return ProviderModelEntity[]
      */
-    public function getModelsForOrganization(MagicUserAuthorization $authorization, Category $category, ?Status $status = Status::Enabled): array
+    public function queriesModels(MagicUserAuthorization $authorization, ProviderModelQuery $providerModelQuery): array
     {
         $dataIsolation = ProviderDataIsolation::create(
             $authorization->getOrganizationCode(),
             $authorization->getId(),
         );
-        return $this->adminProviderDomainService->getModelsForOrganization($dataIsolation, $category, $status);
+        return $this->adminProviderDomainService->queriesModels($dataIsolation, $providerModelQuery);
     }
 
     /**
