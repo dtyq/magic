@@ -481,6 +481,19 @@ class MySQLLongTermMemoryRepository implements LongTermMemoryRepositoryInterface
     }
 
     /**
+     * 根据项目ID删除记忆.
+     */
+    public function deleteByProjectId(string $orgId, string $appId, string $userId, string $projectId): int
+    {
+        return $this->query()
+            ->where('org_id', $orgId)
+            ->where('app_id', $appId)
+            ->where('user_id', $userId)
+            ->where('project_id', $projectId)
+            ->delete();
+    }
+
+    /**
      * 软删除记忆.
      */
     public function softDelete(string $id): bool

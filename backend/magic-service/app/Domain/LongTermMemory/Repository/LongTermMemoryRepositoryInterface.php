@@ -157,4 +157,14 @@ interface LongTermMemoryRepositoryInterface
      * @return int 记忆数量
      */
     public function getEnabledMemoryCountByCategory(string $orgId, string $appId, string $userId, MemoryCategory $category): int;
+
+    /**
+     * 根据项目ID删除记忆.
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @param string $projectId 项目ID
+     * @return int 删除的记录数量
+     */
+    public function deleteByProjectId(string $orgId, string $appId, string $userId, string $projectId): int;
 }

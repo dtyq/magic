@@ -8,12 +8,14 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -48,6 +50,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Hyperf\Amqp\Producer;
+use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -71,6 +74,7 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -207,6 +211,7 @@ class ProjectAppService extends AbstractAppService
     /**
      * 删除项目.
      */
+    #[Transactional]
     public function deleteProject(RequestContext $requestContext, int $projectId): bool
     {
         // Get user authorization information
@@ -216,7 +221,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         $result = Db::transaction(function () use ($projectId, $dataIsolation) {
-            // 删除话题
+            // 删除项目
             $result = $this->projectDomainService->deleteProject($projectId, $dataIsolation->getCurrentUserId());
 
             // 删除项目协作关系
@@ -225,6 +230,14 @@ class ProjectAppService extends AbstractAppService
         });
 
         if ($result) {
+            // 删除项目相关的长期记忆
+            $this->longTermMemoryDomainService->deleteMemoriesByProjectId(
+                $dataIsolation->getCurrentOrganizationCode(),
+                AgentConstant::SUPER_MAGIC_CODE, // app_id 固定为 super-magic
+                $dataIsolation->getCurrentUserId(),
+                (string) $projectId
+            );
+
             $this->topicDomainService->deleteTopicsByProjectId($dataIsolation, $projectId);
             $event = new StopRunningTaskEvent(
                 DeleteDataType::PROJECT,

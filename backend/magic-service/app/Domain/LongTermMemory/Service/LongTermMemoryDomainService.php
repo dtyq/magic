@@ -363,6 +363,19 @@ readonly class LongTermMemoryDomainService
     }
 
     /**
+     * 根据项目ID删除记忆.
+     * @param string $orgId 组织ID
+     * @param string $appId 应用ID
+     * @param string $userId 用户ID
+     * @param string $projectId 项目ID
+     * @return int 删除的记录数量
+     */
+    public function deleteMemoriesByProjectId(string $orgId, string $appId, string $userId, string $projectId): int
+    {
+        return $this->repository->deleteByProjectId($orgId, $appId, $userId, $projectId);
+    }
+
+    /**
      * 获取用户的有效记忆并构建提示词字符串.
      */
     public function getEffectiveMemoriesForPrompt(string $orgId, string $appId, string $userId, ?string $projectId, int $maxLength = 4000): string
