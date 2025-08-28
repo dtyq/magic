@@ -111,4 +111,7 @@ enum EventErrorCode: int
 
     #[ErrorMessage('event.task.stop')]
     case EVENT_TASK_STOP = 6605;
+
+    #[ErrorMessage('event.credit.insufficient_limit')]
+    case EVENT_CREDIT_INSUFFICIENT_LIMIT = 6606;
 }

@@ -26,7 +26,7 @@ class AbstractAppService extends AbstractKernelAppService
      *
      * @return ProjectEntity 项目实体
      */
-    protected function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
+    public function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
     {
         $projectDomainService = di(ProjectDomainService::class);
         $projectMemberService = di(ProjectMemberDomainService::class);
