@@ -79,7 +79,7 @@ class HandleApiMessageAppService extends AbstractAppService
             $topicId = $topicEntity->getId();
 
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage());
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -185,7 +185,7 @@ class HandleApiMessageAppService extends AbstractAppService
             $topicId = $topicEntity->getId();
 
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage());
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -302,7 +302,7 @@ class HandleApiMessageAppService extends AbstractAppService
     /**
      * Pre-task detection.
      */
-    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
+    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language): void
     {
         // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
@@ -313,7 +313,7 @@ class HandleApiMessageAppService extends AbstractAppService
         foreach ($departmentUserEntities as $departmentUserEntity) {
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language));
         $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
