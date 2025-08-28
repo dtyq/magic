@@ -134,23 +134,23 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     private function formatHeaderBusinessParams(array $headerConfigs): void
     {
-        if (isset($headerConfigs['magic-organization-id'])) {
-            $this->businessParams['organization_id'] = $headerConfigs['magic-organization-id'];
+        // 需要显式映射的键
+        $explicitMap = [
+            'magic-organization-id' => 'organization_id',
+            'magic-organization-code' => 'organization_id',
+            'magic-user-id' => 'user_id',
+            'business_id' => 'business_id',
+            'magic-topic-id' => 'magic_topic_id',
+            'magic-task-id' => 'magic_task_id',
+        ];
+
+        foreach ($explicitMap as $headerKey => $paramKey) {
+            if (isset($headerConfigs[$headerKey])) {
+                $this->businessParams[$paramKey] = $headerConfigs[$headerKey];
+            }
         }
-        if (isset($headerConfigs['magic-organization-code'])) {
-            $this->businessParams['organization_id'] = $headerConfigs['magic-organization-code'];
-        }
-        if (isset($headerConfigs['magic-user-id'])) {
-            $this->businessParams['user_id'] = $headerConfigs['magic-user-id'];
-        }
-        if (isset($headerConfigs['business_id'])) {
-            $this->businessParams['business_id'] = $headerConfigs['business_id'];
-        }
-        if (isset($headerConfigs['magic-topic-id'])) {
-            $this->businessParams['magic_topic_id'] = $headerConfigs['magic-topic-id'];
-        }
-        if (isset($headerConfigs['magic-task-id'])) {
-            $this->businessParams['magic_task_id'] = $headerConfigs['magic-task-id'];
+        if (isset($headerConfigs['magic-language'])) {
+            $this->businessParams['language'] = $headerConfigs['magic-language'];
         }
     }
 }

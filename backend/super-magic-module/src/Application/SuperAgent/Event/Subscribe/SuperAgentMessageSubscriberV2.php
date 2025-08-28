@@ -76,6 +76,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
             $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
             $mentions = $superAgentExtra?->getMentionsJsonStruct();
+            $queueId = $superAgentExtra?->getQueueId() ?? '';
             // Extract necessary information
             $conversationId = $userCallAgentEvent->seqEntity->getConversationId() ?? '';
             $chatTopicId = $userCallAgentEvent->seqEntity->getExtra()?->getTopicId() ?? '';
@@ -145,6 +146,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 language: $language,
                 messageId: $messageId,
                 messageSeqId: $messageSeqId,
+                queueId: $queueId,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {
@@ -153,7 +155,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 $this->handleUserMessageAppService->handleChatMessage($dataIsolation, $userMessageDTO);
             }
             $this->logger->info('Super agent message processing completed');
-
             return;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
@@ -164,7 +165,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 $e->getTraceAsString()
             ));
-
             return; // Acknowledge message even on error to avoid message accumulation
         }
     }

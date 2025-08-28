@@ -226,7 +226,7 @@ class MessageQueueAppService extends AbstractAppService
         $list = [];
         foreach ($result['list'] as $messageEntity) {
             $list[] = [
-                'queue_id' => $messageEntity->getId(),
+                'queue_id' => (string) $messageEntity->getId(),
                 'message_content' => $messageEntity->getMessageContent(),
                 'status' => $messageEntity->getStatus()->value,
                 'execute_time' => $messageEntity->getExecuteTime(),
