@@ -86,7 +86,22 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         try {
             $embeddingModel = di(ModelGatewayMapper::class)->getEmbeddingModelProxy($magicFlowKnowledgeEntity->getModel(), $dataIsolation->getCurrentOrganizationCode());
             $modelName = $embeddingModel->getModelName();
-            $embeddingResult = $embeddingModel->embedding('test', businessParams: ['organization_id' => $dataIsolation->getCurrentOrganizationCode(), 'user_id' => $dataIsolation->getCurrentUserId()]);
+            $embeddingResult = $embeddingModel->embedding(
+                'test.' . uniqid(),
+                businessParams: [
+                    'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
+                    'user_id' => $dataIsolation->getCurrentUserId(),
+                    'business_id' => $magicFlowKnowledgeEntity->getCode(),
+                    'source_id' => 'knowledge_embedding_test',
+                    'knowledge_info' => [
+                        'id' => $magicFlowKnowledgeEntity->getId(),
+                        'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                        'code' => $magicFlowKnowledgeEntity->getCode(),
+                        'name' => $magicFlowKnowledgeEntity->getName(),
+                        'business_id' => $magicFlowKnowledgeEntity->getBusinessId(),
+                    ],
+                ]
+            );
             if (count($embeddingResult->getEmbeddings()) !== $embeddingModel->getVectorSize()) {
                 ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.model.vector_size_not_match', ['model_name' => $modelName]);
             }
