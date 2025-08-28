@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.5",
+            "version": "3.356.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "5872ccb5100c4afb0dae3db0bd46636f63ae8147"
+                "reference": "079d1936bef94cb7d76113b62e993f2996db6e24"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/5872ccb5100c4afb0dae3db0bd46636f63ae8147",
-                "reference": "5872ccb5100c4afb0dae3db0bd46636f63ae8147",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/079d1936bef94cb7d76113b62e993f2996db6e24",
+                "reference": "079d1936bef94cb7d76113b62e993f2996db6e24",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.5"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.6"
             },
-            "time": "2025-08-26T18:05:04+00:00"
+            "time": "2025-08-27T18:06:10+00:00"
         },
         {
             "name": "brick/math",
@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "1c9967a3b4b8a0702547494c5ecd51c028c03673"
+                "reference": "e0ae34a5b252101ee1515ce28e473f2612bce467"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=1c9967a3b4b8a0702547494c5ecd51c028c03673",
-                "reference": "1c9967a3b4b8a0702547494c5ecd51c028c03673",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e0ae34a5b252101ee1515ce28e473f2612bce467",
+                "reference": "e0ae34a5b252101ee1515ce28e473f2612bce467",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-27T09:01:38+00:00"
+            "time": "2025-08-28T03:48:26+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "aa02c73134761fc8bf2200f2108af3cd50204dd5"
+                "reference": "e8869b59754ddf7ce7f9d25dcc22c0fd05b83fde"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=aa02c73134761fc8bf2200f2108af3cd50204dd5",
-                "reference": "aa02c73134761fc8bf2200f2108af3cd50204dd5",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e8869b59754ddf7ce7f9d25dcc22c0fd05b83fde",
+                "reference": "e8869b59754ddf7ce7f9d25dcc22c0fd05b83fde",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-27T08:36:48+00:00"
+            "time": "2025-08-28T03:41:31+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "3c5132f0dbf906a3ba463720d5c6c8c4bac27780"
+                "reference": "a515c4878c541b4cd844747d0b0d16000c6158ab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=3c5132f0dbf906a3ba463720d5c6c8c4bac27780",
-                "reference": "3c5132f0dbf906a3ba463720d5c6c8c4bac27780",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=a515c4878c541b4cd844747d0b0d16000c6158ab",
+                "reference": "a515c4878c541b4cd844747d0b0d16000c6158ab",
                 "shasum": ""
             },
             "require": {
@@ -2671,7 +2671,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-27T18:11:24+08:00"
+            "time": "2025-08-28T11:21:57+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -12000,16 +12000,16 @@
         },
         {
             "name": "stripe/stripe-php",
-            "version": "v17.5.0",
+            "version": "v17.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/stripe/stripe-php.git",
-                "reference": "313c7e3ed6af1d6948dc4262d2b9c6ee6b30394b"
+                "reference": "a6219df5df1324a0d3f1da25fb5e4b8a3307ea16"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/313c7e3ed6af1d6948dc4262d2b9c6ee6b30394b",
-                "reference": "313c7e3ed6af1d6948dc4262d2b9c6ee6b30394b",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/a6219df5df1324a0d3f1da25fb5e4b8a3307ea16",
+                "reference": "a6219df5df1324a0d3f1da25fb5e4b8a3307ea16",
                 "shasum": ""
             },
             "require": {
@@ -12053,9 +12053,9 @@
             ],
             "support": {
                 "issues": "https://github.com/stripe/stripe-php/issues",
-                "source": "https://github.com/stripe/stripe-php/tree/v17.5.0"
+                "source": "https://github.com/stripe/stripe-php/tree/v17.6.0"
             },
-            "time": "2025-07-30T17:16:57+00:00"
+            "time": "2025-08-27T19:32:42+00:00"
         },
         {
             "name": "swow/swow",
@@ -17265,12 +17265,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "e3577178d2d0ae7fe287bd4d5d5950b7476e9aed"
+                "reference": "fe7cf2ade04d914eeeda3a23af28c5886be3016f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e3577178d2d0ae7fe287bd4d5d5950b7476e9aed",
-                "reference": "e3577178d2d0ae7fe287bd4d5d5950b7476e9aed",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/fe7cf2ade04d914eeeda3a23af28c5886be3016f",
+                "reference": "fe7cf2ade04d914eeeda3a23af28c5886be3016f",
                 "shasum": ""
             },
             "conflict": {
@@ -17946,6 +17946,7 @@
                 "snipe/snipe-it": "<8.1",
                 "socalnick/scn-social-auth": "<1.15.2",
                 "socialiteproviders/steam": "<1.1",
+                "solspace/craft-freeform": ">=5,<5.10.16",
                 "soosyze/soosyze": "<=2",
                 "spatie/browsershot": "<5.0.5",
                 "spatie/image-optimizer": "<1.7.3",
@@ -18221,7 +18222,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-26T23:05:13+00:00"
+            "time": "2025-08-27T19:04:58+00:00"
         },
         {
             "name": "sebastian/cli-parser",
