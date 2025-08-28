@@ -175,9 +175,6 @@ class ModeDomainService
         $relationEntities = [];
 
         foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
-            $group = $groupAggregate->getGroup();
-
-            // 直接使用已有的关联关系，更新模式ID和组织代码
             foreach ($groupAggregate->getRelations() as $relation) {
                 $relation->setModeId((string) $id);
                 $relation->setOrganizationCode($mode->getOrganizationCode());

@@ -16,7 +16,6 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property int $mode_id
  * @property array $name_i18n
  * @property string $icon
- * @property string $color
  * @property string $description
  * @property int $sort
  * @property int $status
@@ -37,7 +36,6 @@ class ModeGroupModel extends AbstractModel
         'mode_id',
         'name_i18n',
         'icon',
-        'color',
         'description',
         'sort',
         'status',

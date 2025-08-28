@@ -38,7 +38,11 @@ class ModeAppService extends AbstractModeAppService
         $modeAggregate = $this->modeDomainService->getModeDetailByIdentifier($modeDataIsolation, $identifier);
 
         $providerModels = $this->getModels($modeAggregate);
+        $modeGroupDetailDTOS = ModeAssembler::aggregateToFlatGroupsDTO($modeAggregate, $providerModels);
 
-        return ModeAssembler::aggregateToFlatGroupsDTO($modeAggregate, $providerModels);
+        // 处理图标路径转换为完整URL
+        $this->processModeGroupDetailIcons($authorization, $modeGroupDetailDTOS);
+
+        return $modeGroupDetailDTOS;
     }
 }

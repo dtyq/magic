@@ -15,7 +15,8 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property int $id
  * @property int $mode_id
  * @property int $group_id
- * @property int $model_id
+ * @property string $model_id
+ * @property int $provider_model_id
  * @property int $sort
  * @property string $organization_code
  * @property Carbon $created_at
@@ -32,6 +33,7 @@ class ModeGroupRelationModel extends AbstractModel
         'mode_id',
         'group_id',
         'model_id',
+        'provider_model_id',
         'sort',
         'organization_code',
         'created_at',
@@ -41,9 +43,7 @@ class ModeGroupRelationModel extends AbstractModel
 
     protected array $casts = [
         'id' => 'integer',
-        'mode_id' => 'integer',
         'group_id' => 'integer',
-        'model_id' => 'integer',
         'sort' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

@@ -20,9 +20,10 @@ class ModeGroupRelationFactory
         $entity = new ModeGroupRelationEntity();
 
         $entity->setId((string) $model->id);
-        $entity->setModeId((string) $model->mode_id);
+        $entity->setModeId($model->mode_id);
         $entity->setGroupId((string) $model->group_id);
-        $entity->setModelId((string) $model->model_id);
+        $entity->setModelId($model->model_id);
+        $entity->setProviderModelId($model->provider_model_id);
         $entity->setSort($model->sort);
         $entity->setOrganizationCode($model->organization_code);
 
@@ -35,26 +36,5 @@ class ModeGroupRelationFactory
         }
 
         return $entity;
-    }
-
-    /**
-     * 将实体转换为模型属性数组.
-     */
-    public static function entityToAttributes(ModeGroupRelationEntity $entity): array
-    {
-        $attributes = [
-            'mode_id' => (int) $entity->getModeId(),
-            'group_id' => (int) $entity->getGroupId(),
-            'model_id' => (int) $entity->getModelId(),
-            'sort' => $entity->getSort(),
-            'organization_code' => $entity->getOrganizationCode(),
-        ];
-
-        // 如果实体有ID，则包含ID（用于更新场景）
-        if ($entity->getId()) {
-            $attributes['id'] = (int) $entity->getId();
-        }
-
-        return $attributes;
     }
 }
