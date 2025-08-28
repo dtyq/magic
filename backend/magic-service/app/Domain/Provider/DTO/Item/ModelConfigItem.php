@@ -23,8 +23,6 @@ class ModelConfigItem extends AbstractDTO
 
     protected bool $supportEmbedding = false;
 
-    protected bool $isRecommended = false;
-
     public function getMaxTokens(): ?int
     {
         return $this->maxTokens;
@@ -116,15 +114,4 @@ class ModelConfigItem extends AbstractDTO
             $this->supportDeepThink = (bool) $supportDeepThink;
         }
     }
-
-    public function isRecommended(): bool
-    {
-        return $this->isRecommended;
-    }
-
-    public function setIsRecommended(bool $isRecommended): void
-    {
-        $this->isRecommended = $isRecommended;
-    }
-
 }
