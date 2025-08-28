@@ -1,3 +1,73 @@
+# Eventi Asincroni ⏰
+
+- Gli eventi verranno inseriti in una coroutine, poi eseguiti in ordine
+- Il codice core è `\Dtyq\AsyncEvent\AsyncEventDispatcher::dispatch`
+
+## 📦 Installazione
+- Installazione
+```
+composer require dtyq/async-event
+```
+- Pubblicare configurazione
+```
+php bin/hyperf.php vendor:publish dtyq/async-event
+```
+- Eseguire migrazione database
+```
+php bin/hyperf.php migrate
+```
+
+## 🚀 Modalità d'Uso
+
+- Per non influenzare la logica esistente, utilizzare il nuovo dispatcher
+
+demo
+```php
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Controller;
+
+use App\Event\DemoEvent;
+use Hyperf\Di\Annotation\Inject;
+use Dtyq\AsyncEvent\AsyncEventDispatcher;
+
+class IndexController extends AbstractController
+{
+    /**
+     * @Inject()
+     */
+    protected AsyncEventDispatcher $asyncEventDispatcher;
+
+    public function index()
+    {
+        $user = $this->request->input('user', 'Hyperf');
+        $method = $this->request->getMethod();
+
+        $this->asyncEventDispatcher->dispatch(new DemoEvent([123,222], 9));
+
+        return [
+            'method' => $method,
+            'message' => "Hello {$user}.",
+        ];
+    }
+}
+
+```
+
+- Raggiunto il numero massimo di esecuzioni, è possibile effettuare notifiche di messaggio, ma è necessario aggiungere la configurazione personalmente, questo progetto fornisce solo l'evento di raggiungimento del massimo tentativo di retry
+
+
+## ⚠️ Note Importanti
+
+- Negli eventi cercare di non utilizzare il contesto della coroutine per passare dati, perché gli eventi sono asincroni, potrebbero causare inconsistenza dei dati
+
+---
+
 # 异步事件
 
 - 事件将会放到一个协程中，然后按照顺序执行  

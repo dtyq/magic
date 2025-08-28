@@ -1,3 +1,91 @@
+# Easy DingTalk 📱
+
+<p align="center">
+  <a href="https://packagist.org/packages/dtyq/easy-dingtalk"><img src="https://img.shields.io/packagist/v/dtyq/easy-dingtalk.svg" alt="Latest Stable Version"></a>
+  <a href="https://packagist.org/packages/dtyq/easy-dingtalk"><img src="https://img.shields.io/packagist/dt/dtyq/easy-dingtalk.svg" alt="Total Downloads"></a>
+  <a href="https://github.com/lihq1403/easy-dingtalk/actions"><img src="https://github.com/lihq1403/easy-dingtalk/workflows/CI/badge.svg" alt="Build Status"></a>
+</p>
+
+Easy DingTalk è un SDK semplice e facile da usare per la piattaforma aperta DingTalk, supporta PHP 8.1+. Fornisce interfacce flessibili per interagire con la piattaforma aperta DingTalk, permettendo agli sviluppatori di costruire facilmente applicazioni DingTalk.
+
+## ✨ Caratteristiche
+
+- Supporta PHP 8.1+
+- Sviluppato basato sugli standard PSR
+- Supporta integrazione con framework Hyperf
+- Meccanismo flessibile di assemblaggio richieste
+- Test unitari completi
+- Supporta le principali interfacce della piattaforma aperta DingTalk
+
+## 📦 Installazione
+
+```bash
+composer require dtyq/easy-dingtalk -vvv
+```
+
+## 🚀 Avvio Rapido
+
+### Uso Base
+
+```php
+use Dtyq\EasyDingTalk\OpenDevFactory;
+
+$factory = new OpenDevFactory([
+    'app_key' => 'your_app_key',
+    'app_secret' => 'your_app_secret',
+]);
+
+// Ottieni token di accesso
+$accessToken = $factory->getAccessToken();
+
+// Usa altre interfacce...
+```
+
+### Integrazione Hyperf
+
+Aggiungi in `config/autoload/dependencies.php`:
+
+```php
+return [
+    Dtyq\EasyDingTalk\OpenDevFactory::class => function (ContainerInterface $container) {
+        return new Dtyq\EasyDingTalk\OpenDevFactory([
+            'app_key' => config('dingtalk.app_key'),
+            'app_secret' => config('dingtalk.app_secret'),
+        ]);
+    },
+];
+```
+
+## 🛠️ Sviluppo
+
+### Eseguire Test
+
+```bash
+composer test
+```
+
+### Controllo Stile Codice
+
+```bash
+composer cs-fix
+```
+
+### Analisi Statica
+
+```bash
+composer analyse
+```
+
+## 🤝 Contributi
+
+Benvenuti a sottomettere Pull Request o creare Issue.
+
+## 📄 Licenza
+
+MIT
+
+---
+
 # Easy DingTalk
 
 <p align="center">

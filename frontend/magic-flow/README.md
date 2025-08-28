@@ -1,3 +1,88 @@
+# Magic Flow - Pacchetto Fondamentale per Flussi ✨
+
+<div align="center">
+  <img src="https://img.shields.io/badge/Stato-Sviluppo-blue" alt="Stato: Sviluppo">
+  <img src="https://img.shields.io/badge/Framework-React-61dafb" alt="Framework: React">
+  <img src="https://img.shields.io/badge/Licenza-MIT-green" alt="Licenza: MIT">
+</div>
+
+## 📖 Introduzione al Progetto
+
+Magic Flow è una libreria fondamentale per la gestione di flussi, estratta da Magic Flow e pronta all'uso. Basata su ReactFlow, offre potenti funzionalità di progettazione e gestione di diagrammi di flusso. Il progetto integra componenti di base per i flussi, un editor JSON Schema, componenti per espressioni e UI comuni interne, per aiutarti a costruire rapidamente applicazioni di flusso visuali. 🚀
+
+## ✨ Caratteristiche Principali
+
+- 🔄 Progettazione e gestione di diagrammi di flusso basata su ReactFlow
+- 🎯 Gestione ad alte prestazioni di nodi e connessioni (batch e ottimizzazione debounce)
+- 🧩 Sistema di tipi di nodi estendibile
+- 🔍 Modifica di form basati su JSON Schema
+- 🌐 Supporto multilingua
+- 🎨 Componenti UI belli e personalizzabili
+
+## 📦 Installazione
+
+```bash
+# Installa le dipendenze
+npm install @dtyq/magic-flow
+```
+
+## 📚 Guida all'Uso
+
+Al momento non esiste una guida rapida unificata. Per usare i componenti, consulta queste risorse:
+
+- Consulta il file `index.md` nella cartella di ciascun componente per istruzioni dettagliate
+- Guarda i progetti di esempio nella cartella `examples` per capire gli scenari applicativi
+- Ogni componente ha codice di esempio di riferimento
+
+Ad esempio, per imparare a usare il componente `MagicFlow`:
+1. Consulta il file `src/MagicFlow/index.md`
+2. Guarda i progetti di esempio in `examples/MagicFlow`
+
+## 📚 Documentazione API
+
+### Componenti Principali
+
+- `MagicFlow`: Componente principale per la progettazione dei flussi
+- `MagicJsonSchemaEditor`: Generatore di form basato su Schema
+- `MagicExpressionWidget`: Componente per la creazione e modifica di espressioni
+- `MagicConditionEdit`: Componente per la modifica delle condizioni
+
+### Core Hooks
+
+- `useBaseFlow`: Hook logico principale per la gestione di nodi e connessioni
+- `useNodeBatchProcessing`: Hook per il batch dei nodi, migliora le performance con molti nodi
+
+### Documentazione Dettagliata ed Esempi
+
+- Ogni componente ha una documentazione dettagliata: consulta il file `index.md` nella cartella del componente
+- Il componente `MagicFlow` offre molti casi reali: guarda i progetti di esempio nella cartella `examples`
+- Gli esempi mostrano l'uso pratico del designer di flussi in vari scenari, inclusa la personalizzazione dei nodi e la configurazione dei form
+
+## 🛠️ Sviluppo
+
+```bash
+# Installa le dipendenze
+npm install
+
+# Avvia la demo della documentazione per lo sviluppo
+npm start
+
+# Costruisci la libreria
+npm run build
+```
+
+## 🤝 Guida al Contributo
+
+Contribuisci con codice o segnala problemi! Fai prima il fork del repository, poi invia una Pull Request. 💡
+
+## 📄 Licenza
+
+MIT
+
+---
+
+<!-- Testo originale (cinese e inglese) — mantenuto sotto: -->
+
 # 神奇流程基础包
 
 <div align="center">

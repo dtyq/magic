@@ -1,3 +1,115 @@
+# Magic - Guida allo Sviluppo 🚀
+
+## Ambiente di sviluppo
+
+- Node.js: usa l'ultima versione stabile (v18+)
+- pnpm: v9+
+
+## Avvio rapido
+
+```bash
+# Installa le dipendenze
+pnpm install
+
+# Avvia il server di sviluppo
+pnpm dev
+
+# Costruisci la versione di produzione
+pnpm build
+
+# Esegui i test
+pnpm test
+```
+
+## Stack tecnologico
+
+- React
+- Vite
+- Zustand
+- SWR
+- Antd
+
+## Linee guida di sviluppo
+
+### Stile del codice
+
+- Il progetto usa ESLint e Prettier per la formattazione del codice
+- Prima di fare commit, assicurati che tutti i lint siano superati
+- I file dei componenti usano la notazione PascalCase
+- I file delle funzioni di utilità usano la notazione camelCase
+
+### Sviluppo dei componenti
+
+#### Scrittura degli stili
+
+Gli stili seguono le regole di `ant-design@5.x` e l'approccio `CSS-in-JS`. Prima di usarli, consulta la [guida ufficiale antd-style](https://ant-design.github.io/antd-style/guide/create-styles). In questo progetto, segui queste regole:
+
+- Separa gli stili dai componenti: esempio `useStyle.ts` e `Component.tsx`
+- Non usare `less`, `styled-components` o altri plugin/moduli di stile di terze parti
+- Non usare plugin come `classnames` o `clsx`, usa sempre `const { styles, cx } = useStyle();` e `cx` per attivare gli stili
+
+#### Componenti comuni
+
+- Componenti di base: alcuni componenti di base di antd sono stati estesi e migliorati, si trovano in `src/components/base`, usali preferibilmente
+- Componenti di business: componenti usati spesso nelle logiche di business, si trovano in `src/components/business`
+
+#### Principi di sviluppo dei componenti
+
+- I componenti devono essere riutilizzabili, evita l'eccessivo accoppiamento con la logica di business
+- Ogni componente deve avere una definizione di tipo completa
+- I componenti complessi devono avere una documentazione d'uso
+- Segui il principio della singola responsabilità
+
+### Git workflow
+
+- Branch principale: `released` (TODO)
+- Branch pre-release: `pre-release` (TODO)
+- Branch di test: `master`
+- Branch funzionalità: `feature/nome-funzionalità`
+- Branch fix: `hotfix/descrizione-problema`
+
+Formato dei messaggi di commit:
+
+```
+type(scope): commit message
+
+- type: feat|fix|docs|style|refactor|test|chore
+- scope: area interessata
+- message: descrizione del commit
+```
+
+### Test unitari
+
+Framework di test: [Vitest](https://cn.vitest.dev/)
+
+Per ogni funzione di utilità, aggiungi quanti più test possibili per garantire robustezza e ridurre i costi di manutenzione futura.
+
+I file di test vanno nella cartella `__tests__` accanto alla funzione, con nome `{filename}.test.ts`.
+
+#### Regole per i test
+
+- Ogni funzione di utilità deve avere test dedicati
+- I test devono coprire sia i casi normali che quelli anomali
+- Le descrizioni dei test devono essere chiare
+- Usa `describe` e `it` per organizzare i test
+
+### Consigli di sviluppo
+
+1. Prima di iniziare, leggi tutto questo documento
+2. In caso di problemi, consulta prima la documentazione del progetto e delle dipendenze
+3. Quando sviluppi nuove funzionalità, definisci prima i tipi
+4. Prima di fare commit, testa tutto e assicurati che i test passino
+
+## Estensioni VSCode consigliate
+
+- i18n Ally
+- Vitest, Vitest Runner
+- Git Graph
+
+---
+
+<!-- Testo originale (cinese) — mantenuto sotto: -->
+
 # Magic
 
 ## 开发环境

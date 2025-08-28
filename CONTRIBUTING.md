@@ -1,3 +1,104 @@
+# CONTRIBUIRE 🎉
+
+Stai cercando di contribuire a Magic — fantastico, non vediamo l'ora di vedere cosa farai. In quanto startup con risorse limitate, abbiamo grandi ambizioni per costruire le applicazioni LLM più potenti. Qualsiasi aiuto dalla community conta, davvero.
+
+Dobbiamo essere agili e rilasciare velocemente, ma vogliamo anche assicurare che i contributori come te abbiano un'esperienza il più possibile fluida. Abbiamo preparato questa guida alla contribuzione per questo scopo, per farti familiarizzare con il codice e con il modo in cui lavoriamo con i contributori, così potrai passare rapidamente alla parte divertente.
+
+Questa guida, come Magic stesso, è un lavoro in corso. Apprezziamo molto la tua comprensione se a volte è in ritardo rispetto al progetto reale, e accogliamo con favore qualsiasi feedback per migliorare.
+
+Per quanto riguarda la licenza, dedica un minuto a leggere la nostra breve [License and Contributor Agreement](./LICENSE). La community aderisce anche al [code of conduct](https://github.com/dtyq/.github/blob/main/CODE_OF_CONDUCT.md). 📜
+
+## Prima di iniziare 🔎
+
+Cerchi qualcosa da affrontare? Sfoglia le nostre [good first issues](https://github.com/dtyq/magic/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22) e scegli una per iniziare!
+
+Hai una bella idea o una funzionalità da aggiungere? Apri una PR nel nostro [repository principale](https://github.com/dtyq/magic) e mostraci cosa hai costruito.
+
+Devi aggiornare una funzionalità esistente o risolvere dei bug? Apri una PR nel nostro [repository principale](https://github.com/dtyq/magic) e fai accadere la tua magia! ✨
+
+Unisciti al divertimento, contribuisci e costruiamo qualcosa di straordinario insieme! 💡
+
+Non dimenticare di collegare un issue esistente o aprirne uno nuovo nella descrizione della PR.
+
+### Segnalazione bug 🐛
+
+> [! IMPORTANT]
+> Assicurati di includere le seguenti informazioni quando invii una segnalazione di bug:
+
+- Un titolo chiaro e descrittivo
+- Una descrizione dettagliata del bug, inclusi eventuali messaggi di errore
+- Passi per riprodurre il bug
+- Comportamento atteso
+- **Log**, se disponibili; per problemi backend sono molto importanti, puoi trovarli nei docker-compose logs
+- Screenshot o video, se applicabili 📷
+
+Come priorizziamo:
+
+| Tipo di Issue                                                                                 | Priorità        |
+| --------------------------------------------------------------------------------------------- | --------------- |
+| Bug in funzioni core (servizio cloud, impossibile fare il login, applicazioni non funzionanti, falle di sicurezza) | Critica         |
+| Bug non critici, miglioramenti di performance                                                 | Priorità Media  |
+| Correzioni minori (refusi, UI confusa ma funzionante)                                         | Bassa Priorità  |
+
+### Richieste di funzionalità ✨
+
+> [! NOTE]
+> Assicurati di includere le seguenti informazioni quando invii una richiesta di funzionalità:
+
+- Un titolo chiaro e descrittivo
+- Una descrizione dettagliata della funzionalità
+- Un caso d'uso per la funzionalità
+- Qualsiasi altro contesto o screenshot relativo alla richiesta
+
+Come priorizziamo:
+
+| Tipo di Funzionalità                                                                           | Priorità        |
+| --------------------------------------------------------------------------------------------- | --------------- |
+| Funzionalità ad alta priorità etichettate da un membro del team                               | Alta Priorità   |
+| Richieste popolari dalla nostra [community feedback board](https://github.com/dtyq/magic/discussions/categories/feedbacks) | Priorità Media  |
+| Funzionalità non core e miglioramenti minori                                                  | Bassa Priorità  |
+| Valide ma non immediate                                                                        | Futuro          |
+
+## Inviare la tua PR 🔧
+
+### Processo di Pull Request
+
+1. Fork del repository
+2. Prima di creare una PR, crea un issue per discutere le modifiche che vuoi fare
+3. Crea un nuovo branch per le tue modifiche
+4. Aggiungi i test per le tue modifiche dove appropriato 🧪
+5. Assicurati che il tuo codice passi i test esistenti ✅
+6. Collega l'issue nella descrizione della PR, `fixes #<issue_number>`
+7. Vieni mergiato! 🚀
+
+### Configurare il progetto
+
+#### Frontend
+
+Per impostare il servizio frontend, fai riferimento alla nostra guida completa nel file `frontend/README.md`: https://github.com/dtyq/magic/blob/main/frontend/README.md. Questo documento fornisce istruzioni dettagliate per configurare correttamente l'ambiente frontend.
+
+#### Backend
+
+Per impostare il servizio backend, fai riferimento alle istruzioni nel file `backend/README.md`: https://github.com/dtyq/magic/blob/main/backend/README.md. Questo documento contiene indicazioni passo passo per avviare il backend senza problemi.
+
+#### Altre note importanti
+
+Ti consigliamo di leggere attentamente questo documento prima di procedere con la configurazione, poiché contiene informazioni essenziali su:
+- Prerequisiti e dipendenze
+- Passaggi di installazione
+- Dettagli di configurazione
+- Suggerimenti comuni per il troubleshooting
+
+Sentiti libero di contattarci se incontri problemi durante la configurazione.
+
+## Ottenere aiuto ❓
+
+Se rimani bloccato o hai una domanda urgente mentre contribuisci, invia le tue richieste tramite l'issue GitHub correlato.
+
+---
+
+Testo originale (inglese) — non cancellare, spostato sotto:
+
 # CONTRIBUTING
 
 So you're looking to contribute to Magic - that's awesome, we can't wait to see what you do.  As a startup with limited headcount and funding, we have grand ambitions to build most powerful LLM applications.  Any help from the community counts, truly.

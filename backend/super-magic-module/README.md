@@ -1,3 +1,182 @@
+# Super Magic Module - Modulo di Intelligenza Artificiale Avanzata 🚀
+
+## Introduzione
+
+Super Magic Module è un pacchetto di estensioni basato sul framework Hyperf, progettato specificamente come modulo di estensione avanzata per magic-service. Questo modulo adotta l'architettura Domain-Driven Design (DDD), fornendo una struttura a strati chiara e componenti funzionali ricchi per le applicazioni.
+
+Super Magic Module deve essere utilizzato insieme a magic-service, e la sua funzionalità principale è quella di prendere il controllo degli eventi di messaggistica di magic-service, stabilendo un canale di comunicazione tra utenti e agenti intelligenti Super Magic. Questo design permette agli utenti di interagire senza soluzione di continuità con gli agenti intelligenti, ottenendo un'esperienza di servizio più intelligente.
+
+Come modulo ponte, Super Magic Module non solo gestisce la trasmissione dei messaggi, ma è anche responsabile della conversione dei formati dati, del coordinamento dei flussi di eventi e della fornitura delle informazioni contestuali necessarie, assicurando che gli agenti possano comprendere accuratamente le intenzioni degli utenti e fornire risposte appropriate.
+
+## Caratteristiche Principali
+
+- Costruito su Hyperf 3.1, perfettamente adattato all'architettura esistente di magic-service
+- Segue l'architettura Domain-Driven Design (DDD), con organizzazione del codice chiara e facile da mantenere
+- Fornisce funzionalità di condivisione risorse, supportando l'accesso alle risorse tra moduli
+- Come canale di messaggistica, collega utenti e agenti intelligenti Super Magic
+- Supporta l'ascolto e la gestione degli eventi, rispondendo in tempo reale alle richieste degli utenti
+- Fornisce gestione dell'area di lavoro, supportando elaborazione multi-argomento e multi-task
+- Implementa sistema di gestione file, supportando le operazioni degli agenti sui file
+- Organizzazione del codice conforme agli standard PSR, garantendo la qualità del codice
+
+## Architettura di Sistema
+
+Super Magic Module come estensione di magic-service, gioca il seguente ruolo nel sistema complessivo:
+
+```
+Richiesta utente → magic-service → Super Magic Module → Agente Super Magic
+                 ↑                 |
+                 └─────────────────┘
+              Risposta di ritorno
+```
+
+Il modulo si integra con magic-service nei seguenti modi:
+
+1. Ascolta gli eventi di messaggistica di magic-service
+2. Elabora e converte i formati dei messaggi
+3. Trasmette i messaggi all'agente Super Magic
+4. Riceve ed elabora le risposte dell'agente
+5. Restituisce i risultati elaborati a magic-service
+
+## Installazione
+
+Installa tramite Composer:
+
+```bash
+composer require dtyq/super-magic-module
+```
+
+## Utilizzo Base
+
+### Configurazione
+
+Il modulo fornisce `ConfigProvider` per registrare servizi e funzionalità correlati. Nella directory `config/autoload` dell'applicazione Hyperf configura:
+
+```php
+<?php
+
+return [
+    // Carica ConfigProvider
+    \Dtyq\SuperMagic\ConfigProvider::class,
+];
+```
+
+### Integrazione con magic-service
+
+Per integrare Super Magic Module con magic-service, è necessario prendere il controllo delle dipendenze in magic-service:
+
+```php
+[
+    'dependencies_priority' => [
+        // Evento di esecuzione assistente
+        AgentExecuteInterface::class => SuperAgentMessageSubscriberV2::class,
+        SuperAgentMessageInterface::class => SuperAgentMessage::class,
+    ]
+]
+```
+
+### Utilizzo del Livello Domain
+
+Il modulo è progettato basato sull'architettura DDD, comprendendo i seguenti livelli principali:
+
+- Domain (Livello Domain): Contiene logica di business e entità, come elaborazione messaggi, gestione area di lavoro e altre funzionalità core
+- Application (Livello Applicazione): Coordina gli oggetti domain per completare scenari di business complessi, come flussi di trasmissione messaggi
+- Infrastructure (Livello Infrastruttura): Fornisce supporto tecnico, inclusi archiviazione dati, chiamate servizi esterni, ecc.
+- Interfaces (Livello Interfacce): Gestisce richieste e risposte esterne, fornisce interfacce API
+
+## Sviluppo
+
+### Struttura delle Directory
+
+```
+src/
+├── Application/      # Livello Applicazione, elabora flussi di business
+│   ├── Share/        # Servizi di condivisione risorse
+│   └── SuperAgent/   # Servizi agenti super intelligenti
+├── Domain/           # Livello Domain, contiene logica di business core
+│   ├── Share/        # Modelli domain di condivisione risorse
+│   └── SuperAgent/   # Modelli domain agenti super intelligenti
+├── Infrastructure/   # Livello Infrastruttura, fornisce implementazioni tecniche
+│   ├── ExternalAPI/  # Chiamate API esterne
+│   └── Utils/        # Classi di utilità
+├── Interfaces/       # Livello Interfacce, gestisce interazioni esterne
+│   ├── Share/        # Interfacce di condivisione risorse
+│   └── SuperAgent/   # Interfacce agenti super intelligenti
+├── Listener/         # Ascoltatori di eventi
+└── ConfigProvider.php # Fornitore di configurazione
+```
+
+### Comandi
+
+Il pacchetto di estensioni fornisce una serie di comandi utili:
+
+```bash
+# Riparazione stile codice
+composer fix
+
+# Analisi statica codice
+composer analyse
+
+# Esecuzione test
+composer test
+
+# Avvio servizio Hyperf
+composer start
+```
+
+## Flusso dei Messaggi
+
+Il flusso base di elaborazione dei messaggi di Super Magic Module è il seguente:
+
+1. L'utente invia un messaggio in magic-service
+2. magic-service attiva l'evento messaggio
+3. Super Magic Module ascolta l'evento, estrae il contenuto del messaggio
+4. Il messaggio viene convertito nel formato comprensibile dall'agente Super Magic
+5. Il messaggio viene inviato all'agente Super Magic
+6. L'agente elabora il messaggio e genera una risposta
+7. Super Magic Module riceve la risposta e converte il formato
+8. La risposta viene trasmessa indietro a magic-service tramite evento
+9. L'utente riceve la risposta dell'agente
+
+## Test
+
+Esegui i test:
+
+```bash
+composer test
+```
+
+## Guida ai Contributi
+
+1. Fai il fork di questo repository
+2. Crea un branch per la funzionalità (`git checkout -b feature/fantastica-funzionalita`)
+3. Applica le modifiche (`git commit -m 'Aggiungi una fantastica funzionalità'`)
+4. Fai il push del branch (`git push origin feature/fantastica-funzionalita`)
+5. Crea una Pull Request
+
+## Risorse Correlate
+
+- [Documentazione ufficiale Hyperf](https://hyperf.wiki)
+- [Standard PSR](https://www.php-fig.org/psr/)
+- [Riferimento Domain-Driven Design](https://www.domainlanguage.com/ddd/)
+- [Documentazione Magic Service](https://docs.dtyq.com/magic-service/)
+
+## Autori
+
+- **team dtyq** - [team@dtyq.com](mailto:team@dtyq.com)
+
+## Licenza
+
+Questo progetto utilizza una licenza privata - per i dettagli consulta la documentazione interna del team.
+
+## Stato del Progetto
+
+Questo modulo è in attivo sviluppo come componente di miglioramento di magic-service, fornendo continuamente aggiornamenti delle capacità di interazione intelligente. Accogliamo con favore feedback e suggerimenti dai membri del team per perfezionare insieme questo modulo chiave.
+
+---
+
+<!-- Testo originale (cinese) — mantenuto sotto: -->
+
 # Super Magic Module
 
 ## 简介
