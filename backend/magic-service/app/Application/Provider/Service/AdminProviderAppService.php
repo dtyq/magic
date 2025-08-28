@@ -331,7 +331,6 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * 获取官方组织下的所有可用模型.
      * @return ProviderModelEntity[]
      */
     public function queriesModels(MagicUserAuthorization $authorization, ProviderModelQuery $providerModelQuery): array
