@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\Embeddings\EmbeddingGenerator;
 
-use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Model\Embedding;
 use Psr\SimpleCache\CacheInterface;
@@ -27,11 +26,7 @@ readonly class OdinEmbeddingGenerator implements EmbeddingGeneratorInterface
         if ($this->cache->has($cacheKey)) {
             $data = $this->cache->get($cacheKey);
         } else {
-            if ($embeddingModel instanceof MagicAILocalModel) {
-                $response = $embeddingModel->embeddings($text, businessParams: $businessParams);
-            } else {
-                $response = $embeddingModel->embeddings($text);
-            }
+            $response = $embeddingModel->embeddings($text, businessParams: $businessParams);
             // 从响应中提取嵌入向量
             $embeddings = [];
             foreach ($response->getData() as $embedding) {
