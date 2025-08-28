@@ -115,5 +115,4 @@ class ModeGroupDetailDTO extends AbstractDTO
     {
         $this->name = $name;
     }
-
 }
