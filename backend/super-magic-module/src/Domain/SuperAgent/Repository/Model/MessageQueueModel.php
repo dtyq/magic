@@ -15,6 +15,11 @@ use App\Infrastructure\Core\AbstractModel;
 class MessageQueueModel extends AbstractModel
 {
     /**
+     * Indicates if the IDs are auto-incrementing.
+     */
+    public bool $incrementing = false;
+
+    /**
      * Table name.
      */
     protected ?string $table = 'magic_super_agent_message_queue';
@@ -23,11 +28,6 @@ class MessageQueueModel extends AbstractModel
      * Primary key.
      */
     protected string $primaryKey = 'id';
-
-    /**
-     * Indicates if the IDs are auto-incrementing.
-     */
-    public bool $incrementing = false;
 
     /**
      * The data type of the auto-incrementing ID.

@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -29,7 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordReposito
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
@@ -38,7 +39,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRep
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRepository;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;

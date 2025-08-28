@@ -189,7 +189,7 @@ class MessageQueueEntity extends AbstractEntity
     /**
      * Set message status.
      */
-    public function setStatus(MessageQueueStatus|int $status): self
+    public function setStatus(int|MessageQueueStatus $status): self
     {
         if ($status instanceof MessageQueueStatus) {
             $this->status = $status->value;

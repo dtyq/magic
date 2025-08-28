@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 return [
     'cannot_modify_message' => 'Message cannot be modified in current status',
+    'status_not_modifiable' => 'Message status does not allow modification',
     'update_failed' => 'Failed to update message',
     'cannot_consume_message' => 'Message cannot be consumed in current status',
     'consume_failed' => 'Failed to consume message',

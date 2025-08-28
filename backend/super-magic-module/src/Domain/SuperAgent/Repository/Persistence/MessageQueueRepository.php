@@ -12,7 +12,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageQueueStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\MessageQueueModel;
-use Hyperf\DbConnection\Db;
 
 class MessageQueueRepository implements MessageQueueRepositoryInterface
 {
@@ -26,10 +25,10 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         if ($messageQueue->getId() === 0) {
             $messageQueue->setId(IdGenerator::getSnowId());
         }
-        
+
         $data = $this->convertEntityToModelData($messageQueue);
         $model = $this->model::query()->create($data);
-        
+
         $entityData = $this->convertModelToEntityData($model->toArray());
         return new MessageQueueEntity($entityData);
     }
@@ -38,7 +37,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
     {
         $data = $this->convertEntityToModelData($messageQueue);
         unset($data['id']); // Remove ID from update data
-        
+
         return $this->model::query()
             ->where('id', $messageQueue->getId())
             ->whereNull('deleted_at')
@@ -83,8 +82,8 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
             ->where('id', $id)
             ->where('user_id', $userId)
             ->first();
-            
-        if (!$model) {
+
+        if (! $model) {
             return null;
         }
 
@@ -132,8 +131,8 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         }
 
         // Apply status filter
-        if (!empty($statuses)) {
-            $statusValues = array_map(fn($status) => $status->value, $statuses);
+        if (! empty($statuses)) {
+            $statusValues = array_map(fn ($status) => $status->value, $statuses);
             $query->whereIn('status', $statusValues);
         }
 
@@ -142,7 +141,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
 
         // Apply ordering and pagination
         $query->orderBy('created_at', 'desc');
-        
+
         if ($needPagination) {
             $offset = ($page - 1) * $pageSize;
             $query->offset($offset)->limit($pageSize);
@@ -175,8 +174,8 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         }
 
         $model = $query->first();
-        
-        if (!$model) {
+
+        if (! $model) {
             return null;
         }
 

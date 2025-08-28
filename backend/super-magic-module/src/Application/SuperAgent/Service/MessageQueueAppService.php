@@ -7,16 +7,20 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConsumeMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageQueueRequestDTO;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+
+use function Hyperf\Translation\trans;
 
 /**
  * Message queue application service.
@@ -103,12 +107,6 @@ class MessageQueueAppService extends AbstractAppService
         $projectId = (int) $requestDTO->getProjectId();
         $topicId = (int) $requestDTO->getTopicId();
 
-        // Validate topic status and ownership (only running topics can modify messages)
-        $this->topicDomainService->validateTopicForMessageQueue(
-            $dataIsolation,
-            $topicId
-        );
-
         // Validate project ownership
         $this->projectDomainService->getProject(
             $projectId,
@@ -149,11 +147,32 @@ class MessageQueueAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        // Get message and check permissions and status
+        $existingMessage = $this->messageQueueDomainService->getMessageForUser(
+            $messageId,
+            $dataIsolation->getCurrentUserId()
+        );
+
+        // Validate project ownership
+        $this->projectDomainService->getProject(
+            $existingMessage->getProjectId(),
+            $dataIsolation->getCurrentUserId()
+        );
+
+        // Check if message can be deleted (same rule as modification)
+        if (! $existingMessage->canBeModified()) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE,
+                trans('message_queue.status_not_modifiable')
+            );
+        }
+
         // Delete message queue
         $success = $this->messageQueueDomainService->deleteMessage($dataIsolation, $messageId);
 
         $this->logger->info('Message queue deleted successfully', [
             'message_id' => $messageId,
+            'project_id' => $existingMessage->getProjectId(),
             'success' => $success,
         ]);
 
@@ -208,14 +227,11 @@ class MessageQueueAppService extends AbstractAppService
         foreach ($result['list'] as $messageEntity) {
             $list[] = [
                 'queue_id' => $messageEntity->getId(),
-                'project_id' => $messageEntity->getProjectId(),
-                'topic_id' => $messageEntity->getTopicId(),
                 'message_content' => $messageEntity->getMessageContent(),
                 'status' => $messageEntity->getStatus()->value,
                 'execute_time' => $messageEntity->getExecuteTime(),
                 'err_message' => $messageEntity->getErrMessage(),
                 'created_at' => $messageEntity->getCreatedAt(),
-                'updated_at' => $messageEntity->getUpdatedAt(),
             ];
         }
 
