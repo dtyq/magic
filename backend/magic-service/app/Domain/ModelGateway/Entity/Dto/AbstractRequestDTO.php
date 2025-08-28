@@ -124,23 +124,18 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     private function formatHeaderBusinessParams(array $headerConfigs): void
     {
-        if (isset($headerConfigs['magic-organization-id'])) {
-            $this->businessParams['organization_id'] = $headerConfigs['magic-organization-id'];
-        }
-        if (isset($headerConfigs['magic-organization-code'])) {
-            $this->businessParams['organization_id'] = $headerConfigs['magic-organization-code'];
-        }
-        if (isset($headerConfigs['magic-user-id'])) {
-            $this->businessParams['user_id'] = $headerConfigs['magic-user-id'];
-        }
+        // 处理非magic开头的特殊参数
         if (isset($headerConfigs['business_id'])) {
             $this->businessParams['business_id'] = $headerConfigs['business_id'];
         }
-        if (isset($headerConfigs['magic-topic-id'])) {
-            $this->businessParams['magic_topic-id'] = $headerConfigs['magic-topic-id'];
-        }
-        if (isset($headerConfigs['magic-task-id'])) {
-            $this->businessParams['magic_task_id'] = $headerConfigs['magic-task-id'];
+
+        // 通用处理所有magic开头的headerConfigs
+        foreach ($headerConfigs as $key => $value) {
+            if (str_starts_with($key, 'magic-')) {
+                // 去掉 "magic-" 前缀，并将中划线转换为下划线
+                $businessKey = str_replace('-', '_', substr($key, 6)); // 6 是 "magic-" 的长度
+                $this->businessParams[$businessKey] = $value;
+            }
         }
     }
 }
