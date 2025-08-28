@@ -12,4 +12,6 @@ enum DefaultFileBusinessType: string
     case SERVICE_PROVIDER = 'service_provider';
     case FLOW = 'flow';
     case MAGIC = 'magic';
+
+    case MODE = 'mode';
 }
