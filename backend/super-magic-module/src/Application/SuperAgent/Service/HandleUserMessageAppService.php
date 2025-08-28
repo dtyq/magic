@@ -23,10 +23,12 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageQueueStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -63,6 +65,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MessageQueueDomainService $messageQueueDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -168,6 +171,7 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         $topicId = 0;
         $taskId = '';
+        $errMsg = '';
         try {
             // Get topic information
             $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
@@ -255,9 +259,10 @@ class HandleUserMessageAppService extends AbstractAppService
                 );
             }
         } catch (EventException $e) {
+            $errMsg = $e->getMessage();
             $this->logger->warning(sprintf(
                 'Initialize task, event processing failed: %s',
-                $e->getMessage()
+                $errMsg
             ));
             // Send error message directly to client
             $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
@@ -270,9 +275,10 @@ class HandleUserMessageAppService extends AbstractAppService
                 remindEvent: $remindType
             );
         } catch (Throwable $e) {
+            $errMsg = $e->getMessage();
             $this->logger->error(sprintf(
                 'handleChatMessage Error: %s, User: %s file: %s line: %s stack: %s',
-                $e->getMessage(),
+                $errMsg,
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
                 $e->getLine(),
@@ -287,6 +293,12 @@ class HandleUserMessageAppService extends AbstractAppService
                 errorMessage: trans('task.initialize_error'),
             );
             throw new BusinessException('Initialize task failed', 500);
+        } finally {
+            // Set message queue status
+            if (! empty($userMessageDTO->getQueueId())) {
+                $status = ! empty($errMsg) ? MessageQueueStatus::FAILED : MessageQueueStatus::COMPLETED;
+                $this->messageQueueDomainService->updateMessageStatus((int) $userMessageDTO->getQueueId(), $status, $errMsg);
+            }
         }
     }
 

@@ -90,7 +90,7 @@ enum MessageQueueStatus: int
     public function getNextValidStatuses(): array
     {
         return match ($this) {
-            self::PENDING => [self::IN_PROGRESS, self::FAILED],
+            self::PENDING => [self::IN_PROGRESS, self::FAILED, self::COMPLETED],
             self::IN_PROGRESS => [self::COMPLETED, self::FAILED],
             self::COMPLETED, self::FAILED => [],
         };
