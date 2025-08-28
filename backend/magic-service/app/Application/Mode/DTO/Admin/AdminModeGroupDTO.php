@@ -17,11 +17,9 @@ class AdminModeGroupDTO extends AbstractDTO
 
     protected array $nameI18n;
 
-    protected ?string $icon = null;
+    protected string $icon = '';
 
-    protected ?string $color = null;
-
-    protected ?string $description = null;
+    protected string $description = '';
 
     protected int $sort;
 
@@ -59,32 +57,22 @@ class AdminModeGroupDTO extends AbstractDTO
         $this->nameI18n = $nameI18n;
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return $this->icon;
     }
 
-    public function setIcon(?string $icon): void
+    public function setIcon(string $icon): void
     {
         $this->icon = $icon;
     }
 
-    public function getColor(): ?string
-    {
-        return $this->color;
-    }
-
-    public function setColor(?string $color): void
-    {
-        $this->color = $color;
-    }
-
-    public function getDescription(): ?string
+    public function getDescription(): string
     {
         return $this->description;
     }
 
-    public function setDescription(?string $description): void
+    public function setDescription(string $description): void
     {
         $this->description = $description;
     }

@@ -95,16 +95,12 @@ class ModeAssembler
             // 设置模型信息
             $models = [];
             foreach ($groupAggregate->getRelations() as $relation) {
-                $modelDTO = new ModeGroupModelDTO();
-                $modelDTO->setId($relation->getId());
-                $modelDTO->setGroupId($relation->getGroupId());
-                $modelDTO->setModelId((string) $relation->getModelId());
-                $modelDTO->setSort($relation->getSort());
+                $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
                 // 如果提供了模型信息，则填充模型名称和图标
-                $modelId = (string) $relation->getModelId();
-                if (isset($providerModels[$modelId])) {
-                    $providerModel = $providerModels[$modelId];
+                $providerModelId = $relation->getProviderModelId();
+                if (isset($providerModels[$providerModelId])) {
+                    $providerModel = $providerModels[$providerModelId];
                     $modelDTO->setModelName($providerModel->getName());
                     $modelDTO->setModelIcon($providerModel->getIcon());
                 }
