@@ -13,13 +13,13 @@ class ModeGroupDetailDTO extends AbstractDTO
 {
     protected string $id;
 
+    protected string $name;
+
     protected string $modeId;
 
     protected ?string $icon = null;
 
     protected ?string $color = null;
-
-    protected ?string $description = null;
 
     protected int $sort;
 
@@ -68,16 +68,6 @@ class ModeGroupDetailDTO extends AbstractDTO
         $this->color = $color;
     }
 
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    public function setDescription(?string $description): void
-    {
-        $this->description = $description;
-    }
-
     public function getSort(): int
     {
         return $this->sort;
@@ -115,4 +105,15 @@ class ModeGroupDetailDTO extends AbstractDTO
             return $b->getSort() <=> $a->getSort();
         });
     }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): void
+    {
+        $this->name = $name;
+    }
+
 }

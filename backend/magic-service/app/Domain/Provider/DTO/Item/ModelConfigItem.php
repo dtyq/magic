@@ -133,6 +133,17 @@ class ModelConfigItem extends AbstractDTO
         }
     }
 
+    public function isRecommended(): bool
+    {
+        return $this->isRecommended;
+    }
+
+    public function setIsRecommended(bool $isRecommended): void
+    {
+        $this->isRecommended = $isRecommended;
+    }
+
+
     public function getMaxOutputTokens(): ?int
     {
         return $this->maxOutputTokens;
