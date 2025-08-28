@@ -58,12 +58,18 @@ class OpenTaskApi extends AbstractApi
     {
         $taskId = $this->request->input('task_id', '');
         $status = $this->request->input('status', '');
+        $id=$this->request->input('id', '');
         /**
          * @var null|MagicUserEntity
          */
         $userEntity = null;
 
         $this->handApiKey($requestContext, $userEntity);
+
+        // 如果task_id为空，则使用id
+        if(empty($taskId)){
+            $taskId=$id;
+        }
 
         if (empty($taskId) || empty($status)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_id_or_status_is_required');
