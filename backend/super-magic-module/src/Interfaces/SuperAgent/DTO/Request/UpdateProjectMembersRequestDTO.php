@@ -12,7 +12,7 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 use function Hyperf\Translation\__;
 
 /**
- * 更新项目成员请求DTO
+ * 更新项目成员请求DTO.
  *
  * 封装更新项目成员的请求参数和验证逻辑
  * 继承AbstractRequestDTO，自动支持参数验证和类型转换
@@ -46,7 +46,7 @@ class UpdateProjectMembersRequestDTO extends AbstractRequestDTO
     }
 
     /**
-     * 定义验证规则
+     * 定义验证规则.
      */
     protected static function getHyperfValidationRules(): array
     {
@@ -58,11 +58,10 @@ class UpdateProjectMembersRequestDTO extends AbstractRequestDTO
     }
 
     /**
-     * 定义验证错误消息（多语言支持）
+     * 定义验证错误消息（多语言支持）.
      */
     protected static function getHyperfValidationMessage(): array
     {
-
         return [
             'members.required' => __('validation.project.members.required'),
             'members.array' => __('validation.project.members.array'),

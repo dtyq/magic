@@ -16,7 +16,6 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
@@ -44,7 +43,6 @@ class FileConverterAppService extends AbstractAppService
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,

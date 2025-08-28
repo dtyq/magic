@@ -114,7 +114,7 @@ class ProjectShareableResource implements ResourceFactoryInterface
     {
         try {
             // Check if user can access the project
-            $this->projectAppService->getProject((int) $resourceId, $userId);
+            $this->projectAppService->getAccessibleProject((int) $resourceId, $userId, $organizationCode);
 
             return true;
         } catch (Exception $e) {

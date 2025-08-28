@@ -26,7 +26,7 @@ class AbstractAppService extends AbstractKernelAppService
      *
      * @return ProjectEntity 项目实体
      */
-    protected function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
+    public function getAccessibleProject(int $projectId, string $userId, string $organizationCode): ProjectEntity
     {
         $projectDomainService = di(ProjectDomainService::class);
         $projectMemberService = di(ProjectMemberDomainService::class);
@@ -48,9 +48,9 @@ class AbstractAppService extends AbstractKernelAppService
 
         $dataIsolation = DataIsolation::create($organizationCode, $userId);
 
-        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId,true);
+        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
 
-        if (!empty($departmentIds)) {
+        if (! empty($departmentIds)) {
             if ($projectMemberService->isProjectMemberByDepartments($projectId, $departmentIds)) {
                 return $projectEntity;
             }

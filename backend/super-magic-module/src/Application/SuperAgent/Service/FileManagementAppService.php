@@ -17,21 +17,21 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
-use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
@@ -210,7 +210,6 @@ class FileManagementAppService extends AbstractAppService
 
         // 校验项目归属权限并获取工作目录 - 需要先获取项目信息
         $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
-
 
         // 计算相对目录路径（与 findOrCreateDirectoryAndGetParentId 逻辑一致）
         $relativePath = WorkDirectoryUtil::getRelativeFilePath($fileKey, $projectEntity->getWorkDir());

@@ -1580,6 +1580,20 @@ class TaskFileDomainService
         return $sortValue; // Default to end
     }
 
+    public function getUserFileEntityNoUser(int $fileId): TaskFileEntity
+    {
+        $fileEntity = $this->taskFileRepository->getById($fileId);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+
+        if ($fileEntity->getProjectId() <= 0) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        return $fileEntity;
+    }
+
     /**
      * Ensure the complete directory path exists, creating missing directories.
      *
@@ -2120,19 +2134,5 @@ class TaskFileDomainService
         });
 
         return $children;
-    }
-
-    public function getUserFileEntityNoUser(int $fileId): TaskFileEntity
-    {
-        $fileEntity = $this->taskFileRepository->getById($fileId);
-        if ($fileEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
-        }
-
-        if ($fileEntity->getProjectId() <= 0) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
-        }
-
-        return $fileEntity;
     }
 }
