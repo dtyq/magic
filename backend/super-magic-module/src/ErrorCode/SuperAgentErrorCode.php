@@ -41,6 +41,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('topic.topic_access_denied')]
     case TOPIC_ACCESS_DENIED = 51053;
 
+    #[ErrorMessage('topic.topic_not_running')]
+    case TOPIC_NOT_RUNNING = 51054;
+
     // Task related error codes (51100-51149)
     #[ErrorMessage('task.not_found')]
     case TASK_NOT_FOUND = 51100;
@@ -188,4 +191,8 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('task.access_token.not_found')]
     case ACCESS_TOKEN_NOT_FOUND = 51254;
+
+    // Message Queue related error codes (51290-51299) - allocated from highest numbers
+    #[ErrorMessage('message_queue.status_not_modifiable')]
+    case MESSAGE_STATUS_NOT_MODIFIABLE = 51299;
 }
