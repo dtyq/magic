@@ -37,7 +37,6 @@ class MagicIntermediateMessageAppService extends AbstractAppService
     public function __construct(
         protected readonly MagicIntermediateDomainService $magicIntermediateDomainService,
         protected readonly MagicChatDomainService $magicChatDomainService,
-        protected int $count = 0,
     ) {
     }
 
