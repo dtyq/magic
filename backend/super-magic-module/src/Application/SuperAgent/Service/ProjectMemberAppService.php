@@ -15,6 +15,7 @@ use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
@@ -24,6 +25,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListR
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreatorInfoDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectMembersResponseDTO;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -41,6 +43,7 @@ class ProjectMemberAppService extends AbstractAppService
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly MagicUserDomainService $magicUserDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
     ) {
     }
 
@@ -71,7 +74,7 @@ class ProjectMemberAppService extends AbstractAppService
         }
 
         // 2. 验证并获取可访问的项目
-        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 3. 委托给Domain层处理业务逻辑
         $this->projectMemberDomainService->updateProjectMembers(
@@ -80,7 +83,11 @@ class ProjectMemberAppService extends AbstractAppService
             $memberEntities
         );
 
-        // 4. 记录成功日志
+        // 4. 发布项目成员已更新事件
+        $projectMembersUpdatedEvent = new ProjectMembersUpdatedEvent($projectEntity, $memberEntities, $userAuthorization);
+        $this->eventDispatcher->dispatch($projectMembersUpdatedEvent);
+
+        // 5. 记录成功日志
         $this->logger->info('Project members updated successfully', [
             'project_id' => $projectId,
             'operator_id' => $requestContext->getUserId(),
@@ -127,7 +134,7 @@ class ProjectMemberAppService extends AbstractAppService
         $allDepartmentIds = array_merge($departmentIds, array_values($userIdMapDepartmentIds));
 
         // 获取部门详情
-        $depIdMapDepartmentsInfos = $this->departmentDomainService->getDepartmentFullPathByIds($dataIsolation, array_values($allDepartmentIds));
+        $depIdMapDepartmentsInfos = $this->departmentDomainService->getDepartmentFullPathByIds($dataIsolation, $allDepartmentIds);
 
         // 5. 获取用户详细信息
         $users = [];

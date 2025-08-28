@@ -20,7 +20,12 @@ return [
     'update_members_failed' => 'Failed to update members',
     'member_validation_failed' => 'Member validation failed',
 
-    // 成员类型描述
+    // Operation log related
+    'operation_log' => [
+        'not_found' => 'Operation log record not found',
+    ],
+
+    // Member type descriptions
     'member_type' => [
         'user' => 'User',
         'department' => 'Department',

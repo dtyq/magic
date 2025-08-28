@@ -7,14 +7,13 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\SuperAgent;
 
-use HyperfTest\Cases\Api\AbstractHttpTest;
 use Mockery;
 
 /**
  * @internal
  * 项目成员管理API测试
  */
-class ProjectMemberApiTest extends AbstractHttpTest
+class ProjectMemberApiTest extends AbstractApiTest
 {
     private const string BASE_URI = '/api/v1/super-agent/projects';
 
@@ -589,24 +588,5 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
 
         $this->assertEquals('test', $response['data']['project_name']);
-    }
-
-    protected function switchUserTest1(): string
-    {
-        return $this->authorization = env('TEST_TOKEN');
-    }
-
-    protected function switchUserTest2(): string
-    {
-        return $this->authorization = env('TEST2_TOKEN');
-    }
-
-    protected function getCommonHeaders(): array
-    {
-        return [
-            'organization-code' => env('TEST_ORGANIZATION_CODE'),
-            // 换成自己的
-            'Authorization' => $this->authorization,
-        ];
     }
 }

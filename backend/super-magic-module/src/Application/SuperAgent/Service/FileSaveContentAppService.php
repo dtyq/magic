@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -19,6 +20,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -36,6 +38,7 @@ class FileSaveContentAppService extends AbstractAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly SuperMagicDomainService $superMagicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
     ) {
         $this->logger = $loggerFactory->get('sandbox-file-edit');
     }
@@ -83,6 +86,17 @@ class FileSaveContentAppService extends AbstractAppService
 
             // 5, 调用文件接口
             $result = $this->superMagicDomainService->saveFileData($sandboxId, $fileDataList, $projectEntity->getWorkDir());
+
+            // 6. 发布文件内容已保存事件
+            foreach ($dto->getFiles() as $fileDto) {
+                // 获取文件实体以发布事件
+                $fileEntity = $this->taskFileDomainService->getById((int) $fileDto->getFileId());
+                if ($fileEntity) {
+                    $fileContentSavedEvent = new FileContentSavedEvent($fileEntity, $userAuth);
+                    $this->eventDispatcher->dispatch($fileContentSavedEvent);
+                }
+            }
+
             $this->logger->info('[SandboxFileEdit] File save completed', [
                 'user_id' => $userAuth->getId(),
                 'organization_code' => $userAuth->getOrganizationCode(),

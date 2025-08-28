@@ -7,13 +7,13 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 
 /**
  * Project Member API.
@@ -29,7 +29,7 @@ class ProjectMemberApi extends AbstractApi
     }
 
     /**
-     * 获取协作项目列表
+     * 获取协作项目列表.
      */
     public function getCollaborationProjects(RequestContext $requestContext): array
     {
@@ -41,7 +41,7 @@ class ProjectMemberApi extends AbstractApi
     }
 
     /**
-     * 更新项目成员
+     * 更新项目成员.
      */
     public function updateMembers(RequestContext $requestContext, string $id): array
     {
@@ -62,7 +62,7 @@ class ProjectMemberApi extends AbstractApi
     }
 
     /**
-     * 获取项目成员
+     * 获取项目成员.
      */
     public function getMembers(RequestContext $requestContext, string $id): array
     {
