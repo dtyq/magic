@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "8a57a47c28e3e7288b2fb8d5801406bf771b0ba0"
+                "reference": "a3c333418a3458b076d9895ffc6f34148552d9e9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=8a57a47c28e3e7288b2fb8d5801406bf771b0ba0",
-                "reference": "8a57a47c28e3e7288b2fb8d5801406bf771b0ba0",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=a3c333418a3458b076d9895ffc6f34148552d9e9",
+                "reference": "a3c333418a3458b076d9895ffc6f34148552d9e9",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-28T16:18:54+08:00"
+            "time": "2025-08-28T18:32:16+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "afe031d1da2c6ba2085d8363a34429976b89a0af"
+                "reference": "81650ecaf62e4b3e23fe634b896fe0bfc8237429"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=afe031d1da2c6ba2085d8363a34429976b89a0af",
-                "reference": "afe031d1da2c6ba2085d8363a34429976b89a0af",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=81650ecaf62e4b3e23fe634b896fe0bfc8237429",
+                "reference": "81650ecaf62e4b3e23fe634b896fe0bfc8237429",
                 "shasum": ""
             },
             "require": {
@@ -2671,7 +2671,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-28T18:08:13+08:00"
+            "time": "2025-08-28T21:48:48+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -14538,16 +14538,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.156",
+            "version": "v1.0.157",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "a5bfb45ac52b0a61a43ccb16936846132a33ba13"
+                "reference": "fdf98fcaf162ab3db28084d57eb20fbfdbd59aef"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/a5bfb45ac52b0a61a43ccb16936846132a33ba13",
-                "reference": "a5bfb45ac52b0a61a43ccb16936846132a33ba13",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/fdf98fcaf162ab3db28084d57eb20fbfdbd59aef",
+                "reference": "fdf98fcaf162ab3db28084d57eb20fbfdbd59aef",
                 "shasum": ""
             },
             "require": {
@@ -14582,9 +14582,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.156"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.157"
             },
-            "time": "2025-08-21T11:20:14+00:00"
+            "time": "2025-08-28T10:57:33+00:00"
         },
         {
             "name": "w7corp/easywechat",
