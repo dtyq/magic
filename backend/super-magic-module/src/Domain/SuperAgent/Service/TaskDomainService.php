@@ -73,9 +73,6 @@ class TaskDomainService
         $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
         if (empty($projectEntity->getProjectMode())) {
             $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => $topicMode, 'updated_at' => date('Y-m-d H:i:s')]);
-        } elseif ($projectEntity->getProjectMode() === TopicMode::DATA_ANALYSIS->value) {
-            // fixed the topic mode
-            $topicMode = TopicMode::DATA_ANALYSIS->value;
         }
 
         // Create task

@@ -1612,14 +1612,6 @@ class TaskFileDomainService
      */
     private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode): int
     {
-        // Cache to avoid duplicate database queries in single request
-        static $pathCache = [];
-        $cacheKey = "{$projectId}:{$dirPath}";
-
-        if (isset($pathCache[$cacheKey])) {
-            return $pathCache[$cacheKey];
-        }
-
         // Split path into parts and process each level
         $pathParts = array_filter(explode('/', trim($dirPath, '/')));
         $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode);
@@ -1627,13 +1619,6 @@ class TaskFileDomainService
 
         foreach ($pathParts as $dirName) {
             $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
-            $currentCacheKey = "{$projectId}:{$currentPath}";
-
-            // Check cache first
-            if (isset($pathCache[$currentCacheKey])) {
-                $currentParentId = $pathCache[$currentCacheKey];
-                continue;
-            }
 
             // Look for existing directory
             $existingDir = $this->findDirectoryByParentIdAndName($currentParentId, $dirName, $projectId);
@@ -1645,12 +1630,8 @@ class TaskFileDomainService
                 $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode);
                 $currentParentId = $newDirId;
             }
-
-            // Cache the result
-            $pathCache[$currentCacheKey] = $currentParentId;
         }
 
-        $pathCache[$cacheKey] = $currentParentId;
         return $currentParentId;
     }
 
