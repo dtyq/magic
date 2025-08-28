@@ -38,21 +38,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         parent::tearDown();
     }
 
-    private function createWorkspace() : string
-    {
-        if ($this->workspace_id) {
-            return $this->workspace_id;
-        }
-
-        $requestData = [
-            'workspace_name' => 'test222',
-        ];
-        $response = $this->post(self::BASE_URI.'/workspaces', $requestData, $this->getCommonHeaders());
-        $this->assertEquals(1000, $response['code']);
-        return $this->workspace_id = $response['data']['id'];
-    }
-
-    public function testCreateProject() : string
+    public function testCreateProject(): string
     {
         if ($this->project_id) {
             return $this->project_id;
@@ -64,7 +50,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'project_name' => 'project_name',
             'workspace_id' => $this->createWorkspace(),
         ];
-        $response = $this->post(self::BASE_URI.'/projects', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/projects', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->project_id = $response['data']['project']['id'];
 
@@ -73,7 +59,8 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $this->assertEquals($this->project_id, $logEntity->getResourceId());
         return $this->project_id;
     }
-    public function testUpdateProject() : void
+
+    public function testUpdateProject(): void
     {
         $this->testCreateProject();
 
@@ -82,7 +69,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'project_name' => 'project_name',
             'workspace_id' => $this->createWorkspace(),
         ];
-        $response = $this->put(self::BASE_URI.'/projects/'.$this->project_id, $requestData, $this->getCommonHeaders());
+        $response = $this->put(self::BASE_URI . '/projects/' . $this->project_id, $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
 
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPDATE_PROJECT)[0];
@@ -90,12 +77,12 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $this->assertEquals($this->project_id, $logEntity->getResourceId());
     }
 
-    public function testDeleteProject() : void
+    public function testDeleteProject(): void
     {
         $this->testCreateProject();
 
         $requestData = [];
-        $response = $this->delete(self::BASE_URI.'/projects/'.$this->project_id, $requestData, $this->getCommonHeaders());
+        $response = $this->delete(self::BASE_URI . '/projects/' . $this->project_id, $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
 
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::DELETE_PROJECT)[0];
@@ -104,7 +91,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $this->project_id = '';
     }
 
-    public function testCreateTopic() : string
+    public function testCreateTopic(): string
     {
         if ($this->topic_id) {
             return $this->topic_id;
@@ -114,7 +101,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'workspace_id' => $this->createWorkspace(),
             'project_id' => $this->testCreateProject(),
         ];
-        $response = $this->post(self::BASE_URI.'/topics', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/topics', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->topic_id = $response['data']['id'];
 
@@ -124,14 +111,14 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         return $this->topic_id;
     }
 
-    public function testUpdateTopic() : void
+    public function testUpdateTopic(): void
     {
         $requestData = [
             'topic_name' => 'topic222',
             'workspace_id' => $this->createWorkspace(),
             'project_id' => $this->testCreateProject(),
         ];
-        $response = $this->put(self::BASE_URI.'/topics/'.$this->testCreateTopic(), $requestData, $this->getCommonHeaders());
+        $response = $this->put(self::BASE_URI . '/topics/' . $this->testCreateTopic(), $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
 
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPDATE_TOPIC)[0];
@@ -139,14 +126,14 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $this->assertEquals($this->topic_id, $logEntity->getResourceId());
     }
 
-    public function testDeleteTopic() : void
+    public function testDeleteTopic(): void
     {
         $topicId = $this->testCreateTopic();
         $requestData = [
             'id' => $topicId,
             'workspace_id' => $this->createWorkspace(),
         ];
-        $response = $this->post(self::BASE_URI.'/topics/delete', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/topics/delete', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
 
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::DELETE_TOPIC)[0];
@@ -154,14 +141,14 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $this->assertEquals($topicId, $logEntity->getResourceId());
     }
 
-    public function testRenameTopic() : void
+    public function testRenameTopic(): void
     {
         $topicId = $this->testCreateTopic();
         $requestData = [
             'id' => $topicId,
             'user_question' => '',
         ];
-        $response = $this->post(self::BASE_URI.'/topics/rename', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/topics/rename', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
 
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::RENAME_TOPIC)[0];
@@ -174,7 +161,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $this->assertEquals(1, 0);
     }
 
-    public function testBatchMoveFile() : void
+    public function testBatchMoveFile(): void
     {
         // 创建文件
         $requestData = [
@@ -186,7 +173,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $response = $this->post(self::BASE_URI . '/file', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
-        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int)$this->project_id, OperationAction::UPLOAD_FILE)[0];
+        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPLOAD_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
         $file1Id = $response['data']['file_id'];
 
@@ -200,7 +187,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         $response = $this->post(self::BASE_URI . '/file', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
-        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int)$this->project_id, OperationAction::UPLOAD_FILE)[0];
+        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPLOAD_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
         $file2Id = $response['data']['file_id'];
 
@@ -211,7 +198,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'parent_id' => '',
             'project_id' => $this->testCreateProject(),
         ];
-        $response = $this->post(self::BASE_URI.'/file', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPLOAD_FILE)[0];
@@ -225,7 +212,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         ];
         $response = $this->post(self::BASE_URI . '/file/batch-move', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
-        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int)$this->project_id, OperationAction::BATCH_MOVE_FILE)[0];
+        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::BATCH_MOVE_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
 
         $requestData = [
@@ -234,11 +221,11 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
         ];
         $response = $this->post(self::BASE_URI . '/file/batch-delete', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
-        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int)$this->project_id, OperationAction::BATCH_DELETE_FILE)[0];
+        $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::BATCH_DELETE_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
     }
 
-        public function testCreateFile() : void
+    public function testCreateFile(): void
     {
         // 创建文件
         $requestData = [
@@ -247,7 +234,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'parent_id' => '',
             'project_id' => $this->testCreateProject(),
         ];
-        $response = $this->post(self::BASE_URI.'/file', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPLOAD_FILE)[0];
@@ -256,9 +243,9 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
 
         // 重命名
         $requestData = [
-            'target_name' => 'test1.txt'
+            'target_name' => 'test1.txt',
         ];
-        $response = $this->post(self::BASE_URI.'/file/'.$fileId.'/rename', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file/' . $fileId . '/rename', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::RENAME_FILE)[0];
@@ -271,7 +258,7 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'parent_id' => '',
             'project_id' => $this->testCreateProject(),
         ];
-        $response = $this->post(self::BASE_URI.'/file', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPLOAD_FILE)[0];
@@ -280,9 +267,9 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
 
         // 重命名
         $requestData = [
-            'target_name' => 'test1'
+            'target_name' => 'test1',
         ];
-        $response = $this->post(self::BASE_URI.'/file/'.$directoryId.'/rename', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file/' . $directoryId . '/rename', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::RENAME_FILE)[0];
@@ -290,9 +277,9 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
 
         // 移动文件
         $requestData = [
-            'target_parent_id' => $directoryId
+            'target_parent_id' => $directoryId,
         ];
-        $response = $this->post(self::BASE_URI.'/file/'.$fileId.'/move', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file/' . $fileId . '/move', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::MOVE_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
@@ -312,14 +299,14 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
 
         // 删除文件
         $requestData = [];
-        $response = $this->delete(self::BASE_URI.'/file/'.$fileId, $requestData, $this->getCommonHeaders());
+        $response = $this->delete(self::BASE_URI . '/file/' . $fileId, $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::DELETE_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
 
         // 删除目录
         $requestData = [];
-        $response = $this->delete(self::BASE_URI.'/file/'.$directoryId, $requestData, $this->getCommonHeaders());
+        $response = $this->delete(self::BASE_URI . '/file/' . $directoryId, $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::DELETE_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
@@ -334,13 +321,26 @@ class ProjectOperatorLogApiTest extends AbstractApiTest
             'file_type' => 'user_upload',
             'project_id' => $this->testCreateProject(),
             'source' => 2,
-            'storage_type' => 'workspace'
+            'storage_type' => 'workspace',
         ];
-        $response = $this->post(self::BASE_URI.'/file/project/save', $requestData, $this->getCommonHeaders());
+        $response = $this->post(self::BASE_URI . '/file/project/save', $requestData, $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('file_id', $response['data']);
         $logEntity = $this->projectOperationLogDomainService->getProjectActionOperationLogs((int) $this->project_id, OperationAction::UPLOAD_FILE)[0];
         $this->assertEquals(ResourceType::FILE, $logEntity->getResourceType());
     }
 
+    private function createWorkspace(): string
+    {
+        if ($this->workspace_id) {
+            return $this->workspace_id;
+        }
+
+        $requestData = [
+            'workspace_name' => 'test222',
+        ];
+        $response = $this->post(self::BASE_URI . '/workspaces', $requestData, $this->getCommonHeaders());
+        $this->assertEquals(1000, $response['code']);
+        return $this->workspace_id = $response['data']['id'];
+    }
 }

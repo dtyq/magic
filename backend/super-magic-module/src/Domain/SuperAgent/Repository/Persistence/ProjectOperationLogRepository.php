@@ -35,13 +35,13 @@ class ProjectOperationLogRepository extends AbstractRepository implements Projec
         if ($operationLog->getId() > 0) {
             // 更新现有记录
             $model = $this->operationLogModel::query()->find($operationLog->getId());
-            if (!$model) {
+            if (! $model) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.operation_log.not_found');
             }
             $model->update($attributes);
             return $this->modelToEntity($model->toArray());
         }
-        
+
         // 创建新记录
         $attributes['id'] = IdGenerator::getSnowId();
         $model = $this->operationLogModel::query()->create($attributes);

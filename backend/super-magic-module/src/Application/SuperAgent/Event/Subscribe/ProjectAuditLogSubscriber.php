@@ -33,7 +33,6 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use function Hyperf\Coroutine\co;
 
 /**
  * 项目审计日志事件监听器.

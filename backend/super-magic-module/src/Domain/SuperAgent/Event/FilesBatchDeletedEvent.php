@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 
 /**
  * 文件批量删除事件.
