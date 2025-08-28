@@ -58,7 +58,7 @@ class OpenTaskApi extends AbstractApi
     {
         $taskId = $this->request->input('task_id', '');
         $status = $this->request->input('status', '');
-        $id=$this->request->input('id', '');
+        $id = $this->request->input('id', '');
         /**
          * @var null|MagicUserEntity
          */
@@ -67,8 +67,8 @@ class OpenTaskApi extends AbstractApi
         $this->handApiKey($requestContext, $userEntity);
 
         // 如果task_id为空，则使用id
-        if(empty($taskId)){
-            $taskId=$id;
+        if (empty($taskId)) {
+            $taskId = $id;
         }
 
         if (empty($taskId) || empty($status)) {
