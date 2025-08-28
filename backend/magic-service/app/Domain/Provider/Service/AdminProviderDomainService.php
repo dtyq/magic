@@ -16,6 +16,7 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
@@ -441,9 +442,24 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         return $uniqueModels;
     }
 
-    public function getModelsForOrganization(ProviderDataIsolation $dataIsolation, Category $category, ?Status $status = Status::Enabled): array
+    public function queriesModels(ProviderDataIsolation $dataIsolation, ProviderModelQuery $providerModelQuery): array
     {
-        return $this->providerModelRepository->getModelsForOrganization($dataIsolation, $category, $status);
+        $providerModelEntities = $this->providerModelRepository->getModelsForOrganization($dataIsolation, $providerModelQuery->getCategory(), $providerModelQuery->getStatus());
+
+        // modelId 经过过滤，去重选一个
+        if ($providerModelQuery->isModelIdFilter()) {
+            $uniqueModels = [];
+            foreach ($providerModelEntities as $model) {
+                $modelId = $model->getModelId();
+                // 如果这个 modelId 还没有被添加，则添加
+                if (! isset($uniqueModels[$modelId])) {
+                    $uniqueModels[$modelId] = $model;
+                }
+            }
+            $providerModelEntities = array_values($uniqueModels);
+        }
+
+        return $providerModelEntities;
     }
 
     /**

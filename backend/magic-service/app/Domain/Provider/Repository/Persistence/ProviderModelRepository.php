@@ -201,9 +201,14 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 缓存未命中，执行原逻辑
         // 1. 先查询组织下启用的服务商配置ID
-        $enabledConfigQuery = ProviderConfigModel::query()
+        $builder = ProviderConfigModel::query();
+
+        if ($status !== null) {
+            $builder->where('status', $status->value);
+        }
+
+        $enabledConfigQuery = $builder
             ->where('organization_code', $organizationCode)
-            ->where('status', Status::Enabled->value)
             ->whereNull('deleted_at')
             ->select('id');
         $enabledConfigIds = Db::select($enabledConfigQuery->toSql(), $enabledConfigQuery->getBindings());
@@ -214,7 +219,6 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! empty($enabledConfigIdArray)) {
             $organizationModelsBuilder = $this->createProviderModelQuery()
                 ->where('organization_code', $organizationCode)
-                ->where('status', Status::Enabled->value)
                 ->whereIn('service_provider_config_id', $enabledConfigIdArray);
             if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
                 // 查询普通组织自己的模型。 官方组织的模型现在 model_parent_id 等于它自己，需要洗数据。
@@ -223,6 +227,10 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
             // 如果指定了分类，添加分类过滤条件
             if ($category !== null) {
                 $organizationModelsBuilder->where('category', $category->value);
+            }
+
+            if ($status !== null) {
+                $builder->where('status', $status->value);
             }
 
             $organizationModelsResult = Db::select($organizationModelsBuilder->toSql(), $organizationModelsBuilder->getBindings());

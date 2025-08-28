@@ -18,7 +18,6 @@ use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
 use App\Domain\Mode\Entity\ModeGroupEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
-use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use Hyperf\Contract\TranslatorInterface;
 
 class ModeAssembler
