@@ -17,6 +17,7 @@ use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
 use App\Domain\Mode\Entity\ModeGroupEntity;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use Hyperf\Contract\TranslatorInterface;
 
 class ModeAssembler
@@ -79,6 +80,7 @@ class ModeAssembler
 
     /**
      * 将ModeAggregate转换为扁平化的分组DTO数组.
+     * @param $providerModels ProviderModelEntity[]
      * @return ModeGroupDetailDTO[]
      */
     public static function aggregateToFlatGroupsDTO(ModeAggregate $aggregate, array $providerModels = []): array
@@ -86,8 +88,10 @@ class ModeAssembler
         $flatGroups = [];
 
         foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
-            $modeGroupDetailDTO = new ModeGroupDetailDTO($groupAggregate->getGroup()->toArray());
-
+            $modeGroupEntity = $groupAggregate->getGroup();
+            $modeGroupDetailDTO = new ModeGroupDetailDTO($modeGroupEntity->toArray());
+            $locale = di(TranslatorInterface::class)->getLocale();
+            $modeGroupDetailDTO->setName($modeGroupEntity->getNameI18n()[$locale]);
             // 设置模型信息
             $models = [];
             foreach ($groupAggregate->getRelations() as $relation) {
