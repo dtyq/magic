@@ -149,13 +149,5 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
                 $this->businessParams[$paramKey] = $headerConfigs[$headerKey];
             }
         }
-
-        // 其余 magic- 开头的统一处理，跳过已显式处理的键
-        foreach ($headerConfigs as $key => $value) {
-            if (str_starts_with($key, 'magic-') && ! array_key_exists($key, $explicitMap)) {
-                $businessKey = str_replace('-', '_', substr($key, 6));
-                $this->businessParams[$businessKey] = $value;
-            }
-        }
     }
 }
