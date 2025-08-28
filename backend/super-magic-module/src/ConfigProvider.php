@@ -17,6 +17,8 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
@@ -117,6 +119,9 @@ class ConfigProvider
                 TokenUsageRecordRepositoryInterface::class => TokenUsageRecordRepository::class,
                 WorkspaceVersionRepositoryInterface::class => WorkspaceVersionRepository::class,
                 ProjectForkRepositoryInterface::class => ProjectForkRepository::class,
+
+                // agent 管理
+                SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,
