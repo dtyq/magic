@@ -149,5 +149,8 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
                 $this->businessParams[$paramKey] = $headerConfigs[$headerKey];
             }
         }
+        if (isset($headerConfigs['magic-language'])) {
+            $this->businessParams['language'] = $headerConfigs['magic-language'];
+        }
     }
 }
