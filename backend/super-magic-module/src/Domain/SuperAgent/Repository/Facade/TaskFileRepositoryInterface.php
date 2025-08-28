@@ -217,12 +217,6 @@ interface TaskFileRepositoryInterface
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
 
-    public function updateFileByCondition(array $condition, array $data): bool;
-
-    public function lockDirectChildrenForUpdate(int $parentId): array;
-
-    public function getAllChildrenByParentId(int $parentId): array;
-
     /**
      * Count files by project ID.
      *
@@ -252,4 +246,11 @@ interface TaskFileRepositoryInterface
      * @return int Number of affected rows
      */
     public function batchUpdateParentId(array $fileIds, int $parentId, string $userId): int;
+
+    public function updateFileByCondition(array $condition, array $data): bool;
+
+    public function lockDirectChildrenForUpdate(int $parentId): array;
+
+    public function getAllChildrenByParentId(int $parentId): array;
+
 }

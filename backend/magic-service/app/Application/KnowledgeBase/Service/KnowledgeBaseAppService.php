@@ -93,7 +93,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
                 businessParams: [
                     'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $dataIsolation->getCurrentUserId(),
-                    'business_id' => $magicFlowKnowledgeEntity->getBusinessId(),
+                    'business_id' => $magicFlowKnowledgeEntity->getForceCreateCode(),
                     'source_id' => 'knowledge_embedding_test',
                     'knowledge_info' => [
                         'id' => $magicFlowKnowledgeEntity->getId(),

@@ -149,6 +149,11 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected ?string $correlationId = null;
 
+    /**
+     * @var null|int IM 状态
+     */
+    protected ?int $imStatus = null;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -425,6 +430,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getImStatus(): ?int
+    {
+        return $this->imStatus;
+    }
+
+    public function setImStatus(?int $imStatus): self
+    {
+        $this->imStatus = $imStatus;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -455,6 +471,7 @@ class TaskMessageEntity extends AbstractEntity
             'processed_at' => $this->processedAt,
             'im_seq_id' => $this->imSeqId,
             'correlation_id' => $this->correlationId,
+            'im_status' => $this->imStatus,
         ];
 
         return array_filter($result, function ($value) {

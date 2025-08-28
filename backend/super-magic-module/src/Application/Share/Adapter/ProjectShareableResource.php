@@ -114,10 +114,8 @@ class ProjectShareableResource implements ResourceFactoryInterface
     {
         try {
             // Check if user can access the project
-            $projectEntity = $this->projectAppService->getProjectNotUserId((int) $resourceId);
-            if ($projectEntity === null || $projectEntity->getUserId() !== $userId) {
-                return false;
-            }
+            $this->projectAppService->getAccessibleProject((int) $resourceId, $userId, $organizationCode);
+
             return true;
         } catch (Exception $e) {
             $this->logger->warning('Project share permission check failed: ' . $e->getMessage());

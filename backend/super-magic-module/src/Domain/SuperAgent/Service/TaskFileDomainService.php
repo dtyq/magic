@@ -1965,6 +1965,39 @@ class TaskFileDomainService
     }
 
     /**
+     * Batch fix parent_id for files that couldn't be resolved during initial processing.
+     *
+     * @param array $needFixFileIds Array of files needing parent_id fixes
+     * @param array $sourceToNewIdMap Mapping from source file ID to new file ID
+     * @param string $userId User performing the update
+     */
+    private function batchFixParentIds(array $needFixFileIds, array $sourceToNewIdMap, string $userId): void
+    {
+        // Group files by their old parent_id for batch processing
+        $parentGroups = [];
+        foreach ($needFixFileIds as $fixInfo) {
+            $oldParentId = $fixInfo['old_parent_id'];
+            $newFileId = $fixInfo['new_id'];
+
+            if (isset($sourceToNewIdMap[$oldParentId])) {
+                $newParentId = $sourceToNewIdMap[$oldParentId];
+                $parentGroups[$newParentId][] = $newFileId;
+            }
+        }
+
+        // Batch update files by parent_id groups using repository
+        foreach ($parentGroups as $newParentId => $fileIds) {
+            $updatedCount = $this->taskFileRepository->batchUpdateParentId($fileIds, $newParentId, $userId);
+            $this->logger->debug(sprintf(
+                'Updated parent_id to %d for %d files (affected: %d)',
+                $newParentId,
+                count($fileIds),
+                $updatedCount
+            ));
+        }
+    }
+
+    /**
      * Acquire project-level move lock.
      */
     private function acquireProjectMoveLock(int $projectId): array
@@ -2108,38 +2141,5 @@ class TaskFileDomainService
         $newTaskFile->setUpdatedAt(date('Y-m-d H:i:s'));
 
         return $newTaskFile;
-    }
-
-    /**
-     * Batch fix parent_id for files that couldn't be resolved during initial processing.
-     *
-     * @param array $needFixFileIds Array of files needing parent_id fixes
-     * @param array $sourceToNewIdMap Mapping from source file ID to new file ID
-     * @param string $userId User performing the update
-     */
-    private function batchFixParentIds(array $needFixFileIds, array $sourceToNewIdMap, string $userId): void
-    {
-        // Group files by their old parent_id for batch processing
-        $parentGroups = [];
-        foreach ($needFixFileIds as $fixInfo) {
-            $oldParentId = $fixInfo['old_parent_id'];
-            $newFileId = $fixInfo['new_id'];
-
-            if (isset($sourceToNewIdMap[$oldParentId])) {
-                $newParentId = $sourceToNewIdMap[$oldParentId];
-                $parentGroups[$newParentId][] = $newFileId;
-            }
-        }
-
-        // Batch update files by parent_id groups using repository
-        foreach ($parentGroups as $newParentId => $fileIds) {
-            $updatedCount = $this->taskFileRepository->batchUpdateParentId($fileIds, $newParentId, $userId);
-            $this->logger->debug(sprintf(
-                'Updated parent_id to %d for %d files (affected: %d)',
-                $newParentId,
-                count($fileIds),
-                $updatedCount
-            ));
-        }
     }
 }

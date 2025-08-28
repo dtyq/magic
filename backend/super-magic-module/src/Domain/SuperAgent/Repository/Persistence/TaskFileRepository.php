@@ -718,27 +718,6 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
-    public function lockDirectChildrenForUpdate(int $parentId): array
-    {
-        return $this->model::query()
-            ->where('parent_id', $parentId)
-            ->orderBy('sort', 'ASC')
-            ->orderBy('file_id', 'ASC')
-            ->lockForUpdate()
-            ->get()
-            ->toArray();
-    }
-
-    public function getAllChildrenByParentId(int $parentId): array
-    {
-        return $this->model::query()
-            ->where('parent_id', $parentId)
-            ->orderBy('sort', 'ASC')
-            ->orderBy('file_id', 'ASC')
-            ->get()
-            ->toArray();
-    }
-
     /**
      * Count files by project ID.
      */
@@ -798,5 +777,26 @@ class TaskFileRepository implements TaskFileRepositoryInterface
                 'parent_id' => $parentId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
+    }
+
+    public function lockDirectChildrenForUpdate(int $parentId): array
+    {
+        return $this->model::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('sort', 'ASC')
+            ->orderBy('file_id', 'ASC')
+            ->lockForUpdate()
+            ->get()
+            ->toArray();
+    }
+
+    public function getAllChildrenByParentId(int $parentId): array
+    {
+        return $this->model::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('sort', 'ASC')
+            ->orderBy('file_id', 'ASC')
+            ->get()
+            ->toArray();
     }
 }
