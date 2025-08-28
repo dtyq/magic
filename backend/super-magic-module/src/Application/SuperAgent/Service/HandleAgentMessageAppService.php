@@ -424,7 +424,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             $taskContext->getTopicId(),
             $topicEntity->getTopicName(),
             $taskContext->getTask()->getId(),
-            $messageDTO
+            $messageDTO,
+            $messageDTO->getMetadata()->getLanguage()
         ));
     }
 
