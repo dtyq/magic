@@ -191,4 +191,8 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('task.access_token.not_found')]
     case ACCESS_TOKEN_NOT_FOUND = 51254;
+
+    // Message Queue related error codes (51290-51299) - allocated from highest numbers
+    #[ErrorMessage('message_queue.status_not_modifiable')]
+    case MESSAGE_STATUS_NOT_MODIFIABLE = 51299;
 }

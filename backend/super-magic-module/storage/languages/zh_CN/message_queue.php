@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 return [
     'cannot_modify_message' => '当前状态下无法修改消息',
+    'status_not_modifiable' => '消息状态不允许修改',
     'update_failed' => '更新消息失败',
     'cannot_consume_message' => '当前状态下无法消费消息',
     'consume_failed' => '消费消息失败',

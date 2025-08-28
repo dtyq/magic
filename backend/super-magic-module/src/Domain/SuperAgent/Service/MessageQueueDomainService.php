@@ -18,6 +18,8 @@ use Exception;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Redis\Redis;
 
+use function Hyperf\Translation\trans;
+
 class MessageQueueDomainService
 {
     private const LOCK_PREFIX = 'message_queue_lock:';
@@ -78,8 +80,8 @@ class MessageQueueDomainService
             // Check if message can be modified
             if (! $entity->canBeModified()) {
                 ExceptionBuilder::throw(
-                    SuperAgentErrorCode::VALIDATE_FAILED,
-                    'message_queue.cannot_modify_message'
+                    SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE,
+                    trans('message_queue.status_not_modifiable')
                 );
             }
 
@@ -107,6 +109,14 @@ class MessageQueueDomainService
     {
         // Verify access permission
         $entity = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
+
+        // Check if message can be deleted (same rule as modification)
+        if (! $entity->canBeModified()) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE,
+                trans('message_queue.status_not_modifiable')
+            );
+        }
 
         $lockKey = $this->getLockKey('delete', $entity->getTopicId(), $dataIsolation->getCurrentUserId());
 
@@ -168,7 +178,7 @@ class MessageQueueDomainService
             $success = $this->messageQueueRepository->updateWithConditions(
                 $entity->getId(),
                 [
-                    'status' => MessageQueueStatus::IN_PROGRESS->value,
+                    'status' => MessageQueueStatus::COMPLETED->value,
                     'execute_time' => date('Y-m-d H:i:s'),
                 ],
                 ['status' => MessageQueueStatus::PENDING->value] // Only update if still pending
@@ -182,7 +192,7 @@ class MessageQueueDomainService
             }
 
             // Update entity status
-            $entity->markAsInProgress();
+            $entity->markAsCompleted();
             return $entity;
         });
     }
@@ -212,7 +222,7 @@ class MessageQueueDomainService
     /**
      * Get message for specific user with permission check.
      */
-    private function getMessageForUser(int $messageId, string $userId): MessageQueueEntity
+    public function getMessageForUser(int $messageId, string $userId): MessageQueueEntity
     {
         $entity = $this->messageQueueRepository->getByIdForUser($messageId, $userId);
 
