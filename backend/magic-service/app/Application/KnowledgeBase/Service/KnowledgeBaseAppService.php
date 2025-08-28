@@ -9,6 +9,7 @@ namespace App\Application\KnowledgeBase\Service;
 
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Flow\Entity\ValueObject\Code;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
@@ -82,6 +83,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         }
 
         $modelName = $magicFlowKnowledgeEntity->getModel();
+        $magicFlowKnowledgeEntity->setForceCreateCode(Code::Knowledge->gen());
         // 创建知识库前，先对嵌入模型进行连通性测试
         try {
             $embeddingModel = di(ModelGatewayMapper::class)->getEmbeddingModelProxy($magicFlowKnowledgeEntity->getModel(), $dataIsolation->getCurrentOrganizationCode());
@@ -96,7 +98,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
                     'knowledge_info' => [
                         'id' => $magicFlowKnowledgeEntity->getId(),
                         'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                        'code' => $magicFlowKnowledgeEntity->getCode(),
+                        'code' => $magicFlowKnowledgeEntity->getForceCreateCode(),
                         'name' => $magicFlowKnowledgeEntity->getName(),
                         'business_id' => $magicFlowKnowledgeEntity->getBusinessId(),
                     ],
