@@ -22,7 +22,6 @@ class ModeGroupModelDTO extends AbstractDTO
     protected string $modelIcon = '';
 
     protected int $sort = 0;
-
     public function getId(): string
     {
         return $this->id;
