@@ -114,12 +114,12 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     public function getTopicId(): ?string
     {
-        return $this->getHeaderConfig('topic_id');
+        return $this->getHeaderConfig('magic-topic-id');
     }
 
     public function getTaskId(): ?string
     {
-        return $this->getHeaderConfig('task_id');
+        return $this->getHeaderConfig('magic-task-id');
     }
 
     public function isEnableHighAvailability(): bool
