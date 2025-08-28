@@ -220,6 +220,22 @@ class MessageQueueDomainService
     }
 
     /**
+     * Update message status by message ID.
+     */
+    public function updateMessageStatus(
+        int $messageId,
+        MessageQueueStatus $status,
+        ?string $errorMessage = null
+    ): bool {
+        // Domain rule: Limit error message length to prevent database issues
+        if ($errorMessage !== null && mb_strlen($errorMessage) > 500) {
+            $errorMessage = mb_substr($errorMessage, 0, 497) . '...';
+        }
+
+        return $this->messageQueueRepository->updateStatus($messageId, $status, $errorMessage);
+    }
+
+    /**
      * Get message for specific user with permission check.
      */
     public function getMessageForUser(int $messageId, string $userId): MessageQueueEntity
