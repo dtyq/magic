@@ -87,6 +87,11 @@ class MessageItemDTO implements JsonSerializable
     protected array $attachments;
 
     /**
+     * @var null|string IM状态（来自magic_chat_sequences表）
+     */
+    protected ?string $imStatus;
+
+    /**
      * 构造函数.
      */
     public function __construct(array $data = [])
@@ -114,6 +119,7 @@ class MessageItemDTO implements JsonSerializable
         $this->sendTimestamp = (int) ($data['send_timestamp'] ?? 0);
         $this->event = (string) ($data['event'] ?? '');
         $this->attachments = $data['attachments'] ?? [];
+        $this->imStatus = isset($data['im_status']) ? $this->convertImStatusToString((int) $data['im_status']) : null;
     }
 
     /**
@@ -137,6 +143,7 @@ class MessageItemDTO implements JsonSerializable
             'send_timestamp' => $this->sendTimestamp,
             'event' => $this->event,
             'attachments' => $this->attachments,
+            'im_status' => $this->imStatus,
         ];
     }
 
@@ -146,5 +153,19 @@ class MessageItemDTO implements JsonSerializable
     public function jsonSerialize(): array
     {
         return $this->toArray();
+    }
+
+    /**
+     * 将IM状态数字转换为字符串（参考MagicMessageStatus枚举）.
+     */
+    private function convertImStatusToString(int $status): string
+    {
+        return match ($status) {
+            0 => 'unread',
+            1 => 'seen',
+            2 => 'read',
+            3 => 'revoked',
+            default => 'unread',
+        };
     }
 }

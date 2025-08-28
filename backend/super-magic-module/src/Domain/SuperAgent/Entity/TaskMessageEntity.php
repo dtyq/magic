@@ -144,6 +144,11 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected ?int $imSeqId = null;
 
+    /**
+     * @var null|int IM 状态（来自magic_chat_sequences表的status字段）
+     */
+    protected ?int $imStatus = null;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -409,6 +414,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getImStatus(): ?int
+    {
+        return $this->imStatus;
+    }
+
+    public function setImStatus(?int $imStatus): self
+    {
+        $this->imStatus = $imStatus;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -438,6 +454,7 @@ class TaskMessageEntity extends AbstractEntity
             'retry_count' => $this->retryCount,
             'processed_at' => $this->processedAt,
             'im_seq_id' => $this->imSeqId,
+            'im_status' => $this->imStatus,
         ];
 
         return array_filter($result, function ($value) {
